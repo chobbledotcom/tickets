@@ -25,16 +25,16 @@ const ATTRIBUTE: AttributeWithOptions = {
   id: 1,
   name: "Colour",
   options: [
-    { attribute_id: 1, id: 10, sort_order: 0, text: "Red" },
-    { attribute_id: 1, id: 11, sort_order: 1, text: "Blue" },
+    { attributeId: 1, id: 10, sortOrder: 0, text: "Red" },
+    { attributeId: 1, id: 11, sortOrder: 1, text: "Blue" },
   ],
-  sort_order: 0,
+  sortOrder: 0,
 };
 const ATTRIBUTE_B: AttributeWithOptions = {
   id: 2,
   name: "Size",
   options: [],
-  sort_order: 1,
+  sortOrder: 1,
 };
 const OPTION: AttributeOption = ATTRIBUTE.options[0]!;
 
@@ -268,7 +268,7 @@ describe("ListingAttributesPanel", () => {
     );
     expectIncludesAll(html, [
       '<a class="btn small" href="/admin/attributes">',
-      '<input checked name="option_ids" type="checkbox" value="10">',
+      '<input checked name="optionIds" type="checkbox" value="10">',
     ]);
   });
 
@@ -298,7 +298,7 @@ describe("ListingAttributesPanel", () => {
     );
 
     assertStringIncludes(html, "<em>No options for this attribute yet.</em>");
-    assert(!html.includes('name="option_ids"'));
+    assert(!html.includes('name="optionIds"'));
   });
 
   test("offers the one option an attribute has", () => {
@@ -317,7 +317,7 @@ describe("ListingAttributesPanel", () => {
 
     assertStringIncludes(
       html,
-      '<input name="option_ids" type="checkbox" value="10">',
+      '<input name="optionIds" type="checkbox" value="10">',
     );
     assert(!html.includes("No options for this attribute yet."));
   });

@@ -6,7 +6,10 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { readOneRow } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { processUploadsAndRedirect } from "#routes/admin/listings-uploads.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -51,7 +54,7 @@ describeWithEnv("removing a listing's attachment", { db: true }, () => {
     // record anyway would lose the only pointer to a file still sitting in
     // storage, so the record keeps it and the operator is told.
     const listing = await createTestListing({ name: "Has A Leaflet" });
-    await listingsTable.update(listing.id, {
+    await updateListing(listing.id, {
       attachmentName: "leaflet.pdf",
       attachmentUrl: "https://example.test/leaflet.pdf",
     });
@@ -66,10 +69,11 @@ describeWithEnv("removing a listing's attachment", { db: true }, () => {
       "Attachment removal failed",
       false,
     )(response);
-    const after = await listingsTable.read.pick(["attachment_url"]).one({
-      id: listing.id,
-    });
-    expect(after!.attachment_url).toBe("https://example.test/leaflet.pdf");
+    expect(
+      await readOneRow(
+        from(tables.listings).where({ id: listing.id }).pick("attachmentUrl"),
+      ),
+    ).toEqual({ attachmentUrl: "https://example.test/leaflet.pdf" });
   });
 
   test("reports success when there was nothing to remove", async () => {

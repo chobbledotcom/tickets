@@ -1,14 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
-import {
-  getAllModifiers,
-  modifiersTable,
-  setModifierAnswers,
-} from "#db/modifiers.ts";
+import { getAllModifiers } from "#db/modifiers.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { createDailyListing } from "#test/integration/server/public/daily-listing.ts";
@@ -20,6 +15,8 @@ import { submitTicketForm } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
+import { setupAnswerTier } from "#test-utils/modifiers.ts";
 
 describeWithEnv(
   "server public > custom questions (single ticket)",
@@ -28,22 +25,15 @@ describeWithEnv(
     describe("single-ticket with custom questions", () => {
       /** Create a question with answers and assign it to an listing */
       const setupQuestionForListing = async (listingId: number) => {
-        const q = await questionsTable.insert({
-          displayType: "radio",
+        const {
+          answers: [answer1, answer2],
+          question,
+        } = await seedQuestion({
+          answers: ["Small", "Large"],
+          listingIds: [listingId],
           text: "T-shirt size?",
         });
-        const a1 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
-          text: "Small",
-        });
-        const a2 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 1,
-          text: "Large",
-        });
-        await listingQuestions.setIds(listingId, [q.id]);
-        return { answer1: a1, answer2: a2, question: q };
+        return { answer1, answer2, question };
       };
 
       test("saves answers when question is answered correctly", async () => {
@@ -56,7 +46,7 @@ describeWithEnv(
         const response = await submitTicketForm(listing.slug, {
           email: "question@example.com",
           name: "Question User",
-          [`question_${question.id}`]: String(answer1.id),
+          [`question${question.id}`]: String(answer1.id),
         });
         expectReservedRedirectWithTokens(response);
 
@@ -79,37 +69,27 @@ describeWithEnv(
         await submitTicketForm(listing.slug, {
           email: "record@example.com",
           name: "Record User",
-          [`question_${question.id}`]: String(answer2.id),
+          [`question${question.id}`]: String(answer2.id),
         });
 
         const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
         const [attendee] = await getAttendeesRaw(listing.id);
         expect(
           await queryAll(
-            "SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ?",
-            [attendee!.id],
+            sql`SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ${attendee!.id}`,
           ),
         ).toEqual([{ answer_id: answer2.id, question_id: question.id }]);
       });
 
       test("blocks the booking when a sold-out answer tier is selected", async () => {
         const listing = await createTestListing({ maxAttendees: 50 });
-        const { question, answer1 } = await setupQuestionForListing(listing.id);
         // A stock-limited answer tier with no stock left, linked to "Small".
-        const tier = await modifiersTable.insert({
-          calcKind: "fixed",
-          calcValue: 5,
-          direction: "charge",
-          name: "VIP upgrade",
-          stock: 0,
-          trigger: "answer",
-        });
-        await setModifierAnswers(tier.id, [answer1.id]);
+        const { answerId, questionId } = await setupAnswerTier(listing);
 
         const response = await submitTicketForm(listing.slug, {
           email: "vip@example.com",
           name: "VIP User",
-          [`question_${question.id}`]: String(answer1.id),
+          [`question${questionId}`]: String(answerId),
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -124,24 +104,18 @@ describeWithEnv(
           maxAttendees: 50,
           thankYouUrl: "",
         });
-        const { question, answer1 } = await setupQuestionForListing(listing.id);
         // Payments are disabled here, so bookings are taken without charging — but
         // a stock-limited answer tier must still be consumed so it can't be
         // over-sold across bookings.
-        const tier = await modifiersTable.insert({
-          calcKind: "fixed",
-          calcValue: 5,
-          direction: "charge",
-          name: "VIP upgrade",
-          stock: 1,
-          trigger: "answer",
-        });
-        await setModifierAnswers(tier.id, [answer1.id]);
+        const { answerId, modifierId, questionId } = await setupAnswerTier(
+          listing,
+          { stock: 1 },
+        );
 
         const first = await submitTicketForm(listing.slug, {
           email: "first@example.com",
           name: "First",
-          [`question_${question.id}`]: String(answer1.id),
+          [`question${questionId}`]: String(answerId),
         });
         expectReservedRedirectWithTokens(first);
         // A redirect is not an indexable page: only 2xx answers carry
@@ -154,16 +128,16 @@ describeWithEnv(
         // reservation's would be. total_revenue now projects that net balance —
         // balanceOf(modifier) = +£5.00 — read directly from the ledger.
         const afterFirst = (await getAllModifiers()).find(
-          (m) => m.id === tier.id,
+          (m) => m.id === modifierId,
         );
-        expect(afterFirst?.total_uses).toBe(1);
-        expect(afterFirst?.total_revenue).toBe(500);
+        expect(afterFirst?.totalUses).toBe(1);
+        expect(afterFirst?.totalRevenue).toBe(500);
 
         // The single unit is now spent, so the next booking of the tier is blocked.
         const second = await submitTicketForm(listing.slug, {
           email: "second@example.com",
           name: "Second",
-          [`question_${question.id}`]: String(answer1.id),
+          [`question${questionId}`]: String(answerId),
         });
         expect(second.status).toBe(302);
         expectFlash(
@@ -193,7 +167,7 @@ describeWithEnv(
         const response = await submitTicketForm(listing.slug, {
           email: "question@example.com",
           name: "Question User",
-          [`question_${question.id}`]: "99999",
+          [`question${question.id}`]: "99999",
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -216,7 +190,7 @@ describeWithEnv(
           date: validDate,
           email: "dailyq@example.com",
           name: "Daily Q User",
-          [`question_${question.id}`]: String(answer1.id),
+          [`question${question.id}`]: String(answer1.id),
         });
         expectReservedRedirectWithTokens(response);
       });

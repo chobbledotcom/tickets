@@ -1,4 +1,6 @@
 import { dateToRange } from "#db/capacity.ts";
+import { greaterThan, lessThan, valued } from "#db/select/expression.ts";
+import type { Node, Query, Valued } from "#db/select/shape.ts";
 import { filter, map, pipe, sumOf } from "#fp";
 import { addDays } from "#shared/dates.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
@@ -25,12 +27,36 @@ export const expandDailyRange = (
 };
 
 /** Half-open span covering a non-empty set of YYYY-MM-DD days. */
-export const daySpan = (days: string[]): { startAt: string; endAt: string } => {
+const daySpan = (days: string[]): { startAt: string; endAt: string } => {
   const sorted = days.toSorted();
   return {
     endAt: dateToRange(sorted.at(-1)!).endAt,
     startAt: `${sorted[0]!}T00:00:00Z`,
   };
+};
+
+type Line = Node<"listing_attendees">;
+
+/** The statement that reads the range and the quantity of each line of `read`
+ *  whose range overlaps the days, under the id that `owner` picks. A line that
+ *  overlaps holds both ends of its range. */
+export const spanLoadsOf = <Root extends Line, First>(
+  read: Query<Root, First>,
+  days: string[],
+  owner: Valued<Root, number>,
+) => {
+  const { startAt, endAt } = daySpan(days);
+  return read
+    .where((line) => [
+      lessThan(line.startAt, endAt),
+      greaterThan(line.endAt, startAt),
+    ])
+    .select((line) => ({
+      end_at: valued<string>(line.endAt),
+      owner_id: owner(line),
+      quantity: line.quantity,
+      start_at: valued<string>(line.startAt),
+    }));
 };
 
 /** A booking row's stored range and quantity. */

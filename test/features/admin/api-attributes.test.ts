@@ -2,23 +2,23 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  attributesTable,
   getAllAttributesWithOptions,
   getAttributeWithOptions,
   listingAttributeOptions,
 } from "#db/attributes.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
+import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
 import {
   assertApiDeleteOk,
   assertJson,
   expectRejectsEmptyName,
 } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
   createTestAttributeOption,
 } from "#test-utils/db-helpers/attributes.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
+import { describeWithAttributes as describeWithEnv } from "#test-utils/feature-suites.ts";
 import {
   apiRequest,
   createTestManagerSession,
@@ -49,12 +49,8 @@ describeWithEnv("Admin API - Attributes", { db: true }, () => {
       });
     });
 
-    test("returns 401 without auth", async () => {
-      const response = await handleRequest(
-        mockRequest("/api/admin/attributes"),
-      );
-      expect(response.status).toBe(401);
-    });
+    test("returns 401 without auth", () =>
+      expectUnauthorized("/api/admin/attributes"));
   });
 
   describe("GET /api/admin/attributes/:attributeId", () => {
@@ -205,7 +201,7 @@ describeWithEnv("Admin API - Attributes", { db: true }, () => {
       // path must still treat such a row as existing: an absent name falls back
       // to the stored value (and fails as "cannot be empty"), not to the
       // create path's "is required".
-      const row = await attributesTable.insert({ name: "" });
+      const row = await records.attributes.insert({ name: "" });
       await assertJson(
         apiRequest(`/api/admin/attributes/${row.id}`, {
           body: {},

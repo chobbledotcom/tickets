@@ -40,3 +40,15 @@ export const dateLabelColumn = <Row, TContext = undefined>(
   translatedTableColumn<Row, string, TContext>(key, headerKey, (row) =>
     formatDateLabel(date(row).slice(0, 10)),
   );
+
+/** A keyed table column that names one value through its copy key, such as a
+ *  status read from an exhaustive label record. */
+export const labelColumn = <Row, Value extends string>(
+  key: string,
+  headerKey: string,
+  labelKeys: Readonly<Record<Value, string>>,
+  value: (row: Row) => Value,
+): TableColumn<Row> =>
+  translatedTableColumn<Row, string>(key, headerKey, (row) =>
+    t(labelKeys[value(row)]),
+  );

@@ -8,6 +8,7 @@ import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertJson,
+  expectErrorFlash,
   expectFlash,
   expectHtml,
   expectHtmlResponse,
@@ -15,6 +16,7 @@ import {
   redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { testRejectsEmptyField } from "#test-utils/form-refusals.ts";
 import { mockFormRequest, withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 import {
@@ -30,7 +32,7 @@ describeAdminSettings(() => {
   ): Promise<void> =>
     withSuccessfulStripeWebhook(async () => {
       const { response } = await adminFormPost("/admin/settings/stripe", {
-        stripe_secret_key: secretKey,
+        stripeSecretKey: secretKey,
       });
       await body(response);
     });
@@ -67,7 +69,7 @@ describeAdminSettings(() => {
   describe("POST /admin/settings/stripe", () => {
     testRequiresAuth("/admin/settings/stripe", {
       body: {
-        stripe_secret_key: "sk_test_123",
+        stripeSecretKey: "sk_test_123",
       },
       method: "POST",
     });
@@ -77,8 +79,8 @@ describeAdminSettings(() => {
         mockFormRequest(
           "/admin/settings/stripe",
           {
-            csrf_token: "invalid-csrf-token",
-            stripe_secret_key: "sk_test_123",
+            csrfToken: "invalid-csrf-token",
+            stripeSecretKey: "sk_test_123",
           },
           await testCookie(),
         ),
@@ -86,39 +88,26 @@ describeAdminSettings(() => {
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
-    test("rejects missing stripe key", async () => {
-      const { response } = await adminFormPost("/admin/settings/stripe", {
-        stripe_secret_key: "",
-      });
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("required"), false);
-    });
+    testRejectsEmptyField(
+      "rejects missing stripe key",
+      "/admin/settings/stripe",
+      { stripeSecretKey: "" },
+    );
 
-    test("rejects invalid stripe key format", async () => {
-      await settings.update.paymentProvider("stripe");
-      const { response } = await adminFormPost("/admin/settings/stripe", {
-        stripe_secret_key: "invalid_key_123",
+    /** Keys the Stripe check refuses on format alone: a plain secret with a
+     *  broken body and a restricted key. */
+    for (const [name, key] of [
+      ["rejects invalid stripe key format", "invalid_key_123"],
+      ["rejects restricted key format", "rk_test_abc123"],
+    ] as const) {
+      test(name, async () => {
+        await settings.update.paymentProvider("stripe");
+        const { response } = await adminFormPost("/admin/settings/stripe", {
+          stripeSecretKey: key,
+        });
+        expectErrorFlash(response, "Invalid Stripe key format");
       });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Invalid Stripe key format"),
-        false,
-      );
-    });
-
-    test("rejects restricted key format", async () => {
-      await settings.update.paymentProvider("stripe");
-      const { response } = await adminFormPost("/admin/settings/stripe", {
-        stripe_secret_key: "rk_test_abc123",
-      });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Invalid Stripe key format"),
-        false,
-      );
-    });
+    }
 
     test("updates Stripe key successfully", async () => {
       await stubWebhookAndPostStripe(
@@ -191,7 +180,7 @@ describeAdminSettings(() => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/stripe/test",
-          { csrf_token: "invalid-csrf-token" },
+          { csrfToken: "invalid-csrf-token" },
           await testCookie(),
         ),
       );
@@ -273,7 +262,7 @@ describeAdminSettings(() => {
         await settings.update.paymentProvider("stripe");
 
         const { response } = await adminFormPost("/admin/settings/stripe", {
-          stripe_secret_key: "sk_test_webhook_fail",
+          stripeSecretKey: "sk_test_webhook_fail",
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -306,7 +295,7 @@ describeAdminSettings(() => {
         async () => {
           await expect(
             adminFormPost("/admin/settings/stripe", {
-              stripe_secret_key: "sk_test_new_key",
+              stripeSecretKey: "sk_test_new_key",
             }),
           ).rejects.toThrow("Stripe cleanup failed");
           expect(settings.stripe.secretKey).toBe("sk_test_new_key");
@@ -367,7 +356,7 @@ describeAdminSettings(() => {
           }),
           async ({ cleanup, setup }) => {
             await adminFormPost("/admin/settings/stripe", {
-              stripe_secret_key: entry.newKey,
+              stripeSecretKey: entry.newKey,
             });
             expect(setup.calls[0]?.args).toEqual([
               entry.newKey,

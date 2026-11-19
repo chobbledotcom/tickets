@@ -7,7 +7,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { modifiersTable } from "#db/modifiers.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
@@ -17,19 +17,18 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { setupAnswerTier } from "#test-utils/modifiers.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { createStripeListing } from "#test-utils/stripe-listing.ts";
 
 describeWithEnv("server (/calculate running total)", { db: true }, () => {
   test("returns a priced summary for a valid selection", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxQuantity: 5,
       name: "Adult Ticket",
       unitPrice: 1500,
     });
 
     const response = await postRunningTotal(listing.slug, listing.slug, {
-      [`quantity_${listing.id}`]: "1",
+      [`quantity${listing.id}`]: "1",
     });
     expect(response.status).toBe(200);
 
@@ -43,9 +42,8 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("prices a multi-unit line with a booking-fee extra line", async () => {
-    await setupStripe();
     await settings.update.bookingFee("10");
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxQuantity: 5,
       name: "Workshop",
       unitPrice: 1000,
@@ -53,7 +51,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     const html = await (
       await postRunningTotal(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "2",
+        [`quantity${listing.id}`]: "2",
       })
     ).text();
 
@@ -69,8 +67,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("totals without any contact details (PII is stripped)", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxQuantity: 5,
       name: "Free Entry",
       unitPrice: 0,
@@ -78,7 +75,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     // No name/email/phone sent — a quote must not require them.
     const response = await postRunningTotal(listing.slug, listing.slug, {
-      [`quantity_${listing.id}`]: "3",
+      [`quantity${listing.id}`]: "3",
     });
     expect(response.status).toBe(200);
     assertStringIncludes(await response.text(), "Free Entry");
@@ -88,7 +85,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     const listing = await createTestListing({ maxQuantity: 5, name: "Seat" });
 
     const response = await postRunningTotal(listing.slug, listing.slug, {
-      [`quantity_${listing.id}`]: "0",
+      [`quantity${listing.id}`]: "0",
     });
     expect(response.status).toBe(200);
     const html = await response.text();
@@ -103,8 +100,8 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     const response = await handleRequest(
       mockFormRequest(`/calculate/${listing.slug}`, {
-        csrf_token: "not-a-real-token",
-        [`quantity_${listing.id}`]: "1",
+        csrfToken: "not-a-real-token",
+        [`quantity${listing.id}`]: "1",
       }),
     );
     expect(response.status).toBe(403);
@@ -112,21 +109,20 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("rejects a sold-out answer tier in the quote", async () => {
-    await setupStripe();
-    const listing = await createTestListing({ maxAttendees: 50 });
+    const listing = await createStripeListing({ maxAttendees: 50 });
     // A stock-limited answer tier with no stock left, selected by the quote.
     const { answerId, modifierId, questionId } = await setupAnswerTier(listing);
 
     const selection = {
-      [`question_${questionId}`]: String(answerId),
-      [`quantity_${listing.id}`]: "1",
+      [`question${questionId}`]: String(answerId),
+      [`quantity${listing.id}`]: "1",
     };
     assertStringIncludes(
       await quoteTicketHtml(listing.slug, selection),
       "no longer available",
     );
 
-    await modifiersTable.update(modifierId, { minVisits: 1 });
+    await records.modifiers.update(modifierId, { minVisits: 1 });
     assert(
       !(await quoteTicketHtml(listing.slug, selection)).includes(
         "no longer available",
@@ -135,8 +131,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("reports unavailable tickets when capacity is exhausted", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxQuantity: 5,
       name: "Capped",
       unitPrice: 1000,
@@ -151,7 +146,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     try {
       const html = await (
         await postRunningTotal(listing.slug, listing.slug, {
-          [`quantity_${listing.id}`]: "1",
+          [`quantity${listing.id}`]: "1",
         })
       ).text();
       assertStringIncludes(html, "no longer available");

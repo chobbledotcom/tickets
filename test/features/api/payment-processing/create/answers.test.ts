@@ -3,7 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { execute, getDb } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import { paidBookingTail } from "#routes/api/payment-processing/tail.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
@@ -39,13 +40,12 @@ const rideTail = async (
     sessionId: `cs_${entry.attendee.id}`,
   });
   for (const statement of tail.ride(entry.attendee.ticket_token_index)) {
-    await execute(statement.sql, statement.args);
+    await execute(statement);
   }
   return (
-    await getDb().execute({
-      args: [entry.attendee.id],
-      sql: "SELECT question_id, answer_id, string_id FROM attendee_answers WHERE attendee_id = ?",
-    })
+    await getDb().execute(
+      sql`SELECT question_id, answer_id, string_id FROM attendee_answers WHERE attendee_id = ${entry.attendee.id}`,
+    )
   ).rows;
 };
 
@@ -63,7 +63,7 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
 
   test("saves a text answer missing from the paid-order snapshot", async () => {
     const entry = await bookedEntry();
-    const question = await questionsTable.insert({
+    const question = await records.questions.insert({
       displayType: "free_text",
       text: "Add detail",
     });
@@ -85,10 +85,9 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
 describeWithEnv("paid booking answers at booking", { db: true }, () => {
   const recorded = async (entry: CreatedEntry) =>
     (
-      await getDb().execute({
-        args: [entry.attendee.id],
-        sql: "SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ?",
-      })
+      await getDb().execute(
+        sql`SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ${entry.attendee.id}`,
+      )
     ).rows;
 
   test("records the chosen answer as the answer at booking", async () => {

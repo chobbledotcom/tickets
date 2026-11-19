@@ -87,7 +87,7 @@ export const mockAdminLoginRequest = async (
   csrfToken?: string,
 ): Promise<Request> => {
   const token = csrfToken ?? (await signCsrfToken());
-  return mockFormRequest("/admin/login", { ...data, csrf_token: token });
+  return mockFormRequest("/admin/login", { ...data, csrfToken: token });
 };
 
 export const mockMultipartRequest = (
@@ -135,9 +135,9 @@ export const mockSetupFormRequest = (
   csrfToken: string,
 ): Request =>
   mockFormRequest("/setup", {
-    accept_agreement: "yes",
+    acceptAgreement: "yes",
     ...data,
-    csrf_token: csrfToken,
+    csrfToken,
   });
 
 export const mockTicketFormRequest = (
@@ -147,7 +147,7 @@ export const mockTicketFormRequest = (
 ): Request =>
   mockFormRequest(`/ticket/${slug}`, {
     ...data,
-    csrf_token: csrfToken,
+    csrfToken,
   });
 
 export const urlFromFetchInput = (input: string | URL | Request): string =>

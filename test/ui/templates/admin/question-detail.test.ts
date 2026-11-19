@@ -33,7 +33,7 @@ describe("QuestionEditPanel", () => {
       'action="/admin/questions/1/edit"',
       // The choice-type selector offers radio vs select, with the question's
       // current type (radio) pre-selected.
-      '<select name="display_type"><option selected value="radio">Radio buttons</option><option value="select">Select box</option></select>',
+      '<select name="displayType"><option selected value="radio">Radio buttons</option><option value="select">Select box</option></select>',
     ]);
   });
 
@@ -41,7 +41,7 @@ describe("QuestionEditPanel", () => {
     const html = String(
       QuestionEditPanel({
         question: testQuestion({
-          display_type: "free_text",
+          displayType: "free_text",
           id: 1,
           text: "Notes?",
         }),
@@ -51,7 +51,7 @@ describe("QuestionEditPanel", () => {
     // are not offered.
     assertStringIncludes(
       html,
-      '<input name="display_type" type="hidden" value="free_text"',
+      '<input name="displayType" type="hidden" value="free_text"',
     );
     assert(!html.includes("Radio buttons"));
     // The free-text note renders inside its prose block, so a free-text
@@ -110,7 +110,7 @@ describe("QuestionAnswersSection", () => {
       QuestionAnswersSection({
         answerCounts: new Map(),
         question: testQuestion({
-          display_type: "free_text",
+          displayType: "free_text",
           id: 1,
           text: "Notes?",
         }),
@@ -155,9 +155,9 @@ describe("QuestionAnswersSection", () => {
   test("renders both move buttons for middle answer", () => {
     const q = testQuestion({
       answers: [
-        testAnswer({ id: 10, sort_order: 0, text: "A" }),
-        testAnswer({ id: 11, sort_order: 1, text: "B" }),
-        testAnswer({ id: 12, sort_order: 2, text: "C" }),
+        testAnswer({ id: 10, sortOrder: 0, text: "A" }),
+        testAnswer({ id: 11, sortOrder: 1, text: "B" }),
+        testAnswer({ id: 12, sortOrder: 2, text: "C" }),
       ],
       id: 1,
       text: "Q?",
@@ -208,7 +208,7 @@ describe("QuestionListingsSection", () => {
     expectIncludesAll(html, [
       '<form action="/admin/questions/1/listings" autocomplete="off" method="POST" id="question-listings">',
       "<strong>Linked listings (0):</strong>",
-      'name="listing_ids"',
+      'name="listingIds"',
       'value="1"',
       'value="2"',
       "Spring Gig",
@@ -221,11 +221,11 @@ describe("QuestionListingsSection", () => {
       QuestionListingsSection({
         allListings: TEST_LISTINGS,
         assignedListingIds: new Set(),
-        question: { ...question, assign_all: true },
+        question: { ...question, assignAll: true },
       }),
     );
-    const toggle = html.indexOf('checked name="assign_all" type="checkbox"');
-    const firstListing = html.indexOf('name="listing_ids"');
+    const toggle = html.indexOf('checked name="assignAll" type="checkbox"');
+    const firstListing = html.indexOf('name="listingIds"');
     expect(toggle).toBeGreaterThan(-1);
     expect(firstListing).toBeGreaterThan(toggle);
     assertStringIncludes(html, "Assign to all listings");
@@ -238,7 +238,7 @@ describe("QuestionListingsSection", () => {
       QuestionListingsSection({
         allListings: TEST_LISTINGS,
         assignedListingIds: new Set(),
-        question: { ...question, assign_all: true },
+        question: { ...question, assignAll: true },
       }),
     );
     assertStringIncludes(html, "<strong>Linked listings (all):</strong>");
@@ -258,7 +258,7 @@ describe("QuestionListingsSection", () => {
     );
     const live = html.indexOf('value="2"');
     const retired = html.indexOf(
-      '<label class="muted"><input name="listing_ids" type="checkbox" value="1"',
+      '<label class="muted"><input name="listingIds" type="checkbox" value="1"',
     );
     expect(live).toBeGreaterThan(-1);
     expect(retired).toBeGreaterThan(live);
@@ -274,10 +274,10 @@ describe("QuestionListingsSection", () => {
     );
     assertStringIncludes(
       html,
-      'checked name="listing_ids" type="checkbox" value="1"',
+      'checked name="listingIds" type="checkbox" value="1"',
     );
     assert(
-      !html.includes('checked name="listing_ids" type="checkbox" value="2"'),
+      !html.includes('checked name="listingIds" type="checkbox" value="2"'),
     );
   });
 
@@ -287,7 +287,7 @@ describe("QuestionListingsSection", () => {
       QuestionListingsSection({
         allListings: TEST_LISTINGS,
         assignedListingIds: new Set([1, 2]),
-        question: { ...question, assign_all: false },
+        question: { ...question, assignAll: false },
       }),
     );
     assertStringIncludes(html, "<p>Spring Gig, Summer Gig</p>");

@@ -49,7 +49,7 @@ const DataControllerAgreement = (): JSX.Element => (
     <p class="password-warning">{t("setup.agreement.password_warning")}</p>
     <div class="field">
       <label>
-        <input name="accept_agreement" required type="checkbox" value="yes" />
+        <input name="acceptAgreement" required type="checkbox" value="yes" />
         {t("setup.agreement.accept")}
       </label>
     </div>

@@ -3,7 +3,10 @@
  */
 
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
-import { executeUpdate, queryOne } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 
 /**
  * Store the phone blind-index on an attendee, but only if one is not set yet.
@@ -15,10 +18,11 @@ export const setAttendeePhoneIndexIfEmpty = async (
 ): Promise<void> => {
   if (!phoneIndex) return;
   // The `phone_index: ""` condition scopes the write to a not-yet-set row.
-  await executeUpdate(
-    "attendees",
-    { phone_index: phoneIndex },
-    { id: attendeeId, phone_index: "" },
+  await execute(
+    update(tables.attendees, { phoneIndex }).where({
+      id: attendeeId,
+      phoneIndex: "",
+    }),
   );
 };
 
@@ -28,10 +32,9 @@ export const findAttendeeIdByPhoneIndex = async (
 ): Promise<number | null> => {
   if (!phoneIndex) return null;
   const row = await queryOne<{ id: number }>(
-    `SELECT id FROM attendees
-     WHERE phone_index = ? AND kind = '${ATTENDEE_KIND}'
+    sql`SELECT id FROM attendees
+     WHERE phone_index = ${phoneIndex} AND kind = ${sqlLiteral(ATTENDEE_KIND)}
      LIMIT 1`,
-    [phoneIndex],
   );
   return row?.id ?? null;
 };

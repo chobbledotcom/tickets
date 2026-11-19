@@ -17,9 +17,12 @@ import {
 } from "#db/notes/queries.ts";
 import { openNotes } from "#db/notes/sealing.ts";
 import { attendeeNotes, groupNotesByTargetId } from "#db/notes/target.ts";
+import type { SystemNoteRow } from "#db/notes/types.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
@@ -40,14 +43,41 @@ const makeAttendee = async (name = "Note Target"): Promise<number> => {
 
 const rawNote = (attendeeId: number): Promise<{ note: string } | null> =>
   queryOne<{ note: string }>(
-    "SELECT note FROM system_notes WHERE entity_type = 'attendee' AND entity_id = ? ORDER BY id",
-    [attendeeId],
+    sql`SELECT note FROM system_notes WHERE entity_type = 'attendee' AND entity_id = ${attendeeId} ORDER BY id`,
   );
+
+/** Two attendees, each holding one system note. */
+const makeNotePair = async (
+  firstSpec: { name: string; text: string },
+  secondSpec: { name: string; text: string },
+): Promise<{ first: number; second: number }> => {
+  const first = await makeAttendee(firstSpec.name);
+  const second = await makeAttendee(secondSpec.name);
+  await createSystemNote(attendeeNotes(first), firstSpec.text);
+  await createSystemNote(attendeeNotes(second), secondSpec.text);
+  return { first, second };
+};
+
+/** The same pair with the stored row each note wrote, for a test that picks
+ *  one note by id. */
+const makeNoteRowPair = async (
+  firstSpec: { name: string; text: string },
+  secondSpec: { name: string; text: string },
+): Promise<{
+  first: number;
+  firstRow: SystemNoteRow;
+  second: number;
+  secondRow: SystemNoteRow;
+}> => {
+  const { first, second } = await makeNotePair(firstSpec, secondSpec);
+  const [firstRow] = await getNoteRows("attendee", [first]);
+  const [secondRow] = await getNoteRows("attendee", [second]);
+  return { first, firstRow: firstRow!, second, secondRow: secondRow! };
+};
 
 describeWithEnv("db > notes", { db: true }, () => {
   test("loads notes scoped to one listing's attendees only", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const other = await createTestListing({ maxAttendees: 50 });
+    const [listing, other] = await createListingPair({ maxAttendees: 50 });
     const mine = await createTestAttendee(
       listing.id,
       listing.slug,
@@ -64,7 +94,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     await createSystemNote(attendeeNotes(theirs.id), "Note on another listing");
 
     const rows = await getNoteRowsForListing(listing.id);
-    expect(rows.map((r) => r.entity_id)).toEqual([mine.id]);
+    expect(rows.map((r) => r.entityId)).toEqual([mine.id]);
 
     const notes = await loadNotesForListing(listing.id, getTestPrivateKey);
     expect(notes).toHaveLength(1);
@@ -98,7 +128,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     );
     expect(notes).toHaveLength(1);
     expect(notes[0]).toMatchObject({
-      entity_id: attendeeId,
+      entityId: attendeeId,
       note: "Refunded: price changed",
       type: "system",
     });
@@ -236,34 +266,37 @@ describeWithEnv("db > notes", { db: true }, () => {
   });
 
   test("deleteAttendeeNote removes only the scoped note", async () => {
-    const owner = await makeAttendee("Delete Owner");
-    const other = await makeAttendee("Keep Owner");
-    await createSystemNote(attendeeNotes(owner), "delete me");
-    await createSystemNote(attendeeNotes(other), "keep me");
-    const [ownerRow] = await getNoteRows("attendee", [owner]);
-    const [otherRow] = await getNoteRows("attendee", [other]);
+    const {
+      first: owner,
+      firstRow,
+      second: other,
+      secondRow,
+    } = await makeNoteRowPair(
+      { name: "Delete Owner", text: "delete me" },
+      { name: "Keep Owner", text: "keep me" },
+    );
 
     // A wrong attendee id must not delete another attendee's note.
-    await deleteNotes(attendeeNotes(other), [ownerRow!.id]);
+    await deleteNotes(attendeeNotes(other), [firstRow.id]);
     expect(await getNoteRows("attendee", [owner])).toHaveLength(1);
 
-    await deleteNotes(attendeeNotes(owner), [ownerRow!.id]);
+    await deleteNotes(attendeeNotes(owner), [firstRow.id]);
     expect(await getNoteRows("attendee", [owner])).toEqual([]);
     // The other attendee's note is untouched.
-    expect((await getNoteRows("attendee", [other]))[0]?.id).toBe(otherRow!.id);
+    expect((await getNoteRows("attendee", [other]))[0]?.id).toBe(secondRow.id);
   });
 
   test("noteDeleteStatement clears only the chosen records' notes", async () => {
-    const keep = await makeAttendee("Keep Notes");
-    const drop = await makeAttendee("Drop Notes");
-    await createSystemNote(attendeeNotes(keep), "kept");
-    await createSystemNote(attendeeNotes(drop), "dropped");
+    const { first: keep, second: drop } = await makeNotePair(
+      { name: "Keep Notes", text: "kept" },
+      { name: "Drop Notes", text: "dropped" },
+    );
 
-    const statement = noteDeleteStatement("attendee", {
-      args: [drop],
-      sql: "SELECT id FROM attendees WHERE id = ?",
-    });
-    await execute(statement.sql, statement.args);
+    const statement = noteDeleteStatement(
+      "attendee",
+      sql`SELECT id FROM attendees WHERE id = ${drop}`,
+    );
+    await execute(statement);
 
     expect(await getNoteRows("attendee", [drop])).toEqual([]);
     expect(await getNoteRows("attendee", [keep])).toHaveLength(1);

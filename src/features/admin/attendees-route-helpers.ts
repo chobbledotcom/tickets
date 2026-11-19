@@ -314,7 +314,7 @@ const scopedAction =
             attendeeActionUrlWithReturn(
               data.attendee.id,
               action,
-              form.getString("return_url"),
+              form.getString("returnUrl"),
             ),
             t("attendees.name_label"),
             actionLabel,

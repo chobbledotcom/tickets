@@ -1,9 +1,9 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
-import { appendImageToItem, imagesTable } from "#db/images.ts";
+import { appendImageToItem, insertImageRecord } from "#db/images.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { records } from "#db/record-table.ts";
 import { addPageItem } from "#db/site-page-items.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -76,13 +76,13 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
 
     test("renders the page's linked images as the shared CSS gallery", async () => {
       const page = await makePage("gallery-page");
-      const first = await imagesTable.insert({
+      const first = await insertImageRecord({
         altText: "First alt",
         filename: nonEmptyString("one.webp"),
         filenameThumb: nonEmptyString("one-thumb.webp"),
         name: "One",
       });
-      const second = await imagesTable.insert({
+      const second = await insertImageRecord({
         altText: "",
         filename: nonEmptyString("two.webp"),
         filenameThumb: nonEmptyString("two-thumb.webp"),
@@ -313,7 +313,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
     test("a concealing package member keeps its listing item link", async () => {
       const page = await makePage("hidden-member");
       const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-      await groups.table.update(group.id, {
+      await records.groups.update(group.id, {
         hidePackageListings: true,
         isPackage: true,
       });

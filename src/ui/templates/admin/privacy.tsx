@@ -128,7 +128,7 @@ const OrphansForm = ({
     <label class="checkbox">
       <input
         checked={autoPurgeOrphans}
-        name="auto_purge"
+        name="autoPurge"
         type="checkbox"
         value="1"
       />{" "}
@@ -156,7 +156,7 @@ const EraseForm = (): JSX.Element => (
     <label>
       {t("privacy.erase.type_label")}
       <SelectField
-        name="contact_type"
+        name="contactType"
         options={[
           { label: t("privacy.erase.type_email"), value: "email" },
           { label: t("privacy.erase.type_phone"), value: "sms" },

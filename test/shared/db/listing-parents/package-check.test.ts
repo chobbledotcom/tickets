@@ -7,20 +7,24 @@ import {
   requireListingChildrenPackageCheck,
   setListingChildrenWithPackageCheckTx,
 } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { parentAndChild } from "#test-utils/listing-parents/helpers.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 
-describeWithEnv("db > listing-parents > package check", { db: true }, () => {
-  const parentAndChild = async () => ({
-    child: await createTestListing({ name: "Add-on" }),
-    parent: await createTestListing({ name: "Base unit" }),
-  });
+/** Run the checked child-edge write inside a transaction, so a caller can
+ *  assert the refusal it raises. */
+const writeCheckedEdge = (parentId: number, childIds: readonly number[]) =>
+  withTransaction((tx) =>
+    setListingChildrenWithPackageCheckTx(tx, parentId, [...childIds]),
+  );
 
+describeWithEnv("db > listing-parents > package check", { db: true }, () => {
   test("refuses a child packaged after edge validation", async () => {
     const { parent, child } = await parentAndChild();
     const packageGroup = await createTestGroup({
@@ -63,22 +67,16 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
     const replacement = await createTestListing({ name: "Replacement add-on" });
     await listingChildren.setIds(parent.id, [child.id]);
 
-    expect(
-      await withTransaction((tx) =>
-        setListingChildrenWithPackageCheckTx(tx, parent.id, [replacement.id]),
-      ),
-    ).toBeNull();
+    expect(await writeCheckedEdge(parent.id, [replacement.id])).toBeNull();
     expect(await listingChildren.getIds(parent.id)).toEqual([replacement.id]);
   });
 
   test("rolls back when a child endpoint was deleted before the tx", async () => {
     const { parent, child } = await parentAndChild();
-    await listingsTable.deleteById(child.id);
+    await records.listings.delete(child.id);
 
     await expect(
-      withTransaction((tx) =>
-        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
-      ),
+      writeCheckedEdge(parent.id, [child.id]),
     ).rejects.toBeInstanceOf(TransactionValidationError);
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
@@ -86,13 +84,11 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
   test("rejects when the parent endpoint was deleted before the tx", async () => {
     const child = await createTestListing({ name: "Orphaned child" });
     const parent = await createTestListing({ name: "Vanished parent" });
-    await listingsTable.deleteById(parent.id);
+    await records.listings.delete(parent.id);
 
-    await expect(
-      withTransaction((tx) =>
-        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
-      ),
-    ).rejects.toThrow(t("error.listing_deleted"));
+    await expect(writeCheckedEdge(parent.id, [child.id])).rejects.toThrow(
+      t("error.listing_deleted"),
+    );
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
@@ -101,11 +97,9 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
     const grandparent = await createTestListing({ name: "Outer parent" });
     await listingChildren.setIds(grandparent.id, [parent.id]);
 
-    await expect(
-      withTransaction((tx) =>
-        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
-      ),
-    ).rejects.toThrow(t("error.parent_listing_nested"));
+    await expect(writeCheckedEdge(parent.id, [child.id])).rejects.toThrow(
+      t("error.parent_listing_nested"),
+    );
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
@@ -114,23 +108,17 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
     const grandchild = await createTestListing({ name: "Nested child" });
     await listingChildren.setIds(child.id, [grandchild.id]);
 
-    await expect(
-      withTransaction((tx) =>
-        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
-      ),
-    ).rejects.toThrow(t("error.child_listing_nested"));
+    await expect(writeCheckedEdge(parent.id, [child.id])).rejects.toThrow(
+      t("error.child_listing_nested"),
+    );
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("rejects edge fields changed after validation", async () => {
     const { parent, child } = await parentAndChild();
-    await listingsTable.update(child.id, { listingType: "daily" });
+    await updateListing(child.id, { listingType: "daily" });
 
-    await expect(
-      withTransaction((tx) =>
-        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
-      ),
-    ).rejects.toThrow(
+    await expect(writeCheckedEdge(parent.id, [child.id])).rejects.toThrow(
       t("listings_table.children_err_child_daily", { name: child.name }),
     );
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
@@ -140,11 +128,9 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
     const { parent, child } = await parentAndChild();
     await optInAddOnForListings("Child extra", [child.id]);
 
-    await expect(
-      withTransaction((tx) =>
-        setListingChildrenWithPackageCheckTx(tx, parent.id, [child.id]),
-      ),
-    ).rejects.toThrow("Child extra");
+    await expect(writeCheckedEdge(parent.id, [child.id])).rejects.toThrow(
+      "Child extra",
+    );
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 });

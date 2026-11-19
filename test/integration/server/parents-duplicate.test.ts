@@ -7,10 +7,14 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   duplicateTestListing,
@@ -65,9 +69,9 @@ const duplicateListingResponse = async (
       "/admin/listing",
       {
         ...baseListingForm,
-        csrf_token: csrfToken,
-        duplicated_from: String(sourceId),
-        ...(groupId !== undefined ? { group_ids: String(groupId) } : {}),
+        csrfToken,
+        duplicatedFrom: String(sourceId),
+        ...(groupId !== undefined ? { groupIds: String(groupId) } : {}),
         ...overrides,
         name,
       },
@@ -103,15 +107,13 @@ const duplicateGroup = async (
   nameReplace: string,
 ): Promise<Awaited<ReturnType<typeof getListingsByGroupId>>> => {
   await adminFormPost(`/admin/groups/${groupId}/duplicate`, {
-    date_find: "",
-    date_replace: "",
-    name_find: nameFind,
-    name_replace: nameReplace,
-    new_name: newName,
+    dateFind: "",
+    dateReplace: "",
+    nameFind,
+    nameReplace,
+    newName,
   });
-  const newGroup = (await groups.cache.getAll()).find(
-    (g) => g.name === newName,
-  );
+  const newGroup = (await groups.getAll()).find((g) => g.name === newName);
   return getListingsByGroupId(newGroup!.id);
 };
 
@@ -128,11 +130,11 @@ const duplicateGroupResponse = async (
   const { response } = await adminFormPost(
     `/admin/groups/${groupId}/duplicate`,
     {
-      date_find: "",
-      date_replace: "",
-      name_find: nameFind,
-      name_replace: nameReplace,
-      new_name: newName,
+      dateFind: "",
+      dateReplace: "",
+      nameFind,
+      nameReplace,
+      newName,
     },
   );
   response.body?.cancel();
@@ -345,7 +347,7 @@ describeWithEnv(
         "Cloned parent",
       );
 
-      const newGroup = (await groups.cache.getAll()).find(
+      const newGroup = (await groups.getAll()).find(
         (g) => g.name === "Stranded bundle copy",
       )!;
       const copies = await getListingsByGroupId(newGroup.id);
@@ -391,7 +393,7 @@ describeWithEnv(
         "Cloned",
       );
 
-      const newGroup = (await groups.cache.getAll()).find(
+      const newGroup = (await groups.getAll()).find(
         (g) => g.name === "Incoming bundle copy",
       )!;
       const childCopy = (await getListingsByGroupId(newGroup.id)).find(
@@ -474,14 +476,14 @@ describeWithEnv(
         source.id,
         "Member copy",
         group.id,
-        { max_quantity: "2" },
+        { maxQuantity: "2" },
       );
 
       // The copy joins at the source's override, not its base price/quantity 1.
       const row = (await getGroupPackagePrices(group.id)).find(
-        (r) => r.listing_id === copy.id,
+        (r) => r.listingId === copy.id,
       );
-      expect(row?.package_price).toBe(1500);
+      expect(row?.packagePrice).toBe(1500);
       expect(row?.quantity).toBe(2);
       // The per-day override rides the same copy (same group, so the same
       // "<groupId>/<n>" price_id applies to the clone verbatim).
@@ -511,14 +513,12 @@ describeWithEnv(
       const { copy } = await duplicateListingResponse(source.id, "Loner copy");
       expect(
         await queryAll(
-          "SELECT price_type FROM listing_prices WHERE listing_id = ? AND price_type IN ('group', 'group_day')",
-          [copy.id],
+          sql`SELECT price_type FROM listing_prices WHERE listing_id = ${copy.id} AND price_type IN ('group', 'group_day')`,
         ),
       ).toEqual([]);
     });
 
     test("duplicating a parent into a package keeps children when visible, drops them when hidden", async () => {
-      const { groups } = await import("#db/groups.ts");
       const child = await createTestListing({ name: "Child" });
       const parent = await createTestListing({
         maxAttendees: 10,
@@ -536,7 +536,7 @@ describeWithEnv(
       );
       expect(
         (await getGroupPackagePrices(visible.id)).some(
-          (r) => r.listing_id === copy.id,
+          (r) => r.listingId === copy.id,
         ),
       ).toBe(true);
       expect(await listingChildren.getIds(copy.id)).toEqual([child.id]);
@@ -544,11 +544,7 @@ describeWithEnv(
       // A HIDDEN package collapses members to the package name, so its copy
       // must NOT inherit the child edges — the member stays valid and the
       // operator is told the gate wasn't carried over.
-      const hidden = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Pkg",
-      });
-      await groups.table.update(hidden.id, { hidePackageListings: true });
+      const hidden = await createHiddenPackageGroup("Hidden Pkg");
       const { copy: hiddenCopy } = await duplicateListingResponse(
         parent.id,
         "Parent hidden copy",

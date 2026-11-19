@@ -1,11 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  appendImageToItem,
-  getImageById,
-  getImageUsesForImage,
-} from "#db/images.ts";
+import { appendImageToItem, getImageUsesForImage } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -46,9 +43,9 @@ describeWithEnv(
           formRequest(
             `/admin/site/pages/${page.id}/images`,
             [
-              ["csrf_token", csrfToken],
-              ["image_ids", String(second.id)],
-              ["image_ids", String(first.id)],
+              ["csrfToken", csrfToken],
+              ["imageIds", String(second.id)],
+              ["imageIds", String(first.id)],
             ],
             cookie,
           ),
@@ -72,7 +69,7 @@ describeWithEnv(
         const response = await handleRequest(
           formRequest(
             "/admin/site/pages/9999/images",
-            [["csrf_token", csrfToken]],
+            [["csrfToken", csrfToken]],
             cookie,
           ),
         );
@@ -151,10 +148,10 @@ describeWithEnv(
           formRequest(
             `/admin/images/${image.id}/edit`,
             [
-              ["csrf_token", await signCsrfToken()],
+              ["csrfToken", await signCsrfToken()],
               ["name", "Site image"],
-              ["alt_text", ""],
-              ["image_items", `page:${page.id}`],
+              ["altText", ""],
+              ["imageItems", `page:${page.id}`],
             ],
             cookie,
           ),
@@ -193,9 +190,9 @@ describeWithEnv(
           formRequest(
             `/admin/images/${image.id}/edit`,
             [
-              ["csrf_token", await signCsrfToken()],
+              ["csrfToken", await signCsrfToken()],
               ["name", "Renamed by manager"],
-              ["image_items", "page:9999"],
+              ["imageItems", "page:9999"],
             ],
             managerCookie,
           ),
@@ -207,13 +204,15 @@ describeWithEnv(
           managerCookie,
         )(saveResponse);
         // Metadata unchanged and the page use survives.
-        expect((await getImageById(image.id))?.name).toBe("Guarded image");
+        expect((await records.images.find(image.id))?.name).toBe(
+          "Guarded image",
+        );
         expect(await getImageUsesForImage(image.id)).toEqual([
           {
-            image_id: image.id,
-            item_id: page.id,
-            item_type: "page",
-            sort_order: 0,
+            imageId: image.id,
+            itemId: page.id,
+            itemType: "page",
+            sortOrder: 0,
           },
         ]);
       });

@@ -18,14 +18,15 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { expectFormValueRefused } from "#test-utils/settings-refusal.ts";
 
 /** Post invalid embed hosts and assert a 302 redirect with error flash */
-async function postInvalidEmbedHosts(
+async function expectInvalidEmbedHostsRefused(
   hosts: string,
   expectedError: string,
 ): Promise<void> {
   const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-    embed_hosts: hosts,
+    embedHosts: hosts,
   });
   await expectFlashRedirect(
     "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
@@ -35,7 +36,7 @@ async function postInvalidEmbedHosts(
 }
 
 /** Post embed hosts form and assert a 302 redirect with expected flash message */
-async function postEmbedHostsExpectRedirect(
+async function expectEmbedHostsRedirect(
   fields: Record<string, string>,
   expectedMessage: string,
 ): Promise<void> {
@@ -47,6 +48,20 @@ async function postEmbedHostsExpectRedirect(
     "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
     expectedMessage,
   )(response);
+}
+
+/** Post the embed hosts form, then pin the 302 reply and the stored value. */
+async function expectEmbedHostsStored(
+  fields: Record<string, string>,
+  expected: { message: string; stored: string },
+): Promise<void> {
+  const { response } = await adminFormPost(
+    "/admin/settings/embed-hosts",
+    fields,
+  );
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining(expected.message));
+  expect(settings.embedHosts).toBe(expected.stored);
 }
 
 /** Create an embeddable listing and return its ticket page CSP header */
@@ -66,7 +81,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
         response,
         200,
         "External sites allowed to use embeds and order buttons",
-        "embed_hosts",
+        "embedHosts",
       );
     });
 
@@ -85,29 +100,29 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
   describe("POST /admin/settings/embed-hosts", () => {
     testRequiresAuth("/admin/settings/embed-hosts", {
       body: {
-        embed_hosts: "example.com",
+        embedHosts: "example.com",
       },
       method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {
       const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        csrf_token: "invalid-csrf-token",
-        embed_hosts: "example.com",
+        csrfToken: "invalid-csrf-token",
+        embedHosts: "example.com",
       });
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("saves valid embed hosts", async () => {
-      await postEmbedHostsExpectRedirect(
-        { embed_hosts: "example.com, *.mysite.org" },
+      await expectEmbedHostsRedirect(
+        { embedHosts: "example.com, *.mysite.org" },
         "Allowed embed hosts updated",
       );
     });
 
     test("normalizes hosts to lowercase", async () => {
       const { cookie } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "Example.COM, *.MySite.ORG",
+        embedHosts: "Example.COM, *.MySite.ORG",
       });
 
       // Verify by checking the settings page
@@ -123,7 +138,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
       const { cookie, csrfToken } = await adminFormPost(
         "/admin/settings/embed-hosts",
         {
-          embed_hosts: "example.com",
+          embedHosts: "example.com",
         },
       );
 
@@ -131,7 +146,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/embed-hosts",
-          { csrf_token: csrfToken, embed_hosts: "" },
+          { csrfToken, embedHosts: "" },
           cookie,
         ),
       );
@@ -143,54 +158,57 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
       expect(settings.embedHosts).toBe("");
     });
 
-    test("rejects invalid host pattern", async () => {
-      await postInvalidEmbedHosts("example.com, *", "Bare wildcard");
-    });
+    /** Rows the form must refuse: the hosts posted and the error flash. */
+    const rejectedHostCases = [
+      {
+        error: "Bare wildcard",
+        hosts: "example.com, *",
+        name: "rejects invalid host pattern",
+      },
+      {
+        error: "Invalid host pattern",
+        hosts: "https://example.com",
+        name: "rejects host with protocol",
+      },
+    ];
 
-    test("rejects host with protocol", async () => {
-      await postInvalidEmbedHosts(
-        "https://example.com",
-        "Invalid host pattern",
-      );
-    });
+    for (const { error, hosts, name } of rejectedHostCases) {
+      test(name, async () => {
+        await expectInvalidEmbedHostsRefused(hosts, error);
+      });
+    }
 
     test("handles missing embed_hosts field gracefully", async () => {
-      await postEmbedHostsExpectRedirect({}, "Embed host restrictions removed");
+      await expectEmbedHostsRedirect({}, "Embed host restrictions removed");
     });
 
     test("clears embed hosts to empty string when only whitespace", async () => {
-      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "   ",
-      });
-
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Embed host restrictions removed"),
+      await expectEmbedHostsStored(
+        { embedHosts: "   " },
+        { message: "Embed host restrictions removed", stored: "" },
       );
-      expect(settings.embedHosts).toBe("");
     });
 
     test("rejects bare wildcard embed host pattern", async () => {
-      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "*",
-      });
-
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Bare wildcard"), false);
+      await expectFormValueRefused(
+        {
+          fields: { embedHosts: "*" },
+          flash: "Bare wildcard",
+          path: "/admin/settings/embed-hosts",
+          stored: () => settings.embedHosts,
+        },
+        "",
+      );
     });
 
     test("normalizes and persists embed hosts to the database", async () => {
-      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "Example.com, *.Sub.Example.com",
-      });
-
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Allowed embed hosts updated"),
+      await expectEmbedHostsStored(
+        { embedHosts: "Example.com, *.Sub.Example.com" },
+        {
+          message: "Allowed embed hosts updated",
+          stored: "example.com, *.sub.example.com",
+        },
       );
-      expect(settings.embedHosts).toBe("example.com, *.sub.example.com");
     });
   });
 

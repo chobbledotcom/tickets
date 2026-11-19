@@ -2,7 +2,7 @@
  * The CSRF check and the body it reads, per body mode.
  *
  * A JSON call carries its token in the `x-csrf-token` header; a form carries
- * it in a `csrf_token` field. A read-only JSON call needs no token at all,
+ * it in a `csrfToken` field. A read-only JSON call needs no token at all,
  * because it cannot change anything, and an API key needs none either — the
  * key is the secret.
  */
@@ -175,7 +175,7 @@ describeWithEnv("what a JSON body must look like", { db: true }, () => {
   });
 });
 
-/** A body mode that always carries its token in a `csrf_token` field, whatever
+/** A body mode that always carries its token in a `csrfToken` field, whatever
  * the method. Both such modes answer the same three questions, so they are
  * asked once: `run` authenticates the request and answers with the `hello`
  * field, so an admission and a refusal can never read the same. */
@@ -185,9 +185,9 @@ const carriesItsTokenInAField = (
   run: (request: Request) => Promise<Response>,
 ): void =>
   describeWithEnv(what, { db: true }, () => {
-    test("is admitted with the token in its csrf_token field", async () => {
+    test("is admitted with the token in its csrfToken field", async () => {
       const response = await run(
-        await build({ csrf_token: await signCsrfToken(), hello: "there" }),
+        await build({ csrfToken: await signCsrfToken(), hello: "there" }),
       );
 
       expect(response.status).toBe(OK);
@@ -203,7 +203,7 @@ const carriesItsTokenInAField = (
 
     test("is refused when the field holds padding rather than a token", async () => {
       const response = await run(
-        await build({ csrf_token: "   ", hello: "there" }),
+        await build({ csrfToken: "   ", hello: "there" }),
       );
 
       expect(response.status).toBe(FORBIDDEN);

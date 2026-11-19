@@ -17,8 +17,8 @@ const row = <Type extends "owner" | "system">(
 ): SystemNoteRow =>
   ({
     created: "2026-07-28T10:00:00.000Z",
-    entity_id: 4,
-    entity_type: "attendee",
+    entityId: 4,
+    entityType: "attendee",
     id,
     note,
     type,

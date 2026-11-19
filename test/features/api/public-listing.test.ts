@@ -14,41 +14,42 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import type { ListingWithCount } from "#types";
 
 const listing = (overrides: Partial<ListingWithCount> = {}): ListingWithCount =>
   ({
     active: true,
-    assign_built_site: false,
-    attendee_count: 0,
-    bookable_alone: false,
-    bookable_days: [],
-    can_pay_more: false,
-    customisable_days: false,
+    assignBuiltSite: false,
+    attendeeCount: 0,
+    bookableAlone: false,
+    bookableDays: [],
+    canPayMore: false,
+    customisableDays: false,
     date: "",
-    day_prices: {},
+    dayPrices: {},
     description: "",
-    duration_days: 1,
+    durationDays: 1,
     fields: "email",
     hidden: false,
     id: 1,
-    image_alt_text: "",
-    image_url: "",
-    initial_site_months: 0,
-    listing_type: "standard",
+    imageAltText: "",
+    imageUrl: "",
+    initialSiteMonths: 0,
+    listingType: "standard",
     location: "",
-    max_attendees: 100,
-    max_price: 10000,
-    max_quantity: 5,
-    months_per_unit: 0,
+    maxAttendees: 100,
+    maxPrice: 10000,
+    maxQuantity: 5,
+    monthsPerUnit: 0,
     name: "Gala",
-    non_transferable: false,
-    purchase_only: false,
+    nonTransferable: false,
+    purchaseOnly: false,
     slug: "gala",
-    slug_index: "gala" as BlindIndex,
-    thank_you_url: "",
-    tickets_count: 0,
-    unit_price: 1000,
+    slugIndex: "gala" as BlindIndex,
+    thankYouUrl: "",
+    ticketsCount: 0,
+    unitPrice: 1000,
     ...overrides,
   }) as ListingWithCount;
 
@@ -58,7 +59,7 @@ const resolved = (overrides: Partial<ListingWithCount> = {}) =>
 describe("resolvedToPublicListing built-site fields", () => {
   test("a built-site plan's response names no built-site fields", () => {
     const result = resolvedToPublicListing(
-      resolved({ assign_built_site: true, initial_site_months: 3 }),
+      resolved({ assignBuiltSite: true, initialSiteMonths: 3 }),
       undefined,
     );
     expect(Object.hasOwn(result, "assignBuiltSite")).toBe(false);
@@ -79,8 +80,8 @@ describe("resolvedToPublicListing boundary values", () => {
     const result = resolvedToPublicListing(
       resolved({
         date: "2026-06-01",
-        image_alt_text: "A poster",
-        image_url: "poster.webp",
+        imageAltText: "A poster",
+        imageUrl: "poster.webp",
         location: "Village Hall",
       }),
       undefined,
@@ -94,9 +95,10 @@ describe("resolvedToPublicListing boundary values", () => {
 
 describeWithEnv("public listing children", { db: true }, () => {
   test("a parent with one child publishes it", async () => {
-    const parent = await createTestListing({ name: "Solo Parent" });
-    const child = await createTestListing({ name: "Only Child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { child, parent } = await makeParent({
+      children: [{ name: "Only Child" }],
+      parent: { name: "Solo Parent" },
+    });
 
     expect(await mapParentChildren(parent, (c) => c.id)).toEqual([child.id]);
   });
@@ -122,9 +124,10 @@ describeWithEnv("public listing children", { db: true }, () => {
   });
 
   test("an active standard child carries no availableDates", async () => {
-    const parent = await createTestListing({ name: "Plain Parent" });
-    const child = await createTestListing({ name: "Plain Child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { child, parent } = await makeParent({
+      children: [{ name: "Plain Child" }],
+      parent: { name: "Plain Parent" },
+    });
 
     const children = await buildChildPublicListings(parent);
 

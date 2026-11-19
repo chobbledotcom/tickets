@@ -1,4 +1,5 @@
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -42,6 +43,16 @@ export const standardParentWithDailyChildEdge =
     await listingChildren.setIds(parent.id, [child.id]);
     return { child, parent };
   };
+
+/** Save a child id list through the admin JSON API and read its answer. */
+export const putListingChildren = (
+  parentId: number,
+  ids: unknown,
+): Promise<Response> =>
+  apiRequest(`/api/admin/listings/${parentId}`, {
+    body: { child_listing_ids: ids },
+    method: "PUT",
+  });
 
 /** Create a listing through the admin JSON API, returning the created id. */
 export const apiCreateListing = async (
@@ -165,7 +176,7 @@ export const postListingEdit = async (
   );
   const existing = (await getListingWithCount(listingId))!;
   const form = buildUpdateListingForm(updates, existing);
-  // The edit form carries group membership as `group_ids` checkboxes. Translate
+  // The edit form carries group membership as `groupIds` checkboxes. Translate
   // the test's group intent (legacy groupId / groupIds) into that field; a
   // single id covers these tests (the form helper is single-value).
   const groupIds =
@@ -174,12 +185,12 @@ export const postListingEdit = async (
       ? [updates.groupId]
       : []);
   const formWithGroups =
-    groupIds.length > 0 ? { ...form, group_ids: String(groupIds[0]) } : form;
+    groupIds.length > 0 ? { ...form, groupIds: String(groupIds[0]) } : form;
   const session = await getTestSession();
   return handleRequest(
     mockMultipartRequest(
       `/admin/listing/${listingId}/edit`,
-      { ...formWithGroups, csrf_token: session.csrfToken },
+      { ...formWithGroups, csrfToken: session.csrfToken },
       session.cookie,
     ),
   );
@@ -189,7 +200,7 @@ export const postListingEdit = async (
  * invalidates the listings cache, so subsequent reads see the change. */
 export const makeRenewalTier = async (listingId: number): Promise<void> => {
   const { execute } = await import("#db/client.ts");
-  await execute("UPDATE listings SET months_per_unit = 12 WHERE id = ?", [
-    listingId,
-  ]);
+  await execute(
+    sql`UPDATE listings SET months_per_unit = 12 WHERE id = ${listingId}`,
+  );
 };

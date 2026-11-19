@@ -28,18 +28,18 @@ import type { ListingWithCount } from "#types";
 
 /** Check if the amount charged matches the current listing price (including booking fee).
  * For pay-more listings, the amount must be >= the expected minimum price and <= the max cap.
- * `quantity` scales max_price so purchases are validated against the correct total cap. */
+ * `quantity` scales maxPrice so purchases are validated against the correct total cap. */
 const hasPriceMismatch = (
   amountTotal: number,
   expectedPrice: number,
-  listing: Pick<ListingWithCount, "can_pay_more" | "max_price">,
+  listing: Pick<ListingWithCount, "canPayMore" | "maxPrice">,
   bookingFeePercent: number,
   quantity: number,
 ): boolean => {
-  if (listing.can_pay_more) {
+  if (listing.canPayMore) {
     const minWithFee =
       expectedPrice + calculateBookingFee(expectedPrice, bookingFeePercent);
-    const maxTicketTotal = listing.max_price * quantity;
+    const maxTicketTotal = listing.maxPrice * quantity;
     const maxWithFee =
       maxTicketTotal + calculateBookingFee(maxTicketTotal, bookingFeePercent);
     return amountTotal < minWithFee || amountTotal > maxWithFee;
@@ -134,7 +134,7 @@ export const paidPricingRefund = (
   for (const { item, listing, expectedPrice } of validatedItems) {
     if (hasPriceMismatch(item.p, expectedPrice!, listing, 0, item.q)) {
       return placeholderRefund("price_changed")(
-        `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
+        `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.canPayMore})`,
       );
     }
   }

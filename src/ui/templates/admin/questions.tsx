@@ -61,7 +61,7 @@ const questionListings = ({
   listingNames: string[];
   totalListings: number;
 }): { count: number; title: string } => {
-  const all = question.assign_all === true;
+  const all = question.assignAll === true;
   const count = all ? totalListings : listingNames.length;
   const title = all ? t("questions.all_listings") : listingNames.join(", ");
   return { count, title };
@@ -173,7 +173,7 @@ const AnswerRunningTotalsSection = ({
     </p>
     <Raw
       html={renderFields(getAnswerAggregateFields(), {
-        times_selected: aggregateRecalculation.times_selected.current,
+        timesSelected: aggregateRecalculation.timesSelected.current,
       })}
     />
     <p>
@@ -216,7 +216,7 @@ export const adminAnswerEditPage = (
         {t("questions.edit_answer.modifier_label")}
         <SelectField
           id="modifier_id"
-          name="modifier_id"
+          name="modifierId"
           options={[
             { label: t("questions.edit_answer.modifier_none"), value: "" },
             ...modifiers.map((m) => ({ label: m.name, value: String(m.id) })),
@@ -397,7 +397,7 @@ export const ListingQuestionsPanel = (
             checkedIds={assignedIds}
             id={q.id}
             label={` ${questionTextFlat(q.text)}`}
-            name="question_ids"
+            name="questionIds"
           >
             <small>
               {" "}

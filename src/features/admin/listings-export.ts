@@ -32,7 +32,7 @@ export const handleAdminListingExport: TypedRouteHandler<
     filteredAttendeesHandler(
       request,
       async ({ listing, dateFilter, checkin, filteredByDate, sort }) => {
-        const isDaily = listing.listing_type === "daily";
+        const isDaily = listing.listingType === "daily";
         const paymentReferenceAttendeeIds =
           await getAttendeeIdsWithPaymentReference(filteredByDate);
         // Mirror the on-screen attendee table. Drop the failed-payment rows

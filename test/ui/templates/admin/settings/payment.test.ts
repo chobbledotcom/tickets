@@ -77,7 +77,7 @@ describe("settings payment forms", () => {
           paymentProvider: selected === "none" ? null : selected,
         });
         for (const value of values) {
-          expect(hasCheckedInput(html, "payment_provider", value)).toBe(
+          expect(hasCheckedInput(html, "paymentProvider", value)).toBe(
             value === selected,
           );
         }
@@ -204,17 +204,17 @@ describe("settings payment forms", () => {
     test("offers the sandbox switch to Square alone", () => {
       const square = credentials("square");
       const checkbox =
-        square.match(/<input[^>]*name="square_sandbox"[^>]*>/)?.[0] ?? "";
+        square.match(/<input[^>]*name="squareSandbox"[^>]*>/)?.[0] ?? "";
       assertStringIncludes(checkbox, 'type="checkbox"');
       assert(!checkbox.includes("checked"));
-      assert(!credentials("stripe").includes('name="square_sandbox"'));
-      assert(!credentials("sumup").includes('name="square_sandbox"'));
+      assert(!credentials("stripe").includes('name="squareSandbox"'));
+      assert(!credentials("sumup").includes('name="squareSandbox"'));
     });
 
     test("checks the sandbox switch when Square points at its test estate", () => {
       const html = credentials("square", { mode: "sandbox" });
       const checkbox =
-        html.match(/<input[^>]*name="square_sandbox"[^>]*>/)?.[0] ?? "";
+        html.match(/<input[^>]*name="squareSandbox"[^>]*>/)?.[0] ?? "";
       assertStringIncludes(checkbox, "checked");
     });
   });
@@ -263,7 +263,7 @@ describe("settings payment forms", () => {
         "Enter a new key below to replace it",
       ]);
       const field = html.match(
-        /<input[^>]*name="square_webhook_signature_key"[^>]*>/,
+        /<input[^>]*name="squareWebhookSignatureKey"[^>]*>/,
       )?.[0];
       assertStringIncludes(field ?? "", `value="${MASK_SENTINEL}"`);
     });

@@ -1,15 +1,17 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { expectIncludesAll } from "#test-utils/assertions.ts";
+import type { DateString } from "#shared/validation/date-string.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
+import { expectHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { makeVan } from "#test-utils/deliveries.ts";
 import {
   assignBookingToAgent,
   insertSecondBookingRow,
@@ -20,119 +22,109 @@ import {
   createTestAgentSession,
   createTestEditorSession,
 } from "#test-utils/session.ts";
-import { withSetting } from "#test-utils/settings.ts";
+import { enableFeature, withSetting } from "#test-utils/settings.ts";
+import type { Attendee, Listing } from "#types";
 import { readTicketPage, setupCheckinTest } from "./helpers.ts";
 
 describeWithEnv("check-in page role authorization", { db: true }, () => {
+  /** A delivery agent named `agent`, the session that reads the door page as
+   *  them, and one logistics attendee whose booking that agent owns on
+   *  `date` — the run-sheet fixture every delivery-agent test opens with. */
+  const agentBooking = async (
+    agent: string,
+    person: { email: string; name: string; quantity?: number },
+    date: DateString,
+  ): Promise<{
+    attendee: Attendee;
+    cookie: string;
+    listing: Listing;
+    token: string;
+  }> => {
+    const agentId = await makeVan(agent);
+    const { cookie } = await createTestAgentSession({
+      agentIds: [agentId],
+      token: agent,
+      username: agent,
+    });
+    const booking = await createTestAttendeeWithToken(
+      person.name,
+      person.email,
+      { usesLogistics: true },
+      person.quantity ?? 1,
+    );
+    await assignBookingToAgent(
+      booking.attendee.id,
+      booking.listing.id,
+      agentId,
+      date,
+    );
+    return { ...booking, cookie };
+  };
+
   describe("GET /checkin/:tokens (delivery agent session)", () => {
     test("delivery agents cannot use check-in tokens for another agent's booking", async () => {
-      const assignedAgent = (
-        await logisticsAgents.table.insert({ name: "Assigned van" })
-      ).id;
-      const otherAgent = (
-        await logisticsAgents.table.insert({ name: "Other van" })
-      ).id;
-      const { cookie } = await createTestAgentSession({
-        agentIds: [assignedAgent],
-        token: "checkin-agent",
-        username: "checkin-agent",
-      });
-      const own = await createTestAttendeeWithToken(
-        "Assigned Person",
-        "assigned@example.com",
-        { usesLogistics: true },
-      );
-      const other = await createTestAttendeeWithToken(
-        "Other Person",
-        "other@example.com",
-        { usesLogistics: true },
-      );
       const today = testDate(todayInTz(settings.timezone));
-      await assignBookingToAgent(
-        own.attendee.id,
-        own.listing.id,
-        assignedAgent,
+      const own = await agentBooking(
+        "Assigned van",
+        { email: "assigned@example.com", name: "Assigned Person" },
         today,
       );
-      await assignBookingToAgent(
-        other.attendee.id,
-        other.listing.id,
-        otherAgent,
+      const other = await agentBooking(
+        "Other van",
+        { email: "other@example.com", name: "Other Person" },
         today,
       );
 
-      const allowedBody = await readTicketPage(own.token, cookie);
+      const allowedBody = await readTicketPage(own.token, own.cookie);
       assertStringIncludes(allowedBody, "Assigned Person");
+      assertStringIncludes(allowedBody, "assigned@example.com");
       // An agent's run-sheet view never carries the bulk actions: their
       // session is not a door role, so the POST would refuse them.
-      assert(!allowedBody.includes('name="check_in"'));
-      assertStringIncludes(allowedBody, "assigned@example.com");
-      assert(!allowedBody.includes("Check In All"));
-      assert(
-        !allowedBody.includes(`href="/admin/attendees/${own.attendee.id}"`),
-      );
-      assert(!allowedBody.includes(`href="/admin/listing/${own.listing.id}"`));
-      assert(
-        !allowedBody.includes(
-          `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
-        ),
-      );
+      expectExcludesAll(allowedBody, [
+        'name="checkIn"',
+        "Check In All",
+        `href="/admin/attendees/${own.attendee.id}"`,
+        `href="/admin/listing/${own.listing.id}"`,
+        `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
+      ]);
 
       const forbidden = await awaitTestRequest(`/checkin/${other.token}`, {
-        cookie,
+        cookie: own.cookie,
       });
       expect(forbidden.status).toBe(403);
       const forbiddenBody = await forbidden.text();
-      assert(!forbiddenBody.includes("Other Person"));
-      assert(!forbiddenBody.includes("other@example.com"));
+      expectExcludesAll(forbiddenBody, ["Other Person", "other@example.com"]);
 
       const mixed = await awaitTestRequest(
         `/checkin/${own.token}+${other.token}`,
-        { cookie },
+        { cookie: own.cookie },
       );
       expect(mixed.status).toBe(200);
       const mixedBody = await mixed.text();
       expectIncludesAll(mixedBody, ["Assigned Person", "assigned@example.com"]);
-      assert(!mixedBody.includes("Other Person"));
-      assert(!mixedBody.includes("other@example.com"));
-      assert(!mixedBody.includes(`href="/admin/attendees/${own.attendee.id}"`));
-      assert(!mixedBody.includes(`href="/admin/listing/${own.listing.id}"`));
-      assert(
-        !mixedBody.includes(
-          `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
-        ),
-      );
+      expectExcludesAll(mixedBody, [
+        "Other Person",
+        "other@example.com",
+        `href="/admin/attendees/${own.attendee.id}"`,
+        `href="/admin/listing/${own.listing.id}"`,
+        `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
+      ]);
     });
 
     test("delivery agents see no bulk action on a fully refunded run-sheet leg", async () => {
       const { refundThroughLedger } = await import("#test-utils/ledger.ts");
-      const assignedAgent = (
-        await logisticsAgents.table.insert({ name: "Refunded van" })
-      ).id;
-      const { cookie } = await createTestAgentSession({
-        agentIds: [assignedAgent],
-        token: "checkin-agent-refunded",
-        username: "checkin-agent-refunded",
-      });
-      const own = await createTestAttendeeWithToken(
-        "Refunded Person",
-        "refunded-agent@example.com",
-        { usesLogistics: true },
-      );
-      await assignBookingToAgent(
-        own.attendee.id,
-        own.listing.id,
-        assignedAgent,
+      const own = await agentBooking(
+        "Refunded van",
+        { email: "refunded-agent@example.com", name: "Refunded Person" },
         testDate(todayInTz(settings.timezone)),
       );
       await refundThroughLedger(own.attendee.id, own.listing.id);
 
-      const body = await readTicketPage(own.token, cookie);
+      const body = await readTicketPage(own.token, own.cookie);
       assertStringIncludes(body, "Refunded Person");
       // A refunded leg offers nothing to change, and an agent's session is
       // not a door role: no bulk action may appear.
-      assert(!body.includes("Check In All"));
-      assert(!body.includes('name="check_in"'));
+      expectExcludesAll(body, ["Check In All", 'name="checkIn"']);
     });
 
     test("a scanner's door role alone offers no action on a token no row can change", async () => {
@@ -149,9 +141,11 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // a row the POST could change. A fully refunded token meets neither
       // offer: the POST would refuse, so the page must not advertise it.
       assertStringIncludes(body, "Still Home");
-      assert(!body.includes("Check In All"));
-      assert(!body.includes("Check Out All"));
-      assert(!body.includes('name="check_in"'));
+      expectExcludesAll(body, [
+        "Check In All",
+        "Check Out All",
+        'name="checkIn"',
+      ]);
     });
 
     test("keeps the door-safe columns even when a staff layout names contact ones", async () => {
@@ -172,9 +166,11 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // door-only ticket page always reads its own fixed door-safe columns,
       // so a contact column can never ride onto a door worker's screen.
       assertStringIncludes(body, "<th>Name</th>");
-      assert(!body.includes("perry@test.com"));
-      assert(!body.includes("<th>Email</th>"));
-      assert(!body.includes("<th>Phone</th>"));
+      expectExcludesAll(body, [
+        "perry@test.com",
+        "<th>Email</th>",
+        "<th>Phone</th>",
+      ]);
     });
 
     test("delivery agents see only the row whose leg is on their run sheet when one attendee has two rows on the same listing on different dates", async () => {
@@ -183,24 +179,17 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // only one date must not see the other row's date or quantity. Row A
       // is on the agent's run sheet today; row B is a future date with no
       // agent and must not appear.
-      const assignedAgent = (
-        await logisticsAgents.table.insert({ name: "Multi-row van" })
-      ).id;
-      const { cookie } = await createTestAgentSession({
-        agentIds: [assignedAgent],
-        token: "checkin-multirow",
-        username: "checkin-multirow",
-      });
       const today = testDate(todayInTz(settings.timezone));
       const laterDate = "2099-12-31";
-      const { attendee, listing, token } = await createTestAttendeeWithToken(
-        "Multi Row Person",
-        "multirow@example.com",
-        { usesLogistics: true },
-        2,
+      const { attendee, listing, token, cookie } = await agentBooking(
+        "Multi-row van",
+        {
+          email: "multirow@example.com",
+          name: "Multi Row Person",
+          quantity: 2,
+        },
+        today,
       );
-      // Row A (today, quantity 2): drop-off owned by `assignedAgent`.
-      await assignBookingToAgent(attendee.id, listing.id, assignedAgent, today);
       // Row B (later date, quantity 3): no agent, never on the run sheet.
       await insertSecondBookingRow(attendee.id, listing.id, laterDate, 3);
 
@@ -213,37 +202,25 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         // Row A's quantity (2) is visible; Row B's quantity (3) never is.
         ">2<",
       ]);
-      assert(!body.includes(">3<"));
       // Row A's date label is visible; Row B's later date must not leak.
       assertStringIncludes(body, formatDateLabel(today));
-      assert(!body.includes(formatDateLabel(laterDate)));
+      expectExcludesAll(body, [">3<", formatDateLabel(laterDate)]);
     });
 
     test("delivery agents see a leg that is on tomorrow's run sheet", async () => {
-      const assignedAgent = (
-        await logisticsAgents.table.insert({ name: "Tomorrow van" })
-      ).id;
-      const { cookie } = await createTestAgentSession({
-        agentIds: [assignedAgent],
-        token: "checkin-agent-tomorrow",
-        username: "checkin-agent-tomorrow",
-      });
       const tomorrow = addDays(testDate(todayInTz(settings.timezone)), 1);
-      const { attendee, listing, token } = await createTestAttendeeWithToken(
-        "Tomorrow Person",
-        "tomorrow@example.com",
-        { usesLogistics: true },
-      );
-      await assignBookingToAgent(
-        attendee.id,
-        listing.id,
-        assignedAgent,
+      const { token, cookie } = await agentBooking(
+        "Tomorrow van",
+        { email: "tomorrow@example.com", name: "Tomorrow Person" },
         tomorrow,
       );
 
       const body = await readTicketPage(token, cookie);
       assertStringIncludes(body, "Tomorrow Person");
     });
+
+    // Delivery agents and their run sheets belong to logistics.
+    beforeEach(() => enableFeature("logistics"));
   });
 
   describe("GET /checkin/:tokens (editor session)", () => {
@@ -257,11 +234,13 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
         "editor-hidden@example.com",
       );
 
-      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
-      expect(response.status).toBe(403);
-      const body = await response.text();
-      assert(!body.includes("Editor Hidden"));
-      assert(!body.includes("editor-hidden@example.com"));
+      await expectHtml(
+        await awaitTestRequest(`/checkin/${token}`, { cookie }),
+        {
+          notContains: ["Editor Hidden", "editor-hidden@example.com"],
+          status: 403,
+        },
+      );
     });
   });
 
@@ -280,8 +259,10 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       expectIncludesAll(body, ["Door Guest", "Check In All"]);
       // The admin pages behind these links stay shut for a scanner login, so
       // the page must not promise them (never render a forbidden link).
-      assert(!body.includes('href="/admin/attendees/'));
-      assert(!body.includes('href="/admin/listing/'));
+      expectExcludesAll(body, [
+        'href="/admin/attendees/',
+        'href="/admin/listing/',
+      ]);
     });
   });
 });

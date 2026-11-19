@@ -154,7 +154,7 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
           { e: listing.id, k: "p", p: 500, q: 1, r: group.id },
           { e: listing.id, p: 500, q: 1 },
         ],
-        explicit ? { thank_you_url: listing.thank_you_url } : {},
+        explicit ? { thank_you_url: listing.thankYouUrl } : {},
       );
 
       const first = await visit(sessionId);

@@ -75,6 +75,8 @@ interface FieldBase<
   autofocus?: boolean;
   /** Trusted template HTML rendered immediately before the field's label. */
   beforeHtml?: string;
+  /** The value the box draws when nothing else fills it. It is never a
+   *  value for a blank submission: mark the box `required` to refuse one. */
   defaultValue?: string;
   /** The either/or pair this control belongs to, rendered as the
    *  `data-exclusive-*` attributes the client script reads. */

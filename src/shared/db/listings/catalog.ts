@@ -1,50 +1,60 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
+import { LISTING_ROW } from "#db/listings/select.ts";
+import { readOneRow, readRows } from "#db/read.ts";
+import {
+  and,
+  type Expr,
+  equal,
+  literal,
+  not,
+  notInQuery,
+  or,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#types";
-import { rawListingsTable } from "./table.ts";
+
+/** The narrow listing shape used by listing and attribute pickers. */
+export type ListingOption = Pick<
+  DecodedRowOf<"listings">,
+  "active" | "id" | "name"
+>;
 
 export type ListingOfferFlags = Pick<
   Listing,
-  | "active"
-  | "assign_built_site"
-  | "hidden"
-  | "months_per_unit"
-  | "purchase_only"
+  "active" | "assignBuiltSite" | "hidden" | "monthsPerUnit" | "purchaseOnly"
 >;
 
 type ListingPickerRow = ListingOfferFlags & { name: string };
 
-const listingOfferFlagsColumns = rawListingsTable.read.pick([
+/** The columns that decide whether one listing can be offered. */
+const OFFER_FLAG_COLUMNS = [
   "active",
-  "assign_built_site",
+  "assignBuiltSite",
   "hidden",
-  "months_per_unit",
-  "purchase_only",
-]);
+  "monthsPerUnit",
+  "purchaseOnly",
+] as const;
 
-const listingPickerColumns = rawListingsTable.read.pick([
-  "id",
-  "name",
-  ...listingOfferFlagsColumns.columns,
-]);
+/** Every listing in id order. */
+const listingsInIdOrder = from(tables.listings).sortedBy("id");
 
-const catalogListingColumns = rawListingsTable.read.pick([
-  "id",
-  "slug",
-  "name",
-  "unit_price",
-  "listing_type",
-  "customisable_days",
-  "can_pay_more",
-]);
+/** Read the id, name and active flag of every listing, for item pickers. */
+export const getAllListingOptions = (): Promise<ListingOption[]> =>
+  readRows(listingsInIdOrder.pick("id", "name", "active"));
 
 /** Read the flags that decide whether one listing can be offered. */
 export const getListingOfferFlags = async (
   id: number,
 ): Promise<ListingOfferFlags | undefined> => {
-  const row = await listingOfferFlagsColumns.one({ id }, { alias: "listing" });
+  const row = await readOneRow(
+    from(tables.listings)
+      .where({ id })
+      .pick(...OFFER_FLAG_COLUMNS),
+  );
   return row ?? undefined;
 };
 
@@ -52,45 +62,50 @@ export const getListingOfferFlags = async (
 export const getListingPickerNames = async (): Promise<
   Map<number, ListingPickerRow>
 > => {
-  const rows = await listingPickerColumns.many(
-    {},
-    { alias: "listing", order: "listing.id ASC" },
+  const rows = await readRows(
+    listingsInIdOrder.pick("id", "name", ...OFFER_FLAG_COLUMNS),
   );
   return new Map(rows.map(({ id, ...listing }) => [id, listing] as const));
 };
 
-const catalogVisibleSql = (hiddenDefault: boolean | undefined): string => {
-  const inheriting =
-    "(listing.use_defaults = 1 AND listing.months_per_unit = 0)";
-  if (hiddenDefault === undefined) return "listing.hidden = 0";
-  return hiddenDefault
-    ? `listing.hidden = 0 AND NOT ${inheriting}`
-    : `(${inheriting} OR listing.hidden = 0)`;
+const catalogVisible = (hiddenDefault: boolean | undefined): Expr<boolean> => {
+  const shown = equal(LISTING_ROW.hidden, literal(0));
+  if (hiddenDefault === undefined) return shown;
+  const inheriting = and(
+    equal(LISTING_ROW.useDefaults, literal(1)),
+    equal(LISTING_ROW.monthsPerUnit, literal(0)),
+  );
+  return hiddenDefault ? and(shown, not(inheriting)) : or(inheriting, shown);
 };
 
 /** Read only active, effectively visible listings for the public catalog. */
 export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
-  const rows = await catalogListingColumns.many(
-    {},
-    {
-      alias: "listing",
-      where: [
-        { args: [], clause: "listing.active = 1" },
+  const rows = await readRows(
+    from(tables.listings)
+      .where(() => [
+        equal(LISTING_ROW.active, literal(1)),
         // A built-site plan is booked on its own checkout page, so the external
         // order widget — which cannot carry the site-setup flow — never lists it.
-        { args: [], clause: "listing.assign_built_site = 0" },
-        {
-          args: [],
-          clause: catalogVisibleSql(settings.listingDefaults.hidden),
-        },
+        equal(LISTING_ROW.assignBuiltSite, literal(0)),
+        catalogVisible(settings.listingDefaults.hidden),
         // A child listing is only offered on its own when it says it can be.
-        {
-          args: [],
-          clause: `(listing.bookable_alone = 1 OR listing.id NOT IN (
-          SELECT listingParent.child_listing_id FROM listing_parents AS listingParent))`,
-        },
-      ],
-    },
+        or(
+          equal(LISTING_ROW.bookableAlone, literal(1)),
+          notInQuery(
+            LISTING_ROW.id,
+            from(tables.listing_parents).values((edge) => edge.childListingId),
+          ),
+        ),
+      ])
+      .pick(
+        "id",
+        "slug",
+        "name",
+        "unitPrice",
+        "listingType",
+        "customisableDays",
+        "canPayMore",
+      ),
   );
   return rows.map((row) => ({
     active: true,

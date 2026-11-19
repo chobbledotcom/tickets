@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  type AttendeeStatusWriteInput,
   attendeeStatuses,
   attendeeStatusOrder,
   attendeeStatusWrites,
@@ -15,22 +14,13 @@ import {
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { statusInput } from "#test-utils/db-helpers/attendee-statuses.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-
-const statusInput = (
-  name: string,
-  defaults: Partial<AttendeeStatusWriteInput> = {},
-): AttendeeStatusWriteInput => ({
-  isPaidDefault: false,
-  isPublicDefault: false,
-  isReservation: false,
-  name,
-  reservationAmount: "0",
-  ...defaults,
-});
 
 describeWithEnv("db > attendee statuses", { db: true }, () => {
   test("the migration seeds a single non-reservation default status", async () => {
@@ -38,11 +28,11 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(statuses).toHaveLength(1);
     const seed = statuses[0]!;
     expect(seed.name).toBe(DEFAULT_ATTENDEE_STATUS_NAME);
-    expect(seed.is_public_default).toBe(true);
-    expect(seed.is_paid_default).toBe(true);
-    expect(seed.is_reservation).toBe(false);
-    expect(seed.reservation_amount).toBe("0");
-    expect(seed.sort_order).toBe(0);
+    expect(seed.isPublicDefault).toBe(true);
+    expect(seed.isPaidDefault).toBe(true);
+    expect(seed.isReservation).toBe(false);
+    expect(seed.reservationAmount).toBe("0");
+    expect(seed.sortOrder).toBe(0);
   });
 
   test("the seeded status is the word an operator sees", async () => {
@@ -52,7 +42,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("saving a status that is not a default leaves it alone", async () => {
-    const other = await attendeeStatuses.table.insert({
+    const other = await records.attendee_statuses.insert({
       name: "Waitlist",
       sortOrder: 1,
     });
@@ -100,8 +90,8 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     // Two statuses claiming the same default is the state this must never
     // leave behind — the old one gives them up as the new one takes them.
     const previous = await getAttendeeStatus(seed.id);
-    expect(previous?.is_public_default).toBe(false);
-    expect(previous?.is_paid_default).toBe(false);
+    expect(previous?.isPublicDefault).toBe(false);
+    expect(previous?.isPaidDefault).toBe(false);
   });
 
   test("required default status lookups return the seed", async () => {
@@ -124,7 +114,9 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   test("requirePublicStatusId throws when the required default is missing", async () => {
     const [seed] = await attendeeStatuses.getAll();
     expect(await requirePublicStatusId()).toBe(seed!.id);
-    await getDb().execute("UPDATE attendee_statuses SET is_public_default = 0");
+    await getDb().execute(
+      sql`UPDATE attendee_statuses SET is_public_default = 0`,
+    );
     attendeeStatuses.invalidate();
     await expect(requirePublicStatusId()).rejects.toThrow(
       "No attendee status has the required is_public_default flag",
@@ -137,13 +129,13 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("inserting statuses returns them ordered by sort_order then id", async () => {
-    const reserved = await attendeeStatuses.table.insert({
+    const reserved = await records.attendee_statuses.insert({
       isReservation: true,
       name: "Reserved",
       reservationAmount: "10%",
       sortOrder: 2,
     });
-    const waitlist = await attendeeStatuses.table.insert({
+    const waitlist = await records.attendee_statuses.insert({
       name: "Waitlist",
       sortOrder: 1,
     });
@@ -155,45 +147,54 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       "Waitlist",
       "Reserved",
     ]);
-    expect(reserved.is_reservation).toBe(true);
-    expect(reserved.reservation_amount).toBe("10%");
+    expect(reserved.isReservation).toBe(true);
+    expect(reserved.reservationAmount).toBe("10%");
     const storedWaitlist = await getAttendeeStatus(waitlist.id);
-    expect(storedWaitlist?.is_paid_default).toBe(false);
-    expect(storedWaitlist?.is_public_default).toBe(false);
-    expect(storedWaitlist?.is_reservation).toBe(false);
+    expect(storedWaitlist?.isPaidDefault).toBe(false);
+    expect(storedWaitlist?.isPublicDefault).toBe(false);
+    expect(storedWaitlist?.isReservation).toBe(false);
   });
 
   test("ordered rows swap two statuses' sort_order", async () => {
-    const a = await attendeeStatuses.table.insert({ name: "A", sortOrder: 5 });
-    const b = await attendeeStatuses.table.insert({ name: "B", sortOrder: 6 });
+    const a = await records.attendee_statuses.insert({
+      name: "A",
+      sortOrder: 5,
+    });
+    const b = await records.attendee_statuses.insert({
+      name: "B",
+      sortOrder: 6,
+    });
     await attendeeStatusOrder.swap({ first: a.id, second: b.id });
-    expect((await getAttendeeStatus(a.id))?.sort_order).toBe(6);
-    expect((await getAttendeeStatus(b.id))?.sort_order).toBe(5);
+    expect((await getAttendeeStatus(a.id))?.sortOrder).toBe(6);
+    expect((await getAttendeeStatus(b.id))?.sortOrder).toBe(5);
   });
 
   test("update changes fields and invalidates the cache", async () => {
-    const created = await attendeeStatuses.table.insert({ name: "Pending" });
-    await attendeeStatuses.table.update(created.id, {
+    const created = await records.attendee_statuses.insert({
+      name: "Pending",
+    });
+    await records.attendee_statuses.update(created.id, {
       isReservation: true,
       reservationAmount: "25",
     });
     const updated = await getAttendeeStatus(created.id);
-    expect(updated?.is_reservation).toBe(true);
-    expect(updated?.reservation_amount).toBe("25");
+    expect(updated?.isReservation).toBe(true);
+    expect(updated?.reservationAmount).toBe("25");
   });
 
   test("deleteById removes a status", async () => {
-    const created = await attendeeStatuses.table.insert({ name: "Temp" });
-    await attendeeStatuses.table.deleteById(created.id);
+    const created = await records.attendee_statuses.insert({ name: "Temp" });
+    await records.attendee_statuses.delete(created.id);
     expect(await getAttendeeStatus(created.id)).toBeNull();
   });
 
   test("status name is encrypted at rest", async () => {
-    const created = await attendeeStatuses.table.insert({ name: "VIP Guest" });
-    const raw = await getDb().execute({
-      args: [created.id],
-      sql: "SELECT name FROM attendee_statuses WHERE id = ?",
+    const created = await records.attendee_statuses.insert({
+      name: "VIP Guest",
     });
+    const raw = await getDb().execute(
+      sql`SELECT name FROM attendee_statuses WHERE id = ${created.id}`,
+    );
     // Stored value is ciphertext, not the plaintext name.
     expect(String(raw.rows[0]!.name)).not.toBe("VIP Guest");
     // ...but it decrypts back to the plaintext name on read.
@@ -202,14 +203,13 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
 
   test("ensureDefaultAttendeeStatus seeds and backfills null-status attendees", async () => {
     // Wipe the seed and insert an attendee with no status.
-    await getDb().execute("DELETE FROM attendee_statuses");
+    await getDb().execute(sql`DELETE FROM attendee_statuses`);
     attendeeStatuses.invalidate();
-    await getDb().execute({
-      args: [],
-      sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES ('2024-01-01T00:00:00Z', '', NULL)",
-    });
+    await getDb().execute(
+      sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES ('2024-01-01T00:00:00Z', '', NULL)`,
+    );
     const { rows } = await getDb().execute(
-      "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
+      sql`SELECT id FROM attendees ORDER BY id DESC LIMIT 1`,
     );
     const attendeeId = Number(rows[0]!.id);
 
@@ -218,23 +218,24 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     const statuses = await attendeeStatuses.getAll();
     expect(statuses).toHaveLength(1);
     expect(statuses[0]).toMatchObject({
-      is_paid_default: true,
-      is_public_default: true,
-      is_reservation: false,
+      isPaidDefault: true,
+      isPublicDefault: true,
+      isReservation: false,
       name: DEFAULT_ATTENDEE_STATUS_NAME,
-      reservation_amount: "0",
-      sort_order: 0,
+      reservationAmount: "0",
+      sortOrder: 0,
     });
-    const backfilled = await getDb().execute({
-      args: [attendeeId],
-      sql: "SELECT status_id FROM attendees WHERE id = ?",
-    });
+    const backfilled = await getDb().execute(
+      sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
+    );
     expect(Number(backfilled.rows[0]!.status_id)).toBe(statuses[0]!.id);
   });
 
   test("concurrent default changes leave one public and paid default", async () => {
-    const first = await attendeeStatuses.table.insert({ name: "First" });
-    const second = await attendeeStatuses.table.insert({ name: "Second" });
+    const first = await records.attendee_statuses.insert({ name: "First" });
+    const second = await records.attendee_statuses.insert({
+      name: "Second",
+    });
 
     const results = await Promise.all([
       attendeeStatusWrites.save(
@@ -257,30 +258,30 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
         ok: true,
         value: {
           id: first.id,
-          is_paid_default: true,
-          is_public_default: true,
-          is_reservation: false,
+          isPaidDefault: true,
+          isPublicDefault: true,
+          isReservation: false,
           name: "First",
-          reservation_amount: "0",
-          sort_order: 0,
+          reservationAmount: "0",
+          sortOrder: 0,
         },
       },
       {
         ok: true,
         value: {
           id: second.id,
-          is_paid_default: true,
-          is_public_default: true,
-          is_reservation: false,
+          isPaidDefault: true,
+          isPublicDefault: true,
+          isReservation: false,
           name: "Second",
-          reservation_amount: "0",
-          sort_order: 0,
+          reservationAmount: "0",
+          sortOrder: 0,
         },
       },
     ]);
 
     const defaults = await getDb().execute(
-      `SELECT status.is_public_default, status.is_paid_default
+      sql`SELECT status.is_public_default, status.is_paid_default
          FROM attendee_statuses AS status
         WHERE status.is_public_default = 1 OR status.is_paid_default = 1`,
     );
@@ -294,13 +295,13 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
 
   test("a failed default change restores the previous defaults", async () => {
     const seed = (await attendeeStatuses.getAll())[0]!;
-    const candidate = await attendeeStatuses.table.insert({
+    const candidate = await records.attendee_statuses.insert({
       name: "Candidate",
     });
     await getDb().execute(
-      `CREATE TRIGGER fail_candidate_status_update
+      sql`CREATE TRIGGER fail_candidate_status_update
        BEFORE UPDATE ON attendee_statuses
-       WHEN NEW.id = ${candidate.id}
+       WHEN NEW.id = ${sqlLiteral(candidate.id)}
        BEGIN
          SELECT RAISE(ABORT, 'candidate update failed');
        END`,
@@ -317,7 +318,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     ).rejects.toThrow("candidate update failed");
 
     const defaults = await getDb().execute(
-      `SELECT status.id, status.is_public_default, status.is_paid_default
+      sql`SELECT status.id, status.is_public_default, status.is_paid_default
          FROM attendee_statuses AS status
         ORDER BY status.id`,
     );
@@ -328,7 +329,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("a stale edit cannot clear a newly selected default", async () => {
-    const candidate = await attendeeStatuses.table.insert({
+    const candidate = await records.attendee_statuses.insert({
       name: "Candidate",
     });
 
@@ -345,12 +346,12 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       ok: true,
       value: {
         id: candidate.id,
-        is_paid_default: false,
-        is_public_default: true,
-        is_reservation: false,
+        isPaidDefault: false,
+        isPublicDefault: true,
+        isReservation: false,
         name: "Candidate",
-        reservation_amount: "0",
-        sort_order: 0,
+        reservationAmount: "0",
+        sortOrder: 0,
       },
     });
     expect(await staleEdit).toEqual({

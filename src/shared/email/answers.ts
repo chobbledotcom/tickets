@@ -44,7 +44,7 @@ const asksOn = (
   listingId: number,
   questionListingMap: QuestionListingMap,
 ): boolean =>
-  question.assign_all === true ||
+  question.assignAll === true ||
   requiredMapValue(
     questionListingMap,
     question.id,
@@ -61,7 +61,7 @@ const answerTextFor = (
   chosenAnswerIds: readonly number[],
   freeTexts: FreeTextAnswers,
 ): string | null => {
-  if (question.display_type === "free_text") {
+  if (question.displayType === "free_text") {
     return freeTexts.get(question.id) ?? null;
   }
   const chosen = question.answers.find((answer) =>

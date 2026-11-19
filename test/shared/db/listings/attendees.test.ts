@@ -14,6 +14,7 @@ import {
   getListingWithAttendeeRaw,
   getListingWithAttendeesRaw,
 } from "#db/listings/attendees.ts";
+import { sql } from "#db/sql.ts";
 import { brunoOnTwoListings } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -54,7 +55,7 @@ describeWithEnv(
       const result = await getListingWithAttendeesRaw(listing.id);
       expect(result).not.toBeNull();
       expect(result?.listing.id).toBe(listing.id);
-      expect(result?.listing.attendee_count).toBe(1);
+      expect(result?.listing.attendeeCount).toBe(1);
       expect(result?.attendeesRaw.length).toBe(1);
       // The attendee half really is the booking, not the listing row that
       // shares the same batch.
@@ -114,8 +115,7 @@ describeWithEnv(
         "bo@test.com",
       );
       await execute(
-        "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-        [emptied.id],
+        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${emptied.id}`,
       );
 
       // The default keeps every line, emptied ones included.
@@ -160,8 +160,7 @@ describeWithEnv(
       const booked = await bookedAttendee(listing, "Kept");
       const emptied = await bookedAttendee(listing, "Emptied");
       await execute(
-        "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-        [emptied.id],
+        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${emptied.id}`,
       );
 
       const onTheDay = await getDailyListingAttendeesByDate("2026-07-04");
@@ -191,7 +190,7 @@ describeWithEnv(
       const [row] = result?.attendeeRows ?? [];
       expect(row?.id).toBe(attendee.id);
       expect(row?.listing_id).toBe(listing.id);
-      expect(result?.listing.attendee_count).toBe(1);
+      expect(result?.listing.attendeeCount).toBe(1);
     });
 
     test("getListingWithAttendeeRaw has no attendee half when the id is unknown", async () => {

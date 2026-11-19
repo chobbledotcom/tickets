@@ -11,6 +11,7 @@ import {
   invalidateInitDbCache,
   LATEST_UPDATE,
 } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   appliedMigrationIds,
@@ -23,15 +24,14 @@ type SettingRow = { key: string; value: string };
 const settingRows = async (): Promise<SettingRow[]> =>
   resultRows(
     await getDb().execute(
-      "SELECT key, value FROM settings WHERE key LIKE 'custom_css%'",
+      sql`SELECT key, value FROM settings WHERE key LIKE 'custom_css%'`,
     ),
   );
 
 const insertCustomCss = async (value: string): Promise<void> => {
-  await getDb().execute({
-    args: [value],
-    sql: "INSERT INTO settings (key, value) VALUES ('custom_css', ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO settings (key, value) VALUES ('custom_css', ${value})`,
+  );
 };
 
 describeWithEnv("custom css bunny fonts migration", { db: true }, () => {
@@ -81,20 +81,15 @@ describeWithEnv("custom css bunny fonts migration", { db: true }, () => {
     // migrated at the previous release reads up to date and skips the scan.
     invalidateInitDbCache();
     await initDb();
-    await getDb().execute({
-      args: ["@import url(https://fonts.bunny.net/css?family=aleo);"],
-      sql: "INSERT INTO settings (key, value) VALUES ('custom_css', ?)",
-    });
-    await getDb().execute({
-      args: [
-        "Pad the stored holiday dates the pre-2476 mapper wrote unpadded.",
-      ],
-      sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-    });
-    await getDb().execute({
-      args: ["2026-10-11_custom_css_bunny_fonts"],
-      sql: "DELETE FROM schema_migrations WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`INSERT INTO settings (key, value) VALUES ('custom_css', ${"@import url(https://fonts.bunny.net/css?family=aleo);"})`,
+    );
+    await getDb().execute(
+      sql`UPDATE settings SET value = ${"Pad the stored holiday dates the pre-2476 mapper wrote unpadded."} WHERE key = 'latest_db_update'`,
+    );
+    await getDb().execute(
+      sql`DELETE FROM schema_migrations WHERE id = ${"2026-10-11_custom_css_bunny_fonts"}`,
+    );
     invalidateInitDbCache();
 
     await initDb();

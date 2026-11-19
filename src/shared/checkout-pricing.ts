@@ -94,7 +94,7 @@ type ListPriceListing = {
   id: number;
   name: string;
   slug: string;
-  unit_price: number;
+  unitPrice: number;
 };
 
 /** One bookable line a list-price order prices at the listing's list price. */
@@ -118,7 +118,7 @@ export const listPriceOrder = (
 ): PricedOrder => ({
   extras: [],
   lines: lines.map((line): PricedLine => {
-    const unitPrice = line.unitPrice ?? line.listing.unit_price;
+    const unitPrice = line.unitPrice ?? line.listing.unitPrice;
     return {
       chargedUnitAmount: unitPrice,
       item: {
@@ -138,7 +138,7 @@ export const listPriceOrder = (
         sumByKey(
           (line: ListPriceLine) => line.listing.id,
           (line: ListPriceLine) =>
-            (line.unitPrice ?? line.listing.unit_price) * line.quantity,
+            (line.unitPrice ?? line.listing.unitPrice) * line.quantity,
         )(lines),
       ),
       modifiers: [],

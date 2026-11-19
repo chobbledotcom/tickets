@@ -44,8 +44,8 @@ const getMergeVersion = async (
   const page = await adminGet(
     `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(sourceToken)}`,
   );
-  const value = extractInputValue(await page.text(), "merge_version");
-  if (value === null) throw new Error("merge_version not found in page");
+  const value = extractInputValue(await page.text(), "mergeVersion");
+  if (value === null) throw new Error("mergeVersion not found in page");
   return value;
 };
 
@@ -78,8 +78,8 @@ const mergeWithPins = async (setup: {
   const { response } = await adminFormPost(
     `/admin/attendees/${target.id}/merge`,
     {
-      merge_version: mergeVersion,
-      source_token: sourceToken,
+      mergeVersion,
+      sourceToken,
       ...setup.decision,
     },
   );
@@ -127,7 +127,7 @@ describeWithEnv("attendee merge — pinned location", { db: true }, () => {
 
   test("choosing the source's address brings the source's pin", async () => {
     const merged = await mergeWithPins({
-      decision: { pii_address: "source" },
+      decision: { piiAddress: "source" },
       sourceAddress: "9 Other Road",
       sourcePin: ["53.0", "-2.0"],
       targetAddress: "1 Target Street",

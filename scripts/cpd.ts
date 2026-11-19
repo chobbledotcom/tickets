@@ -12,13 +12,29 @@
  * After every scan it also names the worst duplication in the report: the
  * code that appears in the most places, then the one with the most tokens.
  *
+ * The wrapper owns the committed counts. `cfg/cpd-counts.json` holds one number
+ * for each scan: how many duplicated places the scan reports (see
+ * ./jscpd/counts.ts). `--update` writes the number and refuses a rise, and
+ * `--fail-on-new-clones` fails the scan when its report holds more places than
+ * the committed count.
+ *
  * Usage: deno run -A scripts/cpd.ts <jscpd args...>
  */
 
-import { join } from "node:path";
+import { resolve } from "node:path";
 import * as v from "valibot";
 import { projectRoot } from "#scripts/project-root.ts";
+import { writeJsonFile } from "#scripts/read-json.ts";
+import { requireValue } from "#shared/required-value.ts";
+import {
+  placeCount,
+  readCounts,
+  type ScanCounts,
+  updatedCounts,
+  updateSummary,
+} from "./jscpd/counts.ts";
 import { ensureJscpd } from "./jscpd/install.ts";
+import { scanOptions } from "./jscpd/options.ts";
 import {
   describeWorstFamily,
   rankCloneFamilies,
@@ -26,49 +42,115 @@ import {
 } from "./jscpd/worst.ts";
 import { bold, red, yellow } from "./precommit/colors.ts";
 
-// `--update` records the current clones into the committed baseline instead
-// of checking for new ones, so translate it for jscpd and drop the check.
-const args = Deno.args.includes("--update")
-  ? [
-      ...Deno.args.filter(
-        (arg) => arg !== "--update" && arg !== "--fail-on-new-clones",
-      ),
-      "--update-baseline",
-    ]
-  : Deno.args;
+const options = scanOptions(Deno.args);
 
 /** The report that this scan writes, read from the config that `--config`
- * names. Every cpd task passes `--config`. */
-const reportPath = async (): Promise<{ config: string; report: string }> => {
-  const config = args[args.indexOf("--config") + 1];
-  if (!args.includes("--config") || config === undefined) {
-    throw new Error("scripts/cpd.ts needs --config <file>");
-  }
+ * names. jscpd writes `output` from the working directory, so the report sits
+ * under the project root. */
+const reportPath = async (): Promise<string> => {
   const { output } = v.parse(
     v.object({ output: v.string() }),
-    JSON.parse(await Deno.readTextFile(config)),
+    JSON.parse(await Deno.readTextFile(options.config)),
   );
-  return { config, report: join(projectRoot, output, "jscpd-report.json") };
+  return resolve(projectRoot, output, "jscpd-report.json");
 };
 
-const { config, report } = await reportPath();
+const report = await reportPath();
 // A crash before jscpd writes its report must not show the last run's report.
 await Deno.remove(report).catch((error) => {
   if (!(error instanceof Deno.errors.NotFound)) throw error;
 });
 
 const { code } = await new Deno.Command(await ensureJscpd(), {
-  args,
+  args: options.args,
 }).spawn().status;
 
-const families = rankCloneFamilies(
-  readClonePairs(JSON.parse(await Deno.readTextFile(report))),
-);
-console.error(
-  yellow(describeWorstFamily(config, families, projectRoot).join("\n")),
+const pairs = readClonePairs(JSON.parse(await Deno.readTextFile(report)));
+const worstLines = describeWorstFamily(
+  options.config,
+  rankCloneFamilies(pairs),
+  projectRoot,
 );
 
-if (code !== 0) {
+/** The committed counts file this scan reads, or undefined when the file is
+ * not there. */
+const rememberedCounts = async (): Promise<ScanCounts | undefined> => {
+  const path = requireValue(
+    options.counts,
+    "A cpd scan with a count needs --counts <file>.",
+  );
+  const text = await Deno.readTextFile(resolve(projectRoot, path)).catch(
+    (error) => {
+      if (error instanceof Deno.errors.NotFound) return;
+      throw error;
+    },
+  );
+  return text === undefined ? undefined : readCounts(path, text);
+};
+
+/** Writes the current count, or returns the failure text for a check run. */
+const outcome = async (): Promise<string | undefined> => {
+  if (!options.update && !options.check) {
+    console.error(yellow(worstLines.join("\n")));
+    return;
+  }
+  const named = requireValue(
+    options.counts,
+    "A cpd scan with a count needs --counts <file>.",
+  );
+  const scan = requireValue(
+    options.scan,
+    "A cpd scan with a count needs --scan <name>.",
+  );
+  const counts = await rememberedCounts();
+  const before = counts === undefined ? undefined : counts[scan];
+  const count = placeCount(pairs);
+  if (options.update) {
+    if (before !== undefined && count > before) {
+      throw new Error(
+        `The ${scan} scan reports ${count} place(s), above the committed ` +
+          `count ${before} in ${named}. Merge the duplicated code. ` +
+          "Do not raise the count.",
+      );
+    }
+    await writeJsonFile(
+      resolve(projectRoot, named),
+      updatedCounts(counts ?? {}, scan, count),
+    );
+    console.error(yellow(updateSummary(named, scan, count, before)));
+    console.error(yellow(worstLines.join("\n")));
+    return;
+  }
+  if (before === undefined) {
+    throw new Error(
+      counts === undefined
+        ? `The cpd counts file ${named} does not exist. ` +
+            "Run deno task cpd:update to write it."
+        : `The cpd counts file ${named} holds no count for the ${scan} scan. ` +
+            "Run deno task cpd:update to add it.",
+    );
+  }
+  if (count <= before) {
+    console.error(yellow(worstLines.join("\n")));
+    return;
+  }
+  return [
+    `${named}: the ${scan} scan reports ${count} place(s).`,
+    `The committed count is ${before}.`,
+    ...worstLines,
+  ].join("\n");
+};
+
+const failure = await outcome();
+
+if (failure !== undefined) {
+  console.error(`
+${bold(red("━━━ jscpd: the scan reports more duplicated places than its count ━━━"))}
+
+${failure}`);
+}
+
+if (code !== 0 || failure !== undefined) {
   console.error(`
 ${bold(red("━━━ jscpd: duplicated code found — no new duplication is allowed ━━━"))}
 
@@ -84,10 +166,13 @@ Do NOT reach for ${bold("/* jscpd:ignore */")} to silence this. Fix the duplicat
      best one; a larger, more holistic curry across the call sites is very
      frequently far better.
 
-  ${bold("3. jscpd:ignore is the LAST resort.")} The configs already skip import
-     and re-export statements, so imports never need a marker. Keep a marker
-     for the rare unavoidable scrap of boilerplate/infrastructure we have no
-     control over. Anywhere else an ignore tag is a code smell, not a fix.
+  ${bold("3. jscpd:ignore is for static data, not code.")} The configs skip
+     imports and re-exports, so those never need a marker. A declaration that
+     holds only static data is data, not code. This covers a list of strings
+     and an object hash whose values are literals. Wrap the whole declaration
+     in /* jscpd:ignore-start -- static data, not code */ and
+     /* jscpd:ignore-end */. Anywhere else an ignore tag is a code smell, not a
+     fix.
 
   ${yellow("Never restructure the code just to break the token match")} (a
      config object, a rename, reordering) while two parallel implementations
@@ -97,4 +182,4 @@ Do NOT reach for ${bold("/* jscpd:ignore */")} to silence this. Fix the duplicat
 `);
 }
 
-Deno.exit(code);
+Deno.exit(code !== 0 ? code : failure !== undefined ? 1 : 0);

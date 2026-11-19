@@ -21,7 +21,7 @@ describe("bulkEmailTemplateDeletePage", () => {
       "Are you sure you want to delete the saved template with subject:",
       "with subject: <strong>March offers &amp; news</strong>",
       "<p>Type the template subject to confirm:</p>",
-      'name="confirm_identifier" placeholder="March offers &amp; news" required',
+      'name="confirmIdentifier" placeholder="March offers &amp; news" required',
     ]);
   });
 

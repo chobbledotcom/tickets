@@ -5,11 +5,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  isNotActivatedPage,
+  notActivatedPageMeta,
+  SiteNotActivatedError,
   updateBuildTagMeta,
   updatePageBuildTag,
   updatePageMeta,
   updatePageState,
-} from "#shared/update-guard.ts";
+} from "#shared/update-page-markers.ts";
 
 const page = (state: "supported" | "active", buildTag?: string): string =>
   `<html><head>${updatePageMeta(state)}${buildTag === undefined ? "" : updateBuildTagMeta(buildTag)}</head></html>`;
@@ -36,5 +39,17 @@ describe("update page marker", () => {
     );
     expect(updatePageBuildTag(page("active"))).toBeNull();
     expect(updatePageBuildTag("")).toBeNull();
+  });
+
+  test("reads the not-activated marker and the old copy", () => {
+    expect(isNotActivatedPage(notActivatedPageMeta())).toBe(true);
+    expect(
+      isNotActivatedPage("<p>This site has not been activated yet.</p>"),
+    ).toBe(true);
+    expect(isNotActivatedPage("<html><head></head></html>")).toBe(false);
+  });
+
+  test("names the not-activated error", () => {
+    expect(new SiteNotActivatedError().name).toBe("SiteNotActivatedError");
   });
 });

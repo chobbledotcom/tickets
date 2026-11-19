@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { createSitePage, sitePages, updateSitePage } from "#db/site-pages.ts";
+import { records } from "#db/record-table.ts";
+import { createSitePage, updateSitePage } from "#db/site-pages.ts";
 import { isSlugTakenAnywhere, takenSlugIndexes } from "#db/slug-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -17,7 +18,7 @@ const pageInput = (name: string, slug: string) => ({
 });
 
 const makePage = async (slug: string) =>
-  sitePages.table.insert({
+  records.site_pages.insert({
     name: `Name ${slug}`,
     slug,
     slugIndex: await hmacHash(slug),
@@ -76,8 +77,8 @@ describeWithEnv("db > slug-registry", { db: true }, () => {
     expect(await takenSlugIndexes([])).toEqual(new Set());
     const listing = await createTestListing({ name: "Batched" });
     const free = await hmacHash("never-registered");
-    const held = await takenSlugIndexes([listing.slug_index, free]);
-    expect(held.has(listing.slug_index)).toBe(true);
+    const held = await takenSlugIndexes([listing.slugIndex, free]);
+    expect(held.has(listing.slugIndex)).toBe(true);
     expect(held.has(free)).toBe(false);
   });
 });

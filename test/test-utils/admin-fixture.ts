@@ -56,7 +56,7 @@ export const adminAttendeeAction =
           : `/admin/attendees/${ctx.attendee.id}/${action}`;
       return awaitTestRequest(url, {
         cookie: ctx.cookie,
-        data: { csrf_token: ctx.csrfToken, ...formData },
+        data: { csrfToken: ctx.csrfToken, ...formData },
       });
     });
 

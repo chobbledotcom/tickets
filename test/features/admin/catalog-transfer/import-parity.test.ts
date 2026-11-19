@@ -90,14 +90,7 @@ describeWithEnv("single import equals a bundle of one", { db: true }, () => {
     // Slugs are minted per row and `created` is the import moment; every
     // transferable column must match.
     const comparable = (stored: typeof storedSolo) => {
-      const {
-        created,
-        id,
-        name,
-        slug,
-        slug_index: slugIndex,
-        ...rest
-      } = stored;
+      const { created, id, name, slug, slugIndex, ...rest } = stored;
       return rest;
     };
     expect(comparable(storedSolo)).toEqual(comparable(storedBundled));

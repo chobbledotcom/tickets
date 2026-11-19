@@ -6,8 +6,8 @@
  * booking grid + (locked) hidden-from-public indicator. The submit core is a
  * thin specialisation of the attendee submit core that:
  *
- *   • parses the same booking grid (`qty_<id>`, `line_key_<id>`,
- *     `noqty_<id>`, `day_count`, `start_date`) and the same `name`;
+ *   • parses the same booking grid (`qty<id>`, `lineKey<id>`,
+ *     `noqty<id>`, `dayCount`, `startDate`) and the same `name`;
  *   • normalises by `kind='servicing'` — contact / status / balance fields
  *     are coerced empty / null / zero server-side regardless of what the POST
  *     body carried (§3 / §19 contract guard);
@@ -31,7 +31,6 @@ import { QTY_PREFIX } from "#routes/admin/attendee-form-lines.ts";
 import {
   DAY_COUNT_FIELD,
   parseAttendeeForm,
-  START_DATE_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
 import { validateAttendeeBlock } from "#routes/admin/attendee-form-validation.ts";
 import {
@@ -41,14 +40,15 @@ import {
 } from "#routes/admin/servicing/form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
+import { START_DATE_BOX } from "#shared/order-select.ts";
 
 const EXCLUDED_FIELD_NAMES = [
   "email",
   "phone",
   "address",
-  "special_instructions",
-  "status_id",
-  "remaining_balance",
+  "specialInstructions",
+  "statusId",
+  "remainingBalance",
 ] as const;
 
 const fieldNames = (fields: readonly Field[]): Set<string> =>
@@ -64,7 +64,7 @@ describe("servicing §0 — servicing field schema omits contact/payment fields"
     // drive the same per-listing quantity input. We assert presence of the
     // shared date + day-count controls (the per-listing qty_* fields are
     // emitted dynamically per listing, not as static Field entries).
-    expect(names.has(START_DATE_FIELD)).toBe(true);
+    expect(names.has(START_DATE_BOX)).toBe(true);
     expect(names.has(DAY_COUNT_FIELD)).toBe(true);
     expect(names.has(QTY_PREFIX.slice(0, -1))).toBe(false); // prefix isn't a field
   });
@@ -94,25 +94,25 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
     [
       1,
       {
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
         income: 0,
-        listing_type: "daily" as const,
-        max_attendees: 5,
-        max_quantity: 5,
+        listingType: "daily" as const,
+        maxAttendees: 5,
+        maxQuantity: 5,
         name: "Room A",
         slug: "room-a",
-        tickets_count: 0,
+        ticketsCount: 0,
       },
     ],
   ]);
 
-  test("parsing a name + quantity_1 submission yields a kind='servicing' input with the booked line and empty contact fields", () => {
+  test("parsing a name + quantity1 submission yields a kind='servicing' input with the booked line and empty contact fields", () => {
     const form = new FormParams({
-      day_count: "1",
+      dayCount: "1",
       name: "Boiler Service",
-      quantity_1: "2",
-      [START_DATE_FIELD]: "2026-06-24",
+      quantity1: "2",
+      [START_DATE_BOX]: "2026-06-24",
     });
     const parsed = parseServicingForm(form, listingsById);
     const input = normalizeServicingForSave(parsed);
@@ -137,15 +137,15 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
     // in the POST body must not survive into the create input.
     const form = new FormParams({
       address: "12 Sneaky Street",
-      day_count: "1",
+      dayCount: "1",
       email: "smuggler@example.com",
       name: "Boiler Service",
       phone: "+44 7700 900000",
-      quantity_1: "1",
-      remaining_balance: "9000",
-      special_instructions: "be quiet",
-      [START_DATE_FIELD]: "2026-06-24",
-      status_id: "3",
+      quantity1: "1",
+      remainingBalance: "9000",
+      specialInstructions: "be quiet",
+      [START_DATE_BOX]: "2026-06-24",
+      statusId: "3",
     });
     const parsed = parseServicingForm(form, listingsById);
     const normalised = normalizeServicingForSave(parsed);
@@ -167,8 +167,8 @@ describe("servicing §0 — servicing form validation requires a name (reuses va
     const blank = parseAttendeeForm(
       new FormParams({
         name: "",
-        quantity_1: "1",
-        [START_DATE_FIELD]: "2026-06-24",
+        quantity1: "1",
+        [START_DATE_BOX]: "2026-06-24",
       }),
       new Map(),
     );
@@ -182,8 +182,8 @@ describe("servicing §0 — servicing form validation requires a name (reuses va
     const nameOnly = parseAttendeeForm(
       new FormParams({
         name: "Boiler Service",
-        quantity_1: "1",
-        [START_DATE_FIELD]: "2026-06-24",
+        quantity1: "1",
+        [START_DATE_BOX]: "2026-06-24",
       }),
       new Map(),
     );

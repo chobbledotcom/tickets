@@ -3,7 +3,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
@@ -35,9 +36,9 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     const row = await queryOne<{
       email_pending: number;
       webhooks_pending: number;
-    }>("SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?", [
-      attendeeId,
-    ]);
+    }>(
+      sql`SELECT email_pending, webhooks_pending FROM attendees WHERE id = ${attendeeId}`,
+    );
     expect(row).toEqual(flags);
     expect(
       (await activityMessages()).filter(
@@ -73,7 +74,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     const { attendee } = await bookTestAttendeeWithFlags("Starved Buyer", 1, 1);
     const entries = [
       makeEntry(
-        { id: attendee.listing_id, webhook_url: "" },
+        { id: attendee.listing_id, webhookUrl: "" },
         {
           email: attendee.email,
           id: attendee.id,
@@ -90,9 +91,9 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     const calls = await countDatabaseCalls(50, send);
     // The measuring run cleared the email flag; raise it again so the
     // starved rerun shows a failed clear leaving the flag up.
-    await execute("UPDATE attendees SET email_pending = 1 WHERE id = ?", [
-      attendee.id,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET email_pending = 1 WHERE id = ${attendee.id}`,
+    );
     const logs = await withErrorSpy(async (errorSpy) => {
       await runWithSubrequestBudget(() =>
         withSubrequestAllowance(
@@ -129,7 +130,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
         logAndNotifyRegistration(
           [
             makeEntry(
-              { webhook_url: "https://refused-hook.example.com" },
+              { webhookUrl: "https://refused-hook.example.com" },
               { email: attendee.email, id: attendee.id },
             ),
           ],
@@ -151,7 +152,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     );
     // The listing carries a question, so the answer-lines read is a real
     // database call the budget can starve.
-    const question = await questionsTable.insert({
+    const question = await records.questions.insert({
       displayType: "radio",
       text: "Meal?",
     });
@@ -168,7 +169,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
               logAndNotifyRegistration(
                 [
                   makeEntry(
-                    { webhook_url: "" },
+                    { webhookUrl: "" },
                     { email: attendee.email, id: attendee.id },
                   ),
                 ],
@@ -199,7 +200,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
       logAndNotifyRegistration(
         [
           makeEntry(
-            { webhook_url: "https://owner-only-hook.example.com" },
+            { webhookUrl: "https://owner-only-hook.example.com" },
             { email: "", id: attendee.id },
           ),
         ],

@@ -1,3 +1,4 @@
+import { records } from "#db/record-table.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
@@ -7,16 +8,12 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 
 import { groups } from "#db/groups.ts";
 import {
-  deleteImageRecord,
   getAllImages,
-  getImageById,
   getImageUsesForImage,
   type ImageUseTarget,
   imageUseTargets,
-  setItemsForImage,
-  updateImageRecord,
 } from "#db/images.ts";
-import { getAllListingOptions } from "#db/listings/records.ts";
+import { getAllListingOptions } from "#db/listings/catalog.ts";
 import { getNewsPostNames } from "#db/news-posts.ts";
 import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
@@ -35,18 +32,23 @@ import {
   adminRedirect,
   htmlResponse,
   jsonResponse,
+  notFoundResponse,
   redirect,
 } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { logImageAction } from "#shared/images/activity.ts";
 import {
   byNameThenUpload,
   isSiteContentImageType,
-  siteContentBlocksManager,
+  whenSiteContentBlocksManager,
 } from "#shared/images/library.ts";
+import type { ImageOption } from "#shared/images/picker.ts";
 import { sortByName } from "#shared/name-order.ts";
-import { featureGate } from "#shared/response-steps.ts";
+import { imageRecord } from "#shared/records/images.ts";
+import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
+import type { DeleteVerdict, WriteVerdict } from "#shared/rest/record.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
@@ -73,7 +75,7 @@ const imagePath = (id: number): string => adminPath("imageEdit", { id });
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
   adminRedirect("images", {}, t("images.storage_off"), false),
 );
-const imageHandler = createIdEntityHandler<Image>(getImageById);
+const imageHandler = createIdEntityHandler<Image>(records.images.find);
 type ImagePost = (
   image: Image,
   form: FormParams,
@@ -137,9 +139,7 @@ const activeOptionsOfType =
 
 const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
   activeOptionsOfType("group")(
-    (await groups.cache.getAll()).map(
-      (group) => [group.id, group.name] as const,
-    ),
+    (await groups.getAll()).map((group) => [group.id, group.name] as const),
   );
 
 /** News + page options — the Site-gated content types, shown only to a Site
@@ -165,7 +165,7 @@ const imageItemOptions = async (
 const selectedUses = async (imageId: number): Promise<Set<string>> =>
   new Set(
     (await getImageUsesForImage(imageId)).map(
-      (use) => `${use.item_type}:${use.item_id}`,
+      (use) => `${use.itemType}:${use.itemId}`,
     ),
   );
 
@@ -185,7 +185,7 @@ const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> =
 
 const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
   form
-    .getAll("image_items")
+    .getAll("imageItems")
     .map((raw) => {
       const [itemType = "", itemId = ""] = raw.split(":");
       const id = parsePositiveInt(itemId);
@@ -204,9 +204,11 @@ const siteContentImageGate = async (
   imageId: number,
   redirectTo: string,
 ): Promise<Response | null> =>
-  (await siteContentBlocksManager(adminLevel, imageId))
-    ? redirect(redirectTo, t("images.news_gated"), false)
-    : null;
+  whenSiteContentBlocksManager(
+    adminLevel,
+    imageId,
+    redirect(redirectTo, t("images.news_gated"), false),
+  );
 
 /** The link targets a save can apply. A non-Site session (manager) never
  * attaches a Site-content target — any submitted `news:<id>`/`page:<id>` is
@@ -238,19 +240,28 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
         false,
       );
     }
-    await updateImageRecord(image.id, metadata.value);
-    await setItemsForImage(
-      image.id,
-      allowedImageTargets(adminLevel, parseImageTargets(form)),
-    );
-    await logImageAction("updated", metadata.value.name);
-    return adminRedirect(
-      "imageEdit",
-      { id: image.id },
-      t("images.updated"),
-      true,
+    const verdict = await imageRecord.update(image.id, {
+      ...metadata.value,
+      filename: image.filename,
+      filenameThumb: image.filenameThumb,
+      items: allowedImageTargets(adminLevel, parseImageTargets(form)),
+      skipMissingItems: true,
+    });
+    return answerImageWrite(
+      verdict,
+      () =>
+        adminRedirect("imageEdit", { id: image.id }, t("images.updated"), true),
+      notFoundResponse,
+      (message) => imageRefusalRedirect("imageEdit", image.id, message),
     );
   });
+
+/** Send a refused image write back to its edit or delete page. */
+const imageRefusalRedirect = (
+  destination: "imageEdit" | "imageDelete",
+  id: number,
+  message: string,
+): Response => adminRedirect(destination, { id }, message, false);
 
 const handleImageDeleteGet: TypedRouteHandler<"GET /admin/images/:id/delete"> =
   imageHandlers.get((image, session, request) => {
@@ -261,14 +272,14 @@ const handleImageDeleteGet: TypedRouteHandler<"GET /admin/images/:id/delete"> =
   });
 
 const confirmDelete = (form: FormParams, image: Image): string | null =>
-  form.getString("confirm_identifier") === image.name
+  form.getString("confirmIdentifier") === image.name
     ? null
     : t("images.delete.mismatch");
 
 const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> =
   imageHandlers.post(async (image, form, adminLevel) => {
     const deletePath = adminPath("imageDelete", { id: image.id });
-    // deleteImageRecord prunes every use, including a news one, so a non-Site
+    // The record delete prunes every use, including a news one, so a non-Site
     // role cannot delete an image a news post uses (public Site content).
     const blocked = await siteContentImageGate(
       adminLevel,
@@ -278,7 +289,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
     if (mismatch) {
-      return adminRedirect("imageDelete", { id: image.id }, mismatch, false);
+      return imageRefusalRedirect("imageDelete", image.id, mismatch);
     }
     // Delete the stored files first. If storage cleanup fails, keep the DB
     // record so the admin can retry. Otherwise the files sit orphaned under
@@ -293,22 +304,46 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
         false,
       );
     }
-    await deleteImageRecord(image.id);
-    await logImageAction("deleted", image.name);
-    return adminRedirect("images", {}, t("images.deleted"), true);
+    const verdict = await imageRecord.remove(image.id);
+    return answerImageWrite(
+      verdict,
+      notFoundResponse,
+      () => adminRedirect("images", {}, t("images.deleted"), true),
+      (message) => imageRefusalRedirect("imageDelete", image.id, message),
+    );
   });
 
-/** The image list the editor's image dropdown offers: every image's id and
- * name, in the library's name order. No URLs or thumbnails — the client needs
- * nothing more to insert the short-form reference. */
+/** The image list the editor's image picker offers, in the library's name
+ * order. The picker shows the thumbnails, and the rich editor shows the full
+ * image for an inserted short-form img#id reference. */
 const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
   contentResponsePage(async () => {
     const images = isStorageEnabled() ? await getAllImages() : [];
     const options = sortByName(images, byNameThenUpload).map(
-      ({ id, name }) => ({ id, name }),
+      ({ id, name, filename, filenameThumb }): ImageOption => ({
+        full: getImageProxyUrl(filename),
+        id,
+        name,
+        thumb: getImageProxyUrl(filenameThumb),
+      }),
     );
     return jsonResponse({ images: options });
   });
+
+/** Answer one image write: its success redirect, its refusal, or a 404. Each
+ *  call passes `notFoundResponse` for the outcome its verdict union cannot
+ *  carry: an update never answers "deleted", and a delete never "written". */
+const answerImageWrite = async <Row>(
+  verdict: WriteVerdict<Row> | DeleteVerdict,
+  written: ResponseHandler<[row: Row]>,
+  deleted: ResponseHandler,
+  refused: ResponseHandler<[message: string]>,
+): Promise<Response> => {
+  if (verdict.kind === "refused") return refused(verdict.message);
+  if (verdict.kind === "not-found") return notFoundResponse();
+  if (verdict.kind === "written") return written(verdict.row);
+  return deleted();
+};
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/images": handleImagesListGet,

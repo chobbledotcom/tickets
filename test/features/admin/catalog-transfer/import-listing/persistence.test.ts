@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { countRows, execute, writeRowInTransaction } from "#db/client.ts";
+import { countRows, execute } from "#db/client.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -8,7 +8,10 @@ import {
 } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, newListingValues } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
+import { writeRowInTransaction } from "#db/row-write.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -16,7 +19,9 @@ import {
   generateUniqueListingSlug,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -57,33 +62,35 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     });
 
     expect(await getGroupPackagePrices(group.id)).toEqual([
-      { group_id: group.id, listing_id: id, package_price: 0, quantity: 1 },
+      { groupId: group.id, listingId: id, packagePrice: 0, quantity: 1 },
     ]);
     expect((await getGroupDayPrices(group.id)).get(id)).toEqual(
       new Map([[2, 700]]),
     );
   });
 
-  test("clears package-only values when a listing joins a regular group", async () => {
+  test("refuses package-only values when a listing joins a regular group", async () => {
     const group = await createTestGroup({ name: "Ordinary group" });
-    const id = await importedId({
-      groups: [
-        {
-          dayPrices: { 1: 200 },
-          group: group.name,
-          packagePrice: 300,
-          quantity: 4,
-        },
-      ],
-      kind: "listing",
-      listing: customListing("Ordinary joiner"),
-      version: 1,
-    });
-
-    expect(await getGroupPackagePrices(group.id)).toEqual([
-      { group_id: group.id, listing_id: id, package_price: null, quantity: 1 },
+    const message = importRefusal(
+      await importCatalog({
+        groups: [
+          {
+            dayPrices: { 1: 200 },
+            group: group.name,
+            packagePrice: 300,
+            quantity: 4,
+          },
+        ],
+        kind: "listing",
+        listing: customListing("Ordinary joiner"),
+        version: 1,
+      }),
+    );
+    expectIncludesAll(message, [
+      "Only a package group can hold",
+      "packagePrice",
     ]);
-    expect([...(await getGroupDayPrices(group.id)).entries()]).toEqual([]);
+    expect(await getGroupPackagePrices(group.id)).toEqual([]);
   });
 
   test("does not import attachment storage fields", async () => {
@@ -94,8 +101,8 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     });
 
     const listing = await getListingWithCount(id);
-    expect(listing?.attachment_name).toBe("");
-    expect(listing?.attachment_url).toBe("");
+    expect(listing?.attachmentName).toBe("");
+    expect(listing?.attachmentUrl).toBe("");
   });
 
   test("writes every resolved parent edge", async () => {
@@ -110,22 +117,19 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     expect(await listingParents.getIds(id)).toEqual([parent.id]);
   });
 
-  test("an omitted package flag keeps imported group members ordinary", async () => {
+  test("refuses package values for a group whose package flag is omitted", async () => {
     const member = await createTestListing({ name: "Ordinary member" });
-    const groupId = await importedId({
-      group: { name: "Imported ordinary group" },
-      kind: "group",
-      members: [{ listing: member.name, packagePrice: 400, quantity: 3 }],
-      version: 1,
-    });
-
-    expect(await getGroupPackagePrices(groupId)).toEqual([
-      {
-        group_id: groupId,
-        listing_id: member.id,
-        package_price: null,
-        quantity: 1,
-      },
+    const message = importRefusal(
+      await importCatalog({
+        group: { name: "Imported ordinary group" },
+        kind: "group",
+        members: [{ listing: member.name, packagePrice: 400, quantity: 3 }],
+        version: 1,
+      }),
+    );
+    expectIncludesAll(message, [
+      "Only a package group can hold",
+      "packagePrice",
     ]);
   });
 
@@ -146,7 +150,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
         version: 1,
       }),
       writeRowInTransaction(
-        await listingsTable.insertStatement!(standardInput),
+        await records.listings.insertStatement(newListingValues(standardInput)),
         null,
         (tx, id) => setListingGroupsTx(tx, id, standardInput.groupIds),
       ),
@@ -173,7 +177,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     expect(
       new Set(
         (await getListingsByGroupId(group.id)).map(
-          (listing) => listing.listing_type,
+          (listing) => listing.listingType,
         ),
       ).size,
     ).toBe(1);
@@ -181,7 +185,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
 
   test("propagates an unexpected catalog write error", async () => {
     await execute(
-      `CREATE TRIGGER reject_imported_listing
+      sql`CREATE TRIGGER reject_imported_listing
          BEFORE INSERT ON listings
          BEGIN SELECT RAISE(ABORT, 'import write failed'); END`,
     );
@@ -199,11 +203,11 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     const first = await createTestListing({ name: "First imported member" });
     const second = await createTestListing({ name: "Second imported member" });
     await execute(
-      `CREATE TRIGGER change_imported_member
+      sql`CREATE TRIGGER change_imported_member
          BEFORE INSERT ON group_listings
-         WHEN NEW.listing_id = ${first.id}
+         WHEN NEW.listing_id = ${sqlLiteral(first.id)}
          BEGIN
-           UPDATE listings SET listing_type = 'daily' WHERE id = ${first.id};
+           UPDATE listings SET listing_type = 'daily' WHERE id = ${sqlLiteral(first.id)};
          END`,
     );
 
@@ -224,10 +228,10 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
   test("rolls back an import when a member vanishes during its write", async () => {
     const member = await createTestListing({ name: "Vanishing import member" });
     await execute(
-      `CREATE TRIGGER delete_imported_member
+      sql`CREATE TRIGGER delete_imported_member
          BEFORE INSERT ON group_listings
-         WHEN NEW.listing_id = ${member.id}
-         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
+         WHEN NEW.listing_id = ${sqlLiteral(member.id)}
+         BEGIN DELETE FROM listings WHERE id = ${sqlLiteral(member.id)}; END`,
     );
     const before = await Promise.all([
       countRows("listings"),
@@ -263,9 +267,9 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     // The check sees the parent is gone and rolls the whole import back
     // rather than leaving an orphan edge pointing at a deleted listing.
     await execute(
-      `CREATE TRIGGER delete_imported_parent
+      sql`CREATE TRIGGER delete_imported_parent
          AFTER INSERT ON listings
-         BEGIN DELETE FROM listings WHERE id = ${parent.id}; END`,
+         BEGIN DELETE FROM listings WHERE id = ${sqlLiteral(parent.id)}; END`,
     );
     const before = await Promise.all([
       countRows("listings"),

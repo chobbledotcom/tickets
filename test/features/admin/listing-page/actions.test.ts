@@ -144,7 +144,7 @@ describeWithEnv("the actions that end a listing", { db: true }, () => {
       name: "Dormant",
     });
     await adminFormPost(`/admin/listing/${listing.id}/deactivate`, {
-      confirm_identifier: listing.name,
+      confirmIdentifier: listing.name,
     });
 
     const { danger, plain } = await actionsOf(listing.id);

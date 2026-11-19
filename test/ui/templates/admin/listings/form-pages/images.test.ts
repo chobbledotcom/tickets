@@ -13,6 +13,7 @@ import {
   withoutBuilder,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
@@ -22,19 +23,19 @@ import { withStorageDisabled } from "#test-utils/mocks.ts";
 /** A listing carrying the renewal-tier builder fields, shared by the
  *  months_per_unit / initial_site_months visibility tests. */
 const builderListing = () =>
-  testListingWithCount({ initial_site_months: 6, months_per_unit: 3 });
+  testListingWithCount({ initialSiteMonths: 6, monthsPerUnit: 3 });
 
 /** Neither the duplicate form nor the new-listing form ever renders an image
  *  control — the shared assertion for the two storage-ownership tests. */
 const expectNoImageInDuplicateAndNew = (
   listing: Parameters<typeof adminDuplicateListingPage>[0],
 ): void => {
-  assert(
-    !adminDuplicateListingPage(listing, [], OWNER_SESSION).includes(
-      'name="image"',
-    ),
-  );
-  assert(!adminListingNewPage([], OWNER_SESSION).includes('name="image"'));
+  for (const html of [
+    adminDuplicateListingPage(listing, [], OWNER_SESSION),
+    adminListingNewPage([], OWNER_SESSION),
+  ]) {
+    expectExcludesAll(html, ['name="image"']);
+  }
 };
 
 describeWithEnv(
@@ -45,9 +46,8 @@ describeWithEnv(
 
     describe("adminListingPage image section", () => {
       test("does not show image upload on detail page", () => {
-        const html = detailHtml(testListingWithCount({ image_url: "" }));
-        assert(!html.includes('type="file"'));
-        assert(!html.includes('name="image"'));
+        const html = detailHtml(testListingWithCount({ imageUrl: "" }));
+        expectExcludesAll(html, ['type="file"', 'name="image"']);
       });
     });
 
@@ -55,26 +55,28 @@ describeWithEnv(
       test("does not show image controls on the edit form", () => {
         runWithStorageConfig(TEST_STORAGE_ZONE, () => {
           const html = editPanelHtml(
-            testListingWithCount({ image_url: "current.jpg" }),
+            testListingWithCount({ imageUrl: "current.jpg" }),
           );
-          assert(!html.includes('name="image"'));
-          assert(!html.includes("Remove Image"));
-          assert(!html.includes("/image/delete"));
-          assert(!html.includes("listing-image-full"));
+          expectExcludesAll(html, [
+            'name="image"',
+            "Remove Image",
+            "/image/delete",
+            "listing-image-full",
+          ]);
         });
       });
 
       test("does not show image controls on duplicate or create forms", () => {
         runWithStorageConfig(TEST_STORAGE_ZONE, () => {
           expectNoImageInDuplicateAndNew(
-            testListingWithCount({ image_url: "current.jpg" }),
+            testListingWithCount({ imageUrl: "current.jpg" }),
           );
         });
       });
 
       test("keeps image controls absent when storage is disabled", () => {
         withStorageDisabled(() => {
-          const listing = testListingWithCount({ image_url: "current.jpg" });
+          const listing = testListingWithCount({ imageUrl: "current.jpg" });
           assert(!editPanelHtml(listing).includes('name="image"'));
           expectNoImageInDuplicateAndNew(listing);
         });
@@ -86,7 +88,7 @@ describeWithEnv(
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expectIncludesAll(html, [
-            "assign_built_site",
+            'name="assignBuiltSite"',
             "Assign a site on booking",
           ]);
         });
@@ -95,24 +97,24 @@ describeWithEnv(
       test("hides assign built site field when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assert(!html.includes("assign_built_site"));
+          assert(!html.includes('name="assignBuiltSite"'));
         });
       });
 
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = editPanelHtml(
-            testListingWithCount({ assign_built_site: true }),
+            testListingWithCount({ assignBuiltSite: true }),
           );
-          expectIncludesAll(html, ["assign_built_site", "checked"]);
+          expectIncludesAll(html, ['name="assignBuiltSite"', "checked"]);
         });
       });
 
       test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
-          const listing = testListingWithCount({ assign_built_site: true });
+          const listing = testListingWithCount({ assignBuiltSite: true });
           const html = adminDuplicateListingPage(listing, [], OWNER_SESSION);
-          assertStringIncludes(html, "assign_built_site");
+          assertStringIncludes(html, 'name="assignBuiltSite"');
         });
       });
     });
@@ -122,9 +124,9 @@ describeWithEnv(
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expectIncludesAll(html, [
-            "months_per_unit",
+            'name="monthsPerUnit"',
             "Months per unit",
-            "initial_site_months",
+            'name="initialSiteMonths"',
             "Initial site months",
           ]);
         });
@@ -133,25 +135,32 @@ describeWithEnv(
       test("hides months_per_unit and initial_site_months when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assert(!html.includes("months_per_unit"));
-          assert(!html.includes("Months per unit"));
-          assert(!html.includes("initial_site_months"));
-          assert(!html.includes("Initial site months"));
+          expectExcludesAll(html, [
+            'name="monthsPerUnit"',
+            "Months per unit",
+            'name="initialSiteMonths"',
+            "Initial site months",
+          ]);
         });
       });
 
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = editPanelHtml(builderListing());
-          expectIncludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectIncludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
 
       test("hides on edit page when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = editPanelHtml(builderListing());
-          assert(!html.includes("months_per_unit"));
-          assert(!html.includes("initial_site_months"));
+          expectExcludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
 
@@ -162,7 +171,10 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          expectIncludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectIncludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
 
@@ -173,8 +185,10 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          assert(!html.includes("months_per_unit"));
-          assert(!html.includes("initial_site_months"));
+          expectExcludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
     });

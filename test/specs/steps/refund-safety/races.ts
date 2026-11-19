@@ -3,6 +3,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import {
   buyDuplicateFreePlace,
@@ -95,7 +96,7 @@ Given(
       throw new Error("Both owner forms have not been rendered");
     }
     for (const form of [forms.first, forms.second]) {
-      expect(form.typedValues).toEqual({ confirm_identifier: who });
+      expect(form.typedValues).toEqual({ confirmIdentifier: who });
       expectCanReallySend(form.formHtml, form.typedValues);
     }
   },
@@ -172,9 +173,8 @@ Then(
     const [attendee, rows, references] = await Promise.all([
       getAttendeeRaw(booking.attendeeId),
       queryAll<{ attendee_id: number; listing_id: number }>(
-        `SELECT attendee_id, listing_id FROM listing_attendees
-         WHERE attendee_id = ? AND listing_id = ?`,
-        [booking.attendeeId, booking.listingId],
+        sql`SELECT attendee_id, listing_id FROM listing_attendees
+         WHERE attendee_id = ${booking.attendeeId} AND listing_id = ${booking.listingId}`,
       ),
       paymentReferencesFor(this, who),
     ]);

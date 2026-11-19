@@ -6,6 +6,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -60,10 +61,10 @@ describeWithEnv(
       });
       await modifierListings.setIds(modifier.id, [child.id]);
       await execute(
-        `CREATE TRIGGER activate_child_add_on
+        sql`CREATE TRIGGER activate_child_add_on
            AFTER UPDATE ON listings
-           WHEN NEW.id = ${parent.id}
-           BEGIN UPDATE modifiers SET active = 1 WHERE id = ${modifier.id}; END`,
+           WHEN NEW.id = ${sqlLiteral(parent.id)}
+           BEGIN UPDATE modifiers SET active = 1 WHERE id = ${sqlLiteral(modifier.id)}; END`,
       );
 
       await assertJson(

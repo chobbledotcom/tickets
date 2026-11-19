@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectMapValues } from "#test-utils/map-values.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
@@ -20,7 +22,7 @@ describeWithEnv(
   { db: true },
   () => {
     describe("POST /checkin/:tokens", () => {
-      test("checks in attendee with check_in=true and shows success", async () => {
+      test("checks in attendee with checkIn=true and shows success", async () => {
         const { token, session } = await setupCheckinTest(
           "Eve",
           "eve@test.com",
@@ -49,7 +51,7 @@ describeWithEnv(
         ]);
       });
 
-      test("checks out attendee with check_in=false and shows success", async () => {
+      test("checks out attendee with checkIn=false and shows success", async () => {
         const { token, session } = await setupCheckinTest(
           "Eve",
           "eve@test.com",
@@ -204,14 +206,15 @@ describeWithEnv(
           `/checkin/${token}?message=Checked%20in%201%20ticket`,
         );
         const rows = await queryAll<{ listing_id: number; checked_in: number }>(
-          "SELECT listing_id, checked_in FROM listing_attendees WHERE attendee_id = ?",
-          [result.attendees[0]!.id],
+          sql`SELECT listing_id, checked_in FROM listing_attendees WHERE attendee_id = ${result.attendees[0]!.id}`,
         );
         const byListing = new Map(
           rows.map((r) => [r.listing_id, r.checked_in]),
         );
-        expect(byListing.get(normal.id)).toBe(1);
-        expect(byListing.get(merch.id)).toBe(0);
+        expectMapValues(byListing, [
+          [normal, 1],
+          [merch, 0],
+        ]);
       });
 
       test("redirects to admin for unauthenticated POST", async () => {
@@ -220,7 +223,7 @@ describeWithEnv(
           "frank@test.com",
         );
         const response = await handleRequest(
-          mockFormRequest(`/checkin/${token}`, { csrf_token: "fake" }),
+          mockFormRequest(`/checkin/${token}`, { csrfToken: "fake" }),
         );
         expect(response.status).toBe(302);
         expect(response.headers.get("Location")).toBe("/admin");
@@ -234,7 +237,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockFormRequest(
             `/checkin/${token}`,
-            { csrf_token: "wrong-token" },
+            { csrfToken: "wrong-token" },
             session.cookie,
           ),
         );
@@ -245,7 +248,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockFormRequest(
             "/checkin/bad-token",
-            { csrf_token: await testCsrfToken() },
+            { csrfToken: await testCsrfToken() },
             await testCookie(),
           ),
         );

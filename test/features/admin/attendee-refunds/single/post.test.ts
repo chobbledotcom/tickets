@@ -16,8 +16,8 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { attendeeWithoutPayment } from "#test-utils/db-helpers/attendee-without-payment.ts";
+import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
@@ -40,38 +40,27 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
   describe("POST /admin/listing/:listingId/attendee/:attendeeId/refund", () => {
     testRequiresAuth("/admin/attendees/1/refund", {
       body: {
-        confirm_identifier: "John Doe",
+        confirmIdentifier: "John Doe",
       },
       method: "POST",
       setup: async () => {
         const listing = await createPaidListing();
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        await createAttendeeOn(listing, "John Doe", "john@example.com");
       },
     });
 
     test("rejects invalid CSRF token", async () => {
       const ctx = await setupRefundTest("pi_test_456");
-      const response = await submitRefund(ctx, { csrf_token: "invalid-token" });
+      const response = await submitRefund(ctx, { csrfToken: "invalid-token" });
       expect(response.status).toBe(403);
     });
 
     test("returns error when attendee has no payment", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const attendee = await attendeeWithoutPayment();
       const response = await handleRequest(
         mockFormRequest(
           refundUrl(attendee.id),
-          { confirm_identifier: "John Doe", csrf_token: await testCsrfToken() },
+          { confirmIdentifier: "John Doe", csrfToken: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -166,12 +155,12 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       );
     });
 
-    test("a refund success honors the form's return_url (e.g. the Actions tab)", async () => {
+    test("a refund success honors the form's returnUrl (e.g. the Actions tab)", async () => {
       const ctx = await setupRefundTest("pi_test_return");
       const returnUrl = `/admin/attendees/${ctx.attendee.id}/actions`;
 
       await withRefundMock(refundCompletes, async () => {
-        const response = await submitRefund(ctx, { return_url: returnUrl });
+        const response = await submitRefund(ctx, { returnUrl });
         await expectFlashRedirect(returnUrl, "Refund issued")(response);
       });
     });
@@ -181,7 +170,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const returnUrl = `/admin/attendees/${ctx.attendee.id}/actions`;
 
       await withRefundMock(refundIsRejected, async () => {
-        const response = await submitRefund(ctx, { return_url: returnUrl });
+        const response = await submitRefund(ctx, { returnUrl });
         await expectFlashRedirect(
           "/admin/privacy#refund-recovery",
           expect.stringContaining("failed"),
@@ -304,12 +293,12 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
-    test("handles missing confirm_identifier field", async () => {
+    test("handles missing confirmIdentifier field", async () => {
       const ctx = await setupRefundTest("pi_test_missing");
       const response = await handleRequest(
         mockFormRequest(
           refundUrl(ctx.attendee.id),
-          { csrf_token: ctx.csrfToken },
+          { csrfToken: ctx.csrfToken },
           ctx.cookie,
         ),
       );

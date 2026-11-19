@@ -153,8 +153,8 @@ describe("adminAttendeesListPage", () => {
   test("surfaces a red notes summary for attendees that have notes", () => {
     const noteRow: SystemNote = {
       created: "2026-06-23T10:00:00.000Z",
-      entity_id: 1,
-      entity_type: "attendee",
+      entityId: 1,
+      entityType: "attendee",
       id: 1,
       note: "needs a follow-up call",
       type: "system",
@@ -366,7 +366,7 @@ describe("adminAttendeesListPage", () => {
       testListingWithCount({ id: 7, name: "Festival" }),
       testListingWithCount({
         id: 8,
-        listing_type: "daily",
+        listingType: "daily",
         name: "Day Pass",
       }),
     ];

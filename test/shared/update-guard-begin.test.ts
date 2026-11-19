@@ -7,6 +7,7 @@ import {
   UpdatePageCheckError,
   waitForBeginPropagation,
 } from "#shared/update-guard.ts";
+import { SiteNotActivatedError } from "#shared/update-page-markers.ts";
 import {
   fakeClock,
   page,
@@ -196,6 +197,20 @@ describe("waitForBeginPropagation", () => {
     );
     expect(clock.now()).toBe(10_000);
     expect(reverts).toBe(0);
+  });
+
+  test("skips a not-activated site and removes the flag", async () => {
+    const { clock, error, reverts, seen } = await failedBeginWait(() =>
+      Promise.reject(new SiteNotActivatedError()),
+    );
+    // One check at the first mark, then the skip. The flag is removed so a
+    // later activation does not start read-only.
+    expect(clock.now()).toBe(10_000);
+    expect(error).toBe(undefined);
+    expect(reverts).toBe(1);
+    expect(seen).toEqual([
+      "The site is not activated, so it has no live page and accepts no writes. The deploy skips the update wait.",
+    ]);
   });
 });
 

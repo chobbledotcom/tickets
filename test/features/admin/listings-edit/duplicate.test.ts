@@ -9,20 +9,22 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { baseListingForm } from "#test-utils/factories.ts";
 import { mockMultipartRequest } from "#test-utils/mocks.ts";
 import { getTestSession } from "#test-utils/session.ts";
 
 /** Copy a listing through the real create route, the way the duplicate form
- * posts it: a valid create body carrying the hidden `duplicated_from` field. */
+ * posts it: a valid create body carrying the hidden `duplicatedFrom` field. */
 const duplicate = async (
   sourceId: number | null,
   name: string,
@@ -35,9 +37,9 @@ const duplicate = async (
       "/admin/listing",
       {
         ...baseListingForm,
-        csrf_token: csrfToken,
-        ...(sourceId === null ? {} : { duplicated_from: String(sourceId) }),
-        ...(groupId === undefined ? {} : { group_ids: String(groupId) }),
+        csrfToken,
+        ...(sourceId === null ? {} : { duplicatedFrom: String(sourceId) }),
+        ...(groupId === undefined ? {} : { groupIds: String(groupId) }),
         name,
       },
       cookie,
@@ -144,8 +146,7 @@ describeWithEnv("when the gate cannot be carried over", { db: true }, () => {
 describeWithEnv("duplicating into a hidden package", { db: true }, () => {
   test("keeps the copy but drops the gate, and says so", async () => {
     const { parent } = await parentOf(1, "Packaged");
-    const hidden = await createTestGroup({ isPackage: true, name: "Hidden" });
-    await groups.table.update(hidden.id, { hidePackageListings: true });
+    const hidden = await createHiddenPackageGroup("Hidden");
 
     const { copyId, message } = await duplicate(
       parent.id,

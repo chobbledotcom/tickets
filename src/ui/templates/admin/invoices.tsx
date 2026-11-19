@@ -22,6 +22,7 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { textareaBody } from "#templates/components/textarea.tsx";
 import {
   dateLabelColumn,
+  labelColumn,
   translatedTableColumn,
 } from "#templates/components/translated-table-column.ts";
 import { getInvoiceForm } from "#templates/fields/invoice.ts";
@@ -43,8 +44,11 @@ const invoiceListTable = defineTable<InvoiceListRow>([
     (row) => row.attendeeName,
   ),
   dateLabelColumn("created", "invoices.column.created", (row) => row.created),
-  translatedTableColumn("status", "invoices.column.status", (row) =>
-    t(INVOICE_STATUS_LABEL_KEYS[row.status]),
+  labelColumn(
+    "status",
+    "invoices.column.status",
+    INVOICE_STATUS_LABEL_KEYS,
+    (row) => row.status,
   ),
 ]);
 
@@ -107,7 +111,7 @@ export const adminInvoicesPage = ({
       items: invoices.map((invoice) => ({
         // An invoice whose attendee row is gone (hand-edited data only) still
         // lists, without a name, so an operator can find and delete it.
-        attendeeName: attendeeNames.get(invoice.attendee_id) ?? "",
+        attendeeName: attendeeNames.get(invoice.attendeeId) ?? "",
         created: invoice.created,
         id: invoice.id,
         status: invoice.status,
@@ -135,7 +139,7 @@ export const adminInvoiceNewPage = ({
       <p class="prose">{t("invoices.new_hint")}</p>
       <Raw
         html={getInvoiceForm().render({
-          attendee_id: attendeeId === null ? "" : attendeeId,
+          attendeeId: attendeeId === null ? "" : attendeeId,
           number: nextNumber,
         })}
       />
@@ -182,7 +186,7 @@ export const adminInvoicePreviewPage = ({
       <div class="prose email-preview">
         <Raw html={previewHtml} />
       </div>
-      <input name="attendee_id" type="hidden" value={attendeeId} />
+      <input name="attendeeId" type="hidden" value={attendeeId} />
       <input name="number" type="hidden" value={number} />
       <label>
         {t("invoices.preview.body_label")}

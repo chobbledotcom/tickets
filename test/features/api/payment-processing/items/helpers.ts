@@ -1,6 +1,6 @@
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -47,7 +47,7 @@ export const nonStandalonePair = async (
     bookableAlone: true,
     ...childOverrides,
   });
-  await listingsTable.update(pair.child.id, { bookableAlone: false });
+  await updateListing(pair.child.id, { bookableAlone: false });
   return pair;
 };
 

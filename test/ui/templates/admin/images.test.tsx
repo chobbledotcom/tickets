@@ -19,9 +19,9 @@ import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 import type { Image } from "#types";
 
 const image = (id: number, name: string): Image => ({
-  alt_text: `Alt ${name}`,
+  altText: `Alt ${name}`,
   filename: nonEmptyString(`${name.toLowerCase()}.webp`),
-  filename_thumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
+  filenameThumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
   id,
   name,
 });
@@ -134,7 +134,7 @@ describe("admin image templates", () => {
         'enctype="multipart/form-data"',
         '<a class="active" href="/admin/images">',
         '<input maxlength="250" name="name" required type="text">',
-        '<input maxlength="250" name="alt_text" type="text">',
+        '<input maxlength="250" name="altText" type="text">',
         '<input accept="image/jpeg,image/png,image/webp" name="image" type="file">',
         "/icons.svg#save",
       ]);
@@ -178,7 +178,7 @@ describe("admin image templates", () => {
       '<li class="checkboxes"><strong>Listings:</strong>',
       '<li class="checkboxes"><strong>Groups:</strong>',
       'value="listing:4"',
-      'checked name="image_items" type="checkbox" value="group:5"',
+      'checked name="imageItems" type="checkbox" value="group:5"',
       '<a class="active" href="/admin/images">',
       '<div class="prose"><h2>Danger zone</h2>',
       'class="btn secondary"',
@@ -204,7 +204,7 @@ describe("admin image templates", () => {
       '<li class="checkboxes"><strong>News:</strong>',
       '<li class="checkboxes"><strong>Pages:</strong>',
       'value="news:1"',
-      'checked name="image_items" type="checkbox" value="page:2"',
+      'checked name="imageItems" type="checkbox" value="page:2"',
     ]);
   });
 
@@ -227,7 +227,7 @@ describe("admin image templates", () => {
     expect(retired).toBeGreaterThan(active);
     assertStringIncludes(
       html,
-      '<label class="muted"><input name="image_items" type="checkbox" value="listing:7"',
+      '<label class="muted"><input name="imageItems" type="checkbox" value="listing:7"',
     );
   });
 
@@ -269,7 +269,7 @@ describe("admin image templates", () => {
       assertStringIncludes(html, "File storage is not configured.");
       assert(!html.includes("Current images"));
       assert(!html.includes('action="/admin/listing/1/images"'));
-      assert(!html.includes('name="image_ids"'));
+      assert(!html.includes('name="imageIds"'));
       assert(!html.includes('type="file"'));
     }));
 
@@ -311,11 +311,9 @@ describe("admin image templates", () => {
         '<fieldset class="checkboxes image-picker-checkboxes">',
         "/icons.svg#plus",
       ]);
-      const first = html.indexOf('name="image_ids" type="checkbox" value="1"');
-      const second = html.indexOf('name="image_ids" type="checkbox" value="2"');
-      const library = html.indexOf(
-        'name="image_ids" type="checkbox" value="3"',
-      );
+      const first = html.indexOf('name="imageIds" type="checkbox" value="1"');
+      const second = html.indexOf('name="imageIds" type="checkbox" value="2"');
+      const library = html.indexOf('name="imageIds" type="checkbox" value="3"');
       expect(first).toBeGreaterThan(-1);
       expect(second).toBeGreaterThan(first);
       expect(library).toBeGreaterThan(second);

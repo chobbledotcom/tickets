@@ -12,7 +12,7 @@ describeWithEnv("app form handlers", { db: true }, () => {
   const request = async (): Promise<Request> =>
     mockFormRequest(
       "/admin/things/2/move",
-      { csrf_token: await testCsrfToken() },
+      { csrfToken: await testCsrfToken() },
       await testCookie(),
     );
 

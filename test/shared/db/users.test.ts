@@ -2,7 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { hashPassword, hmacHash } from "#crypto/hashing.ts";
-import { execute, getDb, insert } from "#db/client.ts";
+import { execute, getDb } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
 import {
   createInvitedUser,
   decryptAdminLevel,
@@ -15,6 +17,7 @@ import {
   isInviteValid,
   verifyUserPassword,
 } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assertAdminPasswordRejects,
@@ -31,10 +34,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       try {
         const before = await getUserAuthFieldsById(1);
         expect(await decryptAdminLevel(before!)).toBe("owner");
-        await execute("UPDATE users SET admin_level = ? WHERE id = ?", [
-          await encrypt("manager"),
-          1,
-        ]);
+        await execute(
+          sql`UPDATE users SET admin_level = ${await encrypt("manager")} WHERE id = ${1}`,
+        );
         const after = await getUserAuthFieldsById(1);
         expect(await decryptAdminLevel(after!)).toBe("manager");
       } finally {
@@ -42,11 +44,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       }
       expect(
         queries.filter((sql) =>
-          sql.includes("SELECT id, admin_level FROM users"),
+          sql.includes("FROM users AS user WHERE user.id = "),
         ),
       ).toEqual([
-        "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1",
-        "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1",
+        "SELECT user.id AS id, user.admin_level AS adminLevel FROM users AS user WHERE user.id = ?1 LIMIT ?1",
+        "SELECT user.id AS id, user.admin_level AS adminLevel FROM users AS user WHERE user.id = ?1 LIMIT ?1",
       ]);
     });
 
@@ -54,7 +56,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
       expect(user!.id).toBe(1);
-      expect(user!.wrapped_data_key).not.toBeNull();
+      expect(user!.wrappedDataKey).not.toBeNull();
 
       const level = await decryptAdminLevel(user!);
       expect(level).toBe("owner");
@@ -94,8 +96,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
 
       expect(user.id).toBe(2);
-      expect(user.password_hash).toBe("");
-      expect(user.wrapped_data_key).toBeNull();
+      expect(user.passwordHash).toBe("");
+      expect(user.wrappedDataKey).toBeNull();
 
       const level = await decryptAdminLevel(user);
       expect(level).toBe("manager");
@@ -191,8 +193,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       // Accepting an invite clears its code to an encrypted empty string.
       await getDb().execute(
-        "UPDATE users SET invite_code_hash = ? WHERE id = ?",
-        [await encrypt(""), user.id],
+        sql`UPDATE users SET invite_code_hash = ${await encrypt("")} WHERE id = ${user.id}`,
       );
 
       const { getUserById: getUser } = await import("#db/users.ts");
@@ -204,14 +205,14 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("isInviteValid returns false when invite_expiry is null", async () => {
       const usernameIdx = await hmacHash("no-expiry-user");
       await getDb().execute(
-        insert("users", {
-          admin_level: await encrypt("manager"),
-          invite_code_hash: await encrypt("somehash"),
-          invite_expiry: null,
-          password_hash: "",
-          username_hash: await encrypt("no-expiry-user"),
-          username_index: usernameIdx,
-          wrapped_data_key: null,
+        insertInto(tables.users, {
+          adminLevel: await encrypt("manager"),
+          inviteCodeHash: await encrypt("somehash"),
+          inviteExpiry: null,
+          passwordHash: "",
+          usernameHash: await encrypt("no-expiry-user"),
+          usernameIndex: usernameIdx,
+          wrappedDataKey: null,
         }),
       );
       invalidateUsersCache();
@@ -224,14 +225,14 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("decryptAdminLevel throws when admin_level decrypts to invalid value", async () => {
       const usernameIdx = await hmacHash("badlevel-user");
       await getDb().execute(
-        insert("users", {
-          admin_level: await encrypt("superadmin"),
-          invite_code_hash: null,
-          invite_expiry: null,
-          password_hash: "",
-          username_hash: await encrypt("badlevel-user"),
-          username_index: usernameIdx,
-          wrapped_data_key: null,
+        insertInto(tables.users, {
+          adminLevel: await encrypt("superadmin"),
+          inviteCodeHash: null,
+          inviteExpiry: null,
+          passwordHash: "",
+          usernameHash: await encrypt("badlevel-user"),
+          usernameIndex: usernameIdx,
+          wrappedDataKey: null,
         }),
       );
       invalidateUsersCache();
@@ -245,14 +246,14 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("isInviteValid returns false when invite_expiry decrypts to empty string", async () => {
       const usernameIdx = await hmacHash("empty-expiry-user");
       await getDb().execute(
-        insert("users", {
-          admin_level: await encrypt("manager"),
-          invite_code_hash: await encrypt("somehash"),
-          invite_expiry: await encrypt(""),
-          password_hash: "",
-          username_hash: await encrypt("empty-expiry-user"),
-          username_index: usernameIdx,
-          wrapped_data_key: null,
+        insertInto(tables.users, {
+          adminLevel: await encrypt("manager"),
+          inviteCodeHash: await encrypt("somehash"),
+          inviteExpiry: await encrypt(""),
+          passwordHash: "",
+          usernameHash: await encrypt("empty-expiry-user"),
+          usernameIndex: usernameIdx,
+          wrappedDataKey: null,
         }),
       );
       invalidateUsersCache();

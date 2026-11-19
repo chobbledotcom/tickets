@@ -26,7 +26,7 @@ describe("column order settings forms", () => {
     expectIncludesAll(html, [
       'action="/admin/settings/listing-column-order"',
       "<h2>Listing table columns</h2>",
-      'name="column_order"',
+      'name="columnOrder"',
       `placeholder="${definition.defaultTemplate}"`,
       `value="${definition.defaultTemplate}"`,
     ]);

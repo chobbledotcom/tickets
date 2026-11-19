@@ -10,6 +10,7 @@ import {
   expectHtmlResponse,
   expectIncludesAll,
   expectRedirect,
+  expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
   testRequiresAuth,
@@ -31,6 +32,60 @@ import {
   stubSuccessfulBuild,
 } from "./build-mocks.ts";
 
+/** Each build form the builder must refuse, with the environment the refusal
+ *  needs and the error flash it shows. */
+/* jscpd:ignore-start -- a table of cases, not code */
+const BUILDER_ERROR_CASES: ReadonlyArray<{
+  env: Record<string, string | undefined>;
+  flash: string;
+  form: Record<string, string>;
+  name: string;
+}> = [
+  {
+    env: {},
+    flash: "Site name is required",
+    form: {
+      dbToken: "token",
+      dbUrl: "libsql://test.turso.io",
+      siteName: "",
+    },
+    name: "POST /admin/builder returns error when site name is empty",
+  },
+  {
+    env: {
+      DENO_DEPLOY_ORG_ID: undefined,
+      DENO_DEPLOY_ORG_SLUG: undefined,
+      DENO_DEPLOY_TOKEN: undefined,
+    },
+    flash: "Deno Deploy is not configured",
+    form: { hostingProvider: "deno", siteName: "Deno Site" },
+    name: "POST /admin/builder returns error when Deno Deploy is not configured",
+  },
+  {
+    env: { BUNNY_API_KEY: undefined },
+    flash: "Bunny database is not configured",
+    form: { dbProvider: "bunny", siteName: "Bunny DB Site" },
+    name: "POST /admin/builder returns error when Bunny DB is not configured",
+  },
+  {
+    env: {
+      TURSO_API_TOKEN: undefined,
+      TURSO_GROUP: undefined,
+      TURSO_ORGANIZATION: undefined,
+    },
+    flash: "Turso is not configured",
+    form: { dbProvider: "turso", siteName: "Turso Site" },
+    name: "POST /admin/builder returns error when Turso is not configured",
+  },
+  {
+    env: {},
+    flash: "Database URL is required",
+    form: { dbProvider: "manual", siteName: "Manual Site" },
+    name: "POST /admin/builder returns error when manual provider has no db_url",
+  },
+];
+
+/* jscpd:ignore-end */
 describeWithEnv(
   "server (admin builder)",
   {
@@ -48,12 +103,15 @@ describeWithEnv(
      *  the build-fails, task-in-progress, and db-connection-fails tests. */
     const expectBuildFlashError = async (message: string): Promise<void> => {
       const { response } = await adminFormPost("/admin/builder", {
-        db_token: "token",
-        db_url: "libsql://test.turso.io",
-        site_name: "Test",
+        dbToken: "token",
+        dbUrl: "libsql://test.turso.io",
+        siteName: "Test",
       });
-      expectRedirect(response, "/admin/builder");
-      expectFlash(response, expect.stringContaining(message), false);
+      expectRedirectWithFlash(
+        "/admin/builder",
+        expect.stringContaining(message),
+        false,
+      )(response);
     };
 
     test("GET /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
@@ -109,82 +167,17 @@ describeWithEnv(
       assertStringIncludes(html, "Build failed");
     });
 
-    test("POST /admin/builder returns error when site name is empty", async () => {
-      const { response } = await adminFormPost("/admin/builder", {
-        db_token: "token",
-        db_url: "libsql://test.turso.io",
-        site_name: "",
+    for (const { env, flash, form, name } of BUILDER_ERROR_CASES) {
+      test(name, async () => {
+        using _env = withEnv(env);
+        const { response } = await adminFormPost("/admin/builder", form);
+        expectRedirectWithFlash(
+          "/admin/builder",
+          expect.stringContaining(flash),
+          false,
+        )(response);
       });
-      expectRedirect(response, "/admin/builder");
-      expectFlash(
-        response,
-        expect.stringContaining("Site name is required"),
-        false,
-      );
-    });
-
-    test("POST /admin/builder returns error when Deno Deploy is not configured", async () => {
-      using _env = withEnv({
-        DENO_DEPLOY_ORG_ID: undefined,
-        DENO_DEPLOY_ORG_SLUG: undefined,
-        DENO_DEPLOY_TOKEN: undefined,
-      });
-      const { response } = await adminFormPost("/admin/builder", {
-        hosting_provider: "deno",
-        site_name: "Deno Site",
-      });
-      expectRedirect(response, "/admin/builder");
-      expectFlash(
-        response,
-        expect.stringContaining("Deno Deploy is not configured"),
-        false,
-      );
-    });
-
-    test("POST /admin/builder returns error when Bunny DB is not configured", async () => {
-      using _env = withEnv({ BUNNY_API_KEY: undefined });
-      const { response } = await adminFormPost("/admin/builder", {
-        db_provider: "bunny",
-        site_name: "Bunny DB Site",
-      });
-      expectRedirect(response, "/admin/builder");
-      expectFlash(
-        response,
-        expect.stringContaining("Bunny database is not configured"),
-        false,
-      );
-    });
-
-    test("POST /admin/builder returns error when Turso is not configured", async () => {
-      using _env = withEnv({
-        TURSO_API_TOKEN: undefined,
-        TURSO_GROUP: undefined,
-        TURSO_ORGANIZATION: undefined,
-      });
-      const { response } = await adminFormPost("/admin/builder", {
-        db_provider: "turso",
-        site_name: "Turso Site",
-      });
-      expectRedirect(response, "/admin/builder");
-      expectFlash(
-        response,
-        expect.stringContaining("Turso is not configured"),
-        false,
-      );
-    });
-
-    test("POST /admin/builder returns error when manual provider has no db_url", async () => {
-      const { response } = await adminFormPost("/admin/builder", {
-        db_provider: "manual",
-        site_name: "Manual Site",
-      });
-      expectRedirect(response, "/admin/builder");
-      expectFlash(
-        response,
-        expect.stringContaining("Database URL is required"),
-        false,
-      );
-    });
+    }
 
     test("POST /admin/builder returns error when db connection fails with provided URL", async () => {
       await withMocks(
@@ -197,16 +190,15 @@ describeWithEnv(
           ),
         async () => {
           const { response } = await adminFormPost("/admin/builder", {
-            db_token: "token",
-            db_url: "libsql://test.turso.io",
-            site_name: "Test",
+            dbToken: "token",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Test",
           });
-          expectRedirect(response, "/admin/builder");
-          expectFlash(
-            response,
+          expectRedirectWithFlash(
+            "/admin/builder",
             expect.stringContaining("Database connection failed"),
             false,
-          );
+          )(response);
         },
       );
     });
@@ -220,8 +212,8 @@ describeWithEnv(
         }),
         async ({ dbTestStub }) => {
           await adminFormPost("/admin/builder", {
-            db_url: "libsql://test.turso.io",
-            site_name: "NoTokenSite",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "NoTokenSite",
           });
           expect(dbTestStub.calls).toHaveLength(1);
           expect(dbTestStub.calls[0]!.args[1]).toBe("");
@@ -232,9 +224,9 @@ describeWithEnv(
     test("POST /admin/builder creates site and records it on success with provided db", async () => {
       await withMocks(stubSuccessfulBuild, async () => {
         const { response } = await adminFormPost("/admin/builder", {
-          db_token: "token123",
-          db_url: "libsql://test.turso.io",
-          site_name: "My Test Site",
+          dbToken: "token123",
+          dbUrl: "libsql://test.turso.io",
+          siteName: "My Test Site",
         });
 
         // Verify site was recorded with db credentials from buildResult
@@ -251,8 +243,8 @@ describeWithEnv(
     test("POST /admin/builder auto-creates database when db_url is blank", async () => {
       await withMocks(stubSuccessfulBuild, async () => {
         const { response } = await adminFormPost("/admin/builder", {
-          db_url: "",
-          site_name: "Auto DB Site",
+          dbUrl: "",
+          siteName: "Auto DB Site",
         });
 
         const site = await expectSiteCreated(response);
@@ -266,9 +258,9 @@ describeWithEnv(
       await withMocks(stubSuccessfulBuild, async () => {
         const { response } = await adminFormPost("/admin/builder", {
           assignable: "1",
-          db_token: "token123",
-          db_url: "libsql://test.turso.io",
-          site_name: "Assignable Site",
+          dbToken: "token123",
+          dbUrl: "libsql://test.turso.io",
+          siteName: "Assignable Site",
         });
 
         expectRedirect(response, "/admin/builder");
@@ -298,9 +290,9 @@ describeWithEnv(
         }),
         async () => {
           const { response } = await adminFormPost("/admin/builder", {
-            db_token: "token",
-            db_url: "libsql://test.io",
-            site_name: "Stable Address Site",
+            dbToken: "token",
+            dbUrl: "libsql://test.io",
+            siteName: "Stable Address Site",
           });
           expectRedirect(response, "/admin/builder");
           expectFlash(
@@ -349,9 +341,9 @@ describeWithEnv(
           try {
             const { response } = await withExpectedError(() =>
               adminFormPost("/admin/builder", {
-                db_token: "token",
-                db_url: "libsql://test.io",
-                site_name: "Unretained",
+                dbToken: "token",
+                dbUrl: "libsql://test.io",
+                siteName: "Unretained",
               }),
             );
             expect(response.status).toBe(503);
@@ -374,9 +366,9 @@ describeWithEnv(
     test("POST /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: undefined });
       const { response } = await adminFormPost("/admin/builder", {
-        db_token: "token",
-        db_url: "libsql://test.turso.io",
-        site_name: "Test",
+        dbToken: "token",
+        dbUrl: "libsql://test.turso.io",
+        siteName: "Test",
       });
       expect(response.status).toBe(404);
     });
@@ -413,9 +405,9 @@ describeWithEnv(
       // Build a site first
       await withMocks(stubSuccessfulBuild, async () => {
         await adminFormPost("/admin/builder", {
-          db_token: "token123",
-          db_url: "libsql://test.turso.io",
-          site_name: "Table Test Site",
+          dbToken: "token123",
+          dbUrl: "libsql://test.turso.io",
+          siteName: "Table Test Site",
         });
       });
 
@@ -434,10 +426,10 @@ describeWithEnv(
         () => stubBuildAndCapture(),
         async ({ capture }) => {
           const { response } = await adminFormPost("/admin/builder", {
-            db_token: "tok",
-            db_url: "libsql://test.io",
-            hosting_provider: "deno",
-            site_name: "Deno Site",
+            dbToken: "tok",
+            dbUrl: "libsql://test.io",
+            hostingProvider: "deno",
+            siteName: "Deno Site",
           });
           expectRedirect(response, "/admin/builder");
           expect(capture.input?.hostingProvider).toBe("deno");
@@ -457,10 +449,10 @@ describeWithEnv(
         () => stubBuildAndCapture(),
         async ({ capture }) => {
           const { response } = await adminFormPost("/admin/builder", {
-            db_provider: "turso",
-            db_token: "tok",
-            db_url: "libsql://test.turso.io",
-            site_name: "Turso Site",
+            dbProvider: "turso",
+            dbToken: "tok",
+            dbUrl: "libsql://test.turso.io",
+            siteName: "Turso Site",
           });
           expectRedirect(response, "/admin/builder");
           expect(capture.input?.dbProvider).toBe("turso");
@@ -473,9 +465,9 @@ describeWithEnv(
         () => stubBuildAndCapture(),
         async ({ capture }) => {
           await adminFormPost("/admin/builder", {
-            db_provider: "manual",
-            db_url: "libsql://test.io",
-            site_name: "Manual DB Site",
+            dbProvider: "manual",
+            dbUrl: "libsql://test.io",
+            siteName: "Manual DB Site",
           });
           expect(capture.input?.dbProvider).toBe(undefined);
         },

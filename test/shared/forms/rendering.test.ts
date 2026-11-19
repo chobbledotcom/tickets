@@ -8,6 +8,7 @@ import {
   renderSelectOptions,
 } from "#shared/forms/rendering.tsx";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
+import { testCases } from "#test-utils/case-table.ts";
 import { field } from "#test-utils/field.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -212,35 +213,30 @@ describe("renderField", () => {
   });
 
   describe("datetime", () => {
-    for (const { description, expected, value } of [
+    testCases(
       {
-        description: "empty date and time inputs",
-        expected:
-          '<label>Closes<input type="date" name="closes_date" placeholder="Date" aria-label="Date"><input type="time" name="closes_time" placeholder="Time" aria-label="Time"></label>',
-        value: "",
+        "renders a date without adding a time value": [
+          "2099-06-15",
+          '<label>Closes<input type="date" name="closesDate" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closesTime" placeholder="Time" aria-label="Time"></label>',
+        ],
+        "renders empty date and time inputs": [
+          "",
+          '<label>Closes<input type="date" name="closesDate" placeholder="Date" aria-label="Date"><input type="time" name="closesTime" placeholder="Time" aria-label="Time"></label>',
+        ],
+        "renders separate date and time values": [
+          "2099-06-15T14:30",
+          '<label>Closes<input type="date" name="closesDate" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closesTime" placeholder="Time" aria-label="Time" value="14:30"></label>',
+        ],
       },
-      {
-        description: "a date without adding a time value",
-        expected:
-          '<label>Closes<input type="date" name="closes_date" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closes_time" placeholder="Time" aria-label="Time"></label>',
-        value: "2099-06-15",
-      },
-      {
-        description: "separate date and time values",
-        expected:
-          '<label>Closes<input type="date" name="closes_date" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closes_time" placeholder="Time" aria-label="Time" value="14:30"></label>',
-        value: "2099-06-15T14:30",
-      },
-    ] as const) {
-      test(`renders ${description}`, () => {
+      (value, expected) => {
         expect(
           rendered(
             { label: "Closes", name: "closes", type: "datetime" },
             value,
           ),
         ).toBe(expected);
-      });
-    }
+      },
+    );
   });
 
   describe("money", () => {
@@ -374,8 +370,8 @@ describe("renderFields", () => {
         value: null,
       },
       {
-        description: "blank for an explicit empty string",
-        expected: "",
+        description: "the default for an explicit empty string",
+        expected: ' value="Default"',
         value: "",
       },
     ] as const) {

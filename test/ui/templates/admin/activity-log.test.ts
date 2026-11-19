@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as bddTest, describe } from "@std/testing/bdd";
+import type { ActivityLogEntry } from "#db/activity-log.ts";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
   type ActivityLogRefs,
@@ -26,25 +27,11 @@ const emptyRefs = (): ActivityLogRefs => ({
 });
 
 /** Factory for an activity-log entry with defaults for every stored field. */
-const logEntry = (
-  overrides: Partial<{
-    attendee_id: number | null;
-    created: string;
-    id: number;
-    listing_id: number | null;
-    message: string;
-  }>,
-): {
-  attendee_id: number | null;
-  created: string;
-  id: number;
-  listing_id: number | null;
-  message: string;
-} => ({
-  attendee_id: null,
+const logEntry = (overrides: Partial<ActivityLogEntry>): ActivityLogEntry => ({
+  attendeeId: null,
   created: "2024-01-15T10:30:00Z",
   id: 1,
-  listing_id: null,
+  listingId: null,
   message: "System started",
   ...overrides,
 });
@@ -58,8 +45,8 @@ describe("activity log templates", () => {
     test("renders activity log entries", () => {
       const listing = testListingWithCount();
       const entries = [
-        logEntry({ listing_id: 1, message: "Ticket reserved" }),
-        logEntry({ id: 2, listing_id: 1, message: "Payment received" }),
+        logEntry({ listingId: 1, message: "Ticket reserved" }),
+        logEntry({ id: 2, listingId: 1, message: "Payment received" }),
       ];
       const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
       expectIncludesAll(html, ["Ticket reserved", "Payment received", "Log"]);
@@ -181,8 +168,8 @@ describe("activity log templates", () => {
     test("links an entry to its attendee and listing by name", () => {
       const entries = [
         logEntry({
-          attendee_id: 7,
-          listing_id: 3,
+          attendeeId: 7,
+          listingId: 3,
           message: "Balance updated",
         }),
       ];
@@ -200,7 +187,7 @@ describe("activity log templates", () => {
     });
 
     test("escapes attendee names so stored PII cannot inject markup", () => {
-      const entries = [logEntry({ attendee_id: 7, message: "Note added" })];
+      const entries = [logEntry({ attendeeId: 7, message: "Note added" })];
       const refs = refsWith([[7, "<script>alert(1)</script>"]], []);
       const html = adminGlobalActivityLogPage(
         entries,
@@ -235,7 +222,7 @@ describe("activity log templates", () => {
 
     test("renders no link when the referenced attendee no longer exists", () => {
       const entries = [
-        logEntry({ attendee_id: 42, message: "Attendee deleted" }),
+        logEntry({ attendeeId: 42, message: "Attendee deleted" }),
       ];
       // Attendee 42 is absent from refs — a deleted attendee keeps its log rows.
       const html = adminGlobalActivityLogPage(
@@ -255,9 +242,7 @@ describe("activity log templates", () => {
       attendeeId: number,
       attendees: ActivityLogRefs["attendees"],
     ): string => {
-      const entries = [
-        logEntry({ attendee_id: attendeeId, message: "Note added" }),
-      ];
+      const entries = [logEntry({ attendeeId, message: "Note added" })];
       const html = adminGlobalActivityLogPage(entries, false, OWNER_SESSION, {
         attendees,
         listings: new Map(),
@@ -289,9 +274,7 @@ describe("activity log templates", () => {
     });
 
     test("renders no link when the referenced listing no longer exists", () => {
-      const entries = [
-        logEntry({ listing_id: 99, message: "Listing deleted" }),
-      ];
+      const entries = [logEntry({ listingId: 99, message: "Listing deleted" })];
       const html = adminGlobalActivityLogPage(
         entries,
         false,
@@ -308,8 +291,8 @@ describe("activity log templates", () => {
       const listing = testListingWithCount();
       const entries = [
         logEntry({
-          attendee_id: 7,
-          listing_id: listing.id,
+          attendeeId: 7,
+          listingId: listing.id,
           message: "Ticket reserved",
         }),
       ];

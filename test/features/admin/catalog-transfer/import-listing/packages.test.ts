@@ -46,22 +46,32 @@ const importStoredListing = async (listing: Record<string, unknown>) => {
 };
 
 describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
-  test("filters a listing's own day prices beyond its duration", async () => {
+  test("refuses a listing day price above its duration", async () => {
     // The form only reads day_price_1..durationDays; a "5" price on a 2-day
-    // listing is inert and must be dropped on import, not persisted where a
-    // later duration bump would activate it.
-    const stored = await importStoredListing({
-      ...customisable,
-      dayPrices: { 1: 1000, 5: 5000 },
-      maxAttendees: 1,
-      name: "Trimmed Days",
+    // listing is dead weight, so the file is refused rather than storing a
+    // price a later duration bump would activate.
+    const result = await importCatalog({
+      kind: "listing",
+      listing: {
+        ...customisable,
+        dayPrices: { 1: 1000, 5: 5000 },
+        maxAttendees: 1,
+        name: "Trimmed Days",
+      },
+      version: 1,
     });
-    expect(stored.day_prices).toEqual({ 1: 1000 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      assertStringIncludes(
+        result.error,
+        "dayPrices holds a price for a day the listing does not last",
+      );
+    }
   });
 
   test("keeps a day price when no duration is given (defaults to 1)", async () => {
-    // No durationDays → the filter compares against the default of 1, so a
-    // 1-day price is retained.
+    // No durationDays → the bound is the default of 1, so a 1-day price is
+    // inside it.
     const stored = await importStoredListing({
       customisableDays: true,
       dayPrices: { 1: 1000 },
@@ -69,7 +79,7 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
       maxAttendees: 1,
       name: "Default Duration",
     });
-    expect(stored.day_prices[1]).toBe(1000);
+    expect(stored.dayPrices[1]).toBe(1000);
   });
 
   test("rejects a listing-import package day-override for an unoffered span", async () => {

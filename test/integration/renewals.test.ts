@@ -40,7 +40,7 @@ const setupRenewalSite = async (readOnlyFrom: string) => {
 };
 
 const makeRenewalEntry = (
-  listing: { id: number; months_per_unit: number },
+  listing: { id: number; monthsPerUnit: number },
   quantity: number,
 ) =>
   makeTestEntry(
@@ -48,8 +48,8 @@ const makeRenewalEntry = (
       active: true,
       hidden: true,
       id: listing.id,
-      months_per_unit: listing.months_per_unit,
-      purchase_only: true,
+      monthsPerUnit: listing.monthsPerUnit,
+      purchaseOnly: true,
     },
     { quantity },
   );
@@ -205,7 +205,7 @@ describeWithEnv("renewals", { db: true }, () => {
 
     test("logs error, no Bunny call", async () => {
       await withFakeTimeAndStub(NOW_MS, async (secretStub) => {
-        const entry = makeRenewalEntry({ id: 1, months_per_unit: 1 }, 1);
+        const entry = makeRenewalEntry({ id: 1, monthsPerUnit: 1 }, 1);
         await applyRenewalsForEntries([entry], "nonexistent-token-xyz");
         // The error names the unknown token index; nothing reaches Bunny.
         expect(errors.contains("Renewal site not found for token index")).toBe(
@@ -224,9 +224,9 @@ describeWithEnv("renewals", { db: true }, () => {
         {
           active: true,
           hidden: false,
-          months_per_unit: 12,
-          purchase_only: true,
-          unit_price: 500,
+          monthsPerUnit: 12,
+          purchaseOnly: true,
+          unitPrice: 500,
         },
         { quantity: 1 },
       );

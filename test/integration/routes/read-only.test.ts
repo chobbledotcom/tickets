@@ -2,9 +2,11 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
+import { createListing } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { setBuildTimestampForTest } from "#shared/update.ts";
-import { updateBuildTagMeta } from "#shared/update-guard.ts";
+import { updateBuildTagMeta } from "#shared/update-page-markers.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { jsonRequest, mockRequest } from "#test-utils/mocks.ts";
@@ -95,6 +97,7 @@ describeWithEnv(
       expect(res.status).not.toBe(403);
     });
 
+    /* jscpd:ignore-start -- a list of strings, not code */
     const getRedirectPaths = [
       "/admin/listing/new",
       "/admin/listing/42/edit",
@@ -125,8 +128,9 @@ describeWithEnv(
       "/admin/questions/42/answers/9/delete",
       "/admin/questions/42/answers/9/recalculate",
       "/admin/catalog/import",
-      "/admin/user/new",
+      "/admin/users/new",
     ];
+    /* jscpd:ignore-end */
     for (const path of getRedirectPaths) {
       test(`GET ${path} redirects to /read-only`, async () => {
         expectReadOnlyRedirect(await handleRequest(mockRequest(path)));
@@ -197,15 +201,13 @@ describeWithEnv(
     });
 
     test("groups on listings page show Registration Closed in read-only mode", async () => {
-      const { groups } = await import("#db/groups.ts");
       const { assignListingsToGroup } = await import(
         "#db/groups/membership/package-writes.ts"
       );
-      const { listingsTable } = await import("#db/listings/records.ts");
       const { hmacHash } = await import("#crypto/hashing.ts");
       await enablePublicSite();
       const slugIndex = await hmacHash("ro-group");
-      const group = await groups.table.insert({
+      const group = await records.groups.insert({
         hidden: false,
         maxAttendees: 0,
         name: "Read Only Group",
@@ -213,7 +215,7 @@ describeWithEnv(
         slugIndex,
         termsAndConditions: "",
       });
-      const roListing = await listingsTable.insert({
+      const roListing = await createListing({
         maxAttendees: 50,
         maxPrice: 0,
         name: "RO Listing",
@@ -271,6 +273,7 @@ describeWithEnv(
 
     // Safe-list routes must pass through the guard even in read-only mode.
     // The response may be 4xx (no auth / bad payload) but must not be 302 → /read-only.
+    /* jscpd:ignore-start -- a list of strings, not code */
     const safePostPaths = [
       "/admin/logout",
       "/renew",
@@ -292,6 +295,7 @@ describeWithEnv(
       "/admin/attendees/99/refresh-payment",
       "/admin/deliveries/mark",
     ];
+    /* jscpd:ignore-end */
     for (const path of safePostPaths) {
       test(`POST ${path} is not blocked by read-only guard`, async () => {
         const res = await postForm(path);

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectFlash,
   expectHtmlResponse,
@@ -80,7 +81,7 @@ describeWithEnv(
         // panel with the validation error flashed and the search re-armed.
         const { response } = await adminFormPost(
           `/admin/attendees/${target.id}/merge`,
-          { merge_version: "stale-version", source_token: sourceToken },
+          { mergeVersion: "stale-version", sourceToken: sourceToken },
         );
         expectRedirect(
           response,
@@ -129,7 +130,7 @@ describeWithEnv(
         );
 
         const { response } = await submitMerge(target.id, sourceToken, {
-          [`booking_${listing.id}:null:0:0`]: "take_source",
+          [`booking${listing.id}:null:0:0`]: "take_source",
         });
         expect(response.status).toBe(302);
 
@@ -146,14 +147,13 @@ describeWithEnv(
         });
 
         const { response } = await submitMerge(target.id, sourceToken, {
-          [`booking_${listing1.id}:null:0:0`]: "take_source",
+          [`booking${listing1.id}:null:0:0`]: "take_source",
         });
         expect(response.status).toBe(302);
         expectFlash(response, expect.stringContaining("Merged"), true);
 
         const rows = await queryAll<{ quantity: number }>(
-          "SELECT quantity FROM listing_attendees WHERE attendee_id = ?",
-          [target.id],
+          sql`SELECT quantity FROM listing_attendees WHERE attendee_id = ${target.id}`,
         );
         expect(rows.map((row) => row.quantity)).toEqual([3]);
       });

@@ -1,32 +1,30 @@
 // Contract tests for the image library's admin JSON API reads and upload: the
 // list order, one image with the records that show it, and the create body's
 // validation. Technical surface — direct Deno tests (docs/e2e-tests.md).
+
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { toBase64 } from "#crypto/utils.ts";
-import { getImageById, setItemsForImage } from "#db/images.ts";
+import { setItemsForImage } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
-import { handleRequest } from "#routes";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { loggedMessages } from "#test-utils/activity-log.ts";
+import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
 import {
   type ApiImageRow,
   expectImageNotFound,
   IMAGE_API_ROOT,
   imageApiPath,
+  imageOnListingAndGroup,
   imageUploadBody,
-  loggedMessages,
   makeImage,
 } from "#test-utils/admin-images.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  mockRequest,
-  withStorageDisabled,
-  withStorageMock,
-} from "#test-utils/mocks.ts";
+import { withStorageDisabled, withStorageMock } from "#test-utils/mocks.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
@@ -69,20 +67,17 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
     });
 
     test("answers 401 without auth", async () => {
-      const response = await handleRequest(mockRequest(IMAGE_API_ROOT));
-      expect(response.status).toBe(401);
+      await expectUnauthorized(IMAGE_API_ROOT);
     });
   });
 
   describe("GET /api/admin/images/:imageId", () => {
     test("answers one image with every record it shows on", async () => {
-      const image = await makeImage("Shared");
-      const listing = await createTestListing({ name: "Summer" });
-      const group = await createTestGroup({ name: "Series" });
-      await setItemsForImage(image.id, [
-        { id: group.id, kind: "group" },
-        { id: listing.id, kind: "listing" },
-      ]);
+      const { group, image, listing } = await imageOnListingAndGroup(
+        "Shared",
+        "Summer",
+        "Series",
+      );
 
       await assertJson<{ image: ApiImageRow }>(
         apiRequest(imageApiPath(image.id)),
@@ -131,8 +126,8 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
         expect(fetchCalls.filter((url) => url.endsWith(".webp")).length).toBe(
           2,
         );
-        expect(await getImageById(answered.image.id)).toMatchObject({
-          alt_text: "Alt Summer poster",
+        expect(await records.images.find(answered.image.id)).toMatchObject({
+          altText: "Alt Summer poster",
           name: "Summer poster",
         });
         assertArrayIncludes(await loggedMessages(), [

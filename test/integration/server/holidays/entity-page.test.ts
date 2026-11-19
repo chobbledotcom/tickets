@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { holidays } from "#db/holidays.ts";
+import { records } from "#db/record-table.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -86,9 +86,9 @@ describeWithEnv("holiday entity page", { db: true }, () => {
   describe("POST /admin/holidays/:id/edit", () => {
     testRequiresAuth("/admin/holidays/1/edit", {
       body: {
-        end_date: "2026-12-25",
+        endDate: "2026-12-25",
         name: "Updated",
-        start_date: "2026-12-25",
+        startDate: "2026-12-25",
       },
       method: "POST",
       setup: async () => {
@@ -101,19 +101,18 @@ describeWithEnv("holiday entity page", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/holidays/${holiday.id}/edit`,
         {
-          end_date: "2026-12-27",
+          endDate: "2026-12-27",
           name: "Christmas",
-          start_date: holiday.start_date,
+          startDate: holiday.startDate,
         },
       );
       await expectFlashRedirect(
         `/admin/holidays/${holiday.id}`,
         "Holiday updated",
       )(response);
-      const { holidays } = await import("#db/holidays.ts");
-      expect(await holidays.table.read.one({ id: holiday.id })).toEqual({
+      expect(await records.holidays.find(holiday.id)).toEqual({
         ...holiday,
-        end_date: "2026-12-27",
+        endDate: "2026-12-27",
       });
     });
 
@@ -122,9 +121,9 @@ describeWithEnv("holiday entity page", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/holidays/${holiday.id}/edit`,
         {
-          end_date: "2026-12-25",
+          endDate: "2026-12-25",
           name: "Test",
-          start_date: "2026-12-26",
+          startDate: "2026-12-26",
         },
       );
       await expectHtmlResponse(
@@ -138,9 +137,9 @@ describeWithEnv("holiday entity page", { db: true }, () => {
 
     test("returns 404 for non-existent holiday", async () => {
       const { response } = await adminFormPost("/admin/holidays/999/edit", {
-        end_date: "2026-12-25",
+        endDate: "2026-12-25",
         name: "Test",
-        start_date: "2026-12-25",
+        startDate: "2026-12-25",
       });
       expectStatus(404)(response);
     });
@@ -150,9 +149,9 @@ describeWithEnv("holiday entity page", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/holidays/${holiday.id}/edit`,
         {
-          end_date: "2026-12-25",
+          endDate: "2026-12-25",
           name: "",
-          start_date: "2026-12-25",
+          startDate: "2026-12-25",
         },
       );
       await expectHtmlResponse(
@@ -193,7 +192,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         200,
         "Delete holiday",
         "Christmas",
-        "confirm_identifier",
+        "confirmIdentifier",
       );
     });
 
@@ -205,7 +204,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
 
   describe("POST /admin/holidays/:id/delete", () => {
     testRequiresAuth("/admin/holidays/1/delete", {
-      body: { confirm_identifier: "Test Holiday" },
+      body: { confirmIdentifier: "Test Holiday" },
       method: "POST",
       setup: async () => {
         await createTestHoliday();
@@ -215,15 +214,14 @@ describeWithEnv("holiday entity page", { db: true }, () => {
     test("deletes holiday with correct name confirmation", async () => {
       const holiday = await createTestHoliday({ name: "To Delete" });
       await deleteTestHoliday(holiday.id);
-      const { holidays } = await import("#db/holidays.ts");
-      expect(await holidays.table.read.one({ id: holiday.id })).toBeNull();
+      expect(await records.holidays.find(holiday.id)).toBeNull();
     });
 
     test("rejects deletion with wrong name", async () => {
       const holiday = await createTestHoliday({ name: "Christmas" });
       const { response } = await adminFormPost(
         `/admin/holidays/${holiday.id}/delete`,
-        { confirm_identifier: "Wrong Name" },
+        { confirmIdentifier: "Wrong Name" },
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -231,23 +229,22 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         expect.stringContaining("Holiday name does not match"),
         false,
       );
-      const { holidays } = await import("#db/holidays.ts");
-      expect(await holidays.table.read.one({ id: holiday.id })).not.toBeNull();
+      expect(await records.holidays.find(holiday.id)).not.toBeNull();
     });
 
     test("name confirmation is case-insensitive", async () => {
       const holiday = await createTestHoliday({ name: "Christmas Day" });
       const { response } = await adminFormPost(
         `/admin/holidays/${holiday.id}/delete`,
-        { confirm_identifier: "christmas day" },
+        { confirmIdentifier: "christmas day" },
       );
       await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
-      expect(await holidays.table.read.one({ id: holiday.id })).toBeNull();
+      expect(await records.holidays.find(holiday.id)).toBeNull();
     });
 
     test("returns 404 for non-existent holiday", async () => {
       const { response } = await adminFormPost("/admin/holidays/999/delete", {
-        confirm_identifier: "Test",
+        confirmIdentifier: "Test",
       });
       expectStatus(404)(response);
     });

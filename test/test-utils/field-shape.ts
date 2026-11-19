@@ -9,6 +9,7 @@ export const fieldShape = (field: Field): Record<string, unknown> => {
     "hint",
     "placeholder",
     "required",
+    "requiredMessage",
     "autocomplete",
     "invalidMessage",
     "section",

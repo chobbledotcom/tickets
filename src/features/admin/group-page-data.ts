@@ -69,12 +69,12 @@ export const groupHasPaidListing = async (
   listings: ListingWithCount[],
 ): Promise<boolean> => {
   if (listings.some(isPaidListing)) return true;
-  if (!group.is_package) return false;
+  if (!group.isPackage) return false;
   // Only a positive override charges money. A null (no override → base price,
   // already covered above) or an explicit free (0) adds no revenue. Per-day
   // overrides can make an otherwise-free customisable member paid the same way.
   const rows = await getGroupPackagePrices(group.id);
-  if (rows.some((row) => (row.package_price ?? 0) > 0)) return true;
+  if (rows.some((row) => (row.packagePrice ?? 0) > 0)) return true;
   const dayRows = await getGroupDayPrices(group.id);
   return [...dayRows.values()].some((byDay) =>
     [...byDay.values()].some((price) => price > 0),
@@ -167,7 +167,7 @@ export const loadGroupOverviewPanel = rosterTab(
     // renders.
     const shareable =
       visibleMembers.length > 0 &&
-      (!group.is_package || (await groupBookable(group, visibleMembers)));
+      (!group.isPackage || (await groupBookable(group, visibleMembers)));
     return GroupOverviewPanel({
       ...rosterPanelProps(group, roster),
       hasPaidListing: roster.hasPaidListing,
@@ -204,10 +204,10 @@ export const loadGroupEditPanel = async (
   ]);
   const members: PackageMemberValues = new Map(
     rows.map((row) => [
-      row.listing_id,
+      row.listingId,
       {
-        dayPrices: dayPrices.get(row.listing_id) ?? new Map(),
-        price: row.package_price,
+        dayPrices: dayPrices.get(row.listingId) ?? new Map(),
+        price: row.packagePrice,
         quantity: row.quantity,
       },
     ]),

@@ -1,19 +1,28 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllListings } from "#db/listings/records.ts";
+import {
+  getAllListings,
+  getStoredListingWithCount,
+} from "#db/listings/records.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
-  expectErrorFlash,
   expectFlash,
   expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { buildUpdateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import {
+  adminFormPost,
+  adminGet,
+  adminMultipartPost,
+  setupListingAndLogin,
+} from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
+import { expectFormValueRefused } from "#test-utils/settings-refusal.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 
 const findByName = async (name: string) =>
@@ -40,16 +49,16 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(response.status).toBe(200);
       const body = await response.text();
       expectIncludesAll(body, [
-        'name="default_hidden"',
-        'name="default_webhook_url"',
+        'name="defaultHidden"',
+        'name="defaultWebhookUrl"',
       ]);
     });
 
     test("pre-fills the form with the saved number and day defaults", async () => {
       await adminFormPost("/admin/listing-defaults", {
-        default_bookable_days: "Monday",
-        default_bookable_days_enabled: "1",
-        default_minimum_days_before: "3",
+        defaultBookableDays: "Monday",
+        defaultBookableDaysEnabled: "1",
+        defaultMinimumDaysBefore: "3",
       });
       const response = await adminGet("/admin/listing-defaults");
       const body = await response.text();
@@ -61,47 +70,47 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     });
 
     test("a true bool default selects the Yes option", async () => {
-      await adminFormPost("/admin/listing-defaults", { default_hidden: "1" });
-      expect((await submittedDefaults()).get("default_hidden")).toEqual(["1"]);
+      await adminFormPost("/admin/listing-defaults", { defaultHidden: "1" });
+      expect((await submittedDefaults()).get("defaultHidden")).toEqual(["1"]);
     });
 
     test("a false bool default selects the No option", async () => {
-      await adminFormPost("/admin/listing-defaults", { default_hidden: "0" });
-      expect((await submittedDefaults()).get("default_hidden")).toEqual(["0"]);
+      await adminFormPost("/admin/listing-defaults", { defaultHidden: "0" });
+      expect((await submittedDefaults()).get("defaultHidden")).toEqual(["0"]);
     });
 
     test("an unset bool default selects No default", async () => {
       // Save an unrelated default so the page still renders its controls.
       await adminFormPost("/admin/listing-defaults", {
-        default_minimum_days_before: "3",
+        defaultMinimumDaysBefore: "3",
       });
-      expect((await submittedDefaults()).get("default_hidden")).toEqual([""]);
+      expect((await submittedDefaults()).get("defaultHidden")).toEqual([""]);
     });
 
     test("a days default ticks its enable box and only the chosen days", async () => {
       await adminFormPost("/admin/listing-defaults", {
-        default_bookable_days: "Monday",
-        default_bookable_days_enabled: "1",
+        defaultBookableDays: "Monday",
+        defaultBookableDaysEnabled: "1",
       });
       const submitted = await submittedDefaults();
-      expect(submitted.get("default_bookable_days_enabled")).toEqual(["1"]);
-      expect(submitted.get("default_bookable_days")).toEqual(["Monday"]);
+      expect(submitted.get("defaultBookableDaysEnabled")).toEqual(["1"]);
+      expect(submitted.get("defaultBookableDays")).toEqual(["Monday"]);
     });
 
     test("no days default leaves the enable box and every day unticked", async () => {
       await adminFormPost("/admin/listing-defaults", {
-        default_minimum_days_before: "3",
+        defaultMinimumDaysBefore: "3",
       });
       const submitted = await submittedDefaults();
-      expect(submitted.get("default_bookable_days_enabled")).toBe(undefined);
-      expect(submitted.get("default_bookable_days")).toBe(undefined);
+      expect(submitted.get("defaultBookableDaysEnabled")).toBe(undefined);
+      expect(submitted.get("defaultBookableDays")).toBe(undefined);
     });
 
     test("a url default pre-fills its input", async () => {
       await adminFormPost("/admin/listing-defaults", {
-        default_webhook_url: "https://example.com/hook",
+        defaultWebhookUrl: "https://example.com/hook",
       });
-      expect((await submittedDefaults()).get("default_webhook_url")).toEqual([
+      expect((await submittedDefaults()).get("defaultWebhookUrl")).toEqual([
         "https://example.com/hook",
       ]);
     });
@@ -109,15 +118,15 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
 
   describe("POST /admin/listing-defaults", () => {
     testRequiresAuth("/admin/listing-defaults", {
-      body: { default_hidden: "1" },
+      body: { defaultHidden: "1" },
       method: "POST",
     });
 
     test("saves the chosen defaults and round-trips them", async () => {
       const { response } = await adminFormPost("/admin/listing-defaults", {
-        default_hidden: "1",
-        default_minimum_days_before: "3",
-        default_webhook_url: "https://example.com/hook",
+        defaultHidden: "1",
+        defaultMinimumDaysBefore: "3",
+        defaultWebhookUrl: "https://example.com/hook",
       });
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toMatch(
@@ -132,22 +141,26 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     });
 
     test("an empty submission clears every default", async () => {
-      await adminFormPost("/admin/listing-defaults", { default_hidden: "1" });
+      await adminFormPost("/admin/listing-defaults", { defaultHidden: "1" });
       await adminFormPost("/admin/listing-defaults", {});
       expect(settings.listingDefaults).toEqual({});
     });
 
     test("rejects an invalid webhook url without saving", async () => {
-      const { response } = await adminFormPost("/admin/listing-defaults", {
-        default_webhook_url: "not-a-url",
-      });
-      expectErrorFlash(response, "https");
-      expect(settings.listingDefaults).toEqual({});
+      await expectFormValueRefused(
+        {
+          fields: { defaultWebhookUrl: "not-a-url" },
+          flash: "https",
+          path: "/admin/listing-defaults",
+          stored: () => settings.listingDefaults,
+        },
+        {},
+      );
     });
 
     test("ignores the logistics default while logistics is disabled", async () => {
       await adminFormPost("/admin/listing-defaults", {
-        default_uses_logistics: "1",
+        defaultUsesLogistics: "1",
       });
       expect("usesLogistics" in settings.listingDefaults).toBe(false);
     });
@@ -155,7 +168,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     test("accepts the logistics default once logistics is enabled", async () => {
       await enableFeature("logistics");
       await adminFormPost("/admin/listing-defaults", {
-        default_uses_logistics: "1",
+        defaultUsesLogistics: "1",
       });
       expect(settings.listingDefaults.usesLogistics).toBe(true);
     });
@@ -163,8 +176,8 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     test("disabling logistics clears the saved logistics default", async () => {
       await enableFeature("logistics");
       await adminFormPost("/admin/listing-defaults", {
-        default_hidden: "1",
-        default_uses_logistics: "1",
+        defaultHidden: "1",
+        defaultUsesLogistics: "1",
       });
       expect(settings.listingDefaults.usesLogistics).toBe(true);
 
@@ -179,8 +192,8 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
 
     test("stores the defaults blob encrypted at rest", async () => {
       await adminFormPost("/admin/listing-defaults", {
-        default_thank_you_url: "https://secret.example.com/token-abc",
-        default_webhook_url: "https://secret.example.com/hook-xyz",
+        defaultThankYouUrl: "https://secret.example.com/token-abc",
+        defaultWebhookUrl: "https://secret.example.com/hook-xyz",
       });
       // Round-trips through decryption…
       expect(settings.listingDefaults.webhookUrl).toBe(
@@ -195,9 +208,9 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     test("refuses a webhook default in demo mode but keeps the thank-you url", async () => {
       setDemoModeForTest(true);
       await adminFormPost("/admin/listing-defaults", {
-        default_hidden: "1",
-        default_thank_you_url: "https://example.com/thanks",
-        default_webhook_url: "https://example.com/hook",
+        defaultHidden: "1",
+        defaultThankYouUrl: "https://example.com/thanks",
+        defaultWebhookUrl: "https://example.com/hook",
       });
       expect(settings.listingDefaults.hidden).toBe(true);
       // Only the outbound webhook is blocked in demo mode — the thank-you
@@ -217,37 +230,37 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
         useDefaults: true,
         webhookUrl: "",
       });
-      expect(listing.use_defaults).toBe(true);
+      expect(listing.useDefaults).toBe(true);
 
       // Set a default after the listing exists — it should inherit live.
       // Saving defaults must invalidate the listings cache itself (no manual
       // invalidation here), or warm isolates would keep serving stale values.
       await adminFormPost("/admin/listing-defaults", {
-        default_hidden: "1",
-        default_webhook_url: "https://example.com/live",
+        defaultHidden: "1",
+        defaultWebhookUrl: "https://example.com/live",
       });
       const inheriting = await findByName("Inheriting listing");
       expect(inheriting?.hidden).toBe(true);
-      expect(inheriting?.webhook_url).toBe("https://example.com/live");
+      expect(inheriting?.webhookUrl).toBe("https://example.com/live");
 
       // Clear the defaults — it reverts to its own stored values.
       await adminFormPost("/admin/listing-defaults", {});
       const reverted = await findByName("Inheriting listing");
       expect(reverted?.hidden).toBe(false);
-      expect(reverted?.webhook_url).toBe("");
+      expect(reverted?.webhookUrl).toBe("");
     });
 
     test("disabling logistics drops an inherited logistics value live", async () => {
       await enableFeature("logistics");
       await adminFormPost("/admin/listing-defaults", {
-        default_uses_logistics: "1",
+        defaultUsesLogistics: "1",
       });
       await createTestListing({
         name: "Logistics inheritor",
         useDefaults: true,
       });
       // Materialise it into the listings cache while the default applies.
-      expect((await findByName("Logistics inheritor"))?.uses_logistics).toBe(
+      expect((await findByName("Logistics inheritor"))?.usesLogistics).toBe(
         true,
       );
 
@@ -256,13 +269,13 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       await adminFormPost("/admin/features/logistics", {
         enabled: "false",
       });
-      expect((await findByName("Logistics inheritor"))?.uses_logistics).toBe(
+      expect((await findByName("Logistics inheritor"))?.usesLogistics).toBe(
         false,
       );
     });
 
     test("a listing without Use-defaults keeps its own values", async () => {
-      await adminFormPost("/admin/listing-defaults", { default_hidden: "1" });
+      await adminFormPost("/admin/listing-defaults", { defaultHidden: "1" });
       await createTestListing({
         hidden: false,
         name: "Own values listing",
@@ -278,15 +291,15 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       await enableFeature("logistics");
       // Set every default so the create form pre-fills each defaulted field.
       await adminFormPost("/admin/listing-defaults", {
-        default_bookable_days: "Monday",
-        default_bookable_days_enabled: "1",
-        default_hidden: "1",
-        default_maximum_days_after: "30",
-        default_minimum_days_before: "1",
-        default_thank_you_url: "https://example.com/thanks",
+        defaultBookableDays: "Monday",
+        defaultBookableDaysEnabled: "1",
+        defaultHidden: "1",
+        defaultMaximumDaysAfter: "30",
+        defaultMinimumDaysBefore: "1",
+        defaultThankYouUrl: "https://example.com/thanks",
         // A "no" bool default exercises the unchecked checkbox pre-fill.
-        default_uses_logistics: "0",
-        default_webhook_url: "https://example.com/hook",
+        defaultUsesLogistics: "0",
+        defaultWebhookUrl: "https://example.com/hook",
       });
       const response = await adminGet("/admin/listing/new?template=custom");
       const body = await response.text();
@@ -306,7 +319,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       await enableFeature("logistics");
       // A logistics=no default would otherwise un-logistic the Hireable card.
       await adminFormPost("/admin/listing-defaults", {
-        default_uses_logistics: "0",
+        defaultUsesLogistics: "0",
       });
       const response = await adminGet(
         "/admin/listing/new?template=hireable-item",
@@ -320,8 +333,8 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
 
     test("edit form pre-fills a listing's own stored values, not the inherited defaults", async () => {
       await adminFormPost("/admin/listing-defaults", {
-        default_hidden: "1",
-        default_webhook_url: "https://default.example/hook",
+        defaultHidden: "1",
+        defaultWebhookUrl: "https://default.example/hook",
       });
       const listing = await createTestListing({
         hidden: false,
@@ -338,16 +351,14 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       }
       // The webhook field carries the listing's OWN url (so a normal save
       // preserves it), not the inherited default…
-      expect(submitted.get("webhook_url")).toEqual([
-        "https://own.example/hook",
-      ]);
+      expect(submitted.get("webhookUrl")).toEqual(["https://own.example/hook"]);
       // …and the hidden checkbox reflects the stored false (unchecked, so not
       // submitted), not the inherited Hidden=Yes default.
       expect(submitted.get("hidden")).toBe(undefined);
     });
 
     test("edit form reflects a listing's Use-defaults flag", async () => {
-      await adminFormPost("/admin/listing-defaults", { default_hidden: "1" });
+      await adminFormPost("/admin/listing-defaults", { defaultHidden: "1" });
       const inheriting = await createTestListing({
         name: "Inheriting",
         useDefaults: true,
@@ -371,24 +382,37 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(offBody).not.toMatch(/checked[^>]*id="use-defaults"/);
     });
 
-    test("no toggle when the operator has set no defaults", async () => {
-      const response = await adminGet("/admin/listing/new?template=custom");
-      const body = await response.text();
-      assert(!body.includes('id="use-defaults"'));
-    });
-
-    test("preserves an inheriting listing's flag while no defaults exist", async () => {
-      // Listing flagged to inherit, but the operator has since cleared every
-      // default — the edit form has no visible toggle, so it must carry the
-      // flag in a hidden input rather than silently dropping it on save.
-      const listing = await createTestListing({
+    test("with no defaults set, no form shows the toggle and a save keeps an inheriting listing's flag", async () => {
+      // The listing was flagged to inherit, but the operator has since cleared
+      // every default. The edit form shows no toggle and sends no flag, so the
+      // save keeps the stored one.
+      const { listing } = await setupListingAndLogin({
         name: "Still inheriting",
         useDefaults: true,
       });
-      const response = await adminGet(`/admin/listing/${listing.id}/edit`);
-      const body = await response.text();
-      assert(!body.includes('id="use-defaults"'));
-      assertStringIncludes(body, 'name="use_defaults" type="hidden" value="1"');
+      const pages = await Promise.all(
+        [
+          "/admin/listing/new?template=custom",
+          `/admin/listing/${listing.id}/edit`,
+        ].map(async (path) => (await adminGet(path)).text()),
+      );
+      // The owner's query log names the column, so match the toggle markup.
+      expect(
+        pages.filter((page) =>
+          /id="use-defaults"|name="useDefaults"/.test(page),
+        ),
+      ).toEqual([]);
+      const { response: saved } = await adminMultipartPost(
+        `/admin/listing/${listing.id}/edit`,
+        buildUpdateListingForm(
+          { name: "Renamed" },
+          (await getStoredListingWithCount(listing.id))!,
+        ),
+      );
+      expect([
+        saved.status,
+        (await getStoredListingWithCount(listing.id))!.useDefaults,
+      ]).toEqual([302, true]);
     });
   });
 });

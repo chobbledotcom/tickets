@@ -19,9 +19,9 @@ const option = (
   text: string,
   sortOrder: number,
 ): AttributeOption => ({
-  attribute_id: attributeId,
+  attributeId: attributeId,
   id,
-  sort_order: sortOrder,
+  sortOrder: sortOrder,
   text,
 });
 
@@ -34,7 +34,7 @@ const attribute = (
   id,
   name,
   options,
-  sort_order: sortOrder,
+  sortOrder: sortOrder,
 });
 
 const listingAttributes = (): ListingAttributesById => {

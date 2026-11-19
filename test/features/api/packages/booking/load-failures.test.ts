@@ -11,7 +11,7 @@ import {
   createTestListing,
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
-import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 
 describePackageBooking(() => {
   test("POST keeps a package fact read failure after a free booking", async () => {
@@ -36,7 +36,9 @@ describePackageBooking(() => {
       batch: () => {},
       execute: (statement) => {
         if (
-          !statementSql(statement).includes("groupRecord.hide_package_listings")
+          !statement.sql.includes(
+            "groupRow.hide_package_listings AS hidePackageListings",
+          )
         ) {
           return null;
         }

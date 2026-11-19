@@ -20,23 +20,16 @@ import {
 import { syncListingPrices } from "#db/listing-price-sync.ts";
 import { refuseUndatedSwitchTx } from "#db/listings/daily-switch.ts";
 import { deleteListing } from "#db/listings/delete.ts";
-import {
-  getListingWithCount,
-  isSlugTaken,
-  listingsTable,
-} from "#db/listings/records.ts";
-import {
-  catalogNameLengthError,
-  isNameTakenAnywhere,
-} from "#db/name-registry.ts";
+import { getListingWithCount, isSlugTaken } from "#db/listings/records.ts";
+import { isNameTakenAnywhere } from "#db/name-registry.ts";
+import { records } from "#db/record-table.ts";
+import { type ListingCheck, liveListingRefusal } from "#db/subscriptions.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
   deactivationOrphanedAddOnError,
   listingSaveOrphanedAddOnTx,
 } from "#shared/add-on-reachability.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { optionalFieldsSchema } from "#shared/catalog-fields/fields-schema.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   dayPriceFieldsFromInput,
@@ -47,10 +40,16 @@ import {
   planInGroupError,
   planRuleError,
 } from "#shared/package-membership.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
+import { transferValues } from "#shared/rest/field-reads.ts";
+import { optionalFieldsSchema } from "#shared/rest/field-values.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage-cleanup.ts";
-
+import { recurringPlanError } from "#shared/subscriptions/listing-rules.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
   availableDayCounts,
@@ -67,18 +66,15 @@ export const generateUniqueListingSlug = (excludeListingId?: number) =>
  * The date a save writes. The date box hides whenever the listing is daily,
  * before or after this save. A hidden box submits an empty value. That empty
  * value must not wipe the stored date: the owner can still switch the type
- * back to standard and get the date back. A typed date always writes. An
- * absent submitted date means "the stored value stands", as the API's stored
- * fallback has always written.
+ * back to standard and get the date back. A typed date always writes.
  */
 export const keepDailyListingDate = (
-  submitted: string | undefined,
-  stored: Pick<Listing, "date" | "listing_type">,
-  wouldBeType: Listing["listing_type"] | undefined,
+  submitted: string,
+  stored: Pick<Listing, "date" | "listingType">,
+  wouldBeType: Listing["listingType"] | undefined,
 ): string => {
-  if (submitted === undefined) return stored.date;
   if (submitted !== "") return submitted;
-  return stored.listing_type === "daily" || wouldBeType === "daily"
+  return stored.listingType === "daily" || wouldBeType === "daily"
     ? stored.date
     : "";
 };
@@ -136,7 +132,7 @@ const packageMembershipError = async (
   canPayMore: boolean,
   existingId: number | undefined,
 ): Promise<string | null> => {
-  if (!group.is_package) return null;
+  if (!group.isPackage) return null;
   // A create has no edges yet, and pay-what-you-want is decided by the listing
   // alone — either way the rules run without an edge read.
   const [childIds, parentIds] =
@@ -147,9 +143,9 @@ const packageMembershipError = async (
           listingParents.getIds(existingId),
         ]);
   return packageMemberError(
-    { can_pay_more: canPayMore, name },
+    { canPayMore: canPayMore, name },
     { childIds, parentIds },
-    group.hide_package_listings,
+    group.hidePackageListings,
   );
 };
 
@@ -187,9 +183,9 @@ const validateListingGroup: ListingUpdateCheck = async (
       // that default rather than passing undefined and reading every standard
       // group as a type mismatch.
       {
-        customisable_days: input.customisableDays ?? false,
+        customisableDays: input.customisableDays ?? false,
         id: existingId ?? 0,
-        listing_type: input.listingType ?? "standard",
+        listingType: input.listingType ?? "standard",
       },
       existingId ?? 0,
     );
@@ -246,21 +242,19 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   return edgeIncompatibilityAfterChange(listingInputToEdge(input, existingId));
 };
 
-/** The listing name's own checks. It must be unique across BOTH listings and
+/** The listing name's own check. It must be unique across BOTH listings and
  *  groups (create and edit alike), so the catalog can be referenced by name
- *  for import/export. Its length is capped by the shared catalog-name rule —
- *  see {@link catalogNameLengthError}. */
+ *  for import/export. The named record caps its length at both doors. */
 const listingNameError = async (
   name: string,
   existingId?: number,
-): Promise<string | null> => {
-  const nameTaken = await isNameTakenAnywhere(
+): Promise<string | null> =>
+  (await isNameTakenAnywhere(
     name,
     existingId === undefined ? undefined : { id: existingId, kind: "listing" },
-  );
-  if (nameTaken) return t("error.name_in_use");
-  return catalogNameLengthError(name);
-};
+  ))
+    ? t("error.name_in_use")
+    : null;
 
 /** Validate a listing's minimum quantity. It must hold with the per-order
  *  maximum: a whole number of at least 1, and at most that maximum. An absent
@@ -321,19 +315,16 @@ export const validateListingInput = async (
       input.webhookUrl,
       "Webhook URL must be a public https:// domain",
     ) ??
-    validateRenewalConfig(input)
+    validateRenewalConfig(input) ??
+    recurringPlanError(input)
   );
 };
 
-/**
- * A deleted listing no longer serves a page, exactly like a deactivated one,
- * so this reuses {@link deactivationOrphanedAddOnError} with the deleted id in
- * the would-be-removed set.
- */
-export const deleteOrphanedAddOnError = (
-  listingId: number,
-  tx?: TxScope,
-): Promise<string | null> =>
+/** Why the listing cannot be deleted, or null. Its bookings go with it, so a
+ * booking whose subscription still charges refuses. A deleted listing serves
+ * no page, so the deactivation add-on rule applies too. */
+export const listingDeleteError: ListingCheck = async (listingId, tx) =>
+  (await liveListingRefusal(listingId, tx)) ??
   deactivationOrphanedAddOnError(new Set([listingId]), tx);
 
 /**
@@ -364,13 +355,13 @@ export const performListingDelete = async (
   listing: ListingWithCount,
 ): Promise<string | null> => {
   const refusal = await guardedListingWrite(
-    (tx) => deleteOrphanedAddOnError(listing.id, tx),
+    (tx) => listingDeleteError(listing.id, tx),
     (tx) => deleteListing(listing.id, tx),
   );
   if (refusal !== null) return refusal;
   await deleteListingAttachmentFile(listing, "listing deletion");
   await logActivity(
-    `Listing '${listing.name}' deleted (${listing.attendee_count} attendee(s) removed)`,
+    `Listing '${listing.name}' deleted (${listing.attendeeCount} attendee(s) removed)`,
   );
   return null;
 };
@@ -378,8 +369,7 @@ export const performListingDelete = async (
 /**
  * Build an `ListingInput` from an existing listing, with optional overrides.
  *
- * Uses the table's `rowToInput` to carry every column across — no manual
- * snake_case→camelCase translation. A fresh unique slug is generated so
+ * Carries every declared field across under its input name. A fresh unique slug is generated so
  * the returned input is safe to insert. Attachment URLs are cleared because
  * they reference files owned by the source listing.
  * Callers can override any field (e.g. `name`, `date`, `groupId`) via
@@ -389,12 +379,14 @@ export const buildDuplicateListingInput = async (
   source: Listing,
   overrides: Partial<ListingInput> = {},
 ): Promise<ListingInput> => ({
-  ...(listingsTable.rowToInput(source, ["created"]) as ListingInput),
-  // `day_prices` isn't a physical column (it projects from listing_prices), so
-  // rowToInput can't carry it — pass the source's day prices through explicitly
-  // so a duplicate keeps its per-day-count pricing (the write path persists it as
-  // day_count rows). An override may still replace it.
-  dayPrices: source.day_prices,
+  // The declared fields of a stored listing are the fields of its input.
+  ...(transferValues(LISTING_FIELDS, source) as Partial<ListingInput>),
+  // An empty day-price map is left out of the transfer values, so the source's
+  // day prices pass through here. An override may still replace them.
+  dayPrices: source.dayPrices,
+  maxAttendees: source.maxAttendees,
+  maxPrice: source.maxPrice,
+  name: source.name,
   ...(await generateUniqueListingSlug()),
   attachmentName: "",
   attachmentUrl: "",
@@ -439,18 +431,12 @@ export const toggleListingActive = async (
       // The stored state decides, not the loaded row: a replica lag can leave
       // the row stale, and deciding noChange from it would skip the very
       // write the operator asked for.
-      const [row] = resultRows<{ active: number }>(
-        await tx.execute({
-          args: [listingId],
-          sql: "SELECT listing.active FROM listings AS listing WHERE listing.id = ?",
-        }),
+      const [row] = resultRows(
+        await tx.execute(records.listings.byId(listingId).pick("active")),
       );
       // The listing vanished under a concurrent delete. There is nothing to
       // toggle.
-      if (
-        row === undefined ||
-        listingAlreadyInState(row.active === 1, active)
-      ) {
+      if (row === undefined || listingAlreadyInState(row.active, active)) {
         return { noChange: true };
       }
       if (!active) {
@@ -460,12 +446,10 @@ export const toggleListingActive = async (
         );
         if (refusal !== null) return { error: refusal };
       }
-      // Every table on the transactional write path carries updateStatement
-      // (see crud-api.ts), so the toggle's row write joins the guard's tx. The
-      // price mirror and the activity log join it too: a failure in either
-      // rolls the toggle back, so a retry re-runs all three.
+      // The row write, the price mirror and the activity log all join the tx of
+      // the guard. A failure in one rolls all three back, so a retry runs all.
       await tx.execute(
-        await listingsTable.updateStatement!(listingId, { active }),
+        await records.listings.updateStatement(listingId, { active }),
       );
       await syncListingPrices(listingId, tx);
       const verb = active ? "reactivated" : "deactivated";

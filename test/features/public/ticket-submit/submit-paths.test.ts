@@ -8,7 +8,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { type ModifierInput, modifiersTable } from "#db/modifiers.ts";
+import type { ModifierInput } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
@@ -33,7 +33,7 @@ import {
   expectSingleTicketSvg,
 } from "#test-utils/email.ts";
 import { awaitTestRequest, useFetchStub } from "#test-utils/mocks.ts";
-import { setupAnswerTier } from "#test-utils/modifiers.ts";
+import { insertModifier, setupAnswerTier } from "#test-utils/modifiers.ts";
 import { setPublicReservation } from "#test-utils/reservation/helpers.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -62,7 +62,7 @@ const expectReturningBuyerRejectedForEmail = async (
     maxAttendees: 50,
     unitPrice,
   });
-  await modifiersTable.insert({ ...modifier, minVisits: 1 });
+  await insertModifier({ ...modifier, minVisits: 1 });
   await createTestAttendeeDirect(
     listing.id,
     "Returning Buyer",
@@ -233,8 +233,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       const response = await submitTicketForm(listing.slug, {
         email: "buyer@example.com",
         name: "Jane Doe",
-        [`question_${choice.questionId}`]: String(choice.answerId),
-        [`question_${freeText}`]: "Arriving late",
+        [`question${choice.questionId}`]: String(choice.answerId),
+        [`question${freeText}`]: "Arriving late",
       });
 
       expect(response.status).toBe(302);
@@ -275,7 +275,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       });
 
       const html = await quoteTicketHtml(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
       });
 
       assertStringIncludes(
@@ -291,7 +291,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       const listing = await createTestListing({ maxQuantity: 5 });
 
       const html = await quoteTicketHtml(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
       });
 
       assertStringIncludes(html, "No payment required for this booking.");
@@ -305,7 +305,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       });
 
       const html = await quoteTicketHtml(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
       });
 
       assertStringIncludes(
@@ -318,7 +318,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       const listing = await createTestListing({ maxQuantity: 5 });
 
       const response = await awaitTestRequest(`/calculate/${listing.slug}`, {
-        data: { [`quantity_${listing.id}`]: "1" },
+        data: { [`quantity${listing.id}`]: "1" },
       });
 
       expect(response.status).toBe(403);
@@ -334,8 +334,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       });
 
       const html = await quoteTicketHtml(listing.slug, {
-        [`question_${questionId}`]: String(answerId),
-        [`quantity_${listing.id}`]: "1",
+        [`question${questionId}`]: String(answerId),
+        [`quantity${listing.id}`]: "1",
       });
 
       assertStringIncludes(html, "No payment required for this booking.");

@@ -12,7 +12,8 @@
  */
 
 import type { ResultSet } from "@libsql/client";
-import { queryBatch, type SqlStatement } from "#db/client.ts";
+import { queryBatch } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /** One cached read that can take its answer from a shared batch. */

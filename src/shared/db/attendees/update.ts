@@ -15,13 +15,16 @@ import { ticketLinesQuery } from "#db/attendees/ticket-lines.ts";
 import {
   execute,
   executeBatch,
-  executeUpdate,
   queryAll,
-  rawSql,
   resultRows,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
+import { equal, notEqual, plus, valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import {
   filter,
   map,
@@ -52,10 +55,11 @@ export const moveTickets = (
     const { changed, moved } = spreadTicketMoves(direction, lines, moves);
     if (changed.length > 0) {
       await tx.batch(
-        changed.map((line) => ({
-          args: [line.checked_in, line.id],
-          sql: "UPDATE listing_attendees SET checked_in = ? WHERE id = ?",
-        })),
+        changed.map((line) =>
+          update(tables.listing_attendees, {
+            checkedIn: line.checked_in,
+          }).where({ id: line.id }),
+        ),
       );
     }
     return moved;
@@ -65,10 +69,10 @@ export const incrementAttachmentDownloads = async (
   attendeeId: number,
   listingId: number,
 ): Promise<void> => {
-  await executeUpdate(
-    "listing_attendees",
-    { attachment_downloads: rawSql("attachment_downloads + 1") },
-    { attendee_id: attendeeId, listing_id: listingId },
+  await execute(
+    update(tables.listing_attendees, (line) => ({
+      attachmentDownloads: plus(line.attachmentDownloads, 1),
+    })).where({ attendeeId, listingId: listingId }),
   );
 };
 
@@ -97,10 +101,14 @@ export const recomputeListingBookingRanges = async (
 ): Promise<void> => {
   const duration = clampDurationDays(durationDays);
   await execute(
-    `UPDATE listing_attendees
-           SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || '.000Z'
-           WHERE listing_id = ? AND start_at IS NOT NULL`,
-    [duration, listingId],
+    update(tables.listing_attendees, (line) => ({
+      endAt: valued<string>(
+        sql`REPLACE(datetime(${line.startAt}, '+' || ${duration} || ' days'), ' ', 'T') || '.000Z'`,
+      ),
+    })).where((line) => [
+      equal(line.listingId, listingId),
+      notEqual(line.startAt, null),
+    ]),
   );
 };
 
@@ -224,19 +232,15 @@ export const checkGroupCapAfterDurationChange = async (
   listingId: number,
   groupId: number,
 ): Promise<string | null> => {
-  const cap = await queryAll<{ max_attendees: number }>(
-    "SELECT max_attendees FROM groups WHERE id = ?",
-    [groupId],
-  );
-  const groupLimit = cap[0]!.max_attendees;
+  const cap = await queryAll(records.groups.byId(groupId).pick("maxAttendees"));
+  const groupLimit = cap[0]!.maxAttendees;
   if (groupLimit <= 0) return null;
 
   const rows = await queryAll<GroupBookingRow>(
-    `SELECT listingAttendee.listing_id, listing.listing_type, listingAttendee.start_at, listingAttendee.end_at, listingAttendee.quantity
+    sql`SELECT listingAttendee.listing_id, listing.listing_type, listingAttendee.start_at, listingAttendee.end_at, listingAttendee.quantity
      FROM listing_attendees AS listingAttendee
      JOIN listings AS listing ON listing.id = listingAttendee.listing_id
-     WHERE listingAttendee.listing_id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)`,
-    [groupId],
+     WHERE listingAttendee.listing_id IN (SELECT listing_id FROM group_listings WHERE group_id = ${groupId})`,
   );
 
   return groupCapOverflowDay(rows, listingId, groupLimit);

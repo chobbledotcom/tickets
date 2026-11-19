@@ -16,7 +16,7 @@ type SumupFields = {
 
 export const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
   extraFields: (form) => ({
-    merchantCode: form.getString("sumup_merchant_code"),
+    merchantCode: form.getString("sumupMerchantCode"),
   }),
   logMessage: "SumUp credentials updated",
   provider: "sumup",

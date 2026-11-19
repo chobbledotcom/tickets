@@ -25,7 +25,7 @@ describeWithEnv("server (/calculate deposit quotes)", { db: true }, () => {
 
     const html = await (
       await postRunningTotal(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
       })
     ).text();
     // The smallest paid value must remain distinct from a free booking.
@@ -42,7 +42,7 @@ describeWithEnv("server (/calculate deposit quotes)", { db: true }, () => {
 
     const html = await (
       await postRunningTotal(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
       })
     ).text();
     assertStringIncludes(html, "No payment required");
@@ -60,7 +60,7 @@ describeWithEnv("server (/calculate deposit quotes)", { db: true }, () => {
 
     const html = await (
       await postRunningTotal(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
       })
     ).text();
 

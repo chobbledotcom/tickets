@@ -132,7 +132,10 @@ const expectFoldMatchesJudge = async (
   const folded = await foldFor(testCase, built, dayCount);
   expect(folded.ok, testCase.name).toBe(true);
   const alternative = alternativeAt(outcome, dayCount);
-  expect(alternative, testCase.name).toBeDefined();
+  expect(
+    outcome.alternatives.map((option) => option.dayCount),
+    testCase.name,
+  ).toContain(dayCount);
   if (!folded.ok || testCase.fold === "explicit-choice" || !alternative) return;
   expect(sortedEntries(folded.quantities), testCase.name).toEqual(
     sortedEntries(alternative.unitsByListingId),
@@ -192,7 +195,6 @@ const expectGalleryAgreesWithCheckout = async (
     true,
   );
   const state = states.get(judged.key);
-  expect(state, testCase.name).toBeDefined();
   expect(state?.kind, testCase.name).toBe(
     testCase.capacityRefuses ? "unavailable" : "available",
   );
@@ -217,7 +219,7 @@ const submitAtSpan = async (
   }));
   const resolved = await resolveDayCount(
     chosen,
-    new FormParams([["day_count", String(dayCount)]]),
+    new FormParams([["dayCount", String(dayCount)]]),
     built.date,
   );
   if ("error" in resolved) return false;
@@ -226,7 +228,7 @@ const submitAtSpan = async (
     date: built.date,
     dayCount: resolved.dayCount,
     hasCustomisable: built.parents.some(
-      (parent) => parent.listing.customisable_days,
+      (parent) => parent.listing.customisableDays,
     ),
     quantities: built.quantities,
   });
@@ -291,7 +293,7 @@ describeWithEnv(
             }));
             const resolved = await resolveDayCount(
               chosen,
-              new FormParams([["day_count", "1"]]),
+              new FormParams([["dayCount", "1"]]),
               built.date,
             );
             expect("error" in resolved, testCase.name).toBe(true);
@@ -345,7 +347,7 @@ describeWithEnv(
         // day_count can only be one of them. The submission's chain is
         // resolveDayCount, then the gated fold, then the checkout's SQL.
         const spans = built.parents.some(
-          (parent) => parent.listing.customisable_days,
+          (parent) => parent.listing.customisableDays,
         )
           ? pageDayCounts([...built.parents], built.childrenByParentId, false)
           : [1];

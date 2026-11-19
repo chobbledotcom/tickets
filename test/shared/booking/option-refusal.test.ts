@@ -18,23 +18,23 @@ import { resolved } from "#test-utils/booking-model-fixtures.ts";
 /** A daily-fixed listing whose calendar serves Tuesdays only. */
 const tuesdayKit = () =>
   resolved({
-    bookable_days: ["Tuesday"],
-    duration_days: 1,
-    listing_type: "daily",
-    maximum_days_after: 10,
-    minimum_days_before: 0,
+    bookableDays: ["Tuesday"],
+    durationDays: 1,
+    listingType: "daily",
+    maximumDaysAfter: 10,
+    minimumDaysBefore: 0,
     name: "Tuesday Kit",
   });
 
 /** A customisable daily listing that prices the second day only. */
 const twoDayKit = () =>
   resolved({
-    customisable_days: true,
-    day_prices: { 2: 900 },
-    duration_days: 2,
-    listing_type: "daily",
-    maximum_days_after: 10,
-    minimum_days_before: 0,
+    customisableDays: true,
+    dayPrices: { 2: 900 },
+    durationDays: 2,
+    listingType: "daily",
+    maximumDaysAfter: 10,
+    minimumDaysBefore: 0,
     name: "Two Day Kit",
   });
 

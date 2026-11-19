@@ -8,6 +8,7 @@ import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
+  assertAdminHtmlWithCookie,
   expectFlashRedirect,
   expectIncludesAll,
   expectRedirect,
@@ -15,12 +16,11 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { configureTestEmail, emailTestSandbox } from "#test-utils/email.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
   adminGet,
-  createTestEditorSession,
   createTestManagerSession,
+  editorGetStatus,
   postFormAs,
 } from "#test-utils/session.ts";
 import { settingsAsStored } from "#test-utils/settings.ts";
@@ -43,7 +43,7 @@ const createInvoicePost = async (
 ): Promise<Response> =>
   (
     await adminFormPost("/admin/invoices/new", {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       body,
       number: String(number),
     })
@@ -83,7 +83,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
       await adminGet("/admin/invoices/new?attendee=42"),
     );
     expect(inputNamed(html, "number")).toContain('value="1"');
-    expect(inputNamed(html, "attendee_id")).toContain('value="42"');
+    expect(inputNamed(html, "attendeeId")).toContain('value="42"');
     expectIncludesAll(html, [
       "Preview invoice",
       // The first form only checks the booking; the preview page makes the
@@ -273,30 +273,24 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     const cookie = await createTestManagerSession();
     const attendeeId = await createOwing(1500);
     const preview = await postFormAs("/admin/invoices/preview", cookie, {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       number: "1",
     });
     expect(preview.status).toBe(200);
     assertStringIncludes(await preview.text(), "<h1>Invoice 1</h1>");
 
     const response = await postFormAs("/admin/invoices/new", cookie, {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       body: "Invoice one.",
       number: "1",
     });
     expectRedirect(response, /^\/admin\/invoices\/1(\?|$)/);
 
-    const page = await awaitTestRequest("/admin/invoices/1", { cookie });
-    expect(page.status).toBe(200);
-    assertStringIncludes(await page.text(), "Invoice 1");
+    await assertAdminHtmlWithCookie("/admin/invoices/1", cookie, "Invoice 1");
   });
 
   test("an editor cannot reach invoices", async () => {
-    const editor = await createTestEditorSession();
-    const response = await awaitTestRequest("/admin/invoices", {
-      cookie: editor.cookie,
-    });
-    expect(response.status).toBe(403);
+    expect(await editorGetStatus("/admin/invoices")).toBe(403);
   });
 
   test("an unknown invoice is not found for view, cancel, or delete", async () => {

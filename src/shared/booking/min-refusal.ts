@@ -15,13 +15,13 @@ export const belowMinError = (
  *  row drops out. */
 export const packageBundleMembers = (
   fixedByListingId: ReadonlyMap<number, number>,
-  listingById: ReadonlyMap<number, { min_quantity: number; name: string }>,
+  listingById: ReadonlyMap<number, { minQuantity: number; name: string }>,
 ): { fixed: number; minQuantity: number; name: string }[] =>
   [...fixedByListingId].flatMap(([listingId, fixed]) => {
     const listing = listingById.get(listingId);
     return listing === undefined
       ? []
-      : [{ fixed, minQuantity: listing.min_quantity, name: listing.name }];
+      : [{ fixed, minQuantity: listing.minQuantity, name: listing.name }];
   });
 
 /** The below-minimum refusal for one package bundle count: the first member

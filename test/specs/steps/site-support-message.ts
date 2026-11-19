@@ -39,7 +39,7 @@ Then(
   "the message panel offers no way to edit the message",
   function (this: TicketsWorld): void {
     assert(
-      !scenarioBrowser(this).currentHtml.includes('name="support_message"'),
+      !scenarioBrowser(this).currentHtml.includes('name="supportMessage"'),
     );
   },
 );

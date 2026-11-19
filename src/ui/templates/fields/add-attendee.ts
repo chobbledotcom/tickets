@@ -20,7 +20,7 @@ import type { ListingFields } from "#types";
 export type AddAttendeeFormValues = TicketFormValues & {
   quantity: number;
   date: string;
-  day_count: string;
+  dayCount: string;
 };
 
 /** Quantity field for admin add-attendee form */
@@ -44,7 +44,7 @@ const addAttendeeDateField: Field = {
 /** Day-count select for adding an attendee to a customisable daily listing. */
 const addAttendeeDayCountField = (dayCounts: number[]): Field => ({
   label: "Number of days",
-  name: "day_count",
+  name: "dayCount",
   options: requireChoiceOptions(
     "Number of days",
     dayCounts.map((n) => ({

@@ -30,9 +30,9 @@ type EmailFormData = {
 export const handleEmailPost = settingsHandler<EmailFormData>({
   advanced: true,
   extract: (form) => ({
-    apiKey: processSecretField(form, "email_api_key"),
-    fromAddress: form.getString("email_from_address"),
-    provider: form.getString("email_provider"),
+    apiKey: processSecretField(form, "emailApiKey"),
+    fromAddress: form.getString("emailFromAddress"),
+    provider: form.getString("emailProvider"),
   }),
   formId: "settings-email",
   log: ({ provider }) =>

@@ -5,6 +5,7 @@ import {
   messageGroupsSource,
 } from "#scripts/locale-groups/render.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { testRefusal } from "#test-utils/refusal.ts";
 
 describe("messageGroupsSource", () => {
   test("lists each catalog's group in order, with its literal type", () => {
@@ -23,11 +24,11 @@ describe("messageGroupsSource", () => {
     );
   });
 
-  test("fails loudly on a file that is not a catalog", () => {
-    expect(() => messageGroupsSource(["nav.json", "notes.txt"])).toThrow(
-      "Not a message catalog: src/locales/en/notes.txt",
-    );
-  });
+  testRefusal(
+    "fails loudly on a file that is not a catalog",
+    () => messageGroupsSource(["nav.json", "notes.txt"]),
+    "Not a message catalog: src/locales/en/notes.txt",
+  );
 });
 
 describe("the generated message group list", () => {

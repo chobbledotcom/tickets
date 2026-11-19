@@ -117,6 +117,6 @@ export const loadListingQrPanel = async ({
     listing,
     // The pristine form opens at the smallest quantity the listing sells, so
     // the required number box never starts below its own minimum.
-    values: { ...EMPTY_QR_VALUES, quantity: String(listing.min_quantity) },
+    values: { ...EMPTY_QR_VALUES, quantity: String(listing.minQuantity) },
   });
 };

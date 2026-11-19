@@ -14,6 +14,7 @@ import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee
 import { settleAttendeeRows } from "#db/payment-claim.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { parseSessionFailure } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { placeholderRefund } from "#payment/placeholder-refund.ts";
 import { readRowState } from "#payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#payment/validated-session.ts";
@@ -57,7 +58,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       payment_session_id: string;
       protected_state: string;
     }>(
-      `SELECT failure_data, payment_session_id, protected_state
+      sql`SELECT failure_data, payment_session_id, protected_state
          FROM processed_payments WHERE payment_reference_index != ''`,
     );
     if (row === null || row.failure_data === "") {
@@ -69,21 +70,21 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
   /** The anchor row's one-word mirror: "" once every piece of work is done. */
   const anchorMirror = async (): Promise<string | null> => {
     const row = await queryOne<{ protected_state: string }>(
-      "SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''",
+      sql`SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''`,
     );
     return row === null ? null : row.protected_state;
   };
 
   const noteCount = async (): Promise<number> => {
     const row = await queryOne<{ total: number }>(
-      "SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'",
+      sql`SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'`,
     );
     return Number(row!.total);
   };
 
   const chargeState = () =>
     queryOne<{ refund_local_state: string; refund_state_name: string }>(
-      "SELECT refund_local_state, refund_state_name FROM payment_charges",
+      sql`SELECT refund_local_state, refund_state_name FROM payment_charges`,
     );
 
   /** The held anchor row's stored claim, with the facts the tests rebuild
@@ -169,7 +170,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       await getProcessedPayment(sessionId),
       "the resumed session outcome is missing",
     );
-    expect(await parseSessionFailure(record.failure_data)).toEqual({
+    expect(await parseSessionFailure(record.failureData)).toEqual({
       completion: { code: "capacity_full" },
       error: REFUNDED_ANSWER,
       refunded: true,
@@ -224,7 +225,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
           await getProcessedPayment(sessionId),
           "the pending session outcome is missing",
         );
-        expect(await parseSessionFailure(record.failure_data)).toEqual({
+        expect(await parseSessionFailure(record.failureData)).toEqual({
           completion: { code: "capacity_full" },
           error: pendingError,
           status: 200,
@@ -238,7 +239,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
         ).toEqual([]);
         const note = requireValue(
           await queryOne<{ note: EnvKeyEncrypted }>(
-            "SELECT note FROM system_notes WHERE entity_type = 'attendee'",
+            sql`SELECT note FROM system_notes WHERE entity_type = 'attendee'`,
           ),
           "the refund recovery note is missing",
         );
@@ -349,7 +350,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
     // The advance is durable, not recomputed: the stored outcome itself now
     // says the refund happened, so a later replay needs no anchor rows.
     const record = await getProcessedPayment(sessionId);
-    expect(await parseSessionFailure(record!.failure_data)).toMatchObject({
+    expect(await parseSessionFailure(record!.failureData)).toMatchObject({
       refunded: true,
     });
     await expectOnePairOfLegs(sessionId);
@@ -370,7 +371,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
     await processPaymentSession(sessionId, placeholder.data);
     const record = await getProcessedPayment(sessionId);
     const stored = requireValue(
-      await parseSessionFailure(record!.failure_data),
+      await parseSessionFailure(record!.failureData),
       "the advanced outcome is missing",
     );
     expect(stored.refunded).toBe(true);
@@ -384,7 +385,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
     const placeholder = await crashedPlaceholderStore(sessionId);
     // A held claim whose references carry no charge: the redelivery still
     // finishes the refund.
-    await execute("DELETE FROM payment_charges", []);
+    await execute(sql`DELETE FROM payment_charges`);
     expect(await chargeState()).toBeNull();
     expect(await anchorMirror()).toBe("claim");
 
@@ -431,7 +432,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       "the pending session outcome is missing",
     );
     const stored = requireValue(
-      await parseSessionFailure(record.failure_data),
+      await parseSessionFailure(record.failureData),
       "the pending outcome is missing",
     );
     // The stored outcome is still the pending crash answer: the completion
@@ -460,7 +461,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
         if (!made.success) throw new Error("attendee setup failed");
         const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
         const anchor = await prepared.forAttendee(made.attendees[0]!.id);
-        await execute(anchor.statement.sql, anchor.statement.args);
+        await execute(anchor.statement);
       }
 
       const search = await findHeldAnchor(payment, "cs_two_anchors");

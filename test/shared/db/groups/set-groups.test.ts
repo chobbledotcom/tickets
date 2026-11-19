@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { withTransaction, writeRowInTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import {
   assignListingsToGroup,
   writePackageMembersTx,
@@ -19,7 +19,9 @@ import {
   setListingGroupsTx,
 } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { newListingValues } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
+import { writeRowInTransaction } from "#db/row-write.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import {
@@ -27,6 +29,10 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createGroupWithMember,
+  createHiddenPackagePair,
+} from "#test-utils/db-helpers/group-members.ts";
 import {
   createHiddenPackageGroup,
   createTestGroup,
@@ -58,9 +64,10 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
   });
 
   test("setting the same group set again leaves the memberships alone", async () => {
-    const listing = await createTestListing({ name: "Unchanged Member" });
-    const group = await createTestGroup({ name: "Unchanged Group" });
-    await setListingGroups(listing.id, [group.id]);
+    const { group, listing } = await createGroupWithMember(
+      "Unchanged Group",
+      "Unchanged Member",
+    );
 
     await setListingGroups(listing.id, [group.id]);
 
@@ -68,9 +75,10 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
   });
 
   test("an empty group set removes every membership", async () => {
-    const listing = await createTestListing({ name: "Cleared Member" });
-    const group = await createTestGroup({ name: "Cleared Group" });
-    await setListingGroups(listing.id, [group.id]);
+    const { listing } = await createGroupWithMember(
+      "Cleared Group",
+      "Cleared Member",
+    );
 
     await setListingGroups(listing.id, []);
 
@@ -105,7 +113,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     const writes = await Promise.allSettled(
       inputs.map(async (input) =>
         writeRowInTransaction(
-          await listingsTable.insertStatement!(input),
+          await records.listings.insertStatement(newListingValues(input)),
           null,
           (tx, id) => setListingGroupsTx(tx, id, input.groupIds!),
         ),
@@ -126,16 +134,18 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     expect(
       new Set(
         (await getListingsByGroupId(group.id)).map(
-          (listing) => listing.listing_type,
+          (listing) => listing.listingType,
         ),
       ).size,
     ).toBe(1);
   });
 
   test("validates a hidden package membership against children being cleared", async () => {
-    const group = await createHiddenPackageGroup("Combined package update");
-    const parent = await createTestListing({ name: "Combined parent" });
-    const child = await createTestListing({ name: "Combined child" });
+    const { child, group, parent } = await createHiddenPackagePair(
+      "Combined package update",
+      "Combined parent",
+      "Combined child",
+    );
     await listingChildren.setIds(parent.id, [child.id]);
 
     await withTransaction(async (tx) => {
@@ -218,7 +228,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
       writePackageMembersTx(
         tx,
         group.id,
-        { hide_package_listings: false, is_package: true },
+        { hidePackageListings: false, isPackage: true },
         { isPackage: true },
         [{ listingId: member.id, price: 0, quantity: 2 }],
       ),
@@ -250,7 +260,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     );
     // An entry that names no quantity includes one of that member.
     const namedRow = (await getGroupPackagePrices(group.id)).find(
-      ({ listing_id }) => listing_id === named.id,
+      ({ listingId }) => listingId === named.id,
     );
     if (!namedRow) throw new Error("The named member has no membership row");
     expect(namedRow.quantity).toBe(1);
@@ -261,7 +271,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     // to "no override".
     expect(await getTestPackagePrices(group.id)).toEqual(new Map());
     const rows = await getGroupPackagePrices(group.id);
-    expect(sorted(rows.map(({ listing_id }) => listing_id))).toEqual(
+    expect(sorted(rows.map(({ listingId }) => listingId))).toEqual(
       sorted([named.id, other.id]),
     );
     expect(rows.map(({ quantity }) => quantity)).toEqual([1, 1]);

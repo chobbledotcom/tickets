@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -38,10 +39,9 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       bookings: [{ listingId: deletedListing.id, quantity: 1 }],
       name: "Undated Route Service",
     });
-    await getDb().execute({
-      args: [deletedListing.id],
-      sql: "DELETE FROM listings WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`DELETE FROM listings WHERE id = ${deletedListing.id}`,
+    );
 
     const html = await renderAdminPage("/admin/servicing");
 
@@ -62,12 +62,12 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       quantity: 3,
     });
 
-    // The page's quantity input is named `quantity_<listing id>`; a field with
+    // The page's quantity input is named `quantity<listing id>`; a field with
     // any other name is dropped by the form parser, so the POST below must
     // use the real name or the route rejects it.
     const { response } = await adminFormPost(`/admin/servicing/${id}`, {
       name: "After Route Update",
-      [`quantity_${listing.id}`]: "1",
+      [`quantity${listing.id}`]: "1",
     });
 
     assertStringIncludes(
@@ -97,7 +97,7 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
     const { response } = await adminFormPost(`/admin/servicing/${id}`, {
       amount: "12.34",
       memo: "Route cost",
-      target_listing_id: String(listing.id),
+      targetListingId: String(listing.id),
     });
 
     assertStringIncludes(
@@ -111,7 +111,7 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       "/admin/servicing/999999",
       {
         name: "Missing",
-        quantity_1: "1",
+        quantity1: "1",
       },
     );
     expect(editResponse.status).toBe(404);
@@ -137,7 +137,7 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       "/admin/servicing/new",
       {
         name: "No Quantity Service",
-        [`quantity_${listing.id}`]: "0",
+        [`quantity${listing.id}`]: "0",
       },
     );
     expect(noQtyResponse.status).toBe(302);

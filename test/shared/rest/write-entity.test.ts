@@ -1,51 +1,53 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resultRows, type TxScope } from "#db/client.ts";
-import type { Table } from "#db/table.ts";
+
+import { recordsOf } from "#db/record-table.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type EntityWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
-import {
-  createIdNameTable,
-  type IdNameInput as Input,
-  makeIdNameTable,
-  type IdNameRow as Row,
-} from "#test-utils/rest-fixtures.ts";
 
-const makeTable = (): Table<Row, Input> => makeIdNameTable("we_items");
-const createTable = (): Promise<void> => createIdNameTable("we_items");
+type Row = { id: number; name: string };
+
+const AGENTS = tables.logistics_agents;
+
+/** The name of agent 1, read through the open transaction. */
+const nameOfFirst = async (tx: TxScope): Promise<string | null> =>
+  resultRows(await tx.execute(from(AGENTS).where({ id: 1 }).pick("name")))[0]
+    ?.name ?? null;
+
+const renameFirst = (name: string) => () =>
+  recordsOf(AGENTS).updateStatement(1, { name });
 
 const reject = (what: string) => () =>
   Promise.reject(new Error(`${what} must not run`));
 
 /** Call writeEntity with safe defaults, overriding only what a case exercises.
- *  Defaults to the plain path (no join writes). */
+ *  The default write inserts one agent with no join write. */
 const writeWith = <State = never>(
-  table: Table<Row, Input>,
   overrides: Partial<EntityWrite<Row, State>>,
 ): Promise<Row | null> =>
   writeEntity<Row, State>({
-    buildStatement: () => table.insertStatement!({ name: "row" }),
+    buildStatement: () => recordsOf(AGENTS).insertStatement({ name: "row" }),
     existingId: null,
     joinWrites: [],
-    plainWrite: () => table.insert({ name: "row" }),
-    readBack: (id) => table.findByIdPrimary!(id),
-    tableName: "we_items",
+    readBack: (id) => recordsOf(AGENTS).findPrimary(id),
+    tableName: AGENTS.name,
     ...overrides,
   });
 
 describe("writeEntity", () => {
   beforeEach(async () => {
     await createTestDb();
-    await createTable();
   });
   afterEach(() => resetDb());
 
   test("transactional path: writes the row, runs the join write in-tx, reads back on the primary", async () => {
-    const table = makeTable();
     const joinIds: number[] = [];
     const afterCommitIds: number[] = [];
 
-    const row = await writeWith<string>(table, {
+    const row = await writeWith<string>({
       afterCommit: (id) => {
         afterCommitIds.push(id);
         return Promise.resolve();
@@ -57,7 +59,6 @@ describe("writeEntity", () => {
           return Promise.resolve();
         },
       ],
-      plainWrite: reject("plainWrite"),
       readState: reject("readState"),
     });
 
@@ -66,15 +67,14 @@ describe("writeEntity", () => {
     expect(joinIds).toEqual([1]);
     // afterCommit ran once with the written row's id, after the read-back.
     expect(afterCommitIds).toEqual([1]);
-    expect(await table.read.one({ id: 1 })).toEqual({ id: 1, name: "row" });
+    expect(await recordsOf(AGENTS).find(1)).toEqual({ id: 1, name: "row" });
   });
 
   test("runs every join write in order, all inside the one transaction", async () => {
-    const table = makeTable();
     const order: string[] = [];
     const scopes: TxScope[] = [];
 
-    await writeWith(table, {
+    await writeWith({
       joinWrites: [
         (tx, id) => {
           scopes.push(tx);
@@ -87,7 +87,6 @@ describe("writeEntity", () => {
           return Promise.resolve();
         },
       ],
-      plainWrite: reject("plainWrite"),
     });
 
     expect(order).toEqual(["first:1", "second:1"]);
@@ -97,21 +96,17 @@ describe("writeEntity", () => {
   });
 
   test("reads update state before the row write and passes it to every join write", async () => {
-    const table = makeTable();
-    await table.insert({ name: "before" });
+    await recordsOf(AGENTS).insert({ name: "before" });
     const events: string[] = [];
     const states: string[] = [];
 
-    const row = await writeWith<string>(table, {
-      buildStatement: () => table.updateStatement!(1, { name: "after" }),
+    const row = await writeWith<string>({
+      buildStatement: renameFirst("after"),
       existingId: 1,
       joinWrites: [
         async (tx, _id, state) => {
           states.push(String(state));
-          const current = resultRows<Row>(
-            await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
-          )[0];
-          events.push(`write:${current?.name}`);
+          events.push(`write:${await nameOfFirst(tx)}`);
         },
         (_tx, _id, state) => {
           states.push(String(state));
@@ -119,13 +114,10 @@ describe("writeEntity", () => {
           return Promise.resolve();
         },
       ],
-      plainWrite: reject("plainWrite"),
       readState: async (tx) => {
-        const current = resultRows<Row>(
-          await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
-        )[0];
-        events.push(`read:${current?.name}`);
-        return current?.name ?? null;
+        const name = await nameOfFirst(tx);
+        events.push(`read:${name}`);
+        return name;
       },
     });
 
@@ -135,12 +127,11 @@ describe("writeEntity", () => {
   });
 
   test("passes null state without running a reader when none is configured", async () => {
-    const table = makeTable();
-    await table.insert({ name: "before" });
+    await recordsOf(AGENTS).insert({ name: "before" });
     const states: null[] = [];
 
-    await writeWith(table, {
-      buildStatement: () => table.updateStatement!(1, { name: "after" }),
+    await writeWith({
+      buildStatement: renameFirst("after"),
       existingId: 1,
       joinWrites: [
         (_tx, _id, state) => {
@@ -148,41 +139,37 @@ describe("writeEntity", () => {
           return Promise.resolve();
         },
       ],
-      plainWrite: reject("plainWrite"),
     });
 
     expect(states).toEqual([null]);
   });
 
   test("transactional path rolls the row back when a join write throws", async () => {
-    const table = makeTable();
     let afterCommitRan = false;
 
     await expect(
-      writeWith(table, {
+      writeWith({
         afterCommit: () => {
           afterCommitRan = true;
           return Promise.resolve();
         },
         joinWrites: [() => Promise.reject(new Error("join failed"))],
-        plainWrite: reject("plainWrite"),
       }),
     ).rejects.toThrow("join failed");
 
     // The row write rolled back with the failed join write; nothing persisted,
     // and the post-commit hook never ran.
-    expect(await table.read.one({ id: 1 })).toBeNull();
+    expect(await recordsOf(AGENTS).find(1)).toBeNull();
     expect(afterCommitRan).toBe(false);
   });
 
   test("rolls an update back when a state-aware join write throws", async () => {
-    const table = makeTable();
-    await table.insert({ name: "before" });
+    await recordsOf(AGENTS).insert({ name: "before" });
     const seen: string[] = [];
 
     await expect(
-      writeWith<string>(table, {
-        buildStatement: () => table.updateStatement!(1, { name: "after" }),
+      writeWith<string>({
+        buildStatement: renameFirst("after"),
         existingId: 1,
         joinWrites: [
           (_tx, _id, state) => {
@@ -190,122 +177,108 @@ describe("writeEntity", () => {
             return Promise.reject(new Error("state rejected"));
           },
         ],
-        plainWrite: reject("plainWrite"),
-        readState: async (tx) => {
-          const row = resultRows<Row>(
-            await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
-          )[0];
-          return row?.name ?? null;
-        },
+        readState: nameOfFirst,
       }),
     ).rejects.toThrow("state rejected");
 
     expect(seen).toEqual(["before"]);
-    expect(await table.read.one({ id: 1 })).toEqual({ id: 1, name: "before" });
+    expect(await recordsOf(AGENTS).find(1)).toEqual({ id: 1, name: "before" });
   });
 
-  test("checkTx without join writes forces the transactional path and refuses", async () => {
-    const table = makeTable();
-    let plainWriteRan = false;
-    let txSeen: TxScope | undefined;
-    let thrown: unknown;
+  test("checkTx without join writes refuses before the row is written", async () => {
+    const checkedIds: number[] = [];
 
-    try {
-      await writeWith(table, {
-        checkTx: (tx) => {
-          txSeen = tx;
+    await expect(
+      writeWith({
+        checkTx: (_tx, id) => {
+          checkedIds.push(id);
           return Promise.reject(new Error("no orphaning"));
         },
         existingId: 7,
-        plainWrite: () => {
-          plainWriteRan = true;
-          return table.insert({ name: "row" });
-        },
-        readBack: (id) => table.findByIdPrimary!(id),
-      });
-    } catch (error) {
-      thrown = error;
-    }
+      }),
+    ).rejects.toThrow("no orphaning");
 
-    expect((thrown as Error).message).toBe("no orphaning");
-    expect(txSeen).toBeDefined();
-    expect(plainWriteRan).toBe(false);
+    expect(checkedIds).toEqual([7]);
+    expect(await recordsOf(AGENTS).find(1)).toBeNull();
   });
 
-  test("plain path (no join writes): uses plainWrite, skips the statement, still runs afterCommit", async () => {
-    const table = makeTable();
-    let buildStatementRan = false;
+  test("a write with no join writes builds its statement and runs afterCommit", async () => {
     const afterCommitIds: number[] = [];
 
-    const row = await writeWith(table, {
+    const row = await writeWith({
       afterCommit: (id) => {
         afterCommitIds.push(id);
         return Promise.resolve();
       },
-      buildStatement: () => {
-        buildStatementRan = true;
-        return table.insertStatement!({ name: "row" });
-      },
-      readBack: reject("readBack"),
     });
 
     expect(row).toEqual({ id: 1, name: "row" });
-    expect(buildStatementRan).toBe(false);
     expect(afterCommitIds).toEqual([1]);
   });
 
-  test("skips afterCommit when the write returns no row", async () => {
-    const table = makeTable();
+  test("skips afterCommit when an update finds no row", async () => {
     let afterCommitRan = false;
 
-    const row = await writeWith(table, {
+    const row = await writeWith({
       afterCommit: () => {
         afterCommitRan = true;
         return Promise.resolve();
       },
-      plainWrite: () => Promise.resolve(null),
-      readBack: () => Promise.resolve(null),
+      buildStatement: renameFirst("renamed"),
+      existingId: 1,
     });
 
     expect(row).toBeNull();
     expect(afterCommitRan).toBe(false);
   });
 
-  test("throws when a create can't read its own inserted row back", async () => {
-    const table = makeTable();
-
+  test("throws when a create cannot read its own inserted row back", async () => {
     await expect(
-      writeWith(table, {
+      writeWith({
         existingId: null,
         joinWrites: [() => Promise.resolve()],
-        plainWrite: reject("plainWrite"),
         readBack: () => Promise.resolve(null),
       }),
     ).rejects.toThrow(
-      "we_items: row 1 was inserted but could not be read back",
+      "logistics_agents: row 1 was inserted but could not be read back",
     );
   });
 
   test("returns null when an update's row is gone by the time it reads back", async () => {
-    const table = makeTable();
-    await table.insert({ name: "row" });
+    await recordsOf(AGENTS).insert({ name: "row" });
 
-    const row = await writeWith(table, {
-      buildStatement: () => table.updateStatement!(1, { name: "renamed" }),
+    const row = await writeWith({
+      buildStatement: renameFirst("renamed"),
       existingId: 1,
       joinWrites: [() => Promise.resolve()],
-      plainWrite: reject("plainWrite"),
       readBack: () => Promise.resolve(null),
     });
 
     expect(row).toBeNull();
   });
 
-  test("runs without an afterCommit hook", async () => {
-    const table = makeTable();
-    const row = await writeWith(table, {
-      plainWrite: () => table.insert({ name: "Dave" }),
+  test("an update of a deleted row runs no join write and returns null", async () => {
+    const joinIds: number[] = [];
+
+    const row = await writeWith({
+      buildStatement: renameFirst("renamed"),
+      existingId: 1,
+      joinWrites: [
+        (_tx, id) => {
+          joinIds.push(id);
+          return Promise.resolve();
+        },
+      ],
       readBack: reject("readBack"),
+    });
+
+    expect(row).toBeNull();
+    expect(joinIds).toEqual([]);
+  });
+
+  test("runs without an afterCommit hook", async () => {
+    const row = await writeWith({
+      buildStatement: () => recordsOf(AGENTS).insertStatement({ name: "Dave" }),
     });
     expect(row).toEqual({ id: 1, name: "Dave" });
   });

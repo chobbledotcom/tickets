@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import {
   attendeeLineIndex,
   expectHtmlResponse,
@@ -33,15 +34,15 @@ describeWithEnv(
 
       test("renders the shared contact length limits", async () => {
         const html = await bareCreateForm();
-        for (const name of [
-          "name",
-          "email",
-          "address",
-          "special_instructions",
+        for (const [id, name] of [
+          ["name", "name"],
+          ["email", "email"],
+          ["address", "address"],
+          ["special_instructions", "specialInstructions"],
         ]) {
           assertStringIncludes(
             html,
-            `id="${name}" maxlength="250" name="${name}"`,
+            `id="${id}" maxlength="250" name="${name}"`,
           );
         }
         assertStringIncludes(html, 'id="phone" maxlength="32" name="phone"');
@@ -76,9 +77,11 @@ describeWithEnv(
         await createTestListing({ maxAttendees: 100, name: "Standard Only" });
         const response = await adminGet("/admin/attendees/new");
         const html = await expectHtmlResponse(response, 200);
-        assert(!html.includes('name="start_date"'));
-        assert(!html.includes('id="day_count"'));
-        assert(!html.includes("only affects daily listings"));
+        expectExcludesAll(html, [
+          'name="startDate"',
+          'id="dayCount"',
+          "only affects daily listings",
+        ]);
       });
 
       test("shows the optional date fields when a daily listing exists", async () => {
@@ -86,8 +89,8 @@ describeWithEnv(
         const response = await adminGet("/admin/attendees/new");
         const html = await expectHtmlResponse(response, 200);
         expectIncludesAll(html, [
-          'name="start_date"',
-          'id="day_count"',
+          'name="startDate"',
+          'id="dayCount"',
           // The note makes clear the date is optional and daily-only.
           "only affects daily listings",
         ]);
@@ -130,12 +133,12 @@ describeWithEnv(
         // Both chosen listings start at quantity 1.
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, a.id)}"[^>]*value="1"`,
+            `name="qty${attendeeLineIndex(html, a.id)}"[^>]*value="1"`,
           ),
         );
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, b.id)}"[^>]*value="1"`,
+            `name="qty${attendeeLineIndex(html, b.id)}"[^>]*value="1"`,
           ),
         );
       });
@@ -144,8 +147,10 @@ describeWithEnv(
         // Nothing is booked yet, so an un-ticked toggle would hide every row.
         // Instead the form drops the toggle and shows every listing.
         const html = await bareCreateForm();
-        assert(!html.includes("Show all listings"));
-        assert(!html.includes('class="show-all-toggle"'));
+        expectExcludesAll(html, [
+          "Show all listings",
+          'class="show-all-toggle"',
+        ]);
         // The editor carries the show-all modifier so the not-booked rows stay
         // visible despite the CSS that hides them under the toggle.
         assertStringIncludes(html, "listing-editor show-all-listings");
@@ -181,7 +186,7 @@ describeWithEnv(
         const html = await expectHtmlResponse(response, 200);
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
+            `name="qty${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
           ),
         );
         assertStringIncludes(html, 'value="2026-07-01"');
@@ -195,10 +200,10 @@ describeWithEnv(
         const html = await expectHtmlResponse(response, 200);
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
+            `name="qty${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
           ),
         );
-        expect(html).toMatch(/name="start_date"[^>]*value=""/);
+        expect(html).toMatch(/name="startDate"[^>]*value=""/);
       });
 
       test("falls back to all-zero quantities when no selection resolves", async () => {
@@ -210,7 +215,7 @@ describeWithEnv(
         const html = await expectHtmlResponse(response, 200);
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="0"`,
+            `name="qty${attendeeLineIndex(html, listing.id)}"[^>]*value="0"`,
           ),
         );
       });
@@ -232,7 +237,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
         const html = await response.text();
         // The shared day-count select preselects the booking's current 2-day span.
-        assertStringIncludes(html, 'id="day_count"');
+        assertStringIncludes(html, 'id="dayCount"');
         expect(hasSelectedOption(html, "2")).toBe(true);
       });
 
@@ -261,7 +266,7 @@ describeWithEnv(
         const response = await adminGet(
           `/admin/attendees/new?return_url=${encodeURIComponent(returnUrl)}`,
         );
-        await expectHtmlResponse(response, 200, 'name="return_url"', returnUrl);
+        await expectHtmlResponse(response, 200, 'name="returnUrl"', returnUrl);
       });
     });
 
@@ -272,7 +277,7 @@ describeWithEnv(
       // loaded, so a placeholder id is fine.
       testRequiresAuth("/admin/attendees/1");
       testRequiresAuth("/admin/attendees/1", {
-        body: { line_count: "1", name: "X" },
+        body: { lineCount: "1", name: "X" },
         method: "POST",
       });
     });

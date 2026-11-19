@@ -1,12 +1,15 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { getDb, update } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
 import { resolveProviderRefundCase } from "#db/provider-refund-case-resolution.ts";
 import {
   listProviderRefundCases,
   loadProviderRefundCase,
 } from "#db/provider-refund-cases.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import {
   armRefundSend,
   markRefundCompleted,
@@ -47,10 +50,7 @@ const addCase = async (
 };
 
 const discardCase = async (id: number): Promise<void> => {
-  await getDb().execute({
-    args: [id],
-    sql: "DELETE FROM payment_charges WHERE id = ?",
-  });
+  await getDb().execute(sql`DELETE FROM payment_charges WHERE id = ${id}`);
   createdIds.delete(id);
 };
 
@@ -60,11 +60,13 @@ const corruptCase = async (
   value: number | string,
 ): Promise<void> => {
   const db = getDb();
-  await db.execute("PRAGMA ignore_check_constraints = true");
+  await db.execute(sql`PRAGMA ignore_check_constraints = true`);
   try {
-    await db.execute(update("payment_charges", { [column]: value }, { id }));
+    await db.execute(
+      update(tables.payment_charges, { [column]: value }).where({ id }),
+    );
   } finally {
-    await db.execute("PRAGMA ignore_check_constraints = false");
+    await db.execute(sql`PRAGMA ignore_check_constraints = false`);
   }
 };
 

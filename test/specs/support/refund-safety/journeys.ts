@@ -329,7 +329,7 @@ interface OwnerActionForm {
 function submitOwnerAction(form: OwnerActionForm): OwnerJourney {
   return async (world, who) => {
     const browser = await openOwnerAction(world, who, form.action);
-    await fillInAndSend(browser, { confirm_identifier: who }, form.button);
+    await fillInAndSend(browser, { confirmIdentifier: who }, form.button);
     return browser;
   };
 }

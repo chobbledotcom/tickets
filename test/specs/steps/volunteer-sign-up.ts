@@ -1,6 +1,6 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
-import { questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
@@ -42,7 +42,7 @@ Given(
       });
       rememberListing(this, name, listing);
     }
-    const question = await questionsTable.insert({
+    const question = await records.questions.insert({
       assignAll: true,
       displayType: "free_text",
       text: ACCESS_QUESTION,
@@ -67,8 +67,8 @@ When(
       {
         email: VOLUNTEER_EMAIL,
         name: VOLUNTEER_NAME,
-        [`quantity_${listingIdNamed(this, SETUP_SHIFT)}`]: "1",
-        [`question_${requiredWorldValue(this.questionId, "access question id")}`]:
+        [`quantity${listingIdNamed(this, SETUP_SHIFT)}`]: "1",
+        [`question${requiredWorldValue(this.questionId, "access question id")}`]:
           ACCESS_ANSWER,
       },
       "Continue",

@@ -1,285 +1,208 @@
 /**
- * The image dropdown toolbar control
+ * The image picker dialog
  * (`src/ui/client/admin/markdown-editor-images.ts`): the real editor mount,
- * a stubbed image-list endpoint, and the actual insert path.
+ * a stubbed image-list endpoint, and the dialog's render, close, and error
+ * paths. The image view suite holds the library and the pictures in the
+ * editor. `markdown-editor-images/upload.test.ts` holds the upload flow.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { type Stub, spy } from "@std/testing/mock";
-import { FakeTime } from "@std/testing/time";
 import type { Window } from "happy-dom";
 import { STATIC_ASSET_OUTFILES } from "#scripts/static-assets/outfiles.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { requireElement } from "#test-utils/happy-dom.ts";
 import { cleanup, enhanced, select } from "#test-utils/markdown-editor-dom.ts";
+import {
+  closeDialogBeforeAnswer,
+  expectDialogCloses,
+  expectGridMessage,
+  fetchStubHolder,
+  flush,
+  imageDialog,
+  imageGrid,
+  json,
+  openDialog,
+  optionByName,
+  restoreHeldStub,
+  tenImageList,
+  toolbarImageButton,
+  twoImageList,
+  withInsertFlow,
+} from "#test-utils/markdown-image-dialog.ts";
 
 afterEach(cleanup);
-afterEach(() => fetchStubHolder.stub?.restore());
+afterEach(restoreHeldStub);
 
-/** The stub survives between the test body and the afterEach that restores
- * it; a const holder keeps the module free of a reassignable `let`. */
-const fetchStubHolder: { stub: Stub | undefined } = { stub: undefined };
-
-const json = (body: unknown): Response =>
-  new Response(JSON.stringify(body), {
-    headers: { "content-type": "application/json" },
-  });
-
-/** The two-image library the list and insert cases share, already in the
- * name order the options endpoint returns. */
-const twoImageList = (): Response =>
-  json({
-    images: [
-      { id: 2, name: "Alpha" },
-      { id: 9, name: "Zebra" },
-    ],
-  });
-
-/** Let the stubbed fetch and the panel render settle (microtasks only). */
-const untilReady = async (panel: HTMLElement): Promise<void> => {
-  for (let i = 0; i < 100 && panel.dataset.state !== "ready"; i += 1) {
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
-  }
-};
-
-/** Mounts the editor against a stubbed options endpoint, opens the
- * dropdown, and returns its window, panel, and handle once settled. */
-const openDropdown = async (
-  respond: Response | Error,
-): Promise<{
-  window: Window;
-  handle: Awaited<ReturnType<typeof enhanced>>["handle"];
-  panel: HTMLElement;
-}> => {
-  fetchStubHolder.stub = stubFetch(respond);
-  const { window, handle } = enhanced("hello");
-  toolbarImageButton(window).click();
-  const panel = dropdownPanel(window);
-  await untilReady(panel);
-  return { handle, panel, window };
-};
-
-/** Runs a few microtask hops so a stubbed fetch promise settles. */
-const flush = async (): Promise<void> => {
-  for (let i = 0; i < 20; i += 1) {
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
-  }
-};
-
-/** Opens the dropdown and closes it before the stubbed fetch settles, so
- * the stale-open guards run against a panel the user already shut. */
-const openAndCloseEarly = (respond: Response | Error): HTMLElement => {
-  fetchStubHolder.stub = stubFetch(respond);
-  const { window } = enhanced("hello");
-  toolbarImageButton(window).click();
-  const panel = dropdownPanel(window);
-  toolbarImageButton(window).click();
-  return panel;
-};
-
-/** Asserts the panel is shut by whatever path closed it: hidden again, the
- * button reading closed, and the handle released. */
-const expectClosed = (
-  window: Window,
-  handle: Awaited<ReturnType<typeof enhanced>>["handle"],
-  panel: HTMLElement,
-): void => {
-  expect(panel.hidden).toBe(true);
-  expect(toolbarImageButton(window).getAttribute("aria-expanded")).toBe(
-    "false",
-  );
-  handle.view.destroy();
-};
-
-describe("the image dropdown toolbar control", () => {
+describe("the image picker dialog", () => {
   test("renders the image button in the toolbar", () => {
     const { window, handle } = enhanced("hello");
-    const button = window.document.querySelector(".md-toolbar-image");
-    expect(button).toBeTruthy();
-    expect(button?.getAttribute("aria-label")).toBe("Insert image");
-    // A disclosure, not a menu: the options are plain buttons the reader
-    // reaches with Tab, so the button points at the panel and never
-    // announces menu semantics.
-    expect(button?.getAttribute("aria-haspopup")).toBeNull();
-    expect(button?.getAttribute("aria-expanded")).toBe("false");
-    expect(
-      window.document.getElementById(
-        button?.getAttribute("aria-controls") ?? "",
-      ),
-    ).toBe(dropdownPanel(window));
+    const button = requireElement<HTMLButtonElement>(
+      window.document,
+      ".md-toolbar-image",
+    );
+    expect(button.textContent).toBe("Image");
+    expect(button.getAttribute("aria-label")).toBe("Insert image");
+    // The button opens a modal dialog, which carries its own focus and
+    // Escape semantics, so the button only names what it opens.
+    expect(button.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(button.hidden).toBe(false);
     handle.view.destroy();
   });
 
-  test("lists the existing images by name in name order without thumbnails", async () => {
-    fetchStubHolder.stub = stubFetch(twoImageList());
+  test("hides the image button when storage is off", () => {
+    const { window, handle } = enhanced("hello", { imageStorage: false });
+    const button = requireElement<HTMLButtonElement>(
+      window.document,
+      ".md-toolbar-image",
+    );
+
+    // The admin shell renders the picker template only with storage. The
+    // editor keeps the control out of the toolbar without it, and builds
+    // no dialog.
+    expect(button.hidden).toBe(true);
+    expect(window.document.querySelector(".md-image-dialog")).toBeNull();
+    handle.view.destroy();
+  });
+
+  test("clones the server's picker into the editor", () => {
     const { window, handle } = enhanced("hello");
-    toolbarImageButton(window).click();
-    const panel = dropdownPanel(window);
-    await untilReady(panel);
+    const dialog = imageDialog(window);
+
+    // The dialog carries the template's catalog copy and the images area's
+    // upload fields.
+    expect(dialog.querySelector("h2")?.textContent).toBe("Choose an image");
+    expect(
+      dialog.querySelector(".md-preview-close")?.getAttribute("aria-label"),
+    ).toBe("Close image picker");
+    expect(
+      [...dialog.querySelectorAll("input")].map((input) => input.name),
+    ).toEqual(["csrfToken", "name", "altText", "image"]);
+    expect(dialog.closest(".md-editor")).not.toBeNull();
+    handle.view.destroy();
+  });
+
+  test("shows the library as thumbnails with their names", async () => {
+    const { dialog, grid, handle } = await openDialog([twoImageList()]);
 
     expect(fetchStubHolder.stub?.calls[0]?.args[0]).toBe(
       "/admin/images/options",
     );
-    const names = [...panel.querySelectorAll("button")].map(
-      (item) => item.textContent,
-    );
-    expect(names).toEqual(["Alpha", "Zebra"]);
-    expect(panel.querySelector("img")).toBeNull();
+    expect(dialog.open).toBe(true);
+    const options = [...grid.querySelectorAll("button")];
+    expect(options.map((item) => item.textContent)).toEqual(["Alpha", "Zebra"]);
+    const images = [...grid.querySelectorAll("img")];
+    expect(images.map((image) => image.getAttribute("src"))).toEqual([
+      "/image/alpha-thumb.webp",
+      "/image/zebra-thumb.webp",
+    ]);
+    // The thumbnails are decorative: the button's text carries the name.
+    expect(images.map((image) => image.getAttribute("alt"))).toEqual(["", ""]);
     handle.view.destroy();
   });
 
-  test("inserts the short-form image tag at the caret", async () => {
-    const time = new FakeTime();
-    try {
-      fetchStubHolder.stub = stubFetch(twoImageList());
-      const { window, handle, textarea } = enhanced("hello ");
-      select(handle.view, 7);
-      toolbarImageButton(window).click();
-      const panel = dropdownPanel(window);
-      await untilReady(panel);
-
-      const option = [...panel.querySelectorAll("button")].find(
-        (item) => item.textContent === "Alpha",
-      )!;
-      option.click();
-
-      // The CommonMark schema holds images as block nodes: the insert lands
-      // on its own line after the caret's paragraph.
-      expect(textarea.value).toBe("hello\n\n![Alpha](img#2)");
-      expect(panel.hidden).toBe(true);
-      handle.view.destroy();
-      // Prosemirror's focus handler schedules a 20 ms selection flush; run
-      // it out on the virtual clock so the file ends with no pending timer.
-      await time.tickAsync(30);
-    } finally {
-      time.restore();
-    }
+  test("closes from the dialog's close button", async () => {
+    await expectDialogCloses(({ dialog }) =>
+      dialog.querySelector<HTMLButtonElement>(".md-preview-close")!.click(),
+    );
   });
 
-  test("shows a plain message when the image list cannot load", async () => {
-    const { handle, panel } = await openDropdown(new Error("storage down"));
+  test("closes when its own backdrop is clicked", async () => {
+    await expectDialogCloses(({ dialog }) => dialog.click());
+  });
 
-    expect(panel.dataset.state).toBe("error");
-    assertStringIncludes(
-      panel.textContent,
-      "Images are unavailable right now.",
+  test("loads the deep library's thumbnails lazily", async () => {
+    const { grid, handle } = await openDialog([tenImageList()]);
+
+    const images = [...grid.querySelectorAll("img")];
+    expect(images[0]?.getAttribute("loading")).toBe("eager");
+    expect(images[9]?.getAttribute("loading")).toBe("lazy");
+    handle.view.destroy();
+  });
+
+  test("names the missing thumbnail when the option is absent", async () => {
+    const { window, handle } = await openDialog([twoImageList()]);
+
+    expect(() => optionByName(window, "Nope")).toThrow(
+      "the dialog carries no Nope thumbnail",
     );
     handle.view.destroy();
+  });
+
+  test("inserts the short-form image tag at the caret and closes", async () => {
+    await withInsertFlow(
+      async ({ window, handle, textarea }, flushSelection) => {
+        select(handle.view, 7);
+
+        optionByName(window, "Alpha").click();
+        await flush();
+
+        // The CommonMark schema holds images as block nodes: the insert
+        // lands on its own line after the caret's paragraph. The stored
+        // markdown keeps the short form while the rich view shows the
+        // library picture.
+        expect(textarea.value).toBe("hello\n\n![Alpha](img#2)");
+        const image = requireElement<HTMLImageElement>(
+          window.document,
+          ".ProseMirror img",
+        );
+        expect(image.getAttribute("src")).toBe("/image/alpha.webp");
+        expect(image.alt).toBe("Alpha");
+        expect(imageDialog(window).open).toBe(false);
+        expect(window.document.activeElement).toBe(handle.view.dom);
+        handle.view.destroy();
+        await flushSelection();
+      },
+    );
   });
 
   test("shows a plain message when no images exist", async () => {
-    const { handle, panel } = await openDropdown(json({ images: [] }));
+    const opened = await openDialog([json({ images: [] })]);
 
-    assertStringIncludes(panel.textContent, "No images uploaded yet.");
-    handle.view.destroy();
-  });
-
-  test("closes the dropdown when clicking outside it", async () => {
-    const { window, handle, panel } = await openDropdown(
-      json({ images: [{ id: 2, name: "Alpha" }] }),
-    );
-
-    window.document.body.click();
-    expectClosed(window, handle, panel);
-  });
-
-  test("closes on Escape and returns focus to the button", async () => {
-    const { window, handle, panel } = await openDropdown(
-      json({ images: [{ id: 2, name: "Alpha" }] }),
-    );
-
-    window.document.dispatchEvent(
-      new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
-    );
-    expect(window.document.activeElement).toBe(toolbarImageButton(window));
-    expectClosed(window, handle, panel);
-  });
-
-  /** Mounts the editor on a one-image stub and spies the document's
-   * listener registrations. The spy reads only inside the test that owns
-   * it; afterEach cleanup still runs on the restored document. */
-  const mountSpied = () => {
-    fetchStubHolder.stub = stubFetch(
-      json({ images: [{ id: 2, name: "Alpha" }] }),
-    );
-    const { window, handle } = enhanced("hello");
-    return {
-      addListener: spy(window.document, "addEventListener"),
-      handle,
-      window,
-    };
-  };
-
-  test("closes the dropdown and removes its document listeners when the editor is destroyed", async () => {
-    const { window, handle, addListener } = mountSpied();
-    toolbarImageButton(window).click();
-    const panel = dropdownPanel(window);
-    await untilReady(panel);
-
-    // Opening the dropdown registers exactly the outside-click and Escape
-    // handlers on document; nothing else registers while it is open.
-    const registered = addListener.calls.map((call) => call.args);
-    expect(registered).toEqual([
-      ["click", expect.any(Function)],
-      ["keydown", expect.any(Function)],
-    ]);
-    addListener.restore();
-
-    const removeListener = spy(window.document, "removeEventListener");
-    try {
-      handle.view.destroy();
-
-      // The panel shuts with the editor, and the exact handlers that open
-      // put on document come off with it — not left registered forever.
-      expect(panel.hidden).toBe(true);
-      expect(toolbarImageButton(window).getAttribute("aria-expanded")).toBe(
-        "false",
-      );
-      const removed = removeListener.calls
-        .filter(
-          (call) => call.args[0] === "click" || call.args[0] === "keydown",
-        )
-        .map((call) => call.args);
-      expect(removed).toEqual(registered);
-    } finally {
-      removeListener.restore();
-    }
+    expectGridMessage(opened, "No images yet.");
   });
 
   test("keeps the image control inert after the editor is destroyed", async () => {
-    const { window, handle, addListener } = mountSpied();
-    handle.view.destroy();
+    await withInsertFlow(async ({ dialog, window, handle }, flushSelection) => {
+      // The dialog closes the way the operator closes it, then the editor
+      // dies.
+      dialog.close();
+      handle.view.destroy();
 
-    toolbarImageButton(window).click();
-    const panel = dropdownPanel(window);
+      toolbarImageButton(window).click();
 
-    // The destroyed editor's control does not reopen: the panel stays shut,
-    // nothing registers on document, and the option list is never fetched.
-    expect(panel.hidden).toBe(true);
-    expect(toolbarImageButton(window).getAttribute("aria-expanded")).toBe(
-      "false",
-    );
-    expect(addListener.calls).toEqual([]);
-    expect(fetchStubHolder.stub?.calls).toEqual([]);
+      // The destroyed editor's control does not reopen: the dialog stays
+      // shut, and the option list is never fetched again.
+      expect(dialog.open).toBe(false);
+      expect(fetchStubHolder.stub?.calls.length).toBe(1);
+      await flushSelection();
+    });
   });
 
   test("wraps a long unbroken image name inside its option", async () => {
     // The longest name the form accepts, with no break opportunity: the
-    // panel caps its width, so the option must wrap its text.
+    // cell caps its width, so the name must wrap its text.
     const unbrokenName = "a".repeat(MAX_INPUT_LENGTH);
     const stylesheet = await Deno.readTextFile(STATIC_ASSET_OUTFILES.css);
-    fetchStubHolder.stub = stubFetch(
-      json({ images: [{ id: 2, name: unbrokenName }] }),
+    const { window } = await openDialog(
+      [
+        json({
+          images: [
+            {
+              full: "/image/a.webp",
+              id: 2,
+              name: unbrokenName,
+              thumb: "/image/a-thumb.webp",
+            },
+          ],
+        }),
+        json({ images: [] }),
+      ],
+      { stylesheet },
     );
-    const { window } = enhanced("hello", { stylesheet });
-    toolbarImageButton(window).click();
-    const panel = dropdownPanel(window);
-    await untilReady(panel);
 
-    const option = panel.querySelector<HTMLElement>(".md-image-option")!;
+    const option =
+      imageGrid(window).querySelector<HTMLElement>(".md-image-option")!;
     expect(option.textContent).toBe(unbrokenName);
     // The compiled stylesheet is what the browser downloads. Its wrap rule
     // must reach the option through the real cascade, not just exist in the
@@ -292,85 +215,12 @@ describe("the image dropdown toolbar control", () => {
     expect(happyWindow.getComputedStyle(option).overflowWrap).toBe("anywhere");
   });
 
-  test("closes again when the button is clicked while open", async () => {
-    const { window, handle, panel } = await openDropdown(
-      json({ images: [{ id: 2, name: "Alpha" }] }),
-    );
-
-    expect(panel.hidden).toBe(false);
-    toolbarImageButton(window).click();
-    expectClosed(window, handle, panel);
-  });
-
-  test("shows the unavailable state when the endpoint answers a failure", async () => {
-    const { handle, panel } = await openDropdown(
-      new Response("server down", { status: 500 }),
-    );
-
-    expect(panel.dataset.state).toBe("error");
-    assertStringIncludes(
-      panel.textContent,
-      "Images are unavailable right now.",
-    );
-    handle.view.destroy();
-  });
-
-  test("stays closed when the library arrives after the user closed it", async () => {
-    const panel = openAndCloseEarly(
-      json({ images: [{ id: 2, name: "Alpha" }] }),
-    );
-    await flush();
-
-    expect(panel.hidden).toBe(true);
-    expect(panel.dataset.state).toBe("loading");
-  });
-
-  test("stays closed when the library fails after the user closed it", async () => {
-    const panel = openAndCloseEarly(new Error("storage down"));
-    await flush();
-
-    expect(panel.hidden).toBe(true);
-    expect(panel.dataset.state).toBe("loading");
-  });
-
-  test("refuses an options body without an images array", async () => {
-    const { handle, panel } = await openDropdown(json({ ok: true }));
-
-    expect(panel.dataset.state).toBe("error");
-    expect(panel.querySelector("button")).toBeNull();
-    handle.view.destroy();
-  });
-
-  test("refuses a malformed image entry", async () => {
-    // Each reply trips a different half of the entry shape check: not an
-    // object, no numeric id, no name.
-    const replies: [Response, Response, Response] = [
-      json({ images: ["nope"] }),
-      json({ images: [{ id: "2", name: "Alpha" }] }),
-      json({ images: [{ id: 2 }] }),
-    ];
-    fetchStubHolder.stub = stubFetch(...replies);
-    const { window, handle } = enhanced("hello");
-    const panel = dropdownPanel(window);
-
-    // A failed load is never cached, so each re-open refetches.
-    for (const _reply of replies) {
-      toolbarImageButton(window).click();
-      await untilReady(panel);
-      expect(panel.dataset.state).toBe("error");
-      assertStringIncludes(
-        panel.textContent,
-        "Images are unavailable right now.",
-      );
-      expect(panel.querySelector("button")).toBeNull();
-      toolbarImageButton(window).click();
-    }
+  test("stays closed when the library arrives after the dialog closed", async () => {
+    // The library answer never arrives before the operator's close, so the
+    // stub stays queued: the close button and Escape reach a still-loading
+    // dialog, and the late answer must not reopen it.
+    const { grid, handle } = await closeDialogBeforeAnswer(twoImageList());
+    expect(grid.dataset.state).toBe("loading");
     handle.view.destroy();
   });
 });
-
-const toolbarImageButton = (window: Window) =>
-  requireElement<HTMLButtonElement>(window.document, ".md-toolbar-image");
-
-const dropdownPanel = (window: Window) =>
-  requireElement<HTMLElement>(window.document, ".md-image-dropdown");

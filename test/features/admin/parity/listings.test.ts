@@ -12,6 +12,7 @@ import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
   assertJson,
+  expectApiError,
   expectFlashRedirect,
   expectRedirectWithFlash,
 } from "#test-utils/assertions.ts";
@@ -35,18 +36,21 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("Listing parity pins", { db: true }, () => {
-  test("api create parses day prices, dropping day zero", async () => {
-    await assertJson(
+  test("api create keeps a zero day price and refuses day zero", async () => {
+    const post = (dayPrices: Record<number, number>) =>
       ownerApiPost("/api/admin/listings", {
-        day_prices: { 0: 900, 1: 0, 2: 1200 },
+        day_prices: dayPrices,
         listing_type: "standard",
         max_attendees: 10,
         name: "Pinned Day Prices",
-      }),
-      201,
-      (body) => {
-        expect(body.listing.day_prices).toEqual({ 1: 0, 2: 1200 });
-      },
+      });
+    await assertJson(post({ 1: 0, 2: 1200 }), 201, (body) => {
+      expect(body.listing.day_prices).toEqual({ 1: 0, 2: 1200 });
+    });
+    await expectApiError(
+      post({ 0: 900, 1: 0 }),
+      400,
+      "day_prices has an invalid value",
     );
   });
 
@@ -66,7 +70,7 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
 
   test("page create links the posted groups the same way", async () => {
     const group = await createTestGroup({ name: "Pinned Page Grouped Group" });
-    // The real multipart page request carries group_ids, so this pin proves
+    // The real multipart page request carries groupIds, so this pin proves
     // the create route persists the join — no test helper writes it.
     const listing = await doAuthenticatedMultipartFormRequest(
       "/admin/listing",
@@ -74,7 +78,7 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
         ...buildCreateListingForm(
           testListingInput({ name: "Pinned Page Grouped Listing" }),
         ),
-        group_ids: [String(group.id)],
+        groupIds: [String(group.id)],
       },
       async () => {
         const { getAllListings } = await import("#db/listings/records.ts");
@@ -120,7 +124,7 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
     const page = await ownerPagePost(
       `/admin/listing/${pageListing.id}/deactivate`,
       {
-        confirm_identifier: "Pinned Page Toggle",
+        confirmIdentifier: "Pinned Page Toggle",
       },
     );
     expectRedirectWithFlash(
@@ -134,7 +138,7 @@ describeWithEnv("Listing parity pins", { db: true }, () => {
     const pageRepeat = await ownerPagePost(
       `/admin/listing/${pageListing.id}/deactivate`,
       {
-        confirm_identifier: "Pinned Page Toggle",
+        confirmIdentifier: "Pinned Page Toggle",
       },
     );
     await expectFlashRedirect(

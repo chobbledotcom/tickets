@@ -37,7 +37,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     const returnUrl = `/admin/listing/${listing.id}`;
     const { response } = await adminFormPost(
       `/admin/attendee/${attendee.id}/note`,
-      { note: "Spoke to them on the phone", return_url: returnUrl },
+      { note: "Spoke to them on the phone", returnUrl },
     );
     // Redirects to the return target with a SUCCESS flash naming the action.
     expectRedirectWithFlash(returnUrl, t("notes.added"), true)(response);
@@ -86,7 +86,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     const html = await response.text();
     expectIncludesAll(html, ["Are you sure", "deletable note"]);
     // The intermediate page never asks for the copy/paste confirmation.
-    assert(!html.includes('name="confirm_identifier"'));
+    assert(!html.includes('name="confirmIdentifier"'));
   });
 
   test("GET delete resolves the note's img#N reference", async () => {
@@ -125,7 +125,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
 
     const { response } = await adminFormPost(
       `/admin/attendee/${attendee.id}/note/${row!.id}/delete`,
-      { return_url: returnUrl },
+      { returnUrl },
     );
     // Redirects to the return target with a SUCCESS flash confirming deletion.
     expectRedirectWithFlash(returnUrl, t("notes.deleted"), true)(response);

@@ -31,7 +31,7 @@ When(
       this,
       "/admin/settings",
       "Save Payment Provider",
-      { payment_provider: "stripe" },
+      { paymentProvider: "stripe" },
     );
     expect(browser.currentUrl).toBe("/admin/settings");
   },
@@ -42,10 +42,10 @@ Then(
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
     expect(
-      hasCheckedInput(browser.currentHtml, "payment_provider", "stripe"),
+      hasCheckedInput(browser.currentHtml, "paymentProvider", "stripe"),
     ).toBe(true);
     expect(
-      hasCheckedInput(browser.currentHtml, "payment_provider", "square"),
+      hasCheckedInput(browser.currentHtml, "paymentProvider", "square"),
     ).toBe(false);
     for (const provider of ["Square", "Stripe", "SumUp"]) {
       assertStringIncludes(browser.pageText, provider);
@@ -127,7 +127,7 @@ When(
       this,
       "/admin/settings",
       "Save existing payment provider",
-      { existing_payment_provider: "stripe" },
+      { existingPaymentProvider: "stripe" },
     );
     expect(browser.currentUrl).toBe("/admin/settings");
   },
@@ -197,10 +197,10 @@ Then(
       const input = inputTagWithValue(
         browser.currentHtml,
         provider,
-        "existing_payment_provider",
+        "existingPaymentProvider",
       );
       expectIncludesAll(input, [
-        'name="existing_payment_provider"',
+        'name="existingPaymentProvider"',
         "required",
         `value="${provider}"`,
       ]);
@@ -213,7 +213,7 @@ Then(
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
     expect(
-      hasCheckedInput(browser.currentHtml, "payment_provider", "none"),
+      hasCheckedInput(browser.currentHtml, "paymentProvider", "none"),
     ).toBe(true);
     assert(
       !browser.currentHtml.includes('id="settings-payment-provider-recovery"'),

@@ -13,12 +13,11 @@
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { provenancePointerStatement } from "#db/attendees/payment-provenance.ts";
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
+import { sealedContactsOf } from "#db/attendees/reads.ts";
 import {
   executeBatchWithResults,
-  inPlaceholders,
   queryAllPrimary,
   queryOnePrimary,
-  type SqlStatement,
 } from "#db/client.ts";
 import {
   type IndexedPaymentReferenceSource,
@@ -26,6 +25,9 @@ import {
   type StoredPaymentReference,
   storePaymentReference,
 } from "#db/payment-reference-store.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 import {
   type PaymentReference,
@@ -42,7 +44,7 @@ const REBUILD_PAGE_SIZE = 50;
 /** The rows a rebuild may touch: attendee-bearing rows that still hold a
  * payment reference with no blind index beside it. A rebuilt row leaves this
  * predicate, so every run naturally takes the next unrepaired page. */
-const LEGACY_ROW_PREDICATE = `
+const LEGACY_ROW_PREDICATE = sql`
        payment_reference != ''
        AND payment_reference_index = ''
        AND attendee_id IS NOT NULL`;
@@ -50,10 +52,9 @@ const LEGACY_ROW_PREDICATE = `
 export const countLegacyPaymentReferences = async (): Promise<number> => {
   const row = requireValue(
     await queryOnePrimary<{ total: number }>(
-      `SELECT COUNT(*) AS total
+      sql`SELECT COUNT(*) AS total
          FROM processed_payments
         WHERE ${LEGACY_ROW_PREDICATE}`,
-      [],
     ),
     "Legacy payment reference count returned no row",
   );
@@ -71,15 +72,12 @@ type LegacyPaymentReferenceRow = IndexedPaymentReferenceSource & {
 const loadLegacyPaymentReferencePage = (): Promise<
   LegacyPaymentReferenceRow[]
 > =>
-  queryAllPrimary<LegacyPaymentReferenceRow>({
-    args: [REBUILD_PAGE_SIZE],
-    sql: `SELECT attendee_id, payment_reference, payment_reference_index,
+  queryAllPrimary<LegacyPaymentReferenceRow>(sql`SELECT attendee_id, payment_reference, payment_reference_index,
                  payment_session_id, processed_at
               FROM processed_payments
              WHERE ${LEGACY_ROW_PREDICATE}
              ORDER BY processed_at, payment_session_id
-             LIMIT ?`,
-  });
+             LIMIT ${REBUILD_PAGE_SIZE}`);
 
 /** The provider each row takes: the one it already names, or the one the
  * owner stated for that row. An untagged row with no stated provider fails the
@@ -130,21 +128,16 @@ const attendeePiiPaymentIds = async (
   }
   const blobs = await queryAllPrimary<{
     id: number;
-    pii_blob: OwnerKeyEncrypted | "";
-  }>({
-    args: attendeeIds,
-    sql: `SELECT id, pii_blob
-            FROM attendees
-           WHERE id IN (${inPlaceholders(attendeeIds)})`,
-  });
+    piiBlob: OwnerKeyEncrypted | "";
+  }>(sealedContactsOf(attendeeIds));
   return new Map(
     await Promise.all(
       blobs.map(
         async (row): Promise<[number, string]> => [
           row.id,
-          row.pii_blob === ""
+          row.piiBlob === ""
             ? ""
-            : (await decryptPiiBlob(row.pii_blob, privateKey, true)).payment_id,
+            : (await decryptPiiBlob(row.piiBlob, privateKey, true)).payment_id,
         ],
       ),
     ),
@@ -177,13 +170,11 @@ export const legacyPaymentReferencePage = async (
 const referenceWrite = (
   sessionId: string,
   stored: StoredPaymentReference,
-): SqlStatement => ({
-  args: [stored.encrypted, stored.index, sessionId],
-  sql: `UPDATE processed_payments
-           SET payment_reference = ?, payment_reference_index = ?
-         WHERE payment_session_id = ?
-           AND payment_reference_index = ''`,
-});
+): SqlStatement =>
+  update(tables.processed_payments, {
+    paymentReference: stored.encrypted,
+    paymentReferenceIndex: stored.index,
+  }).where({ paymentReferenceIndex: "", paymentSessionId: sessionId });
 
 /** The provider the owner states for each row, keyed by payment session id.
  * A row that already names its provider needs no entry. */
@@ -221,11 +212,10 @@ const countUnqualifiedAttendees = async (
   }
   const row = requireValue(
     await queryOnePrimary<{ total: number }>(
-      `SELECT COUNT(*) AS total
+      sql`SELECT COUNT(*) AS total
          FROM attendees
-        WHERE id IN (${inPlaceholders(attendeeIds)})
+        WHERE id IN (${sqlList(attendeeIds)})
           AND (pii_payment_session_id IS NULL OR pii_payment_session_id = '')`,
-      [...attendeeIds],
     ),
     "Unqualified attendee count returned no row",
   );

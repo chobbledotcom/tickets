@@ -2,7 +2,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { modifiersTable } from "#db/modifiers.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import {
   formatCurrency,
@@ -15,6 +15,7 @@ import { decryptFirstAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleModifierMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -38,8 +39,7 @@ const paidBookingWithModifier = async (opts: {
     maxAttendees: 50,
     unitPrice,
   });
-  const modifier = await modifiersTable.insert({
-    calcKind: "fixed",
+  const modifier = await insertModifier({
     calcValue: opts.calcValue,
     direction: opts.direction,
     name: opts.name,
@@ -115,7 +115,7 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
       eventId: "evt_ticket_deleted",
       name: "Gone offer",
     });
-    await modifiersTable.deleteById(modifierId);
+    await records.modifiers.delete(modifierId);
     const html = await ticketPageHtml(attendee);
     expectIncludesAll(html, [
       "Price change",
@@ -133,10 +133,9 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    const modifier = await modifiersTable.insert({
+    const modifier = await insertModifier({
       calcKind: "percent",
       calcValue: 10,
-      direction: "charge",
       name: "Service charge",
       trigger: "automatic",
     });

@@ -20,7 +20,7 @@ import { withRequestContext } from "#test-utils/request-context.ts";
 describe("paymentPage", () => {
   beforeAll(setupAdminPageTest);
 
-  const listing = testListing({ unit_price: 1000 });
+  const listing = testListing({ unitPrice: 1000 });
   const attendee = testAttendee();
 
   test("renders payment details", () => {
@@ -206,7 +206,7 @@ describe("successPage", () => {
 describe("paymentCancelPage", () => {
   beforeAll(setupAdminPageTest);
 
-  const listing = testListing({ unit_price: 1000 });
+  const listing = testListing({ unitPrice: 1000 });
 
   test("renders cancel message", () => {
     const html = paymentCancelPage(listing, "/ticket/ab12c");

@@ -9,7 +9,7 @@
  *   await runOrderJourney({
  *     catalog: { packages: [...], listings: [...], parents: [...] },
  *     select: { packages: ["Kit"], listings: ["Tent"], date },
- *     form: (c) => ({ [`package_quantity_${c.group("Kit").id}`]: "1", ... }),
+ *     form: (c) => ({ [`packageQuantity${c.group("Kit").id}`]: "1", ... }),
  *     rows: (c) => [[c.listing("Tent").id, c.group("Kit").id, 0, 2, ""]],
  *     through: async (ctx) => { ...innards... },
  *   });
@@ -22,6 +22,7 @@ import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import {
@@ -111,10 +112,9 @@ export const expectStoredOrder = async (
     quantity: number;
     start_day: string | null;
   }>(
-    `SELECT listing_id, package_group_id, parent_listing_id, quantity,
+    sql`SELECT listing_id, package_group_id, parent_listing_id, quantity,
             DATE(start_at) AS start_day
-       FROM listing_attendees WHERE attendee_id = ?`,
-    [attendeeId],
+       FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
   );
   expect(
     rows
@@ -342,8 +342,7 @@ export const runOrderJourney = async (spec: {
   const expectedRows = spec.rows(catalog);
   const firstListingId = expectedRows[0]![0];
   const attendee = await queryAll<{ attendee_id: number }>(
-    "SELECT attendee_id FROM listing_attendees WHERE listing_id = ? LIMIT 1",
-    [firstListingId],
+    sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${firstListingId} LIMIT 1`,
   );
   const ctx: OrderJourneyCtx = {
     attendeeId: Number(attendee[0]!.attendee_id),
@@ -375,10 +374,10 @@ export const openEditorFromRoster = async (
 /** The value of the editor line's quantity box at `index` — callers pass an
  * index scraped from the same page, so the box always exists. */
 export const lineQty = (html: string, index: string): string =>
-  new RegExp(`name="qty_${index}"[^>]*value="([^"]*)"`).exec(html)![1]!;
+  new RegExp(`name="qty${index}"[^>]*value="([^"]*)"`).exec(html)![1]!;
 
 /** How many editor lines target the listing (across every path). */
 export const lineCountFor = (html: string, listingId: number): number =>
-  [...html.matchAll(/name="line_listing_\d+"[^>]*value="(\d+)"/g)].filter(
+  [...html.matchAll(/name="lineListing\d+"[^>]*value="(\d+)"/g)].filter(
     (match) => Number(match[1]) === listingId,
   ).length;

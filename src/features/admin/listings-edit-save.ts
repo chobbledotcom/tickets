@@ -49,25 +49,22 @@ export const earliestGroupCapOverflow = async (
 };
 
 const reconcileDurationChange = async (
-  row: {
-    id: number;
-    name: string;
-    listing_type: string;
-    customisable_days: boolean;
-    duration_days: number;
-  },
+  row: Pick<
+    Listing,
+    "customisableDays" | "durationDays" | "id" | "listingType" | "name"
+  >,
   previousDurationDays: number,
 ): Promise<string> => {
-  if (row.listing_type !== "daily") return "";
+  if (row.listingType !== "daily") return "";
   // For customisable-days listings each booking has its own visitor-chosen
-  // span, so `duration_days` is only the maximum offered to new bookings.
+  // span, so `durationDays` is only the maximum offered to new bookings.
   // Never rewrite existing bookings' stored ranges from it.
-  if (row.customisable_days) return "";
-  if (row.duration_days === previousDurationDays) return "";
+  if (row.customisableDays) return "";
+  if (row.durationDays === previousDurationDays) return "";
 
-  await recomputeListingBookingRanges(row.id, row.duration_days);
+  await recomputeListingBookingRanges(row.id, row.durationDays);
   await logActivity(
-    `Listing '${row.name}' duration changed to ${row.duration_days} day(s)`,
+    `Listing '${row.name}' duration changed to ${row.durationDays} day(s)`,
     row,
   );
   const overDay = await earliestGroupCapOverflow(row.id);
@@ -91,7 +88,7 @@ export const renderListingEditError: EditErrorRenderer = editErrorRenderer(
       entity,
       ctx,
       rejected.error,
-      rejected.form.getNumberArray("group_ids"),
+      rejected.form.getNumberArray("groupIds"),
     ),
 );
 
@@ -108,7 +105,7 @@ export const handleListingEditSuccess = async (
   }
   const durationWarning = await reconcileDurationChange(
     row,
-    existing.duration_days,
+    existing.durationDays,
   );
   const movedNotice =
     assign === undefined
@@ -117,7 +114,6 @@ export const handleListingEditSuccess = async (
           count: assign.count,
           date: assign.date,
         });
-  await logActivity(`Listing '${row.name}' updated`, row);
   return processUploadsAndRedirect(
     formData,
     id,
@@ -125,13 +121,13 @@ export const handleListingEditSuccess = async (
     t("listings_table.listing_updated", {
       warning: durationWarning + movedNotice,
     }),
-    existing.attachment_url,
+    existing.attachmentUrl,
   );
 };
 
 /**
- * Parse the editable trigger-maintained aggregates (booked_quantity,
- * tickets_count, …) from an edit submission — but only for staff. Editors
+ * Parse the editable trigger-maintained aggregates (bookedQuantity,
+ * ticketsCount, …) from an edit submission — but only for staff. Editors
  * cannot touch these owner-level figures. Any such hidden fields they craft
  * are ignored rather than trusted: they always edit with a null aggregate
  * input.

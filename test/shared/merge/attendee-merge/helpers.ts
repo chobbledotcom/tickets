@@ -4,12 +4,13 @@ import {
   WORLD,
 } from "#accounting/accounts.ts";
 import { postTransfers } from "#accounting/store.ts";
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import {
   applyAttendeeMerge,
   buildAttendeeMergeDiff,
@@ -21,6 +22,7 @@ import type {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import type { ContactInfo } from "#types";
 
 /** Create a test attendee on a single listing. */
@@ -40,49 +42,26 @@ export const createAttendeeOn = (
 /** Get bookings for an attendee — `refunded` is projected from the ledger, the
  *  same shape production's merge loader returns. */
 export const getBookings = (attendeeId: number) =>
-  queryAll<{
-    listing_id: number;
-    start_at: string | null;
-    end_at: string | null;
-    quantity: number;
-    checked_in: number;
-    refunded: number;
-    price_paid: number;
-    ledger_event_group: string;
-    attachment_downloads: number;
-    order_token: string;
-    parent_listing_id: number;
-    package_group_id: number;
-  }>(
-    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
+  queryAll<ListingAttendeeRow>(
+    sql`SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees
-     WHERE attendee_id = ?
+     WHERE attendee_id = ${attendeeId}
      ORDER BY start_at, listing_id`,
-    [attendeeId],
   );
 
 /** Create a question with answers and assign to listing */
-export const createQuestionWithAnswers = async (
+export const createQuestionWithAnswers = <
+  const Texts extends readonly string[],
+>(
   listingId: number,
   questionText: string,
-  answerTexts: string[],
-) => {
-  const q = await questionsTable.insert({
-    displayType: "radio",
+  answerTexts: Texts,
+) =>
+  seedQuestion({
+    answers: answerTexts,
+    listingIds: [listingId],
     text: questionText,
   });
-  const answers = [];
-  for (let i = 0; i < answerTexts.length; i++) {
-    const a = await answersTable.insert({
-      questionId: q.id,
-      sortOrder: i,
-      text: answerTexts[i]!,
-    });
-    answers.push(a);
-  }
-  await listingQuestions.setIds(listingId, [q.id]);
-  return { answers, question: q };
-};
 
 /** A created question paired with its answer rows. */
 type QuestionSetup = Awaited<ReturnType<typeof createQuestionWithAnswers>>;
@@ -99,7 +78,7 @@ export const saveChoice = (attendeeId: number, answerId: number) =>
 
 /** Insert a free-text question (not yet assigned to any listing). */
 export const createFreeTextQuestion = (text = "Dietary needs?") =>
-  questionsTable.insert({ displayType: "free_text", text });
+  records.questions.insert({ displayType: "free_text", text });
 
 /** Create an Alice → Bob merge pair. By default the target is on one listing
  *  and the source on a second ("E2"); pass `sameListing` to put both on one so

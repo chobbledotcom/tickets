@@ -1,12 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, insert } from "#db/client.ts";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { getDb } from "#db/client.ts";
 import {
   deleteAllStaleReservations,
   releaseReservation,
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#db/processed-payments.ts";
+import { tables } from "#db/select/tables.ts";
+import { insertInto } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { referenceIndexOf } from "#test-utils/payment-claim.ts";
@@ -31,22 +34,23 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
       await releaseReservation("cs_finalized_no_delete");
 
       const record = await getProcessedPayment("cs_finalized_no_delete");
-      expect(record?.attendee_id).toBe(ctx.attendeeId);
+      expect(record?.attendeeId).toBe(ctx.attendeeId);
     });
 
     test("is a no-op for a non-existent session", async () => {
-      await releaseReservation("cs_nonexistent");
-      // No error thrown — verified by reaching here
+      await expect(
+        releaseReservation("cs_nonexistent"),
+      ).resolves.toBeUndefined();
     });
   });
 
   describe("deleteAllStaleReservations", () => {
     const insertStale = (sessionId: string) =>
       getDb().execute(
-        insert("processed_payments", {
-          attendee_id: null,
-          payment_session_id: sessionId,
-          processed_at: new Date(
+        insertInto(tables.processed_payments, {
+          attendeeId: null,
+          paymentSessionId: sessionId,
+          processedAt: new Date(
             Date.now() - STALE_RESERVATION_MS - 1000,
           ).toISOString(),
         }),
@@ -70,19 +74,19 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
 
     test("does not delete finalized reservations regardless of age", async () => {
       await getDb().execute(
-        insert("processed_payments", {
-          attendee_id: ctx.attendeeId,
-          payment_session_id: "cs_finalized_bulk",
-          processed_at: new Date(
+        insertInto(tables.processed_payments, {
+          attendeeId: ctx.attendeeId,
+          paymentSessionId: "cs_finalized_bulk",
+          processedAt: new Date(
             Date.now() - STALE_RESERVATION_MS - 1000,
           ).toISOString(),
         }),
       );
 
       expect(await deleteAllStaleReservations()).toBe(0);
-      expect(
-        (await getProcessedPayment("cs_finalized_bulk"))?.attendee_id,
-      ).toBe(ctx.attendeeId);
+      expect((await getProcessedPayment("cs_finalized_bulk"))?.attendeeId).toBe(
+        ctx.attendeeId,
+      );
     });
 
     test("returns 0 when no stale reservations exist", async () => {
@@ -93,11 +97,11 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
   describe("reusing a stale reservation row", () => {
     test("clears the old charge's index along with its reference", async () => {
       await getDb().execute(
-        insert("processed_payments", {
-          payment_reference: "old-ciphertext",
-          payment_reference_index: "index-of-the-old-charge",
-          payment_session_id: "cs_reused",
-          processed_at: new Date(
+        insertInto(tables.processed_payments, {
+          paymentReference: "old-ciphertext" as OwnerKeyEncrypted,
+          paymentReferenceIndex: "index-of-the-old-charge",
+          paymentSessionId: "cs_reused",
+          processedAt: new Date(
             Date.now() - STALE_RESERVATION_MS - 1000,
           ).toISOString(),
         }),

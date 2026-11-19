@@ -102,11 +102,11 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const { attendeeId, listingId } = await makeTodayBooking(van, van);
 
     const markResponse = await markRequest(cookie, {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       date: todayInTz(settings.timezone),
       done: "1",
       kind: "start",
-      listing_id: String(listingId),
+      listingId: String(listingId),
     });
     expectRedirect(markResponse, "/admin/deliveries");
 
@@ -115,11 +115,11 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
 
     // Toggling it back off takes the "not done" message branch.
     const unmark = await markRequest(cookie, {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       date: todayInTz(settings.timezone),
       done: "0",
       kind: "start",
-      listing_id: String(listingId),
+      listingId: String(listingId),
     });
     expectRedirect(unmark, "/admin/deliveries");
     const reverted = await awaitTestRequest("/admin/deliveries", { cookie });
@@ -140,11 +140,11 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     );
 
     const response = await markRequest(cookie, {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       date: todayInTz(settings.timezone),
       done: "1",
       kind: "start",
-      listing_id: String(listingId),
+      listingId: String(listingId),
     });
     const location = expectRedirect(response, "/admin/deliveries");
     assertStringIncludes(location, "flash");
@@ -160,11 +160,11 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const { attendeeId, listingId } = await makeTodayBooking(van, van);
 
     const response = await markRequest(cookie, {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       date: addDays(testDate(todayInTz(settings.timezone)), 2),
       done: "1",
       kind: "start",
-      listing_id: String(listingId),
+      listingId: String(listingId),
     });
     expectRedirect(response, "/admin/deliveries");
 
@@ -182,7 +182,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const response = await markRequest(cookie, {
       done: "1",
       kind: "start",
-      listing_id: "1",
+      listingId: "1",
     });
     expectRedirect(response, "/admin/deliveries");
   });
@@ -195,11 +195,11 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
       username: "agent7",
     });
     const response = await markRequest(cookie, {
-      attendee_id: "1",
+      attendeeId: "1",
       date: todayInTz(settings.timezone),
       done: "1",
       kind: "middle",
-      listing_id: "1",
+      listingId: "1",
     });
     expectRedirect(response, "/admin/deliveries");
   });
@@ -247,7 +247,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         "/admin/logout",
-        { csrf_token: await signCsrfToken() },
+        { csrfToken: await signCsrfToken() },
         cookie,
       ),
     );
@@ -301,11 +301,11 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     );
 
     const response = await markRequest(await testCookie(), {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       date: future,
       done: "1",
       kind: "start",
-      listing_id: String(listingId),
+      listingId: String(listingId),
     });
     expectRedirect(response, "/admin/deliveries");
 
@@ -362,7 +362,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     });
     const response = await handleRequest(
       mockFormRequest("/admin/login", {
-        csrf_token: await signCsrfToken(),
+        csrfToken: await signCsrfToken(),
         password: "agentpass123",
         username: "loginagent",
       }),

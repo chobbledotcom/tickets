@@ -27,11 +27,11 @@ const validated = (overrides: Partial<ValidatedItem> = {}): ValidatedItem => ({
   expectedPrice: 1000,
   item: { e: 7, p: 1000, q: 1 },
   listing: testListingWithCount({
-    can_pay_more: false,
+    canPayMore: false,
     id: 7,
-    max_price: 5000,
+    maxPrice: 5000,
     slug: "priced",
-    unit_price: 1000,
+    unitPrice: 1000,
   }),
   name: "Test Listing",
   ...overrides,
@@ -79,11 +79,11 @@ const payMoreItem = (amount: number): ValidatedItem =>
     expectedPrice: 2000,
     item: { e: 7, p: amount, q: 2 },
     listing: testListingWithCount({
-      can_pay_more: true,
+      canPayMore: true,
       id: 7,
-      max_price: 2000,
+      maxPrice: 2000,
       slug: "priced",
-      unit_price: 1000,
+      unitPrice: 1000,
     }),
   });
 
@@ -179,10 +179,10 @@ describe("checkoutIntentForSession", () => {
           item: tier,
           listing: testListingWithCount({
             id: 8,
-            months_per_unit: 2,
+            monthsPerUnit: 2,
             name: "Monthly",
             slug: "monthly",
-            unit_price: 1400,
+            unitPrice: 1400,
           }),
           name: "Monthly",
         }),

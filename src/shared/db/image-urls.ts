@@ -2,9 +2,9 @@
  * The id-to-URL lookup the markdown render resolves img#N references with.
  */
 
-import { imagesTable } from "#db/images.ts";
+import { readRows } from "#db/read.ts";
+import { records } from "#db/record-table.ts";
 import { getCurrentSettingsVersion } from "#db/settings.ts";
-import { inList } from "#db/where-clauses.ts";
 import { lazyRef, mapById } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
@@ -12,8 +12,6 @@ import {
   currentRequestStore,
   withRequestStore,
 } from "#shared/request-context.ts";
-
-const imageUrlColumns = imagesTable.read.pick(["id", "filename"]);
 
 /** The id→uid-URL table the markdown render resolves the editor's `img#N`
  * references against. Each entry maps one referenced image's id to its
@@ -79,7 +77,7 @@ export const imageUrlsFor = async (
   if (missing.length === 0) return table;
   const fetched = mapById((row: { id: number; filename: string }) =>
     getImageProxyUrl(row.filename),
-  )(await imageUrlColumns.many({}, { where: inList("id", missing) }));
+  )(await readRows(records.images.byId(missing).pick("id", "filename")));
   for (const [id, url] of fetched) table.set(id, url);
   const warm = cached ?? new Map<number, string>();
   for (const [id, url] of fetched) warm.set(id, url);

@@ -1,17 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  execute,
-  insert,
-  queryAll,
-  queryOne,
-  withTransaction,
-} from "#db/client.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { execute, queryAll, queryOne, withTransaction } from "#db/client.ts";
 import {
   defineOrderedCollection,
   flatCollectionSwap,
   scopedCollectionSwap,
 } from "#db/ordered-collection.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -37,18 +35,17 @@ const pageItems = defineOrderedCollection({
 });
 
 const insertStatus = async (sortOrder: number): Promise<number> => {
-  const statement = insert("attendee_statuses", {
-    name: "status",
-    reservation_amount: "0",
-    sort_order: sortOrder,
+  const statement = insertInto(tables.attendee_statuses, {
+    name: await encrypt("status"),
+    reservationAmount: "0",
+    sortOrder: sortOrder,
   });
-  return Number((await execute(statement.sql, statement.args)).lastInsertRowid);
+  return Number((await execute(statement)).lastInsertRowid);
 };
 
 const statusOrder = async (id: number): Promise<number> =>
   (await queryOne<{ sort_order: number }>(
-    "SELECT sort_order FROM attendee_statuses WHERE id = ?",
-    [id],
+    sql`SELECT sort_order FROM attendee_statuses WHERE id = ${id}`,
   ))!.sort_order;
 
 const insertAnswer = async (
@@ -56,8 +53,7 @@ const insertAnswer = async (
   sortOrder: number,
 ): Promise<number> => {
   const result = await execute(
-    "INSERT INTO answers (question_id, text, sort_order, active) VALUES (?, '', ?, 1)",
-    [questionId, sortOrder],
+    sql`INSERT INTO answers (question_id, text, sort_order, active) VALUES (${questionId}, '', ${sortOrder}, 1)`,
   );
   return Number(result.lastInsertRowid);
 };
@@ -69,8 +65,7 @@ const insertPageItem = (
   sortOrder: number,
 ): Promise<unknown> =>
   execute(
-    "INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (?, ?, ?, ?)",
-    [pageId, itemType, itemId, sortOrder],
+    sql`INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (${pageId}, ${itemType}, ${itemId}, ${sortOrder})`,
   );
 
 describeWithEnv("db > ordered collection", { db: true }, () => {
@@ -98,37 +93,31 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     await answers.append({ key: appended, scope: 10 });
 
     const rows = await queryAll<{ sort_order: number }>(
-      "SELECT sort_order FROM answers WHERE question_id = ? ORDER BY sort_order",
-      [10],
+      sql`SELECT sort_order FROM answers WHERE question_id = ${10} ORDER BY sort_order`,
     );
     expect(rows.map((row) => row.sort_order)).toEqual([2, 3]);
   });
 
-  test("starts an empty default collection at zero", async () => {
-    const appended = await insertAnswer(30, 0);
+  for (const [title, collection, start] of [
+    ["starts an empty default collection at zero", answers, 0],
+    [
+      "uses the collection's starting order when its scope is empty",
+      oneBasedAnswers,
+      1,
+    ],
+  ] as const) {
+    test(title, async () => {
+      const appended = await insertAnswer(30, 0);
 
-    expect(await answers.next({ scope: 40 })).toBe(0);
-    await answers.append({ key: appended, scope: 30 });
-    expect(
-      await queryOne<{ sort_order: number }>(
-        "SELECT sort_order FROM answers WHERE id = ?",
-        [appended],
-      ),
-    ).toEqual({ sort_order: 0 });
-  });
-
-  test("uses the collection's starting order when its scope is empty", async () => {
-    const appended = await insertAnswer(30, 0);
-
-    expect(await oneBasedAnswers.next({ scope: 40 })).toBe(1);
-    await oneBasedAnswers.append({ key: appended, scope: 30 });
-    expect(
-      await queryOne<{ sort_order: number }>(
-        "SELECT sort_order FROM answers WHERE id = ?",
-        [appended],
-      ),
-    ).toEqual({ sort_order: 1 });
-  });
+      expect(await collection.next({ scope: 40 })).toBe(start);
+      await collection.append({ key: appended, scope: 30 });
+      expect(
+        await queryOne<{ sort_order: number }>(
+          sql`SELECT sort_order FROM answers WHERE id = ${appended}`,
+        ),
+      ).toEqual({ sort_order: start });
+    });
+  }
 
   test("swaps composite keys without changing the same id in another scope", async () => {
     await insertPageItem(1, "listing", 7, 10);
@@ -146,7 +135,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
       page_id: number;
       sort_order: number;
     }>(
-      "SELECT page_id, item_type, sort_order FROM site_page_items ORDER BY page_id, item_type",
+      sql`SELECT page_id, item_type, sort_order FROM site_page_items ORDER BY page_id, item_type`,
     );
     expect(rows).toEqual([
       { item_type: "group", page_id: 1, sort_order: 10 },
@@ -165,8 +154,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
 
     expect(
       await queryOne<{ sort_order: number }>(
-        "SELECT sort_order FROM site_page_items WHERE page_id = ? AND item_type = ? AND item_id = ?",
-        [3, "listing", 7],
+        sql`SELECT sort_order FROM site_page_items WHERE page_id = ${3} AND item_type = ${"listing"} AND item_id = ${7}`,
       ),
     ).toEqual({ sort_order: 6 });
   });
@@ -197,7 +185,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
 
     expect(
       await queryAll<{ id: number; sort_order: number }>(
-        "SELECT id, sort_order FROM answers ORDER BY id",
+        sql`SELECT id, sort_order FROM answers ORDER BY id`,
       ),
     ).toEqual([
       { id: first, sort_order: 10 },
@@ -208,10 +196,9 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
   test("uses a caller-owned transaction for next order and append", async () => {
     const first = await insertStatus(8);
     const second = await withTransaction(async (transaction) => {
-      const result = await transaction.execute({
-        args: ["transaction", "0", 0],
-        sql: "INSERT INTO attendee_statuses (name, reservation_amount, sort_order) VALUES (?, ?, ?)",
-      });
+      const result = await transaction.execute(
+        sql`INSERT INTO attendee_statuses (name, reservation_amount, sort_order) VALUES (${"transaction"}, ${"0"}, ${0})`,
+      );
       const id = Number(result.lastInsertRowid);
       expect(await statuses.next({ transaction })).toBe(9);
       await statuses.append({ key: id, transaction });

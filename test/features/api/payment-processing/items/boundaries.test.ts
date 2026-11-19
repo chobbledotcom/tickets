@@ -20,6 +20,7 @@ import {
   deactivateTestListing,
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
+import { validateListingBooking } from "#test-utils/paid-item-validation.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { nonStandalonePair, packageParentOrder } from "./helpers.ts";
@@ -94,15 +95,15 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 400,
     });
-    const intent = bookingIntent([{ e: listing.id, p: 400, q: 1 }]);
-    using refund = stubRefundPayment("re_items_single_closed", 400);
 
-    expect(
-      await validateAllItems(
-        paymentSession("cs_items_single_closed", 400, intent),
-        intent,
-      ),
-    ).toEqual({
+    const { refund, result } = await validateListingBooking(
+      "cs_items_single_closed",
+      listing.id,
+      400,
+      "re_items_single_closed",
+    );
+
+    expect(result).toEqual({
       detail: undefined,
       error: `Sorry, registration for ${listing.name} closed while you were completing payment.`,
       refunded: true,

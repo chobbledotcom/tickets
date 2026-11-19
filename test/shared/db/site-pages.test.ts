@@ -4,17 +4,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { queryAll } from "#db/client.ts";
 import { isGroupSlugTaken } from "#db/groups.ts";
-import { isSlugTaken, listingNames } from "#db/listings/records.ts";
+import { isSlugTaken, listingNamesByIds } from "#db/listings/records.ts";
+import { type NewRecord, records } from "#db/record-table.ts";
 import {
-  getSitePageById,
   getSitePageBySlugIndex,
-  type SitePageInput,
   sitePageOrder,
   sitePages,
   updateSitePage,
 } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -24,17 +23,15 @@ import type { SitePage } from "#types";
 
 const makePage = async (
   slug: string,
-  extra: Partial<SitePageInput> = {},
-): Promise<SitePage> => {
-  const slugIndex = await hmacHash(slug);
-  return sitePages.table.insert({
+  extra: Partial<NewRecord<"site_pages">> = {},
+): Promise<SitePage> =>
+  records.site_pages.insert({
     name: `Name ${slug}`,
     slug,
-    slugIndex,
+    slugIndex: await hmacHash(slug),
     sortOrder: 0,
     ...extra,
   });
-};
 
 describeWithEnv("db > site-pages", { db: true }, () => {
   describe("site_pages encryption + reads", () => {
@@ -47,22 +44,22 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         content: string;
         name: string;
         slug: string;
-      }>("SELECT slug, name, content FROM site_pages WHERE id = ?", [
-        created.id,
-      ]);
+      }>(
+        sql`SELECT slug, name, content FROM site_pages WHERE id = ${created.id}`,
+      );
       // At rest, everything is ciphertext (enc:… envelope), not plaintext.
       expectEncryptedAtRest(raw[0]?.name, raw[0]?.slug, raw[0]?.content);
       assert(!raw[0]?.name.includes("Name about"));
 
-      const back = await getSitePageById(created.id);
+      const back = await records.site_pages.find(created.id);
       expect(back?.name).toBe("Name about");
       expect(back?.slug).toBe("about");
       expect(back?.content).toBe("Hello **world**");
-      expect(back?.meta_title).toBe("About us");
+      expect(back?.metaTitle).toBe("About us");
     });
 
-    test("getSitePageById returns null for a missing id", async () => {
-      expect(await getSitePageById(9999)).toBeNull();
+    test("records.site_pages.find returns null for a missing id", async () => {
+      expect(await records.site_pages.find(9999)).toBeNull();
     });
 
     test("nav rows are decrypted, ordered, and carry no content", async () => {
@@ -90,7 +87,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
             metaTitle: "",
             name: `Name ${slug}`,
           })
-        ).sort_order;
+        ).sortOrder;
       const orders = [await make("o-a"), await make("o-b"), await make("o-c")];
       // Distinct + strictly increasing ⇒ the pages are reliably reorderable
       // (equal orders would make the move-up/down swap a no-op).
@@ -116,8 +113,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         assertArrayIncludes(slugs, ["fresh-cache"]);
         // The returned row is built from the input (no post-commit read-back),
         // and matches what a fresh read decrypts.
-        expect(created.meta_title).toBe("Meta");
-        expect(await getSitePageById(created.id)).toEqual(created);
+        expect(created.metaTitle).toBe("Meta");
+        expect(await records.site_pages.find(created.id)).toEqual(created);
       }));
 
     test("updateSitePage rewrites the fields and moves the blind index with the slug", async () => {
@@ -164,10 +161,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const listing = await createTestListing({ name: "L" });
       // The id-keyed name lookup short-circuits on empty ids (no query) and
       // decrypts names for real ids — the projection page labels lean on.
-      expect((await listingNames.byIds([])).size).toBe(0);
-      expect((await listingNames.byIds([listing.id])).get(listing.id)).toBe(
-        "L",
-      );
+      expect((await listingNamesByIds([])).size).toBe(0);
+      expect((await listingNamesByIds([listing.id])).get(listing.id)).toBe("L");
     });
 
     test("a page slug blocks a new listing and group (bidirectional)", async () => {
@@ -197,13 +192,13 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       await sitePageOrder.swap({ first: 9999, second: a.id });
       sitePages.invalidate();
       const row = (await sitePages.getAll()).find((r) => r.slug === "survivor");
-      expect(row?.sort_order).toBe(0);
+      expect(row?.sortOrder).toBe(0);
     });
 
     test("cache stats identify the site pages cache by name", () => {
       assertArrayIncludes(
         getAllCacheStats().map((stat) => stat.name),
-        ["site_pages_nav"],
+        ["site_pages"],
       );
     });
   });

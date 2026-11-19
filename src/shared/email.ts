@@ -17,17 +17,20 @@ import {
 } from "#shared/validation/email.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import type { WebhookAttendee, WebhookListing } from "#shared/webhook.ts";
+import type { ListingWithCount } from "#types";
 
-export type EmailListing = WebhookListing & {
-  active: boolean;
-  date: string;
-  hidden: boolean;
-  location: string;
-  purchase_only: boolean;
-  assign_built_site: boolean;
-  initial_site_months: number;
-  listing_type: "standard" | "daily";
-};
+export type EmailListing = WebhookListing &
+  Pick<
+    ListingWithCount,
+    | "active"
+    | "assignBuiltSite"
+    | "date"
+    | "hidden"
+    | "initialSiteMonths"
+    | "listingType"
+    | "location"
+    | "purchaseOnly"
+  >;
 
 export interface EmailEntry {
   attendee: WebhookAttendee;
@@ -36,6 +39,9 @@ export interface EmailEntry {
 
 export interface EmailAttachment {
   content: string;
+  /** The id an HTML `cid:` reference names. A part without one is an
+   * ordinary attachment. */
+  contentId?: string;
   contentType: string;
   filename: string;
 }
@@ -127,16 +133,33 @@ const mapAttachments = <T>(
   fn: (attachment: EmailAttachment) => T,
 ): T[] | undefined => msg.attachments?.map(fn);
 
+/** The provider field that ties a part to its `cid:` reference. A part with
+ * no id travels as an ordinary attachment. */
+const contentIdField = (
+  attachment: EmailAttachment,
+  key: "ContentID" | "content_id",
+): Partial<Record<"ContentID" | "content_id", string>> =>
+  attachment.contentId === undefined ? {} : { [key]: attachment.contentId };
+
 const resendAttachment = (attachment: EmailAttachment) => ({
   content: attachment.content,
+  ...contentIdField(attachment, "content_id"),
   filename: attachment.filename,
 });
 
 const sendgridAttachment = (attachment: EmailAttachment) => ({
   content: attachment.content,
-  disposition: "attachment",
+  disposition: attachment.contentId === undefined ? "attachment" : "inline",
+  ...contentIdField(attachment, "content_id"),
   filename: attachment.filename,
   type: attachment.contentType,
+});
+
+const postmarkAttachment = (attachment: EmailAttachment) => ({
+  Content: attachment.content,
+  ...contentIdField(attachment, "ContentID"),
+  ContentType: attachment.contentType,
+  Name: attachment.filename,
 });
 
 export const mailgunForm = (config: EmailConfig): FormData => {
@@ -155,7 +178,7 @@ const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
   for (const attachment of msg.attachments ?? []) {
     const bytes = Uint8Array.fromBase64(attachment.content);
     form.append(
-      "attachment",
+      attachment.contentId === undefined ? "attachment" : "inline",
       new Blob([bytes], { type: attachment.contentType }),
       attachment.filename,
     );
@@ -180,11 +203,7 @@ const PROVIDERS = {
       "X-Postmark-Server-Token": apiKey,
     }),
     (config, msg) => ({
-      Attachments: msg.attachments?.map((attachment) => ({
-        Content: attachment.content,
-        ContentType: attachment.contentType,
-        Name: attachment.filename,
-      })),
+      Attachments: mapAttachments(msg, postmarkAttachment),
       From: config.fromAddress,
       HtmlBody: msg.html,
       ReplyTo: msg.replyTo,

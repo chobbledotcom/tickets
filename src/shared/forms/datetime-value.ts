@@ -2,6 +2,7 @@
  *  merger sees it exercised from one isolate. */
 
 import type { FormParams } from "#shared/form-data.ts";
+import { datetimePartNames } from "#shared/forms/datetime-parts.ts";
 import { parseDateString } from "#shared/validation/date-string.ts";
 
 /** Read one datetime field's submitted date and time parts.
@@ -17,8 +18,9 @@ export const getDatetimeValue = (
   form: FormParams,
   name: string,
 ): string | null => {
-  const date = form.getString(`${name}_date`);
-  const time = form.getString(`${name}_time`);
+  const parts = datetimePartNames(name);
+  const date = form.getString(parts.date);
+  const time = form.getString(parts.time);
   if (!date) return time ? null : "";
   const cleaned = parseDateString(date) ?? date;
   return time ? `${cleaned}T${time}` : `${cleaned}T00:00`;

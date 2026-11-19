@@ -14,8 +14,8 @@ import { mockAdminLoginRequest } from "#test-utils/mocks.ts";
 describeWithEnv("login as a legacy v1 user", { db: true }, () => {
   test("first login signs in and re-wraps the DATA_KEY under the password", async () => {
     const seeded = await seedV1User("v1-login", "v1pass12345");
-    expect(seeded.kek_version).toBe(1);
-    const oldWrap = seeded.wrapped_data_key;
+    expect(seeded.kekVersion).toBe(1);
+    const oldWrap = seeded.wrappedDataKey;
 
     const response = await handleRequest(
       await mockAdminLoginRequest({
@@ -26,8 +26,8 @@ describeWithEnv("login as a legacy v1 user", { db: true }, () => {
 
     expectRedirectWithFlash("/admin", "Logged in")(response);
     const migrated = (await getUserByUsername("v1-login"))!;
-    expect(migrated.kek_version).toBe(2);
-    expect(migrated.wrapped_data_key).not.toBe(oldWrap);
+    expect(migrated.kekVersion).toBe(2);
+    expect(migrated.wrappedDataKey).not.toBe(oldWrap);
     const dataKey = await unwrapUserKey(migrated, "v1pass12345");
     expect(await sharesOwnerDataKey(dataKey)).toBe(true);
   });

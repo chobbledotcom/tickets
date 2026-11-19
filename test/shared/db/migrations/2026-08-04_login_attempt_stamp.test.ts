@@ -4,7 +4,9 @@ import { FakeTime } from "@std/testing/time";
 import { getDb } from "#db/client.ts";
 import loginAttemptStampMigration from "#db/migrations/2026-08-04_login_attempt_stamp.ts";
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectMigrationIdentity } from "#test-utils/migration-identity.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
@@ -12,27 +14,20 @@ const runMigration = (): Promise<void> =>
   loginAttemptStampMigration(context).up();
 
 const insertRow = (ip: string, lastAttempt: number) =>
-  getDb().execute({
-    args: [ip, lastAttempt],
-    sql: "INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt) VALUES (?, 2, NULL, ?)",
-  });
+  getDb().execute(
+    sql`INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt) VALUES (${ip}, 2, NULL, ${lastAttempt})`,
+  );
 
 const storedStamp = async (ip: string): Promise<number> => {
-  const result = await getDb().execute({
-    args: [ip],
-    sql: "SELECT last_attempt FROM login_attempts WHERE ip = ?",
-  });
+  const result = await getDb().execute(
+    sql`SELECT last_attempt FROM login_attempts WHERE ip = ${ip}`,
+  );
   return Number(result.rows[0]!.last_attempt);
 };
 
 describeWithEnv("db > migrations > login attempt stamp", { db: true }, () => {
   test("declares its identity, column, and index", () => {
-    const migration = loginAttemptStampMigration(context);
-    expect({
-      description: migration.description,
-      id: migration.id,
-      requires: migration.requires,
-    }).toEqual({
+    expectMigrationIdentity(loginAttemptStampMigration(context), {
       description: "Track when each login-attempt row was last touched.",
       id: "2026-08-04_login_attempt_stamp",
       requires: {

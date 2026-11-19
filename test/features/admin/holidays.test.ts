@@ -7,20 +7,23 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { holidays } from "#db/holidays.ts";
-import { validateDateRange } from "#routes/admin/holidays.ts";
+import { records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
+import { DEMO_HOLIDAY_NAMES } from "#shared/demo/samples.ts";
+import { holidayRule } from "#shared/records/holidays.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
-import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { describeDemoNameSaves } from "#test-utils/demo-name-saves.ts";
+import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("holidays", { db: true }, () => {
   test("creates a holiday and shows it on the list page", async () => {
     const { response } = await adminFormPost("/admin/holidays", {
-      end_date: "2027-01-02",
+      endDate: "2027-01-02",
       name: "New Year",
-      start_date: "2027-01-01",
+      startDate: "2027-01-01",
     });
 
     await expectFlashRedirect("/admin/holidays/1", "Holiday created")(response);
@@ -35,16 +38,14 @@ describeWithEnv("holidays", { db: true }, () => {
 
     const { response } = await adminFormPost(
       `/admin/holidays/${holiday.id}/edit`,
-      { end_date: "2026-12-26", name: "Renamed", start_date: "2026-12-25" },
+      { endDate: "2026-12-26", name: "Renamed", startDate: "2026-12-25" },
     );
 
     await expectFlashRedirect(
       `/admin/holidays/${holiday.id}`,
       "Holiday updated",
     )(response);
-    expect((await holidays.table.read.one({ id: holiday.id }))?.name).toBe(
-      "Renamed",
-    );
+    expect((await records.holidays.find(holiday.id))?.name).toBe("Renamed");
   });
 
   test("keeps the submitted dates when a save is rejected", async () => {
@@ -52,7 +53,7 @@ describeWithEnv("holidays", { db: true }, () => {
 
     const { response } = await adminFormPost(
       `/admin/holidays/${holiday.id}/edit`,
-      { end_date: "2026-01-01", name: "Backwards", start_date: "2026-06-01" },
+      { endDate: "2026-01-01", name: "Backwards", startDate: "2026-06-01" },
     );
 
     expect(response.status).toBe(400);
@@ -64,44 +65,73 @@ describeWithEnv("holidays", { db: true }, () => {
 
     const { response } = await adminFormPost(
       `/admin/holidays/${holiday.id}/delete`,
-      { confirm_identifier: "Spare Day" },
+      { confirmIdentifier: "Spare Day" },
     );
 
     await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
-    expect(await holidays.table.read.one({ id: holiday.id })).toBe(null);
+    expect(await records.holidays.find(holiday.id)).toBe(null);
   });
 });
 
-describeWithEnv("the holiday date rule", { db: true }, () => {
-  test("rejects an end date before the start date", async () => {
-    const error = await validateDateRange({
-      endDate: parseDateStringOrThrow(
-        "2026-01-01",
-        "the backwards-range holiday end date",
-      ),
-      name: "Backwards",
-      startDate: parseDateStringOrThrow(
-        "2026-06-01",
-        "the backwards-range holiday start date",
-      ),
+describeDemoNameSaves({
+  createPath: "/admin/holidays",
+  edit: async (name) => {
+    const holiday = await createTestHoliday({ name: "Before" });
+    await adminFormPost(`/admin/holidays/${holiday.id}/edit`, {
+      endDate: "2026-12-26",
+      name,
+      startDate: "2026-12-25",
+    });
+    return (await records.holidays.find(holiday.id))?.name;
+  },
+  fields: (name) => ({
+    endDate: "2027-01-02",
+    name,
+    startDate: "2027-01-01",
+  }),
+  label: "holiday saves in demo mode",
+  realName: "Real Day",
+  samples: DEMO_HOLIDAY_NAMES,
+  table: tables.holidays,
+  typedName: "Typed Day",
+});
+
+describeWithEnv("the holiday rule", { db: true }, () => {
+  const rule = (name: string, start: string, end: string) =>
+    holidayRule({
+      endDate: parseDateStringOrThrow(end, "the holiday rule end date"),
+      name,
+      startDate: parseDateStringOrThrow(start, "the holiday rule start date"),
     });
 
-    expect(error).toBe("End date must be on or after the start date");
+  test("rejects an end date before the start date", async () => {
+    const error = await rule("Backwards", "2026-06-01", "2026-01-01");
+
+    expect(error.ok ? null : error.error).toBe(
+      "End date must be on or after the start date",
+    );
+  });
+
+  test("the API refuses a name that the form cannot save", async () => {
+    await assertJson(
+      apiRequest("/api/admin/holidays", {
+        body: {
+          end_date: "2027-01-02",
+          name: "H".repeat(251),
+          start_date: "2027-01-01",
+        },
+        method: "POST",
+      }),
+      400,
+      (body: { error: string }) => {
+        expect(body.error).toBe("Name must be 250 characters or fewer");
+      },
+    );
   });
 
   test("accepts a single day, where the two dates are equal", async () => {
-    const error = await validateDateRange({
-      endDate: parseDateStringOrThrow(
-        "2026-06-01",
-        "the one-day holiday end date",
-      ),
-      name: "One day",
-      startDate: parseDateStringOrThrow(
-        "2026-06-01",
-        "the one-day holiday start date",
-      ),
-    });
+    const error = await rule("One day", "2026-06-01", "2026-06-01");
 
-    expect(error).toBe(null);
+    expect(error.ok).toBe(true);
   });
 });

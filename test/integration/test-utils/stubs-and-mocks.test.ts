@@ -2,6 +2,11 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { requireEnv } from "#shared/env.ts";
 import { expectHtmlEscaped, rejectionMessage } from "#test-utils/assertions.ts";
@@ -140,7 +145,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
     test("creates an in-memory database that can execute queries", async () => {
       await createTestDb();
       const { getDb } = await import("#db/client.ts");
-      const result = await getDb().execute("SELECT 1 as test");
+      const result = await getDb().execute(sql`SELECT 1 as test`);
       expect(result.rows.length).toBe(1);
       assertArrayIncludes(result.columns, ["test"]);
     });
@@ -150,27 +155,28 @@ describe("test-utils — stubs, caches & request mocks", () => {
     test("leaves a non-file DB_URL alone (nothing on disk to remove)", async () => {
       const { withEnv } = await import("#test-utils/env.ts");
       using _env = withEnv({ DB_URL: ":memory:" });
-      resetDb(); // must not try to close/unlink a file for :memory:
+      // Must not try to close or unlink a file for :memory:.
+      expect(() => resetDb()).not.toThrow();
     });
 
     test("resets database so next createTestDb gives clean state", async () => {
       await createTestDb();
-      const { getDb, insert } = await import("#db/client.ts");
+      const { getDb } = await import("#db/client.ts");
       // Insert data into the first DB
       await getDb().execute(
-        insert("listings", {
+        insertInto(tables.listings, {
           created: "2024-01-01",
           fields: "email",
-          max_attendees: 10,
-          slug: "old",
-          slug_index: "old",
+          maxAttendees: 10,
+          slug: await encrypt("old"),
+          slugIndex: await hmacHash("old"),
         }),
       );
       resetDb();
       // After reset, we need to set up again to get a working db
       await createTestDb();
       // Data from previous test should be gone
-      const result = await getDb().execute("SELECT * FROM listings");
+      const result = await getDb().execute(sql`SELECT * FROM listings`);
       expect(result.rows.length).toBe(0);
     });
 

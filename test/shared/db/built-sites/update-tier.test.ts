@@ -3,9 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import {
   builtSites,
-  builtSitesCrudTable,
+  createBuiltSite,
+  findBuiltSiteById,
   getAssignableBuiltSites,
   insertBuiltSite,
+  updateBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -32,14 +34,12 @@ describeWithEnv("built-site update channel", { db: true }, () => {
 
   test("CRUD insert defaults the channel to release", async () => {
     expect(
-      await builtSitesCrudTable.insert(
-        builtSiteFormInput({ name: "Crud Default" }),
-      ),
+      await createBuiltSite(builtSiteFormInput({ name: "Crud Default" })),
     ).toMatchObject({ updates: "release" });
   });
 
   test("CRUD insert persists an explicit channel", async () => {
-    const site = await builtSitesCrudTable.insert(
+    const site = await createBuiltSite(
       builtSiteFormInput({ name: "Crud Beta", updates: "beta" }),
     );
     expect(site.updates).toBe("beta");
@@ -47,18 +47,16 @@ describeWithEnv("built-site update channel", { db: true }, () => {
   });
 
   test("CRUD update changes the channel", async () => {
-    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
+    const site = await createBuiltSite(builtSiteFormInput());
     expect(
-      await builtSitesCrudTable.update(site.id, { updates: "alpha" }),
+      await updateBuiltSite(site.id, () => ({ updates: "alpha" })),
     ).toMatchObject({ updates: "alpha" });
   });
 
   test("CRUD update preserves the channel", async () => {
-    const site = await builtSitesCrudTable.insert(
-      builtSiteFormInput({ updates: "beta" }),
-    );
+    const site = await createBuiltSite(builtSiteFormInput({ updates: "beta" }));
     expect(
-      await builtSitesCrudTable.update(site.id, { name: "Renamed" }),
+      await updateBuiltSite(site.id, () => ({ name: "Renamed" })),
     ).toMatchObject({ name: "Renamed", updates: "beta" });
   });
 
@@ -76,9 +74,7 @@ describeWithEnv("built-site update channel", { db: true }, () => {
     expect((await takePooledSiteForBuyer(pool, 1, [2], 2)).kind).toBe(
       "claimed",
     );
-    expect((await builtSitesCrudTable.read.one({ id: row.id }))?.updates).toBe(
-      "beta",
-    );
+    expect((await findBuiltSiteById(row.id))?.updates).toBe("beta");
   });
 
   test("updating renewal state preserves the channel", async () => {

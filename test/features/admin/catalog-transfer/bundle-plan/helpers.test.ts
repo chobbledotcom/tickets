@@ -8,7 +8,7 @@ import {
   packageMemberRefusals,
   sameMembership,
 } from "#routes/admin/catalog-transfer/bundle-plan.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** The minimal ListingInput a plan needs for the pure helpers. */
@@ -56,25 +56,25 @@ describe("bundle plan helpers", () => {
 
   test("edgeListingOfRow projects the stored row's edge fields", () => {
     const row = testListingWithCount({
-      assign_built_site: true,
-      customisable_days: true,
-      day_prices: { "1": 600 },
-      duration_days: 2,
+      assignBuiltSite: true,
+      customisableDays: true,
+      dayPrices: { "1": 600 },
+      durationDays: 2,
       id: 7,
-      listing_type: "standard",
-      min_quantity: 1,
-      months_per_unit: 1,
+      listingType: "standard",
+      minQuantity: 1,
+      monthsPerUnit: 1,
       name: "Stored",
     });
     expect(edgeListingOfRow(row)).toEqual({
-      assign_built_site: true,
-      customisable_days: true,
-      day_prices: { "1": 600 },
-      duration_days: 2,
+      assignBuiltSite: true,
+      customisableDays: true,
+      dayPrices: { "1": 600 },
+      durationDays: 2,
       id: 7,
-      listing_type: "standard",
-      min_quantity: 1,
-      months_per_unit: 1,
+      listingType: "standard",
+      minQuantity: 1,
+      monthsPerUnit: 1,
       name: "Stored",
     });
   });
@@ -104,9 +104,9 @@ describe("bundle plan helpers", () => {
 
   test("packageMemberRefusals reports the pick count and the day override", () => {
     const dayFields = {
-      customisable_days: true,
-      day_prices: { "1": 600 },
-      duration_days: 1,
+      customisableDays: true,
+      dayPrices: { "1": 600 },
+      durationDays: 1,
     };
     // A member whose quantity 3 passes the cap of 1, and whose override
     // targets a 2-day booking the member does not offer.

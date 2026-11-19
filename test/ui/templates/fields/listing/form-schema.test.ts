@@ -12,18 +12,24 @@ describe("listing form schema", () => {
   test("parses month fields as numbers", () => {
     const result = getListingForm().validate(
       new FormParams({
-        initial_site_months: "12",
-        max_attendees: "10",
-        max_quantity: "2",
-        months_per_unit: "3",
+        durationDays: "1",
+        initialSiteMonths: "12",
+        maxAttendees: "10",
+        maximumDaysAfter: "90",
+        maxPrice: "0",
+        maxQuantity: "2",
+        minimumDaysBefore: "1",
+        minQuantity: "1",
+        monthsPerUnit: "3",
         name: "Example",
+        unitPrice: "0",
       }),
     );
 
     expect(result.valid).toBe(true);
     if (result.valid) {
-      expect(result.values.months_per_unit).toBe(3);
-      expect(result.values.initial_site_months).toBe(12);
+      expect(result.values.monthsPerUnit).toBe(3);
+      expect(result.values.initialSiteMonths).toBe(12);
     }
   });
 
@@ -44,27 +50,24 @@ describe("listing form schema", () => {
   });
 
   test("renders conditional fields from schema visibility", () => {
-    const visible = getListingEditForm({
-      builder: true,
-      logistics: true,
-      storage: true,
-      webhook: true,
-    });
+    const visible = getListingEditForm({ closed: new Map(), storage: true });
     const hidden = getListingEditForm({
-      builder: false,
-      logistics: false,
+      closed: new Map([
+        ["monthsPerUnit", "builder"],
+        ["usesLogistics", "logistics"],
+        ["webhookUrl", "editor"],
+      ]),
       storage: false,
-      webhook: false,
     });
 
     assertStringIncludes(visible.section("basics"), 'name="attachment"');
-    assertStringIncludes(visible.section("options"), 'name="uses_logistics"');
-    assertStringIncludes(visible.section("advanced"), 'name="months_per_unit"');
-    assertStringIncludes(visible.section("advanced"), 'name="webhook_url"');
+    assertStringIncludes(visible.section("options"), 'name="usesLogistics"');
+    assertStringIncludes(visible.section("advanced"), 'name="monthsPerUnit"');
+    assertStringIncludes(visible.section("advanced"), 'name="webhookUrl"');
     assert(!hidden.section("basics").includes('name="attachment"'));
-    assert(!hidden.section("options").includes('name="uses_logistics"'));
-    assert(!hidden.section("advanced").includes('name="months_per_unit"'));
-    assert(!hidden.section("advanced").includes('name="webhook_url"'));
+    assert(!hidden.section("options").includes('name="usesLogistics"'));
+    assert(!hidden.section("advanced").includes('name="monthsPerUnit"'));
+    assert(!hidden.section("advanced").includes('name="webhookUrl"'));
   });
 
   test("pairs customisable days with pay more so only one can hold", () => {
@@ -73,13 +76,13 @@ describe("listing form schema", () => {
     const why = `data-exclusive-why="${t("error.customisable_days_with_pay_more")}"`;
     const html = getListingEditForm().section("customisable");
     expect(html).toMatch(
-      /name="customisable_days"[^>]*data-exclusive-with="can_pay_more"/,
+      /name="customisableDays"[^>]*data-exclusive-with="canPayMore"/,
     );
     assertStringIncludes(html, why);
 
     const payMore = getListingEditForm().section("tickets");
     expect(payMore).toMatch(
-      /name="can_pay_more"[^>]*data-exclusive-with="customisable_days"/,
+      /name="canPayMore"[^>]*data-exclusive-with="customisableDays"/,
     );
     assertStringIncludes(payMore, why);
   });

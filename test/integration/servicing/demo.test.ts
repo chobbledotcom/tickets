@@ -104,10 +104,10 @@ describeWithEnv(
   () => {
     /** The servicing form fields for a single-quantity hold on `listingId`. */
     const servicingForm = (listingId: number, name: string) => ({
-      day_count: "1",
+      dayCount: "1",
       name,
-      [`quantity_${listingId}`]: "1",
-      start_date: "2099-07-01",
+      [`quantity${listingId}`]: "1",
+      startDate: "2099-07-01",
     });
 
     /** POST the servicing create form and return the created event id. */

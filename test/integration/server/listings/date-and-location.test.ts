@@ -4,7 +4,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
 import {
   assertAdminHtml,
-  expectHtmlResponse,
   fetchListingExportCsv,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -13,7 +12,8 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
+import { expectOwnEditRefused } from "#test-utils/listing-submits.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("server listings > date and location", { db: true }, () => {
   describe("listing date and location", () => {
@@ -115,21 +115,11 @@ describeWithEnv("server listings > date and location", { db: true }, () => {
     });
 
     test("rejects invalid listing date on edit", async () => {
-      const { listing } = await setupListingAndLogin();
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
+      await expectOwnEditRefused(
         {
-          date_date: "not-a-date",
-          date_time: "99:99",
-          max_attendees: "100",
-          max_quantity: "1",
-          name: listing.name,
-          slug: listing.slug,
+          dateDate: "not-a-date",
+          dateTime: "99:99",
         },
-      );
-      await expectHtmlResponse(
-        response,
-        400,
         "Please enter a valid date and time",
       );
     });

@@ -46,7 +46,7 @@ describe("WalletSettingsForm", () => {
         secretFields: [
           {
             labelKey: "settings.advanced.google_service_key",
-            name: "google_wallet_service_account_key",
+            name: "googleWalletServiceAccountKey",
             placeholder: "-----BEGIN PRIVATE KEY-----",
           },
         ],
@@ -54,7 +54,7 @@ describe("WalletSettingsForm", () => {
         textFields: [
           {
             labelKey: "settings.advanced.google_issuer_id",
-            name: "google_wallet_issuer_id",
+            name: "googleWalletIssuerId",
             placeholder: "3388000000012345678",
             type: "text",
             value: "3388000000012345678",
@@ -81,14 +81,14 @@ describe("WalletSettingsForm", () => {
 
     expectIncludesAll(html, [
       "<label>Issuer ID<input",
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="google_wallet_issuer_id" placeholder="3388000000012345678" type="text" value="3388000000012345678">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="googleWalletIssuerId" placeholder="3388000000012345678" type="text" value="3388000000012345678">`,
     ]);
   });
 
   test("masks the secret textarea only once the site saves credentials", () => {
     assertStringIncludes(
       probe(false),
-      `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="google_wallet_service_account_key" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea>`,
+      `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="googleWalletServiceAccountKey" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea>`,
     );
 
     assertStringIncludes(probe(true), `rows="4">${MASK_SENTINEL}</textarea>`);

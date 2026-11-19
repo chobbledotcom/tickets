@@ -47,7 +47,7 @@ const AgentSelector = ({
     hint={t("users.agents.hint")}
     legend={t("users.agents.legend")}
   >
-    <ItemCheckboxList checkedIds={selected} items={agents} name="agent_ids" />
+    <ItemCheckboxList checkedIds={selected} items={agents} name="agentIds" />
   </CheckboxFieldset>
 );
 
@@ -168,7 +168,7 @@ export const adminUserNewPage = (
   agents: LogisticsAgent[],
   error?: string,
 ): string =>
-  errorAdminPage(t("users.invite.title"), "/admin/user/new")(session, error)(
+  errorAdminPage(t("users.invite.title"), "/admin/users/new")(session, error)(
     <NewResourceForm
       action="/admin/users"
       fieldsHtml={getInviteUserForm().render()}
@@ -202,7 +202,7 @@ export const UserAgentsPanel = ({
       <p>
         <em>
           {t("users.agents.none_exist")}{" "}
-          <a href="/admin/logistics">{t("nav.logistics")}</a>.
+          <a href="/admin/logistics">{t("terms.logistics")}</a>.
         </em>
       </p>
     ) : (

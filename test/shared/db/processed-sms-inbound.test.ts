@@ -5,11 +5,12 @@ import {
   claimProcessedSmsInbound,
   pruneProcessedSmsInboundBefore,
 } from "#db/processed-sms-inbound.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const storedCount = async (): Promise<number> => {
   const row = await queryOne<{ total: number }>(
-    "SELECT COUNT(*) AS total FROM processed_sms_inbound",
+    sql`SELECT COUNT(*) AS total FROM processed_sms_inbound`,
   );
   return Number(row?.total ?? 0);
 };

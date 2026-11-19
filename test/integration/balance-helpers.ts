@@ -3,6 +3,7 @@ import { type Stub, stub } from "@std/testing/mock";
 import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
@@ -26,7 +27,7 @@ export const settle = (id = "settle-session") => ({
 /** POST a pay form for a token as the customer. */
 export const postPay = async (token: string): Promise<Response> =>
   handleRequest(
-    mockFormRequest(`/pay/${token}`, { csrf_token: await testCsrfToken() }, ""),
+    mockFormRequest(`/pay/${token}`, { csrfToken: await testCsrfToken() }, ""),
   );
 
 /** Insert a bare attendee row (no bookings) with a status and balance. */
@@ -36,10 +37,9 @@ export const insertBareAttendee = async (
 ): Promise<number> => {
   // A current `created` keeps this bare (booking-less) attendee out of the
   // orphaned-record auto-purge, which reaps orphans older than the retention.
-  const inserted = await getDb().execute({
-    args: [new Date().toISOString(), statusId],
-    sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-  });
+  const inserted = await getDb().execute(
+    sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`,
+  );
   const attendeeId = Number(inserted.lastInsertRowid);
   // Outstanding balance projects from the ledger: owe `remainingBalance` via a
   // sale leg to a listing with no booking row, nothing paid.
@@ -183,6 +183,7 @@ export const balanceSession = (
   currency: "gbp",
   expires_at: 1_700_003_600,
   id,
+  invoice: null,
   metadata: {
     ...signMeta(
       webhookMeta({
@@ -194,9 +195,11 @@ export const balanceSession = (
     ),
     ...meta,
   },
+  mode: "payment",
   payment_intent: id.replace(/^cs_/, "pi_"),
   payment_status: "paid",
   status: "complete",
+  subscription: null,
   url: null,
   ...over,
 });

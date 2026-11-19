@@ -57,13 +57,13 @@ describe("CUSTOM_SETTINGS_FIELDS", () => {
 
   test("labels each field from the catalog key that names it", () => {
     expect(
-      byName(fieldsOf("settings-custom-domain"), "custom_domain").label,
+      byName(fieldsOf("settings-custom-domain"), "customDomain").label,
     ).toBe(en["settings.advanced.domain_label"]);
     expect(byName(fieldsOf("settings-host-subdomain"), "subdomain").label).toBe(
       en["settings.subdomain.subdomain_label"],
     );
     expect(
-      byName(fieldsOf("settings-sms-gateway"), "sms_gateway_username").label,
+      byName(fieldsOf("settings-sms-gateway"), "smsGatewayUsername").label,
     ).toBe(en["sms.settings.username"]);
   });
 
@@ -129,14 +129,15 @@ describe("emailTemplateSettingsFields", () => {
 describe("settingsFieldAttributes", () => {
   test("answers a named field's browser limit", () => {
     const appleWallet = fieldsOf("settings-apple-wallet");
+    expect(settingsFieldAttributes(appleWallet, "appleWalletTeamId")).toEqual({
+      maxlength: MAX_INPUT_LENGTH,
+      name: "appleWalletTeamId",
+    });
     expect(
-      settingsFieldAttributes(appleWallet, "apple_wallet_team_id"),
-    ).toEqual({ maxlength: MAX_INPUT_LENGTH, name: "apple_wallet_team_id" });
-    expect(
-      settingsFieldAttributes(appleWallet, "apple_wallet_signing_cert"),
+      settingsFieldAttributes(appleWallet, "appleWalletSigningCert"),
     ).toEqual({
       maxlength: MAX_TEXTAREA_LENGTH,
-      name: "apple_wallet_signing_cert",
+      name: "appleWalletSigningCert",
     });
   });
 

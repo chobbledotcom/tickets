@@ -45,8 +45,8 @@ const refundPost = (
     mockFormRequest(
       surface.url(ctx),
       {
-        confirm_identifier: surface.confirm(ctx),
-        csrf_token: ctx.csrfToken,
+        confirmIdentifier: surface.confirm(ctx),
+        csrfToken: ctx.csrfToken,
       },
       cookie,
     ),

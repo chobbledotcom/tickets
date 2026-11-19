@@ -55,7 +55,7 @@ describe("adminCalendarPage filters", () => {
       'href="/admin/calendar?date=2026-08-16&amp;agent=5#attendees"',
       'href="/admin/calendar?date=2026-03-15&amp;agent=5&amp;cal=2026-07#calendar"',
       'href="/admin/calendar/export?date=2026-03-15&amp;agent=5"',
-      'name="return_url" type="hidden" value="/admin/calendar?date=2026-03-15&amp;agent=5#attendees"',
+      'name="returnUrl" type="hidden" value="/admin/calendar?date=2026-03-15&amp;agent=5#attendees"',
       'value="/admin/calendar#attendees"',
     ]);
   });

@@ -17,6 +17,7 @@ import {
   pagePaid,
 } from "#templates/public/reservations/contact-fields.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import type { ListingWithCount } from "#types";
 
 /** Run `fn` as though Square is the payment provider, the only provider that
  * imposes an email field on a paid order. */
@@ -31,7 +32,7 @@ const underSquare = <T>(fn: () => T): T => {
 
 /** A listing on the page, carrying the fields its row names. */
 const pageListing = (
-  overrides: Record<string, unknown>,
+  overrides: Partial<ListingWithCount>,
 ): ReturnType<typeof buildTicketListing> =>
   buildTicketListing(testListingWithCount(overrides), false, undefined);
 
@@ -124,7 +125,7 @@ describe("contact-fields", () => {
       const fields = underSquare(() =>
         buildContactFields(
           [pageListing({ fields: "", id: 1 })],
-          new Map([[1, [pageListing({ fields: "", id: 2, unit_price: 5 })]]]),
+          new Map([[1, [pageListing({ fields: "", id: 2, unitPrice: 5 })]]]),
           false,
           true,
         ),
@@ -149,7 +150,7 @@ describe("contact-fields", () => {
   describe("pagePaid", () => {
     test("a listing's own price pays the page", () => {
       expect(
-        pagePaid(paidInput([pageListing({ id: 1, unit_price: 500 })])),
+        pagePaid(paidInput([pageListing({ id: 1, unitPrice: 500 })])),
       ).toBe(true);
     });
 
@@ -173,14 +174,14 @@ describe("contact-fields", () => {
     });
 
     test("a package's explicit free price makes the bundled path free", () => {
-      const member = pageListing({ id: 1, unit_price: 500 });
+      const member = pageListing({ id: 1, unitPrice: 500 });
       expect(pagePaid(paidInput([member], [packageOver([1], { 1: 0 })]))).toBe(
         false,
       );
     });
 
     test("the member's own price still counts beside its bundle row", () => {
-      const member = pageListing({ id: 1, unit_price: 500 });
+      const member = pageListing({ id: 1, unitPrice: 500 });
       expect(
         pagePaid(paidInput([member], [packageOver([1], { 1: 0 })], [1])),
       ).toBe(true);
@@ -192,8 +193,8 @@ describe("contact-fields", () => {
         paidInput(
           [
             pageListing({
-              customisable_days: true,
-              day_prices: { 2: 0 },
+              customisableDays: true,
+              dayPrices: { 2: 0 },
               id: 1,
             }),
           ],
@@ -221,7 +222,7 @@ describe("contact-fields", () => {
       expect(
         pageOrChildPaid({
           childrenByParentId: new Map([
-            [1, [pageListing({ id: 2, unit_price: 5 })]],
+            [1, [pageListing({ id: 2, unitPrice: 5 })]],
           ]),
           ...paidInput([pageListing({ id: 1 })]),
         }),

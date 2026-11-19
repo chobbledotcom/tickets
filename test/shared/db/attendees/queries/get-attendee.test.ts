@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeePiiBlobsForListings } from "#db/attendees/pii.ts";
 import {
   getAttendeeBookingRowsRaw,
@@ -12,7 +11,9 @@ import {
 } from "#db/attendees/queries.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookTestAttendeeId } from "#test-utils/db-helpers/attendee-booking.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
@@ -45,13 +46,10 @@ describeWithEnv("db > attendees > getAttendeeOrNull", { db: true }, () => {
 describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
   test("getAttendeesByIds returns nothing for no ids and rows for one", async () => {
     const listing = await createTestListing();
-    const made = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "by-ids@example.com",
-      name: "By Ids",
-    });
-    if (!made.success) throw new Error("booking setup failed");
-    const attendeeId = made.attendees[0]!.id;
+    const attendeeId = await bookTestAttendeeId(
+      [{ listingId: listing.id, quantity: 1 }],
+      "By Ids",
+    );
 
     expect(await getAttendeesByIds([])).toEqual([]);
     const rows = await getAttendeesByIds([attendeeId]);
@@ -61,25 +59,21 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
 
   test("getFirstBooking reports a one-ticket line as active and a ghost as not", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
-    const made = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "first-booking@example.com",
-      name: "First Booking",
-    });
-    if (!made.success) throw new Error("booking setup failed");
-    expect(await getFirstBooking(made.attendees[0]!.id)).toEqual({
+    const attendeeId = await bookTestAttendeeId(
+      [{ listingId: listing.id, quantity: 1 }],
+      "First Booking",
+    );
+    expect(await getFirstBooking(attendeeId)).toEqual({
       active: true,
       listingId: listing.id,
     });
 
-    const ghost = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 0 }],
-      email: "first-ghost@example.com",
-      name: "First Ghost",
-    });
-    if (!ghost.success) throw new Error("booking setup failed");
+    const ghostId = await bookTestAttendeeId(
+      [{ listingId: listing.id, quantity: 0 }],
+      "First Ghost",
+    );
     // No real line remains, so the first booking is the placeholder: inactive.
-    expect(await getFirstBooking(ghost.attendees[0]!.id)).toEqual({
+    expect(await getFirstBooking(ghostId)).toEqual({
       active: false,
       listingId: listing.id,
     });
@@ -87,15 +81,11 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
   });
 
   test("hasPaidLine reads the ledger sale stamped on the row", async () => {
-    const listing = await createTestListing({ maxAttendees: 10 });
-    const other = await createTestListing({ maxAttendees: 10 });
-    const made = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "paid-line@example.com",
-      name: "Paid Line",
-    });
-    if (!made.success) throw new Error("booking setup failed");
-    const attendeeId = made.attendees[0]!.id;
+    const [listing, other] = await createListingPair({ maxAttendees: 10 });
+    const attendeeId = await bookTestAttendeeId(
+      [{ listingId: listing.id, quantity: 1 }],
+      "Paid Line",
+    );
     await postListingSale({
       attendeeId,
       gross: 500,
@@ -107,18 +97,16 @@ describeWithEnv("db > attendees > raw lookups", { db: true }, () => {
   });
 
   test("getAttendeeBookingRowsRaw keeps real lines and drops ghost lines", async () => {
-    const listing = await createTestListing({ maxAttendees: 10 });
-    const ghostListing = await createTestListing({ maxAttendees: 10 });
-    const made = await attendeesApi.createAttendeeAtomic({
-      bookings: [
+    const [listing, ghostListing] = await createListingPair({
+      maxAttendees: 10,
+    });
+    const attendeeId = await bookTestAttendeeId(
+      [
         { listingId: listing.id, pricePaid: 500, quantity: 1 },
         { listingId: ghostListing.id, quantity: 0 },
       ],
-      email: "package-rows@example.com",
-      name: "Package Rows",
-    });
-    if (!made.success) throw new Error("booking setup failed");
-    const attendeeId = made.attendees[0]!.id;
+      "Package Rows",
+    );
 
     const rows = await getAttendeeBookingRowsRaw(attendeeId);
 

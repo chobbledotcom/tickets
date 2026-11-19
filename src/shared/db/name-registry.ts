@@ -10,9 +10,7 @@
 
 import { groups } from "#db/groups.ts";
 import { getAllListings } from "#db/listings/records.ts";
-import { t } from "#i18n";
 import { matchKey } from "#shared/keys.ts";
-import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import type { Group, ListingWithCount, SitePageItemType } from "#types";
 
 /** The two entity kinds that share the catalog name namespace. Derived from
@@ -55,7 +53,7 @@ export type CatalogNameIndex = {
 /** The decrypted catalog pair — every listing and every group — that name
  *  resolution and the public URL lists share. */
 export const loadCatalogPair = (): Promise<[ListingWithCount[], Group[]]> =>
-  Promise.all([getAllListings(), groups.cache.getAll()]);
+  Promise.all([getAllListings(), groups.getAll()]);
 
 /** Load the listing and group name indexes from the (cached) decrypted catalog. */
 export const loadCatalogNameIndex = async (): Promise<CatalogNameIndex> => {
@@ -97,14 +95,3 @@ export const isNameTakenAnywhere = async (
     );
   return ownedByOther(listing, "listing") || ownedByOther(group, "group");
 };
-
-/**
- * Length cap for a catalog name — a listing's or a group's. Every provider
- * order carries listing names ("Ticket: <name>" at Square), and a concealed
- * package order carries the GROUP's name in the members' place, so both kinds
- * stay inside the input length limit or the error naming it.
- */
-export const catalogNameLengthError = (name: string): string | null =>
-  name.length > MAX_INPUT_LENGTH
-    ? t("fields.validation.name_max", { max: MAX_INPUT_LENGTH })
-    : null;

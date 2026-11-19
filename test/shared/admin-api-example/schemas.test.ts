@@ -27,13 +27,13 @@ const bundle = () =>
   ).package;
 
 /** Break a documented body the given way and expect the shape to refuse it. */
-const refuses = (schema: v.GenericSchema, broken: unknown): void => {
+const expectRefused = (schema: v.GenericSchema, broken: unknown): void => {
   expect(() => v.parse(schema, broken)).toThrow();
 };
 
 /** The same body, whole, is expected to pass — so a refusal above is the rule
  * biting rather than the example being wrong to begin with. */
-const accepts = (schema: v.GenericSchema, whole: unknown): void => {
+const expectAccepted = (schema: v.GenericSchema, whole: unknown): void => {
   expect(() => v.parse(schema, whole)).not.toThrow();
 };
 
@@ -53,6 +53,7 @@ const packageGroup = (member: unknown) => ({
   max_attendees: 50,
   name: "Camping Weekend",
   package_members: [member],
+  scan_checks_in_all_listings: false,
   show_hidden_listings: true,
   slug: "camping-weekend",
   terms_and_conditions: "",
@@ -62,21 +63,21 @@ const pricedMember = { listing_id: 7, price: 2500, quantity: 1 };
 
 describe("the shapes the documentation is measured against", () => {
   test("a date nobody could book is not a date", () => {
-    refuses(PublicListingSchema, {
+    expectRefused(PublicListingSchema, {
       ...listing(),
       availableDates: ["20 Aug"],
     });
   });
 
   test("an add-on's dates are read as strictly as its parent's", () => {
-    refuses(PublicListingDetailSchema, {
+    expectRefused(PublicListingDetailSchema, {
       ...listing(),
       children: [{ ...listing(), availableDates: ["20 Aug"] }],
     });
   });
 
   test("a listing sold by the unit has no day prices", () => {
-    refuses(PublicListingSchema, {
+    expectRefused(PublicListingSchema, {
       ...listing(),
       customisableDays: false,
       dayPrices: { 1: 1000 },
@@ -87,30 +88,36 @@ describe("the shapes the documentation is measured against", () => {
     const daily = { ...listing(), customisableDays: true };
     delete daily.dayPrices;
 
-    refuses(PublicListingSchema, daily);
+    expectRefused(PublicListingSchema, daily);
   });
 
   test("a day's price is money, in whole pennies", () => {
     const daily = { ...listing(), customisableDays: true };
 
-    accepts(PublicListingSchema, { ...daily, dayPrices: { 1: 1000 } });
-    refuses(PublicListingSchema, { ...daily, dayPrices: { 1: -1 } });
-    refuses(PublicListingSchema, { ...daily, dayPrices: { 1: 10.5 } });
+    expectAccepted(PublicListingSchema, { ...daily, dayPrices: { 1: 1000 } });
+    expectRefused(PublicListingSchema, { ...daily, dayPrices: { 1: -1 } });
+    expectRefused(PublicListingSchema, { ...daily, dayPrices: { 1: 10.5 } });
   });
 
   test("a day price is for a real number of days", () => {
     const daily = { ...listing(), customisableDays: true };
 
-    refuses(PublicListingSchema, { ...daily, dayPrices: { 0: 1000 } });
-    refuses(PublicListingSchema, { ...daily, dayPrices: { "1.5": 1000 } });
-    refuses(PublicListingSchema, { ...daily, dayPrices: { unknown: 1000 } });
+    expectRefused(PublicListingSchema, { ...daily, dayPrices: { 0: 1000 } });
+    expectRefused(PublicListingSchema, {
+      ...daily,
+      dayPrices: { "1.5": 1000 },
+    });
+    expectRefused(PublicListingSchema, {
+      ...daily,
+      dayPrices: { unknown: 1000 },
+    });
   });
 
   test("browsing never carries the dates a listing is free on", () => {
     const dates = { availableDates: ["2025-08-20"] };
 
-    refuses(PublicListingSchema, { ...listing(), ...dates });
-    refuses(PublicListingSchema, {
+    expectRefused(PublicListingSchema, { ...listing(), ...dates });
+    expectRefused(PublicListingSchema, {
       ...listing(),
       ...dates,
       listingType: "daily",
@@ -120,14 +127,14 @@ describe("the shapes the documentation is measured against", () => {
   test("a listing on its own page carries dates when it is sold by the day", () => {
     const daily = { ...listing(), listingType: "daily" };
 
-    accepts(PublicListingDetailSchema, {
+    expectAccepted(PublicListingDetailSchema, {
       ...daily,
       availableDates: ["2025-08-20"],
     });
     // Sold by the day, but the dates are missing.
-    refuses(PublicListingDetailSchema, daily);
+    expectRefused(PublicListingDetailSchema, daily);
     // Not sold by the day, yet carrying dates.
-    refuses(PublicListingDetailSchema, {
+    expectRefused(PublicListingDetailSchema, {
       ...listing(),
       availableDates: ["2025-08-20"],
     });
@@ -140,7 +147,7 @@ describe("the shapes the documentation is measured against", () => {
     const [member] = pkg.members;
     const [child] = member.children;
 
-    accepts(PackageResponseSchema, {
+    expectAccepted(PackageResponseSchema, {
       ...pkg,
       members: [
         {
@@ -153,14 +160,14 @@ describe("the shapes the documentation is measured against", () => {
   });
 
   test("a bundle prices each length once", () => {
-    accepts(
+    expectAccepted(
       PackageResponseSchema,
       bundlePricedByDay([
         { days: 2, priceMinor: 5500 },
         { days: 3, priceMinor: 7500 },
       ]),
     );
-    refuses(
+    expectRefused(
       PackageResponseSchema,
       bundlePricedByDay([
         { days: 2, priceMinor: 5500 },
@@ -172,18 +179,18 @@ describe("the shapes the documentation is measured against", () => {
   test("a package group names each of its members once", () => {
     const second = { ...pricedMember, listing_id: 8 };
 
-    accepts(AdminGroupSchema, {
+    expectAccepted(AdminGroupSchema, {
       ...packageGroup(pricedMember),
       package_members: [pricedMember, second],
     });
-    refuses(AdminGroupSchema, {
+    expectRefused(AdminGroupSchema, {
       ...packageGroup(pricedMember),
       package_members: [pricedMember, { ...pricedMember, quantity: 2 }],
     });
   });
 
   test("a listing on its own page offers each of its dates once", () => {
-    refuses(PublicListingDetailSchema, {
+    expectRefused(PublicListingDetailSchema, {
       ...listing(),
       availableDates: ["2025-08-20", "2025-08-20"],
       listingType: "daily",
@@ -196,16 +203,16 @@ describe("the shapes the documentation is measured against", () => {
         .request!,
     );
 
-    accepts(PackageBookRequestSchema, { ...booking, dayCount: "2" });
+    expectAccepted(PackageBookRequestSchema, { ...booking, dayCount: "2" });
   });
 
   test("a member with no repriced spans leaves them out", () => {
-    accepts(AdminGroupSchema, packageGroup(pricedMember));
-    accepts(
+    expectAccepted(AdminGroupSchema, packageGroup(pricedMember));
+    expectAccepted(
       AdminGroupSchema,
       packageGroup({ ...pricedMember, day_prices: { 2: 4000 } }),
     );
-    refuses(
+    expectRefused(
       AdminGroupSchema,
       packageGroup({ ...pricedMember, day_prices: {} }),
     );
@@ -215,12 +222,12 @@ describe("the shapes the documentation is measured against", () => {
     const pkg = bundle();
 
     // Out of the order the merge emits, and a name it does not know.
-    refuses(PackageResponseSchema, { ...pkg, fields: "phone,email" });
-    refuses(PackageResponseSchema, { ...pkg, fields: "bogus" });
+    expectRefused(PackageResponseSchema, { ...pkg, fields: "phone,email" });
+    expectRefused(PackageResponseSchema, { ...pkg, fields: "bogus" });
   });
 
   test("a bundle offers each of its dates once", () => {
-    refuses(PackageResponseSchema, {
+    expectRefused(PackageResponseSchema, {
       ...bundle(),
       availableDates: ["2025-08-20", "2025-08-20"],
     });
@@ -234,14 +241,14 @@ describe("the shapes the documentation is measured against", () => {
     const { quantity: _ordered, ...unstated } = booking;
 
     // Saying nothing means one bundle, and a digit string spells a number.
-    accepts(PackageBookRequestSchema, unstated);
-    accepts(PackageBookRequestSchema, { ...booking, quantity: "2" });
+    expectAccepted(PackageBookRequestSchema, unstated);
+    expectAccepted(PackageBookRequestSchema, { ...booking, quantity: "2" });
   });
 
   test("a bundle names each of its parts once", () => {
     const pkg = bundle();
 
-    refuses(PackageResponseSchema, {
+    expectRefused(PackageResponseSchema, {
       ...pkg,
       members: [...pkg.members, pkg.members[0]],
     });

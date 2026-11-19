@@ -4,24 +4,26 @@ import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
+import { getAllListingOptions } from "#db/listings/catalog.ts";
 import {
-  getAllListingOptions,
+  createListing,
   getAllListings,
   getListingsBySlugs,
   getListingWithCount,
   getStoredListingsWithCountsByIds,
   getStoredListingWithCount,
-  listingNames,
-  listingsTable,
+  listingNamesByIds,
   requireListingsWithCountsByIds,
   requireListingWithCount,
+  updateListing,
 } from "#db/listings/records.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
+import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -93,7 +95,7 @@ describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
           { active: false, id: beta.id, name: "Beta" },
         ]);
         expect(getQueryLog().map((entry) => entry.sql)).toEqual([
-          "SELECT listing.id, listing.name, listing.active FROM listings AS listing ORDER BY listing.id ASC",
+          "SELECT listing.id AS id, listing.name AS name, listing.active AS active FROM listings AS listing ORDER BY listing.id",
         ]);
       });
     });
@@ -102,21 +104,21 @@ describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
       expect(await getAllListingOptions()).toEqual([]);
     });
 
-    test("listingNames.byIds returns decrypted names only for the given ids", async () => {
+    test("listingNamesByIds returns decrypted names only for the given ids", async () => {
       const alpha = await createTestListing({
         maxAttendees: 10,
         name: "Alpha",
       });
       const beta = await createTestListing({ maxAttendees: 10, name: "Beta" });
 
-      const names = await listingNames.byIds([alpha.id]);
+      const names = await listingNamesByIds([alpha.id]);
 
       expect(names.get(alpha.id)).toBe("Alpha");
       expect(names.has(beta.id)).toBe(false);
     });
 
-    test("listingNames.byIds returns an empty map for no ids", async () => {
-      const names = await listingNames.byIds([]);
+    test("listingNamesByIds returns an empty map for no ids", async () => {
+      const names = await listingNamesByIds([]);
       expect(names.size).toBe(0);
     });
   });
@@ -174,7 +176,7 @@ describeWithEnv(
   },
   () => {
     const insertPriced = async () =>
-      await listingsTable.insert({
+      await createListing({
         dayPrices: { 2: 500 },
         maxAttendees: 10,
         maxPrice: 0,
@@ -184,43 +186,43 @@ describeWithEnv(
         unitPrice: 700,
       });
 
+    /** The base price the listing mirrors into its price rows. */
+    const storedBasePrice = async (
+      listingId: number,
+    ): Promise<number | undefined> => {
+      const row = await queryOne<{ unit_price: number }>(
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listingId} AND price_type = ${PRICE_TYPE_BASE}`,
+      );
+      return row?.unit_price;
+    };
+
     test("an insert stores day prices, mirrors the base price, and carries no image", async () => {
       const listing = await insertPriced();
-      expect(listing.image_url).toBe("");
-      expect(listing.image_thumb_url).toBe("");
-      expect(listing.image_alt_text).toBe("");
+      expect(listing.imageUrl).toBe("");
+      expect(listing.imageThumbUrl).toBe("");
+      expect(listing.imageAltText).toBe("");
       expect((await getListingDayPrices(listing.id))[2]).toBe(500);
-      const base = await queryOne<{ unit_price: number }>(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-        [listing.id, PRICE_TYPE_BASE],
-      );
-      expect(base?.unit_price).toBe(700);
+      expect(await storedBasePrice(listing.id)).toBe(700);
     });
 
     test("an update rewrites the day prices and re-mirrors the base price", async () => {
       const listing = await insertPriced();
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         dayPrices: { 3: 900 },
         unitPrice: 800,
       });
       const prices = await getListingDayPrices(listing.id);
-      expect(prices[2]).toBeUndefined();
+      expect(prices[2]).toBe(undefined);
       expect(prices[3]).toBe(900);
-      const base = await queryOne<{ unit_price: number }>(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-        [listing.id, PRICE_TYPE_BASE],
-      );
-      expect(base?.unit_price).toBe(800);
+      expect(await storedBasePrice(listing.id)).toBe(800);
     });
 
     test("a booked listing's profit is its income minus its cost", async () => {
-      const listing = await createTestListing({ unitPrice: 600 });
-      await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Profit Probe",
-        "profit@example.com",
-      );
+      const { listing } = await setupListingAndAttendee({
+        email: "profit@example.com",
+        listing: { unitPrice: 600 },
+        name: "Profit Probe",
+      });
       const counted = await requireListingWithCount(listing.id);
       expect(counted.cost).toBe(0);
       expect(counted.profit).toBe(counted.income);
@@ -245,24 +247,24 @@ describeWithEnv(
       // Each dependency table's writes must empty the cache again: the next
       // read re-queries. A no-op write still counts — invalidation keys on the
       // statement's table and (for attendees) its written columns.
-      const writes: [string, string][] = [
+      const writes: [string, SqlStatement][] = [
         [
           "listing_attendees",
-          "UPDATE listing_attendees SET quantity = quantity WHERE id = -1",
+          sql`UPDATE listing_attendees SET quantity = quantity WHERE id = -1`,
         ],
-        ["transfers", "UPDATE transfers SET id = id WHERE id = -1"],
+        ["transfers", sql`UPDATE transfers SET id = id WHERE id = -1`],
         [
           "listing_prices",
-          "UPDATE listing_prices SET unit_price = unit_price WHERE listing_id = -1",
+          sql`UPDATE listing_prices SET unit_price = unit_price WHERE listing_id = -1`,
         ],
         [
           "image_uses",
-          "UPDATE image_uses SET image_id = image_id WHERE image_id = -1",
+          sql`UPDATE image_uses SET image_id = image_id WHERE image_id = -1`,
         ],
-        ["images", "UPDATE images SET id = id WHERE id = -1"],
+        ["images", sql`UPDATE images SET id = id WHERE id = -1`],
       ];
-      for (const [table, sql] of writes) {
-        await execute(sql);
+      for (const [table, statement] of writes) {
+        await execute(statement);
         const calls = await withRequestContext(async () => {
           enableQueryLog();
           await getAllListings();

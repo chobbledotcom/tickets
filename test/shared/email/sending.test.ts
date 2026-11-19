@@ -13,6 +13,7 @@ import {
   testEmailConfig,
   validEmail,
 } from "#test-utils/email.ts";
+import { expectEmailParts } from "#test-utils/email-parts.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 
 const plainMsg: EmailMessage = {
@@ -115,9 +116,10 @@ describe("sendEmail", () => {
     const body = fetch.getFetchJsonBody();
     expect(body.From).toBe("tickets@example.com");
     expect(body.To).toBe("user@test.com");
-    expect(body.Subject).toBe("Test");
-    expect(body.HtmlBody).toBe("<p>Hi</p>");
-    expect(body.TextBody).toBe("Hi");
+    expectEmailParts(
+      { html: body.HtmlBody, subject: body.Subject, text: body.TextBody },
+      { html: "<p>Hi</p>", subject: "Test", text: "Hi" },
+    );
   });
 
   test("sends via SendGrid with correct URL, headers, and body", async () => {
@@ -155,7 +157,7 @@ describe("sendEmail", () => {
       to: validEmail("user@test.com"),
     });
 
-    expect(fetch.getFetchJsonBody().reply_to).toBeUndefined();
+    expect(fetch.getFetchJsonBody().reply_to).toBe(undefined);
   });
 
   test("sends via Mailgun (US) with correct URL, headers, and FormData body", async () => {

@@ -51,7 +51,7 @@ const bulkForm = (
     <SubmitWithHidden
       buttonClass={buttonClass}
       label={label}
-      name="check_in"
+      name="checkIn"
       value={nextValue}
     />
   </CsrfForm>
@@ -101,7 +101,7 @@ const staffBulkForm = (
           ? t("admin.checkin.check_out_all")
           : t("admin.checkin.check_in_all")
       }
-      name="check_in"
+      name="checkIn"
       value={offerCheckout ? "false" : "true"}
     />
   </CsrfForm>
@@ -132,7 +132,7 @@ export const checkinAdminPage = (
   // a refunded row left checked-in must not hide the action a checkable row
   // still needs.
   const eligibleRows = entries.filter(
-    (e) => !e.attendee.refunded && !e.listing.purchase_only,
+    (e) => !e.attendee.refunded && !e.listing.purchaseOnly,
   );
   // "All" means every live line fully admitted: a part booking still owes
   // tickets, so the check-in action stays.

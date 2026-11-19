@@ -11,7 +11,7 @@ import { allTransfers } from "#accounting/queries.ts";
 import { queryOne } from "#db/client.ts";
 import { getVisits, hashEmail } from "#db/contact-preferences.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { processParentApiBooking } from "#routes/api/folded-booking.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,6 +22,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { setPublicReservation } from "#test-utils/reservation/helpers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -34,12 +35,12 @@ const expectNothingCommitted = async (
 ): Promise<void> => {
   expect(
     (await queryOne<{ count: number }>(
-      "SELECT COUNT(*) AS count FROM attendees",
+      sql`SELECT COUNT(*) AS count FROM attendees`,
     ))!.count,
   ).toBe(0);
   expect(
     (await queryOne<{ count: number }>(
-      "SELECT COUNT(*) AS count FROM attendee_answers",
+      sql`SELECT COUNT(*) AS count FROM attendee_answers`,
     ))!.count,
   ).toBe(0);
   expect(await getVisits(await hashEmail(email))).toBe(0);
@@ -64,10 +65,8 @@ describeWithEnv(
       });
       // A stock-bearing surcharge makes the batch consume stock, so the
       // rollback must give the unit back too.
-      const kit = await modifiersTable.insert({
-        calcKind: "fixed",
+      const kit = await insertModifier({
         calcValue: 100,
-        direction: "charge",
         name: "Fault kit",
         stock: 2,
       });
@@ -83,7 +82,7 @@ describeWithEnv(
           submitTicketForm(listing.slug, {
             email,
             name: "Fault Buyer",
-            [`question_${choice.questionId}`]: String(choice.answerId),
+            [`question${choice.questionId}`]: String(choice.answerId),
           }),
         ).rejects.toThrow("registration activity rejected");
       } finally {

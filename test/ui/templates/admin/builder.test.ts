@@ -14,9 +14,9 @@ describe("adminBuilderPage", () => {
       "Site name",
       "Database URL",
       "Database token",
-      'name="site_name"',
-      'name="db_url"',
-      'name="db_token"',
+      'name="siteName"',
+      'name="dbUrl"',
+      'name="dbToken"',
       "Build site",
     ]);
   });

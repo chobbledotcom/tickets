@@ -1,4 +1,5 @@
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
@@ -15,18 +16,17 @@ export const postMultipartAs = async (
   cookie: string,
   data: TestFormValues,
 ): Promise<Response> => {
-  const csrf_token = await signCsrfToken();
+  const csrfToken = await signCsrfToken();
   return handleRequest(
-    mockMultipartRequest(path, { ...data, csrf_token }, cookie),
+    mockMultipartRequest(path, { ...data, csrfToken }, cookie),
   );
 };
 
 /** Read a listing's stored booked_quantity directly. */
 export const bookedQuantity = async (id: number): Promise<number> => {
-  const result = await getDb().execute({
-    args: [id],
-    sql: "SELECT booked_quantity FROM listings WHERE id = ?",
-  });
+  const result = await getDb().execute(
+    sql`SELECT booked_quantity FROM listings WHERE id = ${id}`,
+  );
   return Number((result.rows[0] as Record<string, unknown>).booked_quantity);
 };
 

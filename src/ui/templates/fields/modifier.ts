@@ -45,7 +45,7 @@ const getModifierFields = () =>
       defaultValue: "fixed",
       invalidMessage: "Invalid modifier type",
       label: "Type",
-      name: "calc_kind",
+      name: "calcKind",
       options: picklistOptions(CalcKindSchema, "modifiers.calc_kind"),
       type: "select",
     },
@@ -61,7 +61,7 @@ const getModifierFields = () =>
       hint: "Fixed: an amount in your currency. Percentage: e.g. 10 for 10%. Multiplier: e.g. 1.5. Direction is ignored for multipliers (the factor sets it).",
       inputmode: "decimal",
       label: "Value",
-      name: "calc_value",
+      name: "calcValue",
       // Required, so `validateSingleField` rejects empty input before `parse`
       // runs. Thus `parse` only ever sees a value the validator accepted.
       parse: (value: string) => Number(value),
@@ -99,7 +99,7 @@ const getModifierFields = () =>
       hint: "Only apply when the order subtotal is at least this amount (in your currency). Leave blank for no minimum.",
       inputmode: "decimal",
       label: "Minimum order (optional)",
-      name: "min_subtotal",
+      name: "minSubtotal",
       // Optional: blank means no minimum (0). `parse` maps blank to 0;
       // `validateSingleField` only runs `validate` on a non-empty value.
       parse: (value: string) => (value ? Number.parseFloat(value) : 0),
@@ -116,7 +116,7 @@ const getModifierFields = () =>
       hint: "Only apply to a returning customer with at least this many previous bookings. 0 (or blank) applies to everyone; 1 means seen at least once before.",
       label: t("modifiers.min_visits.label"),
       min: 0,
-      name: "min_visits",
+      name: "minVisits",
       // Blank means 0 (no visit gate). Any other value must be a whole
       // number, so `1e3` and `5abc` are refused. A negative one passes this
       // shape check and the declared minimum reports it.
@@ -135,7 +135,7 @@ const getModifierFields = () =>
       hint: t("modifiers.max_per_order.hint"),
       label: t("modifiers.max_per_order.label"),
       min: 1,
-      name: "max_per_order",
+      name: "maxPerOrder",
       ...wholeNumberFieldShape(t("modifiers.max_per_order.label")),
     },
     {

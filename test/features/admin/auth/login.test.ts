@@ -2,6 +2,7 @@ import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -61,10 +62,9 @@ const expectLoginRejectedWithWrappedKey = async (
   message: string,
 ): Promise<void> => {
   const { getDb } = await import("#db/client.ts");
-  await getDb().execute({
-    args: [wrappedDataKey],
-    sql: "UPDATE users SET wrapped_data_key = ? WHERE id = 1",
-  });
+  await getDb().execute(
+    sql`UPDATE users SET wrapped_data_key = ${wrappedDataKey} WHERE id = 1`,
+  );
   const response = await handleRequest(
     await mockAdminLoginRequest({
       password: TEST_ADMIN_PASSWORD,
@@ -99,7 +99,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
     test("shows login page", async () => {
       const html = await assertPublicHtml("/admin/login", "Login");
       // Login page contains a signed CSRF token in the form
-      expect(extractInputValue(html, "csrf_token")).toMatch(/^s1\./);
+      expect(extractInputValue(html, "csrfToken")).toMatch(/^s1\./);
     });
 
     test("redirects to /admin when already authenticated", async () => {
@@ -173,7 +173,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
     test("rejects login when CSRF token is invalid", async () => {
       const response = await handleRequest(
         mockFormRequest("/admin/login", {
-          csrf_token: "invalid-csrf-token",
+          csrfToken: "invalid-csrf-token",
           password: TEST_ADMIN_PASSWORD,
           username: TEST_ADMIN_USERNAME,
         }),
@@ -303,7 +303,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
         mockFormRequest(
           "/admin/login",
           {
-            csrf_token: csrfToken,
+            csrfToken,
             password: "wrong",
             username: TEST_ADMIN_USERNAME,
           },
@@ -364,15 +364,15 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       const gate = await awaitTestRequest("/admin/listings/12");
       const loginPage = await awaitTestRequest(gate.headers.get("location")!);
       const html = await loginPage.text();
-      expect(extractInputValue(html, "return_url")).toBe("/admin/listings/12");
+      expect(extractInputValue(html, "returnUrl")).toBe("/admin/listings/12");
       const response = await handleRequest(
         await mockAdminLoginRequest(
           {
             password: TEST_ADMIN_PASSWORD,
-            return_url: "/admin/listings/12",
+            returnUrl: "/admin/listings/12",
             username: TEST_ADMIN_USERNAME,
           },
-          extractInputValue(html, "csrf_token") ?? undefined,
+          extractInputValue(html, "csrfToken") ?? undefined,
         ),
       );
       expect(landedAt(response).pathname).toBe("/admin/listings/12");
@@ -382,7 +382,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({
           password: TEST_ADMIN_PASSWORD,
-          return_url: "/admin/listings/12?filter=A%26B",
+          returnUrl: "/admin/listings/12?filter=A%26B",
           username: TEST_ADMIN_USERNAME,
         }),
       );
@@ -403,7 +403,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
         const response = await handleRequest(
           await mockAdminLoginRequest({
             password: TEST_ADMIN_PASSWORD,
-            return_url: attack,
+            returnUrl: attack,
             username: TEST_ADMIN_USERNAME,
           }),
         );
@@ -415,13 +415,13 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({
           password: "wrong",
-          return_url: "/admin/listings/12",
+          returnUrl: "/admin/listings/12",
           username: TEST_ADMIN_USERNAME,
         }),
       );
       expectLoginRedirectWithReturn("/admin/listings/12")(response);
       const page = await followRedirectWithFlash(response, handleRequest);
-      expect(extractInputValue(await page.text(), "return_url")).toBe(
+      expect(extractInputValue(await page.text(), "returnUrl")).toBe(
         "/admin/listings/12",
       );
     });

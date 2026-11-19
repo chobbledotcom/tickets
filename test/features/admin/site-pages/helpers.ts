@@ -1,4 +1,5 @@
-import { getSitePageById, sitePages } from "#db/site-pages.ts";
+import { records } from "#db/record-table.ts";
+import { sitePages } from "#db/site-pages.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { SitePage } from "#types";
 
@@ -21,5 +22,5 @@ export const findPage = async (slug: string): Promise<SitePage> => {
   const rows = await sitePages.getAll();
   const row = rows.find((r) => r.slug === slug);
   if (!row) throw new Error(`page ${slug} not found`);
-  return (await getSitePageById(row.id))!;
+  return (await records.site_pages.find(row.id))!;
 };

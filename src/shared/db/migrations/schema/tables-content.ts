@@ -1,5 +1,6 @@
 /** Content, communications, ledger, and page tables. */
 
+import { sql } from "#db/sql.ts";
 import {
   attendeeIdColumn,
   datedRowColumns,
@@ -18,9 +19,9 @@ import {
   wholeNumberStartingAtNull,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import { declaredTables } from "./types.ts";
 
-export const contentTables: [name: string, table: Table][] = [
+export const contentTables = declaredTables([
   [
     // Per-contact marketing preferences, contact history, and visit counts,
     // keyed by an opaque HMAC blind index. Public checkout/unsubscribe paths can
@@ -120,7 +121,7 @@ export const contentTables: [name: string, table: Table][] = [
         ["source_id", text],
         ["dest_type", text],
         ["dest_id", text],
-        ["amount", checked("amount > 0")(wholeNumber)],
+        ["amount", checked(sql`amount > 0`)(wholeNumber)],
         // Epoch-millis: the indexed time column then sorts/ranges chronologically
         // with integer comparisons at high row counts. The host stores any ISO
         // instant as its epoch-millis and reads it back canonical (see
@@ -303,4 +304,4 @@ export const contentTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+]);

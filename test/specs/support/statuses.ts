@@ -23,10 +23,9 @@ import {
   rowsOnList,
 } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import { movingRowsOn } from "#test/specs/support/reordering.ts";
+import { upArrowOn } from "#test/specs/support/reordering.ts";
 import type {
   ActOnOneThing,
-  AsksAboutOneThing,
   ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -44,11 +43,11 @@ type StateJob = "where a paid booking lands" | "where new bookings start";
 const JOBS: Record<StateJob, { badge: string; box: string }> = {
   "where a paid booking lands": {
     badge: "statuses.badge_paid",
-    box: "is_paid_default",
+    box: "isPaidDefault",
   },
   "where new bookings start": {
     badge: "statuses.badge_public_default",
-    box: "is_public_default",
+    box: "isPublicDefault",
   },
 };
 
@@ -91,9 +90,9 @@ export interface NewState {
  * it. A deposit means ticking the reservation box; a job means ticking that
  * job's own box. */
 const boxesToTick = (state: NewState): string[] => [
-  ...(state.deposit === undefined ? [] : ["is_reservation"]),
+  ...(state.deposit === undefined ? [] : ["isReservation"]),
   ...(state.job === undefined ? [] : [theJob(state.job).box]),
-  ...(state.meansTheBalanceIsPaid ? ["is_paid_default"] : []),
+  ...(state.meansTheBalanceIsPaid ? ["isPaidDefault"] : []),
 ];
 
 /** The organiser adds a state, following the Add link on their own list and
@@ -115,9 +114,9 @@ export const organiserAddsState = async (
       name: state.name,
       ...(state.deposit === undefined
         ? {}
-        : { reservation_amount: state.deposit }),
+        : { reservationAmount: state.deposit }),
     },
-    t("statuses.form_create_button"),
+    t("statuses.add.submit"),
     ticked,
   );
   keepsWhatTheOrganiserSaw(world, browser);
@@ -169,8 +168,8 @@ const linkIntoState = findsTheWayInFrom(openAtState);
  * the link on their list, the delete link behind that page's Actions tab —
  * then typing a name to confirm. */
 const takesStateAway: TakesOneThingDown = takesDownFromList(linkIntoState, {
-  deleteLinkKey: "statuses.delete_button",
-  submitKey: "statuses.delete_button",
+  deleteLinkKey: "statuses.delete.submit",
+  submitKey: "statuses.delete.submit",
 });
 
 /** What they were told is kept, because most of these are meant to be
@@ -183,17 +182,15 @@ export const organiserTakesStateAway = async (
   keepsWhatTheOrganiserSaw(world, await takesStateAway(world, name, typed));
 };
 
-/** The arrows the organiser's list offers for moving one state. */
-const stateArrows = movingRowsOn(THE_LIST, openAtState);
+/** The up arrow on each state of the organiser's list. */
+const stateUpArrow = upArrowOn(THE_LIST, openAtState);
 
 /** The organiser moves one state a step up their list. */
-export const organiserMovesStateUp: ActOnOneThing = (world, name) =>
-  stateArrows.move(world, name, "up");
+export const organiserMovesStateUp = stateUpArrow.movesUp;
 
 /** Whether the list offers to move one state up at all. Its absence is how the
  * site says a state is already at the top. */
-export const stateIsOfferedAMoveUp: AsksAboutOneThing = (world, name) =>
-  stateArrows.canMove(world, name, "up");
+export const stateIsOfferedAMoveUp = stateUpArrow.offersMoveUp;
 
 /** A state the story needs to exist before the rule it is about. The add has
  * to have worked, or the rule it feeds proves nothing. */

@@ -20,7 +20,7 @@ import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
-import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 import { refundUrl } from "#test-utils/refund-routes.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
@@ -51,7 +51,7 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
       execute: (statement) => {
         if (
           removed ||
-          !statementSql(statement).includes("SELECT listingAttendee.listing_id")
+          !statement.sql.includes("SELECT listingAttendee.listing_id")
         ) {
           return null;
         }
@@ -87,7 +87,7 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
     expect(response.status).toBe(400);
     assertStringIncludes(html, "Refresh payment status");
     assert(!html.includes("Refund Attendee</button>"));
-    assert(!html.includes('name="confirm_identifier"'));
+    assert(!html.includes('name="confirmIdentifier"'));
   });
 
   test("names the attendee field and preserves the return address on a refused confirmation", async () => {
@@ -97,9 +97,9 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
       mockFormRequest(
         refundUrl(ctx.attendee.id),
         {
-          confirm_identifier: "Wrong Name",
-          csrf_token: ctx.csrfToken,
-          return_url: returnUrl,
+          confirmIdentifier: "Wrong Name",
+          csrfToken: ctx.csrfToken,
+          returnUrl,
         },
         ctx.cookie,
       ),

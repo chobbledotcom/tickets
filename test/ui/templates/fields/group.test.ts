@@ -1,6 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { getGroupCreateForm, getGroupForm } from "#templates/fields/group.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
@@ -13,13 +14,13 @@ describe("group fields", () => {
     expect(form.fields.map((f) => f.name)).toEqual([
       "name",
       "description",
-      "max_attendees",
-      "terms_and_conditions",
+      "maxAttendees",
+      "termsAndConditions",
       "hidden",
-      "is_package",
-      "hide_package_listings",
-      "scan_checks_in_all_listings",
-      "show_hidden_listings",
+      "isPackage",
+      "hidePackageListings",
+      "scanChecksInAllListings",
+      "showHiddenListings",
     ]);
   });
 
@@ -29,13 +30,13 @@ describe("group fields", () => {
       "name",
       "slug",
       "description",
-      "max_attendees",
-      "terms_and_conditions",
+      "maxAttendees",
+      "termsAndConditions",
       "hidden",
-      "is_package",
-      "hide_package_listings",
-      "scan_checks_in_all_listings",
-      "show_hidden_listings",
+      "isPackage",
+      "hidePackageListings",
+      "scanChecksInAllListings",
+      "showHiddenListings",
     ]);
   });
 
@@ -47,20 +48,39 @@ describe("group fields", () => {
       type: "text",
     });
     expect(form.fields[2]).toMatchObject({
-      name: "max_attendees",
+      defaultValue: "0",
+      name: "maxAttendees",
+      required: true,
       type: "number",
     });
   });
 
+  test("refuses a blank max attendees box instead of reading it as 0", () => {
+    const form = getGroupCreateForm();
+    const blank = new FormParams({
+      description: "",
+      maxAttendees: "",
+      name: "Example group",
+    });
+    expect(form.validate(blank)).toEqual({
+      error: "Max attendees is required",
+      valid: false,
+    });
+    const zero = new FormParams({
+      description: "",
+      maxAttendees: "0",
+      name: "Example group",
+    });
+    expect(form.validate(zero).valid).toBe(true);
+  });
+
   test("the package checkboxes each offer exactly one tick worth 1", () => {
     const form = getGroupCreateForm();
-    const isPackage = form.fields.find((f) => f.name === "is_package");
+    const isPackage = form.fields.find((f) => f.name === "isPackage");
     const hideListings = form.fields.find(
-      (f) => f.name === "hide_package_listings",
+      (f) => f.name === "hidePackageListings",
     );
-    const showHidden = form.fields.find(
-      (f) => f.name === "show_hidden_listings",
-    );
+    const showHidden = form.fields.find((f) => f.name === "showHiddenListings");
     expect(isPackage).toMatchObject({
       options: [{ label: "Sell this group as a package", value: "1" }],
       type: "checkbox-group",
@@ -76,7 +96,7 @@ describe("group fields", () => {
 
   test("terms are a markdown textarea that rejects only over-long text", () => {
     const form = getGroupCreateForm();
-    const terms = form.fields.find((f) => f.name === "terms_and_conditions");
+    const terms = form.fields.find((f) => f.name === "termsAndConditions");
     expect(terms).toMatchObject({
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,

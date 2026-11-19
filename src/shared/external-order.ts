@@ -16,14 +16,14 @@ import type { ListingType } from "#types";
  * query instead of decrypting every field of every listing. */
 export interface CatalogSourceListing {
   active: boolean;
-  can_pay_more: boolean;
-  customisable_days: boolean;
+  canPayMore: boolean;
+  customisableDays: boolean;
   hidden: boolean;
   id: number;
-  listing_type: ListingType;
+  listingType: ListingType;
   name: string;
   slug: string;
-  unit_price: number;
+  unitPrice: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ export interface Catalog {
 
 type VariablePriceFields = Pick<
   CatalogSourceListing,
-  "listing_type" | "customisable_days" | "can_pay_more"
+  "listingType" | "customisableDays" | "canPayMore"
 >;
 
 /** A listing's price can't be shown without a checkout-only input when it is a
@@ -126,15 +126,15 @@ type VariablePriceFields = Pick<
  * loading every listing's question/modifier graph on each public module fetch
  * is not worth it — the checkout caveat covers the difference. */
 const isVariablePrice = (listing: VariablePriceFields): boolean =>
-  listing.listing_type === "daily" ||
-  listing.customisable_days ||
-  listing.can_pay_more;
+  listing.listingType === "daily" ||
+  listing.customisableDays ||
+  listing.canPayMore;
 
 const buildCatalogEntry = (listing: CatalogSourceListing): CatalogListing => ({
   id: listing.id,
   name: listing.name,
   slug: listing.slug,
-  unitPrice: listing.unit_price,
+  unitPrice: listing.unitPrice,
   variablePrice: isVariablePrice(listing),
 });
 

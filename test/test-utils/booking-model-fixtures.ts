@@ -26,10 +26,10 @@ export const resolved = (
 export const dailyOverrides = (
   over: Partial<ListingWithCount> = {},
 ): Partial<ListingWithCount> => ({
-  bookable_days: [...VALID_DAY_NAMES],
-  listing_type: "daily",
-  maximum_days_after: 10,
-  minimum_days_before: 0,
+  bookableDays: [...VALID_DAY_NAMES],
+  listingType: "daily",
+  maximumDaysAfter: 10,
+  minimumDaysBefore: 0,
   ...over,
 });
 
@@ -43,9 +43,9 @@ export const oneChildSupportingDayTwo = (): ReadonlyMap<
       1,
       [
         resolved({
-          customisable_days: true,
-          day_prices: { 2: 200 },
-          duration_days: 2,
+          customisableDays: true,
+          dayPrices: { 2: 200 },
+          durationDays: 2,
           id: 10,
         }),
       ],

@@ -80,12 +80,8 @@ export const AttendeeMergePanel = (
           submitIcon="trash-2"
           submitLabel={t("admin.attendees.merge_submit")}
         >
-          <input
-            name="source_token"
-            type="hidden"
-            value={source.ticket_token}
-          />
-          <input name="merge_version" type="hidden" value={mergeDiff.version} />
+          <input name="sourceToken" type="hidden" value={source.ticket_token} />
+          <input name="mergeVersion" type="hidden" value={mergeDiff.version} />
 
           <MergeDecisionTables
             diff={mergeDiff}

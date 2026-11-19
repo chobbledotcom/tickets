@@ -58,7 +58,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
   describe("POST /admin/listing/:id/delete", () => {
     testRequiresAuth("/admin/listing/1/delete", {
       body: {
-        confirm_identifier: "Test Listing",
+        confirmIdentifier: "Test Listing",
       },
       method: "POST",
       setup: async () => {
@@ -72,7 +72,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
 
     test("returns 404 for non-existent listing", async () => {
       const { response } = await adminFormPost("/admin/listing/999/delete", {
-        confirm_identifier: "Test Listing",
+        confirmIdentifier: "Test Listing",
       });
       expect(response.status).toBe(404);
     });
@@ -88,8 +88,8 @@ describeWithEnv("server listings > delete", { db: true }, () => {
         mockFormRequest(
           "/admin/listing/1/delete",
           {
-            confirm_identifier: listing.name,
-            csrf_token: "invalid-token",
+            confirmIdentifier: listing.name,
+            csrfToken: "invalid-token",
           },
           cookie,
         ),
@@ -105,7 +105,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       });
 
       const { response } = await adminFormPost("/admin/listing/1/delete", {
-        confirm_identifier: "wrong-identifier",
+        confirmIdentifier: "wrong-identifier",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("does not match"), false);
@@ -120,7 +120,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
 
       const { cookie, response: postResponse } = await adminFormPost(
         "/admin/listing/1/delete",
-        { confirm_identifier: "wrong" },
+        { confirmIdentifier: "wrong" },
       );
       const page = await followRedirectWithFlash(
         postResponse,
@@ -139,7 +139,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       });
 
       const { response } = await adminFormPost("/admin/listing/1/delete", {
-        confirm_identifier: "TEST LISTING", // uppercase (case insensitive)
+        confirmIdentifier: "TEST LISTING", // uppercase (case insensitive)
       });
       await expectFlashRedirect("/admin", "Listing deleted")(response);
 
@@ -156,7 +156,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       });
 
       const { response } = await adminFormPost("/admin/listing/1/delete", {
-        confirm_identifier: "  Test Listing  ", // with spaces
+        confirmIdentifier: "  Test Listing  ", // with spaces
       });
       await expectFlashRedirect("/admin", "Listing deleted")(response);
     });
@@ -182,7 +182,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/delete`,
-        { confirm_identifier: listing.name },
+        { confirmIdentifier: listing.name },
       );
       expect(response.status).toBe(302);
 
@@ -234,7 +234,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
           "http://localhost/admin/listing/1/delete?verify_identifier=false",
           {
             body: new URLSearchParams({
-              csrf_token: await testCsrfToken(),
+              csrfToken: await testCsrfToken(),
             }).toString(),
             headers: {
               "content-type": "application/x-www-form-urlencoded",
@@ -317,7 +317,7 @@ describeWithEnv("server listings > delete", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/delete`,
-        { confirm_identifier: listing.name },
+        { confirmIdentifier: listing.name },
       );
       expect(response.status).toBe(302);
     });

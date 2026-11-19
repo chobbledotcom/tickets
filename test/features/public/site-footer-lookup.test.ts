@@ -1,10 +1,10 @@
-import type { InStatement } from "@libsql/client";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { executeWithoutCacheInvalidation, getDb } from "#db/client.ts";
 import { bumpSettingsVersion, settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { makeImage } from "#test-utils/admin-images.ts";
 import {
@@ -27,8 +27,8 @@ const withRecordedSql = async (
   const db = getDb();
   const realExecute = db.execute.bind(db);
   const sqls: string[] = [];
-  const executeStub = stub(db, "execute", (stmt: InStatement) => {
-    sqls.push(typeof stmt === "string" ? stmt : stmt.sql);
+  const executeStub = stub(db, "execute", (stmt: SqlStatement) => {
+    sqls.push(stmt.sql);
     return realExecute(stmt);
   });
   try {
@@ -121,12 +121,11 @@ describeWithEnv(
       // and the shared version moves there. This isolate's invalidation
       // callbacks never run, so the version is the only signal the cache reads.
       await executeWithoutCacheInvalidation(
-        "DELETE FROM image_uses WHERE image_id = ?",
-        [image.id],
+        sql`DELETE FROM image_uses WHERE image_id = ${image.id}`,
       );
-      await executeWithoutCacheInvalidation("DELETE FROM images WHERE id = ?", [
-        image.id,
-      ]);
+      await executeWithoutCacheInvalidation(
+        sql`DELETE FROM images WHERE id = ${image.id}`,
+      );
       await bumpSettingsVersion();
 
       const afterSqls = await withRecordedSql(async () => {

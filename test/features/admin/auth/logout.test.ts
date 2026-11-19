@@ -20,7 +20,7 @@ import { createTestAgentSession, loginAsAdmin } from "#test-utils/session.ts";
 describeWithEnv("server (admin logout)", { db: true }, () => {
   describe("POST /admin/logout", () => {
     testRequiresAuth("/admin/logout", {
-      body: { csrf_token: "invalid" },
+      body: { csrfToken: "invalid" },
       method: "POST",
     });
 
@@ -28,11 +28,7 @@ describeWithEnv("server (admin logout)", { db: true }, () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
-        mockFormRequest(
-          "/admin/logout",
-          { csrf_token: "invalid-csrf" },
-          cookie,
-        ),
+        mockFormRequest("/admin/logout", { csrfToken: "invalid-csrf" }, cookie),
       );
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
@@ -41,7 +37,7 @@ describeWithEnv("server (admin logout)", { db: true }, () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
-        mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),
+        mockFormRequest("/admin/logout", { csrfToken }, cookie),
       );
       await expectFlashRedirect("/admin", "Logged out")(response);
       const sessionCookie = response.headers
@@ -99,7 +95,7 @@ describeWithEnv("server (admin logout)", { db: true }, () => {
       // Now logout
       const logoutResponse = await awaitTestRequest("/admin/logout", {
         cookie,
-        data: { csrf_token: csrfToken },
+        data: { csrfToken },
       });
       expect(logoutResponse.status).toBe(302);
 

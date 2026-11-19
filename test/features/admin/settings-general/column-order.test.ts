@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -21,7 +22,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
     test("saves valid listing column order", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/listing-column-order",
-        { column_order: "{{name}}, {{status}}" },
+        { columnOrder: "{{name}}, {{status}}" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -37,7 +38,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
     test("rejects invalid column name", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/listing-column-order",
-        { column_order: "{{invalid}}" },
+        { columnOrder: "{{invalid}}" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -50,7 +51,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
       await settings.update.listingColumnOrder("{{name}}");
       const { response } = await adminFormPost(
         "/admin/settings/listing-column-order",
-        { column_order: "" },
+        { columnOrder: "" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -62,8 +63,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
 
     test("rejects a malformed template loaded from settings", async () => {
       await execute(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        [CONFIG_KEYS.LISTING_COLUMN_ORDER, "{{not_a_column}}"],
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.LISTING_COLUMN_ORDER}, ${"{{not_a_column}}"})`,
       );
       settings.invalidateCache();
       await settings.loadKeys([CONFIG_KEYS.LISTING_COLUMN_ORDER]);
@@ -81,7 +81,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
     test("saves valid attendee column order", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/attendee-column-order",
-        { column_order: "{{name}}, {{qty}}, {{ticket}}" },
+        { columnOrder: "{{name}}, {{qty}}, {{ticket}}" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -100,7 +100,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
     test("rejects invalid column name", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/attendee-column-order",
-        { column_order: "{{bogus}}" },
+        { columnOrder: "{{bogus}}" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -113,7 +113,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
       await settings.update.attendeeColumnOrder("{{name}}");
       const { response } = await adminFormPost(
         "/admin/settings/attendee-column-order",
-        { column_order: "" },
+        { columnOrder: "" },
       );
       await expectFlashRedirect(
         formUrl,

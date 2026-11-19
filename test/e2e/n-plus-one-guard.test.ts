@@ -12,12 +12,11 @@ import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { N_PLUS_ONE_THRESHOLD } from "#db/query-log.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   insertModifier,
@@ -62,20 +61,9 @@ const createProtectedFixture = async (): Promise<ProtectedFixture> => {
     });
     listings.push(listing);
 
-    const question = await questionsTable.insert({
-      displayType: "radio",
-      text: `N+1 protected question ${index}`,
-    });
-    questionIds.push(question.id);
-
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
-      text: `N+1 protected answer ${index}`,
-    });
-    answerIds.push(answer.id);
-
-    await listingQuestions.setIds(listing.id, [question.id]);
+    const question = await createQuestionWithAnswer([listing.id]);
+    questionIds.push(question.questionId);
+    answerIds.push(question.answerId);
 
     const booking = await bookAttendee(listing, {
       email: `n-plus-one-${index}@example.com`,
@@ -95,16 +83,7 @@ const createProtectedFixture = async (): Promise<ProtectedFixture> => {
     name: "N+1 protected crowded listing",
     unitPrice: 1000,
   });
-  const crowdedQuestion = await questionsTable.insert({
-    displayType: "radio",
-    text: "N+1 protected crowded question",
-  });
-  const crowdedAnswer = await answersTable.insert({
-    questionId: crowdedQuestion.id,
-    sortOrder: 0,
-    text: "N+1 protected crowded answer",
-  });
-  await listingQuestions.setIds(crowdedListing.id, [crowdedQuestion.id]);
+  const crowded = await createQuestionWithAnswer([crowdedListing.id]);
 
   for (const index of range(RELATION_COUNT)) {
     const booking = await bookAttendee(crowdedListing, {
@@ -146,7 +125,7 @@ const createProtectedFixture = async (): Promise<ProtectedFixture> => {
       ]),
       ...range(RELATION_COUNT).map((index): [number, number[]] => [
         attendeeIds[RELATION_COUNT + index]!,
-        [crowdedAnswer.id],
+        [crowded.answerId],
       ]),
       [multiBookingAttendee.id, answerIds],
     ]),

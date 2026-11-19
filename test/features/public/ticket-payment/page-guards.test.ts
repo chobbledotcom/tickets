@@ -7,7 +7,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
 import { map } from "#fp";
 import { keepParentDailyDatesChildrenCanServe } from "#routes/public/booking-dates.ts";
 import {
@@ -97,7 +97,7 @@ describeWithEnv("booking page guards", { db: true }, () => {
   test("names each reason a listing's page does or does not serve", async () => {
     const available = await createTestListing({ name: "Live listing" });
     const withdrawn = await createTestListing({ name: "Withdrawn listing" });
-    await listingsTable.update(withdrawn.id, { active: false });
+    await updateListing(withdrawn.id, { active: false });
     const { child } = await parentWithChild("State");
 
     expect(await listingPublicPageState(available)).toBe("available");
@@ -127,7 +127,7 @@ describeWithEnv("booking page guards", { db: true }, () => {
 
   test("404s when every slug names a listing that is off sale", async () => {
     const listing = await createTestListing({ name: "Withdrawn slug" });
-    await listingsTable.update(listing.id, { active: false });
+    await updateListing(listing.id, { active: false });
 
     const response = await withActiveListings([listing.slug], () =>
       Promise.resolve(new Response("rendered")),

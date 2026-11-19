@@ -9,6 +9,7 @@ import {
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { getRefundPaymentReferences } from "#db/payment-references.ts";
 import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
+import { sql } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -37,8 +38,7 @@ const loadedAttendee = async (
   attendeeId: number,
 ): Promise<LoadedRefundAttendee> => {
   const attendee = await requireOne<StoredAttendee>(
-    "SELECT pii_blob FROM attendees WHERE id = ?",
-    [attendeeId],
+    sql`SELECT pii_blob FROM attendees WHERE id = ${attendeeId}`,
   );
   const referenceSets = await getRefundPaymentReferences(
     [{ currentPaymentId: "", id: attendeeId }],

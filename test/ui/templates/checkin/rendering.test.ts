@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import {
   postCheckin,
@@ -22,6 +23,7 @@ import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
   describe("GET /checkin/:tokens (unauthenticated)", () => {
@@ -104,23 +106,20 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expectIncludesAll(body, [listingA.name, listingB.name]);
     });
 
-    test("returns 404 for invalid tokens when authenticated", async () => {
-      const response = await adminGet("/checkin/bad-token");
-      expect(response.status).toBe(404);
-    });
-
-    test("returns 404 for orphaned attendee with no listing links", async () => {
-      const { listing, token } = await setupCheckinTest(
-        "Orphan",
-        "orphan@test.com",
-      );
-      const { getDb } = await import("#db/client.ts");
-      await getDb().execute({
-        args: [listing.id],
-        sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
-      });
-      const response = await adminGet(`/checkin/${token}`);
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "returns 404 for invalid tokens when authenticated": () =>
+        adminGet("/checkin/bad-token"),
+      "returns 404 for orphaned attendee with no listing links": async () => {
+        const { listing, token } = await setupCheckinTest(
+          "Orphan",
+          "orphan@test.com",
+        );
+        const { getDb } = await import("#db/client.ts");
+        await getDb().execute(
+          sql`DELETE FROM listing_attendees WHERE listing_id = ${listing.id}`,
+        );
+        return await adminGet(`/checkin/${token}`);
+      },
     });
 
     test("shows listing name and quantity in admin view", async () => {
@@ -152,7 +151,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         // The form posts this hidden input, so the name the POST handler reads
         // is part of what the page renders. The input and the bulk button sit
         // together, apart from the per-row forms that carry the same name.
-        '<input name="check_in" type="hidden" value="true">' +
+        '<input name="checkIn" type="hidden" value="true">' +
           '<button class="bulk-checkin" type="submit">Check In All</button>',
       ]);
     });
@@ -259,7 +258,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
-          { check_in: "true", csrf_token: session.csrfToken, quantity: "1" },
+          { checkIn: "true", csrfToken: session.csrfToken, quantity: "1" },
           session.cookie,
         ),
       );
@@ -286,7 +285,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expectIncludesAll(body, [
         "Check Out All",
         // The bulk way out posts its own false spelling, tied to its button.
-        '<input name="check_in" type="hidden" value="false">' +
+        '<input name="checkIn" type="hidden" value="false">' +
           '<button class="bulk-checkout" type="submit">Check Out All</button>',
       ]);
     });
@@ -308,7 +307,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       assertStringIncludes(body, "Refunded");
       assert(!body.includes("Check In All"));
       assert(!body.includes("Check Out All"));
-      assert(!body.includes('name="check_in"'));
+      assert(!body.includes('name="checkIn"'));
     });
   });
 });

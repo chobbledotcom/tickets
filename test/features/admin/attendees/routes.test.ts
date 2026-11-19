@@ -8,31 +8,31 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
-  test("serves the attendee list", async () => {
-    const response = await adminGet("/admin/attendees");
-
-    expect(response.status).toBe(200);
-  });
+  for (const [name, path] of [
+    ["serves the attendee list", "/admin/attendees"],
+    [
+      "serves the form for adding one without a listing in hand",
+      "/admin/attendees/new",
+    ],
+  ] as const) {
+    test(name, async () => {
+      expectStatus(200)(await adminGet(path));
+    });
+  }
 
   test("serves the list as a spreadsheet", async () => {
-    const response = await adminGet("/admin/attendees/csv");
+    const response = expectStatus(200)(await adminGet("/admin/attendees/csv"));
 
-    expect(response.status).toBe(200);
     assertStringIncludes(
       response.headers.get("content-type") ?? "",
       "text/csv",
     );
-  });
-
-  test("serves the form for adding one without a listing in hand", async () => {
-    const response = await adminGet("/admin/attendees/new");
-
-    expect(response.status).toBe(200);
   });
 
   test("takes that form back", async () => {
@@ -44,17 +44,17 @@ describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
     assertStringIncludes(await response.text(), "required");
   });
 
-  test("renders the date error when a malformed start_date rides a daily booking", async () => {
+  test("renders the date error when a malformed startDate rides a daily booking", async () => {
     // A daily listing is booked, so the shared start date is required. The
     // submitted "not-a-date" must answer the form page with the validation
     // error, not throw while the rejected values re-render.
     const listing = await createDailyTestListing();
     const { response } = await adminFormPost("/admin/attendees/new", {
       email: "a@test.com",
-      line_listing_0: String(listing.id),
+      lineListing0: String(listing.id),
       name: "A",
-      qty_0: "1",
-      start_date: "not-a-date",
+      qty0: "1",
+      startDate: "not-a-date",
     });
 
     expect(response.status).toBe(200);

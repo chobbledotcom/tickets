@@ -32,7 +32,7 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
       );
     }
 
-    const entry = formData.get("header_image");
+    const entry = formData.get("headerImage");
     if (!(entry instanceof File) || entry.size === 0) {
       return errorRedirect(
         "/admin/settings",

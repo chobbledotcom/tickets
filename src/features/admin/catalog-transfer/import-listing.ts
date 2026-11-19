@@ -1,13 +1,10 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
-import { settings } from "#db/settings.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
-import type {
-  GroupInput,
-  ListingInput,
-} from "#shared/catalog-fields/fields.ts";
-import { errorResult, type Result } from "#shared/result.ts";
+import { compact } from "#fp";
+import type { GroupInput } from "#shared/records/group-fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
-  type AdminLevel,
   availableDayCounts,
   type DayPricedListing,
   type ListingType,
@@ -38,19 +35,45 @@ export const nameTakenError = (name: string): string =>
 type MembershipSpec = Omit<ImportedMembership, "listingId" | "groupId"> &
   Partial<Pick<ImportedMembership, "listingId" | "groupId">>;
 
+/** The package overrides one membership side declares. */
+export type MembershipOverrides = {
+  dayPrices?: Record<string, number> | undefined;
+  packagePrice?: number | null | undefined;
+  quantity?: number | undefined;
+};
+
+/** The fields a non-package membership supplies above the neutral value. */
+const overrideFieldsSupplied = (overrides: MembershipOverrides): string[] =>
+  compact([
+    (overrides.packagePrice ?? null) === null ? null : "packagePrice",
+    (overrides.quantity ?? 1) === 1 ? null : "quantity",
+    Object.keys(overrides.dayPrices ?? {}).length === 0 ? null : "dayPrices",
+  ]);
+
+/** The membership one side declares. A package holds the overrides. A group
+ *  that is not a package holds only plain memberships, so its overrides are
+ *  refused, not cleared. Clearing them stores a different membership than the
+ *  file asked for. */
 export const membershipSpec = (
-  packagePrice: number | null | undefined,
-  quantity: number | undefined,
-  dayPrices: Record<string, number> | undefined,
+  overrides: MembershipOverrides,
   isPackage: boolean,
-): MembershipSpec =>
-  isPackage
-    ? {
-        dayPrices: dayPrices ? parseDayPrices(dayPrices) : {},
-        packagePrice: packagePrice ?? null,
-        quantity: quantity === undefined ? 1 : quantity,
-      }
-    : { dayPrices: {}, packagePrice: null, quantity: 1 };
+): Result<MembershipSpec> => {
+  if (isPackage) {
+    return okResult({
+      dayPrices: overrides.dayPrices ? parseDayPrices(overrides.dayPrices) : {},
+      packagePrice: overrides.packagePrice ?? null,
+      quantity: overrides.quantity ?? 1,
+    });
+  }
+  const supplied = overrideFieldsSupplied(overrides);
+  return supplied.length === 0
+    ? okResult({ dayPrices: {}, packagePrice: null, quantity: 1 })
+    : errorResult(
+        `Only a package group can hold ${supplied.join(", ")}. Remove ${
+          supplied.length === 1 ? "it" : "them"
+        } or make the group a package.`,
+      );
+};
 
 /** The error message for a package member whose day-price override targets a
  *  day count the member does not offer. Null when there is no override or
@@ -75,20 +98,20 @@ export const memberDayPriceError = (
 export const membersHomogeneous = (
   listings: readonly {
     name: string;
-    listing_type: ListingType;
-    customisable_days: boolean;
+    listingType: ListingType;
+    customisableDays: boolean;
   }[],
 ): string | null => {
   const [first, ...rest] = listings;
   if (!first) return null;
   const typeMismatch = rest.find(
-    (listing) => listing.listing_type !== first.listing_type,
+    (listing) => listing.listingType !== first.listingType,
   );
   if (typeMismatch) {
-    return `All listings in a group must be the same type, but "${first.name}" is ${first.listing_type} and "${typeMismatch.name}" is ${typeMismatch.listing_type}.`;
+    return `All listings in a group must be the same type, but "${first.name}" is ${first.listingType} and "${typeMismatch.name}" is ${typeMismatch.listingType}.`;
   }
   const customMismatch = rest.find(
-    (listing) => listing.customisable_days !== first.customisable_days,
+    (listing) => listing.customisableDays !== first.customisableDays,
   );
   return customMismatch
     ? `All listings in a group must agree on customisable days, but "${first.name}" and "${customMismatch.name}" differ.`
@@ -154,16 +177,3 @@ export const groupDataToInput = (
   slugIndex,
   termsAndConditions: data.termsAndConditions,
 });
-
-export const applyImportPolicy = (
-  input: ListingInput,
-  adminLevel: AdminLevel | undefined,
-): ListingInput => {
-  const policed: ListingInput = { ...input };
-  if (adminLevel === "editor") {
-    policed.webhookUrl = "";
-    policed.useDefaults = false;
-  }
-  if (!settings.features.logistics) policed.usesLogistics = false;
-  return policed;
-};

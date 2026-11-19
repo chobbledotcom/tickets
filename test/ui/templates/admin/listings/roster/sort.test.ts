@@ -13,7 +13,7 @@ import {
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
-const listing = () => testListingWithCount({ attendee_count: 3 });
+const listing = () => testListingWithCount({ attendeeCount: 3 });
 
 /** Ids (registration order) and names are arranged so the name order, the
  *  newest-first order, and the oldest-first order are three different rows. */

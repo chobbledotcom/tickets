@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   runWebhook,
   setupRenewalSite,
@@ -29,10 +30,9 @@ describeWithEnv("paid booking lost-result recovery flags", { db: true }, () => {
       "Recovery Flags Site",
       "recovery-flags.b-cdn.net",
     );
-    await execute("UPDATE listings SET webhook_url = ? WHERE id = ?", [
-      await encrypt("https://registration.example.com/hook"),
-      listing.id,
-    ]);
+    await execute(
+      sql`UPDATE listings SET webhook_url = ${await encrypt("https://registration.example.com/hook")} WHERE id = ${listing.id}`,
+    );
     const metadata = signMeta(
       webhookMeta({
         email: "recovery.flags@example.com",
@@ -74,8 +74,7 @@ describeWithEnv("paid booking lost-result recovery flags", { db: true }, () => {
 
       // The finalized session's send-free replay changes nothing.
       await execute(
-        "DELETE FROM processed_payments WHERE payment_session_id = ?",
-        ["cs_recovery_flags"],
+        sql`DELETE FROM processed_payments WHERE payment_session_id = ${"cs_recovery_flags"}`,
       );
       await runLostWebhook("cs_recovery_flags");
       expect(await readPendingNotificationFlags(attendee!.id)).toEqual({

@@ -34,7 +34,7 @@ export const organiserAddsHoliday = (
   firstDay: string,
   lastDay = firstDay,
 ): Promise<void> =>
-  addsHoliday(world, name, { end_date: lastDay, name, start_date: firstDay });
+  addsHoliday(world, name, { endDate: lastDay, name, startDate: firstDay });
 
 /** The organiser answers the type-the-name check behind the holiday's
  * Actions tab with its exact name. */

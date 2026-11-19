@@ -3,20 +3,26 @@
 // mapping's field refusals live in api-site-pages-input.test.ts. Technical
 // surface — direct Deno tests (docs/e2e-tests.md); the form-side parity pins live
 // in test/features/admin/parity/site-pages.test.ts.
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { records } from "#db/record-table.ts";
 import { addPageItem, getAllPageItems } from "#db/site-page-items.ts";
-import { getSitePageById } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { writeUpdate } from "#routes/admin/api-site-pages.ts";
 import { publicNavModel } from "#routes/public/site-nav.ts";
+import { camelCaseKeys } from "#shared/column-names.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
-import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  assertApiDeleteOk,
+  assertJson,
+  expectApiError,
+} from "#test-utils/assertions.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { describeWithSitePages as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import {
@@ -25,8 +31,34 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import type { SitePage } from "#types";
 
 describeWithEnv("Admin API - Site pages", { db: true }, () => {
+  /** Load the stored row for `pageId` and check every field `expected` names,
+   *  so a write test proves what reached the table, not only what the API
+   *  echoed back. */
+  const expectStoredPage = async (
+    pageId: number,
+    expected: Partial<SitePage>,
+  ): Promise<void> => {
+    const stored = await records.site_pages.find(pageId);
+    if (stored === null) throw new Error(`Site page ${pageId} is not stored`);
+    expect(stored).toMatchObject(expected);
+  };
+
+  /** PUT `body` to one page's update endpoint and assert the API refuses it
+   *  with the form's own message for that refusal. */
+  const expectUpdateRefused = (
+    pageId: number,
+    body: Record<string, unknown>,
+    message: string,
+  ): Promise<unknown> =>
+    expectApiError(
+      apiRequest(`/api/admin/site-pages/${pageId}`, { body, method: "PUT" }),
+      400,
+      message,
+    );
+
   /** One page nested under another, the pair the parent pins use. */
   const nestedPages = async () => {
     const parent = await createTestSitePage("visit", { name: "Visit" });
@@ -108,12 +140,10 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
     });
 
     test("answers 404 for an unknown page", async () => {
-      await assertJson(
+      await expectApiError(
         apiRequest("/api/admin/site-pages/99999"),
         404,
-        (body) => {
-          expect(body.error).toBe("Page not found");
-        },
+        "Page not found",
       );
     });
 
@@ -136,32 +166,27 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
 
   describe("POST /api/admin/site-pages", () => {
     test("creates a page with the posted fields", async () => {
+      const posted = {
+        content: "Pack light.",
+        hidden: true,
+        meta_description: "Before you come",
+        meta_title: "Plan",
+        name: "Plan your weekend",
+        slug: "plan-your-weekend",
+      };
       const body = await assertJson(
-        apiRequest("/api/admin/site-pages", {
-          body: {
-            content: "Pack light.",
-            hidden: true,
-            meta_description: "Before you come",
-            meta_title: "Plan",
-            name: "Plan your weekend",
-            slug: "plan-your-weekend",
-          },
-          method: "POST",
-        }),
+        apiRequest("/api/admin/site-pages", { body: posted, method: "POST" }),
         201,
-        (body) => {
-          expect(body.page.name).toBe("Plan your weekend");
-          expect(body.page.slug).toBe("plan-your-weekend");
-          expect(body.page.hidden).toBe(true);
-          expect(body.page.meta_title).toBe("Plan");
-          expect(body.page.meta_description).toBe("Before you come");
-          expect(body.page.parent).toBeNull();
+        (echoed) => {
+          expect(echoed.page).toMatchObject(posted);
+          expect(echoed.page.parent).toBeNull();
         },
       );
-      const stored = await getSitePageById(body.page.id);
-      expect(stored?.hidden).toBe(true);
-      expect(stored?.meta_title).toBe("Plan");
-      expect(stored?.meta_description).toBe("Before you come");
+      await expectStoredPage(body.page.id, {
+        hidden: true,
+        metaDescription: "Before you come",
+        metaTitle: "Plan",
+      });
       expect(await wasActivityLogged("Page 'Plan your weekend' created")).toBe(
         true,
       );
@@ -221,33 +246,25 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
 
     test("updates every field the form edits", async () => {
       const page = await createTestSitePage("visit", { name: "Visit" });
+      const edited = {
+        content: "New text",
+        meta_description: "New summary",
+        meta_title: "New title",
+        name: "Renamed",
+        slug: "renamed",
+      };
 
       await assertJson(
         apiRequest(`/api/admin/site-pages/${page.id}`, {
-          body: {
-            content: "New text",
-            meta_description: "New summary",
-            meta_title: "New title",
-            name: "Renamed",
-            slug: "renamed",
-          },
+          body: edited,
           method: "PUT",
         }),
         200,
-        (body) => {
-          expect(body.page.name).toBe("Renamed");
-          expect(body.page.slug).toBe("renamed");
-          expect(body.page.content).toBe("New text");
-          expect(body.page.meta_title).toBe("New title");
-          expect(body.page.meta_description).toBe("New summary");
+        (echoed) => {
+          expect(echoed.page).toMatchObject(edited);
         },
       );
-      const stored = await getSitePageById(page.id);
-      expect(stored?.name).toBe("Renamed");
-      expect(stored?.slug).toBe("renamed");
-      expect(stored?.content).toBe("New text");
-      expect(stored?.meta_title).toBe("New title");
-      expect(stored?.meta_description).toBe("New summary");
+      await expectStoredPage(page.id, camelCaseKeys(edited));
     });
 
     test("flips the Hidden flag and the nav model follows", async () => {
@@ -317,52 +334,37 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       await putPageUnder(child.id, parent.id);
       // The no-op wrote no second parent edge for the child.
       const edges = (await getAllPageItems()).filter(
-        (item) => item.item_type === "page" && item.item_id === child.id,
+        (item) => item.itemType === "page" && item.itemId === child.id,
       );
-      expect(edges.map((edge) => edge.page_id)).toEqual([parent.id]);
+      expect(edges.map((edge) => edge.pageId)).toEqual([parent.id]);
     });
 
     test("refuses nesting a page under itself", async () => {
       const page = await createTestSitePage("visit", { name: "Visit" });
-      await assertJson(
-        apiRequest(`/api/admin/site-pages/${page.id}`, {
-          body: { parent: page.id },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(t("site.pages.error.ineligible"));
-        },
+      await expectUpdateRefused(
+        page.id,
+        { parent: page.id },
+        t("site.pages.error.ineligible"),
       );
     });
 
     test("refuses a parent that would close a cycle", async () => {
       const { child, parent } = await nestedPages();
 
-      await assertJson(
-        apiRequest(`/api/admin/site-pages/${parent.id}`, {
-          body: { parent: child.id },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("That item can't be added to this page.");
-        },
+      await expectUpdateRefused(
+        parent.id,
+        { parent: child.id },
+        "That item can't be added to this page.",
       );
     });
 
     test("refuses a parent that is not a page id or null", async () => {
       const page = await createTestSitePage("visit");
       for (const parent of ["visit", 1.5]) {
-        await assertJson(
-          apiRequest(`/api/admin/site-pages/${page.id}`, {
-            body: { parent },
-            method: "PUT",
-          }),
-          400,
-          (body) => {
-            expect(body.error).toBe("parent must be a page id or null");
-          },
+        await expectUpdateRefused(
+          page.id,
+          { parent },
+          "parent must be a page id or null",
         );
       }
     });
@@ -371,30 +373,20 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       const page = await createTestSitePage("visit", { name: "Visit" });
       const listing = await createTestListing({ name: "Kayak" });
 
-      await assertJson(
-        apiRequest(`/api/admin/site-pages/${page.id}`, {
-          body: { slug: listing.slug },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(t("site.pages.error.slug_taken"));
-        },
+      await expectUpdateRefused(
+        page.id,
+        { slug: listing.slug },
+        t("site.pages.error.slug_taken"),
       );
     });
 
     test("refuses a parent that names no page with the form's message", async () => {
       const page = await createTestSitePage("visit", { name: "Visit" });
 
-      await assertJson(
-        apiRequest(`/api/admin/site-pages/${page.id}`, {
-          body: { parent: 99999999 },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(t("site.pages.error.ineligible"));
-        },
+      await expectUpdateRefused(
+        page.id,
+        { parent: 99999999 },
+        t("site.pages.error.ineligible"),
       );
     });
 
@@ -438,9 +430,7 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
         error: t("site.pages.error.ineligible"),
       });
       // The refused transaction rolled the row write back with the edge.
-      const stored = await getSitePageById(page.id);
-      expect(stored?.name).toBe("Visit");
-      expect(stored?.content).toBe("Old text");
+      await expectStoredPage(page.id, { content: "Old text", name: "Visit" });
     });
   });
 
@@ -449,9 +439,9 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       const { child, parent } = await nestedPages();
 
       await assertApiDeleteOk(`/api/admin/site-pages/${parent.id}`, "Visit");
-      expect(await getSitePageById(parent.id)).toBeNull();
+      expect(await records.site_pages.find(parent.id)).toBeNull();
       // The child survives as a top-level page.
-      const orphan = await getSitePageById(child.id);
+      const orphan = await records.site_pages.find(child.id);
       expect(orphan).not.toBeNull();
       expect(await wasActivityLogged("Page 'Visit' deleted")).toBe(true);
     });
@@ -459,20 +449,16 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
     test("refuses a delete whose name confirmation does not match", async () => {
       const page = await createTestSitePage("visit", { name: "Visit" });
 
-      await assertJson(
+      await expectApiError(
         apiRequest(`/api/admin/site-pages/${page.id}`, {
           body: { confirm_identifier: "Wrong" },
           method: "DELETE",
         }),
         400,
-        (body) => {
-          expect(body.error).toBe(
-            "Page name does not match. Please provide the exact page name in confirm_identifier.",
-          );
-        },
+        "Page name does not match. Please provide the exact page name in confirm_identifier.",
       );
       // The page survives the refused delete.
-      expect(await getSitePageById(page.id)).not.toBeNull();
+      expect(await records.site_pages.find(page.id)).not.toBeNull();
     });
   });
 });

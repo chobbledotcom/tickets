@@ -24,8 +24,8 @@ describeWithEnv(
           (log) => log.message === "Listing 'Linked Camp Two' updated",
         ),
       );
-      expect(entry?.listing_id).toBe(listing.id);
-      expect(entry?.attendee_id).toBeNull();
+      expect(entry?.listingId).toBe(listing.id);
+      expect(entry?.attendeeId).toBeNull();
     });
   },
 );

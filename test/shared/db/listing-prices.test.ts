@@ -12,143 +12,197 @@ import {
   removeGroupPricesStatement,
 } from "#db/listing-prices.ts";
 import { deleteListing } from "#db/listings/delete.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { updateTestListing } from "#test-utils/db-helpers/listings.ts";
+import { placed } from "#test-utils/sql-text.ts";
 import {
   createDayPricedListing,
   priceRows,
 } from "./listing-prices/fixtures.ts";
 
+/** One managed price row as a writer emits it: listing, type, key, price. */
+type PriceRow = readonly [number, string, string, number];
+
+/** The insert every full-replace dimension writes: one multi-row VALUES. */
+const priceInsertSql = (rowCount: number) =>
+  `INSERT INTO listing_prices (listing_id, price_id, price_type, unit_price) VALUES ${Array.from(
+    { length: rowCount },
+    () => "(?, ?, ?, ?)",
+  ).join(", ")}`;
+
+/**
+ * Asserts a full-replace price writer: the scoped delete of `deleteArgs`, then
+ * ONE multi-row insert holding every `row` — never one insert per row, so a
+ * replace stays two statements and its interactive-transaction round-trip stays
+ * bounded. No `rows` means the write has nothing to insert.
+ */
+const expectScopedReplace = (
+  stmts: readonly SqlStatement[],
+  deleteSql: string,
+  deleteArgs: readonly unknown[],
+  rows: readonly PriceRow[] = [],
+): void => {
+  const expected = [{ args: [...deleteArgs], sql: deleteSql }];
+  if (rows.length > 0) {
+    expected.push({
+      args: rows.flatMap(([listingId, type, key, price]) => [
+        listingId,
+        key,
+        type,
+        price,
+      ]),
+      sql: priceInsertSql(rows.length),
+    });
+  }
+  expect(stmts.map((stmt) => placed(stmt))).toEqual(expected);
+};
+
+/** The delete every day-count replace scopes on the listing row. */
+const dayCountDelete =
+  "DELETE FROM listing_prices WHERE listing_prices.listing_id = ? AND listing_prices.price_type = ?";
+
+/** The delete every group day-price replace scopes on the group's LIKE prefix. */
+const groupDayDelete =
+  "DELETE FROM listing_prices WHERE listing_prices.price_type = ? AND listing_prices.price_id LIKE ?";
+
+/** Assert the group day-price replace for `groupId` writes exactly `rows`. */
+const expectGroupDayReplace = (
+  groupId: number,
+  members: Parameters<typeof groupDayPriceStatements>[1],
+  rows: readonly PriceRow[],
+): void => {
+  expectScopedReplace(
+    groupDayPriceStatements(groupId, members),
+    groupDayDelete,
+    ["group_day", `${groupId}/%`],
+    rows,
+  );
+};
+
 describe("dayCountPriceStatements", () => {
-  test("emits a day_count-scoped delete then ONE multi-row insert for all day counts", () => {
-    const stmts = dayCountPriceStatements(5, { 1: 750, 2: 1200 });
-    // Exactly two statements regardless of how many day counts — the insert is a
-    // single multi-row VALUES so the interactive-transaction round-trip stays
-    // bounded (see the round-trip guard).
-    expect(stmts.length).toBe(2);
-    expect(stmts[0]!.sql).toBe(
-      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-    );
-    expect(stmts[0]!.args).toEqual([5, "day_count"]);
-    expect(stmts[1]!.sql).toBe(
-      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
-    );
-    expect(stmts[1]!.args).toEqual([
+  const cases: readonly [
+    name: string,
+    listingId: number,
+    dayPrices: Record<number, number> | undefined,
+    rows: readonly PriceRow[],
+  ][] = [
+    [
+      "emits a day_count-scoped delete then ONE multi-row insert for all day counts",
       5,
-      "day_count",
-      "1",
-      750,
-      5,
-      "day_count",
-      "2",
-      1200,
-    ]);
-  });
-
-  test("emits only the scoped delete when there are no day prices", () => {
-    expect(dayCountPriceStatements(9, {}).map((s) => s.args)).toEqual([
-      [9, "day_count"],
-    ]);
-  });
-
-  test("treats undefined day prices as an empty map (delete only)", () => {
-    expect(dayCountPriceStatements(9, undefined).map((s) => s.args)).toEqual([
-      [9, "day_count"],
-    ]);
-  });
-
-  test("normalises entries like every other day-price write", () => {
+      { 1: 750, 2: 1200 },
+      [
+        [5, "day_count", "1", 750],
+        [5, "day_count", "2", 1200],
+      ],
+    ],
+    ["emits only the scoped delete when there are no day prices", 9, {}, []],
+    [
+      "treats undefined day prices as an empty map (delete only)",
+      9,
+      undefined,
+      [],
+    ],
     // Day 0 and a negative price are dropped by parseDayPrices; the rest kept.
-    const stmts = dayCountPriceStatements(9, { 0: 100, 2: -5, 4: 800 });
-    expect(stmts.length).toBe(2);
-    expect(stmts[1]!.args).toEqual([9, "day_count", "4", 800]);
-  });
+    [
+      "normalises entries like every other day-price write",
+      9,
+      { 0: 100, 2: -5, 4: 800 },
+      [[9, "day_count", "4", 800]],
+    ],
+  ];
+
+  for (const [name, listingId, dayPrices, rows] of cases) {
+    test(name, () => {
+      expectScopedReplace(
+        dayCountPriceStatements(listingId, dayPrices),
+        dayCountDelete,
+        [listingId, "day_count"],
+        rows,
+      );
+    });
+  }
 });
 
 describe("groupDayPriceStatements", () => {
-  test("emits a group-scoped LIKE delete, then ONE multi-row insert of every day price", () => {
-    const stmts = groupDayPriceStatements(12, [
-      { dayPrices: { 2: 1500, 3: 2000 }, listingId: 5 },
-      // A member with no per-day overrides contributes no rows.
-      { listingId: 6 },
-    ]);
-    expect(stmts.length).toBe(2);
-    assertStringIncludes(stmts[0]!.sql, "price_id LIKE ?");
-    expect(stmts[0]!.args).toEqual(["group_day", "12/%"]);
-    // A single multi-row insert (bounded round-trips), one row per member day.
-    expect(stmts[1]!.args).toEqual([
-      5,
-      "group_day",
-      "12/2",
-      1500,
-      5,
-      "group_day",
-      "12/3",
-      2000,
-    ]);
-  });
+  const cases: readonly [
+    name: string,
+    groupId: number,
+    members: Parameters<typeof groupDayPriceStatements>[1],
+    rows: readonly PriceRow[],
+  ][] = [
+    [
+      "emits a group-scoped LIKE delete, then ONE multi-row insert of every day price",
+      12,
+      [
+        { dayPrices: { 2: 1500, 3: 2000 }, listingId: 5 },
+        // A member with no per-day overrides contributes no rows.
+        { listingId: 6 },
+      ],
+      [
+        [5, "group_day", "12/2", 1500],
+        [5, "group_day", "12/3", 2000],
+      ],
+    ],
+    [
+      "normalises day-price entries like every other day-price write",
+      3,
+      // Day 0 and a negative price are dropped by parseDayPrices; the valid
+      // entry is kept.
+      [{ dayPrices: { 0: 100, 2: -5, 4: 800 }, listingId: 9 }],
+      [[9, "group_day", "3/4", 800]],
+    ],
+  ];
 
-  test("normalises day-price entries like every other day-price write", () => {
-    // Day 0 and a negative price are dropped by parseDayPrices; the valid
-    // entry is kept.
-    const stmts = groupDayPriceStatements(3, [
-      { dayPrices: { 0: 100, 2: -5, 4: 800 }, listingId: 9 },
-    ]);
-    expect(stmts.map((s) => s.args)).toEqual([
-      ["group_day", "3/%"],
-      [9, "group_day", "3/4", 800],
-    ]);
-  });
+  for (const [name, groupId, members, rows] of cases) {
+    test(name, () => {
+      expectGroupDayReplace(groupId, members, rows);
+    });
+  }
 });
+
+/** The delete every flat group price replace scopes on the exact price_id. */
+const groupFlatDelete =
+  "DELETE FROM listing_prices WHERE listing_prices.price_id = ? AND listing_prices.price_type = ?";
 
 describe("groupFlatPriceStatements", () => {
   test("emits a group-scoped delete, then ONE multi-row insert for all overrides", () => {
-    const stmts = groupFlatPriceStatements(12, [
-      // A positive override and an explicit free (0) both get a row.
-      { listingId: 5, price: 1500 },
-      { listingId: 6, price: 0 },
-    ]);
-    // Two statements regardless of member count (the insert is multi-row), so the
-    // interactive-transaction round-trips stay bounded.
-    expect(stmts.length).toBe(2);
-    // The delete scopes to this group's flat rows by exact price_id (not LIKE).
-    expect(stmts[0]!.sql).toBe(
-      "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
+    // A positive override and an explicit free (0) both get a row.
+    expectScopedReplace(
+      groupFlatPriceStatements(12, [
+        { listingId: 5, price: 1500 },
+        { listingId: 6, price: 0 },
+      ]),
+      // The delete scopes to this group's flat rows by exact price_id (not LIKE).
+      groupFlatDelete,
+      ["12", "group"],
+      [
+        [5, "group", "12", 1500],
+        [6, "group", "12", 0],
+      ],
     );
-    expect(stmts[0]!.args).toEqual(["group", "12"]);
-    expect(stmts[1]!.sql).toBe(
-      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
-    );
-    expect(stmts[1]!.args).toEqual([
-      5,
-      "group",
-      "12",
-      1500,
-      6,
-      "group",
-      "12",
-      0,
-    ]);
   });
 
   test("skips members with a null or absent price (no override → no row)", () => {
-    const stmts = groupFlatPriceStatements(3, [
-      { listingId: 9, price: null },
-      { listingId: 10 },
-      { listingId: 11, price: 250 },
-    ]);
     // Only the delete plus the one real override survive.
-    expect(stmts.map((s) => s.args)).toEqual([
-      ["group", "3"],
-      [11, "group", "3", 250],
-    ]);
+    expectScopedReplace(
+      groupFlatPriceStatements(3, [
+        { listingId: 9, price: null },
+        { listingId: 10 },
+        { listingId: 11, price: 250 },
+      ]),
+      groupFlatDelete,
+      ["3", "group"],
+      [[11, "group", "3", 250]],
+    );
   });
 
   test("emits only the group-scoped delete when there are no members", () => {
-    expect(groupFlatPriceStatements(7, []).map((s) => s.args)).toEqual([
-      ["group", "7"],
+    expectScopedReplace(groupFlatPriceStatements(7, []), groupFlatDelete, [
+      "7",
+      "group",
     ]);
   });
 });
@@ -166,17 +220,17 @@ describe("removeGroupPricesStatement", () => {
     const stmt = removeGroupPricesStatement([5], [1, 12])!;
     // Flat rows matched by exact group id; per-day rows by the "<id>/%" glob (the
     // trailing "/" keeps group 1's glob from matching group 12's price_ids).
-    expect(stmt.args).toEqual([5, "1", "12", "1/%", "12/%"]);
-    expectIncludesAll(stmt.sql, [
-      "price_type = 'group' AND price_id IN (?, ?)",
-      "price_id LIKE ? OR price_id LIKE ?",
+    expect(placed(stmt).args).toEqual([5, "1", "12", "1/%", "12/%"]);
+    expectIncludesAll(placed(stmt).sql, [
+      "listing_prices.price_type = 'group' AND listing_prices.price_id IN (?, ?)",
+      "listing_prices.price_id LIKE ? OR listing_prices.price_id LIKE ?",
     ]);
   });
 
   test("drops several listings' rows for one left group in one statement", () => {
     const stmt = removeGroupPricesStatement([5, 6, 7], [1])!;
-    expect(stmt.args).toEqual([5, 6, 7, "1", "1/%"]);
-    assertStringIncludes(stmt.sql, "listing_id IN (?, ?, ?)");
+    expect(placed(stmt).args).toEqual([5, 6, 7, "1", "1/%"]);
+    assertStringIncludes(placed(stmt).sql, "listing_id IN (?, ?, ?)");
   });
 });
 
@@ -191,7 +245,7 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
       { price_id: "3", price_type: "day_count", unit_price: 1000 },
     ]);
     // The returned entity (form re-fetch via the projection) carries them.
-    expect(listing.day_prices).toEqual({ 1: 400, 3: 1000 });
+    expect(listing.dayPrices).toEqual({ 1: 400, 3: 1000 });
     // And getListingDayPrices reads the same rows directly.
     expect(await getListingDayPrices(listing.id)).toEqual({ 1: 400, 3: 1000 });
   });
@@ -206,7 +260,7 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
       durationDays: 5,
     });
     expect(await getListingDayPrices(listing.id)).toEqual({ 1: 550 });
-    expect(edited.day_prices).toEqual({ 1: 550 });
+    expect(edited.dayPrices).toEqual({ 1: 550 });
   });
 
   test("a day-count row whose price is not a number fails the read loudly", async () => {
@@ -215,9 +269,7 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     // one — or none at all.
     const listing = await createDayPricedListing({ 2: 640 });
     await queryAll(
-      "UPDATE listing_prices SET unit_price = 'free' " +
-        "WHERE price_type = 'day_count' AND listing_id = ?",
-      [listing.id],
+      sql`UPDATE listing_prices SET unit_price = 'free' WHERE price_type = 'day_count' AND listing_id = ${listing.id}`,
     );
     await expect(getListingDayPrices(listing.id)).rejects.toThrow(
       "Invalid type",
@@ -234,26 +286,26 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
   test("updating a missing listing writes no price rows", async () => {
     // The table wrapper only re-syncs when the update returns a row; a missing
     // id yields null and must not touch listing_prices.
-    expect(await listingsTable.update(987655, { unitPrice: 500 })).toBeNull();
+    expect(await updateListing(987655, { unitPrice: 500 })).toBeNull();
     expect(await priceRows(987655)).toEqual([]);
   });
 
   test("updating day prices directly via the wrapper replaces the day_count rows", async () => {
     const listing = await createDayPricedListing({ 1: 400 });
-    const updated = await listingsTable.update(listing.id, {
+    const updated = await updateListing(listing.id, {
       customisableDays: true,
       dayPrices: { 2: 900, 3: 1300 },
       durationDays: 5,
     });
-    expect(updated!.day_prices).toEqual({ 2: 900, 3: 1300 });
+    expect(updated!.dayPrices).toEqual({ 2: 900, 3: 1300 });
     expect(await getListingDayPrices(listing.id)).toEqual({ 2: 900, 3: 1300 });
   });
 
   test("a partial update that omits day prices leaves the day_count rows intact", async () => {
     const listing = await createDayPricedListing({ 1: 400, 2: 700 });
     // A direct partial update (no dayPrices) must not clobber the day_count rows.
-    const row = await listingsTable.update(listing.id, { active: false });
-    expect(row!.day_prices).toEqual({ 1: 400, 2: 700 });
+    const row = await updateListing(listing.id, { active: false });
+    expect(row!.dayPrices).toEqual({ 1: 400, 2: 700 });
     expect(await getListingDayPrices(listing.id)).toEqual({ 1: 400, 2: 700 });
   });
 
@@ -265,16 +317,14 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     price: number,
   ): Promise<unknown> =>
     queryAll(
-      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, 'group_day', ?, ?)",
-      [listingId, priceId, price],
+      sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (${listingId}, 'group_day', ${priceId}, ${price})`,
     );
 
   /** Insert a bare membership row — the readers only surface a group_day row
    * whose listing is a CURRENT member of that group. */
   const seedMembership = (groupId: number, listingId: number) =>
     queryAll(
-      "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
-      [groupId, listingId],
+      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${groupId}, ${listingId})`,
     );
 
   test("getGroupDayPrices folds only its own group's current members — a prefix-sharing id never matches and a removed member's stale rows are invisible", async () => {

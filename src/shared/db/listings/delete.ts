@@ -1,15 +1,12 @@
 /** Listing deletion and owned-row cleanup. */
 
-import { executeBatch, type SqlStatement, type TxScope } from "#db/client.ts";
-import {
-  clearExternalLinksStatement,
-  externalLinkTargets,
-} from "#db/external-sources/target.ts";
-import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
+import { executeBatch, type TxScope } from "#db/client.ts";
+import { clearItemReferencesStatements } from "#db/item-references.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
-import { clearItemEdgesStatement } from "#db/site-page-items.ts";
-import { sitePageItemTargets } from "#shared/site-pages/target.ts";
+import { equal, or } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteFrom } from "#db/write.ts";
 
 /** Delete one listing and its listing-owned relationships in one batch. The
  *  batch runs on the caller's transaction when it runs inside one, and as its
@@ -20,37 +17,23 @@ export const deleteListing = async (
   listingId: number,
   tx?: TxScope,
 ): Promise<void> => {
+  const ofListing = { listingId };
   const statements: SqlStatement[] = [
-    {
-      args: [listingId],
-      sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
-    },
-    {
-      args: [listingId],
-      sql: "DELETE FROM listing_questions WHERE listing_id = ?",
-    },
-    {
-      args: [listingId],
-      sql: "DELETE FROM listing_attribute_options WHERE listing_id = ?",
-    },
-    numberedStatement(
-      (bind) =>
-        `DELETE FROM listing_parents WHERE parent_listing_id = ${bind(listingId)} OR child_listing_id = ${bind(listingId)}`,
+    deleteFrom(tables.listing_attendees).where(ofListing),
+    deleteFrom(tables.listing_questions).where(ofListing),
+    deleteFrom(tables.listing_attribute_options).where(ofListing),
+    deleteFrom(tables.listing_parents).where((link) =>
+      or(
+        equal(link.parentListingId, listingId),
+        equal(link.childListingId, listingId),
+      ),
     ),
-    {
-      args: [listingId],
-      sql: "DELETE FROM group_listings WHERE listing_id = ?",
-    },
-    clearItemEdgesStatement(sitePageItemTargets.of("listing")(listingId)),
-    clearImageUsesForItemStatement(imageUseTargets.of("listing")(listingId)),
-    clearExternalLinksStatement(externalLinkTargets.of("listing")(listingId)),
-    { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
-    {
-      args: [listingId],
-      sql: "DELETE FROM listing_prices WHERE listing_id = ?",
-    },
-    noteDeleteStatement("listing", { args: [listingId], sql: "?" }),
-    { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
+    deleteFrom(tables.group_listings).where(ofListing),
+    ...clearItemReferencesStatements("listing", listingId),
+    deleteFrom(tables.activity_log).where(ofListing),
+    deleteFrom(tables.listing_prices).where(ofListing),
+    noteDeleteStatement("listing", sql`${listingId}`),
+    deleteFrom(tables.listings).where({ id: listingId }),
   ];
   await (tx === undefined ? executeBatch(statements) : tx.batch(statements));
 };

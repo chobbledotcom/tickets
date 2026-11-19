@@ -16,7 +16,7 @@ import {
 
 describeWithEnv("Group parity pins", { db: true }, () => {
   const storedGroup = async (name: string) => {
-    const all = await groups.cache.getAll();
+    const all = await groups.getAll();
     const row = all.find((g) => g.name === name);
     if (!row) throw new Error(`no group named ${name} was stored`);
     return row;
@@ -25,18 +25,18 @@ describeWithEnv("Group parity pins", { db: true }, () => {
   test("page create stores the posted fields, absent checkboxes off", async () => {
     const response = await ownerPagePost("/admin/groups", {
       description: "Pinned page group",
-      max_attendees: "0",
+      maxAttendees: "0",
       name: "Pinned Page Group",
     });
     expect(response.status).toBe(302);
     const row = await storedGroup("Pinned Page Group");
     expect(row.description).toBe("Pinned page group");
     expect(row.hidden).toBe(false);
-    expect(row.is_package).toBe(false);
-    expect(row.max_attendees).toBe(0);
+    expect(row.isPackage).toBe(false);
+    expect(row.maxAttendees).toBe(0);
     // An absent checkbox stores false, while the API's column default for
     // show_hidden_listings is true.
-    expect(row.show_hidden_listings).toBe(false);
+    expect(row.showHiddenListings).toBe(false);
   });
 
   test("api create stores the same shape from the same facts", async () => {
@@ -83,8 +83,8 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     // the minor-unit price, and the default quantity of one.
     const member = await getGroupPackagePrices(created.group.id);
     expect(member).toHaveLength(1);
-    expect(member[0]?.listing_id).toBe(listed.id);
-    expect(member[0]?.package_price).toBe(5000);
+    expect(member[0]?.listingId).toBe(listed.id);
+    expect(member[0]?.packagePrice).toBe(5000);
     expect(member[0]?.quantity).toBe(1);
   });
 
@@ -119,17 +119,14 @@ describeWithEnv("Group parity pins", { db: true }, () => {
       },
     );
     expect(
-      (await groups.cache.getAll()).find((g) => g.id === created.group.id)
-        ?.name,
+      (await groups.getAll()).find((g) => g.id === created.group.id)?.name,
     ).toBe("Pinned Name Type Group");
-    expect(
-      (await groups.cache.getAll()).find((g) => g.name === "123"),
-    ).toBeUndefined();
+    expect((await groups.getAll()).map((g) => g.name)).not.toContain("123");
   });
 
   test("both surfaces refuse a delete whose confirmation does not match", async () => {
     await ownerPagePost("/admin/groups", {
-      max_attendees: "0",
+      maxAttendees: "0",
       name: "Pinned Delete Group",
     });
     const row = await storedGroup("Pinned Delete Group");
@@ -138,16 +135,14 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     // the flash; the API answers 400 in JSON with the same refusal. Both keep
     // the row.
     const page = await ownerPagePost(`/admin/groups/${row.id}/delete`, {
-      confirm_identifier: "Wrong Name",
+      confirmIdentifier: "Wrong Name",
     });
     expectRedirectWithFlash(
       `/admin/groups/${row.id}/delete`,
       "Group name does not match. Please type the exact group name to confirm deletion.",
       false,
     )(page);
-    expect(
-      (await groups.cache.getAll()).find((g) => g.id === row.id),
-    ).toBeDefined();
+    expect((await groups.getAll()).map((g) => g.id)).toContain(row.id);
 
     const api = await ownerApiDelete(`/api/admin/groups/${row.id}`, {
       confirm_identifier: "Wrong Name",
@@ -156,8 +151,6 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     expect((await api.json()).error).toBe(
       "Group name does not match. Please provide the exact group name in confirm_identifier.",
     );
-    expect(
-      (await groups.cache.getAll()).find((g) => g.id === row.id),
-    ).toBeDefined();
+    expect((await groups.getAll()).map((g) => g.id)).toContain(row.id);
   });
 });

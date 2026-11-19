@@ -62,8 +62,8 @@ describe("adminListingsPage", () => {
   });
 
   const populated = [
-    testListingWithCount({ attendee_count: 25, id: 1, name: "Active Show" }),
-    testListingWithCount({ attendee_count: 7, id: 3, name: "Third" }),
+    testListingWithCount({ attendeeCount: 25, id: 1, name: "Active Show" }),
+    testListingWithCount({ attendeeCount: 7, id: 3, name: "Third" }),
     testListingWithCount({ active: false, id: 2, name: "Old Show" }),
   ];
   const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };

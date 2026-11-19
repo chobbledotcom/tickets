@@ -35,15 +35,6 @@ import {
 } from "#shared/price-modifier.ts";
 import type { Modifier } from "#types";
 
-/** The signed value one stored modifier applies, reading it off the columns
- * this table spells in snake_case. */
-const signedValue = (modifier: Modifier): number =>
-  signedModifierValue({
-    direction: modifier.direction,
-    kind: modifier.calc_kind,
-    value: modifier.calc_value,
-  });
-
 /** Resolve the listing ids each "groups"-scoped modifier covers. The default
  * resolves the group→listing membership live (the DB join); the would-be variant
  * passes a resolver that expands against in-memory listings, and an optional
@@ -106,12 +97,12 @@ const toSpec = (
   listingIds: number[] | null,
 ): ModifierSpec => ({
   id: modifier.id,
-  kind: modifier.calc_kind,
+  kind: modifier.calcKind,
   listingIds,
   name: modifier.name,
   quantity,
   trigger: modifier.trigger,
-  value: signedValue(modifier),
+  value: signedModifierValue(modifier),
 });
 
 /** Subtotal of the items a modifier is scoped to (the whole cart when its
@@ -176,12 +167,12 @@ const triggerQuantity = (
   answerQuantities: Map<number, number>,
 ): number => {
   if (modifier.trigger === "code") {
-    return codeIndex !== null && modifier.code_index === codeIndex ? 1 : 0;
+    return codeIndex !== null && modifier.codeIndex === codeIndex ? 1 : 0;
   }
   if (modifier.trigger === "optional") return addOns.get(modifier.id) ?? 0;
   if (modifier.trigger === "answer") {
     const requested = answerQuantities.get(modifier.id) ?? 0;
-    const cap = modifier.max_per_order;
+    const cap = modifier.maxPerOrder;
     if (requested < 1 || cap === null) return requested;
     return Math.min(requested, checkedPerOrderCap(modifier, cap));
   }
@@ -311,12 +302,12 @@ const eligibleCandidates = async (
   return (
     await Promise.all(
       activeModifiers.map(async (modifier): Promise<Candidate | null> => {
-        if (modifier.min_visits > ctx.visits) return null;
+        if (modifier.minVisits > ctx.visits) return null;
         const listingIds = scopeOf(scopes, modifier);
         const base = inScopeSubtotal(items, listingIds);
         // A scoped modifier only applies alongside its listings/groups.
         if (listingIds !== null && base === 0) return null;
-        if (base < modifier.min_subtotal) return null;
+        if (base < modifier.minSubtotal) return null;
         // The quantity runs last: its corrupt-cap refusal must only fire for
         // a modifier the gates say this cart will really apply.
         const quantity = triggerQuantity(
@@ -423,17 +414,17 @@ export const ADDON_MAX_QUANTITY = 20;
 /** The buyer-facing price label for an add-on: a signed amount or percentage,
  * or a bare multiplier (whose factor already encodes its direction). */
 const addOnPriceLabel = (modifier: Modifier): string => {
-  if (modifier.calc_kind === "multiply") return `×${modifier.calc_value}`;
+  if (modifier.calcKind === "multiply") return `×${modifier.calcValue}`;
   const sign = modifier.direction === "discount" ? "−" : "+";
   const amount =
-    modifier.calc_kind === "fixed"
-      ? formatCurrency(toMinorUnits(modifier.calc_value))
-      : `${modifier.calc_value}%`;
+    modifier.calcKind === "fixed"
+      ? formatCurrency(toMinorUnits(modifier.calcValue))
+      : `${modifier.calcValue}%`;
   return `${sign}${amount}`;
 };
 
 const addOnCanRequirePayment = (modifier: Modifier): boolean =>
-  modifier.calc_kind === "fixed" && signedValue(modifier) > 0;
+  modifier.calcKind === "fixed" && signedModifierValue(modifier) > 0;
 
 /** Active opt-in ("optional") add-on modifiers paired with their resolved
  * listing scopes (null = whole order), the shared starting point for the add-on

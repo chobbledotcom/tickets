@@ -14,8 +14,13 @@
 import { t } from "#i18n";
 import type { ChoiceOptions } from "#shared/forms/field.ts";
 
+/** A valibot picklist: the choices a field offers. */
+type Picklist<TValue extends string> = {
+  readonly options: readonly [TValue, ...TValue[]];
+};
+
 export const picklistOptions = <TValue extends string>(
-  schema: { readonly options: readonly [TValue, ...TValue[]] },
+  schema: Picklist<TValue>,
   labelKeyPrefix: string,
 ): ChoiceOptions<TValue> => {
   const toOption = (value: TValue) => ({
@@ -25,3 +30,14 @@ export const picklistOptions = <TValue extends string>(
   const [first, ...rest] = schema.options;
   return [toOption(first), ...rest.map(toOption)];
 };
+
+/** A blank first choice, then the schema's choices, so nothing is picked
+ * until the person picks. */
+export const blankThenPicklistOptions = <TValue extends string>(
+  blankLabel: string,
+  schema: Picklist<TValue>,
+  labelKeyPrefix: string,
+): ChoiceOptions<"" | TValue> => [
+  { label: blankLabel, value: "" },
+  ...picklistOptions(schema, labelKeyPrefix),
+];

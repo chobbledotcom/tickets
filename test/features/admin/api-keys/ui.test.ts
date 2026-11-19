@@ -135,6 +135,8 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
   });
 
   describe("creating keys", () => {
+    /** POST a key create and assert its error flash, its redirect, and that
+     *  no key was stored. */
     test("POST /admin/api-keys creates a key and redirects with it", async () => {
       const cookie = await testCookie();
 
@@ -146,7 +148,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       const csrfToken = extractCsrfToken(pageHtml);
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken!,
+        csrfToken: csrfToken!,
         name: "My Test Key",
       });
       const response = await handleRequest(
@@ -244,7 +246,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       const cookie = buildSessionCookie(token);
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken,
+        csrfToken,
         name: "No Key Session",
       });
       const response = await handleRequest(

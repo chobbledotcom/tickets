@@ -4,9 +4,10 @@ import { it as test } from "@std/testing/bdd";
 import { costAccount } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
-import { getServicingCosts } from "#db/attendees/servicing.ts";
+import { getServicingCosts } from "#db/attendees/service-cost-legs.ts";
 import { queryAll } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -33,7 +34,7 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
     const { response } = await adminFormPost(`/admin/servicing/${id}`, {
       amount: "90.00",
       memo: "Boiler part",
-      target_listing_id: String(listing.id),
+      targetListingId: String(listing.id),
     });
     assertStringIncludes(
       response.headers.get("location") ?? "",
@@ -136,7 +137,7 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
       servicingId: id,
     });
     const rows = await queryAll<{ memo: string | null }>(
-      `SELECT memo FROM transfers WHERE kind = '${KIND.serviceCost}'`,
+      sql`SELECT memo FROM transfers WHERE kind = ${sqlLiteral(KIND.serviceCost)}`,
     );
     expect(rows).toHaveLength(1);
     const memo = rows[0]?.memo;

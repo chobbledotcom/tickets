@@ -4,9 +4,18 @@ import {
   resultRows,
   type TxScope,
   useTransaction,
-  writeRowInTransaction,
 } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { type NewRecord, recordsOf } from "#db/record-table.ts";
+import { writeRowInTransaction } from "#db/row-write.ts";
+import type { TableHandle, TableWithId } from "#db/select/tables.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlJoin,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 
 type Columns = string | readonly [string, ...string[]];
 type ColumnValues<Names extends Columns> = Names extends string
@@ -92,16 +101,18 @@ const columnValues = <Names extends Columns>(
     ? [values as InValue]
     : (values as readonly InValue[]);
 
-const matches = (columns: readonly string[]): string =>
-  columns.map((column) => `${column} = ?`).join(" AND ");
-
-/** The columns' equality tests against their bound tokens, for a statement
- * the numbered binder built. */
+/** One equality test per column against its bound value, joined by AND. The
+ * column tuple types give one value for each column. */
 const equalityOf = (
   columns: readonly string[],
-  tokens: readonly string[],
-): string =>
-  columns.map((column, index) => `${column} = ${tokens[index]}`).join(" AND ");
+  values: readonly InValue[],
+): SqlStatement =>
+  sqlJoin(
+    columns.map(
+      (column, index) => sql`${sqlName(column)} = ${values[index] as InValue}`,
+    ),
+    sql` AND `,
+  );
 
 export const defineOrderedCollection = <
   Key extends Columns,
@@ -114,27 +125,17 @@ export const defineOrderedCollection = <
   table,
 }: OrderedCollectionConfig<Key, Scope>): OrderedCollection<Key, Scope> => {
   const keyColumns = columnNames(key);
-  const scopeColumns = scope === undefined ? undefined : columnNames(scope);
-  const scopeClause =
-    scopeColumns === undefined ? "1 = 1" : matches(scopeColumns);
-  const scopeArgs = (operation: ScopeValues<Scope>): readonly InValue[] =>
+  const tableName = sqlName(table);
+  const orderColumn = sqlName(order);
+  /** The scope test for one operation, or a test every row passes when the
+   * collection declares no scope. */
+  const inScope = (operation: ScopeValues<Scope>): SqlStatement =>
     scope === undefined
-      ? []
-      : columnValues(scope, operation.scope as ColumnValues<Scope & Columns>);
-  /** The scope predicate against its bound tokens and the `AND ` that follows
-   * it, or "1 = 1 AND " when the collection declares no scope. The binder hands
-   * every repeat of one value the same token, so the subquery and the outer
-   * where share one text. */
-  const scopeWhere = (
-    values: readonly InValue[],
-    bind: (value: InValue) => string,
-  ): string =>
-    scopeColumns === undefined
-      ? "1 = 1 AND "
-      : `${equalityOf(
-          scopeColumns,
-          values.map((value) => bind(value)),
-        )} AND `;
+      ? sql`1 = 1`
+      : equalityOf(
+          columnNames(scope),
+          columnValues(scope, operation.scope as ColumnValues<Scope & Columns>),
+        );
   const inTransaction = <Result>(
     operation: { transaction?: TxScope | undefined },
     run: (transaction: TxScope) => Promise<Result>,
@@ -143,12 +144,12 @@ export const defineOrderedCollection = <
   const nextMany: OrderedCollection<Key, Scope>["nextMany"] = (operation) =>
     inTransaction(operation, async (transaction) => {
       const results = await transaction.batch(
-        operation.items.map((item) => ({
-          args: [...scopeArgs(item)],
-          sql: `SELECT COALESCE(MAX(${order}) + 1, ${start}) AS next_order
-                  FROM ${table}
-                 WHERE ${scopeClause}`,
-        })),
+        operation.items.map(
+          (item) =>
+            sql`SELECT COALESCE(MAX(${orderColumn}) + 1, ${sqlLiteral(start)}) AS next_order
+                  FROM ${tableName}
+                 WHERE ${inScope(item)}`,
+        ),
       );
       return results.map((result) =>
         Number(resultRows<{ next_order: number }>(result)[0]!.next_order),
@@ -164,57 +165,56 @@ export const defineOrderedCollection = <
     )[0]!;
 
   const append: OrderedCollection<Key, Scope>["append"] = async (operation) => {
-    const scoped = scopeArgs(operation);
+    const scoped = inScope(operation);
     const keyed = columnValues(key, operation.key);
-    const statement = numberedStatement((bind) => {
-      const keys = keyed.map((value) => bind(value));
-      return `UPDATE ${table}
-               SET ${order} = COALESCE((
-                 SELECT MAX(orderedSibling.${order}) + 1
-                   FROM ${table} AS orderedSibling
-                   WHERE ${scopeWhere(scoped, bind)}(${keyColumns
-                     .map(
-                       (column, index) =>
-                         `orderedSibling.${column} != ${keys[index]}`,
-                     )
-                     .join(" OR ")})
-               ), ${start})
-             WHERE ${scopeWhere(scoped, bind)}${equalityOf(keyColumns, keys)}`;
-    });
+    const anotherKey = sqlJoin(
+      keyColumns.map(
+        (column, index) =>
+          sql`${sqlName(`orderedSibling.${column}`)} != ${keyed[index] as InValue}`,
+      ),
+      sql` OR `,
+    );
+    const statement = sql`UPDATE ${tableName}
+               SET ${orderColumn} = COALESCE((
+                 SELECT MAX(${sqlName(`orderedSibling.${order}`)}) + 1
+                   FROM ${tableName} AS orderedSibling
+                   WHERE ${scoped} AND (${anotherKey})
+               ), ${sqlLiteral(start)})
+             WHERE ${scoped} AND ${equalityOf(keyColumns, keyed)}`;
     await (operation.transaction
       ? operation.transaction.execute(statement)
-      : execute(statement.sql, statement.args));
+      : execute(statement));
   };
 
   const swap: OrderedCollection<Key, Scope>["swap"] = (operation) =>
     inTransaction(operation, async (transaction) => {
-      const first = columnValues(key, operation.first);
-      const second = columnValues(key, operation.second);
-      const differentKey = keyColumns
-        .map((column) => `swapping.${column} != orderedItem.${column}`)
-        .join(" OR ");
+      const first = equalityOf(keyColumns, columnValues(key, operation.first));
+      const second = equalityOf(
+        keyColumns,
+        columnValues(key, operation.second),
+      );
+      const differentKey = sqlJoin(
+        keyColumns.map(
+          (column) =>
+            sql`${sqlName(`swapping.${column}`)} != ${sqlName(`orderedItem.${column}`)}`,
+        ),
+        sql` OR `,
+      );
+      const swapped = sql`${inScope(operation)} AND (${first} OR ${second})`;
       await transaction.execute(
-        numberedStatement((bind) => {
-          const firstTokens = first.map((value) => bind(value));
-          const secondTokens = second.map((value) => bind(value));
-          const scopeWhereText = scopeWhere(scopeArgs(operation), bind);
-          const firstText = equalityOf(keyColumns, firstTokens);
-          const secondText = equalityOf(keyColumns, secondTokens);
-          const pair = `(${firstText} OR ${secondText})`;
-          return `WITH swapping AS MATERIALIZED (
-                SELECT ${[...keyColumns, order].join(", ")}
-                  FROM ${table}
-                 WHERE ${scopeWhereText}${pair}
+        sql`WITH swapping AS MATERIALIZED (
+                SELECT ${sqlNames([...keyColumns, order])}
+                  FROM ${tableName}
+                 WHERE ${swapped}
               )
-              UPDATE ${table} AS orderedItem
-                 SET ${order} = (
-                   SELECT ${order}
+              UPDATE ${tableName} AS orderedItem
+                 SET ${orderColumn} = (
+                   SELECT ${orderColumn}
                      FROM swapping
                     WHERE ${differentKey}
                  )
-               WHERE ${scopeWhereText}${pair}
-                 AND (SELECT COUNT(*) FROM swapping) = 2`;
-        }),
+               WHERE ${swapped}
+                 AND (SELECT COUNT(*) FROM swapping) = 2`,
       );
     });
 
@@ -234,13 +234,8 @@ export type ScopedOrderedRowInsert<Input> = (
  * A failed order write or log rolls the insert back with it.
  */
 export const insertScopedOrderedRow =
-  <Input>(
-    table: {
-      insertStatement: (input: Input) => Promise<{
-        args: InValue[];
-        sql: string;
-      }>;
-    },
+  <Name extends TableWithId>(
+    table: TableHandle<Name>,
     order: {
       append: (operation: {
         key: number;
@@ -248,13 +243,25 @@ export const insertScopedOrderedRow =
         transaction: TxScope;
       }) => Promise<void>;
     },
-  ): ScopedOrderedRowInsert<Input> =>
-  async (scope, input, log) =>
+  ): ScopedOrderedRowInsert<NewRecord<Name>> =>
+  async (scope, values, log) =>
     writeRowInTransaction(
-      await table.insertStatement(input),
+      await recordsOf(table).insertStatement(values),
       null,
       async (transaction, id) => {
         await order.append({ key: id, scope, transaction });
         await log(transaction);
       },
     );
+
+/** The order of a list of rows that starts at 1, and the order of the child
+ *  rows inside each row of the list. Each child row names its row of the list
+ *  in `scope`. */
+export const listWithChildOrders = <Scope extends string>(
+  list: string,
+  children: string,
+  scope: Scope,
+) => ({
+  children: defineOrderedCollection({ key: "id", scope, table: children }),
+  list: defineOrderedCollection({ key: "id", start: 1, table: list }),
+});

@@ -11,12 +11,17 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
+import { stub } from "@std/testing/mock";
+import { execute, getDb } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import {
   editFields,
@@ -25,6 +30,19 @@ import {
   member,
   sellPackageTicket,
 } from "./helpers.ts";
+
+/** Hide the package when the group write opens its transaction: after the
+ * request check passed, before the write reads the group again. */
+const hideWhenTheWriteOpens = (groupId: number) => {
+  const db = getDb();
+  const open = db.transaction.bind(db);
+  return stub(db, "transaction", async (mode) => {
+    await execute(
+      sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${groupId}`,
+    );
+    return open(mode);
+  });
+};
 
 describeWithEnv(
   "server (admin group packages) — pulling apart a package people have bought",
@@ -41,12 +59,12 @@ describeWithEnv(
         },
       );
       expect(response.status).toBe(302);
-      const kept = (await groups.table.read.one({ id: group.id }))!;
-      expect(kept.is_package).toBe(true);
-      expect(kept.hide_package_listings).toBe(true);
+      const kept = (await records.groups.find(group.id))!;
+      expect(kept.isPackage).toBe(true);
+      expect(kept.hidePackageListings).toBe(true);
     });
 
-    test("form and API updates catch a hide and sale after request validation", async () => {
+    test("form and API updates catch a hide of a sold package after request validation", async () => {
       const saves = [
         {
           label: "Race Form",
@@ -77,21 +95,17 @@ describeWithEnv(
           slug,
         });
         const memberListing = await member(group, `${label} Member`);
-        const original = groups.table.updateStatement!;
-        groups.table.updateStatement = async (...args) => {
-          await execute(
-            "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
-            [group.id],
-          );
-          await sellPackageTicket(memberListing.id, group.id);
-          return original(...args);
-        };
+        // The request check reads the sales of a hidden package only, so a
+        // sale while the package shows passes it.
+        await sellPackageTicket(memberListing.id, group.id);
+        const hides = hideWhenTheWriteOpens(group.id);
         let response: Response;
         try {
           response = await save(group.id);
         } finally {
-          groups.table.updateStatement = original;
+          hides.restore();
         }
+        expect(hides.calls.length).toBe(1);
 
         expect(response.status).toBe(status);
         if (status === 400) {
@@ -99,26 +113,23 @@ describeWithEnv(
             error: t("error.sold_hidden_package"),
           });
         }
-        const kept = await groups.table.read.one({ id: group.id });
-        expect(kept?.is_package).toBe(true);
-        expect(kept?.hide_package_listings).toBe(true);
+        const kept = await records.groups.find(group.id);
+        expect(kept?.isPackage).toBe(true);
+        expect(kept?.hidePackageListings).toBe(true);
       }
     });
 
     test("allows deleting a hidden package with no sold tickets", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Empty Kit",
+      const group = await createHiddenPackageGroup("Empty Kit", {
         slug: "empty-kit",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
       await member(group, "Empty Member");
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/delete`,
-        { confirm_identifier: "Empty Kit" },
+        { confirmIdentifier: "Empty Kit" },
       );
       expect(response.status).toBe(302);
-      expect(await groups.table.read.one({ id: group.id })).toBeNull();
+      expect(await records.groups.find(group.id)).toBeNull();
     });
 
     test("the groups API blocks deleting a sold hidden package until un-hidden", async () => {
@@ -139,10 +150,12 @@ describeWithEnv(
           );
         },
       );
-      expect(await groups.table.read.one({ id: group.id })).not.toBeNull();
+      expect(await records.groups.find(group.id)).not.toBeNull();
 
       // After the explicit reveal, the API delete un-groups as before.
-      await groups.table.update(group.id, { hidePackageListings: false });
+      await records.groups.update(group.id, {
+        hidePackageListings: false,
+      });
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
           body: { confirm_identifier: "Api Kit" },
@@ -153,7 +166,7 @@ describeWithEnv(
           expect(body.status).toBe("ok");
         },
       );
-      expect(await groups.table.read.one({ id: group.id })).toBeNull();
+      expect(await records.groups.find(group.id)).toBeNull();
       expect(await loadListing(memberListing.id)).not.toBeNull();
     });
 

@@ -3,23 +3,21 @@
 // whole-file mutants meet their real covering tests.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
+import { readOneRow } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import {
   groupWithMember,
   packagedGroup,
   putGroup,
 } from "#test/features/admin/groups/helpers.ts";
+import { requestAsManager } from "#test-utils/api/admin-json.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import {
-  apiRequest,
-  createTestManagerSession,
-  requestAsSession,
-  testCsrfToken,
-} from "#test-utils/session.ts";
+import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("GET /api/admin/groups", () => {
@@ -31,7 +29,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         expect(body.groups.length).toBe(2);
         // slug_index should be stripped from response
         for (const group of body.groups) {
-          expect(group.slug_index).toBeUndefined();
+          expect(group).not.toHaveProperty("slug_index");
         }
       });
     });
@@ -56,10 +54,10 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       });
 
       // The API read must not publish the group: the stored row keeps the flag.
-      const stored = await groups.table.read.pick(["hidden"]).one({
-        id: hidden.id,
-      });
-      expect(stored?.hidden).toBe(true);
+      const stored = await readOneRow(
+        from(tables.groups).where({ id: hidden.id }).pick("hidden"),
+      );
+      expect(stored).toEqual({ hidden: true });
     });
 
     test("batch-hydrates package_members (and day_prices) across the list", async () => {
@@ -90,15 +88,16 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         // overrides carries no day_prices key.
         expect(byId.get(withMember.id)?.package_members).toHaveLength(1);
         expect(
-          byId.get(withMember.id)?.package_members?.[0]?.day_prices,
-        ).toBeUndefined();
+          byId.get(withMember.id)?.package_members?.[0],
+        ).not.toHaveProperty("day_prices");
         expect(byId.get(dayGroup.id)?.package_members?.[0]?.day_prices).toEqual(
           { "2": 800 },
         );
         // A package group with no listings hydrates to an empty member list.
         expect(byId.get(emptyPackage.id)?.package_members).toEqual([]);
         // A non-package group carries no package_members field at all.
-        expect(byId.get(plain.id)?.package_members).toBeUndefined();
+        expect(byId.get(plain.id)).toMatchObject({ name: "Plain" });
+        expect(byId.get(plain.id)).not.toHaveProperty("package_members");
       });
     });
 
@@ -114,12 +113,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("manager authorization", () => {
     test("allows a manager to list groups", async () => {
       await createTestGroup({ name: "Manager-visible" });
-      const res = await handleRequest(
-        requestAsSession("/api/admin/groups", {
-          cookie: await createTestManagerSession(),
-          csrfToken: await testCsrfToken(),
-        }),
-      );
+      const res = await requestAsManager("/api/admin/groups");
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.groups.length).toBe(1);

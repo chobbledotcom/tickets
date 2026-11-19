@@ -144,7 +144,7 @@ export const stripe: PaymentProvider = {
   configure: configureProvider("stripe", async (session, secrets) => {
     // The second save rotates the endpoint through the app's production cleanup
     // path. The connection result then proves only the replacement remains.
-    const credentials = { stripe_secret_key: secrets.secretKey };
+    const credentials = { stripeSecretKey: secrets.secretKey };
     await saveCredentials(session, "stripe", credentials);
     await saveCredentials(session, "stripe", credentials);
     await testStripeConnection(session);

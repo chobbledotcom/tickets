@@ -11,6 +11,7 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
@@ -33,8 +34,7 @@ const bookingLine = (listingId: number) =>
     end_at: string | null;
     quantity: number;
   }>(
-    "SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ?",
-    [listingId],
+    sql`SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ${listingId}`,
   );
 
 describeWithEnv("adding to a listing with no dates", { db: true }, () => {
@@ -74,11 +74,12 @@ describeWithEnv("adding to a listing with no dates", { db: true }, () => {
       quantity: "1",
     });
 
-    const attendee = await decryptFirstAttendee(listing.id);
-    expect(attendee.phone).toBe("07700900123");
-    expect(attendee.email).toBe("");
-    expect(attendee.address).toBe("");
-    expect(attendee.special_instructions).toBe("");
+    expect(await decryptFirstAttendee(listing.id)).toMatchObject({
+      address: "",
+      email: "",
+      phone: "07700900123",
+      special_instructions: "",
+    });
   });
 
   test("leaves the phone empty when the listing asks for an email", async () => {
@@ -94,9 +95,10 @@ describeWithEnv("adding to a listing with no dates", { db: true }, () => {
       quantity: "1",
     });
 
-    const attendee = await decryptFirstAttendee(listing.id);
-    expect(attendee.email).toBe("just@example.com");
-    expect(attendee.phone).toBe("");
+    expect(await decryptFirstAttendee(listing.id)).toMatchObject({
+      email: "just@example.com",
+      phone: "",
+    });
   });
 
   test("does not ask for a stay length it never offers", async () => {
@@ -184,7 +186,7 @@ describeWithEnv("adding to a daily listing", { db: true }, () => {
     });
 
     expect(
-      await stayFor(listing.id, { day_count: "2", name: "Two Of Three" }),
+      await stayFor(listing.id, { dayCount: "2", name: "Two Of Three" }),
     ).toEqual({ end: "2026-09-03", start: "2026-09-01" });
   });
 
@@ -211,7 +213,7 @@ describeWithEnv("adding to a daily listing", { db: true }, () => {
 
     const { response } = await addTo(listing.id, {
       date: "2026-09-01",
-      day_count: "5",
+      dayCount: "5",
       email: "toolong@example.com",
       name: "Five Nights",
       quantity: "1",

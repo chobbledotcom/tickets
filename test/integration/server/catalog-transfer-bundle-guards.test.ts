@@ -5,8 +5,9 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingParents } from "#db/listing-parents.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { createListing, getListingWithCount } from "#db/listings/records.ts";
 import { loadCatalogNameIndex, matchName } from "#db/name-registry.ts";
+import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -40,7 +41,7 @@ const storePlanInGroup = async (
   planName: string,
   groupId: number,
 ): Promise<void> => {
-  const plan = await listingsTable.insert({
+  const plan = await createListing({
     assignBuiltSite: true,
     dayPrices: {},
     maxAttendees: 1,
@@ -50,8 +51,7 @@ const storePlanInGroup = async (
     slugIndex: await hmacHash("legacy-plan"),
   });
   await execute(
-    "INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (?, ?, 1)",
-    [groupId, plan.id],
+    sql`INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (${groupId}, ${plan.id}, 1)`,
   );
 };
 
@@ -243,6 +243,6 @@ describeWithEnv("catalog bundle import guard parity", { db: true }, () => {
     expect(await listingParents.getIds(kidId.id)).toEqual([topId.id]);
     const storedKid = await getListingWithCount(kidId.id);
     if (!storedKid) throw new Error("Alone Kid is missing after import");
-    expect(storedKid.bookable_alone).toBe(true);
+    expect(storedKid.bookableAlone).toBe(true);
   });
 });

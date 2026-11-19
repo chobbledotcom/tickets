@@ -23,7 +23,7 @@ import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
-import { START_DATE_FIELD } from "#shared/order-select.ts";
+import { START_DATE_BOX, START_DATE_FIELD } from "#shared/order-select.ts";
 import { parseDateString } from "#shared/validation/date-string.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
@@ -92,7 +92,7 @@ const SharedDateFields = ({ data }: AttendeeFormProps): JSX.Element => {
         {t("attendee_form.start_date")}
         <input
           id={START_DATE_FIELD}
-          name={START_DATE_FIELD}
+          name={START_DATE_BOX}
           type="date"
           value={data.parsed.startDate}
         />
@@ -217,7 +217,7 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
         autocomplete="off"
         id="special_instructions"
         maxlength={CONTACT_TEXTAREA_LIMIT}
-        name="special_instructions"
+        name="specialInstructions"
         rows={3}
       >
         {textareaBody(data.parsed.special_instructions || "")}
@@ -305,7 +305,7 @@ const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
                   <input
                     id={`payment_amount_${slot}`}
                     min="1"
-                    name={`payment_amount_${slot}`}
+                    name={`paymentAmount${slot}`}
                     type="number"
                     value={data.parsed.payments[slot] || ""}
                   />
@@ -331,7 +331,7 @@ const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
                     <input
                       id={`adjustment_description_${slot}`}
                       maxlength={ADJUSTMENT_DESCRIPTION_LIMIT}
-                      name={`adjustment_description_${slot}`}
+                      name={`adjustmentDescription${slot}`}
                       type="text"
                       value={data.parsed.adjustments[slot]?.description || ""}
                     />
@@ -340,7 +340,7 @@ const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
                     {t("attendee_form.adjustment_amount", { slot: slot + 1 })}
                     <input
                       id={`adjustment_amount_${slot}`}
-                      name={`adjustment_amount_${slot}`}
+                      name={`adjustmentAmount${slot}`}
                       type="number"
                       value={data.parsed.adjustments[slot]?.amount || ""}
                     />
@@ -363,7 +363,7 @@ const AttendeeEditForm = ({ data }: AttendeeFormProps): JSX.Element => {
   return (
     <CsrfForm action={formAction} id={ATTENDEE_FORM_ID}>
       {data.returnUrl && (
-        <input name="return_url" type="hidden" value={data.returnUrl} />
+        <input name="returnUrl" type="hidden" value={data.returnUrl} />
       )}
 
       {/* Create renders its own title inside the form (the standalone page has

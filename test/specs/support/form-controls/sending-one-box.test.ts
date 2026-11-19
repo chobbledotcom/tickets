@@ -10,7 +10,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { sendOneBox } from "#test/specs/support/form-controls.ts";
-import { recordingBrowser } from "#test-utils/test-browser/helpers.ts";
+import { recordingPage } from "#test-utils/test-browser/helpers.ts";
 
 describe("sending one box", () => {
   const BOX = "hidden";
@@ -27,8 +27,7 @@ describe("sending one box", () => {
   /** One save through a page holding `box`: what the site received. */
   const save = async (box: string, tick: boolean) => {
     const html = page(box);
-    const { browser, sent } = recordingBrowser();
-    browser.currentHtml = html;
+    const { browser, sent } = recordingPage(html);
     await sendOneBox(browser, html, BOX, tick);
     return new URLSearchParams(sent().body);
   };
@@ -77,8 +76,7 @@ describe("sending one box", () => {
     },
   ]) {
     test(way.what, async () => {
-      const { browser, sent } = recordingBrowser();
-      browser.currentHtml = page(way.box);
+      const { browser, sent } = recordingPage(page(way.box));
       await expect(
         sendOneBox(browser, browser.currentHtml, BOX, way.tick),
       ).rejects.toThrow(way.message ?? AssertionError);

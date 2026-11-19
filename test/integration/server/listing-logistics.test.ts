@@ -5,8 +5,10 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { adminGet } from "#test-utils/session.ts";
+import { testListingInput } from "#test-utils/factories.ts";
+import { adminGet, adminMultipartPost } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("server (listing logistics field)", { db: true }, () => {
@@ -14,11 +16,11 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
     settings.setForTest(featureSetting("logistics"));
     const listing = await createTestListing({ usesLogistics: true });
     const stored = await getListingWithCount(listing.id);
-    expect(stored!.uses_logistics).toBe(true);
+    expect(stored!.usesLogistics).toBe(true);
 
     const response = await adminGet(`/admin/listing/${listing.id}/edit`);
     const html = await response.text();
-    expectIncludesAll(html, ['name="uses_logistics"', "Needs logistics"]);
+    expectIncludesAll(html, ['name="usesLogistics"', "Needs logistics"]);
   });
 
   test("the new and duplicate forms include the logistics field", async () => {
@@ -26,27 +28,29 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
     const listing = await createTestListing({ name: "Original" });
 
     const newForm = await adminGet("/admin/listing/new?template=custom");
-    assertStringIncludes(await newForm.text(), 'name="uses_logistics"');
+    assertStringIncludes(await newForm.text(), 'name="usesLogistics"');
 
     const dupForm = await adminGet(`/admin/listing/${listing.id}/duplicate`);
-    assertStringIncludes(await dupForm.text(), 'name="uses_logistics"');
+    assertStringIncludes(await dupForm.text(), 'name="usesLogistics"');
   });
 
   test("the new form omits the logistics field when logistics is off", async () => {
     settings.setForTest(featureSetting());
     const newForm = await adminGet("/admin/listing/new?template=custom");
-    assert(!(await newForm.text()).includes('name="uses_logistics"'));
+    assert(!(await newForm.text()).includes('name="usesLogistics"'));
   });
 
-  test("ignores the Delivered field when logistics is off", async () => {
+  test("refuses the logistics field when logistics is off, and the edit page omits it", async () => {
     settings.setForTest(featureSetting());
-    // The form still submits delivered=1, but the gate forces it false.
-    const listing = await createTestListing({ usesLogistics: true });
-    const stored = await getListingWithCount(listing.id);
-    expect(stored!.uses_logistics).toBe(false);
+    const { response: refused } = await adminMultipartPost("/admin/listing", {
+      ...buildCreateListingForm(testListingInput({ name: "No logistics" })),
+      usesLogistics: "1",
+    });
+    expect(refused.status).toBe(400);
 
+    const listing = await createTestListing();
     const response = await adminGet(`/admin/listing/${listing.id}/edit`);
     const html = await response.text();
-    assert(!html.includes('name="uses_logistics"'));
+    assert(!html.includes('name="usesLogistics"'));
   });
 });

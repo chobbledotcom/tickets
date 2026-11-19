@@ -117,7 +117,7 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
         {
           body: new URLSearchParams({
             check_in: "true",
-            csrf_token: await testCsrfToken(),
+            csrfToken: await testCsrfToken(),
             quantity: "3",
           }),
           method: "POST",

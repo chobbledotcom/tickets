@@ -5,9 +5,9 @@ import { execute } from "#db/client.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
 import { loadCatalogNameIndex, matchName } from "#db/name-registry.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
 import { matchKey } from "#shared/keys.ts";
@@ -73,9 +73,8 @@ describeWithEnv("catalog bundle import", { db: true }, () => {
     const day1Id = await groupIdByName("Day 1");
     const day2Id = await groupIdByName("Day 2");
     const membershipRows = await execute(
-      `SELECT COUNT(*) AS n FROM group_listings
-        WHERE listing_id IN (?, ?) AND group_id IN (?, ?)`,
-      [firstId, lastId, day1Id, day2Id],
+      sql`SELECT COUNT(*) AS n FROM group_listings
+        WHERE listing_id IN (${firstId}, ${lastId}) AND group_id IN (${day1Id}, ${day2Id})`,
     );
     expect(membershipRows.rows[0]!.n).toBe(4);
     // One round trip per listing would be 56 alone. The batched import stays
@@ -186,8 +185,8 @@ describeWithEnv("catalog bundle import", { db: true }, () => {
     const packageRows = await getGroupPackagePrices(weekendId);
     expect(packageRows).toHaveLength(2);
     expect(
-      packageRows.find((row) => row.listing_id === workshopId),
-    ).toMatchObject({ package_price: 900, quantity: 2 });
+      packageRows.find((row) => row.listingId === workshopId),
+    ).toMatchObject({ packagePrice: 900, quantity: 2 });
     // The Social member carries its per-day override.
     const dayPrices = await getGroupDayPrices(weekendId);
     expect(dayPrices.get(socialId)).toEqual(new Map([[1, 300]]));
@@ -195,7 +194,8 @@ describeWithEnv("catalog bundle import", { db: true }, () => {
     expect(await listingParents.getIds(guideId)).toEqual([workshopId]);
   });
 
-  test("refuses an add-on whose planned parent sits in a name-hiding package", async () => {
+  /** An add-on whose planned parent sits in a name-hiding package. */
+  const addOnUnderHiddenPackage = (): CatalogBundle => {
     const bundle = dayGroupBundle(1);
     bundle.groups = [
       {
@@ -214,60 +214,59 @@ describeWithEnv("catalog bundle import", { db: true }, () => {
       },
       parents: ["Act 0"],
     });
-    const result = await importCatalog(bundle);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(
-      result.error,
-      '"Add-on": This listing cannot offer add-ons while its package hides listing names.',
-    );
-  });
+    return bundle;
+  };
 
-  test("refuses an empty bundle", async () => {
-    const result = await importCatalog({
-      groups: [],
-      kind: "bundle",
-      listings: [],
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(
-      result.error,
-      "The bundle holds no listings and no groups",
-    );
-  });
+  /** A one-act day-group bundle with its act's listing changed. */
+  const oneActWith = (
+    change: Partial<CatalogBundle["listings"][number]["listing"]>,
+  ): CatalogBundle => {
+    const bundle = dayGroupBundle(1);
+    Object.assign(bundle.listings[0]!.listing, change);
+    return bundle;
+  };
 
-  test("rejects a duplicate name inside the document", async () => {
+  const twoActsBothNamedAct0 = (): CatalogBundle => {
     const bundle = dayGroupBundle(2);
     bundle.listings[1]!.listing.name = "Act 0";
-    const result = await importCatalog(bundle);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(
-      result.error,
+    return bundle;
+  };
+
+  for (const [name, bundle, adminLevel, message] of [
+    [
+      "refuses an add-on whose planned parent sits in a name-hiding package",
+      addOnUnderHiddenPackage(),
+      "owner",
+      '"Add-on": This listing cannot offer add-ons while its package hides listing names.',
+    ],
+    [
+      "refuses an empty bundle",
+      { groups: [], kind: "bundle", listings: [], version: 1 },
+      "owner",
+      "The bundle holds no listings and no groups",
+    ],
+    [
+      "rejects a duplicate name inside the document",
+      twoActsBothNamedAct0(),
+      "owner",
       '"Act 0": A bundle can\'t hold two items named "Act 0"',
-    );
-  });
-
-  test("reports a bundle item's field errors by item name", async () => {
-    const bundle = dayGroupBundle(1);
-    bundle.listings[0]!.listing.durationDays = 99;
-    const result = await importCatalog(bundle);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(
-      result.error,
+    ],
+    [
+      "reports a bundle item's field errors by item name",
+      oneActWith({ durationDays: 99 }),
+      "owner",
       '"Act 0": listing.durationDays: must be at most',
-    );
-  });
-
-  test("clears the webhook URL for an editor bundle import", async () => {
-    const bundle = dayGroupBundle(1);
-    bundle.listings[0]!.listing.webhookUrl = "https://example.com/hook";
-    const result = await importCatalog(bundle, "editor");
-    if (!result.ok) throw new Error(result.error);
-    const imported = await getListingWithCount(await listingIdByName("Act 0"));
-    expect(imported!.webhook_url).toBe("");
-  });
+    ],
+    [
+      "refuses an editor bundle import that sets the webhook URL",
+      oneActWith({ webhookUrl: "https://example.com/hook" }),
+      "editor",
+      '"Act 0": editors cannot set webhookUrl',
+    ],
+  ] as const) {
+    test(name, async () => {
+      const result = await importCatalog(bundle, adminLevel);
+      assertStringIncludes(result.ok ? "accepted" : result.error, message);
+    });
+  }
 });

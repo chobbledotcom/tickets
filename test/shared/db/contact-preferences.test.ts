@@ -5,7 +5,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { base64ToBase64Url } from "#crypto/utils.ts";
-import { execute, getDb, queryOne, setDb } from "#db/client.ts";
+import { execute, queryOne, setDb } from "#db/client.ts";
 import {
   contactHash,
   forgetContact,
@@ -26,18 +26,19 @@ import {
 } from "#db/contact-preferences.ts";
 import { invalidateInitDbCache } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubClient } from "#test-utils/db-helpers/result-set.ts";
 import { useErrorLogSpy } from "#test-utils/debug-log.ts";
+import { rawDbClient } from "#test-utils/raw-db.ts";
 
 const rowFor = (
   hash: string,
 ): Promise<{ visits: number; last_activity: number } | null> =>
   queryOne<{ visits: number; last_activity: number }>(
-    "SELECT visits, last_activity FROM contact_preferences WHERE contact_hash = ?",
-    [hash],
+    sql`SELECT visits, last_activity FROM contact_preferences WHERE contact_hash = ${hash}`,
   );
 
 const preferenceRowExists = async (hash: string): Promise<boolean> =>
@@ -239,8 +240,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
       settings.publicKey,
     );
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, ?)",
-      [hash, encrypted],
+      sql`INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (${hash}, ${encrypted})`,
     );
 
     expect(await getContactRecord(hash, pk)).toEqual({
@@ -262,8 +262,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
       settings.publicKey,
     );
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, ?)",
-      [hash, encrypted],
+      sql`INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (${hash}, ${encrypted})`,
     );
 
     await expect(getContactRecord(hash, pk)).rejects.toThrow(
@@ -274,8 +273,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
   test("getContactCountFields reads plaintext counts past a corrupt blob", async () => {
     const hash = await hashEmail("corrupt@example.com");
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
-      [hash, 4, 3, 1, "not-valid-ciphertext"],
+      sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (${hash}, ${4}, ${3}, ${1}, ${"not-valid-ciphertext"})`,
     );
 
     // No private key, no decryption — the corrupt note is irrelevant, so the
@@ -366,8 +364,7 @@ describeWithEnv("contact-preferences: repair fallback", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("fallback@example.com");
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
-      [hash, 4, 3, 1, "not-valid-ciphertext"],
+      sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (${hash}, ${4}, ${3}, ${1}, ${"not-valid-ciphertext"})`,
     );
 
     expect(
@@ -387,8 +384,7 @@ describeWithEnv("contact-preferences: repair fallback", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("reported-once@example.com");
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
-      [hash, 4, 3, 1, "not-valid-ciphertext"],
+      sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (${hash}, ${4}, ${3}, ${1}, ${"not-valid-ciphertext"})`,
     );
     const load = getContactRecordOrRepair("once test reader");
 
@@ -410,13 +406,13 @@ describeWithEnv("contact-preferences: repair fallback", { db: true }, () => {
     // Fail only the row read (the one statement touching the encrypted
     // stats blob) and let every other read reach the real database, so the
     // counts read inside the repair fallback still works.
-    const real = getDb();
+    const real = rawDbClient();
     setDb(
       stubClient({
         execute: (statement) => {
-          const sql =
+          const text =
             typeof statement === "string" ? statement : String(statement.sql);
-          return sql.includes("stats_blob")
+          return text.includes("stats_blob")
             ? Promise.reject(new Error("database read failed"))
             : real.execute(statement);
         },

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -51,7 +52,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       0,
     );
-    expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(id))?.attendeeId).toBe(attendeeId);
   });
 
   test("replays a ledgered balance after its reservation row is lost", async () => {
@@ -61,8 +62,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     const data = balanceData(id, attendeeId, listingId, 1200);
     await processPaymentSession(id, data);
     await execute(
-      "DELETE FROM processed_payments WHERE payment_session_id = ?",
-      [id],
+      sql`DELETE FROM processed_payments WHERE payment_session_id = ${id}`,
     );
     using refund = stubRefundPayment("re_should_not_run");
 
@@ -72,7 +72,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
       success: true,
       ticketTokens: [],
     });
-    expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(id))?.attendeeId).toBe(attendeeId);
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       0,
     );
@@ -128,8 +128,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     // durable authority answers from its completed row, so nothing is sent
     // to the provider twice.
     await execute(
-      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
-      ["2020-01-01T00:00:00.000Z", id],
+      sql`UPDATE processed_payments SET processed_at = ${"2020-01-01T00:00:00.000Z"} WHERE payment_session_id = ${id}`,
     );
     expect(await processPaymentSession(id, data)).toMatchObject({
       error:

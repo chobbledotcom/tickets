@@ -9,6 +9,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { hashEmail, unsubscribeHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   seedDraft,
@@ -31,6 +32,7 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 describeWithEnv("server bulk email > send", { db: true }, () => {
   describe("POST /admin/emails/send", () => {
@@ -49,7 +51,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Subject",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
@@ -67,7 +69,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Hello",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Update",
       });
       fetch.restubFetch(() => Promise.resolve(new Response(body, { status })));
@@ -87,7 +89,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: reference(image.id),
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Update",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
@@ -179,8 +181,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       // Alice has a contact history row nothing can read, so recording the
       // contacts must fail once the send has gone out.
       await execute(
-        "INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, ?, ?)",
-        [await hashEmail("alice@example.com"), "broken", Date.now()],
+        sql`INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (${await hashEmail("alice@example.com")}, ${"broken"}, ${Date.now()})`,
       );
 
       await assertRejects(() =>
@@ -298,7 +299,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const entry = log.find((e) =>
         e.message.includes('Sent bulk email "Monthly"'),
       );
-      expect(entry?.listing_id).toBe(null);
+      expect(entry?.listingId).toBe(null);
     });
 
     /**
@@ -318,7 +319,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       await unsubscribeHash(await hashEmail("alice@example.com"));
       await adminFormPost("/admin/emails/preview", {
         body: "Promo",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         marketing: "1",
         subject: "Sale",
       });
@@ -346,7 +347,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const empty = await createTestListing({ maxAttendees: 5, name: "Empty" });
       await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        listing_id: String(empty.id),
+        listingId: String(empty.id),
         subject: "Subject",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
@@ -388,31 +389,31 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       ]);
     });
 
-    test("404s for an unknown attendee token", async () => {
-      const response = await adminGet("/admin/emails?attendee=gone");
-      expect(response.status).toBe(404);
-    });
-
-    test("404s for an attendee with no email on file", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        name: "Solo",
-      });
-      const { token } = await createTestAttendeeDirect(listing.id, "Nemo", "");
-      const response = await adminGet(
-        `/admin/emails?attendee=${encodeURIComponent(token)}`,
-      );
-      expect(response.status).toBe(404);
-    });
-
-    test("404s for a listing whose attendees have no email", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        name: "Solo",
-      });
-      await createTestAttendeeDirect(listing.id, "Nemo", "");
-      const response = await adminGet(`/admin/emails?listing=${listing.id}`);
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "404s for a listing whose attendees have no email": async () => {
+        const listing = await createTestListing({
+          maxAttendees: 5,
+          name: "Solo",
+        });
+        await createTestAttendeeDirect(listing.id, "Nemo", "");
+        return await adminGet(`/admin/emails?listing=${listing.id}`);
+      },
+      "404s for an attendee with no email on file": async () => {
+        const listing = await createTestListing({
+          maxAttendees: 5,
+          name: "Solo",
+        });
+        const { token } = await createTestAttendeeDirect(
+          listing.id,
+          "Nemo",
+          "",
+        );
+        return await adminGet(
+          `/admin/emails?attendee=${encodeURIComponent(token)}`,
+        );
+      },
+      "404s for an unknown attendee token": () =>
+        adminGet("/admin/emails?attendee=gone"),
     });
 
     test("preview falls back to a generic label for a stale token", async () => {
@@ -464,7 +465,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const entry = log.find((e) =>
         e.message.includes('Sent bulk email "Just you"'),
       )!;
-      expect(entry.listing_id).toBe(null);
+      expect(entry.listingId).toBe(null);
       // The log names one recipient in the singular, and says so exactly.
       assertStringIncludes(entry.message, "to 1 recipient.");
     });

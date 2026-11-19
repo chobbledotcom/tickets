@@ -24,6 +24,6 @@ describe("templates > admin migrate rebuild page", () => {
 
     // The session id is URI-encoded, so a `&` or `=` in it cannot read as
     // another row's field or as a second form parameter.
-    assertStringIncludes(html, 'name="provider_cs_live_a%26b"');
+    assertStringIncludes(html, 'name="providercs_live_a%26b"');
   });
 });

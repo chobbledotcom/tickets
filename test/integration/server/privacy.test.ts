@@ -5,10 +5,13 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, insert, queryOne } from "#db/client.ts";
+import { getDb, queryOne } from "#db/client.ts";
 import { hashEmail } from "#db/contact-preferences.ts";
 import { deleteListing } from "#db/listings/delete.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { nowMs } from "#shared/now.ts";
 import {
@@ -54,11 +57,11 @@ const insertOrphan = async (createdIso: string): Promise<number> => {
 const insertPaymentWorkOrphan = async (): Promise<number> => {
   const attendeeId = await insertOrphan(oldIso());
   await getDb().execute(
-    insert("processed_payments", {
-      attendee_id: attendeeId,
-      payment_session_id: `privacy-page-${attendeeId}`,
-      processed_at: oldIso(),
-      protected_state: CLAIM_MIRROR,
+    insertInto(tables.processed_payments, {
+      attendeeId,
+      paymentSessionId: `privacy-page-${attendeeId}`,
+      processedAt: oldIso(),
+      protectedState: CLAIM_MIRROR,
     }),
   );
   return attendeeId;
@@ -69,8 +72,7 @@ const attendeeExists = async (id: number): Promise<boolean> =>
 
 const preferenceExists = async (hash: string): Promise<boolean> =>
   (await queryOne<{ one: number }>(
-    "SELECT 1 AS one FROM contact_preferences WHERE contact_hash = ?",
-    [hash],
+    sql`SELECT 1 AS one FROM contact_preferences WHERE contact_hash = ${hash}`,
   )) !== null;
 
 /** Read the info-level flash message from a redirect response. */
@@ -131,10 +133,10 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       );
       const paymentSessionId = `privacy-recovery-${attendee.id}`;
       await getDb().execute(
-        insert("processed_payments", {
-          attendee_id: attendee.id,
-          payment_session_id: paymentSessionId,
-          processed_at: oldIso(),
+        insertInto(tables.processed_payments, {
+          attendeeId: attendee.id,
+          paymentSessionId,
+          processedAt: oldIso(),
         }),
       );
       await putRowState(
@@ -165,7 +167,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("pages the payment-work queue without loading attendee PII", async () => {
       await getDb().execute(
-        "UPDATE processed_payments SET protected_state = ''",
+        sql`UPDATE processed_payments SET protected_state = ''`,
       );
       const attendeeIds = await Promise.all(
         Array.from({ length: 41 }, () => insertPaymentWorkOrphan()),
@@ -333,7 +335,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
     test("keeps auto-purge on when the checkbox is ticked", async () => {
       const { response } = await adminFormPost("/admin/privacy/orphans", {
         action: "save",
-        auto_purge: "1",
+        autoPurge: "1",
         retention: "182",
       });
 
@@ -376,7 +378,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
   describe("POST /admin/privacy/erase", () => {
     testRequiresAuth("/admin/privacy/erase", {
-      body: { contact_type: "email", identifier: "x@example.com" },
+      body: { contactType: "email", identifier: "x@example.com" },
       method: "POST",
     });
 
@@ -389,7 +391,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       await setContactVisits(hash, 1);
 
       const { response } = await adminFormPost("/admin/privacy/erase", {
-        contact_type: "email",
+        contactType: "email",
         identifier: "erase-me@example.com",
       });
 
@@ -402,7 +404,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("reports when no record matched", async () => {
       const { response } = await adminFormPost("/admin/privacy/erase", {
-        contact_type: "email",
+        contactType: "email",
         identifier: "nobody@example.com",
       });
 
@@ -413,7 +415,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("rejects a blank identifier", async () => {
       const { response } = await adminFormPost("/admin/privacy/erase", {
-        contact_type: "email",
+        contactType: "email",
         identifier: "   ",
       });
 
@@ -426,7 +428,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("rejects an unknown contact type", async () => {
       const { response } = await adminFormPost("/admin/privacy/erase", {
-        contact_type: "fax",
+        contactType: "fax",
         identifier: "123456",
       });
 

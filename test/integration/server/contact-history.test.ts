@@ -9,6 +9,7 @@ import {
   hashEmail,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
+import { sql } from "#db/sql.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import {
@@ -60,8 +61,8 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
         notContains: ["Never"],
         status: 200,
       });
-      expect(html).toMatch(/name="public_booking_count"[^>]*value="5"/);
-      expect(html).toMatch(/name="admin_booking_count"[^>]*value="2"/);
+      expect(html).toMatch(/name="publicBookingCount"[^>]*value="5"/);
+      expect(html).toMatch(/name="adminBookingCount"[^>]*value="2"/);
       expect(html).toMatch(/name="visits"[^>]*value="9"/);
     });
 
@@ -93,11 +94,11 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
         notContains: ["Private notes (markdown)"],
       });
       expect(html).toMatch(
-        /<textarea[^>]*\bdata-markdown-preview\b[^>]*\bname="admin_notes"/,
+        /<textarea[^>]*\bdata-markdown-preview\b[^>]*\bname="adminNotes"/,
       );
       expect(html).toMatch(
         new RegExp(
-          `<textarea[^>]*\\bmaxlength="${MAX_TEXTAREA_LENGTH}"[^>]*\\bname="admin_notes"`,
+          `<textarea[^>]*\\bmaxlength="${MAX_TEXTAREA_LENGTH}"[^>]*\\bname="adminNotes"`,
         ),
       );
     });
@@ -120,11 +121,11 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       const hash = await hashEmail("saveme@example.com");
       const param = base64ToBase64Url(hash);
       const { response } = await adminFormPost(`/admin/history/${param}`, {
-        admin_booking_count: "3",
-        admin_notes: "Updated **note**",
-        last_subject: "Subject",
+        adminBookingCount: "3",
+        adminNotes: "Updated **note**",
+        lastSubject: "Subject",
         messages: "7",
-        public_booking_count: "11",
+        publicBookingCount: "11",
         visits: "13",
       });
       // The redirect's flash carries the saved message as a success, and the
@@ -149,8 +150,8 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/history/${base64ToBase64Url(hash)}`,
         {
-          admin_notes: `![Note Poster](img#${image.id}) ${"x".repeat(MAX_TEXTAREA_LENGTH)}`,
-          public_booking_count: "4",
+          adminNotes: `![Note Poster](img#${image.id}) ${"x".repeat(MAX_TEXTAREA_LENGTH)}`,
+          publicBookingCount: "4",
         },
       );
       // Re-rendered in place with an error, not redirected.
@@ -171,8 +172,8 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       const pk = await getTestPrivateKey();
       const hash = await hashEmail("coerce@example.com");
       await adminFormPost(`/admin/history/${base64ToBase64Url(hash)}`, {
-        admin_booking_count: "-5",
-        public_booking_count: "",
+        adminBookingCount: "-5",
+        publicBookingCount: "",
         visits: "4",
       });
       const record = await getContactRecord(hash, pk);
@@ -187,8 +188,8 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/history/${base64ToBase64Url(hash)}`,
         {
-          admin_notes: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
-          public_booking_count: "4",
+          adminNotes: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+          publicBookingCount: "4",
         },
       );
       // Re-rendered in place with an error, not redirected.
@@ -207,8 +208,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       // A row whose encrypted note is corrupt, but whose plaintext counts are
       // intact — the exact state the best-effort SMS path can leave behind.
       await execute(
-        "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (?, ?, ?, ?, ?, ?)",
-        [hash, 9, 5, 2, "not-valid-ciphertext", Date.now()],
+        sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (${hash}, ${9}, ${5}, ${2}, ${"not-valid-ciphertext"}, ${Date.now()})`,
       );
 
       // The editor still renders (not a 500), and crucially pre-fills every
@@ -229,17 +229,17 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       assertExists(decryptFailure);
       assertStringIncludes(decryptFailure, 'detail="contact history editor ');
       expect(html).toMatch(/name="visits"[^>]*value="9"/);
-      expect(html).toMatch(/name="public_booking_count"[^>]*value="5"/);
-      expect(html).toMatch(/name="admin_booking_count"[^>]*value="2"/);
+      expect(html).toMatch(/name="publicBookingCount"[^>]*value="5"/);
+      expect(html).toMatch(/name="adminBookingCount"[^>]*value="2"/);
 
       // Saving (resubmitting the pre-filled counts) overwrites the corrupt
       // blob with a fresh, readable note while keeping the counts intact.
       const { response } = await adminFormPost(`/admin/history/${param}`, {
-        admin_booking_count: "2",
-        admin_notes: "Repaired",
-        last_subject: "",
+        adminBookingCount: "2",
+        adminNotes: "Repaired",
+        lastSubject: "",
         messages: "0",
-        public_booking_count: "5",
+        publicBookingCount: "5",
         visits: "9",
       });
       expectRedirect(response, `/admin/history/${param}`);

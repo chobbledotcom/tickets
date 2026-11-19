@@ -1,11 +1,8 @@
 import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  appendImageToItem,
-  getImageById,
-  getImageUsesForImage,
-} from "#db/images.ts";
+import { appendImageToItem, getImageUsesForImage } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -42,9 +39,9 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/site/news/${post.id}/images`,
           [
-            ["csrf_token", csrfToken],
-            ["image_ids", String(second.id)],
-            ["image_ids", String(first.id)],
+            ["csrfToken", csrfToken],
+            ["imageIds", String(second.id)],
+            ["imageIds", String(first.id)],
           ],
           cookie,
         ),
@@ -68,7 +65,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       const response = await handleRequest(
         formRequest(
           "/admin/site/news/9999/images",
-          [["csrf_token", csrfToken]],
+          [["csrfToken", csrfToken]],
           cookie,
         ),
       );
@@ -127,10 +124,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/images/${image.id}/edit`,
           [
-            ["csrf_token", await signCsrfToken()],
+            ["csrfToken", await signCsrfToken()],
             ["name", "Renamed by manager"],
-            ["alt_text", "changed alt"],
-            ["image_items", "news:9999"],
+            ["altText", "changed alt"],
+            ["imageItems", "news:9999"],
           ],
           managerCookie,
         ),
@@ -142,13 +139,13 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         managerCookie,
       )(saveResponse);
       // Metadata unchanged and the news use survives.
-      expect((await getImageById(image.id))?.name).toBe("Managed image");
+      expect((await records.images.find(image.id))?.name).toBe("Managed image");
       expect(await getImageUsesForImage(image.id)).toEqual([
         {
-          image_id: image.id,
-          item_id: post.id,
-          item_type: "news",
-          sort_order: 0,
+          imageId: image.id,
+          itemId: post.id,
+          itemType: "news",
+          sortOrder: 0,
         },
       ]);
     });
@@ -162,10 +159,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/images/${image.id}/edit`,
           [
-            ["csrf_token", await signCsrfToken()],
+            ["csrfToken", await signCsrfToken()],
             ["name", "Renamed freely"],
-            ["alt_text", "new alt"],
-            ["image_items", `news:${post.id}`],
+            ["altText", "new alt"],
+            ["imageItems", `news:${post.id}`],
           ],
           managerCookie,
         ),
@@ -177,7 +174,9 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         true,
         managerCookie,
       )(response);
-      expect((await getImageById(image.id))?.name).toBe("Renamed freely");
+      expect((await records.images.find(image.id))?.name).toBe(
+        "Renamed freely",
+      );
       // …but the smuggled news link was never applied.
       expect(await imageNamesForItem("news", post.id)).toEqual([]);
     });
@@ -192,8 +191,8 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/images/${image.id}/delete`,
           [
-            ["csrf_token", await signCsrfToken()],
-            ["confirm_identifier", "News-linked image"],
+            ["csrfToken", await signCsrfToken()],
+            ["confirmIdentifier", "News-linked image"],
           ],
           managerCookie,
         ),
@@ -234,10 +233,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/images/${image.id}/edit`,
           [
-            ["csrf_token", csrfToken],
+            ["csrfToken", csrfToken],
             ["name", "Attach me"],
-            ["alt_text", "alt"],
-            ["image_items", `news:${post.id}`],
+            ["altText", "alt"],
+            ["imageItems", `news:${post.id}`],
           ],
           cookie,
         ),
@@ -246,10 +245,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       assertArrayIncludes([302, 303], [response.status]);
       expect(await getImageUsesForImage(image.id)).toEqual([
         {
-          image_id: image.id,
-          item_id: post.id,
-          item_type: "news",
-          sort_order: 0,
+          imageId: image.id,
+          itemId: post.id,
+          itemType: "news",
+          sortOrder: 0,
         },
       ]);
     });

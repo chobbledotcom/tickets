@@ -6,9 +6,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#db/attendees/api.ts";
 import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   bookTwoListings,
@@ -57,12 +57,11 @@ describeWithEnv(
         maxAttendees: 1,
         unitPrice: 500,
       });
-      const filled = await attendeesApi.createAttendeeAtomic({
+      await createAttendeeOrThrow({
         bookings: [{ listingId: full.id, pricePaid: 500 }],
         email: "fills-the-listing@example.com",
         name: "Filler",
       });
-      if (!filled.success) throw new Error("fill setup failed");
 
       await expect(
         orderWithPaidLinesAndAFreeMember(

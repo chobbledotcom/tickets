@@ -81,7 +81,7 @@ const createPackage = async (
   step(`Creating package "${catalog.kit}"`);
   await session.goto("/admin/groups/new");
   await session.fill("name", catalog.kit);
-  await session.check("is_package");
+  await session.check("isPackage");
   await session.clickButton(await catalogWords("groups", "groups.add.submit"));
   await session.goto("/admin/groups");
   await session.clickLink(catalog.kit);
@@ -89,7 +89,7 @@ const createPackage = async (
 
   for (const member of members) {
     await session.goto(`/admin/listing/${member.id}/edit`);
-    await session.check("group_ids", String(groupId));
+    await session.check("groupIds", String(groupId));
     // The listing edit form's save control says "Save Changes"; the old
     // "Save" click only worked through the browser's substring match.
     await session.clickButton(
@@ -101,7 +101,7 @@ const createPackage = async (
   await session.goto(`/admin/groups/${groupId}/edit`);
   for (const member of members) {
     await session.fill(
-      `package_price_${member.id}`,
+      `packagePrice${member.id}`,
       (member.priceMinor / 100).toFixed(2),
     );
   }
@@ -120,11 +120,9 @@ const enableOrderGallery = async (session: BrowserSession): Promise<void> => {
     session.page.locator('form:has(input[name="enabled"]) button').first(),
   );
   await session.goto("/admin/site/order");
-  await session.check("order_enabled");
+  await session.check("orderEnabled");
   await session.submitLocator(
-    session.page
-      .locator('form:has(input[name="order_enabled"]) button')
-      .first(),
+    session.page.locator('form:has(input[name="orderEnabled"]) button').first(),
   );
 };
 
@@ -162,7 +160,7 @@ const fillBookingPage = async (
   const { page } = session;
   // The package count is a <select>; per-listing quantities are inputs.
   await page
-    .locator('select[name^="package_quantity_"]')
+    .locator('select[name^="packageQuantity"]')
     .first()
     .selectOption("1", { timeout: config.actionTimeoutMs });
   // A listing's quantity control renders as a <select> for small caps and an
@@ -170,7 +168,7 @@ const fillBookingPage = async (
   const setRowQty = (name: string, value: string): Promise<void> =>
     setSelectOrInput(
       page
-        .locator(`.ticket-row:has-text("${name}") [name^="quantity_"]`)
+        .locator(`.ticket-row:has-text("${name}") [name^="quantity"]`)
         .first(),
       value,
     );
@@ -248,13 +246,13 @@ const assertPerPathEditor = async (
       `the editor does not label the package path "via ${catalog.kit}"`,
     );
   }
-  // A stored booking row carries its non-empty `line_key_<n>`; the editor
+  // A stored booking row carries its non-empty `lineKey<n>`; the editor
   // also renders blank per-path creation lines (empty key), which are offers,
   // not bookings — only the stored rows count as booked paths.
   const isStoredLine = (index: string): boolean =>
-    new RegExp(`name="line_key_${index}"[^>]*value="[^"]+"`).test(editor);
+    new RegExp(`name="lineKey${index}"[^>]*value="[^"]+"`).test(editor);
   const linesFor = (listingId: number): number =>
-    [...editor.matchAll(/name="line_listing_(\d+)"[^>]*value="(\d+)"/g)].filter(
+    [...editor.matchAll(/name="lineListing(\d+)"[^>]*value="(\d+)"/g)].filter(
       (match) => {
         const pathIndex = match[1];
         const lineListingId = match[2];

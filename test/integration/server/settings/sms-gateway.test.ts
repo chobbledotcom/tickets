@@ -14,16 +14,16 @@ const post = (data: Record<string, string>) =>
 describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
   describe("POST /admin/settings/sms-gateway", () => {
     testRequiresAuth("/admin/settings/sms-gateway", {
-      body: { sms_gateway_username: "u" },
+      body: { smsGatewayUsername: "u" },
       method: "POST",
     });
 
     test("saves credentials, passphrase and base URL", async () => {
       const { response } = await post({
-        sms_gateway_base_url: "https://sms.example.com",
-        sms_gateway_passphrase: "long-enough-passphrase",
-        sms_gateway_password: "pw",
-        sms_gateway_username: "user",
+        smsGatewayBaseUrl: "https://sms.example.com",
+        smsGatewayPassphrase: "long-enough-passphrase",
+        smsGatewayPassword: "pw",
+        smsGatewayUsername: "user",
       });
 
       expect(response.status).toBe(302);
@@ -42,9 +42,9 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
 
     test("rejects a passphrase shorter than the minimum length", async () => {
       const { response } = await post({
-        sms_gateway_passphrase: "a".repeat(SMS_PASSPHRASE_MIN_LENGTH - 1),
-        sms_gateway_password: "pw",
-        sms_gateway_username: "user",
+        smsGatewayPassphrase: "a".repeat(SMS_PASSPHRASE_MIN_LENGTH - 1),
+        smsGatewayPassword: "pw",
+        smsGatewayUsername: "user",
       });
 
       expect(response.status).toBe(302);
@@ -62,10 +62,10 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
       // length refusal, not the format refusal, is what answers.
       const { response } = await post({
         // 251 characters in all: the 24-character start pushes it over.
-        sms_gateway_base_url: `https://sms.example.com/${"u".repeat(227)}`,
-        sms_gateway_passphrase: "p".repeat(251),
-        sms_gateway_password: "w".repeat(251),
-        sms_gateway_username: "user",
+        smsGatewayBaseUrl: `https://sms.example.com/${"u".repeat(227)}`,
+        smsGatewayPassphrase: "p".repeat(251),
+        smsGatewayPassword: "w".repeat(251),
+        smsGatewayUsername: "user",
       });
 
       expect(response.status).toBe(302);
@@ -80,9 +80,9 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
 
     test("rejects a newly chosen secret past the input length", async () => {
       const { response } = await post({
-        sms_gateway_base_url: "https://sms.example.com",
-        sms_gateway_username: "user",
-        sms_gateway_webhook_secret: "s".repeat(251),
+        smsGatewayBaseUrl: "https://sms.example.com",
+        smsGatewayUsername: "user",
+        smsGatewayWebhookSecret: "s".repeat(251),
       });
 
       expect(response.status).toBe(302);
@@ -97,9 +97,9 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
 
     test("accepts a passphrase exactly at the minimum length", async () => {
       const { response } = await post({
-        sms_gateway_passphrase: "a".repeat(SMS_PASSPHRASE_MIN_LENGTH),
-        sms_gateway_password: "pw",
-        sms_gateway_username: "user",
+        smsGatewayPassphrase: "a".repeat(SMS_PASSPHRASE_MIN_LENGTH),
+        smsGatewayPassword: "pw",
+        smsGatewayUsername: "user",
       });
 
       expect(response.status).toBe(302);
@@ -110,15 +110,15 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
 
     test("masked secrets leave the stored values unchanged", async () => {
       await post({
-        sms_gateway_passphrase: "first-passphrase",
-        sms_gateway_password: "pw1",
-        sms_gateway_username: "user",
+        smsGatewayPassphrase: "first-passphrase",
+        smsGatewayPassword: "pw1",
+        smsGatewayUsername: "user",
       });
 
       await post({
-        sms_gateway_passphrase: MASK_SENTINEL,
-        sms_gateway_password: MASK_SENTINEL,
-        sms_gateway_username: "renamed",
+        smsGatewayPassphrase: MASK_SENTINEL,
+        smsGatewayPassword: MASK_SENTINEL,
+        smsGatewayUsername: "renamed",
       });
 
       const cfg = getSmsGatewayConfig();
@@ -129,15 +129,15 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
 
     test("empty secrets clear the stored values", async () => {
       await post({
-        sms_gateway_passphrase: "first-passphrase",
-        sms_gateway_password: "pw1",
-        sms_gateway_username: "user",
+        smsGatewayPassphrase: "first-passphrase",
+        smsGatewayPassword: "pw1",
+        smsGatewayUsername: "user",
       });
 
       await post({
-        sms_gateway_passphrase: "",
-        sms_gateway_password: "",
-        sms_gateway_username: "user",
+        smsGatewayPassphrase: "",
+        smsGatewayPassword: "",
+        smsGatewayUsername: "user",
       });
 
       // Cleared password/passphrase → no longer fully configured
@@ -148,8 +148,8 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
 
     test("rejects an invalid server URL", async () => {
       const { response } = await post({
-        sms_gateway_base_url: "not a url",
-        sms_gateway_username: "user",
+        smsGatewayBaseUrl: "not a url",
+        smsGatewayUsername: "user",
       });
 
       expect(response.status).toBe(302);
@@ -164,8 +164,8 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
 
     test("rejects a plaintext http URL", async () => {
       const { response } = await post({
-        sms_gateway_base_url: "http://sms.example.com",
-        sms_gateway_username: "user",
+        smsGatewayBaseUrl: "http://sms.example.com",
+        smsGatewayUsername: "user",
       });
 
       expect(response.status).toBe(302);
@@ -186,8 +186,8 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
         "https://[::ffff:10.0.0.1]/",
       ]) {
         const { response } = await post({
-          sms_gateway_base_url: url,
-          sms_gateway_username: "user",
+          smsGatewayBaseUrl: url,
+          smsGatewayUsername: "user",
         });
 
         expect(response.status).toBe(302);

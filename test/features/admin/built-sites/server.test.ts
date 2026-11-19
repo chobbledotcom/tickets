@@ -1,6 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { BuiltSite, BuiltSiteFormInput } from "#db/built-sites/types.ts";
+import { findBuiltSiteById } from "#db/built-sites.ts";
 import {
   expectActivityLogShows,
   expectFlash,
@@ -166,7 +168,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     testRequiresAuth("/admin/built-sites", {
       body: {
         name: "Test",
-        site_url: "https://test.b-cdn.net",
+        siteUrl: "https://test.b-cdn.net",
       },
       method: "POST",
     });
@@ -183,7 +185,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     test("creates built site without db credentials", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
         name: "No DB Site",
-        site_url: "https://nodb.b-cdn.net",
+        siteUrl: "https://nodb.b-cdn.net",
       });
       await expectFlashRedirect(
         "/admin/built-sites/1",
@@ -191,31 +193,31 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       )(response);
     });
 
-    test("rejects missing name", async () => {
-      const { response } = await adminFormPost("/admin/built-sites", {
-        name: "",
-        site_url: "https://test.b-cdn.net",
-      });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Site name is required"),
-        false,
-      );
-    });
+    /** The form fields each required-field refusal posts, and its message. */
+    const missingFieldCases: readonly [
+      title: string,
+      fields: Record<string, string>,
+      message: string,
+    ][] = [
+      [
+        "rejects missing name",
+        { name: "", siteUrl: "https://test.b-cdn.net" },
+        "Site name is required",
+      ],
+      [
+        "rejects missing siteUrl",
+        { name: "Test", siteUrl: "" },
+        "Site URL is required",
+      ],
+    ];
 
-    test("rejects missing site_url", async () => {
-      const { response } = await adminFormPost("/admin/built-sites", {
-        name: "Test",
-        site_url: "",
+    for (const [title, fields, message] of missingFieldCases) {
+      test(title, async () => {
+        const { response } = await adminFormPost("/admin/built-sites", fields);
+        expect(response.status).toBe(302);
+        expectFlash(response, expect.stringContaining(message), false);
       });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Site URL is required"),
-        false,
-      );
-    });
+    }
 
     test("rejects http, localhost and IP bunny URLs", async () => {
       for (const siteUrl of [
@@ -226,7 +228,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       ]) {
         const { response } = await adminFormPost("/admin/built-sites", {
           name: "Test",
-          site_url: siteUrl,
+          siteUrl,
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -237,23 +239,36 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       }
     });
 
-    test("stores deno hosting_provider when submitted", async () => {
-      const site = await createTestBuiltSite({
-        hostingProvider: "deno",
-        name: "Deno Hosted",
-        siteUrl: "https://app.deno.dev",
-      });
-      expect(site.hostingProvider).toBe("deno");
-    });
+    const providerCases: {
+      title: string;
+      input: Partial<BuiltSiteFormInput>;
+      stored: Partial<BuiltSite>;
+    }[] = [
+      {
+        input: {
+          hostingProvider: "deno",
+          name: "Deno Hosted",
+          siteUrl: "https://app.deno.dev",
+        },
+        stored: { hostingProvider: "deno" },
+        title: "stores deno hostingProvider when submitted",
+      },
+      {
+        input: {
+          dbProvider: "turso",
+          name: "Turso DB Site",
+          siteUrl: "https://turso-site.b-cdn.net",
+        },
+        stored: { dbProvider: "turso" },
+        title: "stores turso dbProvider when submitted",
+      },
+    ];
 
-    test("stores turso db_provider when submitted", async () => {
-      const site = await createTestBuiltSite({
-        dbProvider: "turso",
-        name: "Turso DB Site",
-        siteUrl: "https://turso-site.b-cdn.net",
+    for (const { title, input, stored } of providerCases) {
+      test(title, async () => {
+        expect(await createTestBuiltSite(input)).toMatchObject(stored);
       });
-      expect(site.dbProvider).toBe("turso");
-    });
+    }
   });
 
   describe("nav link", () => {
@@ -340,19 +355,19 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       // the channel to the default — the route only carries a recognised value.
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/edit`,
-        { name: "Keep Beta Renamed", site_url: site.siteUrl },
+        { name: "Keep Beta Renamed", siteUrl: site.siteUrl },
       );
       expect(response.status).toBe(302);
-      const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      const updated = await builtSitesCrudTable.read.one({ id: site.id });
-      expect(updated!.name).toBe("Keep Beta Renamed");
-      expect(updated!.updates).toBe("beta");
+      expect(await findBuiltSiteById(site.id)).toMatchObject({
+        name: "Keep Beta Renamed",
+        updates: "beta",
+      });
     });
 
     test("rejects an unknown channel value", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
         name: "Bad Channel",
-        site_url: "https://chan.b-cdn.net",
+        siteUrl: "https://chan.b-cdn.net",
         updates: "stable",
       });
       expect(response.status).toBe(302);
@@ -377,7 +392,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     test("returns 404 when built site not found during edit error", async () => {
       const { response } = await adminFormPost("/admin/built-sites/999/edit", {
         name: "",
-        site_url: "https://test.b-cdn.net",
+        siteUrl: "https://test.b-cdn.net",
       });
       expectStatus(404)(response);
     });
@@ -386,7 +401,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { response } = await adminFormPost(
         "/admin/built-sites/999/delete",
         {
-          confirm_identifier: "Wrong",
+          confirmIdentifier: "Wrong",
         },
       );
       expectStatus(404)(response);
@@ -417,7 +432,7 @@ describeWithEnv(
       // A POST action (create and a per-site action) is gated too.
       const { response: created } = await adminFormPost("/admin/built-sites", {
         name: "Nope",
-        site_url: "https://nope.b-cdn.net",
+        siteUrl: "https://nope.b-cdn.net",
       });
       expectStatus(404)(created);
       const { response: updated } = await adminFormPost(

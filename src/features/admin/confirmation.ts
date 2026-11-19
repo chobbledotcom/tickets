@@ -12,6 +12,7 @@ import {
   type SessionGuard,
   withAuth,
 } from "#routes/auth.ts";
+import { idRouteFor } from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -49,7 +50,7 @@ export const verifyOrRedirect = (
   label = "Name",
   action?: string,
 ): Response | null => {
-  if (!verifyIdentifier(expected, form.getString("confirm_identifier"))) {
+  if (!verifyIdentifier(expected, form.getString("confirmIdentifier"))) {
     const suffix = action ? ` ${action}` : "";
     return errorRedirect(
       redirectUrl,
@@ -304,3 +305,10 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
 
   return { get, post };
 };
+
+/** The two delete routes of one record, bound from its confirmed-delete
+ * handlers. */
+export const confirmedDeleteRoutes = (handlers: ConfirmedHandlers) => ({
+  deleteGet: idRouteFor(handlers.get),
+  deletePost: idRouteFor(handlers.post),
+});

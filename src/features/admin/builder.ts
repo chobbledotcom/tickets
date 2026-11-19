@@ -9,8 +9,8 @@ import { logActivity } from "#db/activity-log.ts";
 import { providerOrBunny } from "#db/built-sites/types.ts";
 import {
   builtSites,
-  builtSitesCrudTable,
   insertBuiltSite,
+  updateBuiltSite,
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -81,10 +81,10 @@ const builderPost = createAuthedFormRoute({
   form: builderForm,
   onInvalid: ({ error }) => adminRedirect("builder", {}, error, false),
   onValid: async ({ form, values }) => {
-    if (values.db_url) {
+    if (values.dbUrl) {
       const dbTest = await builderApi.testDbConnection(
-        values.db_url,
-        values.db_token,
+        values.dbUrl,
+        values.dbToken,
       );
       if (!dbTest.ok) {
         return adminRedirect(
@@ -96,7 +96,7 @@ const builderPost = createAuthedFormRoute({
       }
     }
 
-    const hostingProvider = providerOrBunny(values.hosting_provider, "deno");
+    const hostingProvider = providerOrBunny(values.hostingProvider, "deno");
 
     if (hostingProvider === "deno" && !isDenoDeployEnabled()) {
       return adminRedirect(
@@ -107,10 +107,10 @@ const builderPost = createAuthedFormRoute({
       );
     }
 
-    const dbProviderVal = values.db_provider;
+    const dbProviderVal = values.dbProvider;
     const dbProvider = providerOrBunny(dbProviderVal, "turso");
 
-    const dbError = dbProviderConfigError(dbProviderVal, values.db_url);
+    const dbError = dbProviderConfigError(dbProviderVal, values.dbUrl);
     if (dbError) return adminRedirect("builder", {}, dbError, false);
 
     let retainedSiteId: number | null = null;
@@ -119,14 +119,14 @@ const builderPost = createAuthedFormRoute({
       builderApi.buildSite(
         {
           ...(dbProviderVal === "manual" ? {} : { dbProvider }),
-          dbToken: values.db_token,
-          dbUrl: values.db_url,
+          dbToken: values.dbToken,
+          dbUrl: values.dbUrl,
           hostingProvider,
-          siteName: values.site_name,
+          siteName: values.siteName,
         },
         async (prepared) => {
           const row = await insertBuiltSite(
-            values.site_name,
+            values.siteName,
             prepared.defaultHostname,
             prepared.dbUrl,
             prepared.dbToken,
@@ -153,15 +153,15 @@ const builderPost = createAuthedFormRoute({
       throw new Error("Built site was published before it was retained");
     }
     if (assignable) {
-      await builtSitesCrudTable.update(retainedSiteId, { assignable: true });
+      await updateBuiltSite(retainedSiteId, () => ({ assignable: true }));
     }
-    await logActivity(`Built new site: ${values.site_name}`);
+    await logActivity(`Built new site: ${values.siteName}`);
 
     return adminRedirect(
       "builder",
       {},
       t("builder.site_created", {
-        name: values.site_name,
+        name: values.siteName,
         url: siteBaseUrl(buildResult.defaultHostname),
       }),
       true,

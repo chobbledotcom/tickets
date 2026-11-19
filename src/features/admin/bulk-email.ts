@@ -33,7 +33,6 @@ import {
   handleTemplateSavePost,
   templateDelete,
 } from "#routes/admin/bulk-email-templates.ts";
-import { idRouteFor } from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -377,9 +376,9 @@ const handleSendPost = gatedPostAt("emailSend")(async (_session, _form) => {
 export const adminHandlers = defineAdminRoutes({
   ...composeGetRoute,
   ...previewGetRoute,
-  "GET /admin/emails/templates/:id/delete": idRouteFor(templateDelete.get),
+  "GET /admin/emails/templates/:id/delete": templateDelete.get,
   "POST /admin/emails/preview": handlePreviewPost,
   "POST /admin/emails/send": handleSendPost,
   "POST /admin/emails/templates": handleTemplateSavePost,
-  "POST /admin/emails/templates/:id/delete": idRouteFor(templateDelete.post),
+  "POST /admin/emails/templates/:id/delete": templateDelete.post,
 });

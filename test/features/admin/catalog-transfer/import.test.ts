@@ -2,12 +2,16 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { getGroupPackagePrices, getListingsByGroupId } from "#db/groups.ts";
+import { getListingsByGroupId } from "#db/groups.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createPlanListing } from "#test-utils/db-helpers/catalog-import-fixtures.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 
@@ -64,33 +68,36 @@ describeWithEnv("catalog group import", { db: true }, () => {
     });
   });
 
-  test("clears package values when importing an ordinary group", async () => {
+  test("refuses package values when importing an ordinary group", async () => {
     const member = await createTestListing({
       canPayMore: true,
       name: "Ordinary group member",
     });
-    const result = await importCatalog({
-      group: { name: "Ordinary imported group" },
-      kind: "group",
-      members: [{ listing: member.name, packagePrice: 500, quantity: 2 }],
-      version: 1,
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
-    const [stored] = await getGroupPackagePrices(
-      requireEntityImport(result).id,
-    );
-    if (!stored) throw new Error("The imported group membership is missing");
-    expect({
-      listing_id: stored.listing_id,
-      package_price: stored.package_price,
-      quantity: stored.quantity,
-    }).toEqual({
-      listing_id: member.id,
-      package_price: null,
-      quantity: 1,
-    });
+    const cases: readonly (readonly [Record<string, unknown>, string[]])[] = [
+      [
+        { listing: member.name, packagePrice: 500, quantity: 2 },
+        ["Only a package group can hold", "packagePrice"],
+      ],
+      // One value gets a message that says to remove it, not them.
+      [
+        { listing: member.name, packagePrice: 500 },
+        [
+          "Only a package group can hold packagePrice",
+          "Remove it or make the group a package.",
+        ],
+      ],
+    ];
+    for (const [memberFields, parts] of cases) {
+      const message = importRefusal(
+        await importCatalog({
+          group: { name: "Ordinary imported group" },
+          kind: "group",
+          members: [memberFields],
+          version: 1,
+        }),
+      );
+      expectIncludesAll(message, parts);
+    }
   });
 
   test("rejects a package day override the member cannot offer", async () => {
@@ -124,9 +131,9 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
       name: "Tx missing member",
     });
     await execute(
-      `CREATE TRIGGER delete_member_after_group_insert
+      sql`CREATE TRIGGER delete_member_after_group_insert
          AFTER INSERT ON groups
-         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
+         BEGIN DELETE FROM listings WHERE id = ${sqlLiteral(member.id)}; END`,
     );
 
     expect(
@@ -141,13 +148,9 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
 
   test("rejects a group import naming a built-site plan member", async () => {
     using _env = withEnv({ CAN_BUILD_SITES: "true" });
-    const member = await createTestListing({
-      assignBuiltSite: true,
-      initialSiteMonths: 1,
-      name: "Plan Group Member",
-    });
+    const member = await createPlanListing("Plan Group Member");
 
-    await refusePlanMemberImport({ name: "Plan Member Group" }, member);
+    await expectPlanMemberImportRefused({ name: "Plan Member Group" }, member);
   });
 
   test("rejects a group import when the member gains its plan inside the transaction", async () => {
@@ -156,25 +159,25 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
     // in-transaction member recheck can roll the whole import back.
     const member = await createTestListing({ name: "Tx flipped member" });
     await execute(
-      `CREATE TRIGGER plan_member_after_group_insert
+      sql`CREATE TRIGGER plan_member_after_group_insert
          AFTER INSERT ON groups
-         BEGIN UPDATE listings SET assign_built_site = 1 WHERE id = ${member.id}; END`,
+         BEGIN UPDATE listings SET assign_built_site = 1 WHERE id = ${sqlLiteral(member.id)}; END`,
     );
 
     try {
-      await refusePlanMemberImport(
+      await expectPlanMemberImportRefused(
         { isPackage: true, name: "Tx flipped member group" },
         member,
       );
     } finally {
-      await execute("DROP TRIGGER plan_member_after_group_insert");
+      await execute(sql`DROP TRIGGER plan_member_after_group_insert`);
     }
   });
 });
 
 /** Run a group import naming one member and assert the shared built-site plan
  *  refusal plus that no group was created — nothing partially imports. */
-async function refusePlanMemberImport(
+async function expectPlanMemberImportRefused(
   group: { isPackage?: boolean; name: string },
   member: { name: string },
 ): Promise<void> {
@@ -190,7 +193,7 @@ async function refusePlanMemberImport(
     ok: false,
   });
   const { groups } = await import("#db/groups.ts");
-  expect(
-    (await groups.cache.getAll()).find((row) => row.name === group.name),
-  ).toBeUndefined();
+  expect((await groups.getAll()).find((row) => row.name === group.name)).toBe(
+    undefined,
+  );
 }

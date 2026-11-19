@@ -6,7 +6,7 @@
 
 import { orderModifierLines } from "#accounting/queries.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import { packageDisplaysForRows } from "#db/groups.ts";
+import { packageDisplaysForRows } from "#db/groups/package-display.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { getModifierNamesByIds } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
@@ -41,7 +41,7 @@ const buildTicketCard = async (
   token: string,
   modifiers: readonly ModifierLine[],
 ): Promise<TicketCard> => {
-  const attachmentUrl = entry.listing.attachment_url
+  const attachmentUrl = entry.listing.attachmentUrl
     ? await signAttachmentUrl(entry.listing.id, entry.attendee.id)
     : undefined;
   return {

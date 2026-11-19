@@ -67,13 +67,16 @@ export const decodeSvgAttachment = (content: string): string => {
 };
 
 /** Assert the email body carries exactly one `ticket.svg` attachment and return
- * its decoded SVG source. */
+ * its decoded SVG source. The body's QR picture is a separate inline part. */
 export const expectSingleTicketSvg = (body: {
-  attachments: { filename: string; content: string }[];
+  attachments: { content: string; filename: string }[];
 }): string => {
-  expect(body.attachments).toHaveLength(1);
-  expect(body.attachments[0]!.filename).toBe("ticket.svg");
-  return decodeSvgAttachment(body.attachments[0]!.content);
+  const svgs = body.attachments.filter((attachment) =>
+    attachment.filename.endsWith(".svg"),
+  );
+  expect(svgs).toHaveLength(1);
+  expect(svgs[0]!.filename).toBe("ticket.svg");
+  return decodeSvgAttachment(svgs[0]!.content);
 };
 
 /**

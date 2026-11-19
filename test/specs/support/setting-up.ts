@@ -51,17 +51,17 @@ const sendSetup = (
   fillInAndSend(
     browser,
     {
-      admin_password: who.password,
-      admin_password_confirm: confirmation,
-      admin_username: who.name,
+      adminPassword: who.password,
+      adminPasswordConfirm: confirmation,
+      adminUsername: who.name,
       country: "GB",
     },
     t("setup.submit"),
     // The agreement is a box somebody ticks, not a value they type, and the
     // page will not send without it.
     {
-      accept_agreement: [
-        checkboxValueOffered(browser.currentHtml, "accept_agreement"),
+      acceptAgreement: [
+        checkboxValueOffered(browser.currentHtml, "acceptAgreement"),
       ],
     },
   );
@@ -98,9 +98,9 @@ const REFUSED_NAME = "-firstowner";
  * the page to that refusal instead of posting. */
 export const aNameTheBrowserRefuses = async (): Promise<void> => {
   const browser = await openSetup();
-  const form = browser.formBodyFor(t("setup.submit"), ["admin_username"]);
+  const form = browser.formBodyFor(t("setup.submit"), ["adminUsername"]);
   expect(
-    whyValueCannotBeSent(form, "admin_username", REFUSED_NAME),
+    whyValueCannotBeSent(form, "adminUsername", REFUSED_NAME),
   ).not.toBeNull();
 };
 

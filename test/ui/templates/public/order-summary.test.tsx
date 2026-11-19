@@ -18,8 +18,8 @@ const planItem = (
 ): CheckoutItem =>
   checkoutItem(
     testListing({
-      assign_built_site: true,
-      initial_site_months: initialMonths,
+      assignBuiltSite: true,
+      initialSiteMonths: initialMonths,
       name,
       slug,
     }),
@@ -60,7 +60,7 @@ describe("order summary rows", () => {
     // The constructor resolves the renewal context: a two-month tier bought
     // three times states six months.
     const tier = checkoutItem(
-      testListing({ months_per_unit: 2, name: "Monthly", slug: "monthly" }),
+      testListing({ monthsPerUnit: 2, name: "Monthly", slug: "monthly" }),
       3,
       1200,
       { renewal: true },

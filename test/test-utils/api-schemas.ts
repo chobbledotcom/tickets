@@ -6,7 +6,11 @@
 
 import * as v from "valibot";
 import { ApiQuantitySchema } from "#routes/api/request-schemas.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
+import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
+import { byFieldKey } from "#shared/rest/field-specs.ts";
+import { fieldValueSchema } from "#shared/rest/field-values.ts";
 import { IsoDateSchema } from "#shared/validation/date-string.ts";
 import { EmailSchema } from "#shared/validation/email.ts";
 import { CONTACT_FIELDS, DayPricesSchema, MAX_DURATION_DAYS } from "#types";
@@ -135,6 +139,7 @@ export const AdminListingSchema = v.strictObject({
       "listing_type",
       "location",
       "name",
+      "recurring_interval",
       "slug",
       "thank_you_url",
       "webhook_url",
@@ -157,6 +162,7 @@ export const AdminListingSchema = v.strictObject({
       "min_quantity",
       "months_per_unit",
       "profit",
+      "recurring_price",
       "tickets_count",
       "unit_price",
     ],
@@ -324,18 +330,12 @@ export const PackageBookRequestSchema = v.strictObject({
   ),
 });
 
+/** Every group field under its own value rule and its wire name, so the
+ *  shape cannot fall behind the field list. */
 const groupEntries = {
-  description: v.string(),
-  ...v.entriesFromList(
-    ["hidden", "hide_package_listings", "show_hidden_listings"],
-    v.boolean(),
-  ),
+  ...snakeCaseKeys(byFieldKey(GROUP_FIELDS, fieldValueSchema)),
   id: AtLeastOne,
-  // Zero is a real setting here: a group with no cap of its own.
-  max_attendees: v.pipe(v.number(), v.integer(), v.minValue(0)),
-  name: NonEmpty,
   slug: Slug,
-  terms_and_conditions: v.string(),
 };
 
 /** One priced member of a package group, as the admin API hydrates it. Only a

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import {
   buildDuplicateListingInput,
@@ -36,7 +36,7 @@ describeWithEnv("listing action lifecycle", { db: true }, () => {
 
   test("labels an attachment failure while still deleting the listing", async () => {
     const listing = await createTestListing({ name: "Delete Failure" });
-    await listingsTable.update(listing.id, {
+    await updateListing(listing.id, {
       attachmentName: "guide.pdf",
       attachmentUrl: "guide.pdf",
     });

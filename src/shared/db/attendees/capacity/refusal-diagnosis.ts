@@ -15,19 +15,18 @@ import {
   type CartDemand,
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
-import {
-  inPlaceholders,
-  queryBatchPrimary,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
+import { queryBatchPrimary, resultRows } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
 type LineListingFacts = {
   groupIds: number[];
-  listing_type: ListingCapacityRow["listing_type"];
+  listingType: ListingCapacityRow["listingType"];
 };
 
 /** One cart demand for a slice of lines, each line counted on its own date. */
@@ -113,18 +112,10 @@ const batchProbePrefixes = (
 const buildFactsStatements = (
   listingIds: readonly number[],
 ): SqlStatement[] => [
-  {
-    args: [...listingIds],
-    sql: `SELECT listing.id, listing.listing_type
-            FROM listings AS listing
-           WHERE listing.id IN (${inPlaceholders(listingIds)})`,
-  },
-  {
-    args: [...listingIds],
-    sql: `SELECT groupListing.listing_id, groupListing.group_id
-            FROM group_listings AS groupListing
-           WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})`,
-  },
+  records.listings.byId(listingIds).pick("id", "listingType"),
+  from(tables.group_listings)
+    .where({ listingId: listingIds })
+    .pick("listingId", "groupId"),
 ];
 
 /** Fold two facts result sets into the model the probes build their demands
@@ -136,17 +127,17 @@ const readFacts = (
   memberResult: ResultSet,
 ): { facts: Map<number, LineListingFacts>; vanished: boolean } => {
   const facts = new Map<number, LineListingFacts>(
-    resultRows<Pick<ListingCapacityRow, "id" | "listing_type">>(
+    resultRows<Pick<ListingCapacityRow, "id" | "listingType">>(
       listingResult,
-    ).map((row) => [row.id, { groupIds: [], listing_type: row.listing_type }]),
+    ).map((row) => [row.id, { groupIds: [], listingType: row.listingType }]),
   );
   const vanished = listingIds.some((id) => !facts.has(id));
-  for (const row of resultRows<{ group_id: number; listing_id: number }>(
+  for (const row of resultRows<{ groupId: number; listingId: number }>(
     memberResult,
   )) {
-    const listing = facts.get(row.listing_id);
+    const listing = facts.get(row.listingId);
     if (listing === undefined) continue;
-    listing.groupIds.push(row.group_id);
+    listing.groupIds.push(row.groupId);
   }
   return { facts, vanished };
 };
@@ -165,7 +156,7 @@ const listingFactsChanged = (
 ): boolean =>
   listingIds.some((id) => {
     const groupsThatMattered = (facts: LineListingFacts): string =>
-      facts.listing_type +
+      facts.listingType +
       JSON.stringify([...facts.groupIds].sort((left, right) => left - right));
     return (
       groupsThatMattered(

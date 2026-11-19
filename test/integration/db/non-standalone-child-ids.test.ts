@@ -5,7 +5,7 @@ import {
   getNonStandaloneChildIds,
   listingChildren,
 } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -21,7 +21,7 @@ describeWithEnv(
       const child = await createTestListing({ name: `Widget${label}` });
       await listingChildren.setIds(parent.id, [child.id]);
       if (bookableAlone) {
-        await listingsTable.update(child.id, { bookableAlone: true });
+        await updateListing(child.id, { bookableAlone: true });
       }
       return { child, parent };
     };

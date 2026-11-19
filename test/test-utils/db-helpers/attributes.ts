@@ -1,18 +1,17 @@
 import {
   type AttributeOption,
   type AttributeWithOptions,
-  attributeOptionsTable,
   attributesOrder,
-  attributesTable,
   listingAttributeOptions,
 } from "#db/attributes.ts";
+import { records } from "#db/record-table.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 export const createTestAttribute = async (
   name = "Test attribute",
 ): Promise<AttributeWithOptions> => {
-  const attribute = await attributesTable.insert({ name });
+  const attribute = await records.attributes.insert({ name });
   await attributesOrder.append({ key: attribute.id });
   return { ...attribute, options: [] };
 };
@@ -22,9 +21,9 @@ export const createTestAttributeOption = (
   text: string,
   sortOrder = 0,
 ): Promise<AttributeOption> =>
-  attributeOptionsTable.insert({
-    attributeId,
-    sortOrder,
+  records.attribute_options.insert({
+    attributeId: attributeId,
+    sortOrder: sortOrder,
     text,
   });
 

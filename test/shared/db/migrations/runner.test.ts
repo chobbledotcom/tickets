@@ -19,6 +19,7 @@ import {
 } from "#db/migrations/schema/version.ts";
 import { syncIndexes } from "#db/migrations/schema-sync.ts";
 import type { Migration } from "#db/migrations/types.ts";
+import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import {
@@ -226,21 +227,20 @@ describeWithEnv(
 
     const staleSchemaHash = async (): Promise<void> => {
       await getDb().execute(
-        `UPDATE settings SET value = 'stale' WHERE key = '${DB_SCHEMA_HASH_KEY}'`,
+        sql`UPDATE settings SET value = 'stale' WHERE key = ${sqlLiteral(DB_SCHEMA_HASH_KEY)}`,
       );
     };
 
     const forgetMigration = async (id: string): Promise<void> => {
-      await getDb().execute({
-        args: [id],
-        sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-      });
+      await getDb().execute(
+        sql`DELETE FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${id}`,
+      );
     };
 
     /** Deploy a SCHEMA change without its migration: drop an index the current
      *  schema declares, so verification finds the live schema wanting. */
     const breakLiveSchema = (): Promise<unknown> =>
-      getDb().execute("DROP INDEX idx_listings_slug_index");
+      getDb().execute(sql`DROP INDEX idx_listings_slug_index`);
 
     const debugSpy = useDebugLogSpy();
     const debugLines = (): string[] => debugMessages(debugSpy()).map(String);
@@ -366,18 +366,16 @@ describeWithEnv(
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toBe("migration work failed");
         // The migration that finished before the failure was recorded.
-        const recorded = await getDb().execute({
-          args: ["runner-progress-recorded"],
-          sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-        });
+        const recorded = await getDb().execute(
+          sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${"runner-progress-recorded"}`,
+        );
         expect(recorded.rows.map((row) => String(row.id))).toEqual([
           "runner-progress-recorded",
         ]);
       } finally {
-        await getDb().execute({
-          args: ["runner-progress-recorded"],
-          sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-        });
+        await getDb().execute(
+          sql`DELETE FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${"runner-progress-recorded"}`,
+        );
         await releaseMigrationLock(lockToken);
       }
     });

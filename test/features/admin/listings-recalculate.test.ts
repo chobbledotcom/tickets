@@ -59,8 +59,8 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
         mockFormRequest(
           recalculatePath(listing.id),
           {
-            [RECALCULATE_FIELD_NAME]: "booked_quantity",
-            csrf_token: csrfToken,
+            [RECALCULATE_FIELD_NAME]: "bookedQuantity",
+            csrfToken,
           },
           cookie,
         ),
@@ -76,10 +76,11 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
         encodeURIComponent("Listing totals recalculated"),
       );
 
-      const repaired = await getListingWithCount(listing.id);
-      expect(repaired?.attendee_count).toBe(1);
-      // tickets_count was not ticked, so it keeps the wrong stored value.
-      expect(repaired?.tickets_count).toBe(5);
+      expect(await getListingWithCount(listing.id)).toMatchObject({
+        // tickets_count was not ticked, so it keeps the wrong stored value.
+        attendeeCount: 1,
+        ticketsCount: 5,
+      });
     });
 
     test("names the listing in the activity log", async () => {
@@ -90,8 +91,8 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
         mockFormRequest(
           recalculatePath(listing.id),
           {
-            [RECALCULATE_FIELD_NAME]: "booked_quantity",
-            csrf_token: csrfToken,
+            [RECALCULATE_FIELD_NAME]: "bookedQuantity",
+            csrfToken,
           },
           cookie,
         ),
@@ -110,11 +111,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
       const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleListingRecalculatePost(
-        mockFormRequest(
-          recalculatePath(listing.id),
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+        mockFormRequest(recalculatePath(listing.id), { csrfToken }, cookie),
         { listingId: listing.id },
       );
 
@@ -125,9 +122,10 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
         await response.text(),
         "Choose at least one total to recalculate",
       );
-      const untouched = await getListingWithCount(listing.id);
-      expect(untouched?.attendee_count).toBe(9);
-      expect(untouched?.tickets_count).toBe(5);
+      expect(await getListingWithCount(listing.id)).toMatchObject({
+        attendeeCount: 9,
+        ticketsCount: 5,
+      });
     });
   });
 });

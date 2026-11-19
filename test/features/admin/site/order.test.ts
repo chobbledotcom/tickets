@@ -27,9 +27,9 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
         response,
         200,
         "Order page",
-        "order_enabled",
+        "orderEnabled",
         "Enable order page",
-        "order_intro_text",
+        "orderIntroText",
       );
     });
 
@@ -72,13 +72,13 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
       await settings.update.orderEnabled(true);
       const response = await adminGet("/admin/site/order");
       const html = await response.text();
-      expect(hasCheckedInput(html, "order_enabled", "true")).toBe(true);
+      expect(hasCheckedInput(html, "orderEnabled", "true")).toBe(true);
     });
   });
 
   describe("POST /admin/site/order", () => {
     testRequiresAuth("/admin/site/order", {
-      body: { order_intro_text: "Hi" },
+      body: { orderIntroText: "Hi" },
       method: "POST",
     });
 
@@ -86,7 +86,7 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/order",
-          { csrf_token: "invalid", order_intro_text: "Hi" },
+          { csrfToken: "invalid", orderIntroText: "Hi" },
           await testCookie(),
         ),
       );
@@ -95,7 +95,7 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
 
     test("saves the order intro text", async () => {
       const { response } = await adminFormPost("/admin/site/order", {
-        order_intro_text: "Browse our range",
+        orderIntroText: "Browse our range",
       });
       expectRedirectWithFlash(
         "/admin/site/order",
@@ -106,7 +106,7 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
 
     test("rejects intro text exceeding max length", async () => {
       const { response } = await adminFormPost("/admin/site/order", {
-        order_intro_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+        orderIntroText: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
       await expectFlashRedirect(
         "/admin/site/order",
@@ -118,13 +118,13 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
 
   describe("POST /admin/site/order/toggle", () => {
     testRequiresAuth("/admin/site/order/toggle", {
-      body: { order_enabled: "true" },
+      body: { orderEnabled: "true" },
       method: "POST",
     });
 
     test("enables the order page", async () => {
       const { response } = await adminFormPost("/admin/site/order/toggle", {
-        order_enabled: "true",
+        orderEnabled: "true",
       });
       expectRedirect(response, "/admin/site/order");
       expectFlash(response, "Order page enabled");

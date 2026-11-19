@@ -184,6 +184,6 @@ export const ownerOpensDirectory: ActOnTheStory = async (world) => {
 /** The tool was refused because External sources is off, in the site's words. */
 export const expectToldToTurnItOn = (world: TicketsWorld): void => {
   expect(keptAnswer<{ error: string }>(world).error).toBe(
-    t("features.external_sources.disabled"),
+    t("features.api_disabled", { feature: "external sources" }),
   );
 };

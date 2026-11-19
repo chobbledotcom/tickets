@@ -6,6 +6,7 @@ import { Liquid } from "liquidjs";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { renderEmailContent } from "#shared/email-renderer.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { expectEmailParts } from "#test-utils/email-parts.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import {
   buildTestData,
@@ -47,9 +48,11 @@ describeEmailRenderer(() => {
       );
       const { result } = await renderConfirmation();
 
-      expect(result.subject).toBe("Custom: Test Listing");
-      expect(result.html).toBe("<b>Custom HTML for Jane Doe</b>");
-      expect(result.text).toBe("Custom text for Jane Doe");
+      expectEmailParts(result, {
+        html: "<b>Custom HTML for Jane Doe</b>",
+        subject: "Custom: Test Listing",
+        text: "Custom text for Jane Doe",
+      });
     });
 
     test("falls back to default on custom template render error", async () => {
@@ -174,7 +177,7 @@ describeEmailRenderer(() => {
 
     test("renders paid listing with currency in confirmation", async () => {
       const data = await buildTestData([
-        makeEntry({ unit_price: 1000 }, { price_paid: "2000", quantity: 2 }),
+        makeEntry({ unitPrice: 1000 }, { price_paid: "2000", quantity: 2 }),
       ]);
       const result = await renderEmailContent("confirmation", data);
 
@@ -185,7 +188,7 @@ describeEmailRenderer(() => {
     test("shows the amount owed when a balance is outstanding", async () => {
       const data = await buildTestData([
         makeEntry(
-          { unit_price: 1000 },
+          { unitPrice: 1000 },
           { price_paid: "0", remaining_balance: 2000 },
         ),
       ]);
@@ -200,7 +203,7 @@ describeEmailRenderer(() => {
     test("omits the amount owed when the booking is fully paid", async () => {
       const data = await buildTestData([
         makeEntry(
-          { unit_price: 1000 },
+          { unitPrice: 1000 },
           { price_paid: "1000", remaining_balance: 0 },
         ),
       ]);

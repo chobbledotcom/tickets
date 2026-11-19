@@ -2,27 +2,40 @@
  * Read queries for attendees and their per-listing bookings.
  */
 
-import { saleLegPredicate } from "#accounting/projection-sql.ts";
+import { ledgerLegs, saleLeg } from "#accounting/projection-sql.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { SUBSCRIPTION_PLAN_COLUMNS } from "#db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
+import { attendeeIdOfToken, sealedContactsOf } from "#db/attendees/reads.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeKindFilter,
   type AttendeeRowFor,
+  bookingRow,
   type GetAttendeesQuery,
   getAttendees,
   pricePaidFromLedger,
   refundedFromLedger,
+  refundedRowOf,
 } from "#db/attendees/select.ts";
+import { queryOne } from "#db/client.ts";
+import { columnFrom } from "#db/query.ts";
+import { readExists, readRows } from "#db/read.ts";
+import { records } from "#db/record-table.ts";
+import { readForIds } from "#db/rows-for-ids.ts";
+import { greaterThan } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
-  inPlaceholders,
-  queryOne,
-  rowExists,
-  rowExistsForIdList,
-} from "#db/client.ts";
-import { columnFrom, columnMapByIds, nameSource } from "#db/query.ts";
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlLiteral,
+} from "#db/sql.ts";
+import { fieldById } from "#fp";
 import type { AttendeeSort } from "#shared/attendee-list-controls.ts";
 import type { Attendee } from "#types";
 
@@ -32,23 +45,26 @@ import type { Attendee } from "#types";
  * pass either the table name or a query alias without the `sibling` subquery
  * shadowing bare column names.
  */
-export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
+export const listingAttendeeRowColumnsFrom = (
+  sourceName: string,
+): SqlStatement => {
   const column = columnFrom(sourceName);
-  return `${column("listing_id")}, ${column("start_at")}, ${column(
-    "end_at",
-  )}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger({
-    attendeeId: column("attendee_id"),
-    eventGroup: column("ledger_event_group"),
-    listingId: column("listing_id"),
-    placeholderWhen: `${column("quantity")} = 0`,
-  })}, ${pricePaidFromLedger(
-    column("attendee_id"),
+  const row = bookingRow(sourceName);
+  return sqlCommas([
     column("listing_id"),
+    column("start_at"),
+    column("end_at"),
+    column("quantity"),
+    column("checked_in"),
+    refundedFromLedger(refundedRowOf(row)),
+    pricePaidFromLedger(row),
     column("ledger_event_group"),
-    column("id"),
-  )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column(
-    "order_token",
-  )}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
+    column("attachment_downloads"),
+    column("order_token"),
+    column("parent_listing_id"),
+    column("package_group_id"),
+    ...SUBSCRIPTION_PLAN_COLUMNS.map(column),
+  ]);
 };
 
 export const LISTING_ATTENDEE_ROW_COLS =
@@ -125,12 +141,9 @@ export const getNewestAttendeesRaw = (
     join: "left",
     order: "id_desc",
     where: {
-      attendeeIdsSubquery: {
-        args: [limit],
-        sql: `SELECT newest.id FROM attendees AS newest
-           WHERE newest.kind = '${ATTENDEE_KIND}'
-           ORDER BY newest.id DESC LIMIT ?`,
-      },
+      attendeeIdsSubquery: sql`SELECT newest.id FROM attendees AS newest
+           WHERE newest.kind = ${sqlLiteral(ATTENDEE_KIND)}
+           ORDER BY newest.id DESC LIMIT ${limit}`,
     },
   });
 
@@ -188,35 +201,42 @@ export const getAttendeesPage = async ({
 }): Promise<AttendeesPage> => {
   // An empty filter set matches nothing — e.g. a type with no listings yet.
   if (listingIds?.length === 0) return { hasNext: false, rows: [] };
-  // `dir` is derived from the AttendeeSort enum and the filter clause is fixed
-  // text, so neither is user-controlled — only the bound args are.
-  const dir = sort === "oldest" ? "ASC" : "DESC";
+  const oldestFirst = sort === "oldest";
   const lineFilter = listingIds
-    ? ` AND pageLine.listing_id IN (${inPlaceholders(listingIds)})`
-    : "";
+    ? sql` AND pageLine.listing_id IN (${sqlList(listingIds)})`
+    : sql``;
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
   // The inner subquery pages the ATTENDEE ids (grouped, so paging counts
   // attendees not lines); getAttendees then returns every booking line for
-  // those attendees. The listing filter and LIMIT/OFFSET are bound args.
-  const idsArgs = listingIds ? [...listingIds, limit, offset] : [limit, offset];
+  // those attendees.
   const rows = await loadAttendeeRows({
-    order: dir === "ASC" ? "id_asc" : "id_desc",
+    order: oldestFirst ? "id_asc" : "id_desc",
     where: {
-      attendeeIdsSubquery: {
-        args: idsArgs,
-        sql: `SELECT pageAttendee.id
+      attendeeIdsSubquery: sql`SELECT pageAttendee.id
            FROM attendees AS pageAttendee
            JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
-           WHERE pageAttendee.kind = '${ATTENDEE_KIND}'${lineFilter}
+           WHERE pageAttendee.kind = ${sqlLiteral(ATTENDEE_KIND)}${lineFilter}
            GROUP BY pageAttendee.id
-           ORDER BY pageAttendee.id ${dir}
-           LIMIT ? OFFSET ?`,
-      },
+           ORDER BY pageAttendee.id ${oldestFirst ? sql`ASC` : sql`DESC`}
+           LIMIT ${limit} OFFSET ${offset}`,
     },
   });
   return trimAttendeePage(rows);
 };
+
+/** A question about the booking rows of an attendee on some listings. */
+type LineTest<Listings> = (
+  attendeeId: number,
+  listings: Listings,
+) => Promise<boolean>;
+
+/** The booking rows of an attendee on one listing, or on one of several. */
+const linesOf = (attendeeId: number, listings: number | number[]) =>
+  from(tables.listing_attendees).where({
+    attendeeId,
+    listingId: listings,
+  });
 
 /**
  * True when the attendee has a real (quantity > 0) booking on the exact listing.
@@ -226,14 +246,11 @@ export const getAttendeesPage = async ({
  * row, or wrongly reject a valid real-line download). A no-quantity sentinel
  * line is excluded, so a line later marked no-quantity stops authorizing.
  */
-export const hasActiveBookingLine = (
-  attendeeId: number,
-  listingId: number,
-): Promise<boolean> =>
-  rowExists(
-    `SELECT 1 FROM listing_attendees
-     WHERE attendee_id = ? AND listing_id = ? AND quantity > 0 LIMIT 1`,
-    [attendeeId, listingId],
+export const hasActiveBookingLine: LineTest<number> = (attendeeId, listingId) =>
+  readExists(
+    linesOf(attendeeId, listingId).where((line) =>
+      greaterThan(line.quantity, 0),
+    ),
   );
 
 export type FirstBooking = {
@@ -251,14 +268,13 @@ export const getFirstBooking = async (
     listing_id: number;
     quantity: number;
   }>(
-    `SELECT listingAttendee.listing_id
+    sql`SELECT listingAttendee.listing_id
               , listingAttendee.quantity
          FROM listing_attendees AS listingAttendee
-        WHERE listingAttendee.attendee_id = ?
+        WHERE listingAttendee.attendee_id = ${attendeeId}
         ORDER BY (listingAttendee.quantity > 0) DESC,
                  listingAttendee.start_at, listingAttendee.listing_id
         LIMIT 1`,
-    [attendeeId],
   );
   return row === null
     ? null
@@ -277,19 +293,14 @@ export const getFirstBooking = async (
  * stale/missing key can leave it null), so a recorded payment is never dropped
  * onto a fresh quantity-0 row. Callers pass a non-empty list.
  */
-export const hasPaidLine = rowExistsForIdList(
-  (listingIdPlaceholders) =>
-    `SELECT 1 FROM listing_attendees AS listingAttendee
-     WHERE listingAttendee.attendee_id = ? AND listingAttendee.listing_id IN (${listingIdPlaceholders})
-       AND EXISTS (
-         SELECT 1 FROM transfers
-         WHERE ${saleLegPredicate(
-           "listingAttendee.attendee_id",
-           "listingAttendee.listing_id",
-           "listingAttendee.ledger_event_group",
-         )}
-       ) LIMIT 1`,
-);
+export const hasPaidLine: LineTest<number[]> = (attendeeId, listingIds) =>
+  readExists(
+    linesOf(attendeeId, listingIds).where((line) =>
+      ledgerLegs()
+        .where(saleLeg(line.attendeeId, line.listingId, line.ledgerEventGroup))
+        .exists(),
+    ),
+  );
 
 /**
  * The id of the attendee whose booking owns this ledger event group, or null
@@ -331,10 +342,7 @@ export const getAttendeeRawByToken = async (
       await loadAttendeeRows({
         join: "left",
         where: {
-          attendeeIdsSubquery: {
-            args: [tokenIndex],
-            sql: "SELECT id FROM attendees WHERE ticket_token_index = ?",
-          },
+          attendeeIdsSubquery: attendeeIdOfToken(tokenIndex),
         },
       })
     )[0] ?? null
@@ -353,13 +361,13 @@ export const getAttendeesByIds = (
   ids: number[],
   kind?: AttendeeKindFilter,
 ): Promise<Attendee[]> =>
-  ids.length === 0
-    ? Promise.resolve([])
-    : loadAttendeeRows({
-        join: "left",
-        owedScope: "booking",
-        where: { attendeeIds: ids, ...(kind === undefined ? {} : { kind }) },
-      });
+  readForIds(ids, () =>
+    loadAttendeeRows({
+      join: "left",
+      owedScope: "booking",
+      where: { attendeeIds: ids, ...(kind === undefined ? {} : { kind }) },
+    }),
+  );
 
 /**
  * Bounded id → name lookup for the given attendees, decrypting only the name
@@ -367,24 +375,37 @@ export const getAttendeesByIds = (
  * attendee). Empty ids ⇒ empty map. Used for link labels in the activity log;
  * a deleted attendee's id simply has no entry.
  */
-export const getAttendeeNamesByIds = (
+export const getAttendeeNamesByIds = async (
   ids: number[],
   privateKey: CryptoKey,
 ): Promise<Map<number, string>> =>
-  nameSource(
-    "attendees",
-    "attendee",
-    "pii_blob",
-    async (raw: OwnerKeyEncrypted) =>
-      (await decryptPiiBlob(raw, privateKey, false)).name,
-  ).byIds(ids);
+  new Map(
+    await Promise.all(
+      (await readRows(sealedContactsOf(ids))).map(
+        async ({ id, piiBlob }) =>
+          [
+            id,
+            // A stored attendee always holds owner-key ciphertext.
+            (
+              await decryptPiiBlob(
+                piiBlob as OwnerKeyEncrypted,
+                privateKey,
+                false,
+              )
+            ).name,
+          ] as const,
+      ),
+    ),
+  );
 
 /** Bounded id → kind lookup for attendee-linked admin surfaces. Empty ids ⇒
  * empty map. Unknown/deleted ids are omitted. */
-export const getAttendeeKindsByIds = (
+export const getAttendeeKindsByIds = async (
   ids: number[],
 ): Promise<Map<number, string>> =>
-  columnMapByIds<string>("attendees", "attendee", "kind", ids);
+  fieldById("kind")(
+    await readRows(records.attendees.byId(ids).pick("id", "kind")),
+  );
 
 /**
  * Get an attendee by ID (decrypted)

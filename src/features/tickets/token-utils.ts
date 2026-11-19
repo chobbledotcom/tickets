@@ -8,7 +8,7 @@ import type {
 } from "#db/attendee-types.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
-import { packageDisplaysForRows } from "#db/groups.ts";
+import { packageDisplaysForRows } from "#db/groups/package-display.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import {

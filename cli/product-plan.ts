@@ -138,10 +138,11 @@ export const composeDescription = (product: CatalogProduct): string => {
 /** The listing the admin JSON API accepts for one product. Prices are minor
  * units; the day-count prices carry the rental-period options. `optionIds`
  * and `groupIds` are the resolved ids of the product's attribute selection and
- * category memberships. */
+ * category memberships. Null option ids mean that the site has attributes
+ * turned off, so the body leaves the selection out. */
 export const listingBody = (
   product: CatalogProduct,
-  optionIds: readonly number[],
+  optionIds: readonly number[] | null,
   groupIds: readonly number[],
 ) => {
   const maxDays = Math.max(...product.options.map((option) => option.days));
@@ -162,7 +163,7 @@ export const listingBody = (
   // fixed 1 would leave every multi-unit option unable to sell past one
   // unit on a date.
   return {
-    attribute_option_ids: [...optionIds],
+    ...(optionIds === null ? {} : { attribute_option_ids: [...optionIds] }),
     customisable_days: true,
     day_prices: dayPrices,
     description: composeDescription(product),
@@ -225,12 +226,14 @@ export const refuseChangedFile = (
 
 /** The option ids a product selects, in the order its file lists them. The
  * importer creates every option the catalog vocabulary plans, so a missing id
- * names a real gap and stops the import. */
+ * names a real gap and stops the import. Null ids mean that the site has
+ * attributes turned off, so the product selects nothing. */
 export const resolveOptionIds = (
   product: CatalogProduct,
-  optionIds: ReadonlyMap<string, number>,
-): number[] =>
-  product.filterAttributes.map((attribute) => {
+  optionIds: ReadonlyMap<string, number> | null,
+): number[] | null => {
+  if (optionIds === null) return null;
+  return product.filterAttributes.map((attribute) => {
     const id = optionIds.get(optionKey(attribute.name, attribute.value));
     if (id === undefined) {
       throw new Error(
@@ -239,6 +242,7 @@ export const resolveOptionIds = (
     }
     return id;
   });
+};
 
 /** The tickets id a product file already stores, when it has one. */
 export const storedTicketsId = (

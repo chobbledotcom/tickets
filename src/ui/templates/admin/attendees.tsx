@@ -15,6 +15,7 @@ import { atBookingHints } from "#templates/admin/answer-rows.ts";
 import { pendingNotificationBadges } from "#templates/admin/attendee-notification-badges.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { Badge } from "#templates/components/badge.tsx";
+import { LabelledBlock } from "#templates/components/labelled-block.tsx";
 import {
   type LabelledLine,
   LabelledParas,
@@ -209,9 +210,7 @@ export const adminPaymentReviewPage =
     paymentReviewConfirm,
     ({ reviewIdentity }) => ({
       disabled: reviewIdentity === null,
-      ...(reviewIdentity === null
-        ? {}
-        : { hiddenFields: { review_identity: reviewIdentity } }),
+      ...(reviewIdentity === null ? {} : { hiddenFields: { reviewIdentity } }),
     }),
   );
 
@@ -223,22 +222,19 @@ type ResendPageData = { attendee: Attendee; hasWebhook: boolean };
 /** One send choice the page's webhook branch offers: unchecked, so the
  * checked default stays the email radio above. */
 const resendSideOption = (value: string, key: string): JSX.Element => (
-  <RadioOption checked={false} name="resend_sides" value={value}>
+  <RadioOption checked={false} name="resendSides" value={value}>
     {t(key)}
   </RadioOption>
 );
 
 const resendSidesChoice = (): JSX.Element => (
-  <>
-    <p>
-      <strong>{t("admin.attendees.resend_sides_title")}</strong>
-    </p>
-    <RadioOption checked name="resend_sides" value="email">
+  <LabelledBlock label={t("admin.attendees.resend_sides_title")}>
+    <RadioOption checked name="resendSides" value="email">
       {t("admin.attendees.resend_sides_email")}
     </RadioOption>
     {resendSideOption("webhooks", "admin.attendees.resend_sides_webhook")}
     {resendSideOption("both", "admin.attendees.resend_sides_both")}
-  </>
+  </LabelledBlock>
 );
 
 /**
@@ -259,7 +255,7 @@ export const adminResendNotificationPage = attendeeRouteConfirm<ResendPageData>(
   ({ hasWebhook }) =>
     hasWebhook
       ? { body: resendSidesChoice() }
-      : { hiddenFields: { resend_sides: "email" } },
+      : { hiddenFields: { resendSides: "email" } },
 );
 
 /**

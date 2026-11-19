@@ -17,8 +17,8 @@ import type { Modifier } from "#types";
  * entry here; the ScopeLinkKind union and both the field name and heading follow
  * from this table, so there are no per-kind ternaries to keep in sync. */
 export const SCOPE_LINK_KINDS = {
-  groups: { field: "group_ids", term: "terms.groups" },
-  listings: { field: "listing_ids", term: "terms.listings" },
+  groups: { field: "groupIds", term: "terms.groups" },
+  listings: { field: "listingIds", term: "terms.listings" },
 } as const satisfies Record<string, { field: string; term: string }>;
 
 export type ScopeLinkKind = keyof typeof SCOPE_LINK_KINDS;
@@ -106,7 +106,7 @@ export const AnswerLinksForm = ({
     ) : (
       <OneGroupCheckboxes
         label={t("terms.answers")}
-        name="answer_ids"
+        name="answerIds"
         options={answerLinks.options.map((option) => ({
           ...option,
           active: true,

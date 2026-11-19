@@ -15,7 +15,7 @@ describe("edgeFieldError > built-site plans", () => {
   test("refuses a parent that assigns a site", () => {
     expect(
       edgeFieldError(
-        listing({ assign_built_site: true, name: "Website Plan" }),
+        listing({ assignBuiltSite: true, name: "Website Plan" }),
         listing({ name: "Child" }),
       ),
     ).toBe(
@@ -29,7 +29,7 @@ describe("edgeFieldError > built-site plans", () => {
     expect(
       edgeFieldError(
         listing({ name: "Parent" }),
-        listing({ assign_built_site: true, name: "Website Plan" }),
+        listing({ assignBuiltSite: true, name: "Website Plan" }),
       ),
     ).toBe(
       t("listings_table.children_err_child_site_plan", {
@@ -41,8 +41,8 @@ describe("edgeFieldError > built-site plans", () => {
   test("the parent rule wins when both endpoints assign a site", () => {
     expect(
       edgeFieldError(
-        listing({ assign_built_site: true, name: "Plan Parent" }),
-        listing({ assign_built_site: true, name: "Plan Child" }),
+        listing({ assignBuiltSite: true, name: "Plan Parent" }),
+        listing({ assignBuiltSite: true, name: "Plan Child" }),
       ),
     ).toBe(
       t("listings_table.children_err_parent_site_plan", {
@@ -58,9 +58,9 @@ describe("edgeFieldError > built-site plans", () => {
       edgeFieldError(
         listing({ name: "Parent" }),
         listing({
-          assign_built_site: true,
-          duration_days: 5,
-          listing_type: "daily",
+          assignBuiltSite: true,
+          durationDays: 5,
+          listingType: "daily",
           name: "Plan Child",
         }),
       ),

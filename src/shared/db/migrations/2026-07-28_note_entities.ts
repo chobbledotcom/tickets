@@ -1,4 +1,5 @@
 import { queryAllPrimary } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { bareSchemaMigration } from "./define.ts";
 
@@ -8,7 +9,7 @@ const ALREADY_ADDED = "duplicate column name";
 /** What it says when `attendee_id` has already gone, so its notes are moved. */
 const ALREADY_MOVED = "no such column: attendee_id";
 
-type RunSql = (sql: string) => Promise<unknown>;
+type RunSql = (statement: SqlStatement) => Promise<unknown>;
 
 /**
  * Do a step, treating the database's own "that is already so" as done.
@@ -30,9 +31,9 @@ const stepDone = async (
   }
 };
 
-const addColumn = (execute: RunSql, column: string): Promise<void> =>
+const addColumn = (execute: RunSql, column: SqlStatement): Promise<void> =>
   stepDone(
-    () => execute(`ALTER TABLE system_notes ADD COLUMN ${column}`),
+    () => execute(sql`ALTER TABLE system_notes ADD COLUMN ${column}`),
     ALREADY_ADDED,
   );
 
@@ -40,7 +41,7 @@ const moveNotesToTargets = (execute: RunSql): Promise<void> =>
   stepDone(
     () =>
       execute(
-        "UPDATE system_notes SET entity_type = 'attendee', entity_id = attendee_id",
+        sql`UPDATE system_notes SET entity_type = 'attendee', entity_id = attendee_id`,
       ),
     ALREADY_MOVED,
   );
@@ -63,10 +64,9 @@ export default bareSchemaMigration(
   "2026-07-28_note_entities",
   "Replace system_notes.attendee_id with entity_type + entity_id, so notes can be about any record and not only an attendee. Existing notes become notes about an attendee",
   async ({ getDb, recreateTable, syncIndexes }) => {
-    const info = await queryAllPrimary<{ name: string }>({
-      args: [],
-      sql: "SELECT name FROM pragma_table_info('system_notes')",
-    });
+    const info = await queryAllPrimary<{ name: string }>(
+      sql`SELECT name FROM pragma_table_info('system_notes')`,
+    );
     const columns = new Set(info.map((row) => row.name));
     if (!columns.has("attendee_id")) {
       // The columns are already moved, but a run that died right after the
@@ -76,8 +76,8 @@ export default bareSchemaMigration(
     }
 
     const execute: RunSql = (sql) => getDb().execute(sql);
-    await addColumn(execute, "entity_type TEXT NOT NULL DEFAULT 'attendee'");
-    await addColumn(execute, "entity_id INTEGER NOT NULL DEFAULT 0");
+    await addColumn(execute, sql`entity_type TEXT NOT NULL DEFAULT 'attendee'`);
+    await addColumn(execute, sql`entity_id INTEGER NOT NULL DEFAULT 0`);
     await moveNotesToTargets(execute);
     // The rebuild drops attendee_id, and takes the table's indexes from SCHEMA
     // as it goes, so idx_system_notes_entity arrives with it.

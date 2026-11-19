@@ -56,7 +56,7 @@ const createDialog = (): PreviewDialog => {
 const csrfTokenFor = (textarea: HTMLTextAreaElement): string =>
   textarea
     .closest("form")
-    ?.querySelector<HTMLInputElement>('input[name="csrf_token"]')?.value ?? "";
+    ?.querySelector<HTMLInputElement>('input[name="csrfToken"]')?.value ?? "";
 
 /**
  * The character counter (added earlier by initCharCounters) sits immediately
@@ -87,7 +87,7 @@ export const initMarkdownPreview = (): void => {
       const res = await fetch("/admin/markdown-preview", {
         body: new URLSearchParams({
           content: textarea.value,
-          csrf_token: csrfTokenFor(textarea),
+          csrfToken: csrfTokenFor(textarea),
         }).toString(),
         headers: { "content-type": "application/x-www-form-urlencoded" },
         method: "POST",

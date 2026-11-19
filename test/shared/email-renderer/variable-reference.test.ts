@@ -14,7 +14,7 @@ import { buildTestData, describeEmailRenderer } from "./test-helpers.ts";
  * that resolves to empty can never pass the render check. */
 const fullEntry = (name: string, slug: string, quantity: number) =>
   makeTestEntry(
-    { name, slug, unit_price: 1000 },
+    { name, slug, unitPrice: 1000 },
     {
       address: "1 High Street",
       date: "2026-09-01",

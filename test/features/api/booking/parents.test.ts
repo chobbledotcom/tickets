@@ -59,7 +59,7 @@ describePublicApi(() => {
       const parent = await parentWithPaidChild();
       const { response, body } = await bookListing(parent.slug);
       expect(response.status).toBe(200);
-      expect(body.booking?.checkoutUrl).toBeDefined();
+      expect(body.booking?.checkoutUrl).toMatch(/^https:\/\//);
     });
 
     test("returns 400 when the parent checkout session errors", async () => {
@@ -96,8 +96,11 @@ describePublicApi(() => {
       await setupStripe();
       const { parent } = await freeParentWithChild();
       const body = await bookForToken(parent.slug);
-      expect(body.booking?.checkoutUrl).toBeUndefined();
-      expect(body.booking?.amountOwed).toBe(0);
+      expect(body.booking).toStrictEqual({
+        amountOwed: 0,
+        ticketToken: expect.any(String),
+        ticketUrl: expect.stringMatching(/^\/t\//),
+      });
     });
 
     test("a free parent+child booking records the child under its parent", async () => {
@@ -188,7 +191,7 @@ describePublicApi(() => {
     test("rejects duplicate pay-more child entries with conflicting prices", async () => {
       // Two entries for the same pay-more child (qty 1 each, totalling the
       // parent's 2 units) name two different prices. A single stored
-      // `child_price_*` can't honour both, so rather than letting the last
+      // `childPrice*` can't honour both, so rather than letting the last
       // entry's price silently win and book both units at £20, reject.
       const { parent, child } = await parentWithTwoUnitPayMoreChild();
       const { response, body } = await bookTwoChildEntries(
@@ -263,7 +266,7 @@ describePublicApi(() => {
       await setupStripe();
       const parent = await parentWithPaidChild();
       const intent = await captureBookingIntent(parent.slug);
-      expect(intent?.thankYouUrl).toBeUndefined();
+      expect(intent).not.toHaveProperty("thankYouUrl");
     });
   });
 });

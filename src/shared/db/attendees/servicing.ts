@@ -1,7 +1,6 @@
 import { costAccount, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { eventGroup, legReference } from "#accounting/refs.ts";
-import type { TransferEndpoints } from "#accounting/rows.ts";
 import { postTransfers, postTransfersTx } from "#accounting/store.ts";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
@@ -24,9 +23,15 @@ import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { loadAttendeeRows } from "#db/attendees/queries.ts";
 import { type AttendeeRowFor, getAttendees } from "#db/attendees/select.ts";
-import { queryAll, queryOne, requireOne, withTransaction } from "#db/client.ts";
-import { listingNames } from "#db/listings/records.ts";
-import { numberedListStatement } from "#db/numbered-statement.ts";
+import {
+  ADJ_MEMO_PREFIX,
+  costListingId,
+  loadCostRow,
+  loadServiceCostLegs,
+  sumAdjustmentsByOriginal,
+} from "#db/attendees/service-cost-legs.ts";
+import { queryOne, requireOne, withTransaction } from "#db/client.ts";
+import { listingNamesByIds } from "#db/listings/records.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
@@ -35,7 +40,12 @@ import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
-import { requiredMapValue, sumByKey, sumOf, unique } from "#fp";
+import { valued } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
+import { sumOf } from "#fp";
 import {
   type AttendeeUpdateFailureReason,
   attendeeFailureFormatter,
@@ -145,7 +155,7 @@ const formatServicingCapacityError = attendeeFailureFormatter({
 /** The comma-joined names of the given listing ids, dropping any id whose
  *  listing has since been deleted (a name lookup miss) rather than throwing. */
 const joinedListingNames = async (ids: number[]): Promise<string> => {
-  const names = await listingNames.byIds(ids);
+  const names = await listingNamesByIds(ids);
   return ids
     .map((id) => names.get(id))
     .filter((name): name is string => Boolean(name))
@@ -541,14 +551,13 @@ export const servicingHoldsListing = async (
   listingId: number,
 ): Promise<boolean> => {
   const row = await queryOne<{ one: number }>(
-    `SELECT 1 AS one
+    sql`SELECT 1 AS one
        FROM attendees AS attendee
        JOIN listing_attendees AS booking ON booking.attendee_id = attendee.id
-      WHERE attendee.id = ?
-        AND attendee.kind = ?
-        AND booking.listing_id = ?
+      WHERE attendee.id = ${servicingId}
+        AND attendee.kind = ${SERVICING_KIND}
+        AND booking.listing_id = ${listingId}
       LIMIT 1`,
-    [servicingId, SERVICING_KIND, listingId],
   );
   return row !== null;
 };
@@ -613,12 +622,11 @@ const matchingServiceCostReplayId = async (
     listing_id: number;
     memo: EnvKeyEncrypted;
   }>(
-    `SELECT transfer.id AS transfer_id, transfer.amount,
+    sql`SELECT transfer.id AS transfer_id, transfer.amount,
             cost.servicing_attendee_id, cost.listing_id, cost.memo
        FROM transfers AS transfer
        JOIN service_costs AS cost ON cost.transfer_id = transfer.id
-      WHERE transfer.reference = ?`,
-    [reference],
+      WHERE transfer.reference = ${reference}`,
   );
   if (!stored) return null;
   const matches =
@@ -658,60 +666,30 @@ export const recordServiceCost = async (
   // stale; the SELECT always resolves to the correct row regardless.
   await withTransaction(async (tx) => {
     await postTransfersTx(tx, [transfer]);
-    await tx.execute({
-      args: [
-        input.servicingId,
-        input.listingId,
-        input.occurredAt,
-        encryptedMemo,
-        nowIso(),
-        transfer.reference,
-      ],
-      sql:
-        "INSERT OR IGNORE INTO service_costs " +
-        "(servicing_attendee_id, listing_id, transfer_id, occurred_at, memo, created) " +
-        "SELECT ?, ?, id, ?, ?, ? FROM transfers WHERE reference = ?",
+    const posted = from(tables.transfers).where({
+      reference: transfer.reference,
     });
+    await tx.execute(
+      insertInto(
+        tables.service_costs,
+        {
+          created: nowIso(),
+          listingId: input.listingId,
+          memo: encryptedMemo,
+          occurredAt: input.occurredAt,
+          servicingAttendeeId: input.servicingId,
+          // The guard keeps the one transfer of this unique reference.
+          transferId: valued<number>(posted.scalar((leg) => leg.id)),
+        },
+        { or: "IGNORE", when: posted.exists() },
+      ),
+    );
   });
   const row = await requireOne<{ id: number }>(
-    "SELECT id FROM transfers WHERE reference = ?",
-    [transfer.reference],
+    sql`SELECT id FROM transfers WHERE reference = ${transfer.reference}`,
   );
   return row.id;
 };
-
-/** The narrow transfers columns a service-cost read needs: the row's id and
- * amount plus the shared account endpoints (to see which side is the cost
- * account), and the encrypted memo where selected. */
-type CostRow = TransferEndpoints & {
-  id: number;
-  amount: number;
-  memo?: EnvKeyEncrypted;
-};
-
-const COST_ROW_SELECT =
-  "id, source_type, source_id, dest_type, dest_id, amount";
-
-const getCostRow = async (costId: number): Promise<CostRow | null> =>
-  queryOne<CostRow>(
-    `SELECT ${COST_ROW_SELECT}
-       FROM transfers
-      WHERE id = ? AND kind = '${KIND.serviceCost}'`,
-    [costId],
-  );
-
-const loadCostRow = async (costId: number): Promise<CostRow> => {
-  const row = await getCostRow(costId);
-  if (!row) throw new Error("service cost not found");
-  return row;
-};
-
-/** The listing id a `service_cost` transfer attributes its cost to: the cost
- *  account is `source` for a `cost:L → world` leg and `destination` for a
- *  `world → cost:L` reduction leg, so the listing id is on whichever side is
- *  the `cost` account. */
-const costListingId = (row: CostRow): number =>
-  Number(row.source_type === "cost" ? row.source_id : row.dest_id);
 
 /** True when `costId` is a `service_cost` transfer recorded against
  *  `servicingId`. Queries the `service_costs` join table directly so a cost
@@ -722,8 +700,7 @@ export const costBelongsToServicing = async (
   servicingId: number,
 ): Promise<boolean> => {
   const row = await queryOne<{ n: number }>(
-    "SELECT 1 AS n FROM service_costs WHERE transfer_id = ? AND servicing_attendee_id = ?",
-    [costId, servicingId],
+    sql`SELECT 1 AS n FROM service_costs WHERE transfer_id = ${costId} AND servicing_attendee_id = ${servicingId}`,
   );
   return row !== null;
 };
@@ -776,124 +753,4 @@ export const editServiceCost = async (
       source: delta > 0 ? cost : WORLD,
     },
   ]);
-};
-
-/** A derived, operator-facing service-cost record for `/admin/servicing/:id`'s
- *  cost list: the original cost leg's id (the edit route target), its current
- *  amount (original ± adjustment legs), the service date, the listing it was
- *  attributed to, and the decrypted operator memo. */
-export type ServicingCostRecord = {
-  amount: number;
-  date: string;
-  id: number;
-  listingId: number;
-  memo: string;
-};
-
-/** Machine-generated memo written into adjustment legs so they can be
- *  attributed back to their original cost. The `\x00` prefix makes it
- *  impossible to collide with a free-text operator memo (form input cannot
- *  contain NUL bytes). */
-const ADJ_MEMO_PREFIX = "\x00svc_adj:";
-const EDIT_COST_MEMO = new RegExp(`^${ADJ_MEMO_PREFIX}(\\d+)$`);
-
-/** A decoded `service_cost` leg: its id and amount, whether it RAISED the cost
- *  (source is the cost account), and — for an adjustment leg — the id of the
- *  original cost it corrects (null for an original cost leg). */
-type DecodedCostLeg = {
-  id: number;
-  amount: number;
-  isIncrease: boolean;
-  adjustsOriginalId: number | null;
-};
-
-/** Load and decode every `service_cost` leg attributed to any of `listingIds`
- *  in one query, decrypting each memo to classify it as an original cost leg or
- *  an adjustment naming the original it corrects. Shared by {@link editServiceCost}
- *  (current amount of one cost) and {@link getServicingCosts} (current amount of
- *  every cost) so the leg query and the memo classification live in one place. */
-const loadServiceCostLegs = async (
-  listingIds: number[],
-): Promise<DecodedCostLeg[]> => {
-  // Both callers pass a non-empty set (getServicingCosts guards on
-  // records.length; editServiceCost passes the cost's single listing), so no
-  // empty-set guard — an empty `IN ()` would be a caller bug, not a silent [].
-  const ids = listingIds.map(String);
-  const statement = numberedListStatement(
-    ids,
-    (inIds) =>
-      `SELECT ${COST_ROW_SELECT}, memo FROM transfers
-      WHERE kind = '${KIND.serviceCost}'
-        AND ((source_type = 'cost' AND source_id IN (${inIds}))
-          OR (dest_type = 'cost' AND dest_id IN (${inIds})))
-      ORDER BY id`,
-  );
-  const legs = await queryAll<CostRow>(statement.sql, statement.args);
-  return Promise.all(
-    legs.map(async (leg): Promise<DecodedCostLeg> => {
-      const match = (await decrypt(leg.memo!)).match(EDIT_COST_MEMO);
-      return {
-        adjustsOriginalId: match ? Number(match[1]) : null,
-        amount: leg.amount,
-        id: leg.id,
-        isIncrease: leg.source_type === "cost",
-      };
-    }),
-  );
-};
-
-/** Fold decoded legs into (original cost id → net signed adjustment): an
- *  increase leg adds its amount, a reduction leg subtracts it; original
- *  (non-adjustment) legs contribute nothing. */
-const sumAdjustmentsByOriginal = (
-  legs: DecodedCostLeg[],
-): Map<number, number> =>
-  sumByKey(
-    (leg: DecodedCostLeg) => leg.adjustsOriginalId!,
-    (leg) => (leg.isIncrease ? leg.amount : -leg.amount),
-  )(legs.filter((leg) => leg.adjustsOriginalId !== null));
-
-/**
- * The service-cost records recorded against one service event, each with its
- * CURRENT amount derived from the append-only ledger: the original `cost:L`
- * leg (linked via `service_costs.transfer_id`) plus every `service_cost`
- * adjustment leg whose memo names that original (`edit service cost {id}`).
- * Members are stored PII-free / owner-key-encrypted, so the memo decrypts with
- * the global key here for display.
- */
-export const getServicingCosts = async (
-  servicingId: number,
-): Promise<ServicingCostRecord[]> => {
-  const records = await queryAll<{
-    transfer_id: number;
-    listing_id: number;
-    occurred_at: string;
-    memo: EnvKeyEncrypted;
-  }>(
-    "SELECT transfer_id, listing_id, occurred_at, memo FROM service_costs WHERE servicing_attendee_id = ? ORDER BY occurred_at, transfer_id",
-    [servicingId],
-  );
-  if (records.length === 0) return [];
-  const legs = await loadServiceCostLegs(
-    unique(records.map((r) => r.listing_id)),
-  );
-  const adjustmentsByOriginal = sumAdjustmentsByOriginal(legs);
-  const baseAmountById = new Map(legs.map((leg) => [leg.id, leg.amount]));
-  const costAmount = (id: number): number =>
-    requiredMapValue(baseAmountById, id, `Transfer ${id} missing`) +
-    (adjustmentsByOriginal.get(id) ?? 0);
-  // Build the result as a pure map over `records`, already ordered by
-  // (occurred_at, transfer_id): Promise.all keeps that order, so the cost
-  // list cannot shuffle under concurrent decryption.
-  return Promise.all(
-    records.map(
-      async (r): Promise<ServicingCostRecord> => ({
-        amount: costAmount(r.transfer_id),
-        date: r.occurred_at,
-        id: r.transfer_id,
-        listingId: r.listing_id,
-        memo: await decrypt(r.memo!),
-      }),
-    ),
-  );
 };

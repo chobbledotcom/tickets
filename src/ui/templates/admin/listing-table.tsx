@@ -75,13 +75,13 @@ const status: ListingRenderer = {
 
 const attendees: ListingRenderer = {
   ...listingColumnText("attendees"),
-  cell: (e) => `${e.attendee_count} / ${e.max_attendees}`,
+  cell: (e) => `${e.attendeeCount} / ${e.maxAttendees}`,
 };
 
 const tickets: ListingRenderer = {
   ...listingColumnText("tickets"),
-  cell: (e) => String(e.tickets_count),
-  rawValue: (e) => e.tickets_count,
+  cell: (e) => String(e.ticketsCount),
+  rawValue: (e) => e.ticketsCount,
 };
 
 const revenue: ListingRenderer = {
@@ -122,19 +122,19 @@ const location: ListingRenderer = {
 const price: ListingRenderer = {
   ...listingColumnText("price"),
   cell: (e) =>
-    e.unit_price > 0 ? formatCurrency(e.unit_price) : t("listings_table.free"),
-  rawValue: (e) => e.unit_price,
+    e.unitPrice > 0 ? formatCurrency(e.unitPrice) : t("listings_table.free"),
+  rawValue: (e) => e.unitPrice,
 };
 
 const renewal: ListingRenderer = {
   ...listingColumnText("renewal"),
   cell: (e) =>
-    e.months_per_unit > 0
+    e.monthsPerUnit > 0
       ? t("listings_table.column.renewal.value", {
-          months: e.months_per_unit,
+          months: e.monthsPerUnit,
         })
       : "",
-  rawValue: (e) => e.months_per_unit,
+  rawValue: (e) => e.monthsPerUnit,
 };
 
 // ---------------------------------------------------------------------------

@@ -14,14 +14,17 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import { formatDateRangeLabelCompactEn } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { submitPackageBooking } from "#test-utils/packages.ts";
@@ -57,8 +60,7 @@ const bookedToken = async (
 
 /** A private one-member package and its sole listing. */
 const hiddenOneMemberPackage = async () => {
-  const group = await createTestGroup({ isPackage: true, name: "Kit Bag" });
-  await groups.table.update(group.id, { hidePackageListings: true });
+  const group = await createHiddenPackageGroup("Kit Bag");
   const widget = await createTestListing({
     groupId: group.id,
     name: "Widget",
@@ -99,10 +101,9 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       );
       // The widget row stays a package member; the standalone row loses its
       // package id, the way a merge leaves the two side by side.
-      await getDb().execute({
-        args: [standalone.id],
-        sql: "UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ${standalone.id}`,
+      );
 
       const body = await fetchTicketBody(token);
       expectIncludesAll(body, ["Kit Bag", "Standalone Ticket"]);
@@ -255,8 +256,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       slug: string,
       member: { name: string; thankYouUrl?: string },
     ) => {
-      const group = await createTestGroup({ isPackage: true, name, slug });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      const group = await createHiddenPackageGroup(name, { slug });
       const freebie = await createTestListing({
         groupId: group.id,
         name: member.name,
@@ -276,7 +276,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       submitPackageBooking(group.slug, {
         email: `${who}@test.com`,
         name: who,
-        [`package_quantity_${group.id}`]: "1",
+        [`packageQuantity${group.id}`]: "1",
       });
 
     test("stamps the package id onto the booking row", async () => {
@@ -293,10 +293,9 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       assertArrayIncludes([302, 303], [submit.status]);
 
       const row = (
-        await getDb().execute({
-          args: [freebie.id],
-          sql: "SELECT package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
-        })
+        await getDb().execute(
+          sql`SELECT package_group_id FROM listing_attendees WHERE listing_id = ${freebie.id} ORDER BY id DESC LIMIT 1`,
+        )
       ).rows[0]!;
       expect(Number(row.package_group_id)).toBe(group.id);
     });

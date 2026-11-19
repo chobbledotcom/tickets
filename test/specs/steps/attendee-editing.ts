@@ -87,7 +87,7 @@ const saveNewDetails = async (
       email: person.email,
       name: person.newName,
       phone: person.phone,
-      special_instructions: person.special_instructions,
+      specialInstructions: person.special_instructions,
     },
     "Save Attendee",
   );
@@ -104,7 +104,7 @@ const expectSavedDetails = (world: TicketsWorld, person: Rename): void => {
   expect(fieldValueOnPage(browser, "address")).toBe(person.address);
   expect(fieldValueOnPage(browser, "email")).toBe(person.email);
   expect(fieldValueOnPage(browser, "phone")).toBe(person.phone);
-  expect(fieldValueOnPage(browser, "special_instructions")).toBe(
+  expect(fieldValueOnPage(browser, "specialInstructions")).toBe(
     person.special_instructions,
   );
 };
@@ -131,7 +131,7 @@ const savePlaces = async (
   places: string,
 ): Promise<void> => {
   await browser.submitForm(
-    { name, [`qty_${lineIndexOnPage(browser, listingId)}`]: places },
+    { name, [`qty${lineIndexOnPage(browser, listingId)}`]: places },
     "Save Attendee",
   );
   expect(browser.containsText(`Updated ${name}`)).toBe(true);

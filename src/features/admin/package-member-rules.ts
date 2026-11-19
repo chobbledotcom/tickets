@@ -1,12 +1,12 @@
-/** The package member override rules: what one `package_price_`,
- *  `package_qty_`, or `package_day_price_` field accepts, and the parse that
- *  folds the accepted fields into the member inputs. Pure data-in/data-out so
- *  the coverage run attributes them from one isolate. */
+/** The package member override rules: what one `packagePrice<id>`,
+ *  `packageQty<id>`, or `packageDayPrice<id>Days<n>` field accepts, and the
+ *  parse that folds the accepted fields into the member inputs. Pure
+ *  data-in/data-out so the coverage run attributes them from one isolate. */
 
 import { t } from "#i18n";
-import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { isValidMemberQuantity } from "#shared/groups/package-member-values.ts";
+import type { PackageMemberInput } from "#shared/records/group-fields.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import { type DayPrices, MAX_DURATION_DAYS } from "#types";
@@ -35,7 +35,7 @@ const parsePackageQuantity = (raw: string): number => {
   return quantity;
 };
 
-/** The per-listing `package_day_price_<listingId>_<n>` inputs folded into
+/** The per-listing `packageDayPrice<listingId>Days<n>` inputs folded into
  * each listing's day-price override map. The form-level validation
  * ({@link validatePackageMemberForm}) has already refused a non-numeric or
  * negative input. A blank input contributes nothing: no override for that
@@ -47,7 +47,7 @@ const parseMemberDayPrices = (
 ): Map<number, DayPrices> => {
   const byListing = new Map<number, DayPrices>();
   for (const key of keys) {
-    const match = /^package_day_price_(\d+)_(\d+)$/.exec(key);
+    const match = PACKAGE_DAY_PRICE_KEY.exec(key);
     if (!match) continue;
     const price = parsePackagePrice(form.getString(key));
     if (price === null) continue;
@@ -64,9 +64,9 @@ const parseMemberDayPrices = (
 // declare them. The save's form-level validation walks them and refuses the
 // first malformed one in plain words. No malformed field can then default
 // quietly or drop an override.
-const PACKAGE_PRICE_KEY = /^package_price_(\d+)$/;
-const PACKAGE_QTY_KEY = /^package_qty_(\d+)$/;
-const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
+const PACKAGE_PRICE_KEY = /^packagePrice(\d+)$/;
+const PACKAGE_QTY_KEY = /^packageQty(\d+)$/;
+const PACKAGE_DAY_PRICE_KEY = /^packageDayPrice(\d+)Days(\d+)$/;
 
 /** The rule one package day-price field must satisfy. The day count the key
  *  names is a positive safe integer inside the supported booking range, and
@@ -74,7 +74,9 @@ const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
  *  override is dead data. The API day-price map applies the same rule to its
  *  keys. */
 const validMemberDayPrice = (raw: string, key: string): boolean => {
-  const day = parsePositiveInt(key.slice(key.lastIndexOf("_") + 1));
+  const day = parsePositiveInt(
+    key.slice(key.lastIndexOf("Days") + "Days".length),
+  );
   return (
     day !== null && day <= MAX_DURATION_DAYS && parsePackagePrice(raw) !== null
   );
@@ -107,13 +109,13 @@ const MEMBER_FORM_FIELDS: readonly {
 ];
 
 /** The strict form check the package routes run before their parse. Every
- *  package_price_, package_qty_, and package_day_price_ field must hold a
+ *  packagePrice, packageQty, and packageDayPrice field must hold a
  *  value the member rules accept. Blank stays legal and means "no
  *  override". Returns the first error message, or null. */
 export const validatePackageMemberForm = (form: FormParams): string | null => {
   // Turning the package off must always succeed: a malformed leftover member
   // input is about to be discarded, so it cannot block the save.
-  if (form.getString("is_package") !== "1") return null;
+  if (form.getString("isPackage") !== "1") return null;
   for (const [key, raw] of form.entries()) {
     const field = MEMBER_FORM_FIELDS.find((entry) => entry.key.test(key));
     if (field === undefined) continue;
@@ -131,7 +133,7 @@ export const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
   const keys = new Set(form.keys());
   const dayPricesByListing = parseMemberDayPrices(keys, form);
   for (const key of keys) {
-    const match = /^package_price_(\d+)$/.exec(key);
+    const match = PACKAGE_PRICE_KEY.exec(key);
     if (!match) continue;
     const listingId = Number(match[1]);
     const savedDayPrices = dayPricesByListing.get(listingId);
@@ -139,9 +141,7 @@ export const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
       dayPrices: savedDayPrices === undefined ? {} : savedDayPrices,
       listingId,
       price: parsePackagePrice(form.getString(key)),
-      quantity: parsePackageQuantity(
-        form.getString(`package_qty_${listingId}`),
-      ),
+      quantity: parsePackageQuantity(form.getString(`packageQty${listingId}`)),
     });
   }
   return members;

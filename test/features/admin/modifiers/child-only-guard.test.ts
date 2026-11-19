@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
-import {
-  modifierGroups,
-  modifierListings,
-  modifiersTable,
-} from "#db/modifiers.ts";
+import { modifierGroups, modifierListings } from "#db/modifiers.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
@@ -13,7 +10,7 @@ import {
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createGroupOfOneChild } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -43,7 +40,7 @@ describeWithEnv(
       });
       const modifier = await optInAddOn("Solo extra");
       await adminFormPost(`/admin/modifiers/${modifier.id}/links`, {
-        listing_ids: String(child.id),
+        listingIds: String(child.id),
       });
       return { child, modifier };
     };
@@ -55,7 +52,7 @@ describeWithEnv(
     ) => {
       const { response } = await adminFormPost(
         `/admin/modifiers/${modifierId}/links`,
-        { listing_ids: String(childId) },
+        { listingIds: String(childId) },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${modifierId}/edit`,
@@ -71,8 +68,8 @@ describeWithEnv(
       const { response } = await adminFormPost(
         "/admin/modifiers",
         createData({
-          calc_kind: "fixed",
-          calc_value: "5",
+          calcKind: "fixed",
+          calcValue: "5",
           direction: "charge",
           name: "Order extra",
           trigger: "optional",
@@ -91,7 +88,7 @@ describeWithEnv(
       const modifier = await optInAddOn("Child-only extra");
       const { response } = await adminFormPost(
         `/admin/modifiers/${modifier.id}/links`,
-        { listing_ids: String(child.id) },
+        { listingIds: String(child.id) },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${modifier.id}/edit`,
@@ -102,7 +99,7 @@ describeWithEnv(
     });
 
     test("ALLOWS scoping an opt-in add-on to only a bookable_alone child", async () => {
-      // A `bookable_alone` child serves its own booking page, so an add-on
+      // A `bookableAlone` child serves its own booking page, so an add-on
       // scoped to it alone is reachable (not a dead end) — the two-sided
       // reachability counts the flagged child as a live page.
       const { child, modifier } = await linkSoloAddOnToBookableAloneChild();
@@ -120,7 +117,7 @@ describeWithEnv(
         updateTestListing(child.id, { bookableAlone: false }),
       ).rejects.toThrow();
       const { getListingWithCount } = await import("#db/listings/records.ts");
-      expect((await getListingWithCount(child.id))!.bookable_alone).toBe(true);
+      expect((await getListingWithCount(child.id))!.bookableAlone).toBe(true);
     });
 
     test("blocks flipping a child-scoped modifier to an opt-in add-on on edit", async () => {
@@ -131,8 +128,8 @@ describeWithEnv(
       const { response } = await adminFormPost(
         `/admin/modifiers/${modifier.id}/edit`,
         createData({
-          calc_kind: "fixed",
-          calc_value: "5",
+          calcKind: "fixed",
+          calcValue: "5",
           direction: "charge",
           name: "Becomes add-on",
           scope: "listings",
@@ -146,9 +143,9 @@ describeWithEnv(
         'value="optional" selected',
         'value="Becomes add-on"',
       );
-      expect(
-        (await modifiersTable.read.one({ id: modifier.id }))!.trigger,
-      ).toBe("automatic");
+      expect((await records.modifiers.find(modifier.id))!.trigger).toBe(
+        "automatic",
+      );
     });
 
     test("allows editing an active NON-opt-in child-scoped modifier (not an add-on)", async () => {
@@ -164,8 +161,8 @@ describeWithEnv(
         `/admin/modifiers/${modifier.id}/edit`,
         createData({
           active: "1",
-          calc_kind: "fixed",
-          calc_value: "5",
+          calcKind: "fixed",
+          calcValue: "5",
           direction: "charge",
           name: "Auto child surcharge renamed",
           scope: "listings",
@@ -177,7 +174,7 @@ describeWithEnv(
         "Modifier updated",
         true,
       )(response);
-      expect((await modifiersTable.read.one({ id: modifier.id }))!.name).toBe(
+      expect((await records.modifiers.find(modifier.id))!.name).toBe(
         "Auto child surcharge renamed",
       );
     });
@@ -193,8 +190,8 @@ describeWithEnv(
       const { response } = await adminFormPost(
         `/admin/modifiers/${modifier.id}/edit`,
         createData({
-          calc_kind: "fixed",
-          calc_value: "5",
+          calcKind: "fixed",
+          calcValue: "5",
           direction: "charge",
           name: "Shared add-on",
           scope: "listings",
@@ -206,19 +203,17 @@ describeWithEnv(
         "Modifier updated",
         true,
       )(response);
-      expect(
-        (await modifiersTable.read.one({ id: modifier.id }))!.trigger,
-      ).toBe("optional");
+      expect((await records.modifiers.find(modifier.id))!.trigger).toBe(
+        "optional",
+      );
     });
 
     test("blocks scoping an opt-in add-on to a group of only children", async () => {
-      const group = await createTestGroup({ name: "Add-ons" });
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Add-on",
+      const group = await createGroupOfOneChild({
+        child: "Add-on",
+        group: "Add-ons",
+        parent: "Base unit",
       });
-      await listingChildren.setIds(parent.id, [child.id]);
       const modifier = await insertModifier({ name: "Group child extra" });
       await patchModifier(modifier.id, {
         active: 1,
@@ -227,7 +222,7 @@ describeWithEnv(
       });
       const { response } = await adminFormPost(
         `/admin/modifiers/${modifier.id}/links`,
-        { group_ids: String(group.id) },
+        { groupIds: String(group.id) },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${modifier.id}/edit`,
@@ -259,7 +254,7 @@ describeWithEnv(
       await expectChildLinkSaved(modifier.id, child.id);
     });
 
-    /** POST the scope-links form with repeated `listing_ids` values
+    /** POST the scope-links form with repeated `listingIds` values
      * (mockFormRequest only carries a single value per key). */
     const postListingLinks = async (
       modifierId: number,
@@ -267,8 +262,8 @@ describeWithEnv(
     ): Promise<Response> => {
       const { cookie, csrfToken } = await getTestSession();
       const body = new URLSearchParams();
-      body.set("csrf_token", csrfToken);
-      for (const id of listingIds) body.append("listing_ids", String(id));
+      body.set("csrfToken", csrfToken);
+      for (const id of listingIds) body.append("listingIds", String(id));
       return handleRequest(
         new Request(`http://localhost/admin/modifiers/${modifierId}/links`, {
           body: body.toString(),

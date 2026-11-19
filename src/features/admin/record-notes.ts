@@ -29,6 +29,7 @@ import {
 } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
 import {
@@ -216,8 +217,8 @@ export const recordNoteFeature = <Record extends { id: number }>(
   const addPost: RecordNoteHandlers["addPost"] = (request, id) =>
     withForm(request, async (session, form) =>
       withLoadedRecord(id, session, async (record) => {
-        const note = form.getString("note").trim();
-        const returnUrl = form.getString("return_url");
+        const note = readSubmittedMarkdown(form, "note");
+        const returnUrl = form.getString("returnUrl");
         // Re-render in place on a blank note (preserving the return target)
         // rather than redirect — nothing to preserve, no PRG round-trip needed.
         if (!note) {
@@ -261,7 +262,7 @@ export const recordNoteFeature = <Record extends { id: number }>(
           error: applyFlash(request).error,
           note,
           noteAction: (note) =>
-            `${noteBasePath(note.entity_id)}/${note.id}/delete`,
+            `${noteBasePath(note.entityId)}/${note.id}/delete`,
           returnUrl: recordReturn(id, getSearchParam(request, "return_url")),
           session,
         }),
@@ -270,9 +271,9 @@ export const recordNoteFeature = <Record extends { id: number }>(
 
   const deletePost: RecordNoteHandlers["deletePost"] = (request, id, noteId) =>
     noteHandlers.post(async (note, _session, form) => {
-      await deleteNotes(targetOf(note.entity_id), [note.id]);
+      await deleteNotes(targetOf(note.entityId), [note.id]);
       return redirect(
-        recordReturn(note.entity_id, form.getString("return_url")),
+        recordReturn(note.entityId, form.getString("returnUrl")),
         t("notes.deleted"),
         true,
       );
@@ -281,8 +282,8 @@ export const recordNoteFeature = <Record extends { id: number }>(
   /** One note's are-you-sure delete URL, returning to the record page. */
   const noteDeleteUrl = (note: SystemNote): string =>
     withReturnUrl(
-      `${config.noteBasePath(note.entity_id)}/${note.id}/delete`,
-      config.recordPagePath(note.entity_id),
+      `${config.noteBasePath(note.entityId)}/${note.id}/delete`,
+      config.recordPagePath(note.entityId),
     );
 
   /** One record's notes, decrypted, with image references resolved. A session

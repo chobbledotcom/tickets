@@ -27,8 +27,8 @@ const standardRow = (quantity: number, checkedIn = 0): TokenEntry =>
     listing: {
       id: 1,
       name: "Standard",
-      non_transferable: false,
-      purchase_only: false,
+      nonTransferable: false,
+      purchaseOnly: false,
     },
   });
 
@@ -40,8 +40,8 @@ const societyRow = (): TokenEntry =>
     listing: {
       id: 2,
       name: "Society",
-      non_transferable: false,
-      purchase_only: false,
+      nonTransferable: false,
+      purchaseOnly: false,
     },
   });
 

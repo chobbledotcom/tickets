@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   adminAttendeeAction,
@@ -19,6 +20,7 @@ import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
@@ -55,8 +57,7 @@ const setupDeleteListingAndAttendee = (): ReturnType<
 /** Whether the attendee row is still there. */
 const attendeeExists = async (attendeeId: number): Promise<boolean> =>
   (await queryOne<{ id: number }>(
-    "SELECT attendee.id FROM attendees AS attendee WHERE attendee.id = ?",
-    [attendeeId],
+    sql`SELECT attendee.id FROM attendees AS attendee WHERE attendee.id = ${attendeeId}`,
   )) !== null;
 
 describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
@@ -92,11 +93,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
           thankYouUrl: "https://example.com",
         },
       });
-      const { getDb } = await import("#db/client.ts");
-      await getDb().execute(
-        "DELETE FROM listing_attendees WHERE attendee_id = ?",
-        [attendee.id],
-      );
+      await dropAttendeeBookings(attendee.id);
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/delete`);
       await expectHtmlResponse(response, 200, "Delete Attendee", "John Doe");
@@ -112,7 +109,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         "Delete Attendee",
         "John Doe",
         "type their name",
-        'checked name="release_bookings" type="checkbox" value="1"',
+        'checked name="releaseBookings" type="checkbox" value="1"',
         "Release their bookings into the pool",
       );
     });
@@ -136,7 +133,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         html,
         "A refund for this person is still in progress. Finish or re-run the refund, then try again.",
       );
-      assert(!html.includes('name="confirm_identifier"'));
+      assert(!html.includes('name="confirmIdentifier"'));
       assert(!html.includes("Delete Attendee</button>"));
     });
 
@@ -150,7 +147,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        'name="return_url"',
+        'name="returnUrl"',
         "/admin/calendar#attendees",
       );
     });
@@ -159,7 +156,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
   describe("POST /admin/listing/:listingId/attendee/:attendeeId/delete", () => {
     testRequiresAuth("/admin/attendees/1/delete", {
       body: {
-        confirm_identifier: "John Doe",
+        confirmIdentifier: "John Doe",
       },
       method: "POST",
       setup: async () => {
@@ -169,7 +166,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
 
     test("returns 404 for non-existent listing", async () => {
       const { response } = await adminFormPost("/admin/attendees/1/delete", {
-        confirm_identifier: "John Doe",
+        confirmIdentifier: "John Doe",
       });
       expect(response.status).toBe(404);
     });
@@ -181,22 +178,22 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       });
 
       const { response } = await adminFormPost("/admin/attendees/999/delete", {
-        confirm_identifier: "John Doe",
+        confirmIdentifier: "John Doe",
       });
       expect(response.status).toBe(404);
     });
 
     test("rejects invalid CSRF token", async () => {
       const { response } = await deleteAction({
-        confirm_identifier: "John Doe",
-        csrf_token: "invalid-token",
+        confirmIdentifier: "John Doe",
+        csrfToken: "invalid-token",
       })();
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects mismatched attendee name", async () => {
       const { response } = await deleteAction({
-        confirm_identifier: "Wrong Name",
+        confirmIdentifier: "Wrong Name",
       })();
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("does not match"), false);
@@ -204,8 +201,8 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
 
     test("preserves return_url on mismatched attendee name", async () => {
       const { response } = await deleteAction({
-        confirm_identifier: "Wrong Name",
-        return_url: "/admin/calendar#attendees",
+        confirmIdentifier: "Wrong Name",
+        returnUrl: "/admin/calendar#attendees",
       })();
       expect(response.status).toBe(302);
       expectFlash(
@@ -224,8 +221,8 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
 
     test("deletes attendee with matching name (case insensitive)", async () => {
       const { response, listing, attendee } = await deleteAction({
-        confirm_identifier: "john doe",
-        release_bookings: "1",
+        confirmIdentifier: "john doe",
+        releaseBookings: "1",
       })();
       await expectAttendeeDeleted(response);
 
@@ -234,13 +231,13 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
       expect(await getListingWithCount(listing.id)).toMatchObject({
-        attendee_count: 0,
+        attendeeCount: 0,
       });
     });
 
     test("deletes attendee with whitespace-trimmed name", async () => {
       const { response } = await deleteAction({
-        confirm_identifier: "  John Doe  ",
+        confirmIdentifier: "  John Doe  ",
       })();
       await expectAttendeeDeleted(response);
     });
@@ -258,15 +255,15 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/delete`,
-        { confirm_identifier: "Keep Pool" },
+        { confirmIdentifier: "Keep Pool" },
       );
 
       await expectAttendeeDeleted(response);
       const updated = await getListingWithCount(listing.id);
       expect(updated).toMatchObject({
-        attendee_count: 3,
+        attendeeCount: 3,
         income: 1200,
-        tickets_count: 1,
+        ticketsCount: 1,
       });
     });
 
@@ -276,7 +273,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/delete`,
-        { confirm_identifier: "John Doe" },
+        { confirmIdentifier: "John Doe" },
       );
 
       await expectAttendeeDeleted(response);
@@ -289,8 +286,8 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       const { attendee } = await setupDeleteListingAndAttendee();
 
       const formBody = new URLSearchParams({
-        confirm_identifier: "John Doe",
-        csrf_token: await testCsrfToken(),
+        confirmIdentifier: "John Doe",
+        csrfToken: await testCsrfToken(),
       }).toString();
 
       const response = await handleRequest(
@@ -358,7 +355,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           `/admin/attendees/${attendee.id}/delete`,
-          { confirm_identifier: "Test User", csrf_token: csrfToken },
+          { confirmIdentifier: "Test User", csrfToken },
           cookie,
         ),
       );
@@ -386,7 +383,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       // live refund work stopping the delete and nothing else.
       const { response } = await adminFormPost(
         `/admin/attendees/${attendeeId}/delete`,
-        { confirm_identifier: "Buyer" },
+        { confirmIdentifier: "Buyer" },
       );
 
       expectFlash(

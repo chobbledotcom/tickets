@@ -24,11 +24,11 @@ await ensureMessageGroups(MESSAGE_GROUPS);
 
 /** A minimal listing shape carrying only the two fields the categoriser reads. */
 const listing = (
-  purchase_only: boolean,
-  listing_type: ListingType,
-): { purchase_only: boolean; listing_type: ListingType } => ({
-  listing_type,
-  purchase_only,
+  purchaseOnly: boolean,
+  listingType: ListingType,
+): { purchaseOnly: boolean; listingType: ListingType } => ({
+  listingType,
+  purchaseOnly,
 });
 
 const requestForType = (type: string | null): Request =>

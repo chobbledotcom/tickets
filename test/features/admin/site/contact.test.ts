@@ -30,7 +30,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
         response,
         200,
         "Contact page",
-        "contact_page_text",
+        "contactPageText",
         "Formatting help",
       );
     });
@@ -39,7 +39,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
       const response = await adminGet("/admin/site/contact");
       const html = await response.text();
       expectIncludesAll(html, [
-        "contact_form_enabled",
+        "contactFormEnabled",
         "Enable contact form",
         "No spam-protection provider is configured",
       ]);
@@ -83,7 +83,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
   describe("POST /admin/site/contact", () => {
     testRequiresAuth("/admin/site/contact", {
       body: {
-        contact_page_text: "Hello",
+        contactPageText: "Hello",
       },
       method: "POST",
     });
@@ -92,7 +92,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site/contact",
-          { contact_page_text: "Hello", csrf_token: "invalid" },
+          { contactPageText: "Hello", csrfToken: "invalid" },
           await testCookie(),
         ),
       );
@@ -101,7 +101,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
 
     test("saves contact page text", async () => {
       const { response } = await adminFormPost("/admin/site/contact", {
-        contact_page_text: "Email us!",
+        contactPageText: "Email us!",
       });
       expectRedirectWithFlash(
         "/admin/site/contact",
@@ -113,7 +113,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
     test("clears contact text when empty", async () => {
       await settings.update.contactPageText("Old text");
       const { response } = await adminFormPost("/admin/site/contact", {
-        contact_page_text: "",
+        contactPageText: "",
       });
       expect(response.status).toBe(302);
       expect(settings.contactPageText).toBe("");
@@ -121,7 +121,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
 
     test("rejects text exceeding max length", async () => {
       const { response } = await adminFormPost("/admin/site/contact", {
-        contact_page_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+        contactPageText: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
       await expectFlashRedirect(
         "/admin/site/contact",
@@ -154,7 +154,7 @@ describeWithEnv(
           response,
           200,
           "Contact form",
-          "contact_form_enabled",
+          "contactFormEnabled",
           "Enable contact form",
         );
       });
@@ -187,23 +187,19 @@ describeWithEnv(
         await settings.update.contactFormEnabled(true);
         const response = await adminGet("/admin/site/contact");
         const html = await response.text();
-        expect(hasCheckedInput(html, "contact_form_enabled", "true")).toBe(
-          true,
-        );
+        expect(hasCheckedInput(html, "contactFormEnabled", "true")).toBe(true);
       });
 
       test("leaves the checkbox unchecked when disabled", async () => {
         const response = await adminGet("/admin/site/contact");
         const html = await response.text();
-        expect(hasCheckedInput(html, "contact_form_enabled", "true")).toBe(
-          false,
-        );
+        expect(hasCheckedInput(html, "contactFormEnabled", "true")).toBe(false);
       });
     });
 
     describe("POST /admin/site/contact/form", () => {
       testRequiresAuth("/admin/site/contact/form", {
-        body: { contact_form_enabled: "true" },
+        body: { contactFormEnabled: "true" },
         method: "POST",
       });
 
@@ -211,7 +207,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockFormRequest(
             "/admin/site/contact/form",
-            { contact_form_enabled: "true", csrf_token: "invalid" },
+            { contactFormEnabled: "true", csrfToken: "invalid" },
             await testCookie(),
           ),
         );
@@ -220,7 +216,7 @@ describeWithEnv(
 
       test("enables the contact form", async () => {
         const { response } = await adminFormPost("/admin/site/contact/form", {
-          contact_form_enabled: "true",
+          contactFormEnabled: "true",
         });
         expectRedirect(response, "/admin/site/contact");
         expectFlash(response, "Contact form enabled");

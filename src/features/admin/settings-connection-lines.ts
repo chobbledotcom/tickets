@@ -5,7 +5,7 @@
  * on one side and break the schedule-only run on the other.
  */
 import { t } from "#i18n";
-import type { CredentialCheck } from "#shared/payment-helpers.ts";
+import type { CredentialCheck } from "#shared/credential-check.ts";
 import type { SquareConnectionTestResult } from "#shared/square/connection.ts";
 import type {
   StripeConnectionTestResult,

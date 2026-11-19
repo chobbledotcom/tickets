@@ -6,7 +6,6 @@
  * This module wires them to the new/edit/duplicate pages.
  */
 
-import { logActivity } from "#db/activity-log.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { anyHiddenPackageGroup, groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -19,7 +18,6 @@ import {
   getStoredListingWithCount,
   requireListingWithCount,
 } from "#db/listings/records.ts";
-import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
   type AuthSession,
@@ -32,7 +30,9 @@ import { createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminLandingPath, entityReturnPath } from "#shared/admin-pages.ts";
+import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   dimensionsOf,
   inferTemplate,
@@ -40,17 +40,18 @@ import {
   type ListingTemplate,
   submissionRequiresDate,
 } from "#shared/listing-templates.ts";
+import { operationResponse } from "#shared/rest/operation-response.ts";
 import {
   adminDuplicateListingPage,
   adminListingNewPage,
   adminListingPickerPage,
 } from "#templates/admin/listings/form-pages.tsx";
+import { listingFormView } from "#templates/fields/listing.ts";
 import {
   type AdminSession,
   isListingType,
   type ListingWithCount,
 } from "#types";
-import { operationResponse } from "./crud-handlers.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { getListingAndGroups } from "./listing-page-data.ts";
 import {
@@ -61,6 +62,7 @@ import {
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
+  type ListingUpdateResult,
   parseListingForm,
 } from "./listings-form.ts";
 import { copyDuplicatedChildEdges } from "./listings-parents.ts";
@@ -91,18 +93,17 @@ export const handleNewListingGet: TypedRouteHandler<
     });
   });
 
-/** Look up the operator's chosen listing template. A template that needs
- * logistics while the feature is off is unavailable, so the picker page is
- * given back instead. The create GET gate and the create POST backstop (a
- * form opened while logistics was enabled, or a crafted POST) share this
- * guard. */
+/** Look up the operator's chosen listing template. A template whose feature
+ * is off is unavailable, so the picker page is given back instead. The create
+ * GET gate and the create POST backstop (a form opened while the feature was
+ * on, or a crafted POST) share this guard. */
 const chosenTemplateOrPicker = (
   templateId: string | null,
   session: AdminSession,
 ): { template: ListingTemplate | null } | { picker: Response } => {
   const template =
     LISTING_TEMPLATES.find((candidate) => candidate.id === templateId) ?? null;
-  return template?.requiresLogistics && !settings.features.logistics
+  return template && unmetRequirementOrNull(template) !== null
     ? { picker: htmlResponse(adminListingPickerPage(session)) }
     : { template };
 };
@@ -115,17 +116,18 @@ const renderNewListingPage = async (
   opts: Parameters<typeof adminListingNewPage>[2],
   status?: number,
 ): Promise<Response> => {
-  const allGroups = await groups.cache.getAll();
+  const allGroups = await groups.getAll();
   return htmlResponse(adminListingNewPage(allGroups, session, opts), status);
 };
 
 const formToDimensionSource = (form: FormParams) => ({
-  date: form.getString("date_date") || "",
-  listing_type: isListingType(form.getString("listing_type"))
-    ? (form.getString("listing_type") as "standard" | "daily")
+  date: form.getString("dateDate") || "",
+  listingType: isListingType(form.getString("listingType"))
+    ? (form.getString("listingType") as "standard" | "daily")
     : ("standard" as const),
-  purchase_only: form.getFlag("purchase_only"),
-  uses_logistics: form.getFlag("uses_logistics"),
+  purchaseOnly: form.getFlag("purchaseOnly"),
+  recurringPrice: toMinorUnits(Number(form.getString("recurringPrice"))),
+  usesLogistics: form.getFlag("usesLogistics"),
 });
 
 /**
@@ -136,7 +138,7 @@ const formToDimensionSource = (form: FormParams) => ({
  * (which has no template_id) re-renders with the right collapse state.
  */
 const resolveErrorTemplateId = (form: FormParams): string | null => {
-  const carried = form.getString("template_id");
+  const carried = form.getString("templateId");
   if (carried) return carried;
   return inferTemplate(formToDimensionSource(form))?.id ?? null;
 };
@@ -154,7 +156,7 @@ const copyEdgesFromDuplicateSource = async (
   form: FormParams,
   newId: number,
 ): Promise<string | null> => {
-  const sourceId = form.getOptionalInt("duplicated_from");
+  const sourceId = form.getOptionalInt("duplicatedFrom");
   if (sourceId === null) return null;
   // The source's per-package price/quantity is copied onto the copy's membership
   // rows atomically in the create write's afterWrite (see buildCreateListingResource).
@@ -194,7 +196,7 @@ const renderCreateListingError = async (
       error,
       // The group checkboxes the operator submitted, so a rejected create
       // re-renders their selection rather than dropping every group.
-      selectedGroupIds: form.getNumberArray("group_ids"),
+      selectedGroupIds: form.getNumberArray("groupIds"),
       templateId,
       values: form.toRenderValues(),
     },
@@ -204,13 +206,10 @@ const renderCreateListingError = async (
 
 export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
   contentMultipartRoute(async (session, formData) => {
-    const form = parseListingForm(session, formData, {
-      useDefaults: false,
-      webhookUrl: "",
-    });
+    const form = parseListingForm(formData);
 
-    // Mirror the GET gate: reject logistics templates when the feature is off.
-    const chosenTemplateId = form.getString("template_id") || null;
+    // Mirror the GET gate: reject a template whose feature is off.
+    const chosenTemplateId = form.getString("templateId") || null;
     const gate = chosenTemplateOrPicker(chosenTemplateId, session);
     if ("picker" in gate) return gate.picker;
 
@@ -219,7 +218,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
     const submittedDims = dimensionsOf(formToDimensionSource(form));
     if (
       submissionRequiresDate(chosenTemplateId, submittedDims) &&
-      !form.getString("date_date")
+      !form.getString("dateDate")
     ) {
       return renderCreateListingError(
         session,
@@ -229,7 +228,10 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
       );
     }
 
-    const result = await buildCreateListingResource(form).create(form);
+    const result = await buildCreateListingResource(
+      form,
+      listingFormView(session.adminLevel),
+    ).create(form);
     if (!result.ok) {
       return renderCreateListingError(
         session,
@@ -238,7 +240,6 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
         resolveErrorTemplateId(form),
       );
     }
-    await logActivity(`Listing '${result.row.name}' created`, result.row);
     const childWarning = await copyEdgesFromDuplicateSource(
       form,
       result.row.id,
@@ -296,13 +297,9 @@ export const handleAdminListingEditPost: TypedRouteHandler<
 > = (request, { id }) =>
   withAuth(request, CONTENT_MULTIPART, (session, formData) =>
     withEntityFromParam(id, getStoredListingWithCount, async (existing) => {
-      // `existing` holds the listing's *stored* values (defaults not overlaid).
-      // A save preserves the listing's own columns, and the editor field locks
-      // re-apply the real stored webhook URL and use_defaults flag.
-      const form = parseListingForm(session, formData, {
-        useDefaults: existing.use_defaults,
-        webhookUrl: existing.webhook_url,
-      });
+      // `existing` holds the listing's *stored* values (defaults not
+      // overlaid), so a save preserves the listing's own columns.
+      const form = parseListingForm(formData);
       // The group checkboxes the operator submitted, so a rejected edit
       // re-renders their selection rather than the saved membership.
       const aggregates = parseAggregatesForRole(session, form);
@@ -326,7 +323,8 @@ const saveListingEdit = async (
   // A switch to booked-by-the-day that leaves bookings without a day
   // cannot save. The POST serves the assign page (nothing written), or
   // carries the organiser's confirmed move into the save below.
-  const step = await planListingTypeSwitch(existing, form);
+  const view = listingFormView(session.adminLevel);
+  const step = await planListingTypeSwitch(existing, form, view);
   if (step.kind === "invalid") {
     return renderListingEditError(id, session, form, step.error);
   }
@@ -343,15 +341,15 @@ const saveListingEdit = async (
   const confirmed = step.kind === "assign" ? step : null;
 
   // Build a resource that includes the slug field. Uniqueness is enforced
-  // by validateListingInput when existingId is set.
+  // by the record's rule when the row exists.
   const result = await buildUpdateListingResource(
-    form,
     existing,
+    view,
     confirmed?.plan,
   ).update(id, form);
   return operationResponse(
     result,
-    (saved) =>
+    (saved: ListingUpdateResult & { ok: true }) =>
       handleListingEditSuccess(
         saved.row,
         existing,

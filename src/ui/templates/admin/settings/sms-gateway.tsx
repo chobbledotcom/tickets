@@ -23,7 +23,7 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
       label={t("sms.settings.username")}
       {...settingsFormFieldAttributes(
         "settings-sms-gateway",
-        "sms_gateway_username",
+        "smsGatewayUsername",
       )}
       placeholder={t("sms.settings.username_placeholder")}
       type="text"
@@ -34,7 +34,7 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
       label={t("sms.settings.password")}
       {...settingsFormFieldAttributes(
         "settings-sms-gateway",
-        "sms_gateway_password",
+        "smsGatewayPassword",
       )}
       placeholder={t("sms.settings.password_placeholder")}
     />
@@ -45,7 +45,7 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
         minlength={SMS_PASSPHRASE_MIN_LENGTH}
         {...settingsFormFieldAttributes(
           "settings-sms-gateway",
-          "sms_gateway_passphrase",
+          "smsGatewayPassphrase",
         )}
         placeholder={t("sms.settings.passphrase_placeholder")}
         type="password"
@@ -57,7 +57,7 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
       label={t("sms.settings.base_url")}
       {...settingsFormFieldAttributes(
         "settings-sms-gateway",
-        "sms_gateway_base_url",
+        "smsGatewayBaseUrl",
       )}
       placeholder={t("sms.settings.base_url_placeholder")}
       type="url"
@@ -68,7 +68,7 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
       label={t("sms.settings.webhook_secret")}
       {...settingsFormFieldAttributes(
         "settings-sms-gateway",
-        "sms_gateway_webhook_secret",
+        "smsGatewayWebhookSecret",
       )}
       placeholder={t("sms.settings.webhook_secret_placeholder")}
     />

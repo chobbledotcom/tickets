@@ -2,16 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectStoredThenCleared } from "#test-utils/settings-accessors.ts";
 
 describeWithEnv("bunny-cdn domain settings", { db: true }, () => {
   test("customDomain defaults to empty string", () => {
-    expect(settings.customDomain).toBe("");
-  });
-
-  test("customDomain stores and clears", async () => {
-    await settings.update.customDomain("tickets.example.com");
-    expect(settings.customDomain).toBe("tickets.example.com");
-    await settings.update.customDomain("");
     expect(settings.customDomain).toBe("");
   });
 
@@ -26,10 +20,25 @@ describeWithEnv("bunny-cdn domain settings", { db: true }, () => {
     expect(new Date(value!).toISOString()).toBe(value);
   });
 
-  test("bunnySubdomain stores and clears", async () => {
-    await settings.update.bunnySubdomain("mylisting.tickets.example.com");
-    expect(settings.bunnySubdomain).toBe("mylisting.tickets.example.com");
-    await settings.update.bunnySubdomain("");
-    expect(settings.bunnySubdomain).toBe("");
-  });
+  /** The domain settings that store a host and clear back to empty. */
+  const hostSettings = [
+    {
+      name: "customDomain stores and clears",
+      read: () => settings.customDomain,
+      update: settings.update.customDomain,
+      value: "tickets.example.com",
+    },
+    {
+      name: "bunnySubdomain stores and clears",
+      read: () => settings.bunnySubdomain,
+      update: settings.update.bunnySubdomain,
+      value: "mylisting.tickets.example.com",
+    },
+  ];
+
+  for (const { name, read, update, value } of hostSettings) {
+    test(name, async () => {
+      await expectStoredThenCleared({ read, update }, value, "");
+    });
+  }
 });

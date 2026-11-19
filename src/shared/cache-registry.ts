@@ -159,7 +159,7 @@ export const invalidateCachesForWrite = (
 export const invalidateCachesForTable = (table: string): void =>
   invalidateCachesForWrite(table, { updatedColumns: null });
 
-/** A `dependsOn` entry accepted by `cachedTable` / `cachedEntityTable`. */
+/** A table that a cache depends on, and the columns that matter. */
 export type DependsOnEntry =
   | string
   | { table: string; whenColumns?: readonly string[] };
@@ -168,7 +168,7 @@ export type DependsOnEntry =
  * Register `invalidate` to fire whenever `ownTable` or any `deps` entry is
  * written. Plain string entries are unconditional; object entries may carry
  * `whenColumns` to gate on specific UPDATE columns (INSERT/DELETE always fire).
- * Centralises the registration loop shared by `cachedTable` and `cachedEntityTable`.
+ * `tableCache` registers each table cache through this.
  */
 export const registerDependencies = (
   ownTable: string,

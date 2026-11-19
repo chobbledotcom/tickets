@@ -2,8 +2,11 @@
 
 import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#db/attendees/pii.ts";
-import type { SqlStatement } from "#db/client.ts";
+
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 
 export const attendeePiiWriteStatements = async (
   attendeeId: number,
@@ -14,9 +17,8 @@ export const attendeePiiWriteStatements = async (
     settings.publicKey,
   );
   return [
-    {
-      args: [encryptedPiiBlob, attendeeId],
-      sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
-    },
+    update(tables.attendees, { piiBlob: encryptedPiiBlob }).where({
+      id: attendeeId,
+    }),
   ];
 };

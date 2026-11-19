@@ -15,14 +15,13 @@ import {
 import {
   cancelInvoice,
   createInvoice,
-  deleteInvoice,
-  getInvoice,
   getInvoices,
   getOpenInvoice,
   type InvoiceRow,
   type InvoiceSummary,
   nextInvoiceNumber,
 } from "#db/invoices.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { map, unique } from "#fp";
 import { t } from "#i18n";
@@ -57,9 +56,11 @@ import {
 import { openInvoiceBody } from "#shared/invoices/seal.ts";
 import { invoiceShareUrl } from "#shared/invoices/share.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import { nowIso } from "#shared/now.ts";
 import { orderLineItems } from "#shared/order-line-items.ts";
 import { requireValue } from "#shared/required-value.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
@@ -106,7 +107,7 @@ const handleInvoicesGet = authPageAt("invoices")(
     const privateKey = await requireRequestPrivateKey();
     const invoices = await getInvoices();
     const attendeeNames = await getAttendeeNamesByIds(
-      unique(map((invoice: InvoiceSummary) => invoice.attendee_id)(invoices)),
+      unique(map((invoice: InvoiceSummary) => invoice.attendeeId)(invoices)),
       privateKey,
     );
     return adminInvoicesPage({ attendeeNames, flash, invoices, session });
@@ -142,7 +143,7 @@ const loadInvoiceDraft = async (
   const newInvoicePath = adminPath("invoiceNew", {});
   const checked = getInvoiceForm().validate(form);
   if (!checked.valid) return errorRedirect(newInvoicePath, checked.error);
-  const { attendee_id: attendeeId, number } = checked.values;
+  const { attendeeId, number } = checked.values;
   const raw = await getAttendeeRaw(attendeeId);
   if (!raw || raw.kind !== ATTENDEE_KIND) {
     return errorRedirect(newInvoicePath, t("invoices.error.attendee_missing"));
@@ -164,7 +165,7 @@ const loadInvoiceDraft = async (
       t("invoices.error.open_invoice_exists"),
     );
   }
-  if ((await getInvoice(number)) !== null) {
+  if ((await records.invoices.find(number)) !== null) {
     return errorRedirect(newInvoicePath, t("invoices.error.number_taken"));
   }
   return {
@@ -197,10 +198,11 @@ const draftBodyData = async (draft: InvoiceDraft): Promise<InvoiceBodyData> =>
 const withInvoiceForm = async (
   form: FormParams,
   missingText: string,
-  use: (draft: InvoiceDraft, template: string) => Response | Promise<Response>,
+  use: ResponseHandler<[draft: InvoiceDraft, template: string]>,
 ): Promise<Response> => {
   const hasText = form.has("body");
-  const submitted = (form.get("body") ?? "").trim();
+  // The invoice text renders as Markdown, so its indentation stays.
+  const submitted = markdownSource(form.get("body") ?? "");
   if (submitted.length > MAX_TEXTAREA_LENGTH) {
     return errorRedirect(
       adminPath("invoiceNew", {}),
@@ -287,7 +289,7 @@ const handleInvoiceNewPost: TypedRouteHandler<"POST /admin/invoices/new"> = (
   );
 
 /** One invoice page, loaded and gated by the shared record-page factory. */
-const invoicePageFor = createIdEntityHandler(getInvoice)(
+const invoicePageFor = createIdEntityHandler(records.invoices.find)(
   pageGuardAt("invoice"),
 );
 
@@ -295,10 +297,10 @@ const handleInvoiceGet: TypedRouteHandler<"GET /admin/invoices/:id"> =
   invoicePageFor(async (invoice, session, request) => {
     const privateKey = await requireRequestPrivateKey();
     const shareToken = await decryptWithOwnerKey(
-      invoice.share_token,
+      invoice.shareToken,
       privateKey,
     );
-    return orNotFound(getAttendeeRaw(invoice.attendee_id), async (raw) => {
+    return orNotFound(getAttendeeRaw(invoice.attendeeId), async (raw) => {
       const [attendee, bodyHtml] = await Promise.all([
         decryptAttendeeFields(raw, privateKey),
         openInvoiceBody(invoice.body, shareToken),
@@ -319,7 +321,7 @@ const handleInvoiceGet: TypedRouteHandler<"GET /admin/invoices/:id"> =
 
 /** A command route on one stored invoice, gated by its route declaration. */
 const invoiceCommand = (pattern: AdminDestinationId) =>
-  createIdEntityHandler(getInvoice)(formGuardAt(pattern));
+  createIdEntityHandler(records.invoices.find)(formGuardAt(pattern));
 
 /** A command on one stored invoice answers 404 when its row is gone. */
 const handleInvoiceCancelPost: TypedRouteHandler<"POST /admin/invoices/:id/cancel"> =
@@ -340,7 +342,7 @@ const handleInvoiceCancelPost: TypedRouteHandler<"POST /admin/invoices/:id/cance
 
 const handleInvoiceDeletePost: TypedRouteHandler<"POST /admin/invoices/:id/delete"> =
   invoiceCommand("invoiceDelete")(async (invoice) => {
-    await deleteInvoice(invoice.id);
+    await records.invoices.delete(invoice.id);
     return adminRedirect(
       "invoices",
       {},

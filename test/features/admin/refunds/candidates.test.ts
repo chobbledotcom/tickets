@@ -10,6 +10,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -139,10 +140,9 @@ describeWithEnv("admin refunds > who a run picks up", { db: true }, () => {
       "pi_unindexed_candidate",
     );
     await execute(
-      `UPDATE processed_payments
+      sql`UPDATE processed_payments
           SET payment_reference_index = ''
-        WHERE payment_session_id = ?`,
-      ["sess_unindexed_candidate"],
+        WHERE payment_session_id = ${"sess_unindexed_candidate"}`,
     );
 
     await expect(candidateIds([attendee])).rejects.toThrow(

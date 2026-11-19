@@ -17,7 +17,7 @@ import { STORAGE_TEST_ENV } from "./storage/fixtures.ts";
 
 const image = {
   filename: nonEmptyString("image.webp"),
-  filename_thumb: nonEmptyString("image-thumb.webp"),
+  filenameThumb: nonEmptyString("image-thumb.webp"),
   id: 7,
 };
 
@@ -40,9 +40,9 @@ describeWithEnv("storage record cleanup", STORAGE_TEST_ENV, () => {
     test("deletes every non-empty listing attachment", async () => {
       await withBunnyDeleteCapture(async (deleted) => {
         await deleteAllListingAttachmentFiles([
-          { attachment_url: "att1.pdf", id: 1 },
-          { attachment_url: "", id: 2 },
-          { attachment_url: "att3.pdf", id: 3 },
+          { attachmentUrl: "att1.pdf", id: 1 },
+          { attachmentUrl: "", id: 2 },
+          { attachmentUrl: "att3.pdf", id: 3 },
         ]);
         expect(deleted).toHaveLength(2);
         expect(deleted.some((url) => url.includes("att1.pdf"))).toBe(true);
@@ -53,9 +53,7 @@ describeWithEnv("storage record cleanup", STORAGE_TEST_ENV, () => {
     test("an empty listing attachment does not need storage config", async () => {
       await withBunnyDeleteCapture(
         async (deleted) => {
-          await deleteAllListingAttachmentFiles([
-            { attachment_url: "", id: 1 },
-          ]);
+          await deleteAllListingAttachmentFiles([{ attachmentUrl: "", id: 1 }]);
           expect(deleted).toEqual([]);
         },
         { withConfig: false },
@@ -66,8 +64,8 @@ describeWithEnv("storage record cleanup", STORAGE_TEST_ENV, () => {
       await withBunnyDeleteCapture(
         async (deleted) => {
           await deleteAllListingAttachmentFiles([
-            { attachment_url: "fail.pdf", id: 1 },
-            { attachment_url: "succeed.pdf", id: 2 },
+            { attachmentUrl: "fail.pdf", id: 1 },
+            { attachmentUrl: "succeed.pdf", id: 2 },
           ]);
           expect(deleted.some((url) => url.includes("succeed.pdf"))).toBe(true);
         },
@@ -83,7 +81,7 @@ describeWithEnv("storage record cleanup", STORAGE_TEST_ENV, () => {
     test("labels listing reset deletion failures", async () => {
       await withDeleteError(new Error("delete failed"), () =>
         deleteAllListingAttachmentFiles([
-          { attachment_url: "attachment.pdf", id: 1 },
+          { attachmentUrl: "attachment.pdf", id: 1 },
         ]),
       );
       expect(errors.contains("database reset")).toBe(true);
@@ -95,7 +93,7 @@ describeWithEnv("storage record cleanup", STORAGE_TEST_ENV, () => {
           image,
           {
             filename: nonEmptyString("other.webp"),
-            filename_thumb: nonEmptyString("other-thumb.webp"),
+            filenameThumb: nonEmptyString("other-thumb.webp"),
             id: 8,
           },
         ]);

@@ -123,7 +123,7 @@ describeCustomDomain("custom domain validation", (enable) => {
       await whileTaskRuns(async () => {
         const { response } = await adminFormPost(
           "/admin/settings/custom-domain",
-          { custom_domain: "tickets.example.com" },
+          { customDomain: "tickets.example.com" },
         );
         await expectFlashRedirect(
           "/admin/settings-advanced?form=settings-custom-domain#settings-custom-domain",
@@ -150,7 +150,7 @@ describeCustomDomain("custom domain validation", (enable) => {
       enable();
       await withValidatedDomain(async () => {
         await adminFormPost("/admin/settings/custom-domain", {
-          custom_domain: "tickets.example.com",
+          customDomain: "tickets.example.com",
         });
         expect(settings.currentTask).toBe("");
       });
@@ -164,7 +164,7 @@ describeCustomDomain("custom domain validation", (enable) => {
         },
         async () => {
           await adminFormPost("/admin/settings/custom-domain", {
-            custom_domain: "tickets.example.com",
+            customDomain: "tickets.example.com",
           });
           expect(settings.currentTask).toBe("");
         },
@@ -179,7 +179,7 @@ describeCustomDomain("custom domain validation", (enable) => {
       };
       try {
         await adminFormPost("/admin/settings/custom-domain", {
-          custom_domain: "tickets.example.com",
+          customDomain: "tickets.example.com",
         });
       } catch (error) {
         expect(error).toBeInstanceOf(Error);

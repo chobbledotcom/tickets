@@ -66,7 +66,7 @@ const answeredQuestionPairs = (
   info.activeQuestions
     .filter(
       (question) =>
-        question.display_type !== "free_text" &&
+        question.displayType !== "free_text" &&
         question.answers.some((a) => a.active),
     )
     .map((question, index) => [question.id, info.answerIds[index]!] as const);
@@ -189,7 +189,7 @@ export const parseAddOnSelections = (
 ): Map<number, number> =>
   positiveQuantities(
     form,
-    addOns.map((addOn) => ({ field: `addon_${addOn.id}`, id: addOn.id })),
+    addOns.map((addOn) => ({ field: `addon${addOn.id}`, id: addOn.id })),
   );
 
 export { extractContact };

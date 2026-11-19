@@ -45,7 +45,7 @@ const setupTestButton = (provider: string) => {
     try {
       const csrfInput = button
         .closest("form")
-        ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
+        ?.querySelector<HTMLInputElement>('input[name="csrfToken"]');
       const answer: ConnectionAnswer = await csrfPost(
         `/admin/settings/${provider}/test`,
         csrfInput?.value ?? "",

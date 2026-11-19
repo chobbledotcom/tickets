@@ -5,6 +5,7 @@
  * paths surface these refusals in place.
  */
 
+import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import { t } from "#i18n";
 import {
   type AttendeeFormLine,
@@ -90,7 +91,7 @@ export const validateAttendeeBlock = (
 
 /** True when a booked line targets a daily listing (needs the shared date). */
 const isBookedDaily = (line: AttendeeFormLine): boolean =>
-  isBookedLine(line) && countsPerDate(line.listing!.listing_type);
+  isBookedLine(line) && countsPerDate(line.listing!.listingType);
 
 /** Validate one line. Date/duration/overbooking concerns are surfaced as
  * non-blocking warnings elsewhere, not as errors. The paid-line no-quantity rule
@@ -109,8 +110,8 @@ const validateLine = (line: AttendeeFormLine): string | null => {
   }
   // isBookedLine already guarantees an integer quantity ≥ 1. The only quantity
   // error left is exceeding the listing's per-booking maximum.
-  if (quantityOverCap(line.quantity!, line.listing!.max_quantity)) {
-    return t("attendee_form.qty_max", { max: line.listing!.max_quantity });
+  if (quantityOverCap(line.quantity!, line.listing!.maxQuantity)) {
+    return t("attendee_form.qty_max", { max: line.listing!.maxQuantity });
   }
   return null;
 };
@@ -208,14 +209,14 @@ export type BalanceNotice = { tone: "warning" | "info"; message: string };
  * (info nudge).
  */
 export const attendeeBalanceNotice = (
-  status: { is_paid_default: boolean; is_reservation: boolean } | null,
+  status: Pick<AttendeeStatus, "isPaidDefault" | "isReservation"> | null,
   remainingBalance: number,
   fullPrice: number,
   amountPaid: number,
   listedFullPrice = fullPrice,
 ): BalanceNotice | null => {
   if (!status) return null;
-  if (status.is_paid_default) {
+  if (status.isPaidDefault) {
     return remainingBalance > 0
       ? {
           message: t("attendee_form.balance_paid_but_owes", {
@@ -225,7 +226,7 @@ export const attendeeBalanceNotice = (
         }
       : null;
   }
-  if (status.is_reservation && remainingBalance <= 0) {
+  if (status.isReservation && remainingBalance <= 0) {
     const owed = Math.max(fullPrice, listedFullPrice) - amountPaid;
     if (owed > 0) {
       return {

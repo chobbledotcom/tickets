@@ -10,6 +10,7 @@ import { expect } from "@std/expect";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { queryAll } from "#db/client.ts";
 import { setListingGroups } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { attribute } from "#test/specs/support/form-controls/reading.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
@@ -46,9 +47,9 @@ interface MergePreview {
 /** GET the merge preview for `targetId` loaded with `sourceToken`. The
  *  duplicate is chosen through the search form the Actions page really
  *  renders: the form is read whole, its action and `token` control are what
- *  a browser would use. The preview returns the `merge_version` the apply
+ *  a browser would use. The preview returns the `mergeVersion` the apply
  *  POST must echo back AND the name of the conflicting booking's decision
- *  field (`booking_<listingId>:<startAt>`) scraped from the rendered form, so
+ *  field (`booking<listingId>:<startAt>`) scraped from the rendered form, so
  *  the test answers the exact conflict the operator is shown rather than
  *  guessing the key. Uses the stable owner cookie — the preview decrypts the
  *  source's PII, needing the session's private key. */
@@ -78,7 +79,7 @@ const mergePreview = async (
   );
   expect(page.status).toBe(200);
   const html = await page.text();
-  const version = extractInputValue(html, "merge_version");
+  const version = extractInputValue(html, "mergeVersion");
   expect(version).not.toBeNull();
   // One booking slot renders as a radio group whose inputs repeat the field
   // name once per choice: keep one name per slot in the order the page offers
@@ -86,7 +87,7 @@ const mergePreview = async (
   const bookingFields: string[] = [];
   const bookingChoices: Record<string, string[]> = {};
   for (const input of html.matchAll(/<input\b[^>]*>/g)) {
-    const field = /name="(booking_[^"]+)"/.exec(input[0]!)?.[1];
+    const field = /name="(booking\d[^"]+)"/.exec(input[0]!)?.[1];
     const choice = /value="([^"]+)"/.exec(input[0]!)?.[1];
     if (field === undefined || choice === undefined) continue;
     const offered = bookingChoices[field] ?? [];
@@ -110,7 +111,7 @@ const mergePost = async (
   return handleRequest(
     mockFormRequest(
       `/admin/attendees/${targetId}/merge`,
-      { csrf_token: csrf, ...fields },
+      { csrfToken: csrf, ...fields },
       cookie,
     ),
   );
@@ -159,9 +160,9 @@ const twoPaidDuplicates = async (
   };
 };
 
-/** The money-decision form field paired with a scraped `booking_<key>` field. */
+/** The money-decision form field paired with a scraped `booking<key>` field. */
 const moneyFieldFor = (bookingField: string): string =>
-  bookingField.replace("booking_", "money_");
+  bookingField.replace("booking", "money");
 
 /** What the merge page offered, and what the organiser was told afterwards. */
 export interface MergeOutcome {
@@ -241,8 +242,8 @@ export const mergeDeciding = async (
 ): Promise<MergeOutcome> => {
   const { bookingChoices, html, version } = await mergeChoices(world);
   const fields: Record<string, string> = {
-    merge_version: version,
-    source_token: requiredWorldValue(world.duplicateToken, "duplicate token"),
+    mergeVersion: version,
+    sourceToken: requiredWorldValue(world.duplicateToken, "duplicate token"),
   };
   for (const decision of decisions) {
     const offered = bookingChoices[decision.field] ?? [];
@@ -423,7 +424,6 @@ export const keptBookingRows = async (
   }[]
 > =>
   queryAll(
-    `SELECT package_group_id, quantity, start_at, end_at FROM listing_attendees
-      WHERE attendee_id = ? AND listing_id = ?`,
-    [theBooking(world), theListing(world)],
+    sql`SELECT package_group_id, quantity, start_at, end_at FROM listing_attendees
+      WHERE attendee_id = ${theBooking(world)} AND listing_id = ${theListing(world)}`,
   );

@@ -23,17 +23,17 @@ import {
 export type EdgeListing = {
   id: number;
   name: string;
-  listing_type: string;
-  months_per_unit: number;
-  customisable_days: boolean;
-  duration_days: number;
-  day_prices: DayPrices;
+  listingType: string;
+  monthsPerUnit: number;
+  customisableDays: boolean;
+  durationDays: number;
+  dayPrices: DayPrices;
   /** Whether the listing assigns a built site on booking — such a listing is
    *  sold on its own, so it can join no parent/child relation either. */
-  assign_built_site: boolean;
+  assignBuiltSite: boolean;
   /** The smallest purchasable quantity. A child's quantity is a share of its
    *  parent's, so only 1 can hold on a child. */
-  min_quantity: number;
+  minQuantity: number;
 };
 
 /** One directed parent-to-child listing relationship. */
@@ -48,7 +48,7 @@ export const childAddOnError = (addOn: string, name: string): string =>
  * non-`customisable_days` parent (a customisable parent has a *range*, via
  * {@link availableDayCounts}). */
 const parentFixedDuration = (parent: EdgeListing): number =>
-  parent.listing_type === "daily" ? clampDurationDays(parent.duration_days) : 1;
+  parent.listingType === "daily" ? clampDurationDays(parent.durationDays) : 1;
 
 /**
  * Whether `child`'s booking span can match the duration it inherits from
@@ -66,16 +66,16 @@ export const durationsCompatible = (
   parent: EdgeListing,
   child: EdgeListing,
 ): boolean => {
-  if (child.customisable_days) {
-    if (parent.customisable_days) {
+  if (child.customisableDays) {
+    if (parent.customisableDays) {
       const childCounts = new Set(availableDayCounts(child));
       return availableDayCounts(parent).some((days) => childCounts.has(days));
     }
     return dayPriceFor(child, parentFixedDuration(parent)) !== null;
   }
-  if (child.listing_type !== "daily") return true;
-  const childDuration = clampDurationDays(child.duration_days);
-  return parent.customisable_days
+  if (child.listingType !== "daily") return true;
+  const childDuration = clampDurationDays(child.durationDays);
+  return parent.customisableDays
     ? availableDayCounts(parent).includes(childDuration)
     : childDuration === parentFixedDuration(parent);
 };
@@ -106,7 +106,7 @@ const childReason = (
  *  customisable listing prices its priced day counts; a fixed listing sells
  *  one resolved span. */
 const offeredLengths = (listing: EdgeListing): string =>
-  listing.customisable_days
+  listing.customisableDays
     ? describedDayCounts(availableDayCounts(listing))
     : describedDayCounts([parentFixedDuration(listing)]);
 
@@ -120,27 +120,27 @@ const offeredLengths = (listing: EdgeListing): string =>
  *  builds its message inline so it can name the exact clash it found. */
 const EDGE_ERROR_RULES: readonly EdgeReason[] = [
   reason(
-    (parent) => parent.months_per_unit > 0,
+    (parent) => parent.monthsPerUnit > 0,
     (parent) =>
       t("listings_table.children_err_parent_renewal", { name: parent.name }),
   ),
   childReason(
     "children_err_child_renewal",
-    (_parent, child) => child.months_per_unit > 0,
+    (_parent, child) => child.monthsPerUnit > 0,
   ),
   reason(
-    (parent) => parent.assign_built_site,
+    (parent) => parent.assignBuiltSite,
     (parent) =>
       t("listings_table.children_err_parent_site_plan", { name: parent.name }),
   ),
   childReason(
     "children_err_child_site_plan",
-    (_parent, child) => child.assign_built_site,
+    (_parent, child) => child.assignBuiltSite,
   ),
   childReason(
     "children_err_child_daily",
     (parent, child) =>
-      child.listing_type === "daily" && parent.listing_type !== "daily",
+      child.listingType === "daily" && parent.listingType !== "daily",
   ),
   reason(
     (parent, child) => !durationsCompatible(parent, child),
@@ -153,7 +153,7 @@ const EDGE_ERROR_RULES: readonly EdgeReason[] = [
   ),
   childReason(
     "children_err_child_min_quantity",
-    (_parent, child) => child.min_quantity > 1,
+    (_parent, child) => child.minQuantity > 1,
   ),
 ];
 

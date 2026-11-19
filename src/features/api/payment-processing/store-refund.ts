@@ -11,7 +11,7 @@ import type { ResultSet } from "@libsql/client";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { attendeePaymentProvenance } from "#db/attendees/payment-provenance.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
@@ -19,6 +19,7 @@ import {
   type PreparedSessionFailure,
   prepareSessionFailure,
 } from "#db/processed-payments.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import {
   type PlaceholderRefund,
   placeholderRefund,
@@ -55,6 +56,8 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { requireValue } from "#shared/required-value.ts";
+import { withSubscriptionPlan } from "#shared/subscriptions/booking-plan.ts";
+import { NO_TAX } from "#shared/tax/types.ts";
 
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =
@@ -154,9 +157,9 @@ export const settleBalanceSession = async (
  * plus a `refund_cash` with NO `sale`, so it recognises no revenue and its
  * projected price_paid stays 0.
  *
- * We never report `refunded: false`. The booking now exists, so a retry must
- * NOT re-create it. An un-refunded payment is a terminal, operator-resolved
- * outcome, not something released for re-processing.
+ * A retry must resume the stored claim, never recreate the booking. Subscription
+ * cancellation remains retryable until Stripe confirms it ended. An unreturned
+ * refund after that remains a terminal, operator-resolved money outcome.
  */
 /** The claimed anchor a stored placeholder hands back for its follow-up
  * money work. */
@@ -265,7 +268,11 @@ export const storeRefundedBooking = async (
     prepareSessionRefundAuthority(session),
   ]);
   const { attendeeId, claimedAnchor } = await storeClaimedPlaceholder({
-    bookings,
+    bookings: withSubscriptionPlan(
+      bookings,
+      session.subscription,
+      intent.taxPolicy ?? NO_TAX,
+    ),
     extra: {
       require: (result) => refundAuthority.requireResult(result),
       statement: refundAuthority.statement,
@@ -279,10 +286,8 @@ export const storeRefundedBooking = async (
     sessionFailure,
     sessionId: session.id,
   });
-  // Status 200: a fully-handled terminal outcome (booking kept, money
-  // returned or flagged). The webhook acks it (never the 409 transient-lock
-  // retry nor a 503 refund retry — the booking exists, so a retry can't
-  // re-create it), and the customer sees a "saved your details" message.
+  // The durable failure and held claim resume this tail after a crash. A
+  // subscription that Stripe has not ended throws before any refund or ack.
   return finishPlaceholderRefund(session, {
     attendeeId,
     listingId,

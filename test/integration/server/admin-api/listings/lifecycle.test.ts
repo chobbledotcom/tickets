@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   getListingWithCount,
   invalidateListingsCache,
-  listingsTable,
+  updateListing,
 } from "#db/listings/records.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -196,7 +196,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("DELETE /api/admin/listings/:listingId - with media", () => {
     test("deletes listing with attachment_url", async () => {
       const listing = await createTestListing({ name: "Media Listing" });
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentUrl: "https://cdn.example.com/file.pdf",
       });
       invalidateListingsCache();

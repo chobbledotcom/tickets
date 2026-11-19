@@ -1,12 +1,16 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { insert } from "#db/client.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { initDb } from "#db/migrations.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import {
   createLegacyMigrationHarness,
   stubPragmaForeignKeysOff,
 } from "#test/integration/db/legacy-migration/helpers.ts";
+import { expectSoleRow } from "#test-utils/assertions/sole-row.ts";
 
 describe("db > listing_attendees migration from legacy schema (questions)", () => {
   const h = createLegacyMigrationHarness();
@@ -15,23 +19,23 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
   test("adds question display type when legacy question tables have foreign keys", async () => {
     const client = await h.createLegacyDbWithListing();
     await client.execute(
-      insert("questions", {
+      insertInto(tables.questions, {
         id: 1,
-        text: "Encrypted question",
+        text: "Encrypted question" as EnvKeyEncrypted,
       }),
     );
     await client.execute(
-      insert("answers", {
+      insertInto(tables.answers, {
         id: 1,
-        question_id: 1,
-        text: "Encrypted answer",
+        questionId: 1,
+        text: "Encrypted answer" as EnvKeyEncrypted,
       }),
     );
     await client.execute(
-      insert("listing_questions", {
+      insertInto(tables.listing_questions, {
         id: 1,
-        listing_id: 1,
-        question_id: 1,
+        listingId: 1,
+        questionId: 1,
       }),
     );
 
@@ -39,15 +43,16 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     await initDb();
 
     const questions = await client.execute(
-      "SELECT id, text, sort_order, display_type FROM questions",
+      sql`SELECT id, text, sort_order, display_type FROM questions`,
     );
-    expect(questions.rows.length).toBe(1);
-    expect(questions.rows[0]!.display_type).toBe("radio");
-    expect(questions.rows[0]!.id).toBe(1);
-    expect(questions.rows[0]!.text).toBe("Encrypted question");
+    const question = expectSoleRow(questions.rows, {
+      display_type: "radio",
+      id: 1,
+    });
+    expect(question.text).toBe("Encrypted question");
 
     const answers = await client.execute(
-      "SELECT id, question_id, text FROM answers",
+      sql`SELECT id, question_id, text FROM answers`,
     );
     expect(answers.rows).toEqual([
       { id: 1, question_id: 1, text: "Encrypted answer" },
@@ -56,9 +61,18 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
 
   test("deletes a migrated listing and its question links under FK enforcement", async () => {
     const client = await h.createLegacyDbWithListing();
-    await client.execute(insert("questions", { id: 1, text: "Encrypted" }));
     await client.execute(
-      insert("listing_questions", { id: 1, listing_id: 1, question_id: 1 }),
+      insertInto(tables.questions, {
+        id: 1,
+        text: "Encrypted" as EnvKeyEncrypted,
+      }),
+    );
+    await client.execute(
+      insertInto(tables.listing_questions, {
+        id: 1,
+        listingId: 1,
+        questionId: 1,
+      }),
     );
 
     using _pragmaStub = stubPragmaForeignKeysOff(client);
@@ -72,9 +86,9 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     // orphaned links.
     await deleteListing(1);
 
-    const listings = await client.execute("SELECT id FROM listings");
+    const listings = await client.execute(sql`SELECT id FROM listings`);
     expect(listings.rows.length).toBe(0);
-    const links = await client.execute("SELECT id FROM listing_questions");
+    const links = await client.execute(sql`SELECT id FROM listing_questions`);
     expect(links.rows.length).toBe(0);
   });
 });

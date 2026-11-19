@@ -23,7 +23,7 @@ describeWithEnv("server (listing attributes tab save)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/attributes`,
-        { option_ids: String(easy.id) },
+        { optionIds: String(easy.id) },
       );
 
       await expectFlashRedirect(

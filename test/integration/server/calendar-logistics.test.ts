@@ -1,8 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { setLogisticsAssignments } from "#db/logistics.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -32,15 +32,17 @@ describeWithEnv(
     const setup = async () => {
       settings.setForTest(featureSetting("logistics"));
       const listing = await createDailyTestListing();
-      await listingsTable.update(listing.id, { usesLogistics: true });
+      await updateListing(listing.id, { usesLogistics: true });
       const d = date();
       await submitTicketForm(listing.slug, {
         date: d,
         email: "a@test.com",
         name: "Agent User",
       });
-      const assigned = await logisticsAgents.table.insert({ name: "Mine" });
-      const other = await logisticsAgents.table.insert({ name: "Other" });
+      const assigned = await records.logistics_agents.insert({
+        name: "Mine",
+      });
+      const other = await records.logistics_agents.insert({ name: "Other" });
       const attendees = await getAttendeesRaw(listing.id);
       await setLogisticsAssignments(
         attendees[0]!.id,

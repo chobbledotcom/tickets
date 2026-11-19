@@ -18,7 +18,7 @@ export const seedsForm = defineForm({
       label: t("admin.seeds.listing_count_label"),
       max: MAX_SEED_LISTINGS,
       min: 1,
-      name: "listing_count",
+      name: "listingCount",
       ...seedCountField(t("admin.seeds.listing_count_label")),
     },
     {
@@ -27,7 +27,7 @@ export const seedsForm = defineForm({
       label: t("admin.seeds.attendees_label"),
       max: SEED_MAX_ATTENDEES,
       min: 0,
-      name: "attendees_per_listing",
+      name: "attendeesPerListing",
       ...seedCountField(t("admin.seeds.attendees_label")),
     },
   ] as const,

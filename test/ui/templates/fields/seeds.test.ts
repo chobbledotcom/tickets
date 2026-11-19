@@ -7,9 +7,9 @@ import { expectIncludesAll, inputNamed } from "#test-utils/assertions.ts";
 describe("seeds form", () => {
   test("offers the two number boxes between their bounds", () => {
     const [listings, attendees] = seedsForm.fields;
-    expect(listings!.name).toBe("listing_count");
+    expect(listings!.name).toBe("listingCount");
     expect(listings!.max).toBe(MAX_SEED_LISTINGS);
-    expect(attendees!.name).toBe("attendees_per_listing");
+    expect(attendees!.name).toBe("attendeesPerListing");
     expect(attendees!.max).toBe(SEED_MAX_ATTENDEES);
     // The limits themselves, pinned: the route clamps to the same numbers.
     expect(MAX_SEED_LISTINGS).toBe(30);
@@ -25,13 +25,13 @@ describe("seeds form", () => {
     expect(listings!.id).toBe("listing_count");
     expect(attendees!.id).toBe("attendees_per_listing");
     const html = seedsForm.render();
-    const listingBox = inputNamed(html, "listing_count");
+    const listingBox = inputNamed(html, "listingCount");
     expectIncludesAll(listingBox, [
       'min="1"',
       `max="${MAX_SEED_LISTINGS}"`,
       "required",
     ]);
-    const attendeeBox = inputNamed(html, "attendees_per_listing");
+    const attendeeBox = inputNamed(html, "attendeesPerListing");
     expectIncludesAll(attendeeBox, [
       'min="0"',
       `max="${SEED_MAX_ATTENDEES}"`,

@@ -31,9 +31,9 @@ const SERVICING_CREATE_CONTACT_FIELDS = [
   'name="email"',
   'name="phone"',
   'name="address"',
-  'name="special_instructions"',
-  'name="status_id"',
-  'name="remaining_balance"',
+  'name="specialInstructions"',
+  'name="statusId"',
+  'name="remainingBalance"',
 ];
 
 describeWithEnv(
@@ -71,7 +71,7 @@ describeWithEnv(
         assert(!body.includes(field));
       }
       assertStringIncludes(body, 'name="name"');
-      expect(body).toMatch(/day_count|start_date/);
+      expect(body).toMatch(/dayCount|startDate/);
     });
   },
 );

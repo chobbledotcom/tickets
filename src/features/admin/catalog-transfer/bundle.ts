@@ -14,26 +14,24 @@
 import type { ResultSet } from "@libsql/client";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
-import {
-  inPlaceholders,
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import {
   requireMembershipValidation,
   validateMembershipPairsTx,
 } from "#db/groups/membership.ts";
-import { groups } from "#db/groups.ts";
+import { newGroupValues } from "#db/groups.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireListingChildrenPackageCheck } from "#db/listing-parents.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
 import { dayCountPriceStatements } from "#db/listing-prices.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { newListingValues } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { takenSlugIndexes } from "#db/slug-registry.ts";
+import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
+import { insertingAll } from "#db/write.ts";
 import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { matchKey as nameKey } from "#shared/keys.ts";
@@ -88,32 +86,32 @@ export const requireRowsTx = async (
   const wanted = [...new Set(ids)];
   if (wanted.length === 0) return;
   const found = resultRows<{ id: number }>(
-    await tx.execute({
-      args: wanted,
-      sql: `SELECT id FROM ${table} WHERE id IN (${inPlaceholders(wanted)})`,
-    }),
+    await tx.execute(
+      sql`SELECT id FROM ${sqlName(table)} WHERE id IN (${sqlList(wanted)})`,
+    ),
   );
   if (found.length !== wanted.length) {
     throw new TransactionValidationError(t(messageKey));
   }
 };
 
-/** One multi-row statement for every parent edge the bundle declares. */
-const parentEdgeStatement = (
+/** One multi-row statement for every parent edge the bundle declares, or no
+ *  statement when it declares none. */
+const parentEdgeStatements = (
   edges: readonly { childId: number; parentId: number }[],
-): SqlStatement | null => {
+): SqlStatement[] => {
   const uniqueEdges = [
     ...new Map(
       edges.map((edge) => [`${edge.childId}/${edge.parentId}`, edge] as const),
     ).values(),
   ];
-  if (uniqueEdges.length === 0) return null;
-  return {
-    args: uniqueEdges.flatMap((edge) => [edge.parentId, edge.childId]),
-    sql: `INSERT INTO listing_parents (parent_listing_id, child_listing_id) VALUES ${uniqueEdges
-      .map(() => "(?, ?)")
-      .join(", ")}`,
-  };
+  return insertingAll(
+    tables.listing_parents,
+    uniqueEdges.map((edge) => ({
+      childListingId: edge.childId,
+      parentListingId: edge.parentId,
+    })),
+  );
 };
 
 /** The ids an INSERT … RETURNING batch reported, statement by statement. */
@@ -148,20 +146,24 @@ const writeBundle = async (
   return withTransaction(async (tx) => {
     const listingStatements = await Promise.all(
       listingPlans.map((listingPlan, index) =>
-        listingsTable.insertStatement!({
-          ...listingPlan.input,
-          slug: slugs[index]!.slug,
-          slugIndex: slugs[index]!.slugIndex,
-        }),
+        records.listings.insertStatement(
+          newListingValues({
+            ...listingPlan.input,
+            slug: slugs[index]!.slug,
+            slugIndex: slugs[index]!.slugIndex,
+          }),
+        ),
       ),
     );
     const groupStatements = await Promise.all(
       groupPlans.map((groupPlan, index) =>
-        groups.table.insertStatement!(
-          groupDataToInput(
-            groupPlan.body.group,
-            slugs[listingCount + index]!.slug,
-            slugs[listingCount + index]!.slugIndex,
+        records.groups.insertStatement(
+          newGroupValues(
+            groupDataToInput(
+              groupPlan.body.group,
+              slugs[listingCount + index]!.slug,
+              slugs[listingCount + index]!.slugIndex,
+            ),
           ),
         ),
       ),
@@ -262,8 +264,9 @@ const writeBundle = async (
     // together, against the transaction's state. The await matters: an
     // unawaited refusal can throw after this transaction commits.
     await requireCurrentRelationshipRules(tx, edgeRows);
-    const edgeStatement = parentEdgeStatement(edgeRows);
-    if (edgeStatement !== null) await tx.execute(edgeStatement);
+    for (const statement of parentEdgeStatements(edgeRows)) {
+      await tx.execute(statement);
+    }
     await syncListingPricesForIds(listingIds, tx);
     return [
       ...listingPlans.map((listingPlan, index) => ({

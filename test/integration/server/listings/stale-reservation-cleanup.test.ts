@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { deleteAllStaleReservations } from "#db/processed-payments.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
@@ -21,28 +24,25 @@ describeWithEnv(
         // A stale reservation (older than 5 minutes) alongside a fresh one.
         const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
         await getDb().execute(
-          insert("processed_payments", {
-            attendee_id: null,
-            payment_session_id: "cs_stale_admin_test",
-            processed_at: staleTime,
+          insertInto(tables.processed_payments, {
+            attendeeId: null,
+            paymentSessionId: "cs_stale_admin_test",
+            processedAt: staleTime,
           }),
         );
         await getDb().execute(
-          insert("processed_payments", {
-            attendee_id: null,
-            payment_session_id: "cs_fresh_cleanup_test",
-            processed_at: new Date().toISOString(),
+          insertInto(tables.processed_payments, {
+            attendeeId: null,
+            paymentSessionId: "cs_fresh_cleanup_test",
+            processedAt: new Date().toISOString(),
           }),
         );
 
         const staleRows = async (id: string) =>
           (
-            await getDb().execute({
-              args: [id],
-              sql: `SELECT *
+            await getDb().execute(sql`SELECT *
                   FROM processed_payments
-                  WHERE payment_session_id = ?`,
-            })
+                  WHERE payment_session_id = ${id}`)
           ).rows.length;
 
         expect(await staleRows("cs_stale_admin_test")).toBe(1);
@@ -64,10 +64,10 @@ describeWithEnv(
 
         // Insert a fresh reservation (just now)
         await getDb().execute(
-          insert("processed_payments", {
-            attendee_id: null,
-            payment_session_id: "cs_fresh_admin_test",
-            processed_at: new Date().toISOString(),
+          insertInto(tables.processed_payments, {
+            attendeeId: null,
+            paymentSessionId: "cs_fresh_admin_test",
+            processedAt: new Date().toISOString(),
           }),
         );
 
@@ -81,12 +81,9 @@ describeWithEnv(
         expect(response.status).toBe(200);
 
         // Fresh reservation should still exist
-        const after = await getDb().execute({
-          args: ["cs_fresh_admin_test"],
-          sql: `SELECT *
+        const after = await getDb().execute(sql`SELECT *
               FROM processed_payments
-              WHERE payment_session_id = ?`,
-        });
+              WHERE payment_session_id = ${"cs_fresh_admin_test"}`);
         expect(after.rows.length).toBe(1);
       });
     });

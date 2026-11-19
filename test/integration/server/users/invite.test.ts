@@ -1,7 +1,7 @@
 /**
  * Branch cover for the invite routes
  * GET /admin/users — the list, its invite link, and its flash message
- * GET /admin/user/new — the invite form
+ * GET /admin/users/new — the invite form
  * POST /admin/users — the invite itself
  *
  * Sits beside the story `@story:access.inviting-someone-to-help`: the story
@@ -30,10 +30,10 @@ import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("who may reach the invite pages", () => {
     testRequiresAuth("/admin/users");
-    testRequiresAuth("/admin/user/new");
+    testRequiresAuth("/admin/users/new");
     testRequiresAuth("/admin/users", {
       body: {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "newuser",
       },
       method: "POST",
@@ -41,7 +41,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("serves the invite form to the owner", async () => {
       await expectHtmlResponse(
-        await adminGet("/admin/user/new"),
+        await adminGet("/admin/users/new"),
         200,
         "Invite User",
         'action="/admin/users"',
@@ -92,7 +92,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const before = (await getAllUsers()).length;
       const { response } = await adminFormPost("/admin/users", body);
       await expectFlashRedirect(
-        "/admin/user/new",
+        "/admin/users/new",
         expect.stringContaining(reason),
         false,
       )(response);
@@ -103,7 +103,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // The rendered form lists the site's own roles, so only a crafted send
       // can carry one that is not among them.
       await expectRefused(
-        { admin_level: "superadmin", username: "newuser" },
+        { adminLevel: "superadmin", username: "newuser" },
         t("error.invalid_role"),
       );
     });
@@ -112,7 +112,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // The username box is required, so a browser blocks this before it is
       // sent.
       await expectRefused(
-        { admin_level: "manager", username: "" },
+        { adminLevel: "manager", username: "" },
         `${t("common.username")} is required`,
       );
     });
@@ -122,7 +122,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // pins that the check runs before anything is written, so an invite that
       // would have reserved the username leaves nothing behind.
       await expectRefused(
-        { admin_level: "manager", username: TEST_ADMIN_USERNAME },
+        { adminLevel: "manager", username: TEST_ADMIN_USERNAME },
         t("error.username_taken"),
       );
     });

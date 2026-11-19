@@ -10,6 +10,7 @@ import type { SquareConnectionTestResult } from "#shared/square/connection.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertJson,
+  expectErrorFlash,
   expectFlash,
   expectHtmlResponse,
   expectIncludesAll,
@@ -28,8 +29,8 @@ describeAdminSettings(() => {
 
     testRequiresAuth("/admin/settings/square", {
       body: {
-        square_access_token: "EAAAl_test_123",
-        square_location_id: "L_test_123",
+        squareAccessToken: "EAAAl_test_123",
+        squareLocationId: "L_test_123",
       },
       method: "POST",
     });
@@ -37,8 +38,8 @@ describeAdminSettings(() => {
     test("refuses configuration in demo mode", async () => {
       setDemoModeForTest(true);
       const { response } = await adminFormPost("/admin/settings/square", {
-        square_access_token: "EAAAl_test_123",
-        square_location_id: "L_test_123",
+        squareAccessToken: "EAAAl_test_123",
+        squareLocationId: "L_test_123",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("demo mode"), false);
@@ -52,9 +53,9 @@ describeAdminSettings(() => {
         mockFormRequest(
           "/admin/settings/square",
           {
-            csrf_token: "invalid-csrf-token",
-            square_access_token: "EAAAl_test_123",
-            square_location_id: "L_test_123",
+            csrfToken: "invalid-csrf-token",
+            squareAccessToken: "EAAAl_test_123",
+            squareLocationId: "L_test_123",
           },
           await testCookie(),
         ),
@@ -64,8 +65,8 @@ describeAdminSettings(() => {
 
     test("rejects missing square access token", async () => {
       const { response } = await adminFormPost("/admin/settings/square", {
-        square_access_token: "",
-        square_location_id: "L_test_123",
+        squareAccessToken: "",
+        squareLocationId: "L_test_123",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("required"), false);
@@ -73,8 +74,8 @@ describeAdminSettings(() => {
 
     test("rejects missing location ID", async () => {
       const { response } = await adminFormPost("/admin/settings/square", {
-        square_access_token: "EAAAl_test_123",
-        square_location_id: "",
+        squareAccessToken: "EAAAl_test_123",
+        squareLocationId: "",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("required"), false);
@@ -82,8 +83,8 @@ describeAdminSettings(() => {
 
     test("updates Square credentials successfully", async () => {
       const { response } = await adminFormPost("/admin/settings/square", {
-        square_access_token: "EAAAl_test_new",
-        square_location_id: "L_test_456",
+        squareAccessToken: "EAAAl_test_new",
+        squareLocationId: "L_test_456",
       });
 
       expect(response.status).toBe(302);
@@ -98,8 +99,8 @@ describeAdminSettings(() => {
 
     test("persists production mode when the sandbox checkbox is omitted", async () => {
       await adminFormPost("/admin/settings/square", {
-        square_access_token: "EAAAl_test_new",
-        square_location_id: "L_test_456",
+        squareAccessToken: "EAAAl_test_new",
+        squareLocationId: "L_test_456",
       });
 
       // An unchecked checkbox sends nothing, and nothing must mean production.
@@ -108,9 +109,9 @@ describeAdminSettings(() => {
 
     test("persists sandbox mode when the sandbox checkbox is checked", async () => {
       const { response } = await adminFormPost("/admin/settings/square", {
-        square_access_token: "EAAAl_test_new",
-        square_location_id: "L_test_456",
-        square_sandbox: "on",
+        squareAccessToken: "EAAAl_test_new",
+        squareLocationId: "L_test_456",
+        squareSandbox: "on",
       });
 
       expect(response.status).toBe(302);
@@ -120,28 +121,18 @@ describeAdminSettings(() => {
 
     test("rejects an access token that looks like an application ID", async () => {
       const { response } = await adminFormPost("/admin/settings/square", {
-        square_access_token: "sq0idp-EXAMPLE",
-        square_location_id: "L_test_456",
+        squareAccessToken: "sq0idp-EXAMPLE",
+        squareLocationId: "L_test_456",
       });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("application ID or secret"),
-        false,
-      );
+      expectErrorFlash(response, "application ID or secret");
     });
 
     test("rejects a location ID that looks like an application ID", async () => {
       const { response } = await adminFormPost("/admin/settings/square", {
-        square_access_token: "EAAAl_test_new",
-        square_location_id: "sq0idp-EXAMPLE",
+        squareAccessToken: "EAAAl_test_new",
+        squareLocationId: "sq0idp-EXAMPLE",
       });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("not a Location ID"),
-        false,
-      );
+      expectErrorFlash(response, "not a Location ID");
     });
 
     test("settings page shows Square is not configured initially", async () => {
@@ -156,8 +147,8 @@ describeAdminSettings(() => {
     test("settings page shows Square is configured after setting token", async () => {
       // Set the Square credentials
       await adminFormPost("/admin/settings/square", {
-        square_access_token: "EAAAl_test_configured",
-        square_location_id: "L_test_configured",
+        squareAccessToken: "EAAAl_test_configured",
+        squareLocationId: "L_test_configured",
       });
 
       // Check the settings page shows it's configured
@@ -174,7 +165,7 @@ describeAdminSettings(() => {
   describe("POST /admin/settings/square-webhook", () => {
     testRequiresAuth("/admin/settings/square-webhook", {
       body: {
-        square_webhook_signature_key: "sig_key_test",
+        squareWebhookSignatureKey: "sig_key_test",
       },
       method: "POST",
     });
@@ -182,7 +173,7 @@ describeAdminSettings(() => {
     test("rejects missing webhook signature key", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/square-webhook",
-        { square_webhook_signature_key: "" },
+        { squareWebhookSignatureKey: "" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("required"), false);
@@ -191,7 +182,7 @@ describeAdminSettings(() => {
     test("updates Square webhook key successfully", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/square-webhook",
-        { square_webhook_signature_key: "sig_key_new" },
+        { squareWebhookSignatureKey: "sig_key_new" },
       );
 
       expect(response.status).toBe(302);
@@ -207,14 +198,9 @@ describeAdminSettings(() => {
     test("rejects a signature key that looks like an application ID", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/square-webhook",
-        { square_webhook_signature_key: "sq0idp-EXAMPLE" },
+        { squareWebhookSignatureKey: "sq0idp-EXAMPLE" },
       );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("not a webhook signature key"),
-        false,
-      );
+      expectErrorFlash(response, "not a webhook signature key");
     });
   });
 
@@ -228,7 +214,7 @@ describeAdminSettings(() => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/square/test",
-          { csrf_token: "invalid-csrf-token" },
+          { csrfToken: "invalid-csrf-token" },
           await testCookie(),
         ),
       );
@@ -353,8 +339,8 @@ describeAdminSettings(() => {
 
   test("logs activity when Square credentials are configured", async () => {
     await adminFormPost("/admin/settings/square", {
-      square_access_token: "EAAAl_test_log",
-      square_location_id: "L_test_log",
+      squareAccessToken: "EAAAl_test_log",
+      squareLocationId: "L_test_log",
     });
 
     const logs = await getAllActivityLog();
@@ -365,7 +351,7 @@ describeAdminSettings(() => {
 
   test("logs activity when Square webhook key is configured", async () => {
     await adminFormPost("/admin/settings/square-webhook", {
-      square_webhook_signature_key: "sig_key_log",
+      squareWebhookSignatureKey: "sig_key_log",
     });
 
     const logs = await getAllActivityLog();

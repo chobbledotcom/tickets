@@ -4,7 +4,7 @@
 export const initListingDatePicker = (): void => {
   const datesEl = document.getElementById("available-dates-data");
   const listingSelect = document.querySelector<HTMLSelectElement>(
-    'select[name="listing_id"], #add_listing_id',
+    'select[name="listingId"], #add_listing_id',
   );
   const dateField = document.querySelector<HTMLElement>(".daily-date-field");
   const dateSelect = document.querySelector<HTMLSelectElement>(

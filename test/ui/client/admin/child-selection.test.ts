@@ -25,6 +25,8 @@ describe("child selection helpers", () => {
       quantity("101", "2"),
       quantity("102", "0"),
       quantity("103", ""), // blank -> NaN -> treated as 0
+      // Only shares the prefix: it names no listing.
+      { name: "quantityNote", tag: "input", value: "4" },
     ]);
 
     expect([...selectedListingIds()].sort()).toEqual(["101"]);
@@ -55,7 +57,7 @@ describe("child selection helpers", () => {
   test("selectedListingIds ignores a child whose quantity control holds a malformed value", () => {
     // A tampered control value parses strictly: "2.9" / "1abc" are not
     // quantities (0), never a truncated number, so the child stays unselected —
-    // matching the server's child_qty parsing.
+    // matching the server's childQty parsing.
     installFakeDom([
       quantity("101", "1"),
       childSelector("101"),
@@ -89,7 +91,7 @@ describe("child selection helpers", () => {
 
   test("selectedListingIds includes a sole auto-selected child when its parent is in the cart", () => {
     // A sole child renders an informational `data-sole-child` marker with NO
-    // `child_qty_*` control, so the only signal it is active is the parent being
+    // `childQty*` control, so the only signal it is active is the parent being
     // in the cart. Without this the active set omits it and its required
     // question would be hidden/de-required, failing the server fold.
     installFakeDom([
@@ -112,7 +114,7 @@ describe("child selection helpers", () => {
   });
 
   test("selectedListingIds includes every package member when a package is selected", () => {
-    // A package page renders only the `package_quantity_<groupId>` selector, so
+    // A package page renders only the `packageQuantity<groupId>` selector, so
     // each member is active purely because a package is chosen (the submit path
     // derives their quantities from the package count).
     installFakeDom([packageSelector(["201:1", "202:1"], "2")]);
@@ -133,7 +135,7 @@ describe("child selection helpers", () => {
   });
 
   test("selectedListingIds tolerates a package selector missing its members attribute", () => {
-    installFakeDom([{ name: "package_quantity_3", tag: "select", value: "1" }]);
+    installFakeDom([{ name: "packageQuantity3", tag: "select", value: "1" }]);
 
     expect([...selectedListingIds()]).toEqual([]);
   });

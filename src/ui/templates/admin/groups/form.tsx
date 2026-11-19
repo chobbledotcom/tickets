@@ -5,6 +5,7 @@ import { entityToFieldValues } from "#shared/forms/values.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { flashFormPage } from "#templates/admin/admin-page.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
+import { ProseIntro } from "#templates/components/prose-intro.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
@@ -23,12 +24,12 @@ const groupToFieldValues = (
     group,
     getGroupForm().fields,
     {
-      max_attendees: (value) => value.max_attendees || null,
+      maxAttendees: (value) => value.maxAttendees || null,
     },
     // A new group's form starts with its hidden-listings box ticked, matching
     // the column default. The public group page offers hidden members until
     // the operator unticks it.
-    group === undefined ? { show_hidden_listings: "1" } : undefined,
+    group === undefined ? { showHiddenListings: "1" } : undefined,
   );
 
 /** Admin group create page. */
@@ -70,7 +71,7 @@ const MemberDayPriceInputs = ({
           {t("fields.group.package_day_price", { count: days })}
           <input
             inputmode="decimal"
-            name={`package_day_price_${listing.id}_${days}`}
+            name={`packageDayPrice${listing.id}Days${days}`}
             // Every count from availableDayCounts has a configured day price.
             placeholder={toMajorUnits(dayPriceFor(listing, days)!)}
             type="text"
@@ -100,12 +101,12 @@ const packageMembersTable = defineTable<ListingWithCount, PackageMemberValues>([
         <>
           <input
             inputmode="decimal"
-            name={`package_price_${listing.id}`}
-            placeholder={toMajorUnits(listing.unit_price)}
+            name={`packagePrice${listing.id}`}
+            placeholder={toMajorUnits(listing.unitPrice)}
             type="text"
             value={override === null ? "" : toMajorUnits(override)}
           />
-          {listing.customisable_days && (
+          {listing.customisableDays && (
             <MemberDayPriceInputs
               dayPrices={member?.dayPrices}
               listing={listing}
@@ -122,7 +123,7 @@ const packageMembersTable = defineTable<ListingWithCount, PackageMemberValues>([
       <input
         inputmode="numeric"
         min="1"
-        name={`package_qty_${listing.id}`}
+        name={`packageQty${listing.id}`}
         type="number"
         value={String(members.get(listing.id)?.quantity ?? 1)}
       />
@@ -136,15 +137,17 @@ const PackageMembersTable = ({
   listings,
   members,
 }: PackageMembersProps): JSX.Element => (
-  <div class="package-prices">
-    <h2>{t("groups.package_prices.heading")}</h2>
-    <p>{t("groups.package_prices.hint")}</p>
+  <ProseIntro
+    class="package-prices"
+    heading={t("groups.package_prices.heading")}
+    intro={t("groups.package_prices.hint")}
+  >
     {listings.length === 0 ? (
       <p>{t("groups.package_prices.no_listings")}</p>
     ) : (
       renderTable(packageMembersTable, listings, { context: members })
     )}
-  </div>
+  </ProseIntro>
 );
 
 /** The Edit tab's group fields and per-listing package values. */

@@ -39,7 +39,7 @@ describe("the staff bulk form on the check-in admin page", () => {
     // (form.get("check_in") === "true"): admit means the true spelling.
     expectIncludesAll(html, [
       'class="bulk-checkin"',
-      'name="check_in" type="hidden" value="true"',
+      'name="checkIn" type="hidden" value="true"',
     ]);
     assert(!html.includes("bulk-checkout"));
   });
@@ -59,7 +59,7 @@ describe("the staff bulk form on the check-in admin page", () => {
     // read as another admit and re-check the rows instead of undoing them.
     expectIncludesAll(html, [
       'class="bulk-checkout"',
-      'name="check_in" type="hidden" value="false"',
+      'name="checkIn" type="hidden" value="false"',
     ]);
     assert(!html.includes('value="true"'));
   });

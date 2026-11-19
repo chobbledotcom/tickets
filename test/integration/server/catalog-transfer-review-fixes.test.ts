@@ -1,29 +1,39 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { execute } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { getGroupPackagePrices } from "#db/groups.ts";
+import { getGroupPackagePrices, newGroupValues } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { createListing, getListingWithCount } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
-import { exportListing } from "#routes/admin/catalog-transfer/export.ts";
-import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import {
+  CatalogExportError,
+  exportListing,
+} from "#routes/admin/catalog-transfer/export.ts";
+import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
+import {
+  importedListing,
   requireEntityImport,
   unwrapExport,
 } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting } from "#test-utils/settings.ts";
+import { placed } from "#test-utils/sql-text.ts";
 
-/** Import a listing that asks for a built site, answering the refusal
- * message the import raises. */
-const refusedPlanImportError = async (name: string): Promise<string> => {
+/** Import a listing that asks for a built site and assert the import refuses
+ * it with the translated refusal that names the listing. */
+const expectPlanImportRefused = async (name: string): Promise<void> => {
   const result = await importCatalog({
     kind: "listing",
     listing: {
@@ -34,10 +44,23 @@ const refusedPlanImportError = async (name: string): Promise<string> => {
     },
     version: 1,
   });
-  if (result.ok) {
-    throw new Error(`the built-site plan import was accepted: ${name}`);
-  }
-  return result.error;
+  expect(importRefusal(result)).toBe(
+    t("catalog_transfer.site_plan_listing_refused", { name }),
+  );
+};
+
+/** A listing with a webhook and the defaults switch, exported by an editor and
+ * renamed so it imports as a new listing. The editor's export leaves out the
+ * fields an editor cannot set. */
+const editorExportCopy = async () => {
+  const source = await createTestListing({
+    name: "Editor Listing",
+    useDefaults: true,
+    webhookUrl: "https://example.com/hook",
+  });
+  const blob = unwrapExport(await exportListing(source.id, "editor"));
+  blob.listing.name = "Editor Listing copy";
+  return blob;
 };
 
 const importLogisticsListing = async (name: string): Promise<boolean> => {
@@ -48,8 +71,173 @@ const importLogisticsListing = async (name: string): Promise<boolean> => {
   });
   if (!result.ok) throw new Error(result.error);
   return (await getListingWithCount(requireEntityImport(result).id))!
-    .uses_logistics;
+    .usesLogistics;
 };
+
+/** A file for a one-place listing under the named parents. */
+const childBlob = (name: string, parents: string[]) => ({
+  kind: "listing",
+  listing: { maxAttendees: 1, name },
+  parents,
+});
+
+/** Store thirty rows straight through a table, named after the prefix, so the
+ *  setup stays clear of the per-request query guard. */
+const storeThirty = async (
+  prefix: string,
+  insert: (row: {
+    name: string;
+    slug: string;
+    slugIndex: BlindIndex;
+  }) => Promise<unknown>,
+): Promise<string[]> => {
+  const { hmacHash } = await import("#crypto/hashing.ts");
+  const names = Array.from({ length: 30 }, (_, i) => `${prefix} ${i}`);
+  for (const name of names) {
+    const slug = name.toLowerCase().replace(/\s+/g, "-");
+    await insert({ name, slug, slugIndex: await hmacHash(slug) });
+  }
+  return names;
+};
+
+const nothingStored = (): Promise<void> => Promise.resolve();
+
+/** A listing inside a package group that hides its listing names. */
+const hiddenPackageParent = async (): Promise<void> => {
+  const pkg = await createTestGroup({ isPackage: true, name: "Hidden Pkg" });
+  // createTestGroup can't set hide_package_listings, so set it directly and
+  // refresh the cached group set the import reads.
+  await execute(
+    sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${pkg.id}`,
+  );
+  const { groups } = await import("#db/groups.ts");
+  groups.invalidate();
+  const parent = await createTestListing({ name: "Pkg Parent" });
+  await assignListingsToGroup([parent.id], pkg.id);
+};
+
+/** Two stored listings that share one name. */
+const twinParents = async (): Promise<void> => {
+  const { hmacHash } = await import("#crypto/hashing.ts");
+  for (const slug of ["twin-a", "twin-b"]) {
+    await createListing({
+      maxAttendees: 1,
+      maxPrice: 0,
+      name: "Twin Parent",
+      slug,
+      slugIndex: await hmacHash(slug),
+    });
+  }
+};
+
+const standardGroupMember = async (): Promise<void> => {
+  const group = await createTestGroup({ name: "Std Group" });
+  await createTestListing({
+    groupId: group.id,
+    listingType: "standard",
+    name: "Std Member",
+  });
+};
+
+const fixedAndFlexibleDays = async (): Promise<void> => {
+  await createTestListing({ listingType: "standard", name: "Fixed Days" });
+  await createTestListing({
+    customisableDays: true,
+    dayPrices: { 1: 100 },
+    durationDays: 1,
+    listingType: "standard",
+    name: "Flexible Days",
+  });
+};
+
+/** Each refused import: its name, the rows stored first, the file, and a part
+ *  of the refusal message. Every file is version 1. */
+const REFUSED_IMPORTS: readonly (readonly [
+  name: string,
+  arrange: () => Promise<unknown>,
+  blob: Record<string, unknown>,
+  fragment: string,
+])[] = [
+  [
+    "rejects a zero-capacity listing",
+    nothingStored,
+    { kind: "listing", listing: { maxAttendees: 0, name: "Zero Cap" } },
+    "listing.maxAttendees",
+  ],
+  [
+    "rejects a day-price key that is not a day count",
+    nothingStored,
+    {
+      kind: "listing",
+      listing: {
+        dayPrices: { weekday: 100 },
+        maxAttendees: 1,
+        name: "Bad Day",
+      },
+    },
+    "day count",
+  ],
+  [
+    "rejects a duplicate parent reference",
+    () => createTestListing({ name: "Dup Parent" }),
+    childBlob("Dup Child", ["Dup Parent", "Dup Parent"]),
+    "referenced more than once",
+  ],
+  [
+    "rejects a parent that is a hidden-package member",
+    hiddenPackageParent,
+    childBlob("Kid", ["Pkg Parent"]),
+    "package hides listing names",
+  ],
+  [
+    "rejects an ambiguous (duplicate-named) reference",
+    twinParents,
+    childBlob("Ambiguous Child", ["Twin Parent"]),
+    "names must be unique to import",
+  ],
+  [
+    "surfaces a listing-validation error (group type mismatch)",
+    standardGroupMember,
+    {
+      groups: [{ group: "Std Group" }],
+      kind: "listing",
+      listing: { listingType: "daily", maxAttendees: 5, name: "Daily Joiner" },
+    },
+    "same type",
+  ],
+  [
+    "rejects a group name already in use",
+    () => createTestGroup({ name: "Taken Group" }),
+    { group: { name: "Taken Group" }, kind: "group", members: [] },
+    "already exists",
+  ],
+  [
+    "rejects group members that disagree on customisable days",
+    fixedAndFlexibleDays,
+    {
+      group: { name: "Mixed Days" },
+      kind: "group",
+      members: [{ listing: "Fixed Days" }, { listing: "Flexible Days" }],
+    },
+    "customisable days",
+  ],
+  [
+    "rejects a package group with a non-packageable member",
+    () =>
+      createTestListing({
+        canPayMore: true,
+        maxPrice: 5000,
+        name: "Pay What You Want",
+        unitPrice: 1000,
+      }),
+    {
+      group: { isPackage: true, name: "Bad Package" },
+      kind: "group",
+      members: [{ listing: "Pay What You Want" }],
+    },
+    "Packages cannot contain",
+  ],
+];
 
 describeWithEnv(
   "catalog-transfer review fixes",
@@ -58,69 +246,25 @@ describeWithEnv(
     env: { CAN_BUILD_SITES: undefined },
   },
   () => {
-    test("rejects a zero-capacity listing", async () => {
-      const result = await importCatalog({
-        kind: "listing",
-        listing: { maxAttendees: 0, name: "Zero Cap" },
-        version: 1,
+    for (const [name, arrange, blob, fragment] of REFUSED_IMPORTS) {
+      test(name, async () => {
+        await arrange();
+        const result = await importCatalog({ ...blob, version: 1 });
+        if (result.ok) throw new Error(`${name}: the import was accepted`);
+        assertStringIncludes(result.error, fragment);
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "listing.maxAttendees");
-    });
-
-    test("rejects a day-price key that is not a day count", async () => {
-      const result = await importCatalog({
-        kind: "listing",
-        listing: {
-          dayPrices: { weekday: 100 },
-          maxAttendees: 1,
-          name: "Bad Day",
-        },
-        version: 1,
-      });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "day count");
-    });
-
-    test("rejects a duplicate parent reference", async () => {
-      await createTestListing({ name: "Dup Parent" });
-      const result = await importCatalog({
-        kind: "listing",
-        listing: { maxAttendees: 1, name: "Dup Child" },
-        parents: ["Dup Parent", "Dup Parent"],
-        version: 1,
-      });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "referenced more than once");
-    });
+    }
 
     test("strips webhook URL and use-defaults for an editor import", async () => {
-      const result = await importCatalog(
-        {
-          kind: "listing",
-          listing: {
-            maxAttendees: 5,
-            name: "Editor Listing",
-            useDefaults: true,
-            webhookUrl: "https://example.com/hook",
-          },
-          version: 1,
-        },
+      const imported = await importedListing(
+        await editorExportCopy(),
         "editor",
       );
-      if (!result.ok) throw new Error(result.error);
-      const imported = (await getListingWithCount(
-        requireEntityImport(result).id,
-      ))!;
-      expect(imported.webhook_url).toBe("");
-      expect(imported.use_defaults).toBe(false);
+      expect([imported.webhookUrl, imported.useDefaults]).toEqual(["", false]);
     });
 
     test("keeps the webhook URL for a non-editor import", async () => {
-      const result = await importCatalog(
+      const imported = await importedListing(
         {
           kind: "listing",
           listing: {
@@ -132,27 +276,19 @@ describeWithEnv(
         },
         "owner",
       );
-      if (!result.ok) throw new Error(result.error);
-      const imported = (await getListingWithCount(
-        requireEntityImport(result).id,
-      ))!;
-      expect(imported.webhook_url).toBe("https://example.com/hook");
+      expect(imported.webhookUrl).toBe("https://example.com/hook");
     });
 
     test("refuses a built-site plan listing whatever the builder configuration", async () => {
-      expect(await refusedPlanImportError("No Builder")).toBe(
-        t("catalog_transfer.site_plan_listing_refused", { name: "No Builder" }),
-      );
+      await expectPlanImportRefused("No Builder");
       using _builderOn = withEnv({ CAN_BUILD_SITES: "true" });
-      expect(await refusedPlanImportError("Builder On")).toBe(
-        t("catalog_transfer.site_plan_listing_refused", {
-          name: "Builder On",
-        }),
-      );
+      await expectPlanImportRefused("Builder On");
     });
 
     test("clears uses-logistics when logistics is disabled", async () => {
-      expect(await importLogisticsListing("Logi Off")).toBe(false);
+      await expect(importLogisticsListing("Logi Off")).rejects.toThrow(
+        "usesLogistics needs logistics turned on",
+      );
     });
 
     test("keeps uses-logistics when logistics is enabled", async () => {
@@ -160,85 +296,97 @@ describeWithEnv(
       expect(await importLogisticsListing("Logi On")).toBe(true);
     });
 
-    test("clears package overrides for a non-package group membership", async () => {
-      const group = await createTestGroup({ name: "Regular Group" });
+    test("refuses package overrides for a non-package group membership", async () => {
+      await createTestGroup({ name: "Regular Group" });
+      const message = importRefusal(
+        await importCatalog({
+          groups: [{ group: "Regular Group", packagePrice: 500, quantity: 3 }],
+          kind: "listing",
+          listing: { maxAttendees: 1, name: "Joiner", unitPrice: 900 },
+          version: 1,
+        }),
+      );
+      // The overrides are refused, not cleared: only a package holds them.
+      expectIncludesAll(message, [
+        "Only a package group can hold",
+        "packagePrice",
+        "quantity",
+      ]);
+    });
+
+    test("refuses member overrides when importing a non-package group", async () => {
+      await createTestListing({ name: "Plain Member", unitPrice: 800 });
+      const message = importRefusal(
+        await importCatalog({
+          group: { name: "Plain Group" },
+          kind: "group",
+          members: [
+            { listing: "Plain Member", packagePrice: 200, quantity: 5 },
+          ],
+          version: 1,
+        }),
+      );
+      expectIncludesAll(message, [
+        "Only a package group can hold",
+        "packagePrice",
+      ]);
+    });
+
+    test("refuses to export a stored day price above the listing duration", async () => {
+      // A stored row can hold a price the form never reads, because the admin
+      // API does not bound day prices by the duration. The export refuses it
+      // with a message that names the field, rather than shipping a blob the
+      // import now refuses.
+      const { hmacHash } = await import("#crypto/hashing.ts");
+      const listing = await createListing({
+        dayPrices: { 1: 1000, 5: 5000 },
+        durationDays: 2,
+        maxAttendees: 1,
+        maxPrice: 0,
+        name: "Stale Day Price",
+        slug: "stale-day-price",
+        slugIndex: await hmacHash("stale-day-price"),
+      });
+      const result = await exportListing(listing.id, "owner");
+      expect(result instanceof CatalogExportError).toBe(true);
+      if (result instanceof CatalogExportError) {
+        assertStringIncludes(
+          result.message,
+          "dayPrices holds a price for a day the listing does not last",
+        );
+      }
+    });
+
+    test("imports a plain membership in a group that is not a package", async () => {
+      const group = await createTestGroup({ name: "Plain Group" });
       const result = await importCatalog({
-        groups: [{ group: "Regular Group", packagePrice: 500, quantity: 3 }],
+        groups: [{ group: "Plain Group" }],
         kind: "listing",
-        listing: { maxAttendees: 1, name: "Joiner", unitPrice: 900 },
+        listing: { maxAttendees: 1, name: "Plain Joiner", unitPrice: 900 },
         version: 1,
       });
       if (!result.ok) throw new Error(result.error);
       const row = (await getGroupPackagePrices(group.id)).find(
-        (r) => r.listing_id === requireEntityImport(result).id,
+        (r) => r.listingId === requireEntityImport(result).id,
       )!;
-      // The override is dropped because the group isn't a package.
-      expect(row.package_price).toBeNull();
+      expect(row.packagePrice).toBeNull();
       expect(row.quantity).toBe(1);
-    });
-
-    test("clears member overrides when importing a non-package group", async () => {
-      await createTestListing({ name: "Plain Member", unitPrice: 800 });
-      const result = await importCatalog({
-        group: { name: "Plain Group" },
-        kind: "group",
-        members: [{ listing: "Plain Member", packagePrice: 200, quantity: 5 }],
-        version: 1,
-      });
-      if (!result.ok) throw new Error(result.error);
-      const row = (
-        await getGroupPackagePrices(requireEntityImport(result).id)
-      )[0]!;
-      expect(row.package_price).toBeNull();
-      expect(row.quantity).toBe(1);
-    });
-
-    test("rejects a parent that is a hidden-package member", async () => {
-      const pkg = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Pkg",
-      });
-      // createTestGroup can't set hide_package_listings, so set it directly and
-      // refresh the cached group set the import reads.
-      await execute(
-        "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
-        [pkg.id],
-      );
-      const { groups } = await import("#db/groups.ts");
-      groups.cache.invalidate();
-      const parent = await createTestListing({ name: "Pkg Parent" });
-      await assignListingsToGroup([parent.id], pkg.id);
-      const result = await importCatalog({
-        kind: "listing",
-        listing: { maxAttendees: 1, name: "Kid" },
-        parents: ["Pkg Parent"],
-        version: 1,
-      });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "package hides listing names");
     });
 
     test("imports a listing with many parents in one batched insert", async () => {
       // More parents than the per-request N+1 guard (25) and the transaction
       // round-trip cap (~30) would allow one query/insert each — proves the
       // batched nested-parent check and the set-wise edge insert.
-      const { listingsTable } = await import("#db/listings/records.ts");
-      const { hmacHash } = await import("#crypto/hashing.ts");
-      const parentNames = Array.from({ length: 30 }, (_, i) => `Parent ${i}`);
-      for (const name of parentNames) {
-        const slug = name.toLowerCase().replace(/\s+/g, "-");
-        await listingsTable.insert({
-          // Supply dayPrices so insert doesn't read them back per row (which would
-          // trip the N+1 guard across this 30-row setup loop).
+      // Supply dayPrices so insert does not read them back per row, which
+      // would trip the N+1 guard across this 30-row setup.
+      const parentNames = await storeThirty("Parent", (row) =>
+        createListing({
+          ...row,
           dayPrices: {},
           maxAttendees: 1,
           maxPrice: 0,
-          name,
-          slug,
-          slugIndex: await hmacHash(slug),
-        });
-      }
+        }),
+      );
       const result = await importCatalog({
         kind: "listing",
         listing: { maxAttendees: 1, name: "Many Kids" },
@@ -258,17 +406,9 @@ describeWithEnv(
       // the groups directly (like the many-parents case) rather than via
       // createTestGroup, whose trailing getAllGroups() would itself trip the read
       // guard 30 times over in this one test context.
-      const { groups } = await import("#db/groups.ts");
-      const { hmacHash } = await import("#crypto/hashing.ts");
-      const groupNames = Array.from({ length: 30 }, (_, i) => `Group ${i}`);
-      for (const name of groupNames) {
-        const slug = name.toLowerCase().replace(/\s+/g, "-");
-        await groups.table.insert({
-          name,
-          slug,
-          slugIndex: await hmacHash(slug),
-        });
-      }
+      const groupNames = await storeThirty("Group", (row) =>
+        records.groups.insert(newGroupValues(row)),
+      );
       const result = await importCatalog({
         groups: groupNames.map((group) => ({ group })),
         kind: "listing",
@@ -338,101 +478,7 @@ describeWithEnv(
       // Every member appears in the single group_listings insert (3 args each:
       // group_id, listing_id, quantity — the flat price override, when present,
       // lives in the separate listing_prices insert).
-      expect(statements[0]!.args.length).toBe(40 * 3);
+      expect(placed(statements[0]!).args.length).toBe(40 * 3);
     });
   },
 );
-
-describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
-  test("rejects an ambiguous (duplicate-named) reference", async () => {
-    const { listingsTable } = await import("#db/listings/records.ts");
-    const { hmacHash } = await import("#crypto/hashing.ts");
-    for (const slug of ["twin-a", "twin-b"]) {
-      await listingsTable.insert({
-        maxAttendees: 1,
-        maxPrice: 0,
-        name: "Twin Parent",
-        slug,
-        slugIndex: await hmacHash(slug),
-      });
-    }
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Ambiguous Child" },
-      parents: ["Twin Parent"],
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "names must be unique to import");
-  });
-
-  test("surfaces a listing-validation error (group type mismatch)", async () => {
-    const group = await createTestGroup({ name: "Std Group" });
-    await createTestListing({
-      groupId: group.id,
-      listingType: "standard",
-      name: "Std Member",
-    });
-    const result = await importCatalog({
-      groups: [{ group: "Std Group" }],
-      kind: "listing",
-      listing: { listingType: "daily", maxAttendees: 5, name: "Daily Joiner" },
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "same type");
-  });
-
-  test("rejects a group name already in use", async () => {
-    await createTestGroup({ name: "Taken Group" });
-    const result = await importCatalog({
-      group: { name: "Taken Group" },
-      kind: "group",
-      members: [],
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "already exists");
-  });
-
-  test("rejects group members that disagree on customisable days", async () => {
-    await createTestListing({ listingType: "standard", name: "Fixed Days" });
-    await createTestListing({
-      customisableDays: true,
-      dayPrices: { 1: 100 },
-      durationDays: 1,
-      listingType: "standard",
-      name: "Flexible Days",
-    });
-    const result = await importCatalog({
-      group: { name: "Mixed Days" },
-      kind: "group",
-      members: [{ listing: "Fixed Days" }, { listing: "Flexible Days" }],
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "customisable days");
-  });
-
-  test("rejects a package group with a non-packageable member", async () => {
-    await createTestListing({
-      canPayMore: true,
-      maxPrice: 5000,
-      name: "Pay What You Want",
-      unitPrice: 1000,
-    });
-    const result = await importCatalog({
-      group: { isPackage: true, name: "Bad Package" },
-      kind: "group",
-      members: [{ listing: "Pay What You Want" }],
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "Packages cannot contain");
-  });
-});

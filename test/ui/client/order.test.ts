@@ -297,8 +297,8 @@ describe("order widget", {
     h.run(
       makeCatalog(
         [
-          listing({ id: 1, slug: "fixed", unit_price: 1500 }),
-          listing({ can_pay_more: true, id: 2, slug: "pwyw", unit_price: 500 }),
+          listing({ id: 1, slug: "fixed", unitPrice: 1500 }),
+          listing({ canPayMore: true, id: 2, slug: "pwyw", unitPrice: 500 }),
         ],
         false,
       ),
@@ -329,7 +329,7 @@ describe("order widget", {
   test("a fixed-only cart shows a plain subtotal", () => {
     setBody(h, addLink("open"));
     h.run(
-      makeCatalog([listing({ id: 1, slug: "open", unit_price: 250 })], false),
+      makeCatalog([listing({ id: 1, slug: "open", unitPrice: 250 })], false),
     );
     clickAnchor(h, "open");
     const dialog = openCart(h);

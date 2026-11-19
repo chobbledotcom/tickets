@@ -18,18 +18,18 @@ describeAdminSettings(() => {
   describe("POST /admin/settings/booking-fee", () => {
     testRequiresAuth("/admin/settings/booking-fee", {
       body: {
-        booking_fee: "1.5",
+        bookingFee: "1.5",
       },
       method: "POST",
     });
 
     /** POST a booking-fee value with a fresh CSRF token + owner cookie. */
     const postBookingFee = async (value: string): Promise<Response> => {
-      const csrf_token = await testCsrfToken();
+      const csrfToken = await testCsrfToken();
       return handleRequest(
         mockFormRequest(
           "/admin/settings/booking-fee",
-          { booking_fee: value, csrf_token },
+          { bookingFee: value, csrfToken },
           await testCookie(),
         ),
       );
@@ -91,7 +91,7 @@ describeAdminSettings(() => {
     test("settings page displays booking fee form when payment provider is set", async () => {
       await settings.update.paymentProvider("stripe");
       const response = await adminGet("/admin/settings");
-      await expectHtmlResponse(response, 200, "Booking Fee", "booking_fee");
+      await expectHtmlResponse(response, 200, "Booking Fee", "bookingFee");
     });
 
     test("settings page hides booking fee form when no payment provider", async () => {
@@ -105,7 +105,7 @@ describeAdminSettings(() => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/booking-fee",
-          { csrf_token: await testCsrfToken() },
+          { csrfToken: await testCsrfToken() },
           await testCookie(),
         ),
       );

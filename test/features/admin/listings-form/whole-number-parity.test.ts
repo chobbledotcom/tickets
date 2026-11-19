@@ -11,6 +11,7 @@ import {
   type CreateListingBody,
 } from "#routes/admin/api-listing-body.ts";
 import { buildCreateListingResource } from "#routes/admin/listings-form.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   type TestFormValues,
@@ -19,8 +20,13 @@ import {
 
 const listingForm = (extra: TestFormValues = {}) =>
   testFormParams({
-    max_attendees: "50",
-    max_quantity: "5",
+    durationDays: "1",
+    maxAttendees: "50",
+    maximumDaysAfter: "90",
+    maxPrice: "100.00",
+    maxQuantity: "5",
+    minimumDaysBefore: "1",
+    minQuantity: "1",
     name: "Parsed listing",
     ...extra,
   });
@@ -37,14 +43,14 @@ const FRACTIONAL_CASES: readonly {
     apiBody: { max_attendees: 10, max_quantity: 1.5, name: "Test" },
     apiError: "max_quantity has an invalid value",
     formError: "Max tickets per purchase must be a whole number",
-    formExtra: { max_quantity: "1.5" },
+    formExtra: { maxQuantity: "1.5" },
   },
   {
     apiBody: { max_attendees: 10, minimum_days_before: 1.5, name: "Test" },
     apiError: "minimum_days_before has an invalid value",
     formError:
       "Minimum days notice (for daily listings) must be a whole number",
-    formExtra: { minimum_days_before: "1.5" },
+    formExtra: { minimumDaysBefore: "1.5" },
   },
 ];
 
@@ -59,7 +65,10 @@ describeWithEnv("listing whole-number parity", { db: true }, () => {
       formExtra,
     } of FRACTIONAL_CASES) {
       const form = listingForm(formExtra);
-      const formResult = await buildCreateListingResource(form).create(form);
+      const formResult = await buildCreateListingResource(
+        form,
+        listingFormView("owner"),
+      ).create(form);
       expect(formResult.ok).toBe(false);
       if (!formResult.ok) expect(formResult.error).toBe(formError);
 

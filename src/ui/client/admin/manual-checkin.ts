@@ -38,7 +38,7 @@ export const initManualCheckin = (): void => {
   const statusEl = document.getElementById("manual-checkin-status")!;
   const scanPath = form.dataset.scanPath!;
   const csrfInput = form.querySelector<HTMLInputElement>(
-    'input[name="csrf_token"]',
+    'input[name="csrfToken"]',
   )!;
   const messages = form.dataset;
 

@@ -87,8 +87,8 @@ export const adminSiteHomePage = siteDataPage<string, string>(
       {siteTextForm(
         "/admin/site",
         siteHomeForm.render({
-          homepage_text: homepageText,
-          website_title: websiteTitle,
+          homepageText,
+          websiteTitle,
         }),
       )}
     </>
@@ -149,7 +149,7 @@ const ContactFormToggle = ({
     <label>
       <input
         checked={enabled}
-        name="contact_form_enabled"
+        name="contactFormEnabled"
         type="checkbox"
         value="true"
       />{" "}
@@ -171,7 +171,7 @@ export const adminSiteContactPage = siteDataPage<string, ContactFormState>(
       {siteTextForm(
         "/admin/site/contact",
         siteContactForm.render({
-          contact_page_text: contactPageText,
+          contactPageText,
         }),
       )}
 
@@ -239,7 +239,7 @@ export const adminSiteOrderPage = siteDataPage<string, OrderPageState>(
         <label>
           <input
             checked={state.enabled}
-            name="order_enabled"
+            name="orderEnabled"
             type="checkbox"
             value="true"
           />{" "}
@@ -249,7 +249,7 @@ export const adminSiteOrderPage = siteDataPage<string, OrderPageState>(
 
       {siteTextForm(
         "/admin/site/order",
-        siteOrderForm.render({ order_intro_text: introText }),
+        siteOrderForm.render({ orderIntroText: introText }),
       )}
     </>
   ),

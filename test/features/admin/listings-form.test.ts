@@ -1,21 +1,22 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import {
   getListingWithCount,
   getStoredListingWithCount,
 } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
-import {
-  buildCreateListingResource,
-  buildUpdateListingResource,
-} from "#routes/admin/listings-form.ts";
+import { buildUpdateListingResource } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { listingRecord } from "#shared/records/listings.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
@@ -23,45 +24,16 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  type TestFormValues,
-  testFormParams,
-} from "#test-utils/form-values.ts";
+import { testEachRefusal } from "#test-utils/refusal-table.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
-import { featureSetting, withSetting } from "#test-utils/settings.ts";
-import type { Listing } from "#types";
 
-const listingForm = (extra: TestFormValues = {}) =>
-  testFormParams({
-    max_attendees: "50",
-    max_quantity: "5",
-    name: "Parsed listing",
-    ...extra,
-  });
-
-const createListing = async (extra: TestFormValues = {}): Promise<Listing> => {
-  const form = listingForm(extra);
-  const result = await buildCreateListingResource(form).create(form);
-  if (!result.ok) throw new Error(`create failed: ${result.error}`);
-  return result.row;
-};
-
-const updateListing = async (
-  id: number,
-  extra: TestFormValues = {},
-): Promise<Listing> => {
-  const form = listingForm({ slug: "kept-slug", ...extra });
-  // The production edit handler passes the stored row, not the effective one:
-  // a daily listing's effective date is already empty, and the save's date
-  // guard must see the value the row still stores.
-  const stored = (await getStoredListingWithCount(id))!;
-  const result = await buildUpdateListingResource(form, stored).update(
-    id,
-    form,
-  );
-  if (!result.ok) throw new Error(`update failed: ${result.error}`);
-  return result.row;
-};
+import {
+  createListing,
+  listingForm,
+  saveListingEdit,
+  tryCreateListing,
+  updateListing,
+} from "./listings-form/helpers.ts";
 
 describeWithEnv("listings form", { db: true }, () => {
   describe("create", () => {
@@ -69,25 +41,24 @@ describeWithEnv("listings form", { db: true }, () => {
       (async () => {
         const row = await createListing();
         expect(row.name).toBe("Parsed listing");
-        expect(row.listing_type).toBe("standard");
-        expect(row.unit_price).toBe(0);
-        expect(row.max_attendees).toBe(50);
-        expect(row.max_quantity).toBe(5);
-        expect(row.bookable_days).toEqual([...VALID_DAY_NAMES]);
-        expect(row.closes_at).toBeNull();
+        expect(row.listingType).toBe("standard");
+        expect(row.unitPrice).toBe(0);
+        expect(row.maxAttendees).toBe(50);
+        expect(row.maxQuantity).toBe(5);
+        expect(row.bookableDays).toEqual([...VALID_DAY_NAMES]);
+        expect(row.closesAt).toBeNull();
       })());
 
     test("refuses a quantity below the field's declared minimum", async () => {
       for (const [field, value] of [
-        ["max_attendees", "0"],
-        ["min_quantity", "0"],
+        ["maxAttendees", "0"],
+        ["minQuantity", "0"],
       ] as const) {
-        const form = listingForm({ [field]: value });
-        const result = await buildCreateListingResource(form).create(form);
+        const result = await tryCreateListing({ [field]: value });
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error).toBe(
-            field === "max_attendees"
+            field === "maxAttendees"
               ? "Max attendees must be 1 or greater"
               : "Min tickets per purchase must be 1 or greater",
           );
@@ -97,99 +68,59 @@ describeWithEnv("listings form", { db: true }, () => {
 
     test("accepts quantities at the declared minimum", async () => {
       const row = await createListing({
-        max_attendees: "1",
-        max_quantity: "1",
-        min_quantity: "1",
+        maxAttendees: "1",
+        maxQuantity: "1",
+        minQuantity: "1",
       });
-      expect(row.max_attendees).toBe(1);
-      expect(row.max_quantity).toBe(1);
-      expect(row.min_quantity).toBe(1);
+      expect(row.maxAttendees).toBe(1);
+      expect(row.maxQuantity).toBe(1);
+      expect(row.minQuantity).toBe(1);
     });
 
     test("a zero unit price stays an explicit zero", async () => {
-      const row = await createListing({ unit_price: "0" });
-      expect(row.unit_price).toBe(0);
+      const row = await createListing({ unitPrice: "0" });
+      expect(row.unitPrice).toBe(0);
     });
 
     test("a priced form stores the currency's minor units", async () => {
       const row = await createListing({
-        max_price: "12.5",
-        unit_price: "12.34",
+        maxPrice: "12.5",
+        unitPrice: "12.34",
       });
-      expect(row.unit_price).toBe(1234);
-      expect(row.max_price).toBe(1250);
+      expect(row.unitPrice).toBe(1234);
+      expect(row.maxPrice).toBe(1250);
     });
 
     test("datetimes normalize to UTC, and blanks stay blank", async () => {
       const dated = await createListing({
-        closes_at_date: "2026-06-15",
-        closes_at_time: "14:30",
-        date_date: "2026-03-01",
-        date_time: "09:05",
+        closesAtDate: "2026-06-15",
+        closesAtTime: "14:30",
+        dateDate: "2026-03-01",
+        dateTime: "09:05",
       });
-      expect(dated.closes_at).toBe("2026-06-15T14:30:00.000Z");
+      expect(dated.closesAt).toBe("2026-06-15T14:30:00.000Z");
       expect(dated.date).toBe("2026-03-01T09:05:00.000Z");
 
       const blank = await createListing({ name: "Undated" });
-      expect(blank.closes_at).toBeNull();
+      expect(blank.closesAt).toBeNull();
       expect(blank.date).toBe("");
     });
 
-    test("chosen bookable days are kept as chosen", async () => {
-      const row = await createListing({
-        bookable_days: ["Monday", "Thursday"],
-      });
-      expect(row.bookable_days).toEqual(["Monday", "Thursday"]);
-    });
-
-    test("a single chosen day stays that one day", async () => {
-      const row = await createListing({ bookable_days: ["Friday"] });
-      expect(row.bookable_days).toEqual(["Friday"]);
-    });
-
-    test("an impossible date is refused before anything is saved", async () => {
-      const form = listingForm({ date_date: "2026-02-30", date_time: "10:00" });
-      const result = await buildCreateListingResource(form).create(form);
-      expect(result).toEqual({
-        error: "Please enter a valid date and time",
-        ok: false,
-      });
+    test("chosen bookable days are kept as chosen, even a single one", async () => {
+      for (const days of [["Monday", "Thursday"], ["Friday"]]) {
+        expect(
+          (await createListing({ bookableDays: days, name: days.join(" ") }))
+            .bookableDays,
+        ).toEqual(days);
+      }
     });
 
     test("a listing with no closing date stores nothing in that column", async () => {
       const row = await createListing();
-      const stored = await getDb().execute({
-        args: [row.id],
-        sql:
-          "SELECT listing.closes_at FROM listings AS listing " +
-          "WHERE listing.id = ?",
-      });
+      const stored = await getDb().execute(
+        sql`SELECT listing.closes_at FROM listings AS listing WHERE listing.id = ${row.id}`,
+      );
       expect(stored.rows[0]!.closes_at).toBeNull();
-    });
-
-    test("the use-defaults tick is saved", async () => {
-      const on = await createListing({ use_defaults: "1" });
-      expect(on.use_defaults).toBe(true);
-
-      const off = await createListing({ name: "Own values" });
-      expect(off.use_defaults).toBe(false);
-    });
-
-    test("demo mode drops the webhook address, normal mode keeps it", async () => {
-      const hook = "https://example.com/hook";
-      const real = await createListing({ webhook_url: hook });
-      expect(real.webhook_url).toBe(hook);
-
-      setDemoModeForTest(true);
-      try {
-        const demo = await createListing({
-          name: "Demo listing",
-          webhook_url: hook,
-        });
-        expect(demo.webhook_url).toBe("");
-      } finally {
-        setDemoModeForTest(false);
-      }
     });
 
     test("duplicating a listing copies the source's attribute choices", async () => {
@@ -201,7 +132,7 @@ describeWithEnv("listings form", { db: true }, () => {
       await assignTestAttributeOptions(source.id, attribute.options);
 
       const copy = await createListing({
-        duplicated_from: String(source.id),
+        duplicatedFrom: String(source.id),
         name: "Copy",
       });
       expect(await listingAttributeOptions.getIds(copy.id)).toEqual(
@@ -233,13 +164,12 @@ describeWithEnv("listings form", { db: true }, () => {
       });
       expect(priced.status).toBe(200);
 
-      const form = listingForm({
-        duplicated_from: String(source.id),
-        group_ids: String(group.id),
-        max_quantity: "2",
+      const result = await tryCreateListing({
+        duplicatedFrom: String(source.id),
+        groupIds: String(group.id),
+        maxQuantity: "2",
         name: "Undercapped copy",
       });
-      const result = await buildCreateListingResource(form).create(form);
       expect(result).toEqual({
         error: t("error.package_member_cap", {
           max_quantity: 2,
@@ -258,71 +188,109 @@ describeWithEnv("listings form", { db: true }, () => {
 
     test("day prices are read for days one up to the duration only", async () => {
       const row = await createListing({
-        day_price_1: "10",
-        day_price_2: "",
-        day_price_3: "30",
-        day_price_4: "40",
-        duration_days: "3",
+        dayPrice1: "10",
+        dayPrice2: "",
+        dayPrice3: "30",
+        dayPrice4: "40",
+        durationDays: "3",
       });
       expect(await getListingDayPrices(row.id)).toEqual({ 1: 1000, 3: 3000 });
     });
 
     test("without a duration, only the single-day price is read", async () => {
       const row = await createListing({
-        day_price_1: "15",
-        day_price_2: "20",
+        dayPrice1: "15",
+        dayPrice2: "20",
       });
       expect(await getListingDayPrices(row.id)).toEqual({ 1: 1500 });
     });
 
-    test("an unreadable day price rejects the save with a plain message", async () => {
-      const form = listingForm({ day_price_1: "abc", duration_days: "2" });
-      const result = await buildCreateListingResource(form).create(form);
+    testEachRefusal(tryCreateListing, [
+      [
+        "an impossible date is refused before anything is saved",
+        { dateDate: "2026-02-30", dateTime: "10:00" },
+        "Please enter a valid date and time",
+      ],
+      [
+        "an unreadable day price rejects the save with a plain message",
+        { dayPrice1: "abc", durationDays: "2" },
+        "Enter a valid day price for each duration, or leave it blank.",
+      ],
+    ]);
+
+    test("ticked groups are saved", async () => {
+      const group = await createTestGroup({ name: "Form group" });
+      const row = await createListing({
+        groupIds: [String(group.id)],
+      });
+      const links = await getDb().execute(
+        sql`SELECT groupListing.group_id FROM group_listings AS groupListing WHERE groupListing.listing_id = ${row.id}`,
+      );
+      expect(links.rows.map((r) => r.group_id)).toEqual([group.id]);
+    });
+
+    test("a group box that is not a group id is refused, not dropped", async () => {
+      const group = await createTestGroup({ name: "Form group" });
+      const result = await tryCreateListing({
+        groupIds: [String(group.id), "0", "-4"],
+      });
       expect(result).toEqual({
-        error: "Enter a valid day price for each duration, or leave it blank.",
+        error: "Choose Groups from the list. Reload the page and choose again.",
+        ok: false,
+      });
+    });
+  });
+
+  describe("update", () => {
+    test("answers not found when the row vanished before the update", async () => {
+      const { id } = await createListing();
+      const update = buildUpdateListingResource(
+        (await getStoredListingWithCount(id))!,
+        listingFormView("owner"),
+      );
+      await deleteListing(id);
+
+      expect(
+        await update.update(id, listingForm({ slug: "kept-slug" })),
+      ).toEqual({
+        notFound: true,
         ok: false,
       });
     });
 
-    test("ticked groups are saved; unticked junk ids are not", async () => {
-      const group = await createTestGroup({ name: "Form group" });
-      const row = await createListing({
-        group_ids: [String(group.id), "0", "-4"],
+    test("answers not found when the write loses the row", async () => {
+      const created = await createListing();
+      using _update = stub(listingRecord, "update", () =>
+        Promise.resolve({ kind: "not-found" as const }),
+      );
+
+      expect(await saveListingEdit(created.id, {})).toEqual({
+        notFound: true,
+        ok: false,
       });
-      const links = await getDb().execute({
-        args: [row.id],
-        sql:
-          "SELECT groupListing.group_id FROM group_listings AS groupListing " +
-          "WHERE groupListing.listing_id = ?",
-      });
-      expect(links.rows.map((r) => r.group_id)).toEqual([group.id]);
     });
 
-    test("builder and logistics choices stay off while their features are off", async () => {
-      const row = await createListing({
-        assign_built_site: "1",
-        uses_logistics: "1",
+    test("answers a record refusal with its message", async () => {
+      const first = await createListing();
+      const second = await createListing({ name: "Second listing" });
+
+      expect(await saveListingEdit(second.id, { name: first.name })).toEqual({
+        error: t("error.name_in_use"),
+        ok: false,
       });
-      expect(row.assign_built_site).toBe(false);
-      expect(row.uses_logistics).toBe(false);
     });
 
-    test("a logistics choice is kept when the feature is on", () =>
-      withSetting(featureSetting("logistics"), async () => {
-        const on = await createListing({ uses_logistics: "1" });
-        expect(on.uses_logistics).toBe(true);
-        // An unticked checkbox never reaches the form at all.
-        const off = await createListing({ name: "No logistics" });
-        expect(off.uses_logistics).toBe(false);
-      }));
-  });
-
-  describe("update", () => {
     test("the slug is normalized and its lookup code recomputed", async () => {
       const created = await createListing();
       const row = await updateListing(created.id, { slug: "  New-Slug  " });
       expect(row.slug).toBe("new-slug");
-      expect(row.slug_index).toBe(await hmacHash("new-slug"));
+      expect(row.slugIndex).toBe(await hmacHash("new-slug"));
+    });
+
+    test("a refused update fails with the refusal it got", async () => {
+      const { id } = await createListing();
+      const refused = updateListing(id, { name: "" });
+      await expect(refused).rejects.toThrow('update failed: {"error":');
     });
 
     test("an empty-date save of a daily listing keeps its stored date", async () => {
@@ -330,9 +298,9 @@ describeWithEnv("listings form", { db: true }, () => {
       // submits an empty date. The guard must see the STORED row: fed the
       // effective row, the date is already empty and the save would wipe it.
       const created = await createListing({
-        date_date: "2026-06-15",
-        date_time: "10:00",
-        listing_type: "daily",
+        dateDate: "2026-06-15",
+        dateTime: "10:00",
+        listingType: "daily",
       });
       await updateListing(created.id, {});
       expect((await getStoredListingWithCount(created.id))!.date).toBe(
@@ -341,64 +309,70 @@ describeWithEnv("listings form", { db: true }, () => {
     });
 
     test("clearing the price on an update stores a real zero", async () => {
-      const created = await createListing({ unit_price: "12.34" });
-      expect(created.unit_price).toBe(1234);
+      const created = await createListing({ unitPrice: "12.34" });
+      expect(created.unitPrice).toBe(1234);
 
-      const row = await updateListing(created.id, { unit_price: "0" });
-      expect(row.unit_price).toBe(0);
+      const row = await updateListing(created.id, { unitPrice: "0" });
+      expect(row.unitPrice).toBe(0);
       // A real stored zero, not an absent value: the column is what the base
       // price row is mirrored from.
-      const stored = await getDb().execute({
-        args: [row.id],
-        sql:
-          "SELECT listing.unit_price FROM listings AS listing " +
-          "WHERE listing.id = ?",
-      });
+      const stored = await getDb().execute(
+        sql`SELECT listing.unit_price FROM listings AS listing WHERE listing.id = ${row.id}`,
+      );
       expect(stored.rows[0]!.unit_price).toBe(0);
     });
 
     test("a daily listing keeps an emptied day selection empty", async () => {
       // A create with no days ticked opens every day by default...
-      const created = await createListing({ listing_type: "daily" });
-      expect(created.bookable_days).toEqual([...VALID_DAY_NAMES]);
+      const created = await createListing({ listingType: "daily" });
+      expect(created.bookableDays).toEqual([...VALID_DAY_NAMES]);
       // ...but a daily update with none ticked means "no days", and stays so.
-      const row = await updateListing(created.id, { listing_type: "daily" });
-      expect(row.bookable_days).toEqual([]);
+      const row = await updateListing(created.id, { listingType: "daily" });
+      expect(row.bookableDays).toEqual([]);
     });
 
     test("a standard listing's emptied day selection reopens every day", async () => {
-      const created = await createListing({ bookable_days: ["Monday"] });
+      const created = await createListing({ bookableDays: ["Monday"] });
       const row = await updateListing(created.id, {});
-      expect(row.bookable_days).toEqual([...VALID_DAY_NAMES]);
+      expect(row.bookableDays).toEqual([...VALID_DAY_NAMES]);
+    });
+
+    test("an unreadable day price rejects an update with a plain message", async () => {
+      const created = await createListing({ durationDays: "2" });
+      const result = await saveListingEdit(created.id, {
+        dayPrice1: "abc",
+        durationDays: "2",
+      });
+
+      expect(result).toEqual({
+        error: "Enter a valid day price for each duration, or leave it blank.",
+        ok: false,
+      });
+      expect(await getListingDayPrices(created.id)).toEqual({});
     });
 
     test("refuses a max_quantity below a package membership quantity", async () => {
       const group = await createTestGroup({ name: "Cap package" });
       const created = await createListing({
-        group_ids: [String(group.id)],
-        max_quantity: "3",
+        groupIds: [String(group.id)],
+        maxQuantity: "3",
       });
       // Three units per package stays legal while the cap sits at three.
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         description: "",
-        is_package: "1",
-        max_attendees: "0",
+        isPackage: "1",
+        maxAttendees: "0",
         name: group.name,
         slug: group.slug,
-        terms_and_conditions: "",
-        [`package_price_${created.id}`]: "9.00",
-        [`package_qty_${created.id}`]: "3",
+        termsAndConditions: "",
+        [`packagePrice${created.id}`]: "9.00",
+        [`packageQty${created.id}`]: "3",
       });
 
-      const form = listingForm({
-        group_ids: [String(group.id)],
-        max_quantity: "2",
-        slug: "kept-slug",
+      const result = await saveListingEdit(created.id, {
+        groupIds: [String(group.id)],
+        maxQuantity: "2",
       });
-      const result = await buildUpdateListingResource(
-        form,
-        (await getStoredListingWithCount(created.id))!,
-      ).update(created.id, form);
 
       expect(result).toEqual({
         error: t("error.package_member_cap", {
@@ -411,7 +385,7 @@ describeWithEnv("listings form", { db: true }, () => {
       const [row] = await getGroupPackagePrices(group.id);
       expect(row?.quantity).toBe(3);
       const reread = await getListingWithCount(created.id);
-      expect(reread!.max_quantity).toBe(3);
+      expect(reread!.maxQuantity).toBe(3);
     });
   });
 });

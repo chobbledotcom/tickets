@@ -16,13 +16,13 @@ const rows: RecalculateRow[] = [
   {
     current: "3 stored",
     label: "Booked places",
-    name: "booked_quantity",
+    name: "bookedQuantity",
     recalculated: "5 counted",
   },
   {
     current: "7 stored",
     label: "Tickets sold",
-    name: "tickets_count",
+    name: "ticketsCount",
     recalculated: "8 counted",
   },
 ];
@@ -52,13 +52,13 @@ describe("admin recalculate page", () => {
       'action="/admin/synthetic/recalculate"',
       "<p>Choose totals &amp; save.</p>",
       "<th></th><th>Stored value</th><th>Counted value</th>",
-      `<th scope="row"><label><input name="${RECALCULATE_FIELD_NAME}" type="checkbox" value="booked_quantity"> Booked places</label></th>`,
+      `<th scope="row"><label><input name="${RECALCULATE_FIELD_NAME}" type="checkbox" value="bookedQuantity"> Booked places</label></th>`,
       "<td>3 stored</td><td>5 counted</td>",
-      `<th scope="row"><label><input name="${RECALCULATE_FIELD_NAME}" type="checkbox" value="tickets_count"> Tickets sold</label></th>`,
+      `<th scope="row"><label><input name="${RECALCULATE_FIELD_NAME}" type="checkbox" value="ticketsCount"> Tickets sold</label></th>`,
       "<td>7 stored</td><td>8 counted</td>",
     ]);
-    expect(html.indexOf('value="booked_quantity"')).toBeLessThan(
-      html.indexOf('value="tickets_count"'),
+    expect(html.indexOf('value="bookedQuantity"')).toBeLessThan(
+      html.indexOf('value="ticketsCount"'),
     );
     assertStringIncludes(html, "Apply selected totals");
   });

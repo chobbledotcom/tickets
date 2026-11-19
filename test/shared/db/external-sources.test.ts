@@ -13,44 +13,36 @@ import {
   deleteExternalSourceLink,
   externalLinkIndex,
   getAllExternalSources,
-  getExternalSource,
   getExternalSourceLink,
   listExternalSourceLinks,
   requireExternalSourceLink,
   updateExternalSourceLink,
 } from "#db/external-sources/queries.ts";
-import { externalSourcesTable } from "#db/external-sources/tables.ts";
-import type {
-  ExternalSource,
-  ExternalSourceLink,
-} from "#db/external-sources/types.ts";
+import type { ExternalSourceLink } from "#db/external-sources/types.ts";
 import { externalLinkUrl } from "#db/external-sources/url.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
+import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestExternalSource } from "#test-utils/db-helpers/external-sources.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withTestSession } from "#test-utils/session.ts";
-
-const createSource = (
-  name: string,
-  urlPattern = "https://example.com/{external_id}",
-): Promise<ExternalSource> => externalSourcesTable.insert({ name, urlPattern });
 
 /** The row as the database holds it, before any column opens it. */
 const storedSource = async (
   id: number,
 ): Promise<{ name: string; url_pattern: string }> =>
   (await queryOne<{ name: string; url_pattern: string }>(
-    "SELECT name, url_pattern FROM external_sources WHERE id = ?",
-    [id],
+    sql`SELECT name, url_pattern FROM external_sources WHERE id = ${id}`,
   ))!;
 
 const storedLink = async (
   id: number,
 ): Promise<{ external_id: string; external_id_index: string }> =>
   (await queryOne<{ external_id: string; external_id_index: string }>(
-    "SELECT external_id, external_id_index FROM external_source_links WHERE id = ?",
-    [id],
+    sql`SELECT external_id, external_id_index FROM external_source_links WHERE id = ${id}`,
   ))!;
 
 const addListingLink = async (
@@ -59,18 +51,18 @@ const addListingLink = async (
   name = `Listing ${sourceId} ${externalId}`,
 ): Promise<ExternalSourceLink> => {
   const listing = await createTestListing({ name });
-  const created = await createExternalSourceLink(sourceId, {
-    externalId,
-    linkId: listing.id,
-    linkType: "listing",
-  });
-  if (!created.ok) throw new Error(created.error);
-  return created.value;
+  return requireSuccess(
+    await createExternalSourceLink(sourceId, {
+      externalId,
+      linkId: listing.id,
+      linkType: "listing",
+    }),
+  );
 };
 
 describeWithEnv("db > external sources", { db: true }, () => {
   test("stores a source's name and URL pattern sealed, and opens them for an admin", async () => {
-    const source = await createSource(
+    const source = await createTestExternalSource(
       "Stripe invoices",
       "https://dashboard.stripe.com/invoices/{external_id}",
     );
@@ -80,18 +72,20 @@ describeWithEnv("db > external sources", { db: true }, () => {
     expect(stored.url_pattern.startsWith(HYBRID_PREFIX)).toBe(true);
     expect(stored.name).not.toContain("Stripe");
 
-    const opened = await withTestSession(() => getExternalSource(source.id));
+    const opened = await withTestSession(() =>
+      records.external_sources.find(source.id),
+    );
     expect(opened).toEqual({
       created: source.created,
       id: source.id,
       name: "Stripe invoices",
-      url_pattern: "https://dashboard.stripe.com/invoices/{external_id}",
+      urlPattern: "https://dashboard.stripe.com/invoices/{external_id}",
     });
   });
 
   test("lists every source in the order it was added", async () => {
-    const first = await createSource("Invoices");
-    const second = await createSource("Shipping labels");
+    const first = await createTestExternalSource("Invoices");
+    const second = await createTestExternalSource("Shipping labels");
 
     const sources = await withTestSession(getAllExternalSources);
     expect(sources.map((source) => source.name)).toEqual([
@@ -101,7 +95,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
   });
 
   test("stores an external id sealed and finds it through its blind index", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
     const link = await addListingLink(source.id, "INV-1001");
 
     const stored = await storedLink(link.id);
@@ -121,7 +115,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
   });
 
   test("stores a link the other system has not named yet with no index", async () => {
-    const source = await createSource("Diary");
+    const source = await createTestExternalSource("Diary");
     const listing = await createTestListing({ name: "Watercolour day" });
     const created = await createExternalSourceLink(source.id, {
       externalId: null,
@@ -134,8 +128,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
       external_id: string | null;
       external_id_index: string | null;
     }>(
-      "SELECT external_id, external_id_index FROM external_source_links WHERE id = ?",
-      [created.value.id],
+      sql`SELECT external_id, external_id_index FROM external_source_links WHERE id = ${created.value.id}`,
     );
     expect(stored).toEqual({ external_id: null, external_id_index: null });
 
@@ -146,8 +139,8 @@ describeWithEnv("db > external sources", { db: true }, () => {
   });
 
   test("keeps separate sources' external ids from matching each other", async () => {
-    const invoices = await createSource("Invoices");
-    const imports = await createSource("Imports");
+    const invoices = await createTestExternalSource("Invoices");
+    const imports = await createTestExternalSource("Imports");
     await addListingLink(invoices.id, "SHARED-1");
     await addListingLink(imports.id, "SHARED-1");
 
@@ -158,11 +151,11 @@ describeWithEnv("db > external sources", { db: true }, () => {
       }),
     );
     expect(found).toHaveLength(1);
-    expect(found[0]!.source_id).toBe(invoices.id);
+    expect(found[0]!.sourceId).toBe(invoices.id);
   });
 
   test("filters a source's links by the record they point at", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
     const listing = await createTestListing({ name: "Watercolour day" });
     const other = await createTestListing({ name: "Pottery day" });
     await createExternalSourceLink(source.id, {
@@ -183,16 +176,16 @@ describeWithEnv("db > external sources", { db: true }, () => {
         linkType: "listing",
       }),
     );
-    expect(found.map((link) => link.external_id)).toEqual(["INV-1"]);
+    expect(found.map((link) => link.externalId)).toEqual(["INV-1"]);
 
     const all = await withTestSession(() =>
       listExternalSourceLinks(source.id, { kind: "all" }),
     );
-    expect(all.map((link) => link.external_id)).toEqual(["INV-1", "INV-2"]);
+    expect(all.map((link) => link.externalId)).toEqual(["INV-1", "INV-2"]);
   });
 
   test("links every kind of record a source may name", async () => {
-    const source = await createSource("Imports");
+    const source = await createTestExternalSource("Imports");
     const listing = await createTestListing({ name: "Watercolour day" });
     const attendee = await bookTestAttendee([listing.id]);
     const group = await createTestGroup({ name: "Summer school" });
@@ -219,7 +212,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
   });
 
   test("refuses a link to a record that does not exist", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
 
     const refused = await createExternalSourceLink(source.id, {
       externalId: "INV-404",
@@ -234,7 +227,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
   });
 
   test("lets one external id name several records", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
     const first = await addListingLink(
       source.id,
       "INV-1001",
@@ -252,12 +245,12 @@ describeWithEnv("db > external sources", { db: true }, () => {
   });
 
   test("refuses the same record twice with one external id", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
     const first = await addListingLink(source.id, "INV-1001");
 
     const refused = await createExternalSourceLink(source.id, {
       externalId: "INV-1001",
-      linkId: first.link_id,
+      linkId: first.linkId,
       linkType: "listing",
     });
 
@@ -268,12 +261,12 @@ describeWithEnv("db > external sources", { db: true }, () => {
   });
 
   test("changes a link's external id and the index that finds it", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
     const link = await addListingLink(source.id, "INV-1001");
 
     const changed = await updateExternalSourceLink(link, {
       externalId: "INV-2002",
-      linkId: link.link_id,
+      linkId: link.linkId,
       linkType: "listing",
     });
     expect(changed).toEqual({ ok: true, value: true });
@@ -281,8 +274,8 @@ describeWithEnv("db > external sources", { db: true }, () => {
     const stored = await withTestSession(() =>
       requireExternalSourceLink(source.id, link.id),
     );
-    expect(stored.external_id).toBe("INV-2002");
-    expect(stored.external_id_index).toBe(
+    expect(stored.externalId).toBe("INV-2002");
+    expect(stored.externalIdIndex).toBe(
       await externalLinkIndex(source.id, "INV-2002"),
     );
 
@@ -296,7 +289,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
   });
 
   test("deletes one link, and a source with all of its links", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
     const first = await addListingLink(source.id, "INV-1");
     await addListingLink(source.id, "INV-2");
 
@@ -304,7 +297,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
     expect(await getExternalSourceLink(source.id, first.id)).toBeNull();
 
     await deleteExternalSource(source.id);
-    expect(await getExternalSource(source.id)).toBeNull();
+    expect(await records.external_sources.find(source.id)).toBeNull();
     const remaining = await withTestSession(() =>
       listExternalSourceLinks(source.id, { kind: "all" }),
     );
@@ -312,7 +305,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
   });
 
   test("reports a link that a write was about to answer with as missing", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
 
     await expect(requireExternalSourceLink(source.id, 999_999)).rejects.toThrow(
       "External source link 999999 is missing from source",

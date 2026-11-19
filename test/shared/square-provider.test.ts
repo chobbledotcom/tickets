@@ -62,7 +62,7 @@ const listingIntent = (
       name: listing.name,
       quantity: 1,
       slug: listing.slug,
-      unitPrice: listing.unit_price,
+      unitPrice: listing.unitPrice,
     },
   ],
   name: "John",
@@ -289,7 +289,7 @@ describe("square-provider", () => {
     test("returns error result when createPaymentLink throws PaymentUserError", async () => {
       const listing = testListing({
         fields: "email" as const,
-        unit_price: 1000,
+        unitPrice: 1000,
       });
       await expectCheckoutUserError(
         listingIntent(listing, "bad"),
@@ -300,7 +300,7 @@ describe("square-provider", () => {
     test("propagates generic createPaymentLink errors", async () => {
       const listing = testListing({
         fields: "email" as const,
-        unit_price: 1000,
+        unitPrice: 1000,
       });
       const intent = listingIntent(listing, "");
       await withMocks(

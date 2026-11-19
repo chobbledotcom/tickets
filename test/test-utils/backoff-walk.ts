@@ -2,6 +2,7 @@ import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { FakeTime } from "@std/testing/time";
 import { execute, setDb } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { stubClient } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
 
@@ -27,7 +28,7 @@ export const expectNextAttemptAfter = async (
 export const expectFullBackoffWalk = async (options: {
   dbUrl: string;
   failsWith: () => Error;
-  sql: string;
+  sql: SqlStatement;
   waits: readonly number[];
   outcome: (operation: Promise<ResultSet>) => Promise<void>;
 }): Promise<void> => {

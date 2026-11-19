@@ -106,8 +106,8 @@ const expectSingleGroupNote = async (
   );
   expect(notes).toHaveLength(1);
   expect(notes[0]).toMatchObject({
-    entity_id: groupId,
-    entity_type: "group",
+    entityId: groupId,
+    entityType: "group",
     note,
     type: "owner",
   });
@@ -122,7 +122,7 @@ const postGroupNote = async (
   return withTestSession(() =>
     groupNoteFeature.routes.addPost(
       mockFormRequest(`/admin/groups/${id}/note`, {
-        csrf_token: csrf,
+        csrfToken: csrf,
         ...fields,
       }),
       id,
@@ -172,7 +172,7 @@ describeWithEnv("record note routes", { db: true }, () => {
     const html = await response.text();
     assertStringIncludes(
       html,
-      'name="return_url" type="hidden" value="/admin/somewhere"',
+      'name="returnUrl" type="hidden" value="/admin/somewhere"',
     );
   });
 
@@ -202,7 +202,7 @@ describeWithEnv("record note routes", { db: true }, () => {
     const { id } = await createTestGroup({ name: "What size?" });
     const response = await postGroupNote(id, {
       note: "from a listing",
-      return_url: "/admin/listings/9",
+      returnUrl: "/admin/listings/9",
     });
     expectRedirectWithFlash(
       "/admin/listings/9",
@@ -236,7 +236,7 @@ describeWithEnv("record note routes", { db: true }, () => {
     const html = await response.text();
     expectIncludesAll(html, [
       "deletable",
-      'name="return_url" type="hidden" value="/admin/somewhere"',
+      'name="returnUrl" type="hidden" value="/admin/somewhere"',
     ]);
   });
 
@@ -248,8 +248,8 @@ describeWithEnv("record note routes", { db: true }, () => {
     const response = await withTestSession(() =>
       groupNoteFeature.routes.deletePost(
         mockFormRequest(`/admin/groups/${id}/note/${noteId}/delete`, {
-          csrf_token: csrf,
-          return_url: "/admin/listings/9",
+          csrfToken: csrf,
+          returnUrl: "/admin/listings/9",
         }),
         id,
         noteId,

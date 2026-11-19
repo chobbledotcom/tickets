@@ -5,13 +5,14 @@
  * one query, all before the first database write.
  */
 
-import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { inPlaceholders, queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupsById } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { readRows } from "#db/read.ts";
+import { among, equal } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { requiredMapValue, unique } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -33,7 +34,7 @@ import {
   siteIdsOf,
   siteParentIdsOf,
 } from "./bundle-refs.ts";
-import { membershipSpec } from "./import-listing.ts";
+import { type MembershipOverrides, membershipSpec } from "./import-listing.ts";
 import type {
   CatalogBundle,
   GroupBody,
@@ -91,29 +92,24 @@ const optInAddOnsByGroupId = async (
   for (const groupId of groupIds) {
     byGroup.set(groupId, { addOnIds: new Set(), addOns: [] });
   }
-  const rows = await queryAll<{
-    group_id: number;
-    modifier_id: number;
-    name: EnvKeyEncrypted;
-  }>(
-    `SELECT modifierGroup.group_id, modifier.id AS modifier_id, modifier.name
-       FROM modifiers AS modifier
-       JOIN modifier_groups AS modifierGroup
-         ON modifierGroup.modifier_id = modifier.id
-      WHERE modifier.active = 1 AND modifier.trigger = 'optional'
-        AND modifier.scope = 'groups'
-        AND modifierGroup.group_id IN (${inPlaceholders(groupIds)})`,
-    [...groupIds],
+  const rows = await readRows(
+    from(tables.modifier_groups, { modifier: {} })
+      .where((link) => [
+        equal(link.modifier.active, 1),
+        equal(link.modifier.trigger, "optional"),
+        equal(link.modifier.scope, "groups"),
+        among(link.groupId, groupIds),
+      ])
+      .select((link) => ({
+        groupId: link.groupId,
+        modifierId: link.modifier.id,
+        name: link.modifier.name,
+      })),
   );
   for (const row of rows) {
-    const optIns = groupOptIns(byGroup, row.group_id);
-    const name = await modifiersTable.readColumn(
-      "name",
-      row.name,
-      row.modifier_id,
-    );
-    optIns.addOns.push({ id: row.modifier_id, name });
-    optIns.addOnIds.add(row.modifier_id);
+    const optIns = groupOptIns(byGroup, row.groupId);
+    optIns.addOns.push({ id: row.modifierId, name: row.name });
+    optIns.addOnIds.add(row.modifierId);
   }
   return byGroup;
 };
@@ -257,8 +253,8 @@ export const groupViewOf = (
       "Referenced group missing",
     );
     return {
-      hidePackageListings: row.hide_package_listings,
-      isPackage: row.is_package,
+      hidePackageListings: row.hidePackageListings,
+      isPackage: row.isPackage,
     };
   }
   const body = bundleGroupOf(ref, context).group;
@@ -311,6 +307,42 @@ const resolvable = <Entry>(
     return resolved === undefined ? [] : [{ entry, resolved }];
   });
 
+/** One membership that either side of the document declared. */
+type DeclaredPair = {
+  entry: MembershipOverrides;
+  group: string;
+  groupRef: BundleRef;
+  isPackage: boolean;
+  /** The item that declared the link. A refusal names it. */
+  item: string;
+  listing: string;
+  listingRef: BundleRef;
+};
+
+/** Merge one declared membership into the pair indexes, or record the
+ * refusal for its overrides on the item that declared it. */
+const mergeDeclaredPair = (
+  pairs: MembershipPairs,
+  fail: FailureCollector,
+  declared: DeclaredPair,
+): void => {
+  const spec = membershipSpec(declared.entry, declared.isPackage);
+  if (!spec.ok) {
+    fail.failItem(declared.item, spec.error);
+    return;
+  }
+  mergePair(
+    pairs,
+    declared.listing,
+    declared.group,
+    declared.listingRef,
+    declared.groupRef,
+    spec.value,
+    declared.item,
+    fail,
+  );
+};
+
 /** Collect the membership pairs from both sides, so a listing and a group
  * that declare the same link must agree or the import refuses. The key is the
  * two names — unique across the document and the site together. */
@@ -330,21 +362,19 @@ export const collectPairs = (
       refs,
       (membership: ListingMembership) => membership.group,
     )) {
-      mergePair(
-        pairs,
-        body.listing.name,
-        entry.group,
-        { bundleKey: nameKey(body.listing.name) },
-        resolved,
-        membershipSpec(
-          entry.packagePrice,
-          entry.quantity,
-          entry.dayPrices,
-          groupViewOf(resolved, context).isPackage,
-        ),
-        body.listing.name,
-        fail,
-      );
+      mergeDeclaredPair(pairs, fail, {
+        entry: {
+          dayPrices: entry.dayPrices,
+          packagePrice: entry.packagePrice,
+          quantity: entry.quantity,
+        },
+        group: entry.group,
+        groupRef: resolved,
+        isPackage: groupViewOf(resolved, context).isPackage,
+        item: body.listing.name,
+        listing: body.listing.name,
+        listingRef: { bundleKey: nameKey(body.listing.name) },
+      });
     }
   }
   for (const body of context.bundle.groups) {
@@ -354,21 +384,19 @@ export const collectPairs = (
       refs,
       (membership: GroupMember) => membership.listing,
     )) {
-      mergePair(
-        pairs,
-        member.listing,
-        body.group.name,
-        resolved,
-        { bundleKey: nameKey(body.group.name) },
-        membershipSpec(
-          member.packagePrice,
-          member.quantity,
-          member.dayPrices,
-          body.group.isPackage ?? false,
-        ),
-        body.group.name,
-        fail,
-      );
+      mergeDeclaredPair(pairs, fail, {
+        entry: {
+          dayPrices: member.dayPrices,
+          packagePrice: member.packagePrice,
+          quantity: member.quantity,
+        },
+        group: body.group.name,
+        groupRef: { bundleKey: nameKey(body.group.name) },
+        isPackage: body.group.isPackage ?? false,
+        item: body.group.name,
+        listing: member.listing,
+        listingRef: resolved,
+      });
     }
   }
   return pairs;

@@ -24,7 +24,7 @@ export const submitRefundCase = async (
       refundCasePath(id),
       {
         choice: "provider_confirmed_returned",
-        csrf_token: await testCsrfToken(),
+        csrfToken: await testCsrfToken(),
         revision: "1",
         ...fields,
       },

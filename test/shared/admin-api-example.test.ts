@@ -44,13 +44,11 @@ describe("admin API example", () => {
   });
 
   test("the conversion drops the internal slug index", () => {
-    expect(toAdminListing(API_EXAMPLE_LISTING)).not.toHaveProperty(
-      "slug_index",
-    );
+    expect(toAdminListing(API_EXAMPLE_LISTING)).not.toHaveProperty("slugIndex");
   });
 
   test("the conversion keeps every other listing field as it was", () => {
-    const { slug_index: _, ...expected } = API_EXAMPLE_LISTING;
+    const { slugIndex: _, ...expected } = API_EXAMPLE_LISTING;
 
     expect(toAdminListing(API_EXAMPLE_LISTING)).toEqual(expected);
   });

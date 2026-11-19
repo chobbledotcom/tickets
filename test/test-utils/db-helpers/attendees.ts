@@ -5,10 +5,13 @@ import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, requireOnePrimary } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { handleRequest } from "#routes";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
@@ -70,7 +73,8 @@ export const expectNoAttendeesForListings = async (
 
 /** Book a test attendee onto the given listing(s) directly via the DB,
  *  bypassing the booking routes. Shared by unit tests that just need an
- *  attendee to hang bookings or answers off. */
+ *  attendee to hang bookings or answers off. The create's default source
+ *  applies. */
 /** One booking to make: a listing id on its own, or a listing with the units
  * and the day it is booked for. */
 export type TestBooking = {
@@ -90,7 +94,6 @@ export const bookTestAttendee = async (
     ),
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
-    source: "public",
   });
   if (!result.success) {
     throw new Error(`Failed to create attendee: ${result.reason}`);
@@ -118,7 +121,7 @@ export const createTestAttendee = async (
         name,
         phone,
         ...extraFields,
-        [`quantity_${listingId}`]: String(quantity),
+        [`quantity${listingId}`]: String(quantity),
       },
       csrfToken,
     ),
@@ -164,14 +167,14 @@ export const insertOrphanAttendee = async (
   daysAgo: number,
   tokenPrefix: string,
 ): Promise<number> => {
-  const { getDb, insert } = await import("#db/client.ts");
+  const { getDb } = await import("#db/client.ts");
   const { nowMs } = await import("#shared/now.ts");
   const created = new Date(nowMs() - daysAgo * 86_400_000).toISOString();
   const result = await getDb().execute(
-    insert("attendees", {
+    insertInto(tables.attendees, {
       created,
-      pii_blob: "",
-      ticket_token_index: `${tokenPrefix}-${crypto.randomUUID()}`,
+      piiBlob: "",
+      ticketTokenIndex: `${tokenPrefix}-${crypto.randomUUID()}`,
     }) as never,
   );
   return Number(result.lastInsertRowid);
@@ -183,8 +186,7 @@ export const attendeeExists = async (id: number): Promise<boolean> => {
   const { queryOne } = await import("#db/client.ts");
   return (
     (await queryOne<{ one: number }>(
-      "SELECT 1 AS one FROM attendees WHERE id = ?",
-      [id],
+      sql`SELECT 1 AS one FROM attendees WHERE id = ${id}`,
     )) !== null
   );
 };
@@ -226,8 +228,8 @@ export const createTestAttendeeDirect = async (
  * Build form data for the unified attendee edit form (`POST /admin/attendees/:id`).
  *
  * Emits the shared `start_date` + `day_count` (seeded from the attendee's
- * existing bookings) and one indexed editor line (`line_listing_<i>` +
- * `qty_<i>` + `line_key_<i>`) per existing booking ROW — every path the
+ * existing bookings) and one indexed editor line (`lineListing<i>` +
+ * `qty<i>` + `lineKey<i>`) per existing booking ROW — every path the
  * attendee books through — so a bare call preserves the attendee unchanged.
  * Pass `overrides.lines` to set the full line set (each
  * `{ eventId, quantity, key, packageGroupId }` — quantity 0 or an omitted row
@@ -265,7 +267,7 @@ export const existingAttendeeLines = async (
   return (await loadExistingLines(attendeeId)).map(attendeeLineInput);
 };
 
-/** The indexed editor-line fields (`line_listing_<i>` + `qty_<i>` + …) for a
+/** The indexed editor-line fields (`lineListing<i>` + `qty<i>` + …) for a
  * set of lines — the admin attendee form's wire shape. Spread into a POST
  * body: `{ name: "X", ...attendeeLineFields([{ eventId: 5, quantity: 1 }]) }`. */
 export const attendeeLineFields = (
@@ -273,12 +275,12 @@ export const attendeeLineFields = (
 ): Record<string, string> => {
   const fields: Record<string, string> = {};
   for (const [index, line] of lines.entries()) {
-    fields[`line_listing_${index}`] = String(line.eventId);
-    fields[`qty_${index}`] = String(line.quantity ?? 1);
-    fields[`line_key_${index}`] = line.key ?? "";
-    if (line.noQuantity) fields[`noqty_${index}`] = "1";
+    fields[`lineListing${index}`] = String(line.eventId);
+    fields[`qty${index}`] = String(line.quantity ?? 1);
+    fields[`lineKey${index}`] = line.key ?? "";
+    if (line.noQuantity) fields[`noqty${index}`] = "1";
     if ((line.packageGroupId ?? 0) > 0 && !line.key) {
-      fields[`line_package_${index}`] = String(line.packageGroupId);
+      fields[`linePackage${index}`] = String(line.packageGroupId);
     }
   }
   return fields;
@@ -291,12 +293,12 @@ export const buildAttendeeEditForm = async (
     email?: string;
     phone?: string;
     address?: string;
-    special_instructions?: string;
+    specialInstructions?: string;
     returnUrl?: string;
     startDate?: string;
     dayCount?: number;
     lines?: AttendeeLineInput[];
-    /** Extra fields to merge in (e.g. `question_<id>`). */
+    /** Extra fields to merge in (e.g. `question<id>`). */
     extra?: Record<string, string>;
   } = {},
 ): Promise<Record<string, string>> => {
@@ -309,14 +311,14 @@ export const buildAttendeeEditForm = async (
   const lines = overrides.lines ?? existing.map(attendeeLineInput);
   const form: Record<string, string> = {
     address: overrides.address ?? "",
-    day_count: String(overrides.dayCount ?? shared.dayCount),
+    dayCount: String(overrides.dayCount ?? shared.dayCount),
     email: overrides.email ?? "",
     name: overrides.name ?? "",
     phone: overrides.phone ?? "",
-    special_instructions: overrides.special_instructions ?? "",
-    start_date: overrides.startDate ?? shared.startDate,
+    specialInstructions: overrides.specialInstructions ?? "",
+    startDate: overrides.startDate ?? shared.startDate,
   };
-  if (overrides.returnUrl) form.return_url = overrides.returnUrl;
+  if (overrides.returnUrl) form.returnUrl = overrides.returnUrl;
   Object.assign(form, attendeeLineFields(lines));
   if (overrides.extra) Object.assign(form, overrides.extra);
   return form;
@@ -383,8 +385,7 @@ export const setPendingNotificationFlags = async (
   webhooks: number,
 ): Promise<void> => {
   await execute(
-    "UPDATE attendees SET email_pending = ?, webhooks_pending = ? WHERE id = ?",
-    [email, webhooks, attendeeId],
+    sql`UPDATE attendees SET email_pending = ${email}, webhooks_pending = ${webhooks} WHERE id = ${attendeeId}`,
   );
 };
 
@@ -418,8 +419,7 @@ export const readPendingNotificationFlags = async (
   attendeeId: number,
 ): Promise<{ email: number; webhooks: number }> =>
   requireOnePrimary(
-    "SELECT email_pending AS email, webhooks_pending AS webhooks FROM attendees WHERE id = ?",
-    [attendeeId],
+    sql`SELECT email_pending AS email, webhooks_pending AS webhooks FROM attendees WHERE id = ${attendeeId}`,
   );
 
 export const createTestAttendeeWithPhone = async (

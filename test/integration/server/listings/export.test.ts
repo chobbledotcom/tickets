@@ -3,8 +3,6 @@ import { parse } from "@std/csv";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import {
   expectCsvDownloadHeaders,
   expectIncludesAll,
@@ -14,6 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -92,7 +91,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
       // Check in the attendee's one ticket, the way the roster's toggle does.
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true", quantity: "1" },
+        { checkIn: "true", quantity: "1" },
       );
 
       const [header, ...rows] = parse(
@@ -200,21 +199,13 @@ describeWithEnv("server listings > export", { db: true }, () => {
       );
 
       // Create question, answers, and assign to listing
-      const q = await questionsTable.insert({
-        displayType: "radio",
+      const {
+        answers: [a1],
+      } = await seedQuestion({
+        answers: ["Small", "Large"],
+        listingIds: [listing.id],
         text: "Shirt Size",
       });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Small",
-      });
-      await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Large",
-      });
-      await listingQuestions.setIds(listing.id, [q.id]);
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const csv = await fetchListingExportCsv(listing.id, cookie);

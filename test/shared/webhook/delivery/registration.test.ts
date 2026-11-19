@@ -36,8 +36,8 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
 
   test("sends to all unique webhook URLs", async () => {
     const entries = [
-      makeEntry({ id: 1, webhook_url: "https://hook-a.com" }),
-      makeEntry({ id: 2, webhook_url: "https://hook-b.com" }),
+      makeEntry({ id: 1, webhookUrl: "https://hook-a.com" }),
+      makeEntry({ id: 2, webhookUrl: "https://hook-b.com" }),
     ];
 
     await sendRegistrationWebhooks(entries, "GBP", "public");
@@ -51,8 +51,8 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
 
   test("deduplicates identical webhook URLs", async () => {
     const entries = [
-      makeEntry({ id: 1, webhook_url: "https://same-hook.com" }),
-      makeEntry({ id: 2, webhook_url: "https://same-hook.com" }),
+      makeEntry({ id: 1, webhookUrl: "https://same-hook.com" }),
+      makeEntry({ id: 2, webhookUrl: "https://same-hook.com" }),
     ];
 
     await sendRegistrationWebhooks(entries, "GBP", "public");
@@ -62,8 +62,8 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
 
   test("skips entries with empty webhook URLs", async () => {
     const entries = [
-      makeEntry({ id: 1, webhook_url: "" }),
-      makeEntry({ id: 2, webhook_url: "https://hook.com" }),
+      makeEntry({ id: 1, webhookUrl: "" }),
+      makeEntry({ id: 2, webhookUrl: "https://hook.com" }),
     ];
 
     await sendRegistrationWebhooks(entries, "GBP", "public");
@@ -75,7 +75,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
 
   test("does nothing when all webhook URLs are empty", async () => {
     await sendRegistrationWebhooks(
-      [makeEntry({ webhook_url: "" })],
+      [makeEntry({ webhookUrl: "" })],
       "GBP",
       "public",
     );
@@ -88,7 +88,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     // override row for the member, its unit_price falls back to the base price.
     const entries = [
       makeEntry(
-        { id: 1, unit_price: 900, webhook_url: "https://hook.com" },
+        { id: 1, unitPrice: 900, webhookUrl: "https://hook.com" },
         { package_group_id: 5 },
       ),
     ];
@@ -100,7 +100,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
   });
 
   test("reports how the booking was made", async () => {
-    const entries = [makeEntry({ id: 1, webhook_url: "https://hook.com" })];
+    const entries = [makeEntry({ id: 1, webhookUrl: "https://hook.com" })];
 
     await sendRegistrationWebhooks(entries, "GBP", "admin");
 
@@ -109,7 +109,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
 
   test("accepts 16 distinct webhook URLs", async () => {
     const entries = Array.from({ length: 16 }, (_, index) =>
-      makeEntry({ id: index + 1, webhook_url: `https://hook-${index}.com` }),
+      makeEntry({ id: index + 1, webhookUrl: `https://hook-${index}.com` }),
     );
 
     await sendRegistrationWebhooks(entries, "GBP", "public");
@@ -119,7 +119,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
 
   test("refuses 17 distinct webhook URLs before fetching", async () => {
     const entries = Array.from({ length: 17 }, (_, index) =>
-      makeEntry({ id: index + 1, webhook_url: `https://hook-${index}.com` }),
+      makeEntry({ id: index + 1, webhookUrl: `https://hook-${index}.com` }),
     );
 
     const result = await sendRegistrationWebhooks(entries, "GBP", "public");
@@ -138,12 +138,12 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
     };
     const entries = [
       makeEntry(
-        { id: 1, webhook_url: `https://${sentinels.url}-a.com` },
+        { id: 1, webhookUrl: `https://${sentinels.url}-a.com` },
         { name: sentinels.attendee, special_instructions: sentinels.body },
       ),
       makeEntry({
         id: 2,
-        webhook_url: `https://${sentinels.url}-${sentinels.provider}.com`,
+        webhookUrl: `https://${sentinels.url}-${sentinels.provider}.com`,
       }),
     ];
     fetchSpy.reply(() => new Response("refused", { status: 503 }));
@@ -169,7 +169,7 @@ describeWithEnv("sendRegistrationWebhooks", { db: true }, () => {
       const entries = Array.from({ length: count }, (_, index) =>
         makeEntry({
           id: index + 1,
-          webhook_url: `https://failed-hook-${index}.com`,
+          webhookUrl: `https://failed-hook-${index}.com`,
         }),
       );
 
@@ -239,8 +239,8 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     const entry = (await getAllActivityLog()).find((e) =>
       e.message.startsWith("Attendee registered for"),
     );
-    expect(entry?.attendee_id).toBe(7);
-    expect(entry?.listing_id).toBe(listing.id);
+    expect(entry?.attendeeId).toBe(7);
+    expect(entry?.listingId).toBe(listing.id);
   });
 });
 
@@ -287,7 +287,7 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     const entries = Array.from({ length: 17 }, (_, index) =>
       makeEntry({
         id: index + 1,
-        webhook_url: `https://hook-${index}.com`,
+        webhookUrl: `https://hook-${index}.com`,
       }),
     );
 

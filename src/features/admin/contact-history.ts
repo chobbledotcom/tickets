@@ -29,6 +29,7 @@ import { redirect } from "#routes/response.ts";
 import { formPolicyAt } from "#routes/route-gates.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
@@ -52,12 +53,12 @@ const recordFromForm = (
   form: FormParams,
   current: ContactRecord,
 ): ContactRecord => ({
-  adminBookingCount: nonNegativeInt(form, "admin_booking_count"),
-  adminNotes: form.getString("admin_notes"),
+  adminBookingCount: nonNegativeInt(form, "adminBookingCount"),
+  adminNotes: readSubmittedMarkdown(form, "adminNotes"),
   contactCount: nonNegativeInt(form, "messages"),
   lastContact: current.lastContact,
-  lastSubject: form.getString("last_subject"),
-  publicBookingCount: nonNegativeInt(form, "public_booking_count"),
+  lastSubject: form.getString("lastSubject"),
+  publicBookingCount: nonNegativeInt(form, "publicBookingCount"),
   visits: nonNegativeInt(form, "visits"),
 });
 

@@ -1,8 +1,8 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { imagesTable } from "#db/images.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { insertImageRecord } from "#db/images.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -57,7 +57,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       await assertPublicHtml(
         "/demo/reset",
         "Reset Database",
-        "confirm_phrase",
+        "confirmPhrase",
         RESET_DATABASE_PHRASE,
         "Confirmation phrase",
         'autocomplete="off"',
@@ -78,7 +78,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     const html = await getResponse.text();
     const csrfToken = extractCsrfToken(html)!;
     return handleRequest(
-      mockFormRequest("/demo/reset", { ...fields, csrf_token: csrfToken }),
+      mockFormRequest("/demo/reset", { ...fields, csrfToken }),
     );
   }
 
@@ -86,7 +86,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     test("returns 404 when demo mode is off", async () => {
       const response = await handleRequest(
         mockFormRequest("/demo/reset", {
-          confirm_phrase: RESET_DATABASE_PHRASE,
+          confirmPhrase: RESET_DATABASE_PHRASE,
         }),
       );
       expect(response.status).toBe(404);
@@ -97,8 +97,8 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
         mockFormRequest(
           "/demo/reset",
           {
-            confirm_phrase: RESET_DATABASE_PHRASE,
-            csrf_token: await testCsrfToken(),
+            confirmPhrase: RESET_DATABASE_PHRASE,
+            csrfToken: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -110,7 +110,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       setDemoModeForTest(true);
       const response = await handleRequest(
         mockFormRequest("/demo/reset", {
-          confirm_phrase: RESET_DATABASE_PHRASE,
+          confirmPhrase: RESET_DATABASE_PHRASE,
         }),
       );
       expect(response.status).toBe(302);
@@ -125,8 +125,8 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       setDemoModeForTest(true);
       const response = await handleRequest(
         mockFormRequest("/demo/reset", {
-          confirm_phrase: RESET_DATABASE_PHRASE,
-          csrf_token: "invalid-token",
+          confirmPhrase: RESET_DATABASE_PHRASE,
+          csrfToken: "invalid-token",
         }),
       );
       expect(response.status).toBe(302);
@@ -140,7 +140,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     test("rejects wrong confirmation phrase", async () => {
       setDemoModeForTest(true);
       const response = await submitDemoResetForm({
-        confirm_phrase: "wrong phrase",
+        confirmPhrase: "wrong phrase",
       });
       // Back to the reset page itself, with the mismatch error.
       expect(response.status).toBe(302);
@@ -156,7 +156,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
 
     test("rejects empty confirmation phrase", async () => {
       setDemoModeForTest(true);
-      const response = await submitDemoResetForm({ confirm_phrase: "" });
+      const response = await submitDemoResetForm({ confirmPhrase: "" });
       expect(response.status).toBe(302);
       expectFlash(
         response,
@@ -168,7 +168,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     test("resets database and redirects to setup in demo mode", async () => {
       setDemoModeForTest(true);
       const response = await submitDemoResetForm({
-        confirm_phrase: RESET_DATABASE_PHRASE,
+        confirmPhrase: RESET_DATABASE_PHRASE,
       });
 
       expectDatabaseResetRedirect(response);
@@ -179,11 +179,11 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       setDemoModeForTest(true);
 
       const listing = await createTestListing({ maxAttendees: 10 });
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "reset-attachment.pdf",
       });
-      await imagesTable.insert({
+      await insertImageRecord({
         filename: nonEmptyString("reset-image.jpg"),
         filenameThumb: nonEmptyString("reset-image-thumb.jpg"),
         name: "Reset image",
@@ -205,7 +205,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
           });
 
           const response = await submitDemoResetForm({
-            confirm_phrase: RESET_DATABASE_PHRASE,
+            confirmPhrase: RESET_DATABASE_PHRASE,
           });
 
           expectRedirectWithFlash("/setup/", "Database reset")(response);
@@ -244,7 +244,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
     test("admin settings page uses shared reset form", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
-      expectIncludesAll(html, [RESET_DATABASE_PHRASE, "confirm_phrase"]);
+      expectIncludesAll(html, [RESET_DATABASE_PHRASE, "confirmPhrase"]);
     });
 
     test("demo reset page uses shared reset form", async () => {
@@ -253,7 +253,7 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
         "/demo/reset",
         "Reset Database",
         RESET_DATABASE_PHRASE,
-        "confirm_phrase",
+        "confirmPhrase",
       );
     });
   });

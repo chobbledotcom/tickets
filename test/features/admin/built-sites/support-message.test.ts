@@ -94,7 +94,7 @@ describeWithEnv(
         // image table from the draft too. The write itself must run while the
         // site is writable; only the follow-up GET reads as read-only.
         const { response, cookie } = await adminFormPost(tabPath(site.id), {
-          support_message: `![DraftPoster](img#${image.id}) ${"x".repeat(2100)}`,
+          supportMessage: `![DraftPoster](img#${image.id}) ${"x".repeat(2100)}`,
         });
         expectFlash(response, t("built_sites.support_message_too_long"), false);
 
@@ -127,7 +127,7 @@ describeWithEnv(
         const response = await adminGet(tabPath(site.id));
         const html = await expectHtmlResponse(response, 200, "Support message");
         assertStringIncludes(html, "<h1>Quiet hours</h1>");
-        assert(!html.includes('name="support_message"'));
+        assert(!html.includes('name="supportMessage"'));
       });
 
       test("opens the tab for a Deno-hosted site too", async () => {

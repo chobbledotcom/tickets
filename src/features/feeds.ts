@@ -92,7 +92,7 @@ type FeedData = { items: FeedItem[]; domain: string; title: string };
  * `/ticket/<group-slug>`. */
 const loadFeedData = async (): Promise<FeedData> => {
   const { listings } = await loadSortedListings(
-    (e) => isPublicListing(e) && !e.purchase_only && !isRegistrationClosed(e),
+    (e) => isPublicListing(e) && !e.purchaseOnly && !isRegistrationClosed(e),
   );
   const { nonStandaloneChildIds, soldOutParentIds } =
     await classifyForDiscovery(listings);

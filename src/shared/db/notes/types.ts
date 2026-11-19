@@ -35,19 +35,16 @@ export type SystemNoteName = {
 /** A stored note with its `note` field opened up to plain text. */
 export interface SystemNote {
   created: string;
-  entity_id: number;
-  entity_type: NoteEntity;
+  entityId: number;
+  entityType: NoteEntity;
   id: number;
   note: string;
   type: SystemNoteType;
 }
 
-/** The row as stored, its `note` still sealed. Which sealing was used follows
- *  the note's kind, so a row is a choice between the two rather than a shape
- *  where either ciphertext might turn up under either kind. */
-export type SystemNoteRow = Omit<SystemNote, "note" | "type"> & {
-  system_name: string | null;
-} & (
-    | { type: "owner"; note: OwnerKeyEncrypted }
-    | { type: "system"; note: EnvKeyEncrypted }
-  );
+/** The row as stored, its `note` still sealed. The kind of the note says
+ *  which key sealed it: the owner key for "owner", the env key for "system". */
+export type SystemNoteRow = Omit<SystemNote, "note"> & {
+  systemName: string | null;
+  note: OwnerKeyEncrypted | EnvKeyEncrypted;
+};

@@ -15,7 +15,11 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { makeRenewalTier } from "#test-utils/listing-parents/helpers.ts";
+import {
+  makeRenewalTier,
+  parentAndChild,
+} from "#test-utils/listing-parents/helpers.ts";
+import { createNamedListings } from "#test-utils/named-listings.ts";
 import { postChildren } from "#test-utils/parents.ts";
 
 type ListingConfig = Parameters<typeof createTestListing>[0];
@@ -54,38 +58,39 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
   });
 
   test("rejects giving children to a listing that is itself a child", async () => {
-    const grandparent = await createTestListing({ name: "Grandparent" });
-    const parent = await createTestListing({ name: "Parent" });
-    const child = await createTestListing({ name: "Child" });
+    const [grandparent, parent, child] = await createNamedListings(
+      "Grandparent",
+      "Parent",
+      "Child",
+    );
     await postChildren(grandparent.id, [parent.id]); // parent becomes a child
     await postChildren(parent.id, [child.id]); // blocked: parent is a child
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("rejects choosing a child that is itself a parent", async () => {
-    const parent = await createTestListing({ name: "Parent" });
-    const child = await createTestListing({ name: "Child" });
-    const grandchild = await createTestListing({ name: "Grandchild" });
+    const [parent, child, grandchild] = await createNamedListings(
+      "Parent",
+      "Child",
+      "Grandchild",
+    );
     await postChildren(child.id, [grandchild.id]); // child becomes a parent
     await postChildren(parent.id, [child.id]); // blocked: child is a parent
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
-  test("rejects a renewal-tier parent", async () => {
-    const parent = await createTestListing({ name: "Renewal" });
-    await makeRenewalTier(parent.id);
-    const child = await createTestListing({ name: "Add-on" });
-    await postChildren(parent.id, [child.id]);
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
-  });
+  // A renewal tier on either side of a standard edge makes the edge invalid,
+  // so the save must leave none behind.
+  for (const tieredSide of ["parent", "child"] as const) {
+    test(`rejects a renewal-tier ${tieredSide}`, async () => {
+      const { parent, child } = await parentAndChild();
+      await makeRenewalTier((tieredSide === "parent" ? parent : child).id);
 
-  test("rejects a renewal-tier child", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Renewal add-on" });
-    await makeRenewalTier(child.id);
-    await postChildren(parent.id, [child.id]);
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
-  });
+      await postChildren(parent.id, [child.id]);
+
+      expect(await listingChildren.getIds(parent.id)).toEqual([]);
+    });
+  }
 
   test("rejects a daily child whose fixed duration differs from the parent", async () => {
     await expectEdgeRejected(
@@ -216,7 +221,7 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
       updateTestListing(parent.id, { listingType: "standard" }),
     ).rejects.toThrow();
     const after = await getListingWithCount(parent.id);
-    expect(after?.listing_type).toBe("daily");
+    expect(after?.listingType).toBe("daily");
   });
 
   test("allows a compatible listing edit while edges exist", async () => {

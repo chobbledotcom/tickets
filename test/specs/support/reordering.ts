@@ -15,7 +15,11 @@
  */
 
 import type { OpensAtOneRow } from "#test/specs/support/browser.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type {
+  ActOnOneThing,
+  AsksAboutOneThing,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 export type Direction = "up" | "down";
@@ -83,5 +87,24 @@ export const movingRowsOn = (
       }
       await browser.submitFormAt(posts);
     },
+  };
+};
+
+/** The up arrow on one row of a list: press it, or ask if the row has it. A
+ * row at the top has no up arrow. */
+export interface UpArrow {
+  movesUp: ActOnOneThing;
+  offersMoveUp: AsksAboutOneThing;
+}
+
+/** The up arrow on each named row of the list at `listPath`. */
+export const upArrowOn = (
+  listPath: ListPath,
+  openAt: OpensAtOneRow,
+): UpArrow => {
+  const arrows = movingRowsOn(listPath, openAt);
+  return {
+    movesUp: (world, name) => arrows.move(world, name, "up"),
+    offersMoveUp: (world, name) => arrows.canMove(world, name, "up"),
   };
 };

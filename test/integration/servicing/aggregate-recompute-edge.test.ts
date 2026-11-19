@@ -11,16 +11,15 @@
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#db/client.ts";
-import {
-  getListingAggregateRecalculation,
-  listingAggregates,
-} from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
 } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  expectListingAggregateSplit,
+  recalculateListingAggregates,
+} from "#test-utils/db-helpers/listing-aggregate-recalc.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createRealAttendee,
@@ -51,13 +50,13 @@ describeWithEnv(
         listing: { maxAttendees: 10, name: "L" },
         quantity: 2,
       });
-      expect((await reloadAggregates(listing.id))?.attendee_count).toBe(2);
+      expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(2);
       // Edit qty 2 → 4: the UPDATE trigger must add +2 to booked_quantity.
       await updateServicingEvent(event.id, {
         bookings: [{ listingId: listing.id, quantity: 4 }],
         name: "Bigger Hold",
       });
-      expect((await reloadAggregates(listing.id))?.attendee_count).toBe(4);
+      expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(4);
     });
 
     test("a mixed-kind listing (servicing + real attendee) splits booked_quantity and tickets_count", async () => {
@@ -67,34 +66,20 @@ describeWithEnv(
       // kind in isolation.
       const listing = await setupListingLWithHoldAndAttendee();
       const reloaded = await reloadAggregates(listing.id);
-      expect(reloaded?.attendee_count).toBe(4); // 3 servicing + 1 real
-      expect(reloaded?.tickets_count).toBe(1); // only the real attendee
+      expect(reloaded).toMatchObject({
+        attendeeCount: 4, // 3 servicing + 1 real
+        ticketsCount: 1, // only the real attendee
+      });
     });
 
     test("recomputing aggregates on a mixed-kind listing preserves the split", async () => {
       const listing = await setupListingLWithHoldAndAttendee();
-      // Reset to zero then recompute from the live rows.
-      await listingAggregates.reset(listing.id, [
-        "booked_quantity",
-        "tickets_count",
-      ]);
-      const recalc = await getListingAggregateRecalculation(
-        (await reloadAggregates(listing.id))!,
+      // 3 servicing + 1 real book 4 places, and only the real attendee is a
+      // ticket, so the recompute and the triggers must keep that split.
+      expectListingAggregateSplit(
+        await recalculateListingAggregates(listing.id),
+        { bookedQuantity: 4, ticketsCount: 1 },
       );
-      expect(recalc.booked_quantity.recalculated).toBe(4);
-      expect(recalc.tickets_count.recalculated).toBe(1);
-      // Apply and confirm the trigger-maintained shape.
-      await getDb().execute({
-        args: [
-          recalc.booked_quantity.recalculated,
-          recalc.tickets_count.recalculated,
-          listing.id,
-        ],
-        sql: "UPDATE listings SET booked_quantity = ?, tickets_count = ? WHERE id = ?",
-      });
-      const after = await reloadAggregates(listing.id);
-      expect(after?.attendee_count).toBe(4);
-      expect(after?.tickets_count).toBe(1);
     });
 
     test("editing a servicing hold's quantity to 0 (if allowed) drops booked_quantity by the original", async () => {
@@ -105,7 +90,7 @@ describeWithEnv(
         listing: { maxAttendees: 10, name: "L" },
         quantity: 4,
       });
-      expect((await reloadAggregates(listing.id))?.attendee_count).toBe(4);
+      expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(4);
       // Attempt the edit; either it rejects (qty=0 not allowed) or it succeeds
       // and booked_quantity drops to 0. Either way, booked_quantity must not
       // stay at 4.
@@ -116,10 +101,10 @@ describeWithEnv(
         });
       } catch {
         // Rejected — the original quantity still holds.
-        expect((await reloadAggregates(listing.id))?.attendee_count).toBe(4);
+        expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(4);
         return;
       }
-      expect((await reloadAggregates(listing.id))?.attendee_count).toBe(0);
+      expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(0);
     });
   },
 );

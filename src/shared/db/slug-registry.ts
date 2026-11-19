@@ -10,16 +10,33 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
-  inPlaceholders,
   queryBatch,
   resultRows,
   rowExists,
-  type SqlStatement,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
-import type { SluggedContentInput } from "#db/slugged-content-input.ts";
-import { type Table, writeTableRow } from "#db/table.ts";
+
+import {
+  existsOn,
+  type NewRecord,
+  type RecordChanges,
+  recordsOf,
+} from "#db/record-table.ts";
+import { equal, named, wholeCondition } from "#db/select/expression.ts";
+import type { DecodedRowOf, TableHandle } from "#db/select/tables.ts";
+import {
+  contentValues,
+  type SluggedContentInput,
+} from "#db/slugged-content-input.ts";
+import {
+  type RowsStatement,
+  type SqlStatement,
+  sql,
+  sqlJoin,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePageItemType } from "#types";
 
@@ -39,6 +56,9 @@ const SLUG_TABLE_BY_TYPE: Record<SitePageItemType, SlugTable> = {
 const SLUG_TABLES: readonly SlugTable[] = Object.values(SLUG_TABLE_BY_TYPE);
 
 type SlugOwnerTable = SlugTable | "news_posts";
+
+/** The one row that keeps its own slug: the entity being edited. */
+type SlugExclusion = { table: SlugTable; id: number };
 type SlugOwner = { table: SlugOwnerTable; excludeId?: number };
 
 /** SQL condition that is true only while no listed row owns `slugIndex`.
@@ -47,24 +67,23 @@ type SlugOwner = { table: SlugOwnerTable; excludeId?: number };
 export const unclaimedSlugCondition = (
   slugIndex: string,
   owners: readonly SlugOwner[],
-): SqlStatement => ({
-  args: owners.flatMap((owner) =>
-    owner.excludeId === undefined ? [slugIndex] : [slugIndex, owner.excludeId],
-  ),
-  sql: owners
-    .map(
+): SqlStatement =>
+  sqlJoin(
+    owners.map(
       (owner) =>
-        `NOT EXISTS (SELECT 1 FROM ${owner.table} WHERE slug_index = ?${
-          owner.excludeId === undefined ? "" : " AND id != ?"
+        sql`NOT EXISTS (SELECT 1 FROM ${sqlName(owner.table)} WHERE slug_index = ${slugIndex}${
+          owner.excludeId === undefined
+            ? sql``
+            : sql` AND id != ${owner.excludeId}`
         })`,
-    )
-    .join(" AND "),
-});
+    ),
+    sql` AND `,
+  );
 
 /** Atomic availability condition for the shared listing/group/page namespace. */
 export const unclaimedSiteSlugCondition = (
   slugIndex: string,
-  exclude?: { table: SlugTable; id: number },
+  exclude?: SlugExclusion,
 ): SqlStatement =>
   unclaimedSlugCondition(
     slugIndex,
@@ -81,80 +100,117 @@ export type UnclaimedSlugCondition = (
   id: number | undefined,
 ) => SqlStatement;
 
-/** Extra create fields that can never re-point the slug or its blind index. */
-type FieldsExtra<Input> = Partial<Omit<Input, "slug" | "slugIndex">>;
+/** The content tables whose rows own a slug and its blind index. */
+export type SluggedTable = "news_posts" | "site_pages";
+
+/** The read of the whole row whose slug has this blind index, or null when no
+ *  row has it. */
+export const rowBySlugIndex =
+  <Name extends SluggedTable>(table: TableHandle<Name>) =>
+  (slugIndex: BlindIndex): Promise<DecodedRowOf<Name> | null> =>
+    recordsOf(table).findWhere(() =>
+      equal(named<string>(`${table.singular}.slug_index`), slugIndex),
+    );
+
+/** The values of a slugged write: never the blind index, which the write
+ *  computes from the slug. */
+type WithoutIndex<Values> = Omit<Values, "slugIndex">;
 
 /** The write surface {@link freshSlugIndexWrites} hands back for one table.
  * The blind index is always computed inside, never passed in, so `slug` and
- * `slug_index` move together — the extra fields a create may add can never
- * move either one. */
-type SluggedContentWrites<Row, Input extends SluggedContentInput> = {
+ * `slug_index` move together. */
+type SluggedContentWrites<
+  Name extends SluggedTable,
+  Input extends Required<SluggedContentInput>,
+> = {
   create: (
-    input: Omit<Input, "slugIndex">,
-    extra: (tx: TxScope) => Promise<FieldsExtra<Input>>,
+    input: Input,
+    writtenColumns: (tx: TxScope) => Promise<WithoutIndex<RecordChanges<Name>>>,
     transaction?: TxScope,
-  ) => Promise<Result<Row, "slugTaken">>;
+  ) => Promise<Result<DecodedRowOf<Name>, "slugTaken">>;
   update: (
     id: number,
-    input: Omit<Input, "slugIndex">,
+    input: Input,
     transaction?: TxScope,
-  ) => Promise<Result<Row, "notFound" | "slugTaken">>;
+  ) => Promise<Result<DecodedRowOf<Name>, "notFound" | "slugTaken">>;
 };
 
 /** Conditional writes for a slugged content table. The blind index is always
- * computed here from the body's slug (never caller-supplied), so `slug` and
+ * computed here from the slug (never caller-supplied), so `slug` and
  * `slug_index` move together, and every write carries the unclaimed-slug
  * condition, so a create or a rename stays unique in the namespace that
- * condition checks. */
-export const freshSlugIndexWrites = <Row, Input extends SluggedContentInput>(
-  table: Table<Row, Input>,
+ * condition checks. An update writes the shared content fields of its input,
+ * and the columns of the table's own fields that `ownColumns` gives. A create
+ * also writes the columns that `writtenColumns` gives inside its transaction. */
+export const freshSlugIndexWrites = <
+  Name extends SluggedTable,
+  Input extends Required<SluggedContentInput>,
+>(
+  table: TableHandle<Name>,
   unclaimed: UnclaimedSlugCondition,
-): SluggedContentWrites<Row, Input> => {
-  const write = async (
-    tx: TxScope,
-    rowAt: number | undefined,
-    input: Omit<Input, "slugIndex">,
-    extra: FieldsExtra<Input>,
-  ): Promise<Row | null> => {
-    const slugIndex = await hmacHash(input.slug);
-    // The spread rebuilds the table input minus the computed index.
-    const fields = { ...input, ...extra, slugIndex } as Input;
-    return rowAt === undefined
-      ? writeTableRow(tx, table, {
-          condition: unclaimed(slugIndex, undefined),
-          input: fields,
-          kind: "insert",
-        })
-      : writeTableRow(tx, table, {
-          condition: unclaimed(slugIndex, rowAt),
-          id: rowAt,
-          input: fields,
-          kind: "update",
-        });
-  };
+  ownColumns: (input: Input) => WithoutIndex<RecordChanges<Name>>,
+): SluggedContentWrites<Name, Input> => {
+  /** Run one write of `input` with its fresh blind index, and answer from the
+   *  row that the write gives back, if any. */
+  const slugWrite = <Answer>(
+    input: Input,
+    transaction: TxScope | undefined,
+    write: (
+      tx: TxScope,
+      values: WithoutIndex<RecordChanges<Name>>,
+      slugIndex: BlindIndex,
+    ) => Promise<RowsStatement<DecodedRowOf<Name>>>,
+    answer: (
+      row: DecodedRowOf<Name> | undefined,
+      tx: TxScope,
+    ) => Promise<Answer> | Answer,
+  ): Promise<Answer> =>
+    useTransaction(transaction, async (tx) => {
+      const slugIndex = await hmacHash(input.slug);
+      const values = { ...contentValues(input), ...ownColumns(input) };
+      const [row] = resultRows(
+        await tx.execute(await write(tx, values, slugIndex)),
+      );
+      return answer(row, tx);
+    });
   return {
-    // The writes stay inferred from SluggedContentWrites, the declared
-    // contract at the factory's return type.
-    create: (input, extra, transaction) =>
-      useTransaction(transaction, async (tx) => {
-        const created = await write(tx, undefined, input, await extra(tx));
-        return created === null ? errorResult("slugTaken") : okResult(created);
-      }),
+    create: (input, writtenColumns, transaction) =>
+      slugWrite(
+        input,
+        transaction,
+        async (tx, values, slugIndex) =>
+          recordsOf(table).insertStatement(
+            // The values name every column but the index, which is added here.
+            {
+              ...values,
+              ...(await writtenColumns(tx)),
+              slugIndex,
+            } as NewRecord<Name>,
+            { when: wholeCondition(unclaimed(slugIndex, undefined)) },
+          ),
+        (row) => (row === undefined ? errorResult("slugTaken") : okResult(row)),
+      ),
     update: (id, input, transaction) =>
-      useTransaction(transaction, async (tx) => {
-        const updated = await write(tx, id, input, {});
-        if (updated) return okResult(updated);
-        // The failed UPDATE cannot tell a missing row from a slug conflict,
-        // so only this rejection path performs the narrow id probe.
-        const exists =
-          resultRows(
-            await tx.execute({
-              args: [id],
-              sql: `SELECT ${table.primaryKey} FROM ${table.name} WHERE ${table.primaryKey} = ?`,
-            }),
-          ).length > 0;
-        return errorResult(exists ? "slugTaken" : "notFound");
-      }),
+      slugWrite(
+        input,
+        transaction,
+        (_tx, values, slugIndex) =>
+          recordsOf(table).updateStatement(
+            id,
+            { ...values, slugIndex } as RecordChanges<Name>,
+            () => wholeCondition(unclaimed(slugIndex, id)),
+          ),
+        // The failed update cannot tell a missing row from a slug conflict,
+        // so only this rejection path reads the row.
+        async (row, tx) =>
+          row
+            ? okResult(row)
+            : errorResult(
+                (await existsOn(tx, recordsOf(table).byId(id)))
+                  ? "slugTaken"
+                  : "notFound",
+              ),
+      ),
   };
 };
 
@@ -164,11 +220,11 @@ export const freshSlugIndexWrites = <Row, Input extends SluggedContentInput>(
  */
 export const isSlugTakenAnywhere = async (
   slug: string,
-  exclude?: { table: SlugTable; id: number },
+  exclude?: SlugExclusion,
 ): Promise<boolean> => {
   const slugIndex = await hmacHash(slug);
   const available = unclaimedSiteSlugCondition(slugIndex, exclude);
-  return !(await rowExists(`SELECT 1 WHERE ${available.sql}`, available.args));
+  return !(await rowExists(sql`SELECT 1 WHERE ${available}`));
 };
 
 /** Which of these blind indexes does any slug-owning table already hold? One
@@ -181,10 +237,10 @@ export const takenSlugIndexes = async (
 ): Promise<Set<string>> => {
   if (slugIndexes.length === 0) return new Set();
   const results = await queryBatch(
-    SLUG_TABLES.map((table) => ({
-      args: [...slugIndexes],
-      sql: `SELECT slug_index FROM ${table} WHERE slug_index IN (${inPlaceholders(slugIndexes)})`,
-    })),
+    SLUG_TABLES.map(
+      (table) =>
+        sql`SELECT slug_index FROM ${sqlName(table)} WHERE slug_index IN (${sqlList(slugIndexes)})`,
+    ),
   );
   return new Set(
     results.flatMap((result) =>

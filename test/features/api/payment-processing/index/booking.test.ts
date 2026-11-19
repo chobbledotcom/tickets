@@ -10,16 +10,17 @@ import {
   stageCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
 import { execute, queryOne } from "#db/client.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
@@ -85,7 +86,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       // The redelivery finds the booking already exists: it answers 200 and
       // runs nothing again — no second booking, no second email.
       expect(await processPaymentSession(id, data)).toEqual(first);
-      expect((await getProcessedPayment(id))?.attendee_id).toBe(
+      expect((await getProcessedPayment(id))?.attendeeId).toBe(
         first.attendee.id,
       );
     });
@@ -126,8 +127,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     // A Square link dies with its first payment, so its end row is gone.
     expect(
       await queryOne(
-        "SELECT session_index FROM square_link_ends WHERE session_index = ?",
-        [await hmacHash(id)],
+        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await hmacHash(id)}`,
       ),
     ).toBeNull();
   });
@@ -157,16 +157,14 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
   test("creates and answers a paid booking in three database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
-    const question = await questionsTable.insert({
+    const {
+      answers: [answer],
+    } = await seedQuestion({
+      answers: ["Soup"],
       displayType: "select",
+      listingIds: [listing.id],
       text: "Meal?",
     });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
-      text: "Soup",
-    });
-    await listingQuestions.setIds(listing.id, [question.id]);
     data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
     await expectBookedInThreeCalls(id, data);
   });
@@ -201,7 +199,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     );
 
     expect(await getAttendeesRaw(listing.id)).toHaveLength(0);
-    expect(await queryOne("SELECT 1 FROM answers_at_booking LIMIT 1")).toBe(
+    expect(await queryOne(sql`SELECT 1 FROM answers_at_booking LIMIT 1`)).toBe(
       null,
     );
     expect(
@@ -217,8 +215,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     // The reservation was released, so the redelivery starts fresh.
     expect(
       await queryOne(
-        "SELECT 1 FROM processed_payments WHERE payment_session_id = ?",
-        [id],
+        sql`SELECT 1 FROM processed_payments WHERE payment_session_id = ${id}`,
       ),
     ).toBeNull();
   });
@@ -261,7 +258,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       setSuppressDebugLogs(null);
     }
 
-    expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(id))?.attendeeId).toBe(attendeeId);
     expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
     expect(
       debug.calls.some((call) =>
@@ -276,10 +273,8 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     const id = "cs_direct_orphan";
     const { attendeeId, data, listing } =
       await ledgeredPaymentWithoutReservation(id, 700);
-    await execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
-      attendeeId,
-    ]);
-    await execute("DELETE FROM attendees WHERE id = ?", [attendeeId]);
+    await dropAttendeeBookings(attendeeId);
+    await execute(sql`DELETE FROM attendees WHERE id = ${attendeeId}`);
 
     expect(await processPaymentSession(id, data)).toEqual({
       detail: `Ledger already records session ${id} with no live booking (listing ${listing.id})`,
@@ -294,7 +289,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     await setupStripe();
     const id = "cs_direct_deleted_listing";
     const { data, listing } = await singleListingPayment(id, 900);
-    await execute("DELETE FROM listings WHERE id = ?", [listing.id]);
+    await execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
     using refund = stubRefundPayment("re_deleted", 900);
 
     const result = await processPaymentSession(id, data);
@@ -311,8 +306,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ]);
     expect(
       await queryOne<{ listing_id: number; quantity: number }>(
-        "SELECT listing_id, quantity FROM listing_attendees WHERE listing_id = ?",
-        [listing.id],
+        sql`SELECT listing_id, quantity FROM listing_attendees WHERE listing_id = ${listing.id}`,
       ),
     ).toEqual({ listing_id: listing.id, quantity: 0 });
     await expectSessionFailed(id);

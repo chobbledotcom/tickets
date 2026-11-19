@@ -119,8 +119,8 @@ export const getAuthenticatedSession = async (
   const result: AuthSession = {
     adminLevel,
     token,
-    userId: session.user_id,
-    wrappedDataKey: session.wrapped_data_key,
+    userId: session.userId,
+    wrappedDataKey: session.wrappedDataKey,
   };
 
   if (adminLevel === "owner") {
@@ -174,13 +174,13 @@ export const getAuthenticatedApiKey = async (
   }
 
   const user = await loadAuthUserFields(
-    apiKeyRow.user_id,
+    apiKeyRow.userId,
     "API key references non-existent user",
   );
   if (!user) return null;
 
   try {
-    await unwrapKeyWithToken(apiKeyRow.wrapped_data_key, token);
+    await unwrapKeyWithToken(apiKeyRow.wrappedDataKey, token);
   } catch {
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
@@ -190,7 +190,7 @@ export const getAuthenticatedApiKey = async (
   }
 
   // getPrivateKey() expects token + wrappedDataKey in the session's format.
-  const wrappedDataKey = apiKeyRow.wrapped_data_key;
+  const wrappedDataKey = apiKeyRow.wrappedDataKey;
 
   const adminLevel = await decryptAdminLevel(user);
 
@@ -204,7 +204,7 @@ export const getAuthenticatedApiKey = async (
   const result: AuthSession = {
     adminLevel,
     token,
-    userId: apiKeyRow.user_id,
+    userId: apiKeyRow.userId,
     wrappedDataKey,
   };
   setCachedSession(result);
@@ -305,26 +305,6 @@ export const OWNER_MULTIPART: AuthPolicy<"multipart"> = {
 export const ADMIN_API: AuthPolicy<"json"> = {
   allowApiKey: true,
   body: "json",
-};
-/**
- * Content-admin JSON API: the audience the groups and listings pages declare,
- * so an editor does through the API what the dashboard allows, and no more.
- */
-export const CONTENT_API: AuthPolicy<"json"> = {
-  allowApiKey: true,
-  body: "json",
-  roles: CONTENT_ADMIN_LEVELS,
-};
-/**
- * Owner-only JSON API: like ADMIN_API but restricted to the owner role, for
- * resources whose web management is owner-only (e.g. holidays). Keeps the JSON
- * API authorization aligned with the UI so a manager cannot perform via the API
- * what the dashboard denies them.
- */
-export const OWNER_API: AuthPolicy<"json"> = {
-  allowApiKey: true,
-  body: "json",
-  role: "owner",
 };
 /**
  * Scanner check-in API: cookie-authenticated JSON with a CSRF max-age matching
@@ -619,12 +599,12 @@ const parseCsrfBody = async (
     // Capture the submission so a later validation-failure redirect can stash
     // it for re-filling, mirroring requireCsrfForm for public forms.
     setSavedFormData(form);
-    const err = await verifyCsrf(form.getString("csrf_token"), channel, maxAge);
+    const err = await verifyCsrf(form.getString("csrfToken"), channel, maxAge);
     return err ?? form;
   }
   const fd = await request.formData();
   const err = await verifyCsrf(
-    String(fd.get("csrf_token") ?? "").trim(),
+    String(fd.get("csrfToken") ?? "").trim(),
     channel,
     maxAge,
   );

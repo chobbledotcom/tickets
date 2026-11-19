@@ -5,10 +5,10 @@ import {
   anyModifierSoldOut,
   modifierUsedQuantities,
 } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 
 describeWithEnv("db > modifier-usage", { db: true }, () => {
   test("modifierUsedQuantities returns an empty map for no ids", async () => {
@@ -20,17 +20,13 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
   });
 
   test("distinguishes sold-out stock from available stock", async () => {
-    const soldOut = await modifiersTable.insert({
-      calcKind: "fixed",
+    const soldOut = await insertModifier({
       calcValue: 1,
-      direction: "charge",
       name: "Sold out",
       stock: 0,
     });
-    const available = await modifiersTable.insert({
-      calcKind: "fixed",
+    const available = await insertModifier({
       calcValue: 1,
-      direction: "charge",
       name: "Available",
       stock: 2,
     });
@@ -50,19 +46,14 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
 
 describe("allModifiersInStockCondition", () => {
   test("an empty list is always in stock without bound values", () => {
-    expect(numberedStatement(allModifiersInStockCondition([]))).toEqual({
-      args: [],
-      sql: "1 = 1",
-    });
+    expect(allModifiersInStockCondition([])).toEqual(sql`1 = 1`);
   });
 
   test("binds each modifier id once across its complete stock check", () => {
-    const statement = numberedStatement(
-      allModifiersInStockCondition([
-        { amountApplied: 100, modifierId: 7, quantity: 2 },
-        { amountApplied: 50, modifierId: 11, quantity: 3 },
-      ]),
-    );
+    const statement = allModifiersInStockCondition([
+      { amountApplied: 100, modifierId: 7, quantity: 2 },
+      { amountApplied: 50, modifierId: 11, quantity: 3 },
+    ]);
 
     expect(statement.args).toEqual([7, 2, 11, 3]);
     expect(statement.sql.match(/\?1/gu)).toHaveLength(3);

@@ -23,6 +23,7 @@ import {
   adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
+import type { Group } from "#types";
 
 describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
   beforeEach(() => {
@@ -105,9 +106,10 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         mockFormRequest(
           "/admin/groups",
           {
-            csrf_token: csrfToken,
+            csrfToken,
+            maxAttendees: "0",
             name: "Manager Group",
-            terms_and_conditions: "",
+            termsAndConditions: "",
           },
           cookie,
         ),
@@ -119,53 +121,106 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
       expectFlash(response, "Group created");
     });
 
-    test("creates group with auto-generated slug", async () => {
-      const group = await createTestGroup({
-        name: "New Group",
-        termsAndConditions: "Group terms",
-      });
-      expect(group.name).toBe("New Group");
-      expect(group.slug).toBeTruthy();
-      expect(group.slug.length).toBe(5);
-      expect(group.terms_and_conditions).toBe("Group terms");
-    });
+    /** Group creates that differ only in their overrides and stored fields. */
+    const createCases: {
+      title: string;
+      input: Parameters<typeof createTestGroup>[0];
+      stored: Partial<Group>;
+      slugLength?: number;
+    }[] = [
+      {
+        input: { name: "New Group", termsAndConditions: "Group terms" },
+        // A generated slug is five random characters.
+        slugLength: 5,
+        stored: { name: "New Group", termsAndConditions: "Group terms" },
+        title: "creates group with auto-generated slug",
+      },
+      {
+        input: {
+          description: "A fun group of listings",
+          name: "Described Group",
+        },
+        stored: {
+          description: "A fun group of listings",
+          name: "Described Group",
+        },
+        title: "creates group with description",
+      },
+      {
+        input: { name: "No Desc Group" },
+        stored: { description: "", name: "No Desc Group" },
+        title: "creates group without description defaults to empty string",
+      },
+      {
+        input: { hidden: true, name: "Hidden Group" },
+        stored: { hidden: true, name: "Hidden Group" },
+        title: "creates group with hidden flag",
+      },
+      {
+        input: { name: "Visible Group" },
+        stored: { hidden: false, name: "Visible Group" },
+        title: "creates group without hidden flag by default",
+      },
+      {
+        input: {
+          name: "New Group",
+          slug: "custom-slug",
+          termsAndConditions: "Group terms",
+        },
+        stored: {
+          name: "New Group",
+          slug: "custom-slug",
+          termsAndConditions: "Group terms",
+        },
+        title: "creates group and allows slug to be set via edit",
+      },
+    ];
 
-    test("creates group with description", async () => {
-      const group = await createTestGroup({
-        description: "A fun group of listings",
-        name: "Described Group",
+    for (const { title, input, stored, slugLength } of createCases) {
+      test(title, async () => {
+        const group = await createTestGroup(input);
+        expect(group).toMatchObject(stored);
+        if (slugLength !== undefined) {
+          expect(group.slug.length).toBe(slugLength);
+        }
       });
-      expect(group.name).toBe("Described Group");
-      expect(group.description).toBe("A fun group of listings");
-    });
+    }
 
     const NAME_IN_USE = "Name is already in use by another listing or group";
 
-    test("rejects a group whose name is used by a listing", async () => {
-      await createTestListing({ name: "Clash Name" });
-      const { response } = await adminFormPost("/admin/groups", {
-        name: "Clash Name",
-        terms_and_conditions: "",
-      });
-      await expectFlashRedirect(
-        "/admin/groups/new",
-        NAME_IN_USE,
-        false,
-      )(response);
-    });
+    /** Each refusal: the row that already holds the name, and the name. */
+    const nameClashCases: readonly [
+      title: string,
+      seed: () => Promise<unknown>,
+      name: string,
+    ][] = [
+      [
+        "rejects a group whose name is used by a listing",
+        () => createTestListing({ name: "Clash Name" }),
+        "Clash Name",
+      ],
+      [
+        "rejects a group whose name is used by another group",
+        () => createTestGroup({ name: "Twin Group" }),
+        "Twin Group",
+      ],
+    ];
 
-    test("rejects a group whose name is used by another group", async () => {
-      await createTestGroup({ name: "Twin Group" });
-      const { response } = await adminFormPost("/admin/groups", {
-        name: "Twin Group",
-        terms_and_conditions: "",
+    for (const [title, seed, name] of nameClashCases) {
+      test(title, async () => {
+        await seed();
+        const { response } = await adminFormPost("/admin/groups", {
+          maxAttendees: "0",
+          name,
+          termsAndConditions: "",
+        });
+        await expectFlashRedirect(
+          "/admin/groups/new",
+          NAME_IN_USE,
+          false,
+        )(response);
       });
-      await expectFlashRedirect(
-        "/admin/groups/new",
-        NAME_IN_USE,
-        false,
-      )(response);
-    });
+    }
 
     test("lets a group keep its own name on edit", async () => {
       const group = await createTestGroup({ name: "Renamer" });
@@ -176,38 +231,6 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         slug: group.slug,
       });
       expect(updated.name).toBe("Renamer");
-    });
-
-    test("creates group without description defaults to empty string", async () => {
-      const group = await createTestGroup({ name: "No Desc Group" });
-      expect(group.description).toBe("");
-    });
-
-    test("creates group with hidden flag", async () => {
-      const group = await createTestGroup({
-        hidden: true,
-        name: "Hidden Group",
-      });
-      expect(group.name).toBe("Hidden Group");
-      expect(group.hidden).toBe(true);
-    });
-
-    test("creates group without hidden flag by default", async () => {
-      const group = await createTestGroup({
-        name: "Visible Group",
-      });
-      expect(group.hidden).toBe(false);
-    });
-
-    test("creates group and allows slug to be set via edit", async () => {
-      const group = await createTestGroup({
-        name: "New Group",
-        slug: "custom-slug",
-        termsAndConditions: "Group terms",
-      });
-      expect(group.name).toBe("New Group");
-      expect(group.slug).toBe("custom-slug");
-      expect(group.terms_and_conditions).toBe("Group terms");
     });
   });
 });

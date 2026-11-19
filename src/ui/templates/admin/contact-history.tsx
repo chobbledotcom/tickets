@@ -76,12 +76,12 @@ export const ContactHistoryForm = ({
     />
     <CountField
       label={t("contact_history.public_bookings_label")}
-      name="public_booking_count"
+      name="publicBookingCount"
       value={record.publicBookingCount}
     />
     <CountField
       label={t("contact_history.admin_bookings_label")}
-      name="admin_booking_count"
+      name="adminBookingCount"
       value={record.adminBookingCount}
     />
     <CountField
@@ -92,7 +92,7 @@ export const ContactHistoryForm = ({
 
     <label>
       {t("contact_history.last_subject_label")}
-      <input name="last_subject" type="text" value={record.lastSubject} />
+      <input name="lastSubject" type="text" value={record.lastSubject} />
     </label>
 
     <Raw
@@ -102,7 +102,7 @@ export const ContactHistoryForm = ({
           label: t("contact_history.notes_label"),
           markdown: true,
           maxlength: MAX_TEXTAREA_LENGTH,
-          name: "admin_notes",
+          name: "adminNotes",
           type: "textarea",
         },
         record.adminNotes,

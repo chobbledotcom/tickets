@@ -21,7 +21,7 @@ export const adminAttendeeDeletePage = attendeeRouteConfirm("delete", {
       <CheckboxLabel
         checked
         label={` ${t("admin.attendees.release_bookings")}`}
-        name="release_bookings"
+        name="releaseBookings"
         value="1"
       />
       <p>

@@ -1,5 +1,7 @@
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
+import { tables } from "#db/select/tables.ts";
+import { insertInto } from "#db/write.ts";
 import { armRefundSend } from "#payment/refund-authority.ts";
 import { markRefundOwnerChoiceNeeded } from "#payment/refund-authority-choice.ts";
 import {
@@ -42,23 +44,23 @@ export const addProviderRefundTestCase = async (
   const stored = await storePaymentReference(paymentReference);
   const stamp = 1_700_000_000_000;
   const result = await getDb().execute(
-    insert("payment_charges", {
-      callback_replay_index: null,
+    insertInto(tables.payment_charges, {
+      callbackReplayIndex: null,
       capability: state.request.capability,
-      captured_amount: 2_500,
-      created_at: stamp,
+      capturedAmount: 2_500,
+      createdAt: stamp,
       currency: "GBP",
-      next_refund_action_at: refundNextActionAt(state),
-      observed_at: stamp,
+      nextRefundActionAt: refundNextActionAt(state),
+      observedAt: stamp,
       provider,
-      provider_reference: stored.encrypted,
-      reference_index: stored.index,
-      refund_local_state: refundLocalMirror(state),
-      refund_revision: 1,
-      refund_state: writeRefundAuthorityState(state),
-      refund_state_name: refundStateMirror(state),
-      refunded_amount: refundedAmount,
-      updated_at: stamp,
+      providerReference: stored.encrypted,
+      referenceIndex: stored.index,
+      refundedAmount,
+      refundLocalState: refundLocalMirror(state),
+      refundRevision: 1,
+      refundState: writeRefundAuthorityState(state),
+      refundStateName: refundStateMirror(state),
+      updatedAt: stamp,
     }),
   );
   return Number(result.lastInsertRowid);

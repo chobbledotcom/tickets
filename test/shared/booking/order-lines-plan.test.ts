@@ -9,12 +9,12 @@ describe("buildOrderLines: plan and renewal unit terms", () => {
     const tree = buildBookingTree({
       listings: [
         resolved({
-          assign_built_site: true,
+          assignBuiltSite: true,
           id: 4,
-          initial_site_months: 3,
+          initialSiteMonths: 3,
           name: "Site Plan",
           slug: "plan3",
-          unit_price: 4500,
+          unitPrice: 4500,
         }),
       ],
       slugs: ["plan3"],
@@ -47,11 +47,11 @@ describe("buildOrderLines: plan and renewal unit terms", () => {
         resolved({
           hidden: true,
           id: 5,
-          months_per_unit: 2,
+          monthsPerUnit: 2,
           name: "Monthly",
-          purchase_only: true,
+          purchaseOnly: true,
           slug: "monthl",
-          unit_price: 700,
+          unitPrice: 700,
         }),
       ],
       slugs: ["monthl"],

@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -51,13 +52,13 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
    * extra body fields. Returns that second response and the listing. */
   const checkInThenPost = async (body: Record<string, string> = {}) => {
     const { listing, attendee, cookie, csrfToken } = await checkinAction({
-      check_in: "true",
+      checkIn: "true",
       quantity: "1",
     })();
     const response = await handleRequest(
       mockFormRequest(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "false", csrf_token: csrfToken, quantity: "1", ...body },
+        { checkIn: "false", csrfToken, quantity: "1", ...body },
         cookie,
       ),
     );
@@ -75,7 +76,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
     test("rejects invalid CSRF token", async () => {
       const { response } = await checkinAction({
-        csrf_token: "invalid-token",
+        csrfToken: "invalid-token",
       })();
       expect(response.status).toBe(403);
     });
@@ -98,7 +99,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
     test("checks in an attendee and redirects to the roster with a flash", async () => {
       const { response, listing } = await checkinAction({
-        check_in: "true",
+        checkIn: "true",
         quantity: "1",
       })();
       expectRedirect(response, `/admin/listing/${listing.id}/attendees`);
@@ -121,15 +122,15 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${other.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true", quantity: "1" },
+        { checkIn: "true", quantity: "1" },
       );
       expectRedirect(response, `/admin/listing/${other.id}/attendees`);
       expectFlash(response, expect.stringContaining("Checked Bruno in"));
     });
 
-    test("redirects to the in-filtered roster when return_filter is set", async () => {
+    test("redirects to the in-filtered roster when returnFilter is set", async () => {
       const { response, listing } = await checkinAction({
-        return_filter: "in",
+        returnFilter: "in",
       })();
       expectRedirect(
         response,
@@ -137,10 +138,10 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       );
     });
 
-    test("redirects to the out-filtered roster when return_filter is out", async () => {
-      // Check in first, then check out with return_filter=out
+    test("redirects to the out-filtered roster when returnFilter is out", async () => {
+      // Check in first, then check out with returnFilter=out
       const { response, listing } = await checkInThenPost({
-        return_filter: "out",
+        returnFilter: "out",
       });
       expectRedirect(
         response,
@@ -148,9 +149,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       );
     });
 
-    test("redirects to the unfiltered roster when return_filter is all", async () => {
+    test("redirects to the unfiltered roster when returnFilter is all", async () => {
       const { response, listing } = await checkinAction({
-        return_filter: "all",
+        returnFilter: "all",
       })();
       const location = expectRedirect(
         response,
@@ -159,11 +160,11 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       assert(!location.includes("filter="));
     });
 
-    test("redirects to return_url when provided", async () => {
+    test("redirects to returnUrl when provided", async () => {
       const { response } = await checkinAction({
-        check_in: "true",
+        checkIn: "true",
         quantity: "1",
-        return_url: "/admin/calendar?date=2026-03-15#attendees",
+        returnUrl: "/admin/calendar?date=2026-03-15#attendees",
       })();
       expectRedirect(
         response,
@@ -190,7 +191,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
     test("roster shows Check out button for checked-in attendee", async () => {
       // Check in first, then view the roster tab
       const { listing } = await checkinAction({
-        check_in: "true",
+        checkIn: "true",
         quantity: "1",
       })();
 
@@ -226,7 +227,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         html,
         `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
-      assert(!html.includes('name="check_in"'));
+      assert(!html.includes('name="checkIn"'));
     });
 
     test("a date's line of a two-date booking opens the quantity page", async () => {
@@ -255,7 +256,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         html,
         `href="/admin/listing/${listing.id}/attendee/${made.attendees[0]!.id}/checkin`,
       );
-      assert(!html.includes('name="check_in"'));
+      assert(!html.includes('name="checkIn"'));
     });
 
     test("a checked-in line beside a hidden part line opens the quantity page", async () => {
@@ -273,12 +274,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         "Hal Half",
         "hal-half@example.com",
       );
-      await getDb().execute({
-        args: [attendee.id, listing.id],
-        sql: `UPDATE listing_attendees
+      await getDb().execute(sql`UPDATE listing_attendees
               SET checked_in = 1
-              WHERE attendee_id = ? AND listing_id = ?`,
-      });
+              WHERE attendee_id = ${attendee.id} AND listing_id = ${listing.id}`);
 
       const html = await expectHtmlResponse(
         await adminGet(`/admin/listing/${listing.id}/attendees?filter=in`),
@@ -289,7 +287,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         html,
         `href="/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
-      assert(!html.includes('name="check_in"'));
+      assert(!html.includes('name="checkIn"'));
     });
   });
 
@@ -301,18 +299,17 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       scope: "listing" | "attendee" = "attendee",
     ): Promise<{ response: Response; listingId: number }> => {
       const ctx = await setupAdminTest();
-      await getDb().execute({
-        args: [ctx.attendee.id, ctx.listing.id],
-        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${ctx.attendee.id} AND listing_id = ${ctx.listing.id}`,
+      );
       const response = await handleRequest(
         mockFormRequest(
           scope === "listing"
             ? `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`
             : `/admin/attendees/${ctx.attendee.id}/${action}`,
           // setupAdminTest creates the attendee as "John Doe"; verified actions
-          // (resend/refund) require the exact name in confirm_identifier.
-          { confirm_identifier: "John Doe", csrf_token: ctx.csrfToken },
+          // (resend/refund) require the exact name in confirmIdentifier.
+          { confirmIdentifier: "John Doe", csrfToken: ctx.csrfToken },
           ctx.cookie,
         ),
       );
@@ -324,17 +321,16 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         "checkin",
         "listing",
       );
-      // With no return_url the refusal lands back on the listing page (not an
+      // With no returnUrl the refusal lands back on the listing page (not an
       // empty redirect), carrying the flash.
       await expectFlashRedirect(
         `/admin/listing/${listingId}`,
         "Cannot check in a no-quantity line",
         false,
       )(response);
-      const row = await getDb().execute({
-        args: [listingId],
-        sql: "SELECT checked_in FROM listing_attendees WHERE listing_id = ?",
-      });
+      const row = await getDb().execute(
+        sql`SELECT checked_in FROM listing_attendees WHERE listing_id = ${listingId}`,
+      );
       expect(Number(row.rows[0]!.checked_in)).toBe(0);
     });
 

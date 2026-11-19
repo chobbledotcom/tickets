@@ -21,7 +21,7 @@ describe("listing details table date rows", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing: testListingWithCount({
-        closes_at: "2030-03-04T05:06:00Z",
+        closesAt: "2030-03-04T05:06:00Z",
         date: "2030-01-02T03:04:00Z",
       }),
     });
@@ -39,7 +39,7 @@ describe("listing details table date rows", () => {
       allowedDomain: "localhost",
       attendees: [],
       listing: testListingWithCount({
-        closes_at: "2030-03-04T05:06:00Z",
+        closesAt: "2030-03-04T05:06:00Z",
         date: "",
       }),
     });
@@ -53,7 +53,7 @@ describe("listing details table date rows", () => {
     const none = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
-      listing: testListingWithCount({ closes_at: null, date: "" }),
+      listing: testListingWithCount({ closesAt: null, date: "" }),
     });
     assertStringIncludes(none, "No deadline");
     assert(!none.includes("from now)"));

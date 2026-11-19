@@ -20,6 +20,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
   buildAttendeeEditForm,
+  createMultiBookingAttendee,
   createTestAttendee,
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
@@ -32,7 +33,7 @@ describeWithEnv(
   () => {
     describe("POST /admin/attendees/new", () => {
       testRequiresAuth("/admin/attendees/new", {
-        body: { line_count: "1", name: "X" },
+        body: { lineCount: "1", name: "X" },
         method: "POST",
         setup: async () => {
           await createTestListing({ maxAttendees: 100 });
@@ -64,9 +65,9 @@ describeWithEnv(
           email: "paid@example.com",
           name: "Paid",
           ...attendeeLineFields([{ eventId: event.id, quantity: 2 }]),
-          adjustment_amount_0: "-500",
-          adjustment_description_0: "Delivery credit",
-          payment_amount_0: "1500",
+          adjustmentAmount0: "-500",
+          adjustmentDescription0: "Delivery credit",
+          paymentAmount0: "1500",
         });
         expectRedirect(response, "/admin/attendees/");
         const attendees = await expectAttendeeLineCount(event.id, 1);
@@ -88,7 +89,7 @@ describeWithEnv(
           ...attendeeLineFields([
             { eventId: event.id, noQuantity: true, quantity: 1 },
           ]),
-          remaining_balance: "20",
+          remainingBalance: "20",
         });
         expectRedirect(response, "/admin/attendees/");
         const attendees = await expectAttendeeLineCount(event.id, 1);
@@ -219,20 +220,11 @@ describeWithEnv(
           maxAttendees: 50,
           name: "E2",
         });
-        const { attendeesApi } = await import("#db/attendees/api.ts");
-        const result = await attendeesApi.createAttendeeAtomic({
-          bookings: [
-            { listingId: event1.id, quantity: 1 },
-            {
-              listingId: event2.id,
-              quantity: 1,
-            },
-          ],
-          email: "",
-          name: "Multi",
-        });
-        if (!result.success) throw new Error("setup");
-        const attendeeId = result.attendees[0]!.id;
+        const { id: attendeeId } = await createMultiBookingAttendee(
+          "Multi",
+          "",
+          [{ listingId: event1.id }, { listingId: event2.id }],
+        );
         const { loadExistingLines } = await import(
           "#db/attendees/atomic-update.ts"
         );

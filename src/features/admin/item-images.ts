@@ -27,17 +27,21 @@ import { ItemImagesPanel } from "#templates/admin/images.tsx";
 import type { ImageUseItemType } from "#types";
 import { withUploadedImage } from "./image-upload.ts";
 
+/** The record facts every image panel needs. */
+export type ImagePanelRecord<T> = {
+  itemType: ImageUseItemType;
+  load: (id: number) => Promise<T | null>;
+  nameOf: (item: T) => string;
+};
+
 type ItemImageConfig<T> = {
   /** Who can edit this entity's images. Defaults to the content gates.
    * Entities under the Site tab pass the site gates, so managers stay
    * excluded there. */
   auth?: { form: AuthPolicy<"form">; multipart: AuthPolicy<"multipart"> };
   disabledPath: (id: number) => string;
-  itemType: ImageUseItemType;
-  load: (id: number) => Promise<T | null>;
-  nameOf: (item: T) => string;
   path: (id: number) => string;
-};
+} & ImagePanelRecord<T>;
 
 export const loadItemImagesPanel = async (
   itemType: ImageUseItemType,
@@ -57,7 +61,7 @@ export const loadItemImagesPanel = async (
 };
 
 const selectedImageIds = (form: FormParams): number[] =>
-  form.getNumberArray("image_ids");
+  form.getNumberArray("imageIds");
 
 const storageDisabledResponse = <T>(
   config: ItemImageConfig<T>,

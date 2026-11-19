@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingChildren, listingParents } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   copyDuplicatedChildEdges,
@@ -13,12 +14,15 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { parentAndChild } from "#test-utils/listing-parents/helpers.ts";
 import {
   insertModifier,
   linkModifierGroup,
   linkModifierListing,
   patchModifier,
 } from "#test-utils/modifiers.ts";
+import { createNamedListings } from "#test-utils/named-listings.ts";
+import type { ListingWithCount } from "#types";
 
 /** Create an active optional add-on attached to one group. */
 const groupAddOn = async (name: string, groupId: number): Promise<void> => {
@@ -31,42 +35,48 @@ const groupAddOn = async (name: string, groupId: number): Promise<void> => {
   await linkModifierGroup(modifier.id, groupId);
 };
 
+/** Break a child so the duplicate's edge write refuses it, and the message the
+ * copy returns. The package case refuses at validation; the deleted child
+ * passes validation from the request cache, so only the write's own existence
+ * re-check inside the transaction can refuse it. */
+const ineligibleChildCases = [
+  {
+    breakChild: async (child: ListingWithCount): Promise<void> => {
+      const group = await createTestGroup({
+        isPackage: true,
+        name: "Child Package",
+      });
+      expect(await assignListingsToGroup([child.id], group.id)).toBeNull();
+    },
+    message: "error.package_child_is_member",
+    name: "does not copy an edge to a package member",
+  },
+  {
+    breakChild: async (child: ListingWithCount): Promise<void> => {
+      await executeWithoutCacheInvalidation(
+        sql`DELETE FROM listings WHERE id = ${child.id}`,
+      );
+    },
+    message: "error.child_listing_deleted",
+    name: "returns a warning when a child vanishes before the edge write",
+  },
+];
+
 describeWithEnv("duplicated listing child edges", { db: true }, () => {
-  test("does not copy an edge to a package member", async () => {
-    const parent = await createTestListing({ name: "Copied Parent" });
-    const child = await createTestListing({ name: "Packaged Child" });
-    const group = await createTestGroup({
-      isPackage: true,
-      name: "Child Package",
+  for (const { breakChild, message, name } of ineligibleChildCases) {
+    test(name, async () => {
+      const { parent, child } = await parentAndChild();
+      await breakChild(child);
+
+      expect(await copyDuplicatedChildEdges(parent, [child.id])).toBe(
+        t(message),
+      );
+      expect(await listingChildren.getIds(parent.id)).toEqual([]);
     });
-    expect(await assignListingsToGroup([child.id], group.id)).toBeNull();
-
-    expect(await copyDuplicatedChildEdges(parent, [child.id])).toBe(
-      t("error.package_child_is_member"),
-    );
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
-  });
-
-  test("returns a warning when a child vanishes before the edge write", async () => {
-    // validateChildEdges reads from the request cache, so a child deleted by
-    // raw SQL (no cache invalidation) still passes validation; the tx's own
-    // existence re-check then throws. The duplicate catch must surface the
-    // message through the caller's warning flow rather than letting a 500 out.
-    const parent = await createTestListing({ name: "Copied Parent" });
-    const child = await createTestListing({ name: "Vanishing Child" });
-    await executeWithoutCacheInvalidation("DELETE FROM listings WHERE id = ?", [
-      child.id,
-    ]);
-
-    expect(await copyDuplicatedChildEdges(parent, [child.id])).toBe(
-      t("error.child_listing_deleted"),
-    );
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
-  });
+  }
 
   test("loads an empty offered-under list and allows an ordinary candidate", async () => {
-    const parent = await createTestListing({ name: "Base" });
-    const candidate = await createTestListing({ name: "Add-on" });
+    const { child: candidate, parent } = await parentAndChild();
 
     const section = await loadListingParentsSection(parent);
 
@@ -79,12 +89,14 @@ describeWithEnv("duplicated listing child edges", { db: true }, () => {
 
   test("marks every candidate ineligible when the edited listing is a child", async () => {
     const grandparent = await createTestListing({ name: "Grandparent" });
-    const parent = await createTestListing({ name: "Parent" });
-    const candidate = await createTestListing({ name: "Candidate" });
+    const { child: candidate, parent } = await parentAndChild();
     await listingChildren.setIds(grandparent.id, [parent.id]);
 
     const section = await loadListingParentsSection(parent);
 
+    const reason = t("listings_table.children_err_parent_is_child", {
+      name: parent.name,
+    });
     expect(section.offeredUnder).toEqual([grandparent]);
     expect(
       section.candidates.map(({ ineligibleReason, listing }) => ({
@@ -92,25 +104,17 @@ describeWithEnv("duplicated listing child edges", { db: true }, () => {
         ineligibleReason,
       })),
     ).toEqual([
-      {
-        id: candidate.id,
-        ineligibleReason: t("listings_table.children_err_parent_is_child", {
-          name: "Parent",
-        }),
-      },
-      {
-        id: grandparent.id,
-        ineligibleReason: t("listings_table.children_err_parent_is_child", {
-          name: "Parent",
-        }),
-      },
+      { id: candidate.id, ineligibleReason: reason },
+      { id: grandparent.id, ineligibleReason: reason },
     ]);
   });
 
   test("marks a candidate with children ineligible by name", async () => {
-    const parent = await createTestListing({ name: "Parent" });
-    const candidate = await createTestListing({ name: "Candidate" });
-    const grandchild = await createTestListing({ name: "Grandchild" });
+    const [parent, candidate, grandchild] = await createNamedListings(
+      "Parent",
+      "Candidate",
+      "Grandchild",
+    );
     await listingChildren.setIds(candidate.id, [grandchild.id]);
 
     const section = await loadListingParentsSection(parent);
@@ -125,19 +129,43 @@ describeWithEnv("duplicated listing child edges", { db: true }, () => {
     });
   });
 
-  test("cleans submitted ids before saving a valid edge", async () => {
-    const grandparent = await createTestListing({ name: "Grandparent" });
-    const parent = await createTestListing({ name: "Parent" });
-    const child = await createTestListing({ name: "Child" });
+  test("refuses a submitted child that names no listing", async () => {
+    const [, parent, child] = await createNamedListings(
+      "Grandparent",
+      "Parent",
+      "Child",
+    );
 
-    expect(
-      await validateChildEdges(parent, [
-        parent.id,
-        child.id,
-        child.id,
-        999_999,
-      ]),
-    ).toEqual({ childIds: [child.id], ok: true });
+    expect(await validateChildEdges(parent, [child.id, 999_999])).toEqual({
+      error: t("listings_table.children_err_missing"),
+      ok: false,
+    });
+  });
+
+  test("refuses a submitted child that names the parent itself", async () => {
+    const [, parent, child] = await createNamedListings(
+      "Grandparent",
+      "Parent",
+      "Child",
+    );
+
+    expect(await validateChildEdges(parent, [parent.id, child.id])).toEqual({
+      error: t("listings_table.children_err_self", { name: "Parent" }),
+      ok: false,
+    });
+  });
+
+  test("collapses a repeated child id to one edge", async () => {
+    const [grandparent, parent, child] = await createNamedListings(
+      "Grandparent",
+      "Parent",
+      "Child",
+    );
+
+    expect(await validateChildEdges(parent, [child.id, child.id])).toEqual({
+      childIds: [child.id],
+      ok: true,
+    });
 
     await listingChildren.setIds(grandparent.id, [parent.id]);
     expect(await validateChildEdges(parent, [child.id])).toEqual({
@@ -153,9 +181,11 @@ describeWithEnv("duplicated listing child edges", { db: true }, () => {
   });
 
   test("rejects a submitted child that already has children", async () => {
-    const parent = await createTestListing({ name: "Parent" });
-    const child = await createTestListing({ name: "Child" });
-    const grandchild = await createTestListing({ name: "Grandchild" });
+    const [parent, child, grandchild] = await createNamedListings(
+      "Parent",
+      "Child",
+      "Grandchild",
+    );
     await listingChildren.setIds(child.id, [grandchild.id]);
 
     expect(await validateChildEdges(parent, [child.id])).toEqual({

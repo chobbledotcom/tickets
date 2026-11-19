@@ -42,7 +42,7 @@ const BuilderForm = (): JSX.Element => (
         submitLabel={t("builder.build_site_button")}
       >
         <Raw
-          html={builderForm.render({ db_provider: getDefaultDbProvider() })}
+          html={builderForm.render({ dbProvider: getDefaultDbProvider() })}
         />
         <fieldset>
           <label>

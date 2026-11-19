@@ -28,8 +28,8 @@ const postRepeatedOptions = async (
   optionIds: number[],
 ): Promise<Response> => {
   const { cookie, csrfToken } = await getTestSession();
-  const body = new URLSearchParams([["csrf_token", csrfToken]]);
-  for (const optionId of optionIds) body.append("option_ids", String(optionId));
+  const body = new URLSearchParams([["csrfToken", csrfToken]]);
+  for (const optionId of optionIds) body.append("optionIds", String(optionId));
   return handleRequest(
     new Request(`http://localhost${path}`, {
       body: body.toString(),
@@ -79,7 +79,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
     });
 
     testRequiresAuth("/admin/listing/1/attributes", {
-      body: { option_ids: "1" },
+      body: { optionIds: "1" },
       method: "POST",
       setup: async () => {
         await createTestListing({ name: "Auth listing post" });
@@ -153,7 +153,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "Hard",
       );
       expectIncludesAll(html, [
-        `checked name="option_ids" type="checkbox" value="${
+        `checked name="optionIds" type="checkbox" value="${
           attribute.options[1]!.id
         }"`,
         // Each attribute's options render as a row-based checkbox fieldset.

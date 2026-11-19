@@ -67,7 +67,7 @@ export const childHasDateOrStockForDays =
     parentDates: ReadonlySet<string> | null,
   ) =>
   (child: TicketListing): boolean =>
-    child.listing.listing_type === "daily"
+    child.listing.listingType === "daily"
       ? childHasStartForDays(child, days ?? 1, holidays, parentDates)
       : childInStock(child);
 
@@ -76,7 +76,7 @@ export const childDateOk =
   (date: string | null, holidays: Holiday[], duration: number) =>
   (child: TicketListing): boolean => {
     // Only a daily listing carries a date, even when it prices day counts.
-    if (child.listing.listing_type !== "daily") return true;
+    if (child.listing.listingType !== "daily") return true;
     if (!date) return false;
     return SPAN_RULES[childKindOf(child.listing)].childDateOk!(
       child.listing,
@@ -127,7 +127,7 @@ export const bookableChildIds = (
 export const childDaysFromParent = <T extends number | null>(
   parent: Pick<
     ListingWithCount,
-    "customisable_days" | "duration_days" | "listing_type"
+    "customisableDays" | "durationDays" | "listingType"
   >,
   customisableValue: T,
   standardValue: T,
@@ -144,7 +144,7 @@ export const childDaysFromParent = <T extends number | null>(
 export const parentResolvedDuration = (
   parent: Pick<
     ListingWithCount,
-    "customisable_days" | "duration_days" | "listing_type"
+    "customisableDays" | "durationDays" | "listingType"
   >,
   dayCount: number,
 ): number => childDaysFromParent(parent, dayCount, 1);
@@ -153,13 +153,13 @@ export const parentResolvedDuration = (
 export const fixedParentDays = (
   parent: Pick<
     ListingWithCount,
-    "customisable_days" | "duration_days" | "listing_type"
+    "customisableDays" | "durationDays" | "listingType"
   >,
 ): number | null =>
   childDaysFromParent<number | null>(
     parent,
     null,
-    clampDurationDays(parent.duration_days),
+    clampDurationDays(parent.durationDays),
   );
 
 /** Keeps options that at least one child can support. */
@@ -218,17 +218,17 @@ export const buildTicketListing = (
   groupRemaining: number | undefined,
 ): TicketListing => {
   const listingRemaining = hasDateLessCap(listing)
-    ? listing.max_attendees - listing.attendee_count
-    : listing.max_attendees;
+    ? listing.maxAttendees - listing.attendeeCount
+    : listing.maxAttendees;
   const spotsRemaining =
     groupRemaining === undefined
       ? listingRemaining
       : Math.min(listingRemaining, groupRemaining);
-  const isSoldOut = spotsRemaining < listing.min_quantity;
+  const isSoldOut = spotsRemaining < listing.minQuantity;
   // Fewer spots left than the minimum is sold out: 0 is then the only valid
   // choice, and the row shows no quantity selector at all.
   const maxPurchasable =
-    isSoldOut || closed ? 0 : Math.min(listing.max_quantity, spotsRemaining);
+    isSoldOut || closed ? 0 : Math.min(listing.maxQuantity, spotsRemaining);
   return { isClosed: closed, isSoldOut, listing, maxPurchasable };
 };
 
@@ -244,7 +244,7 @@ export const customisableLengthItems = (
   listings: TicketListing[],
 ): CartLengthItem[] =>
   listings
-    .filter((listing) => listing.listing.customisable_days)
+    .filter((listing) => listing.listing.customisableDays)
     .map((listing) => ({
       dayCounts: availableDayCounts(listing.listing),
       name: listing.listing.name,

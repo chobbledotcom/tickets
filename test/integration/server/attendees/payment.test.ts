@@ -24,6 +24,7 @@ import {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { refundBookedOrder } from "#test-utils/ledger.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -187,12 +188,7 @@ describeWithEnv(
 
       test("keeps refresh reachable when attendee has no bookings", async () => {
         const { attendee } = await setupListingAndAttendee();
-        const { getDb: getDbFn } = await import("#db/client.ts");
-        const db = getDbFn();
-        await db.execute({
-          args: [attendee.id],
-          sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-        });
+        await dropAttendeeBookings(attendee.id);
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/refresh-payment`,
         );

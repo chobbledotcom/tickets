@@ -17,7 +17,7 @@ describeAdminSettings(() => {
   describe("POST /admin/settings/terms", () => {
     testRequiresAuth("/admin/settings/terms", {
       body: {
-        terms_and_conditions: "You must agree to our policy.",
+        termsAndConditions: "You must agree to our policy.",
       },
       method: "POST",
     });
@@ -27,8 +27,8 @@ describeAdminSettings(() => {
         mockFormRequest(
           "/admin/settings/terms",
           {
-            csrf_token: "invalid-csrf-token",
-            terms_and_conditions: "Some terms",
+            csrfToken: "invalid-csrf-token",
+            termsAndConditions: "Some terms",
           },
           await testCookie(),
         ),
@@ -38,7 +38,7 @@ describeAdminSettings(() => {
 
     test("saves terms and conditions", async () => {
       const { response } = await adminFormPost("/admin/settings/terms", {
-        terms_and_conditions: "By registering you agree to our listing policy.",
+        termsAndConditions: "By registering you agree to our listing policy.",
       });
 
       expect(response.status).toBe(302);
@@ -50,7 +50,7 @@ describeAdminSettings(() => {
 
     test("rejects terms exceeding max length", async () => {
       const { response } = await adminFormPost("/admin/settings/terms", {
-        terms_and_conditions: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+        termsAndConditions: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
 
       expect(response.status).toBe(302);
@@ -63,7 +63,7 @@ describeAdminSettings(() => {
 
     test("accepts terms at exactly max length", async () => {
       const { response } = await adminFormPost("/admin/settings/terms", {
-        terms_and_conditions: "x".repeat(MAX_TEXTAREA_LENGTH),
+        termsAndConditions: "x".repeat(MAX_TEXTAREA_LENGTH),
       });
 
       expect(response.status).toBe(302);
@@ -76,12 +76,12 @@ describeAdminSettings(() => {
     test("clears terms when empty", async () => {
       // First save some terms
       await adminFormPost("/admin/settings/terms", {
-        terms_and_conditions: "Some terms",
+        termsAndConditions: "Some terms",
       });
 
       // Now clear them
       const { response } = await adminFormPost("/admin/settings/terms", {
-        terms_and_conditions: "",
+        termsAndConditions: "",
       });
 
       expect(response.status).toBe(302);
@@ -107,7 +107,7 @@ describeAdminSettings(() => {
         response,
         200,
         "Terms and Conditions",
-        "terms_and_conditions",
+        "termsAndConditions",
         "Formatting help",
       );
     });
@@ -121,7 +121,7 @@ describeAdminSettings(() => {
 
   test("logs activity when terms and conditions are updated", async () => {
     await adminFormPost("/admin/settings/terms", {
-      terms_and_conditions: "New terms",
+      termsAndConditions: "New terms",
     });
 
     const logs = await getAllActivityLog();
@@ -132,7 +132,7 @@ describeAdminSettings(() => {
 
   test("logs activity when terms and conditions are removed", async () => {
     await adminFormPost("/admin/settings/terms", {
-      terms_and_conditions: "",
+      termsAndConditions: "",
     });
 
     const logs = await getAllActivityLog();

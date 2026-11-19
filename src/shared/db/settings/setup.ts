@@ -13,11 +13,15 @@ import { hashPassword } from "#crypto/hashing.ts";
 import { generateKeyPair } from "#crypto/hybrid.ts";
 import { generateDataKey, wrapDataKeyForPassword } from "#crypto/keys.ts";
 
-import { type SqlStatement, withTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
+import { notEqual } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { bumpSettingsVersion } from "#db/settings/cache.ts";
 import { invalidateCache, loadKeys } from "#db/settings/load.ts";
 import { getRawCached, settingUpsert } from "#db/settings/raw-writes.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { buildCreateUserStatement } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import { lazyRef } from "#fp";
 import { registerCacheReset } from "#shared/cache-registry.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
@@ -60,13 +64,18 @@ export const clearSetupCompleteCache = (): void => {
 // registration covers it (it never re-reads once true), so hook the sweep.
 registerCacheReset(clearSetupCompleteCache);
 
-const claimSetupSlot = (): SqlStatement => ({
-  args: [CONFIG_KEYS.SETUP_COMPLETE, SETUP_CLAIM_VALUE, SETUP_DONE_VALUE],
-  sql:
-    "INSERT INTO settings (key, value) VALUES (?, ?) " +
-    "ON CONFLICT(key) DO UPDATE SET value = excluded.value " +
-    "WHERE settings.value <> ?",
-});
+const claimSetupSlot = (): SqlStatement =>
+  insertInto(
+    tables.settings,
+    { key: CONFIG_KEYS.SETUP_COMPLETE, value: SETUP_CLAIM_VALUE },
+    {
+      onConflict: {
+        on: ["key"],
+        take: ["value"],
+        where: (row) => notEqual(row.value, SETUP_DONE_VALUE),
+      },
+    },
+  );
 
 /**
  * The initial site-setup ceremony — creates the owner account, generates and
@@ -103,12 +112,12 @@ export const completeSetup = async (
     if (claim.rowsAffected !== 1) throw new SetupAlreadyCompleteError();
     await tx.batch([
       ownerInsert,
-      settingUpsert(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey),
-      settingUpsert(CONFIG_KEYS.PUBLIC_KEY, publicKey),
-      settingUpsert(CONFIG_KEYS.COUNTRY, country),
+      settingUpsert([CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey]),
+      settingUpsert([CONFIG_KEYS.PUBLIC_KEY, publicKey]),
+      settingUpsert([CONFIG_KEYS.COUNTRY, country]),
       // A new site starts with the dashboard welcome message on.
-      settingUpsert(CONFIG_KEYS.WELCOME_ENABLED, "true"),
-      settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, SETUP_DONE_VALUE),
+      settingUpsert([CONFIG_KEYS.WELCOME_ENABLED, "true"]),
+      settingUpsert([CONFIG_KEYS.SETUP_COMPLETE, SETUP_DONE_VALUE]),
     ]);
   });
   // Setup's config lands via a batch (not writeRaw), so bump the version by hand

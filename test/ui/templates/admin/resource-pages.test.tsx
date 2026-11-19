@@ -5,6 +5,7 @@ import { escapeHtml } from "#jsx/escape-html.ts";
 import {
   type AdminResourcePagesConfig,
   defineAdminResourcePages,
+  pageLabels,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import {
@@ -41,7 +42,6 @@ const config: AdminResourcePagesConfig<SyntheticResource> = {
       key: "statuses.delete_confirm",
     }),
     danger: true,
-    heading: "Delete synthetic widget",
     label: "Widget name",
     name: ({ name }) => name,
     prompt: ({ name }) => ({ args: { name }, key: "news.delete_prompt" }),
@@ -81,7 +81,7 @@ const config: AdminResourcePagesConfig<SyntheticResource> = {
   },
   renderFields: (current) => (
     <input
-      name="widget_name"
+      name="widgetName"
       type="text"
       value={current === undefined ? "new widget" : current.name}
     />
@@ -104,6 +104,19 @@ const listPage = (
 
 describe("admin resource page factory", () => {
   beforeAll(setupAdminPageTest);
+
+  test("builds one resource's six page labels from its key", () => {
+    // Every role reads its own scheme key, so a swap between the create and
+    // delete pages, or a Title Case copy slip, fails here.
+    expect(pageLabels("statuses")).toEqual({
+      addHeading: "Add attendee status",
+      addSubmit: "Create status",
+      addTitle: "Add attendee status",
+      deleteButton: "Delete status",
+      deleteTitle: "Delete attendee status",
+      listTitle: "Attendee statuses",
+    });
+  });
 
   test("the writable name column keys itself as the row's name", () => {
     const column = writableNameColumn<SyntheticResource>(
@@ -165,7 +178,7 @@ describe("admin resource page factory", () => {
       'action="/admin/widgets"',
       "Widget name is required.",
       "<h1>Add synthetic widget</h1>",
-      '<input name="widget_name" type="text" value="new widget">',
+      '<input name="widgetName" type="text" value="new widget">',
       "Create synthetic widget",
       "/icons.svg#plus",
     ]);
@@ -185,7 +198,7 @@ describe("admin resource page factory", () => {
       'Type the status name "Widget &amp; One" to confirm deletion:',
       "Type the post name &quot;Widget &amp; One&quot; to confirm deletion.",
       '<p data-delete-extra="true">Code: W-17</p>',
-      'name="confirm_identifier" placeholder="Widget &amp; One" required',
+      'name="confirmIdentifier" placeholder="Widget &amp; One" required',
       '<button class="danger" type="submit">',
       "Delete synthetic widget",
     ]);

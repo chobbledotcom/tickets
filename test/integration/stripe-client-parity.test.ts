@@ -69,8 +69,26 @@ test("the small client matches stripe-node requests for every used operation", a
     api_version: STRIPE_API_VERSION as NonNullable<
       Stripe.WebhookEndpointCreateParams["api_version"]
     >,
-    enabled_events: ["checkout.session.completed"] as [
+    enabled_events: [
       "checkout.session.completed",
+      "customer.subscription.created",
+      "customer.subscription.deleted",
+      "customer.subscription.paused",
+      "customer.subscription.resumed",
+      "customer.subscription.updated",
+      "invoice.paid",
+      "invoice.payment_action_required",
+      "invoice.payment_failed",
+    ] as [
+      "checkout.session.completed",
+      "customer.subscription.created",
+      "customer.subscription.deleted",
+      "customer.subscription.paused",
+      "customer.subscription.resumed",
+      "customer.subscription.updated",
+      "invoice.paid",
+      "invoice.payment_action_required",
+      "invoice.payment_failed",
     ],
     url: "https://example.com/payment/webhook",
   };

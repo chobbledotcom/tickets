@@ -91,14 +91,14 @@ describeEmailRenderer(() => {
     });
 
     test("marks paid listings correctly", async () => {
-      const data = await buildTestData([makeEntry({ unit_price: 1000 })]);
+      const data = await buildTestData([makeEntry({ unitPrice: 1000 })]);
 
       expect(data.entries[0]!.listing.is_paid).toBe(true);
     });
 
     test("marks can_pay_more listings as paid", async () => {
       const data = await buildTestData([
-        makeEntry({ can_pay_more: true, unit_price: 0 }),
+        makeEntry({ canPayMore: true, unitPrice: 0 }),
       ]);
 
       expect(data.entries[0]!.listing.is_paid).toBe(true);
@@ -107,7 +107,7 @@ describeEmailRenderer(() => {
     test("marks a free-base entry as paid from its booking price", async () => {
       // A package override can charge a member whose base listing is free.
       const data = await buildTestData([
-        makeEntry({ unit_price: 0 }, { price_paid: "1" }),
+        makeEntry({ unitPrice: 0 }, { price_paid: "1" }),
       ]);
 
       expect(data.entries[0]!.listing.is_paid).toBe(true);
@@ -129,7 +129,7 @@ describeEmailRenderer(() => {
     test("date_range_label: single-day daily booking formats as a date", async () => {
       assertStringIncludes(
         await dateRangeLabelFor(
-          { duration_days: 1, listing_type: "daily" },
+          { durationDays: 1, listingType: "daily" },
           { date: "2026-04-15" },
         ),
         "15 April",
@@ -139,7 +139,7 @@ describeEmailRenderer(() => {
     test("date_range_label: multi-day booking uses en dash", async () => {
       expect(
         await dateRangeLabelFor(
-          { duration_days: 3, listing_type: "daily" },
+          { durationDays: 3, listingType: "daily" },
           { date: "2026-04-15", end_date: "2026-04-18" },
         ),
       ).toBe("15\u201317 April 2026");

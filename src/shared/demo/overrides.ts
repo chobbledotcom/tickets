@@ -23,8 +23,6 @@ import {
   randomChoice,
 } from "#shared/demo/samples.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { FieldValues } from "#shared/forms/values.ts";
-import type { Resource } from "#shared/rest/resource.ts";
 
 /** Maps form field names to arrays of possible demo values */
 export type DemoFieldMap = Record<string, readonly string[]>;
@@ -35,7 +33,7 @@ export const ATTENDEE_DEMO_FIELDS: DemoFieldMap = {
   email: DEMO_EMAILS,
   name: DEMO_NAMES,
   phone: DEMO_PHONES,
-  special_instructions: DEMO_SPECIAL_INSTRUCTIONS,
+  specialInstructions: DEMO_SPECIAL_INSTRUCTIONS,
 };
 
 /** Servicing-event fields — name only, and a servicing reason rather than a
@@ -64,8 +62,8 @@ export const HOLIDAY_DEMO_FIELDS: DemoFieldMap = {
 
 /** Site homepage fields */
 export const SITE_HOME_DEMO_FIELDS: DemoFieldMap = {
-  homepage_text: DEMO_PAGE_TEXT,
-  website_title: DEMO_WEBSITE_TITLES,
+  homepageText: DEMO_PAGE_TEXT,
+  websiteTitle: DEMO_WEBSITE_TITLES,
 };
 
 /** Attendee Logistics tab fields. The address is masked like the attendee
@@ -79,17 +77,17 @@ export const LOGISTICS_DEMO_FIELDS: DemoFieldMap = {
 
 /** Site contact page fields */
 export const SITE_CONTACT_DEMO_FIELDS: DemoFieldMap = {
-  contact_page_text: DEMO_PAGE_TEXT,
+  contactPageText: DEMO_PAGE_TEXT,
 };
 
 /** Terms and conditions field */
 export const TERMS_DEMO_FIELDS: DemoFieldMap = {
-  terms_and_conditions: DEMO_TERMS,
+  termsAndConditions: DEMO_TERMS,
 };
 
 /** Site footer field */
 export const FOOTER_DEMO_FIELDS: DemoFieldMap = {
-  site_footer: DEMO_PAGE_TEXT,
+  siteFooter: DEMO_PAGE_TEXT,
 };
 
 /**
@@ -121,13 +119,3 @@ export const loadAfterDemoOverrides = async <T>(
   applyDemoOverrides(form, mapping);
   return load();
 };
-
-/** Wrap a named resource so create/update apply demo overrides to the form */
-export const wrapResourceForDemo = <R, I, V extends FieldValues = FieldValues>(
-  resource: Resource<R, I, V>,
-  mapping: DemoFieldMap,
-): Resource<R, I, V> => ({
-  ...resource,
-  create: (form) => resource.create(applyDemoOverrides(form, mapping)),
-  update: (id, form) => resource.update(id, applyDemoOverrides(form, mapping)),
-});

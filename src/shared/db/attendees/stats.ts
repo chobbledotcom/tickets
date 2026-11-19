@@ -20,8 +20,8 @@ export const getActiveListingStats = (
     return { attendees: 0, income: 0, tickets: 0 };
   }
   return {
-    attendees: sumOf((e: ListingWithCount) => e.attendee_count)(active),
+    attendees: sumOf((e: ListingWithCount) => e.attendeeCount)(active),
     income: sumOf((e: ListingWithCount) => e.income)(active),
-    tickets: sumOf((e: ListingWithCount) => e.tickets_count)(active),
+    tickets: sumOf((e: ListingWithCount) => e.ticketsCount)(active),
   };
 };

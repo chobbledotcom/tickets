@@ -26,7 +26,7 @@ import { dailyOfferedDayCounts } from "./discovery/child-offered.ts";
  *  customisable listing offers per-day starts, so the span is chosen later.
  *  A fixed daily listing books its whole duration. */
 const cardSpanDays = (listing: ListingWithCount): number =>
-  listing.customisable_days ? 1 : clampDurationDays(listing.duration_days);
+  listing.customisableDays ? 1 : clampDurationDays(listing.durationDays);
 
 /** The daily listings NOT bookable on `date`: outside their bookable calendar,
  * or without capacity for their span starting that day. One snapshot per
@@ -88,7 +88,7 @@ export const loadDailyDateAvailability = async (
             listing.id,
             `Listing ${listing.id} remaining missing`,
           ),
-          listing.min_quantity,
+          listing.minQuantity,
           requiredMapValue(
             memberships,
             listing.id,

@@ -1,7 +1,8 @@
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { writeoffAdjustmentInserts } from "#accounting/adjustments.ts";
 import type { AttendeeEditWork } from "#db/attendees/atomic-update.ts";
-import { update } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
+import { update } from "#db/write.ts";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { nowIso } from "#shared/now.ts";
@@ -15,7 +16,7 @@ export const attendeeTaxSaveWork = async (
 ): Promise<AttendeeEditWork> => ({
   after: [
     ...plan.after,
-    update("attendees", { status_id: statusId }, { id: attendeeId }),
+    update(tables.attendees, { statusId }).where({ id: attendeeId }),
     ...(!hasRealLine
       ? await writeoffAdjustmentInserts(
           [

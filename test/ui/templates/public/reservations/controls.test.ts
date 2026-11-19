@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -7,6 +7,7 @@ import {
   renderPayMoreInput,
   renderTermsAndCheckbox,
 } from "#templates/public/reservations/controls.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { reservesHint, reservesHintStart } from "#test-utils/duration-hint.ts";
 import { withSubmittedValues } from "#test-utils/saved-form.ts";
@@ -24,7 +25,7 @@ describe("renderDateSelector", () => {
       html,
       'value="2026-01-01&quot; onload=&quot;alert(1)"',
     );
-    assert(!html.includes('value="2026-01-01" onload="alert(1)"'));
+    expectExcludesAll(html, ['value="2026-01-01" onload="alert(1)"']);
   });
 
   test("marks the selected date as selected", () => {
@@ -37,9 +38,8 @@ describe("renderDateSelector", () => {
       'value="2026-01-02" selected',
       'value="2026-01-01"',
     ]);
-    assert(!html.includes('value="2026-01-01" selected'));
-    // Options join edge to edge between the two dates.
-    assert(!html.includes("mutated"));
+    // The unselected date stays unmarked; no filler sits between options.
+    expectExcludesAll(html, ['value="2026-01-01" selected', "mutated"]);
   });
 
   test("says how many days each booking reserves when it spans several", () => {
@@ -49,9 +49,8 @@ describe("renderDateSelector", () => {
 
   test("says nothing about duration for one-day bookings", () => {
     const html = renderDateSelector(["2026-01-01"], "", 1);
-    assert(!html.includes(reservesHintStart()));
-    // The duration slot stays empty; no stray filler renders between options.
-    assert(!html.includes("mutated"));
+    // The duration slot stays empty, so no length note and no filler render.
+    expectExcludesAll(html, [reservesHintStart(), "mutated"]);
   });
 
   test("offers the error copy when no dates remain", () => {
@@ -63,22 +62,23 @@ describe("renderDateSelector", () => {
 
 describe("renderDayCountSelector", () => {
   test("restores the submitted day count on a re-render", async () => {
-    const html = await withSubmittedValues({ day_count: "2" }, () =>
+    const html = await withSubmittedValues({ dayCount: "2" }, () =>
       renderDayCountSelector([1, 2, 3]),
     );
     assertStringIncludes(html, '<option value="2" selected>');
-    assert(!html.includes('<option value="1" selected>'));
-    assert(!html.includes('<option value="3" selected>'));
     // Unselected options keep their chosen-state slot empty.
-    assert(!html.includes("mutated"));
+    expectExcludesAll(html, [
+      '<option value="1" selected>',
+      '<option value="3" selected>',
+      "mutated",
+    ]);
   });
 
   test("marks no day count when nothing was submitted", () => {
     const html = renderDayCountSelector([1, 2]);
     assertStringIncludes(html, '<option value="1">');
-    assert(!html.includes('value="1" selected'));
     // A span without a stated price renders no price suffix.
-    assert(!html.includes("mutated"));
+    expectExcludesAll(html, ['value="1" selected', "mutated"]);
   });
 
   test("offers the error copy when no booking lengths remain", () => {
@@ -90,14 +90,33 @@ describe("renderDayCountSelector", () => {
 
 describe("renderPayMoreInput", () => {
   const listing = {
-    assign_built_site: false,
-    initial_site_months: 0,
-    max_price: 10000,
-    unit_price: 500,
+    assignBuiltSite: false,
+    initialSiteMonths: 0,
+    maxPrice: 10000,
+    unitPrice: 500,
+  };
+  const paidSitePlan = {
+    ...listing,
+    assignBuiltSite: true,
+    initialSiteMonths: 3,
+  };
+  const freeSitePlan = { ...paidSitePlan, unitPrice: 0 };
+  const freeTicket = { ...listing, unitPrice: 0 };
+
+  /** Assert the price wording `plan` renders, and that it never carries the
+   *  wording of the other pricing shape. */
+  const expectPriceWording = (
+    plan: typeof listing,
+    wording: string,
+    absent: readonly string[],
+  ): void => {
+    const html = renderPayMoreInput(plan);
+    assertStringIncludes(html, wording);
+    expectExcludesAll(html, absent);
   };
 
   test("restores the submitted price on a re-render", async () => {
-    const html = await withSubmittedValues({ custom_price: "25.00" }, () =>
+    const html = await withSubmittedValues({ customPrice: "25.00" }, () =>
       renderPayMoreInput(listing),
     );
     assertStringIncludes(html, 'value="25.00"');
@@ -108,15 +127,9 @@ describe("renderPayMoreInput", () => {
   });
 
   test("states the months each priced unit buys on a site plan", () => {
-    const plan = {
-      assign_built_site: true,
-      initial_site_months: 3,
-      max_price: 10000,
-      unit_price: 500,
-    };
-    const html = renderPayMoreInput(plan);
-    assertStringIncludes(html, "Price per 3 months (£5 minimum)");
-    assert(!html.includes("Price per ticket"));
+    expectPriceWording(paidSitePlan, "Price per 3 months (£5 minimum)", [
+      "Price per ticket",
+    ]);
   });
 
   test("prices an ordinary listing per ticket", () => {
@@ -125,30 +138,26 @@ describe("renderPayMoreInput", () => {
   });
 
   test("names the optional ceiling in months on a free site plan", () => {
-    const freePlan = {
-      assign_built_site: true,
-      initial_site_months: 3,
-      max_price: 10000,
-      unit_price: 0,
-    };
-    const html = renderPayMoreInput(freePlan);
-    assertStringIncludes(html, "Price per 3 months (optional, up to £100)");
-    assert(!html.includes("required"));
+    expectPriceWording(
+      freeSitePlan,
+      "Price per 3 months (optional, up to £100)",
+      ["required"],
+    );
   });
 
   test("per ticket stays the wording on an optional ordinary listing", () => {
-    const free = { ...listing, unit_price: 0 };
-    const html = renderPayMoreInput(free);
-    assertStringIncludes(html, "Price per ticket (optional, up to £100)");
+    expectPriceWording(freeTicket, "Price per ticket (optional, up to £100)", [
+      "required",
+    ]);
   });
 
   test("makes a page-listing price input required down to the smallest price", () => {
-    const nearlyFree = { ...listing, unit_price: 50 };
+    const nearlyFree = { ...listing, unitPrice: 50 };
     assertStringIncludes(renderPayMoreInput(nearlyFree), " required />");
   });
 
   test("treats even one minor unit as a priced minimum", () => {
-    const smallest = { ...listing, unit_price: 1 };
+    const smallest = { ...listing, unitPrice: 1 };
     const html = renderPayMoreInput(smallest);
     expectIncludesAll(html, [
       "Price per ticket (£0.01 minimum)",
@@ -158,12 +167,12 @@ describe("renderPayMoreInput", () => {
 
   test("prefills the entered value when it is at or above the minimum", () => {
     assertStringIncludes(
-      renderPayMoreInput(listing, "custom_price", 2500),
+      renderPayMoreInput(listing, "customPrice", 2500),
       'value="25.00"',
     );
     // Below the minimum the buyer cannot start lower than it.
     assertStringIncludes(
-      renderPayMoreInput(listing, "custom_price", 100),
+      renderPayMoreInput(listing, "customPrice", 100),
       'value="5.00"',
     );
   });
@@ -171,26 +180,25 @@ describe("renderPayMoreInput", () => {
   test("keeps a child's price input optional", () => {
     const html = renderPayMoreInput(
       listing,
-      "child_price_7_10",
+      "childPrice7_10",
       undefined,
       false,
     );
-    assert(!html.includes("required"));
-    assert(!html.includes("mutated"));
+    expectExcludesAll(html, ["required", "mutated"]);
   });
 });
 
 describe("renderTermsAndCheckbox", () => {
   test("keeps the box ticked when the buyer had agreed", async () => {
-    const html = await withSubmittedValues({ agree_terms: "1" }, () =>
+    const html = await withSubmittedValues({ agreeTerms: "1" }, () =>
       renderTermsAndCheckbox("Be kind."),
     );
-    assertStringIncludes(html, 'name="agree_terms" value="1" checked required');
+    assertStringIncludes(html, 'name="agreeTerms" value="1" checked required');
   });
 
   test("starts with the box clear", () => {
     const html = renderTermsAndCheckbox("Be kind.");
-    assertStringIncludes(html, 'name="agree_terms" value="1" required');
-    assert(!html.includes("checked"));
+    assertStringIncludes(html, 'name="agreeTerms" value="1" required');
+    expectExcludesAll(html, ["checked"]);
   });
 });

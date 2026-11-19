@@ -1,18 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import {
-  checkBatchAvailabilityImpl as checkBatchAvailability,
-  checkListingAvailability as hasAvailableSpots,
-} from "#db/attendees/capacity/checks.ts";
+import { checkListingAvailability as hasAvailableSpots } from "#db/attendees/capacity/checks.ts";
 import {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
 } from "#db/attendees/capacity/groups.ts";
-import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { getDb } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
+import { getPackageDisplaysByIds } from "#db/groups/package-display.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import {
   anyHiddenPackageGroup,
@@ -21,65 +18,33 @@ import {
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   getListingsByGroupIds,
-  getPackageDisplaysByIds,
   groups,
   isGroupSlugTaken,
   resetGroupListings,
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  batchFits,
+  book,
+  bookedCappedGroup,
+  createCappedGroupWithListings,
+  groupWithListing,
+  memberListing,
+} from "#test-utils/db-helpers/group-capacity.ts";
 import {
   createHiddenPackageGroup,
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectMapValues } from "#test-utils/map-values.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 describeWithEnv("db > groups", { db: true, triggers: true }, () => {
-  /** Create a capped group with two listings (each with listing-level max of 10). */
-  const createCappedGroupWithListings = async (
-    groupMax: number,
-    slug: string,
-    overrides?: { listingType?: "standard" | "daily" },
-  ) => {
-    const group = await createTestGroup({
-      maxAttendees: groupMax,
-      name: slug,
-      slug,
-    });
-    const e1 = await createTestListing({
-      groupId: group.id,
-      ...(overrides?.listingType !== undefined
-        ? { listingType: overrides.listingType }
-        : {}),
-      maxAttendees: 10,
-      name: `${slug}-a`,
-    });
-    const e2 = await createTestListing({
-      groupId: group.id,
-      ...(overrides?.listingType !== undefined
-        ? { listingType: overrides.listingType }
-        : {}),
-      maxAttendees: 10,
-      name: `${slug}-b`,
-    });
-    return { e1, e2, group };
-  };
-
-  /** Book attendees atomically with minimal boilerplate. The generated
-   *  email/name is keyed by `listingId`+`quantity` so distinct bookings
-   *  within a test never collide. */
-  const book = (listingId: number, quantity: number, date?: string) =>
-    createAttendeeAtomic({
-      bookings: [
-        { ...(date !== undefined ? { date } : {}), listingId, quantity },
-      ],
-      email: `g${listingId}q${quantity}@example.com`,
-      name: `g-${listingId}-${quantity}`,
-    });
-
   describe("CRUD", () => {
     test("groups.table create, update, read, deleteById", async () => {
       const created = await createTestGroup({
@@ -87,26 +52,26 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         slug: "db-group",
       });
 
-      const fetched = await groups.table.read.one({ id: created.id });
+      const fetched = await records.groups.find(created.id);
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("DB Group");
       expect(fetched?.slug).toBe("db-group");
 
-      const updated = await groups.table.update(created.id, {
+      const updated = await records.groups.update(created.id, {
         name: "DB Group Updated",
         termsAndConditions: "Terms",
       });
       expect(updated?.name).toBe("DB Group Updated");
-      expect(updated?.terms_and_conditions).toBe("Terms");
+      expect(updated?.termsAndConditions).toBe("Terms");
 
-      await groups.table.deleteById(created.id);
-      expect(await groups.table.read.one({ id: created.id })).toBeNull();
+      await records.groups.delete(created.id);
+      expect(await records.groups.find(created.id)).toBeNull();
     });
 
     test("getAllGroups returns decrypted groups ordered by id", async () => {
       const g1 = await createTestGroup({ name: "Group A", slug: "group-a" });
       const g2 = await createTestGroup({ name: "Group B", slug: "group-b" });
-      const allGroups = await groups.cache.getAll();
+      const allGroups = await groups.getAll();
       expect(allGroups.length).toBe(2);
       expect(allGroups[0]?.id).toBe(g1.id);
       expect(allGroups[1]?.id).toBe(g2.id);
@@ -148,27 +113,14 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Empty",
         slug: "batch-empty",
       });
-      const active = await createTestListing({
-        groupId: populated.id,
-        maxAttendees: 10,
-        name: "Batch Active",
-      });
-      const inactive = await createTestListing({
-        groupId: populated.id,
-        maxAttendees: 10,
-        name: "Batch Inactive",
-      });
+      const active = await memberListing(populated, "Batch Active");
+      const inactive = await memberListing(populated, "Batch Inactive");
       // A listing shared by both groups proves the join is resolved per group.
-      const shared = await createTestListing({
-        groupId: populated.id,
-        maxAttendees: 10,
-        name: "Batch Shared",
-      });
+      const shared = await memberListing(populated, "Batch Shared");
       await assignListingsToGroup([shared.id], empty.id);
-      await getDb().execute({
-        args: [inactive.id],
-        sql: "UPDATE listings SET active = 0 WHERE id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listings SET active = 0 WHERE id = ${inactive.id}`,
+      );
       const attendee = await bookAttendee(active, {
         email: "batch-a@example.com",
         name: "A",
@@ -192,7 +144,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       const activeMember = byGroup
         .get(populated.id)
         ?.find((l) => l.id === active.id);
-      expect(activeMember?.attendee_count).toBe(3);
+      expect(activeMember?.attendeeCount).toBe(3);
     });
 
     test("getListingsByGroupIds maps a memberless group to an empty list", async () => {
@@ -204,15 +156,10 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
     test("resetGroupListings removes every membership row", async () => {
-      const group = await createTestGroup({
-        name: "Reset Group",
-        slug: "reset-group",
-      });
-      const listing = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-        name: "Reset Listing",
-      });
+      const { group, listing } = await groupWithListing(
+        { name: "Reset Group", slug: "reset-group" },
+        "Reset Listing",
+      );
       await resetGroupListings(group.id);
       expect(await listingGroups.getIds(listing.id)).toEqual([]);
     });
@@ -232,23 +179,17 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
     test("createAttendeeAtomic allows booking when group has no max (0)", async () => {
-      const group = await createTestGroup({
-        name: "unlimited",
-        slug: "unlimited",
-      });
-      const listing = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        name: "unlimited-listing",
-      });
+      const { listing } = await groupWithListing(
+        { name: "unlimited", slug: "unlimited" },
+        "unlimited-listing",
+        100,
+      );
 
       expect((await book(listing.id, 50)).success).toBe(true);
     });
 
     test("hasAvailableSpots checks group capacity", async () => {
-      const { e1, e2 } = await createCappedGroupWithListings(3, "spots");
-
-      await book(e1.id, 2);
+      const { e2 } = await bookedCappedGroup(3, "spots", 2);
 
       expect(await hasAvailableSpots(e2.id, 1)).toBe(true);
       expect(await hasAvailableSpots(e2.id, 2)).toBe(false);
@@ -258,39 +199,35 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       const { e1, e2 } = await createCappedGroupWithListings(4, "batch");
 
       expect(
-        await checkBatchAvailability([
-          { listingId: e1.id, quantity: 3 },
-          { listingId: e2.id, quantity: 2 },
+        await batchFits([
+          [e1, 3],
+          [e2, 2],
         ]),
       ).toBe(false);
 
       expect(
-        await checkBatchAvailability([
-          { listingId: e1.id, quantity: 2 },
-          { listingId: e2.id, quantity: 2 },
+        await batchFits([
+          [e1, 2],
+          [e2, 2],
         ]),
       ).toBe(true);
     });
 
     test("checkBatchAvailability skips group check when group has no limit", async () => {
-      const group = await createTestGroup({
-        name: "no-limit",
-        slug: "no-limit",
-      });
-      const e1 = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        name: "no-limit-a",
-      });
+      const { listing: e1 } = await groupWithListing(
+        { name: "no-limit", slug: "no-limit" },
+        "no-limit-a",
+        100,
+      );
       const ungrouped = await createTestListing({
         maxAttendees: 100,
         name: "ungrouped",
       });
 
       expect(
-        await checkBatchAvailability([
-          { listingId: e1.id, quantity: 50 },
-          { listingId: ungrouped.id, quantity: 50 },
+        await batchFits([
+          [e1, 50],
+          [ungrouped, 50],
         ]),
       ).toBe(true);
     });
@@ -300,25 +237,19 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       const { e1: eB } = await createCappedGroupWithListings(3, "multi-b");
 
       expect(
-        await checkBatchAvailability([
-          { listingId: eA.id, quantity: 2 },
-          { listingId: eB.id, quantity: 2 },
+        await batchFits([
+          [eA, 2],
+          [eB, 2],
         ]),
       ).toBe(true);
     });
 
     test("capacity check handles deleted group gracefully", async () => {
-      const group = await createTestGroup({
-        maxAttendees: 5,
-        name: "delete-me",
-        slug: "delete-me",
-      });
-      const listing = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-        name: "orphan-listing",
-      });
-      await groups.table.deleteById(group.id);
+      const { group, listing } = await groupWithListing(
+        { maxAttendees: 5, name: "delete-me", slug: "delete-me" },
+        "orphan-listing",
+      );
+      await records.groups.delete(group.id);
 
       expect(await hasAvailableSpots(listing.id, 1)).toBe(true);
     });
@@ -362,20 +293,20 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       });
 
       expect(
-        await checkBatchAvailability(
+        await batchFits(
           [
-            { listingId: e1.id, quantity: 3 },
-            { listingId: e2.id, quantity: 3 },
+            [e1, 3],
+            [e2, 3],
           ],
           "2026-09-01",
         ),
       ).toBe(false);
 
       expect(
-        await checkBatchAvailability(
+        await batchFits(
           [
-            { listingId: e1.id, quantity: 2 },
-            { listingId: e2.id, quantity: 3 },
+            [e1, 2],
+            [e2, 3],
           ],
           "2026-09-01",
         ),
@@ -383,30 +314,19 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
     test("checkBatchAvailability considers pre-existing attendees in group", async () => {
-      const { e1, e2 } = await createCappedGroupWithListings(5, "pre-exist");
+      const { e2 } = await bookedCappedGroup(5, "pre-exist", 3);
 
-      await book(e1.id, 3);
+      expect(await batchFits([[e2, 3]])).toBe(false);
 
-      expect(
-        await checkBatchAvailability([{ listingId: e2.id, quantity: 3 }]),
-      ).toBe(false);
-
-      expect(
-        await checkBatchAvailability([{ listingId: e2.id, quantity: 2 }]),
-      ).toBe(true);
+      expect(await batchFits([[e2, 2]])).toBe(true);
     });
 
     test("listing-level cap rejects even when group has room", async () => {
-      const group = await createTestGroup({
-        maxAttendees: 100,
-        name: "big-group",
-        slug: "big-group",
-      });
-      const listing = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 2,
-        name: "small-listing",
-      });
+      const { listing } = await groupWithListing(
+        { maxAttendees: 100, name: "big-group", slug: "big-group" },
+        "small-listing",
+        2,
+      );
 
       expect((await book(listing.id, 2)).success).toBe(true);
       const r = await book(listing.id, 1);
@@ -415,16 +335,11 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
     test("hasAvailableSpots respects listing cap even when group has room", async () => {
-      const group = await createTestGroup({
-        maxAttendees: 100,
-        name: "big-group2",
-        slug: "big-group2",
-      });
-      const listing = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 1,
-        name: "tiny-listing",
-      });
+      const { listing } = await groupWithListing(
+        { maxAttendees: 100, name: "big-group2", slug: "big-group2" },
+        "tiny-listing",
+        1,
+      );
 
       await book(listing.id, 1);
       expect(await hasAvailableSpots(listing.id, 1)).toBe(false);
@@ -443,28 +358,54 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       await book(fullGroupListing.id, 2);
 
       expect(
-        await checkBatchAvailability([
-          { listingId: fullGroupListing.id, quantity: 1 },
-          { listingId: openGroupListing.id, quantity: 1 },
+        await batchFits([
+          [fullGroupListing, 1],
+          [openGroupListing, 1],
         ]),
       ).toBe(false);
 
-      expect(
-        await checkBatchAvailability([
-          { listingId: openGroupListing.id, quantity: 1 },
-        ]),
-      ).toBe(true);
+      expect(await batchFits([[openGroupListing, 1]])).toBe(true);
     });
   });
 
   describe("group remaining helpers", () => {
-    test("getGroupRemainingByGroupId returns spots remaining for capped groups", async () => {
-      const { e1, group } = await createCappedGroupWithListings(5, "remaining");
-      await book(e1.id, 2);
+    /** A capped daily group, its two listings, and `e1` booked on each date. */
+    const dailyGroupBookedOn = async (
+      max: number,
+      slug: string,
+      bookings: readonly (readonly [date: string, qty: number])[],
+    ) => {
+      const { e1, e2, group } = await createCappedGroupWithListings(max, slug, {
+        listingType: "daily",
+      });
+      for (const [date, qty] of bookings) await book(e1.id, qty, date);
+      return { e1, e2, group };
+    };
 
-      const map = await getGroupRemainingByGroupId([group.id]);
-      expect(map.get(group.id)).toBe(3);
-    });
+    /** A capped group booked to `quantity`, and the spots that leaves. */
+    for (const [name, slug, max, quantity, remaining] of [
+      [
+        "getGroupRemainingByGroupId returns spots remaining for capped groups",
+        "remaining",
+        5,
+        2,
+        3,
+      ],
+      [
+        "getGroupRemainingByGroupId reports zero when group is exactly full",
+        "exact-fill",
+        2,
+        2,
+        0,
+      ],
+    ] as const) {
+      test(name, async () => {
+        const { group } = await bookedCappedGroup(max, slug, quantity);
+
+        const map = await getGroupRemainingByGroupId([group.id]);
+        expect(map.get(group.id)).toBe(remaining);
+      });
+    }
 
     test("getGroupRemainingByGroupId uses editable booked quantities", async () => {
       const { e1, group } = await createCappedGroupWithListings(
@@ -472,8 +413,8 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         "manual-remaining",
       );
       await listingAggregates.update(e1.id, {
-        booked_quantity: 4,
-        tickets_count: 0,
+        bookedQuantity: 4,
+        ticketsCount: 0,
       });
 
       const map = await getGroupRemainingByGroupId([group.id]);
@@ -494,73 +435,77 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(map.size).toBe(0);
     });
 
-    test("getGroupRemainingByGroupId reports zero when group is exactly full", async () => {
-      const { e1, group } = await createCappedGroupWithListings(
-        2,
-        "exact-fill",
-      );
-      await book(e1.id, 2);
-      const map = await getGroupRemainingByGroupId([group.id]);
-      expect(map.get(group.id)).toBe(0);
-    });
-
     test("getGroupRemainingByListingId keys remaining by listing id", async () => {
-      const { e1, e2 } = await createCappedGroupWithListings(6, "for-listings");
-      await book(e1.id, 4);
+      const { e1, e2 } = await bookedCappedGroup(6, "for-listings", 4);
 
       const map = await getGroupRemainingByListingId([e1, e2]);
-      expect(map.get(e1.id)).toBe(2);
-      expect(map.get(e2.id)).toBe(2);
+      expectMapValues(map, [
+        [e1, 2],
+        [e2, 2],
+      ]);
     });
 
-    test("getGroupRemainingByListingId skips ungrouped listings", async () => {
-      const ungrouped = await createTestListing({
-        maxAttendees: 50,
-        name: "loner",
-      });
-      const map = await getGroupRemainingByListingId([ungrouped]);
-      expect(map.has(ungrouped.id)).toBe(false);
-    });
+    /** Each listing kind the by-listing helper must skip. */
+    const skippedListings = [
+      {
+        listing: () => createTestListing({ maxAttendees: 50, name: "loner" }),
+        name: "getGroupRemainingByListingId skips ungrouped listings",
+      },
+      {
+        listing: async () =>
+          (
+            await createCappedGroupWithListings(3, "daily-skip", {
+              listingType: "daily",
+            })
+          ).e1,
+        name: "getGroupRemainingByListingId skips daily listings",
+      },
+    ];
 
-    test("getGroupRemainingByListingId skips daily listings", async () => {
-      const { e1 } = await createCappedGroupWithListings(3, "daily-skip", {
-        listingType: "daily",
+    for (const { listing, name } of skippedListings) {
+      test(name, async () => {
+        const skipped = await listing();
+        const map = await getGroupRemainingByListingId([skipped]);
+        expect(map.has(skipped.id)).toBe(false);
       });
-      const map = await getGroupRemainingByListingId([e1]);
-      expect(map.has(e1.id)).toBe(false);
-    });
+    }
 
     test("getGroupRemainingForListing returns remaining for standard listing", async () => {
-      const { e1, e2 } = await createCappedGroupWithListings(4, "single-evt");
-      await book(e1.id, 1);
+      const { e2 } = await bookedCappedGroup(4, "single-evt", 1);
       expect(await getGroupRemainingForListing(e2)).toBe(3);
     });
 
-    test("getGroupRemainingForListing returns undefined for daily listing", async () => {
-      const { e1 } = await createCappedGroupWithListings(3, "single-daily", {
-        listingType: "daily",
-      });
-      expect(await getGroupRemainingForListing(e1)).toBeUndefined();
-    });
+    /** Each listing kind the single-listing helper cannot answer for. */
+    const noRemainingListings = [
+      {
+        listing: async () =>
+          (
+            await createCappedGroupWithListings(3, "single-daily", {
+              listingType: "daily",
+            })
+          ).e1,
+        name: "getGroupRemainingForListing returns undefined for daily listing",
+      },
+      {
+        listing: () =>
+          createTestListing({ maxAttendees: 50, name: "no-group" }),
+        name: "getGroupRemainingForListing returns undefined when no group",
+      },
+    ];
 
-    test("getGroupRemainingForListing returns undefined when no group", async () => {
-      const ungrouped = await createTestListing({
-        maxAttendees: 50,
-        name: "no-group",
+    for (const { listing, name } of noRemainingListings) {
+      test(name, async () => {
+        expect(await getGroupRemainingForListing(await listing())).toBe(
+          undefined,
+        );
       });
-      expect(await getGroupRemainingForListing(ungrouped)).toBeUndefined();
-    });
+    }
 
     test("getGroupRemainingByGroupId is per-date for daily-listing groups", async () => {
-      const { e1, group } = await createCappedGroupWithListings(
-        4,
-        "by-id-daily",
-        {
-          listingType: "daily",
-        },
-      );
-      await book(e1.id, 3, "2026-09-01");
-      await book(e1.id, 1, "2026-09-02");
+      const { group } = await dailyGroupBookedOn(4, "by-id-daily", [
+        ["2026-09-01", 3],
+        ["2026-09-02", 1],
+      ]);
 
       const onSep1 = await getGroupRemainingByGroupId([group.id], "2026-09-01");
       const onSep2 = await getGroupRemainingByGroupId([group.id], "2026-09-02");
@@ -569,27 +514,21 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
     test("getGroupRemainingByListingId returns daily listings when date is given", async () => {
-      const { e1, e2 } = await createCappedGroupWithListings(
-        4,
-        "by-evt-daily",
-        {
-          listingType: "daily",
-        },
-      );
-      await book(e1.id, 1, "2026-10-01");
+      const { e1, e2 } = await dailyGroupBookedOn(4, "by-evt-daily", [
+        ["2026-10-01", 1],
+      ]);
 
       const onOct1 = await getGroupRemainingByListingId([e1, e2], "2026-10-01");
-      expect(onOct1.get(e1.id)).toBe(3);
-      expect(onOct1.get(e2.id)).toBe(3);
+      expectMapValues(onOct1, [
+        [e1, 3],
+        [e2, 3],
+      ]);
     });
 
     test("getGroupRemainingForListing returns per-date remaining for daily listing", async () => {
-      const { e1, e2 } = await createCappedGroupWithListings(
-        5,
-        "single-daily-date",
-        { listingType: "daily" },
-      );
-      await book(e1.id, 2, "2026-11-15");
+      const { e2 } = await dailyGroupBookedOn(5, "single-daily-date", [
+        ["2026-11-15", 2],
+      ]);
 
       expect(await getGroupRemainingForListing(e2, "2026-11-15")).toBe(3);
       expect(await getGroupRemainingForListing(e2, "2026-11-16")).toBe(5);
@@ -603,12 +542,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Bundle",
         slug: "bundle-disp",
       });
-      const hidden = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Bundle",
-        slug: "hidden-bundle-disp",
-      });
-      await groups.table.update(hidden.id, { hidePackageListings: true });
+      const hidden = await createHiddenPackageGroup("Hidden Bundle");
       const regular = await createTestGroup({
         name: "Regular",
         slug: "regular-disp",
@@ -663,7 +597,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Changed Bundle",
       });
 
-      await groups.table.update(pkg.id, { hidePackageListings: true });
+      await records.groups.update(pkg.id, { hidePackageListings: true });
 
       expect((await getPackageDisplaysByIds([pkg.id])).get(pkg.id)).toEqual({
         hideListings: true,
@@ -743,8 +677,8 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(result.get(a.id)?.length).toBe(2);
       expect(result.get(b.id)?.length).toBe(1);
       // Each row carries its override price for the right group.
-      const a2Row = result.get(a.id)?.find((r) => r.listing_id === a2.id);
-      expect(a2Row?.package_price).toBe(200);
+      const a2Row = result.get(a.id)?.find((r) => r.listingId === a2.id);
+      expect(a2Row?.packagePrice).toBe(200);
       expect(a2Row?.quantity).toBe(3);
     });
   });
@@ -767,7 +701,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       const rows = await getGroupPackagePrices(group.id);
       const priceOf = (id: number) =>
-        rows.find((r) => r.listing_id === id)?.package_price;
+        rows.find((r) => r.listingId === id)?.packagePrice;
       // null and 0 are preserved as distinct values, not collapsed together.
       expect(priceOf(none.id)).toBeNull();
       expect(priceOf(free.id)).toBe(0);

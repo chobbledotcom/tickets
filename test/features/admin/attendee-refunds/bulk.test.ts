@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { setN1GuardNotifyOnly } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   createPaidListing,
@@ -14,9 +15,9 @@ import {
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
   postRefundAll,
@@ -43,13 +44,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
     });
 
     test("shows error when no attendees have payments", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { listing } = await setupListingAndAttendee();
 
       const response = await awaitTestRequest(refundAllUrl(listing.id), {
         cookie: await testCookie(),
@@ -99,7 +94,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
 
     testRequiresAuth("/admin/listing/1/refund-all", {
       body: {
-        confirm_identifier: "Test Listing",
+        confirmIdentifier: "Test Listing",
       },
       method: "POST",
       setup: async () => {
@@ -111,7 +106,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           refundAllUrl(999),
-          { confirm_identifier: "Test", csrf_token: await testCsrfToken() },
+          { confirmIdentifier: "Test", csrfToken: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -121,7 +116,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
     test("rejects mismatched listing name", async () => {
       const ctx = await setupRefundTest("pi_refundall_1");
       const response = await submitRefundAll(ctx, {
-        confirm_identifier: "Wrong Listing Name",
+        confirmIdentifier: "Wrong Listing Name",
       });
       await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/refund-all`,
@@ -130,12 +125,12 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       )(response);
     });
 
-    test("rejects when confirm_identifier is missing", async () => {
+    test("rejects when confirmIdentifier is missing", async () => {
       const ctx = await setupRefundTest("pi_refundall_missing");
       const response = await handleRequest(
         mockFormRequest(
           refundAllUrl(ctx.listing.id),
-          { csrf_token: ctx.csrfToken },
+          { csrfToken: ctx.csrfToken },
           ctx.cookie,
         ),
       );
@@ -147,19 +142,13 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
     });
 
     test("returns error when no attendees have payments", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { listing } = await setupListingAndAttendee();
       const response = await handleRequest(
         mockFormRequest(
           refundAllUrl(listing.id),
           {
-            confirm_identifier: listing.name,
-            csrf_token: await testCsrfToken(),
+            confirmIdentifier: listing.name,
+            csrfToken: await testCsrfToken(),
           },
           await testCookie(),
         ),
@@ -239,13 +228,12 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       // booking stamp would give it the order's event group too — carry the
       // first row's stamp so the per-order projections read the pair as one.
       await execute(
-        `INSERT INTO listing_attendees
+        sql`INSERT INTO listing_attendees
           (listing_id, attendee_id, quantity, parent_listing_id,
            ledger_event_group)
-         SELECT ?, ?, 1, ?, ledger_event_group
+         SELECT ${listing.id}, ${repeated.id}, 1, ${listing.id + 1000}, ledger_event_group
            FROM listing_attendees
-          WHERE attendee_id = ? AND listing_id = ?`,
-        [listing.id, repeated.id, listing.id + 1000, repeated.id, listing.id],
+          WHERE attendee_id = ${repeated.id} AND listing_id = ${listing.id}`,
       );
 
       await withRefundMock(refundCompletes, async (mockRefund) => {

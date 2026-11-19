@@ -24,6 +24,7 @@ import {
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  createMultiBookingAttendee,
   createTestAttendee,
   markNotificationSendsOwed,
   submitAttendeeEdit,
@@ -43,7 +44,7 @@ import { adminFormPost, adminGet } from "#test-utils/session.ts";
 const resend = async (attendeeId: number, name: string) => {
   await markNotificationSendsOwed(attendeeId);
   return adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
-    confirm_identifier: name,
+    confirmIdentifier: name,
   });
 };
 
@@ -146,17 +147,11 @@ describeWithEnv(
         name: "Site Plan",
         unitPrice: 300,
       });
-      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-      const made = await attendeesApi.createAttendeeAtomic({
-        bookings: [
-          { listingId: ordinary.id, quantity: 1 },
-          { listingId: plan.id, quantity: 1 },
-        ],
-        email: "plan-beside@example.com",
-        name: "Plan Beside",
-      });
-      if (!made.success) throw new Error("Expected the booking to work");
-      const attendee = made.attendees[0]!;
+      const attendee = await createMultiBookingAttendee(
+        "Plan Beside",
+        "plan-beside@example.com",
+        [{ listingId: ordinary.id }, { listingId: plan.id }],
+      );
       await insertBuiltSite("For The Plan", "plan.test", "", "", true);
       const before = await registeredEntries();
 
@@ -344,7 +339,7 @@ describeWithEnv("the re-send page's send choice", { db: true }, () => {
     // hidden, and no radio offers a webhook that does not exist.
     assertStringIncludes(
       html,
-      'name="resend_sides" type="hidden" value="email"',
+      'name="resendSides" type="hidden" value="email"',
     );
     assert(!html.includes('type="radio" value="webhooks"'));
     assert(!html.includes('type="radio" value="both"'));
@@ -359,12 +354,12 @@ describeWithEnv("the re-send page's send choice", { db: true }, () => {
     const html = await pageHtml(attendee.id);
 
     expectIncludesAll(html, [
-      'checked name="resend_sides" type="radio" value="email"',
-      'name="resend_sides" type="radio" value="webhooks"',
-      'name="resend_sides" type="radio" value="both"',
+      'checked name="resendSides" type="radio" value="email"',
+      'name="resendSides" type="radio" value="webhooks"',
+      'name="resendSides" type="radio" value="both"',
     ]);
     // The choice is a visible form field, not a hidden default.
-    assert(!html.includes('name="resend_sides" type="hidden"'));
+    assert(!html.includes('name="resendSides" type="hidden"'));
   });
 });
 
@@ -450,11 +445,11 @@ describeWithEnv(
         "wording@example.com",
         1,
         "",
-        { [`question_${questionId}`]: "Coming by bus" },
+        { [`question${questionId}`]: "Coming by bus" },
       );
       const edited = await submitAttendeeEdit(attendee.id, {
         email: "wording@example.com",
-        extra: { [`question_${questionId}`]: "Coming by train" },
+        extra: { [`question${questionId}`]: "Coming by train" },
         name: "Current Wording",
       });
       expect(edited.status).toBe(302);

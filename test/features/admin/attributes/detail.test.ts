@@ -89,7 +89,7 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
     test("mutes deactivated listings in the listings table", async () => {
       const { attribute, listing } = await createTaggedListing();
       await adminFormPost(`/admin/listing/${listing.id}/deactivate`, {
-        confirm_identifier: "Climbing",
+        confirmIdentifier: "Climbing",
       });
 
       const html = await expectHtmlResponse(

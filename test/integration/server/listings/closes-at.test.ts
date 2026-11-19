@@ -14,11 +14,8 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import {
-  adminFormPost,
-  adminGet,
-  setupListingAndLogin,
-} from "#test-utils/session.ts";
+import { expectOwnEditRefused } from "#test-utils/listing-submits.ts";
+import { adminGet, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("server listings > closes_at field", { db: true }, () => {
   describe("closes_at field", () => {
@@ -27,14 +24,14 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       const listing = await createTestListing({ closesAt });
 
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.closes_at).toBe("2099-06-15T14:30:00.000Z");
+      expect(saved?.closesAt).toBe("2099-06-15T14:30:00.000Z");
     });
 
     test("creates listing without closes_at (defaults to null)", async () => {
       const listing = await createTestListing();
 
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.closes_at).toBeNull();
+      expect(saved?.closesAt).toBeNull();
     });
 
     test("updates listing closes_at", async () => {
@@ -43,7 +40,7 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       await updateTestListing(listing.id, { closesAt });
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.closes_at).toBe("2099-12-31T23:59:00.000Z");
+      expect(updated?.closesAt).toBe("2099-12-31T23:59:00.000Z");
     });
 
     test("clears closes_at by setting to empty string", async () => {
@@ -51,7 +48,7 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       await updateTestListing(listing.id, { closesAt: "" });
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.closes_at).toBeNull();
+      expect(updated?.closesAt).toBeNull();
     });
 
     test("admin listing detail page shows closes_at with countdown when set", async () => {
@@ -168,22 +165,11 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
     });
 
     test("rejects invalid closes_at format", async () => {
-      const { listing } = await setupListingAndLogin();
-
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
+      await expectOwnEditRefused(
         {
-          closes_at_date: "not-a-date",
-          closes_at_time: "99:99",
-          max_attendees: "100",
-          max_quantity: "1",
-          name: listing.name,
-          slug: listing.slug,
+          closesAtDate: "not-a-date",
+          closesAtTime: "99:99",
         },
-      );
-      await expectHtmlResponse(
-        response,
-        400,
         "Please enter a valid date and time",
       );
     });

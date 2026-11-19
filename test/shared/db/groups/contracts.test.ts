@@ -14,6 +14,8 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -26,7 +28,7 @@ import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 const insertMinimalGroup = async (name: string) => {
   const slug = name.toLowerCase().replaceAll(" ", "-");
-  return await groups.table.insert({
+  return await records.groups.insert({
     name,
     slug,
     slugIndex: await hmacHash(slug),
@@ -36,30 +38,26 @@ const insertMinimalGroup = async (name: string) => {
 describeWithEnv("db > group storage contracts", { db: true }, () => {
   test("omitted group flags default to false", async () => {
     const inserted = await insertMinimalGroup("Default Flags");
-    expect(await groups.table.read.one({ id: inserted.id })).toMatchObject({
+    expect(await records.groups.find(inserted.id)).toMatchObject({
       hidden: false,
-      hide_package_listings: false,
-      is_package: false,
+      hidePackageListings: false,
+      isPackage: false,
     });
   });
 
   test("a group write refreshes an already-read group cache", async () => {
-    expect(await groups.cache.getAll()).toEqual([]);
+    expect(await groups.getAll()).toEqual([]);
 
     const group = await insertMinimalGroup("Cache Refresh");
 
-    expect((await groups.cache.getAll()).map(({ id }) => id)).toEqual([
-      group.id,
-    ]);
+    expect((await groups.getAll()).map(({ id }) => id)).toEqual([group.id]);
   });
 
   test("a second read inside the cache window does not query again", async () => {
     await insertMinimalGroup("Cache Window");
-    await groups.cache.getAll();
+    await groups.getAll();
 
-    const { roundTrips } = await runAndCountRoundTrips(() =>
-      groups.cache.getAll(),
-    );
+    const { roundTrips } = await runAndCountRoundTrips(() => groups.getAll());
 
     expect(roundTrips).toBe(0);
   });
@@ -100,10 +98,9 @@ describeWithEnv("db > group listing read contracts", { db: true }, () => {
   test("rejects a stored group membership with id zero", async () => {
     const group = await createTestGroup({ name: "Invalid group id" });
     const listing = await createTestListing({ name: "Invalid group member" });
-    await execute("UPDATE groups SET id = 0 WHERE id = ?", [group.id]);
+    await execute(sql`UPDATE groups SET id = 0 WHERE id = ${group.id}`);
     await execute(
-      "INSERT INTO group_listings (group_id, listing_id) VALUES (0, ?)",
-      [listing.id],
+      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (0, ${listing.id})`,
     );
 
     await expect(getListingsByGroupIds([0])).rejects.toThrow();
@@ -172,8 +169,8 @@ describeWithEnv("db > group package write contracts", { db: true }, () => {
 
     expect(
       (await getGroupPackagePrices(group.id))
-        .map(({ listing_id, quantity }): [number, number] => [
-          listing_id,
+        .map(({ listingId, quantity }): [number, number] => [
+          listingId,
           quantity,
         ])
         .toSorted(([left], [right]) => left - right),
@@ -193,10 +190,9 @@ describeWithEnv("db > group package write contracts", { db: true }, () => {
 
     await withTransaction(async (tx) => {
       // The link row does not exist yet: the same transaction creates it.
-      await tx.execute({
-        args: [group.id, member.id],
-        sql: "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
-      });
+      await tx.execute(
+        sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${group.id}, ${member.id})`,
+      );
       await setGroupPackageMembers(
         group.id,
         [{ listingId: member.id, price: null, quantity: 2 }],
@@ -205,7 +201,7 @@ describeWithEnv("db > group package write contracts", { db: true }, () => {
     });
 
     const rows = await getGroupPackagePrices(group.id);
-    expect(rows.find((r) => r.listing_id === member.id)?.quantity).toBe(2);
+    expect(rows.find((r) => r.listingId === member.id)?.quantity).toBe(2);
   });
 
   test("bulk deactivation updates every member", async () => {

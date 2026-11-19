@@ -46,7 +46,7 @@ describe("attendee form panel", () => {
       '<label for="name">Name<input autocomplete="off" autofocus id="name" maxlength="250" name="name" required type="text" value="Ada Byron"></label>',
       '<label for="email">Email<input autocomplete="off" id="email" maxlength="250" name="email" type="email" value="ada@example.com"></label>',
       '<label for="phone">Phone<input autocomplete="off" id="phone" maxlength="32" name="phone" pattern="[+\\d][\\d\\s\\-\\(\\)]{5,}" title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)" type="text" value="07946 123456"></label>',
-      '<label for="special_instructions">Special Instructions<textarea autocomplete="off" id="special_instructions" maxlength="250" name="special_instructions" rows="3">',
+      '<label for="special_instructions">Special Instructions<textarea autocomplete="off" id="special_instructions" maxlength="250" name="specialInstructions" rows="3">',
       "1 Road</textarea>",
       "Leave at the desk</textarea>",
     ]);
@@ -126,7 +126,7 @@ describe("attendee form panel", () => {
     });
     assertStringIncludes(
       html,
-      '<input name="status_id" type="hidden" value="4">',
+      '<input name="statusId" type="hidden" value="4">',
     );
 
     const oneStatus = render({
@@ -135,9 +135,9 @@ describe("attendee form panel", () => {
     });
     assertStringIncludes(
       oneStatus,
-      '<input name="status_id" type="hidden" value="4">',
+      '<input name="statusId" type="hidden" value="4">',
     );
-    assert(!oneStatus.includes('id="status_id"'));
+    assert(!oneStatus.includes('id="statusId"'));
   });
 
   test("shows the balance notice with its tone", () => {
@@ -178,7 +178,7 @@ describe("attendee form panel", () => {
     expectIncludesAll(html, [
       "<legend>Dates</legend>",
       'id="start_date"',
-      '<input id="start_date" name="start_date" type="date" value="">',
+      '<input id="start_date" name="startDate" type="date" value="">',
     ]);
 
     const dated = render({
@@ -187,7 +187,7 @@ describe("attendee form panel", () => {
     });
     assertStringIncludes(
       dated,
-      '<input id="start_date" name="start_date" type="date" value="2026-06-05">',
+      '<input id="start_date" name="startDate" type="date" value="2026-06-05">',
     );
   });
 
@@ -242,8 +242,8 @@ describe("attendee form panel", () => {
     expectIncludesAll(html, [
       "<legend>Custom Questions</legend>",
       "<legend>Meal preference</legend>",
-      '<input checked name="question_6" type="radio" value="61"> Vegan',
-      '<input name="question_6" type="radio" value="62"> Standard',
+      '<input checked name="question6" type="radio" value="61"> Vegan',
+      '<input name="question6" type="radio" value="62"> Standard',
     ]);
   });
 
@@ -293,7 +293,7 @@ describe("attendee form panel", () => {
     const html = render({ returnUrl: "/admin/attendees" });
     assertStringIncludes(
       html,
-      '<input name="return_url" type="hidden" value="/admin/attendees">',
+      '<input name="returnUrl" type="hidden" value="/admin/attendees">',
     );
   });
 
@@ -301,11 +301,11 @@ describe("attendee form panel", () => {
     const html = render();
     expectIncludesAll(html, [
       "<legend>Payments already received</legend>",
-      '<label for="payment_amount_0">Payment 1<input id="payment_amount_0" min="1" name="payment_amount_0" type="number" value=""></label>',
-      'name="payment_amount_2"',
+      '<label for="payment_amount_0">Payment 1<input id="payment_amount_0" min="1" name="paymentAmount0" type="number" value=""></label>',
+      'name="paymentAmount2"',
       "<legend>Named charges or writeoffs</legend>",
-      '<input id="adjustment_description_0" maxlength="200" name="adjustment_description_0" type="text" value="">',
-      'name="adjustment_amount_2"',
+      '<input id="adjustment_description_0" maxlength="200" name="adjustmentDescription0" type="text" value="">',
+      'name="adjustmentAmount2"',
     ]);
   });
 
@@ -317,9 +317,9 @@ describe("attendee form panel", () => {
       }),
     });
     expectIncludesAll(html, [
-      '<input id="payment_amount_0" min="1" name="payment_amount_0" type="number" value="2000">',
-      '<input id="adjustment_description_0" maxlength="200" name="adjustment_description_0" type="text" value="Delivery">',
-      '<input id="adjustment_amount_0" name="adjustment_amount_0" type="number" value="-500">',
+      '<input id="payment_amount_0" min="1" name="paymentAmount0" type="number" value="2000">',
+      '<input id="adjustment_description_0" maxlength="200" name="adjustmentDescription0" type="text" value="Delivery">',
+      '<input id="adjustment_amount_0" name="adjustmentAmount0" type="number" value="-500">',
     ]);
   });
 
@@ -331,8 +331,8 @@ describe("attendee form panel", () => {
     });
     assert(!html.includes("Payments already received"));
     assert(!html.includes("Named charges or writeoffs"));
-    assert(!html.includes('name="payment_amount_0"'));
-    assert(!html.includes('name="price_0"'));
+    assert(!html.includes('name="paymentAmount0"'));
+    assert(!html.includes('name="price0"'));
   });
 
   test("posts an edit to the attendee's own route and relabels the button", () => {
