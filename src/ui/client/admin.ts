@@ -41,43 +41,37 @@ import { initShareButtons } from "./admin/share-button.ts";
 import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts";
 import { forEachMatch } from "./dom.ts";
 
-/* jscpd:ignore-start -- a list of setup calls, not code */
-const ADMIN_INITIALIZERS = [
-  initSelectOnClick,
-  initShareButtons,
-  initNavSelect,
-  initAvailabilityChecker,
-  initAttendeeDates,
-  initMultiBookingBuilder,
-  initFillDefaultTemplate,
-  initClosesAtAutofill,
-  initIframeScrollIntoView,
-  initCheckoutPopup,
-  initPaymentResultNotifier,
-  initPaymentTestButtons,
-  initQrRefresh,
-  initRunningTotal,
-  initCharCounters,
-  initMarkdownPreview,
-  // After the preview module so the injected editor's toggle can join the
-  // preview's footer strip once its bundle loads.
-  initMarkdownEditorLoader,
-  initLogisticsMapLoader,
-  initManualCheckin,
-  initFormSubmitDisable,
-  initQuestionVisibility,
-  initChildRequired,
-  initChildCompat,
-  initOrderGallery,
-  initListingDatePicker,
-  initListingImages,
-  initDuplicatePreview,
-  initDurationWarning,
-  initPairedControls,
-  initTicketQuantityRequired,
-];
-/* jscpd:ignore-end */
-
-for (const initialise of ADMIN_INITIALIZERS) initialise();
+initSelectOnClick();
+initShareButtons();
+initNavSelect();
+initAvailabilityChecker();
+initAttendeeDates();
+initMultiBookingBuilder();
+initFillDefaultTemplate();
+initClosesAtAutofill();
+initIframeScrollIntoView();
+initCheckoutPopup();
+initPaymentResultNotifier();
+initPaymentTestButtons();
+initQrRefresh();
+initRunningTotal();
+initCharCounters();
+initMarkdownPreview();
+// After the preview module so the injected editor's toggle can join the
+// preview's footer strip once its bundle loads.
+initMarkdownEditorLoader();
+initLogisticsMapLoader();
+initManualCheckin();
+initFormSubmitDisable();
+initQuestionVisibility();
+initChildRequired();
+initChildCompat();
+initOrderGallery();
+initListingDatePicker();
+initListingImages();
+initDuplicatePreview();
+initDurationWarning();
+initPairedControls();
+initTicketQuantityRequired();
 forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
 initSchemaAtlas();

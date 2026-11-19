@@ -31,6 +31,7 @@
   "images.picker.close": "Close image picker",
   "images.picker.heading": "Choose an image",
   "images.picker.loading": "Loading…",
+  "images.picker.load_failed": "The image library could not load. Please try again.",
   "images.picker.upload_failed": "The image could not be uploaded. Please try again.",
   "images.storage_off":"File storage is not configured.",
   "images.updated": "Image updated",

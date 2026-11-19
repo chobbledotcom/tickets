@@ -207,6 +207,29 @@ describe("the image picker dialog", () => {
     );
   });
 
+  test("keeps the dialog open while an upload is in flight", async () => {
+    const { promise: upload, resolve: resolveUpload } =
+      Promise.withResolvers<Response>();
+    const opened = await openDialog([twoImageList(), () => upload]);
+    const { dialog, handle, textarea } = opened;
+
+    await submitUpload(dialog, "Harbour");
+
+    requireElement<HTMLButtonElement>(dialog, ".md-preview-close").click();
+    expect(dialog.open).toBe(true);
+    const cancel = new Event("cancel", { cancelable: true });
+    dialog.dispatchEvent(cancel);
+    expect(cancel.defaultPrevented).toBe(true);
+    expect(dialog.open).toBe(true);
+
+    resolveUpload(redirected("/admin/images/12/edit"));
+    await flush();
+
+    expect(dialog.open).toBe(false);
+    expect(textarea.value).toContain("img#12");
+    handle.view.destroy();
+  });
+
   test("keeps the dialog open with a plain message when the upload fails", async () => {
     // The first reply is the options list; the upload itself fails.
     const opened = await openDialog([

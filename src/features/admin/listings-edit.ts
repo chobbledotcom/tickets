@@ -19,6 +19,7 @@ import {
   getStoredListingWithCount,
   requireListingWithCount,
 } from "#db/listings/records.ts";
+import { unique } from "#fp";
 import { t } from "#i18n";
 import {
   type AuthSession,
@@ -34,17 +35,16 @@ import { adminLandingPath, entityReturnPath } from "#shared/admin-pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { type ChosenImage, imageChoicesOf } from "#shared/images/picker.ts";
+import { listingImagesEnabled } from "#shared/listing-image-field.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   dimensionsOf,
   inferTemplate,
   LISTING_TEMPLATES,
   type ListingTemplate,
-  newListingCollectsImages,
   submissionRequiresDate,
 } from "#shared/listing-templates.ts";
 import { operationResponse } from "#shared/rest/operation-response.ts";
-import { isStorageEnabled } from "#shared/storage.ts";
 import {
   adminDuplicateListingPage,
   adminListingNewPage,
@@ -193,7 +193,7 @@ const formImages = async (
   form: FormParams,
   templateId: string | null,
 ): Promise<readonly ChosenImage[]> => {
-  if (!newListingCollectsImages(templateId) || !isStorageEnabled()) return [];
+  if (!listingImagesEnabled(templateId)) return [];
   return imageChoicesOf(await getImagesByIds(form.getNumberArray("imageIds")));
 };
 
@@ -247,10 +247,9 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
     // create that carries picture ids from any other form is refused. The
     // listing page refuses any other field box it did not show in the same
     // way.
-    const collectsImages =
-      newListingCollectsImages(chosenTemplateId) && isStorageEnabled();
-    const imageIds = form.getNumberArray("imageIds");
-    if (imageIds.length > 0 && !collectsImages) {
+    const collectsImages = listingImagesEnabled(chosenTemplateId);
+    const submittedImageIds = form.getNumberArray("imageIds");
+    if (submittedImageIds.length > 0 && !collectsImages) {
       return renderCreateListingError(
         session,
         form,
@@ -258,11 +257,23 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
         chosenTemplateId,
       );
     }
+    const imageIds = collectsImages ? submittedImageIds : [];
+    if (
+      imageIds.length > 0 &&
+      (await getImagesByIds(imageIds)).length !== unique(imageIds).length
+    ) {
+      return renderCreateListingError(
+        session,
+        form,
+        t("listings_table.image_unavailable"),
+        chosenTemplateId,
+      );
+    }
 
     const result = await buildCreateListingResource(
       form,
       listingFormView(session.adminLevel),
-      collectsImages ? imageIds : [],
+      imageIds,
     ).create(form);
     if (!result.ok) {
       return renderCreateListingError(

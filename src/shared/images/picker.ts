@@ -35,13 +35,15 @@ export type ImageChoice = Pick<ImageOption, "id" | "name">;
  *  lists the image. */
 export type ChosenImage = ImageChoice & Pick<ImageOption, "thumb">;
 
-/** The stored image facts the picker needs. */
-type PickerImage = {
-  filename: string;
+/** The stored image facts the picker needs: its name and thumbnail. */
+export type PickerImage = {
   filenameThumb: string;
   id: number;
   name: string;
 };
+
+/** The stored image facts plus the full picture address. */
+type StoredImage = PickerImage & { filename: string };
 
 /** The choice for one stored image. */
 const imageChoiceOf = ({
@@ -59,7 +61,7 @@ export const imageChoicesOf = (images: readonly PickerImage[]): ChosenImage[] =>
   map(imageChoiceOf)(images);
 
 /** Map stored images to the picker's options. Keep their order. */
-export const imageOptionsOf = (images: readonly PickerImage[]): ImageOption[] =>
+export const imageOptionsOf = (images: readonly StoredImage[]): ImageOption[] =>
   images.map((image) => ({
     ...imageChoiceOf(image),
     full: getImageProxyUrl(image.filename),
@@ -70,9 +72,18 @@ export const imageOptionsOf = (images: readonly PickerImage[]): ImageOption[] =>
 export const IMAGE_PICKER_ID = "md-image-picker";
 
 /** The notes that the picker's grid can show in place of thumbnails. */
-export const PICKER_NOTES = ["empty", "loading", "uploadFailed"] as const;
+export const PICKER_NOTES = [
+  "empty",
+  "loading",
+  "loadFailed",
+  "uploadFailed",
+] as const;
 
 export type PickerNote = (typeof PICKER_NOTES)[number];
+
+/** The page-level event that says the image library changed. Every picker
+ *  drops its cached list when it fires. */
+export const IMAGE_LIBRARY_CHANGED = "image-library-changed";
 
 /** The first nine thumbnails on a page load with it. From the tenth, the
  * browser waits until the reader scrolls near it. The image library and the

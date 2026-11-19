@@ -37,14 +37,14 @@ const createWithImages = (
   templateId,
 });
 
-/** Assert the create was refused for a field its form did not show, and that
- *  no listing was written. */
-const expectRefusedCreate = async (response: Response): Promise<void> => {
+/** Assert the create was refused with the named message, and that no listing
+ *  was written. */
+const expectRefusedCreate = async (
+  response: Response,
+  message = "This form sent a field it does not show",
+): Promise<void> => {
   expect(response.status).toBe(400);
-  assertStringIncludes(
-    await response.text(),
-    "This form sent a field it does not show",
-  );
+  assertStringIncludes(await response.text(), message);
   expect((await getAllListings()).map((one) => one.name)).toEqual([]);
 };
 
@@ -76,7 +76,7 @@ describeWithEnv(
       }
     });
 
-    test("leaves out an id the library does not hold", async () => {
+    test("refuses an id the library does not hold", async () => {
       const image = await storedImage("Kept");
 
       const { response } = await adminMultipartPost(
@@ -84,10 +84,10 @@ describeWithEnv(
         createWithImages("Partly Shipped", [image.id, 999_999]),
       );
 
-      expectRedirect(response);
-      const listing = await emptyListing("Partly Shipped");
-      const attached = await getImagesForItem("listing", listing!.id);
-      expect(attached.map((picture) => picture.id)).toEqual([image.id]);
+      await expectRefusedCreate(
+        response,
+        "One of the chosen pictures is no longer available. Please choose again.",
+      );
     });
 
     test("refuses picture ids from a form that does not show the field", async () => {
@@ -115,19 +115,24 @@ describeWithEnv(
     });
 
     test("re-renders the chosen pictures when the create is refused", async () => {
-      const image = await storedImage("Preview");
+      const first = await storedImage("First Preview");
+      const second = await storedImage("Second Preview");
 
       const { response } = await adminMultipartPost("/admin/listing", {
-        ...createWithImages("", [image.id, 999_999]),
+        ...createWithImages("", [second.id, first.id]),
       });
 
       expect(response.status).toBe(400);
       const html = await response.text();
-      assertStringIncludes(html, `value="${image.id}"`);
-      assertStringIncludes(html, 'data-image-name="Preview"');
+      const ids = [
+        ...html.matchAll(/name="imageIds" type="hidden" value="(\d+)"/g),
+      ].map((match) => match[1]);
+      expect(ids).toEqual([String(second.id), String(first.id)]);
+      expect(html.match(/class="listing-images-item"/g)?.length).toBe(2);
+      assertStringIncludes(html, 'data-image-name="First Preview"');
       assertStringIncludes(
         html,
-        'data-image-thumb="/image/Preview-thumb.webp"',
+        'data-image-thumb="/image/First Preview-thumb.webp"',
       );
     });
 
@@ -149,8 +154,11 @@ describeWithEnv(
   "the Images field on the new listing page",
   { db: true, storage: "cdn" },
   () => {
-    const pageAt = async (path: string): Promise<string> =>
-      await (await adminGet(path)).text();
+    const pageAt = async (path: string): Promise<string> => {
+      const response = await adminGet(path);
+      expect(response.status).toBe(200);
+      return await response.text();
+    };
 
     test("shows for the physical product and custom templates", async () => {
       for (const template of ["physical-product", "custom"]) {

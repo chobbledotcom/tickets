@@ -7,6 +7,7 @@
  */
 
 import {
+  IMAGE_LIBRARY_CHANGED,
   IMAGE_PICKER_ID,
   type ImageChoice,
   type ImageOption,
@@ -20,7 +21,7 @@ import {
 } from "#src/ui/client/dom.ts";
 
 /** The grid's states, as `data-state` names them. */
-export type GridState = "loading" | "ready";
+type GridState = "loading" | "ready";
 
 /** The dialog's parts that both consumers drive. */
 export interface PickerDialogParts {
@@ -118,32 +119,30 @@ export const wireDialogClose = (
   dialog: HTMLDialogElement,
   onClose: () => void,
 ): void => {
-  requiredChild(dialog, ".md-preview-close").addEventListener("click", () =>
-    dialog.close(),
-  );
+  requiredChild(dialog, ".md-preview-close").addEventListener("click", () => {
+    if (dialog.dataset.uploading !== "true") dialog.close();
+  });
   dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) dialog.close();
+    if (event.target === dialog && dialog.dataset.uploading !== "true") {
+      dialog.close();
+    }
+  });
+  dialog.addEventListener("cancel", (event) => {
+    if (dialog.dataset.uploading === "true") event.preventDefault();
   });
   dialog.addEventListener("close", onClose);
 };
 
 /** Adds one form field to the multipart body. A chosen file travels as a
- *  native Blob, so the server sees the upload unchanged. */
-const appendField = async (
-  body: FormData,
-  input: HTMLInputElement,
-): Promise<void> => {
+ *  native File, so the server sees the upload unchanged. */
+const appendField = (body: FormData, input: HTMLInputElement): void => {
   if (input.type !== "file") {
     body.append(input.name, input.value);
     return;
   }
   const file = input.files?.[0];
   if (file === undefined) return;
-  body.append(
-    input.name,
-    new Blob([await file.arrayBuffer()], { type: file.type }),
-    file.name,
-  );
+  body.append(input.name, file, file.name);
 };
 
 /** Posts the upload form's fields to its action and answers the new image's
@@ -151,13 +150,13 @@ const appendField = async (
 const uploadImage = async (form: HTMLFormElement): Promise<number> => {
   const body = new FormData();
   for (const input of form.querySelectorAll("input")) {
-    await appendField(body, input);
+    appendField(body, input);
   }
   for (const textarea of form.querySelectorAll("textarea")) {
     body.append(textarea.name, textarea.value);
   }
   const response = await fetch(form.action, { body, method: "POST" });
-  const match = /\/admin\/images\/(\d+)\/edit/.exec(
+  const match = /^\/admin\/images\/(\d+)\/edit$/.exec(
     new URL(response.url).pathname,
   );
   if (match === null) {
@@ -179,18 +178,11 @@ const uploadedIdOrNull = async (
   }
 };
 
-/** What a consumer does after the shared code drops the library cache and
- *  resets the form. */
-export interface UploadedImageHandlers {
-  forgetLibrary: () => void;
-  onUploaded: (choice: ImageChoice) => void | Promise<void>;
-}
-
 /** Wire the upload form that both pickers show. A submit stays on the page,
  *  because the dialog nests inside the page's own form. */
 export const wireUploadForm = (
   parts: PickerDialogParts,
-  { forgetLibrary, onUploaded }: UploadedImageHandlers,
+  onUploaded: (choice: ImageChoice) => void | Promise<void>,
 ): void => {
   parts.form.addEventListener("submit", (event) => {
     // Without this stop the submit bubbles up and submits the page too.
@@ -198,20 +190,25 @@ export const wireUploadForm = (
     event.preventDefault();
     if (parts.submit.disabled) return;
     parts.submit.disabled = true;
+    parts.dialog.dataset.uploading = "true";
     void (async () => {
-      const name = parts.name.value;
-      const id = await uploadedIdOrNull(parts.form);
-      parts.submit.disabled = false;
-      if (id === null) {
-        fillGrid(parts.grid, "ready", [
-          noteFrom(parts.template, "uploadFailed"),
-        ]);
-        return;
+      try {
+        const name = parts.name.value;
+        const id = await uploadedIdOrNull(parts.form);
+        if (id === null) {
+          parts.grid.dataset.state = "ready";
+          parts.grid.querySelector('[data-note="uploadFailed"]')?.remove();
+          parts.grid.append(noteFrom(parts.template, "uploadFailed"));
+          return;
+        }
+        // Every picker on the page must drop its cached list.
+        document.dispatchEvent(new Event(IMAGE_LIBRARY_CHANGED));
+        parts.form.reset();
+        await onUploaded({ id, name });
+      } finally {
+        parts.submit.disabled = false;
+        delete parts.dialog.dataset.uploading;
       }
-      // The library changed under the cached list. The next read fetches it.
-      forgetLibrary();
-      parts.form.reset();
-      await onUploaded({ id, name });
     })();
   });
 };

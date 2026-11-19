@@ -76,7 +76,8 @@ src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etex
 src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etitle~0xsx20k  = → += audited:02itrbr # button.title: fresh element, "" before
 # The shared picker builds each thumbnail button from fresh elements: every
 # property below is "" before the assignment, so `=` and `+=` finish identical.
-src/ui/client/admin/image-picker-template.ts::optionButton.item%2etitle~0ui2juv  = → += audited:0v52hrc # item.title: fresh button from createButton, "" before
+src/ui/client/admin/image-picker-template.ts::optionButton.item%2etitle~0ui2juv  = → += audited:1alnqsa # item.title: fresh button from createButton, "" before
+src/ui/client/admin/image-picker-template.ts::uploadImage~1lbgme9  image upload responded without an image id → "" audited:1alnqsa # uploadedIdOrNull drops the error, so the message has no reader
 src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0qvtdnq # image.alt: fresh element, "" before, and "" + "" is ""
 src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0qvtdnq # image.src: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is

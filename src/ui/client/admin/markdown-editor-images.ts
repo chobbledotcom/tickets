@@ -55,19 +55,25 @@ const insertImageRef = (view: EditorView, choice: ImageChoice): void => {
 
 /** The dialog's close gives the caret back to the editor. */
 const chooseImage = (picker: Picker, choice: ImageChoice): void => {
-  insertImageRef(picker.editor(), choice);
+  if (!picker.editor().isDestroyed) insertImageRef(picker.editor(), choice);
   picker.dialog.close();
 };
 
 /** The page renders the picker only with image storage, so a library that
- *  cannot load means the server is down. The failure is not caught. */
+ *  cannot load is a real failure. Show a note and let the operator retry. */
 const openPicker = async (picker: Picker): Promise<void> => {
   // A destroyed editor's view cannot dispatch, and the teardown leaves the
   // button mounted: the control stays inert.
   if (picker.editor().isDestroyed) return;
   fillGrid(picker.grid, "loading", [noteFrom(picker.template, "loading")]);
   picker.dialog.showModal();
-  const options = await picker.library.load();
+  const options = await picker.library.load().catch(() => null);
+  if (options === null) {
+    if (picker.dialog.open) {
+      fillGrid(picker.grid, "ready", [noteFrom(picker.template, "loadFailed")]);
+    }
+    return;
+  }
   // A dialog closed before the answer stays as it is.
   if (picker.dialog.open) {
     fillGrid(
@@ -83,10 +89,7 @@ const openPicker = async (picker: Picker): Promise<void> => {
 const wirePicker = (picker: Picker, button: HTMLButtonElement): void => {
   const { dialog } = picker;
   wireDialogClose(dialog, () => picker.editor().focus());
-  wireUploadForm(picker, {
-    forgetLibrary: picker.library.forget,
-    onUploaded: (choice) => chooseImage(picker, choice),
-  });
+  wireUploadForm(picker, (choice) => chooseImage(picker, choice));
   // While the modal dialog is open its backdrop swallows clicks, so the
   // button only ever opens.
   button.addEventListener("click", () => void openPicker(picker));

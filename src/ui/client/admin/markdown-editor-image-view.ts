@@ -11,6 +11,7 @@ import type { NodeView } from "prosemirror-view";
 import * as v from "valibot";
 import { bindFirst } from "#shared/fp-bind.ts";
 import {
+  IMAGE_LIBRARY_CHANGED,
   type ImageOption,
   ImageOptionsReplySchema,
 } from "#shared/images/picker.ts";
@@ -33,12 +34,21 @@ const fetchImageOptions = async (): Promise<ImageOption[]> => {
 
 export const createImageLibrary = (): ImageLibrary => {
   let options: Promise<ImageOption[]> | null = null;
+  if (typeof document !== "undefined") {
+    document.addEventListener(IMAGE_LIBRARY_CHANGED, () => {
+      options = null;
+    });
+  }
   return {
     forget: () => {
       options = null;
     },
     load: () => {
-      options ??= fetchImageOptions();
+      options ??= fetchImageOptions().catch((error) => {
+        // A failed load must not poison every later open in this session.
+        options = null;
+        throw error;
+      });
       return options;
     },
   };

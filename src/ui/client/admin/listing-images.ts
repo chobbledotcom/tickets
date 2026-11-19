@@ -27,12 +27,19 @@ import {
 } from "./image-picker-template.ts";
 import { createImageLibrary } from "./markdown-editor-image-view.ts";
 
-const REMOVE_MESSAGE = "Remove";
+/** The stored image id, or a loud failure when the server value is wrong. */
+const storedId = (value: string): number => {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`invalid stored image id: ${value}`);
+  }
+  return id;
+};
 
 /** The stored choice a re-rendered hidden input carries. The server renders
  *  both data attributes beside the value. */
 const choiceFromInput = (input: HTMLInputElement): ChosenImage => ({
-  id: Number(input.value),
+  id: storedId(input.value),
   name: requireValue(input.dataset.imageName, "chosen image name"),
   thumb: requireValue(input.dataset.imageThumb, "chosen image thumbnail"),
 });
@@ -45,23 +52,26 @@ const choiceInput = (choice: ChosenImage): HTMLInputElement => {
   return input;
 };
 
-const thumbnail = (src: string): HTMLImageElement =>
-  createThumbnail(src, "lazy");
+/** The labels the server renders for the remove control. */
+type RemoveLabels = {
+  label: (name: string) => string;
+  text: string;
+};
 
 /** One chosen picture: its thumbnail and the button that drops it. */
 const chosenItem = (
   choice: ChosenImage,
   remove: (id: number) => void,
+  labels: RemoveLabels,
 ): HTMLLIElement => {
   const item = document.createElement("li");
   item.className = "listing-images-item";
-  item.dataset.imageId = String(choice.id);
   if (choice.thumb !== "") {
-    item.append(thumbnail(choice.thumb));
+    item.append(createThumbnail(choice.thumb, "lazy"));
   }
   const button = createButton("listing-images-remove");
-  button.textContent = REMOVE_MESSAGE;
-  button.setAttribute("aria-label", `Remove ${choice.name}`);
+  button.textContent = labels.text;
+  button.setAttribute("aria-label", labels.label(choice.name));
   button.addEventListener("click", () => remove(choice.id));
   item.append(button);
   return item;
@@ -101,6 +111,18 @@ const setUpListingImages = (section: HTMLElement): void => {
     section.dataset.imagePickerHeading,
     "image picker heading",
   );
+  const removeText = requireValue(
+    section.dataset.imageRemoveText,
+    "image remove text",
+  );
+  const removeLabel = requireValue(
+    section.dataset.imageRemoveLabel,
+    "image remove label",
+  );
+  const labels: RemoveLabels = {
+    label: (name) => removeLabel.replace("{name}", () => name),
+    text: removeText,
+  };
 
   // The dialog marks pictures in a draft. The form changes only when the
   // operator confirms, so a close leaves the stored selection as it was.
@@ -128,13 +150,20 @@ const setUpListingImages = (section: HTMLElement): void => {
     renderGrid();
   };
 
-  const reload = async (): Promise<void> => {
+  const reload = async (): Promise<boolean> => {
     fillGrid(grid, "loading", [noteFrom(template, "loading")]);
-    loaded = await library.load();
+    try {
+      loaded = await library.load();
+    } catch {
+      fillGrid(grid, "ready", [noteFrom(template, "loadFailed")]);
+      confirm.disabled = draft.length === 0;
+      return false;
+    }
     draft = draft.map(
       (choice) => loaded.find((image) => image.id === choice.id) ?? choice,
     );
     renderGrid();
+    return true;
   };
 
   const open = async (): Promise<void> => {
@@ -151,17 +180,20 @@ const setUpListingImages = (section: HTMLElement): void => {
 
   const render = (): void => {
     inputs.replaceChildren(...chosen.map(choiceInput));
-    list.replaceChildren(...chosen.map((choice) => chosenItem(choice, remove)));
+    list.replaceChildren(
+      ...chosen.map((choice) => chosenItem(choice, remove, labels)),
+    );
     empty.hidden = chosen.length > 0;
     list.hidden = chosen.length === 0;
   };
 
-  wireUploadForm(picker, {
-    forgetLibrary: library.forget,
-    onUploaded: async (choice) => {
-      draft = [...draft, { ...choice, thumb: "" }];
-      await reload();
-    },
+  wireUploadForm(picker, async (choice) => {
+    const uploaded = { ...choice, thumb: "" };
+    draft = [...draft, uploaded];
+    if (!(await reload())) {
+      chosen = [...chosen, uploaded];
+      render();
+    }
   });
 
   confirm.addEventListener("click", () => {

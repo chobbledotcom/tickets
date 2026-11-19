@@ -10,13 +10,18 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import type { Window } from "happy-dom";
 import * as v from "valibot";
 import { STATIC_ASSET_OUTFILES } from "#scripts/static-assets/outfiles.ts";
+import { IMAGE_LIBRARY_CHANGED } from "#shared/images/picker.ts";
 import {
   createImageLibrary,
   type ImageLibrary,
 } from "#src/ui/client/admin/markdown-editor-image-view.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { requireElement } from "#test-utils/happy-dom.ts";
-import { cleanup, enhanced } from "#test-utils/markdown-editor-dom.ts";
+import {
+  cleanup,
+  enhanced,
+  installDom,
+} from "#test-utils/markdown-editor-dom.ts";
 import {
   fetchStubHolder,
   flush,
@@ -76,6 +81,20 @@ describe("the image library", () => {
     fetchStubHolder.stub = stubFetch(json({ ok: true }));
 
     await expect(createImageLibrary().load()).rejects.toThrow(v.ValiError);
+  });
+
+  test("drops every library cache when the page announces an upload", async () => {
+    installDom("");
+    fetchStubHolder.stub = stubFetch(() => twoImageList());
+    const first = createImageLibrary();
+    const second = createImageLibrary();
+
+    expect(namesOf(await first.load())).toEqual(["Alpha", "Zebra"]);
+    expect(namesOf(await second.load())).toEqual(["Alpha", "Zebra"]);
+    document.dispatchEvent(new Event(IMAGE_LIBRARY_CHANGED));
+    expect(namesOf(await first.load())).toEqual(["Alpha", "Zebra"]);
+    expect(namesOf(await second.load())).toEqual(["Alpha", "Zebra"]);
+    expect(fetchStubHolder.stub?.calls.length).toBe(4);
   });
 });
 

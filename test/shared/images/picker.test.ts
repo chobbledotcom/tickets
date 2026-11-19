@@ -30,6 +30,20 @@ const STORED_ALPHA = {
   name: "Alpha",
 };
 
+const BETA = {
+  full: "/image/beta.webp",
+  id: 1,
+  name: "Beta",
+  thumb: "/image/beta-thumb.webp",
+};
+
+const STORED_BETA = {
+  filename: "beta.webp",
+  filenameThumb: "beta-thumb.webp",
+  id: 1,
+  name: "Beta",
+};
+
 describe("the image picker contract", () => {
   test("reads the options reply into the images it offers", () => {
     expect(v.parse(ImageOptionsReplySchema, { images: [ALPHA] })).toEqual({
@@ -57,13 +71,14 @@ describe("the image picker contract", () => {
   });
 
   test("builds the choice a list keeps from stored image facts", () => {
-    expect(imageChoicesOf([STORED_ALPHA])).toEqual([
+    expect(imageChoicesOf([STORED_BETA, STORED_ALPHA])).toEqual([
+      { id: 1, name: "Beta", thumb: "/image/beta-thumb.webp" },
       { id: 2, name: "Alpha", thumb: "/image/alpha-thumb.webp" },
     ]);
   });
 
   test("builds the option the picker offers with the full picture", () => {
-    expect(imageOptionsOf([STORED_ALPHA])).toEqual([ALPHA]);
+    expect(imageOptionsOf([STORED_BETA, STORED_ALPHA])).toEqual([BETA, ALPHA]);
   });
 
   test("names the template with an id that a selector can reach", () => {

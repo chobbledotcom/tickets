@@ -7,6 +7,7 @@ import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { removalWithChildren, targetRowsRemoval } from "#db/child-rows.ts";
 import {
   executeBatch,
+  queryAllPrimary,
   resultRows,
   type TxScope,
   useTransaction,
@@ -41,6 +42,7 @@ import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom, insertInto } from "#db/write.ts";
 import { groupToMap, unique } from "#fp";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
+import type { PickerImage } from "#shared/images/picker.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -147,16 +149,21 @@ const imageFileColumns = columnsNamed([
 ]);
 
 /** The stored images with these ids, in the given order. An id the library
- *  lacks is left out, so a deleted image cannot come back from a stale form. */
+ *  lacks is left out. The read uses the primary because the form can name an
+ *  image that a previous request uploaded. */
 export const getImagesByIds = async (
   ids: readonly number[],
-): Promise<Image[]> => {
+): Promise<PickerImage[]> => {
   const wanted = unique([...ids]);
   if (wanted.length === 0) return [];
-  const rows = await readRows(
+  const rows = await queryAllPrimary(
     from(tables.images)
       .where((image) => among(image.id, wanted))
-      .everyColumn(),
+      .select((image) => ({
+        filenameThumb: image.filenameThumb,
+        id: image.id,
+        name: image.name,
+      })),
   );
   const byId = new Map(rows.map((image) => [image.id, image]));
   return wanted.flatMap((id) => {
@@ -321,14 +328,17 @@ export const setImagesForItem = async ({
 }: ImageItemWrite): Promise<void> => {
   const target = imageUseTargets.of(itemType)(itemId);
   const uniqueIds = unique([...imageIds]);
-  await useTransaction(transaction, (tx) =>
-    tx.batch([
-      clearImageUsesForItemStatement(target),
-      ...uniqueIds.map((imageId, index) =>
-        linkImageStatement(imageId, target, index),
-      ),
-    ]),
-  );
+  const statements = [
+    clearImageUsesForItemStatement(target),
+    ...uniqueIds.map((imageId, index) =>
+      linkImageStatement(imageId, target, index),
+    ),
+  ];
+  if (transaction === undefined) {
+    await executeBatch(statements);
+    return;
+  }
+  await transaction.batch(statements);
 };
 
 export const appendImageToItem = (
