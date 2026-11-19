@@ -18,7 +18,11 @@ import {
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { closedFieldsFor } from "#shared/records/write-access.ts";
-import { type ClosedFields, fieldOfKey } from "#shared/rest/field-specs.ts";
+import {
+  type ClosedFields,
+  type FieldSpec,
+  fieldOfKey,
+} from "#shared/rest/field-specs.ts";
 import { isWholeNumberField } from "#shared/rest/field-values.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
@@ -111,14 +115,22 @@ const listingNumberField = <
   options: TOptions,
 ): ListingNumberField<TName, TSection> & TOptions => {
   const copy = fieldCopy(LISTING_NUMBER_COPY[name]);
+  const declared: FieldSpec = fieldOfKey(LISTING_FIELDS, name);
+  // A count with a column default draws that default, so the page states the
+  // value it will store. The box must hold a value. A blank box must not
+  // become the default without a word.
+  const declaredDefault =
+    typeof declared.default === "number" ? declared.default : null;
   return {
     ...copy,
     ...options,
+    ...(declaredDefault === null
+      ? {}
+      : { defaultValue: String(declaredDefault), required: true as const }),
     // A whole-number kind refuses a fraction on the form, the same rule the
     // API check enforces on the body value. The field's declared bounds stay
     // responsible for the range, and its message.
-    ...(isWholeNumberField(fieldOfKey(LISTING_FIELDS, name)) &&
-    options.validate === undefined
+    ...(isWholeNumberField(declared) && options.validate === undefined
       ? { validate: validateWholeNumber(copy.label) }
       : {}),
     name,
@@ -321,8 +333,11 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       ...ticketMoneyField("maxPrice", "max_price"),
       // 100 currency units, formatted to the currency's decimals so the default
       // is valid for a zero-decimal currency (JPY "100") as well as GBP "100.00".
+      // The box draws that value, and a cleared box is refused, not read as it.
       defaultValue: (100).toFixed(getDecimalPlaces(settings.currency)),
       hint: t("fields.listing.max_price_hint", { amount: formatCurrency(100) }),
+      required: true,
+      requiredMessage: t("fields.validation.max_price_required"),
     },
     datetimeField("closesAt", "registration_closes", "tickets"),
     {

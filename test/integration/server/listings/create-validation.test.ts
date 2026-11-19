@@ -9,8 +9,10 @@ import {
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
-import { submitListingCreate } from "#test-utils/listing-submits.ts";
-import { adminMultipartPost } from "#test-utils/session.ts";
+import {
+  submitListingCreate,
+  submitListingEdit,
+} from "#test-utils/listing-submits.ts";
 
 /** Post the create form with the base boxes plus the given ones, check the
  *  answer's status, and return the page text and the stored listing. */
@@ -103,17 +105,14 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
     test("updates listing can_pay_more via edit", async () => {
       const listing = await createTestListing({ unitPrice: 1000 });
 
-      const { response } = await adminMultipartPost(
-        `/admin/listing/${listing.id}/edit`,
-        {
-          canPayMore: "1",
-          maxAttendees: String(listing.maxAttendees),
-          maxQuantity: String(listing.maxQuantity),
-          name: listing.name,
-          slug: listing.slug,
-          unitPrice: "10.00",
-        },
-      );
+      const { response } = await submitListingEdit(listing.id, {
+        canPayMore: "1",
+        maxAttendees: String(listing.maxAttendees),
+        maxQuantity: String(listing.maxQuantity),
+        name: listing.name,
+        slug: listing.slug,
+        unitPrice: "10.00",
+      });
       expect(response.status).toBe(302);
 
       const updated = await getListingWithCount(listing.id);

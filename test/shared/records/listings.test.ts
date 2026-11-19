@@ -9,6 +9,7 @@ import {
   getListingActivityLog,
 } from "#test-utils/activity-log.ts";
 import { storedListingNames } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { testFormParams } from "#test-utils/form-values.ts";
 import { describeRecord } from "#test-utils/record-labels.ts";
 import { wrapDbClient } from "#test-utils/record-queries.ts";
@@ -20,6 +21,7 @@ const writesActivityLog = (statement: SqlStatement) =>
 /** Create one listing through the record, as the create page submits it. */
 const createListing = (name: string) => {
   const form = testFormParams({
+    ...baseListingForm,
     maxAttendees: "50",
     maxQuantity: "5",
     name,

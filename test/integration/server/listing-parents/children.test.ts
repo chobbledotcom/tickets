@@ -29,6 +29,18 @@ const attendeeEditHtml = async (result: unknown): Promise<string> => {
   return response.text();
 };
 
+/** Save a child list through the form and read its refusal. A refused save
+ *  stores no edge. */
+const expectChildrenRefused = async (
+  parent: { id: number },
+  ids: number[],
+  message: string,
+): Promise<void> => {
+  const response = await postChildren(parent.id, ids);
+  expectFlash(response, message, false);
+  expect(await listingChildren.getIds(parent.id)).toEqual([]);
+};
+
 describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("saves the chosen children and redirects", async () => {
     const { parent, child } = await parentAndChild();
@@ -72,9 +84,30 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
-  test("drops self-edges and unknown ids", async () => {
+  test("refuses a child list the form cannot save", async () => {
     const { parent, child } = await parentAndChild();
-    await postChildren(parent.id, [parent.id, child.id, parent.id + 9999]);
+    const cases: readonly (readonly [number[], string])[] = [
+      [
+        [parent.id, child.id],
+        t("listings_table.children_err_self", { name: parent.name }),
+      ],
+      [[child.id, parent.id + 9999], t("listings_table.children_err_missing")],
+      [
+        [child.id, 0],
+        t("fields.validation.pick_from_list", {
+          label: t("listings_table.children_legend"),
+        }),
+      ],
+    ];
+    for (const [ids, message] of cases) {
+      await expectChildrenRefused(parent, ids, message);
+    }
+  });
+
+  test("saves one edge for a child id the form repeats", async () => {
+    const { parent, child } = await parentAndChild();
+    const response = await postChildren(parent.id, [child.id, child.id]);
+    expectFlash(response, "Required children updated");
     expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 

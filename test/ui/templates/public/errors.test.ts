@@ -1,5 +1,6 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { notActivatedPageMeta } from "#shared/update-page-markers.ts";
 import {
   databaseBusyPage,
   migrationInProgressPage,
@@ -187,6 +188,7 @@ describe("siteNotActivatedPage", () => {
   test("renders not-activated message in the error dialog style", () => {
     const html = siteNotActivatedPage();
     expectIncludesAll(html, [
+      notActivatedPageMeta(),
       '<div class="prose"><h1>Not Activated</h1><p>This site has not been activated yet.</p></div>',
       "<style>",
       "font-family:system-ui",

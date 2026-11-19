@@ -161,13 +161,13 @@ describe("saved form data", () => {
     });
   });
 
-  test("empty explicit values stay empty when there is no saved data", async () => {
+  test("an empty explicit value draws the default when nothing was restored", async () => {
     await withRequestContext(async () => {
       const html = renderFields(
         [field({ defaultValue: "Default", label: "Name", name: "name" })],
         { name: "" },
       );
-      assert(!html.includes('value="Default"'));
+      assert(html.includes('value="Default"'));
     });
   });
 

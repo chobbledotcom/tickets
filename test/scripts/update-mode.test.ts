@@ -3,7 +3,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
 import { runUpdateMode, type UpdateModeIo } from "#scripts/update-mode-lib.ts";
-import { updateBuildTagMeta, updatePageMeta } from "#shared/update-guard.ts";
+import {
+  notActivatedPageMeta,
+  updateBuildTagMeta,
+  updatePageMeta,
+} from "#shared/update-page-markers.ts";
 
 const UPDATE_SECRET_URL = "https://api.bunny.net/compute/script/42/secrets";
 const READ_ONLY_URL = "https://site.example/read-only";
@@ -207,6 +211,54 @@ describe("runUpdateMode", () => {
       /Removing the flag failed: List edge script secrets failed \(500\)/,
     );
     expect(time).toBe(60_000);
+  });
+
+  test("begin skips a not-activated site and removes the flag", async () => {
+    const logged: string[] = [];
+    const { calls, fetchText } = stubFetch(
+      [
+        response(true, 204, ""),
+        response(
+          true,
+          200,
+          '{"Secrets":[{"Id":7,"Name":"UPDATE_IN_PROGRESS"}]}',
+        ),
+        response(true, 204, ""),
+      ],
+      [response(false, 503, notActivatedPageMeta())],
+    );
+    const code = await runUpdateMode(
+      ["begin", "42", "https://site.example"],
+      io(fetchText, { log: (line) => logged.push(line) }),
+    );
+    expect(code).toBe(0);
+    // Set the flag, check once, then clear the flag. No wait.
+    expect(calls.map((call) => call.url)).toEqual([
+      UPDATE_SECRET_URL,
+      READ_ONLY_URL,
+      UPDATE_SECRET_URL,
+      `${UPDATE_SECRET_URL}/7`,
+    ]);
+    expect(calls[3]?.init.method).toBe("DELETE");
+    expect(logged.join("\n")).toContain("The site is not activated");
+  });
+
+  test("end skips a not-activated site and removes no flag", async () => {
+    const { calls, fetchText } = stubFetch(
+      [response(true, 200, '{"Secrets":null}')],
+      [response(false, 503, notActivatedPageMeta())],
+    );
+    const code = await runUpdateMode(
+      ["end", "42", "https://site.example", END_BUILD_TAG],
+      io(fetchText),
+    );
+    expect(code).toBe(0);
+    // One page check, then the list that finds no flag. No wait.
+    expect(calls.map((call) => call.url)).toEqual([
+      READ_ONLY_URL,
+      UPDATE_SECRET_URL,
+    ]);
+    expect(calls[1]?.init.method).toBe("GET");
   });
 
   test("end waits for the new build, then deletes the flag by id", async () => {

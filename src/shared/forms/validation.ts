@@ -102,8 +102,7 @@ const validateSingleField = (
   const collected = collectFieldValue(form, field);
   if (typeof collected !== "string") return collected;
 
-  let trimmed = collected;
-  if (!trimmed && field.defaultValue) trimmed = field.defaultValue;
+  const trimmed = collected;
   if (field.required && !trimmed) return requiredFieldError(field);
 
   const textError = validateFieldText(field, trimmed);
@@ -126,6 +125,9 @@ export const validateForm = <T = FieldValues>(
 ): ValidationResult<T> => {
   const values: FieldValues = {};
   for (const field of fields) {
+    // A box the page does not draw holds no value to check. Its key stays out
+    // of the values, and the read that builds the input drops it too.
+    if (field.visible === false) continue;
     const result = validateSingleField(form, field);
     if (!result.valid) return result;
     values[field.name] = result.value;
