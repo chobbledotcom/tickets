@@ -73,34 +73,31 @@ describeWithEnv("catalog group import", { db: true }, () => {
       canPayMore: true,
       name: "Ordinary group member",
     });
-    const message = importRefusal(
-      await importCatalog({
-        group: { name: "Ordinary imported group" },
-        kind: "group",
-        members: [{ listing: member.name, packagePrice: 500, quantity: 2 }],
-        version: 1,
-      }),
-    );
-    expectIncludesAll(message, [
-      "Only a package group can hold",
-      "packagePrice",
-    ]);
-  });
-
-  test("names the one package value it refuses, and says to remove it", async () => {
-    const member = await createTestListing({ name: "Single override member" });
-    const message = importRefusal(
-      await importCatalog({
-        group: { name: "Single override group" },
-        kind: "group",
-        members: [{ listing: member.name, packagePrice: 500 }],
-        version: 1,
-      }),
-    );
-    expectIncludesAll(message, [
-      "Only a package group can hold packagePrice",
-      "Remove it or make the group a package.",
-    ]);
+    const cases: readonly (readonly [Record<string, unknown>, string[]])[] = [
+      [
+        { listing: member.name, packagePrice: 500, quantity: 2 },
+        ["Only a package group can hold", "packagePrice"],
+      ],
+      // One value gets a message that says to remove it, not them.
+      [
+        { listing: member.name, packagePrice: 500 },
+        [
+          "Only a package group can hold packagePrice",
+          "Remove it or make the group a package.",
+        ],
+      ],
+    ];
+    for (const [memberFields, parts] of cases) {
+      const message = importRefusal(
+        await importCatalog({
+          group: { name: "Ordinary imported group" },
+          kind: "group",
+          members: [memberFields],
+          version: 1,
+        }),
+      );
+      expectIncludesAll(message, parts);
+    }
   });
 
   test("rejects a package day override the member cannot offer", async () => {
