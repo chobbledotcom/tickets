@@ -1,9 +1,8 @@
 /**
  * The update write-stop. A deploy sets UPDATE_IN_PROGRESS on a site, and the
  * app refuses every write while it is set. The new build's data migration
- * then sees a still database. This module owns the contract that the deploy
- * and the read-only page share. It holds the variable name, the wait, and the
- * guard that wraps one deploy. The page markers it reads live in
+ * then sees a still database. This module owns the variable, the wait, and
+ * the guard that wraps one deploy. The page markers it reads live in
  * `update-page-markers.ts`.
  *
  * A failure after the flag is set leaves the flag set and rethrows. A site
