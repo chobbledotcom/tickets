@@ -8,7 +8,7 @@ import { logActivity } from "#db/activity-log.ts";
 /** Record one image library action in the activity log. The library writes
  *  one audit line per action, whichever surface took it. */
 export const logImageAction = async (
-  action: "deleted" | "updated" | "uploaded",
+  action: "deleted" | "denied" | "updated" | "uploaded",
   name: string,
 ): Promise<void> => {
   await logActivity(`Image '${name}' ${action}`);

@@ -14,6 +14,7 @@ import {
   validateListingGroupMembershipsTx,
 } from "#db/groups/membership.ts";
 import { copyPackageMemberOverridesTx } from "#db/groups.ts";
+import { setImagesForItem } from "#db/images.ts";
 import {
   type AssignPlan,
   moveUndatedBookingsToDayTx,
@@ -282,20 +283,32 @@ type ListingJoinWriter = (
   input: ListingInput,
 ) => Promise<void>;
 
-const writeCreateListingJoins: (form: FormParams) => ListingJoinWriter =
-  (form) => async (tx, id, input) => {
-    await writeListingJoins(tx, id, input);
-    const sourceId = form.getOptionalInt("duplicatedFrom");
-    if (sourceId !== null) {
-      await copyPackageMemberOverridesTx(tx, sourceId, id);
-      await listingAttributeOptions.copyLinksTx(tx, sourceId, id);
-      // The override copy can raise the pick count above the fresh-join
-      // default of one the membership check judged. Revalidate it as persisted.
-      requireMembershipValidation(
-        await validateListingGroupMembershipsTx(tx)([id], input.groupIds!),
-      );
-    }
-  };
+const writeCreateListingJoins: (
+  form: FormParams,
+  imageIds: readonly number[],
+) => ListingJoinWriter = (form, imageIds) => async (tx, id, input) => {
+  await writeListingJoins(tx, id, input);
+  const sourceId = form.getOptionalInt("duplicatedFrom");
+  if (sourceId !== null) {
+    await copyPackageMemberOverridesTx(tx, sourceId, id);
+    await listingAttributeOptions.copyLinksTx(tx, sourceId, id);
+    // The override copy can raise the pick count above the fresh-join
+    // default of one the membership check judged. Revalidate it as persisted.
+    requireMembershipValidation(
+      await validateListingGroupMembershipsTx(tx)([id], input.groupIds!),
+    );
+  }
+  // The pictures chosen on the new listing form attach in the same write.
+  // Each link lands only while its image still exists.
+  if (imageIds.length > 0) {
+    await setImagesForItem({
+      imageIds,
+      itemId: id,
+      itemType: "listing",
+      transaction: tx,
+    });
+  }
+};
 
 /** One listing write's answer: the row, or the text that refused it. */
 type ListingWriteResult =
@@ -322,18 +335,21 @@ const failedResult = <Row, Missing>(
   return missing;
 };
 
-/** Parse the create form into the record's input, then write through the
- * record with the create door's join plan. */
+/** Parse the create form into the record's input. Write it through the
+ * record with the create door's join plan. `imageIds` are the pictures the
+ * physical-product form collected. They link in the same transaction. */
 export const buildCreateListingResource = (
   form: FormParams,
   view: ListingFormView,
+  imageIds: readonly number[] = [],
 ) => ({
   create: async (submitted: FormParams): Promise<ListingCreateResult> => {
     const parsed = await extractListingInput(view, submitted);
     if (!parsed.ok) return parsed;
     const input = parsed.value;
     const verdict = await listingRecord.create(input, {
-      persist: (tx, id) => writeCreateListingJoins(form)(tx, id, input),
+      persist: (tx, id) =>
+        writeCreateListingJoins(form, imageIds)(tx, id, input),
     });
     return (
       writtenResult(verdict) ??

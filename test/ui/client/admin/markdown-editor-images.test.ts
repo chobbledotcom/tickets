@@ -28,6 +28,7 @@ import {
   tenImageList,
   toolbarImageButton,
   twoImageList,
+  untilReady,
   withInsertFlow,
 } from "#test-utils/markdown-image-dialog.ts";
 
@@ -77,7 +78,8 @@ describe("the image picker dialog", () => {
     ).toBe("Close image picker");
     expect(
       [...dialog.querySelectorAll("input")].map((input) => input.name),
-    ).toEqual(["csrfToken", "name", "altText", "image"]);
+    ).toEqual(["csrfToken", "name", "image"]);
+    expect(dialog.querySelector("textarea")?.name).toBe("altText");
     expect(dialog.closest(".md-editor")).not.toBeNull();
     handle.view.destroy();
   });
@@ -160,6 +162,23 @@ describe("the image picker dialog", () => {
     const opened = await openDialog([json({ images: [] })]);
 
     expectGridMessage(opened, "No images yet.");
+  });
+
+  test("shows the load note and retries after the library fails", async () => {
+    const { dialog, grid, handle, window } = await openDialog([
+      new Response("down", { status: 500 }),
+      twoImageList(),
+    ]);
+
+    expect(grid.textContent).toBe(
+      "The image library could not load. Please try again.",
+    );
+    dialog.close();
+    toolbarImageButton(window).click();
+    await untilReady(grid);
+
+    expect(optionByName(window, "Alpha").textContent).toBe("Alpha");
+    handle.view.destroy();
   });
 
   test("keeps the image control inert after the editor is destroyed", async () => {

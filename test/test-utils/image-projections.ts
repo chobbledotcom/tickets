@@ -5,7 +5,11 @@
  */
 
 import { expect } from "@std/expect";
-import { getImageFilenamesForItem, insertImageRecord } from "#db/images.ts";
+import {
+  getImageFilenamesForItem,
+  insertImageRecord,
+  setImagesForItem,
+} from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -13,8 +17,15 @@ import { nonEmptyString } from "#shared/validation/string.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import type { ItemImageColumns } from "#types";
 
+/** Link these stored images to a listing, in the given order. */
+export const linkListingImages = (
+  listingId: number,
+  imageIds: readonly number[],
+): Promise<void> =>
+  setImagesForItem({ imageIds, itemId: listingId, itemType: "listing" });
+
 /** A broken image row with a working thumbnail, so tests can see that only the
- * unreadable column falls back to the marker. */
+ *  unreadable column falls back to the marker. */
 export const insertBrokenImageWithGoodThumb = (): Promise<number> =>
   insertBrokenImage({ thumbFilename: "broken-thumb.webp" });
 
