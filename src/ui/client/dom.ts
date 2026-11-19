@@ -25,6 +25,10 @@ export const requiredChild = <TElement extends Element>(
   return element;
 };
 
+/** Copy a complete template subtree into the current document. */
+export const cloneContent = <T extends Node>(node: T): T =>
+  document.importNode(node, true);
+
 /** Run `setUp` for every element in the document that matches `selector`.
  *  Every widget on a page starts this way: find the marked elements, then
  *  enhance each one. */

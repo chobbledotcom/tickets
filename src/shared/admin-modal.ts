@@ -10,10 +10,6 @@ import * as v from "valibot";
  *  the admin shell renders on every admin page. */
 export const ADMIN_MODAL_TEMPLATE_ID = "admin-modal";
 
-/** The id the shell gives the title element it builds. The shell adds a
- *  counter, because several modals can be open at once. */
-export const ADMIN_MODAL_TITLE_ID = "admin-modal-title";
-
 /** The settings one modal opens with.
  *
  *  - `key` names the modal. A second open with the same key raises the modal
@@ -24,10 +20,10 @@ export const ADMIN_MODAL_TITLE_ID = "admin-modal-title";
 export const modalSettingsSchema = v.object({
   collapsedTitle: v.pipe(
     v.string(),
-    v.minLength(1, "A modal needs a collapsed title"),
+    v.nonEmpty("A modal needs a collapsed title"),
   ),
-  key: v.pipe(v.string(), v.minLength(1, "A modal needs a key")),
-  title: v.pipe(v.string(), v.minLength(1, "A modal needs a title")),
+  key: v.pipe(v.string(), v.nonEmpty("A modal needs a key")),
+  title: v.pipe(v.string(), v.nonEmpty("A modal needs a title")),
 });
 
 export type ModalSettings = v.InferOutput<typeof modalSettingsSchema>;
