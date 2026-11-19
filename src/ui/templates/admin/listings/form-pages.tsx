@@ -6,7 +6,7 @@ import { isBuilderEnabled } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
-import type { ImageOption } from "#shared/images/picker.ts";
+import type { ChosenImage } from "#shared/images/picker.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   inferTemplate,
@@ -229,8 +229,8 @@ export const adminListingPickerPage = (session: AdminSession): string => {
  * in the same write. */
 const newPageImages = (
   templateId: string | null | undefined,
-  images: readonly ImageOption[] | undefined,
-): readonly ImageOption[] | undefined =>
+  images: readonly ChosenImage[] | undefined,
+): readonly ChosenImage[] | undefined =>
   newListingCollectsImages(templateId) && isStorageEnabled()
     ? (images ?? [])
     : undefined;
@@ -241,7 +241,7 @@ export const adminListingNewPage = (
   opts?: {
     customiseOpen?: boolean;
     error?: string;
-    images?: readonly ImageOption[];
+    images?: readonly ChosenImage[];
     templateId?: string | null;
     values?: FieldValues;
     selectedGroupIds?: number[];

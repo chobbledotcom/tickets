@@ -8,6 +8,7 @@
 
 import {
   IMAGE_PICKER_ID,
+  type ImageChoice,
   type ImageOption,
   LAZY_THUMBNAIL_FROM,
   type PickerNote,
@@ -26,6 +27,10 @@ export interface PickerDialogParts {
   dialog: HTMLDialogElement;
   form: HTMLFormElement;
   grid: HTMLElement;
+  name: HTMLInputElement;
+  submit: HTMLButtonElement;
+  /** The template the grid's notes come from. */
+  template: HTMLTemplateElement;
 }
 
 /** The page's picker template. Null on a page without image storage. */
@@ -53,11 +58,12 @@ export const fillGrid = (
 };
 
 /** One thumbnail button. The thumbnail is decorative: the button's text
- *  carries the name. */
+ *  carries the name. A marked button carries `aria-pressed`. */
 export const optionButton = (
   option: ImageOption,
   index: number,
   onPick: () => void,
+  pressed?: boolean,
 ): HTMLButtonElement => {
   const item = createButton("md-image-option");
   item.title = option.name;
@@ -66,9 +72,23 @@ export const optionButton = (
     index >= LAZY_THUMBNAIL_FROM ? "lazy" : "eager",
   );
   item.append(image, option.name);
+  if (pressed !== undefined) {
+    item.setAttribute("aria-pressed", String(pressed));
+  }
   item.addEventListener("click", onPick);
   return item;
 };
+
+/** The grid's option buttons, or the empty note for a library without
+ *  images. */
+export const imageOptionNodes = (
+  template: HTMLTemplateElement,
+  options: readonly ImageOption[],
+  buttonFor: (option: ImageOption, index: number) => HTMLButtonElement,
+): Node[] =>
+  options.length === 0
+    ? [noteFrom(template, "empty")]
+    : options.map((option, index) => buttonFor(option, index));
 
 /** Clones the template's dialog into `mount` and names its parts. */
 export const clonePickerDialog = (
@@ -80,10 +100,14 @@ export const clonePickerDialog = (
     true,
   );
   mount.append(dialog);
+  const form = requiredChild<HTMLFormElement>(dialog, "form");
   return {
     dialog,
-    form: requiredChild<HTMLFormElement>(dialog, "form"),
+    form,
     grid: requiredChild<HTMLElement>(dialog, ".md-image-grid"),
+    name: requiredChild<HTMLInputElement>(form, 'input[name="name"]'),
+    submit: requiredChild<HTMLButtonElement>(form, 'button[type="submit"]'),
+    template,
   };
 };
 
@@ -124,7 +148,7 @@ const appendField = async (
 
 /** Posts the upload form's fields to its action and answers the new image's
  *  id. Only the redirect to the new image's edit page proves the upload. */
-export const uploadImage = async (form: HTMLFormElement): Promise<number> => {
+const uploadImage = async (form: HTMLFormElement): Promise<number> => {
   const body = new FormData();
   for (const input of form.querySelectorAll("input")) {
     await appendField(body, input);
@@ -143,7 +167,7 @@ export const uploadImage = async (form: HTMLFormElement): Promise<number> => {
 };
 
 /** The new image's id. Null when the upload fails. */
-export const uploadedIdOrNull = async (
+const uploadedIdOrNull = async (
   form: HTMLFormElement,
 ): Promise<number | null> => {
   try {
@@ -153,4 +177,41 @@ export const uploadedIdOrNull = async (
     // picker shows its note, and the operator can try again.
     return null;
   }
+};
+
+/** What a consumer does after the shared code drops the library cache and
+ *  resets the form. */
+export interface UploadedImageHandlers {
+  forgetLibrary: () => void;
+  onUploaded: (choice: ImageChoice) => void | Promise<void>;
+}
+
+/** Wire the upload form that both pickers show. A submit stays on the page,
+ *  because the dialog nests inside the page's own form. */
+export const wireUploadForm = (
+  parts: PickerDialogParts,
+  { forgetLibrary, onUploaded }: UploadedImageHandlers,
+): void => {
+  parts.form.addEventListener("submit", (event) => {
+    // Without this stop the submit bubbles up and submits the page too.
+    event.stopPropagation();
+    event.preventDefault();
+    if (parts.submit.disabled) return;
+    parts.submit.disabled = true;
+    void (async () => {
+      const name = parts.name.value;
+      const id = await uploadedIdOrNull(parts.form);
+      parts.submit.disabled = false;
+      if (id === null) {
+        fillGrid(parts.grid, "ready", [
+          noteFrom(parts.template, "uploadFailed"),
+        ]);
+        return;
+      }
+      // The library changed under the cached list. The next read fetches it.
+      forgetLibrary();
+      parts.form.reset();
+      await onUploaded({ id, name });
+    })();
+  });
 };

@@ -1,5 +1,5 @@
 import { t } from "#i18n";
-import type { ImageOption } from "#shared/images/picker.ts";
+import type { ChosenImage } from "#shared/images/picker.ts";
 import { Icon } from "#templates/components/actions.tsx";
 
 /** The Images field on a new physical-product or custom listing. Each chosen
@@ -10,7 +10,7 @@ import { Icon } from "#templates/components/actions.tsx";
 export const ListingImagesField = ({
   selected,
 }: {
-  selected: readonly ImageOption[];
+  selected: readonly ChosenImage[];
 }): JSX.Element => (
   <div
     class="listing-images"

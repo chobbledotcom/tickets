@@ -125,7 +125,10 @@ describeWithEnv(
       const html = await response.text();
       assertStringIncludes(html, `value="${image.id}"`);
       assertStringIncludes(html, 'data-image-name="Preview"');
-      assertStringIncludes(html, "data-image-thumb");
+      assertStringIncludes(
+        html,
+        'data-image-thumb="/image/Preview-thumb.webp"',
+      );
     });
 
     test("re-renders an empty picture selection when none was chosen", async () => {

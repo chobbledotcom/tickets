@@ -146,7 +146,11 @@ describe("the listing images field", () => {
   test("adds the marked pictures in the order they were marked", async () => {
     const { dialog, window } = await mounted([twoImageList()]);
 
+    const pressed = (): (string | null)[] =>
+      attributesOf(window, ".md-image-option", "aria-pressed");
+    expect(pressed()).toEqual(["false", "false"]);
     chose(window, "Zebra");
+    expect(pressed()).toEqual(["false", "true"]);
     chose(window, "Alpha");
     // Marking a chosen picture again clears it; marking it once more adds it
     // back at the end of the order.

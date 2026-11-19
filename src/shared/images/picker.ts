@@ -1,11 +1,12 @@
 // effects: pure
 /**
- * The markdown editor's image picker, as the server and the browser both
- * see it. It holds the library list, the template id, and the notes that
- * the picker shows in place of thumbnails.
+ * The image picker, as the server and the browser both see it. It holds the
+ * library list, the template id, and the notes that the picker shows in
+ * place of thumbnails.
  */
 
 import * as v from "valibot";
+import { map } from "#fp";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 
 /** One library image that the picker offers. The id names its short-form
@@ -25,6 +26,15 @@ export const ImageOptionsReplySchema = v.object({
 
 export type ImageOption = v.InferOutput<typeof ImageOptionSchema>;
 
+/** The image facts that a picker hands back: the id a reference names and
+ *  the name it shows. */
+export type ImageChoice = Pick<ImageOption, "id" | "name">;
+
+/** One image the operator chose for a list: its id, its name, and the
+ *  thumbnail the list cell shows. The thumbnail is empty until the library
+ *  lists the image. */
+export type ChosenImage = ImageChoice & Pick<ImageOption, "thumb">;
+
 /** The stored image facts the picker needs. */
 type PickerImage = {
   filename: string;
@@ -33,13 +43,26 @@ type PickerImage = {
   name: string;
 };
 
+/** The choice for one stored image. */
+const imageChoiceOf = ({
+  filenameThumb,
+  id,
+  name,
+}: PickerImage): ChosenImage => ({
+  id,
+  name,
+  thumb: getImageProxyUrl(filenameThumb),
+});
+
+/** Map stored images to the choices a list shows. Keep their order. */
+export const imageChoicesOf = (images: readonly PickerImage[]): ChosenImage[] =>
+  map(imageChoiceOf)(images);
+
 /** Map stored images to the picker's options. Keep their order. */
 export const imageOptionsOf = (images: readonly PickerImage[]): ImageOption[] =>
-  images.map(({ filename, filenameThumb, id, name }) => ({
-    full: getImageProxyUrl(filename),
-    id,
-    name,
-    thumb: getImageProxyUrl(filenameThumb),
+  images.map((image) => ({
+    ...imageChoiceOf(image),
+    full: getImageProxyUrl(image.filename),
   }));
 
 /** The id of the `<template>` that holds the picker's markup. A page without
