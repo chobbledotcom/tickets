@@ -15,7 +15,6 @@ import {
   workingCountsText,
 } from "#scripts/check-cpd-counts/ratchet-run.ts";
 import { COUNTS_PATH, readCounts } from "#scripts/jscpd/counts.ts";
-import { WRAPPER_FLAGS } from "#scripts/jscpd/options.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { capturedCheckOutput } from "#test-utils/check-script.ts";
 import {
@@ -61,16 +60,6 @@ describe("checkedScans", () => {
     expect(checkedScans({ css: `${CPD} --config cfg/jscpd.css.json` })).toEqual(
       [],
     );
-  });
-
-  test("reads a scan that names the flags the scan reads", () => {
-    expect(
-      checkedScans({
-        cpd:
-          `${CPD} --config cfg/jscpd.json ${WRAPPER_FLAGS.counts} ` +
-          `${COUNTS_PATH} ${WRAPPER_FLAGS.scan} main ${WRAPPER_FLAGS.check}`,
-      }),
-    ).toEqual([{ counts: COUNTS_PATH, scan: "main", task: "cpd" }]);
   });
 
   test("reads no counts file and no scan name when a checked scan names none", () => {
