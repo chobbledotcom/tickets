@@ -253,7 +253,9 @@ const resolveFieldValue = (
   if (isNotNullish(explicit) && explicit !== "") return String(explicit);
   const saved = getSavedFieldValue(field);
   if (saved !== "") return saved;
-  return String(explicit ?? field.defaultValue ?? "");
+  // The caller gave no value, so the box draws its default. A blank explicit
+  // value is no value: it must not hide the default the page promises.
+  return String(field.defaultValue ?? "");
 };
 
 export const renderFields = (

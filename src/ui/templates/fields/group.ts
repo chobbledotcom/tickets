@@ -20,10 +20,14 @@ import {
 const getGroupMaxAttendeesField = () => {
   const label = t("fields.group.max_attendees");
   return {
+    // The page draws the column default, and a blank box is refused instead
+    // of read as that default.
+    defaultValue: "0",
     hint: t("fields.group.max_attendees_hint"),
     label,
     min: 0,
     name: "maxAttendees",
+    required: true,
     // The catalog kind (nonNegativeInt) is the declaration the group JSON
     // API enforces. The form refuses the same fraction.
     ...wholeNumberFieldShape(label),

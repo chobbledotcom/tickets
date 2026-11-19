@@ -597,11 +597,12 @@ A flagged pair is one merge:
   `ignorePattern` list in each config skips them, so do not add ignore markers
   around imports. The scans of the tests and of their helpers skip no dynamic
   import: each one names its own module, so two of them rarely match.
-- A declared list of strings is the other sanctioned repeat. The strict scans
-  ignore literals, so two long word lists match. Wrap the whole declaration in
-  `/* jscpd:ignore-start -- a list of strings, not code */` and
-  `/* jscpd:ignore-end */`. Wrap only a declaration that holds nothing but
-  strings. Never wrap code, SQL text, or a list inside a call.
+- A declaration of static data is the other sanctioned repeat: a list of
+  strings, or an object hash whose values are literals. The strict scans
+  ignore literals, so two such declarations match. Wrap the whole declaration
+  in `/* jscpd:ignore-start -- static data, not code */` and
+  `/* jscpd:ignore-end */`. Wrap only a declaration that holds static data.
+  Never wrap code, SQL text, or a declaration inside a call.
 
 `docs/test-duplication.md` measures the remaining steps. Read its counts as work
 to do.

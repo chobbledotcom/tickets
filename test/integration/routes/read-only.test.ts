@@ -6,7 +6,7 @@ import { createListing } from "#db/listings/records.ts";
 import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { setBuildTimestampForTest } from "#shared/update.ts";
-import { updateBuildTagMeta } from "#shared/update-guard.ts";
+import { updateBuildTagMeta } from "#shared/update-page-markers.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { jsonRequest, mockRequest } from "#test-utils/mocks.ts";

@@ -12,9 +12,14 @@ describe("listing form schema", () => {
   test("parses month fields as numbers", () => {
     const result = getListingForm().validate(
       new FormParams({
+        durationDays: "1",
         initialSiteMonths: "12",
         maxAttendees: "10",
+        maximumDaysAfter: "90",
+        maxPrice: "0",
         maxQuantity: "2",
+        minimumDaysBefore: "1",
+        minQuantity: "1",
         monthsPerUnit: "3",
         name: "Example",
         unitPrice: "0",
