@@ -37,14 +37,14 @@ import {
 } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
+
 import { logImageAction } from "#shared/images/activity.ts";
 import {
   byNameThenUpload,
   isSiteContentImageType,
   whenSiteContentBlocksManager,
 } from "#shared/images/library.ts";
-import type { ImageOption } from "#shared/images/picker.ts";
+import { imageOptionsOf } from "#shared/images/picker.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { imageRecord } from "#shared/records/images.ts";
 import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
@@ -319,14 +319,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
 const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
   contentResponsePage(async () => {
     const images = isStorageEnabled() ? await getAllImages() : [];
-    const options = sortByName(images, byNameThenUpload).map(
-      ({ id, name, filename, filenameThumb }): ImageOption => ({
-        full: getImageProxyUrl(filename),
-        id,
-        name,
-        thumb: getImageProxyUrl(filenameThumb),
-      }),
-    );
+    const options = imageOptionsOf(sortByName(images, byNameThenUpload));
     return jsonResponse({ images: options });
   });
 

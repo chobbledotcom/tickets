@@ -6,6 +6,7 @@
  */
 
 import * as v from "valibot";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 
 /** One library image that the picker offers. The id names its short-form
  * address, and the name becomes the alt text. The grid shows the `thumb`
@@ -23,6 +24,23 @@ export const ImageOptionsReplySchema = v.object({
 });
 
 export type ImageOption = v.InferOutput<typeof ImageOptionSchema>;
+
+/** The stored image facts the picker needs. */
+type PickerImage = {
+  filename: string;
+  filenameThumb: string;
+  id: number;
+  name: string;
+};
+
+/** Map stored images to the picker's options. Keep their order. */
+export const imageOptionsOf = (images: readonly PickerImage[]): ImageOption[] =>
+  images.map(({ filename, filenameThumb, id, name }) => ({
+    full: getImageProxyUrl(filename),
+    id,
+    name,
+    thumb: getImageProxyUrl(filenameThumb),
+  }));
 
 /** The id of the `<template>` that holds the picker's markup. A page without
  * it has no image storage. */

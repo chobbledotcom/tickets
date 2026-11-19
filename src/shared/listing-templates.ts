@@ -172,6 +172,12 @@ export const inferTemplate = (
     matchesSignature(tmpl.signature, dimensionsOf(source)),
   ) ?? null;
 
+/** The new-listing forms that collect pictures before the listing exists.
+ *  The custom form shows every option, so it collects pictures too. */
+export const newListingCollectsImages = (
+  templateId: string | null | undefined,
+): boolean => templateId === "physical-product" || templateId === "custom";
+
 /**
  * Both halves of the condition are needed. The template choice alone would
  * reject the Custom card's legitimate unnamed shape. The submitted dimensions

@@ -77,7 +77,8 @@ describe("the image picker dialog", () => {
     ).toBe("Close image picker");
     expect(
       [...dialog.querySelectorAll("input")].map((input) => input.name),
-    ).toEqual(["csrfToken", "name", "altText", "image"]);
+    ).toEqual(["csrfToken", "name", "image"]);
+    expect(dialog.querySelector("textarea")?.name).toBe("altText");
     expect(dialog.closest(".md-editor")).not.toBeNull();
     handle.view.destroy();
   });

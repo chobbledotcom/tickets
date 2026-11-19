@@ -14,6 +14,36 @@ export const createButton = (className: string): HTMLButtonElement => {
   return button;
 };
 
+/** Create a hidden form input carrying its name and value. */
+export const createHiddenInput = (
+  name: string,
+  value: string,
+): HTMLInputElement => {
+  const input = document.createElement("input");
+  input.type = "hidden";
+  input.name = name;
+  input.value = value;
+  return input;
+};
+
+/** Create a thumbnail picture, with its loading hint and no alt text. */
+export const createThumbnail = (
+  src: string,
+  loading: "eager" | "lazy",
+): HTMLImageElement => {
+  const image = document.createElement("img");
+  image.alt = "";
+  image.loading = loading;
+  image.src = src;
+  return image;
+};
+
+/** Find the CSRF token for the form an element belongs to. */
+export const csrfTokenFor = (element: Element): string =>
+  element
+    .closest("form")
+    ?.querySelector<HTMLInputElement>('input[name="csrfToken"]')?.value ?? "";
+
 /** The one element under `root` that `selector` names. A missing element
  *  throws and names the selector, so a markup change fails where it starts. */
 export const requiredChild = <TElement extends Element>(

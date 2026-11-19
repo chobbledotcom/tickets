@@ -19,7 +19,11 @@ export const linkStoredImage = async (
     ),
     name: filename,
   });
-  await setImagesForItem("listing", listingId, [image.id]);
+  await setImagesForItem({
+    imageIds: [image.id],
+    itemId: listingId,
+    itemType: "listing",
+  });
   return image;
 };
 

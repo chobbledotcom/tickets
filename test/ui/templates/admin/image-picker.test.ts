@@ -45,7 +45,10 @@ describe("the image picker template", () => {
     );
 
     const textInputs = inputsOf(html).filter(({ type }) => type === "text");
-    expect(textInputs.map(({ value }) => value)).toEqual([null, null]);
+    expect(textInputs.map(({ value }) => value)).toEqual([null]);
+    const textarea =
+      /<textarea[^>]*name="altText"[^>]*>([\s\S]*?)<\/textarea>/.exec(html);
+    expect(textarea?.[1]).toBe("");
   });
 
   test("the upload form carries the images area's fields", () => {
@@ -56,9 +59,13 @@ describe("the image picker template", () => {
     expect(fields).toEqual([
       { name: "csrfToken", required: false, type: "hidden" },
       { name: "name", required: true, type: "text" },
-      { name: "altText", required: false, type: "text" },
       { name: "image", required: false, type: "file" },
     ]);
+    expect(
+      /<textarea[^>]*name="altText"[^>]*><\/textarea>/.test(
+        String(ImagePickerTemplate()),
+      ),
+    ).toBe(true);
   });
 
   test("the dialog carries the parts that the browser wires", () => {

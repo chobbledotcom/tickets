@@ -21,7 +21,7 @@ import {
 import { Icon } from "#templates/components/actions.tsx";
 
 /** The name and alt text that every image form edits. */
-export const imageFields = (): Field[] => [
+const imageFieldsFor = (altTextType: "text" | "textarea"): Field[] => [
   {
     label: t("images.field.name"),
     name: "name",
@@ -31,9 +31,14 @@ export const imageFields = (): Field[] => [
   {
     label: t("images.field.alt_text"),
     name: "altText",
-    type: "text",
+    type: altTextType,
   },
 ];
+
+export const imageFields = (): Field[] => imageFieldsFor("text");
+
+/** The picker's alt text box is a textarea, because it can run past one line. */
+const pickerFields = (): Field[] => imageFieldsFor("textarea");
 
 // No `required`: file inputs never render the attribute (renderFieldInput
 // omits it) and the upload POST checks the file's presence itself.
@@ -47,6 +52,12 @@ const imageUploadField = (): Field => ({
 /** The fields that an image upload carries. */
 export const imageUploadFields = (): Field[] => [
   ...imageFields(),
+  imageUploadField(),
+];
+
+/** The fields the picker's upload form carries. */
+const pickerUploadFields = (): Field[] => [
+  ...pickerFields(),
   imageUploadField(),
 ];
 
@@ -65,7 +76,7 @@ const PickerNotes = (copy: Record<PickerNote, string>): JSX.Element => (
  * failed form's saved values, and `renderFields` fills fields from them. */
 const EmptyUploadFields = (): JSX.Element => (
   <>
-    {imageUploadFields().map((field) => (
+    {pickerUploadFields().map((field) => (
       <Raw html={renderField(field)} />
     ))}
   </>
@@ -82,16 +93,23 @@ export const ImagePickerTemplate = (): JSX.Element => (
         <Icon name="x" />
       </button>
       <h2>{t("images.picker.heading")}</h2>
-      <div class="md-image-grid"></div>
-      <CsrfForm
-        action="/admin/images"
-        class="md-image-upload"
-        enctype="multipart/form-data"
-      >
-        <h3>{t("images.item.upload_new")}</h3>
-        <EmptyUploadFields />
-        <button type="submit">{t("images.item.upload_submit")}</button>
-      </CsrfForm>
+      <div class="md-image-columns">
+        <CsrfForm
+          action="/admin/images"
+          class="md-image-upload"
+          enctype="multipart/form-data"
+        >
+          <h3>{t("images.item.upload_new")}</h3>
+          <EmptyUploadFields />
+          <button type="submit">{t("images.item.upload_submit")}</button>
+        </CsrfForm>
+        <div class="md-image-selection">
+          <div class="md-image-grid"></div>
+          <button class="md-image-confirm" hidden type="button">
+            {t("images.picker.add")}
+          </button>
+        </div>
+      </div>
     </dialog>
     <PickerNotes
       empty={t("images.empty")}

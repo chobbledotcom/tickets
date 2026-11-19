@@ -38,6 +38,7 @@ import {
   addProjectedImage,
   expectImageFields,
   insertBrokenImageWithGoodThumb,
+  linkListingImages,
   projectionCases,
 } from "#test-utils/image-projections.ts";
 import { expectQueryRows } from "#test-utils/query-rows.ts";
@@ -92,7 +93,11 @@ const linkedItemSet = async (name: string) => {
 const listingWithSpareImage = async (name: string) => {
   const listing = await createTestListing({ name: `${name} listing` });
   const { first: linked, second: spare } = await createImagePair(name);
-  await setImagesForItem("listing", listing.id, [linked.id]);
+  await setImagesForItem({
+    imageIds: [linked.id],
+    itemId: listing.id,
+    itemType: "listing",
+  });
   return { linked, listing, spare };
 };
 
@@ -179,7 +184,11 @@ describeWithEnv("db > images", { db: true }, () => {
         const imageId = projection.broken
           ? await insertBrokenImageWithGoodThumb()
           : await addProjectedImage(projection.title, projection.expected);
-        await setImagesForItem("listing", listing.id, [imageId]);
+        await setImagesForItem({
+          imageIds: [imageId],
+          itemId: listing.id,
+          itemType: "listing",
+        });
 
         expectImageFields(
           await projection.read(listing.id),
@@ -215,12 +224,11 @@ describeWithEnv("db > images", { db: true }, () => {
       const listing = await createTestListing({ name: "Poster listing" });
       const { first, second } = await createImagePair("Poster");
 
-      await setImagesForItem("listing", listing.id, [
-        second.id,
-        9999,
-        first.id,
-        second.id,
-      ]);
+      await setImagesForItem({
+        imageIds: [second.id, 9999, first.id, second.id],
+        itemId: listing.id,
+        itemType: "listing",
+      });
 
       expect(await linkedImageIds("listing", listing.id)).toEqual([
         second.id,
@@ -270,7 +278,11 @@ describeWithEnv("db > images", { db: true }, () => {
     test("sets all item links for one image and appends to existing item order", async () => {
       const { group, image, listing } = await linkedItemSet("Linked");
       const existing = await makeImage("Existing");
-      await setImagesForItem("listing", listing.id, [existing.id]);
+      await setImagesForItem({
+        imageIds: [existing.id],
+        itemId: listing.id,
+        itemType: "listing",
+      });
 
       await setItemsForImage(image.id, [
         { id: listing.id, kind: "listing" },
@@ -319,7 +331,7 @@ describeWithEnv("db > images", { db: true }, () => {
       const listing = await createTestListing({ name: "Stable listing" });
       const edited = await makeImage("Edited");
       const trailing = await makeImage("Trailing");
-      await setImagesForItem("listing", listing.id, [edited.id, trailing.id]);
+      await linkListingImages(listing.id, [edited.id, trailing.id]);
 
       await setItemsForImage(edited.id, [{ id: listing.id, kind: "listing" }]);
 
