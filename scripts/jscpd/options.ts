@@ -38,20 +38,23 @@ export const WRAPPER_FLAGS = {
   update: "--update",
 } as const;
 
-/** One wrapper flag that names a value, and the noun the value must be. */
+/** One wrapper flag that names a value, the noun the value must be, and
+ * whether jscpd reads the flag too. */
 interface FlagSpec {
+  forwards: boolean;
   name: string;
   noun: string;
 }
 
-/** The wrapper's flags that name a value for the counts file. */
+/** The wrapper's flags that name a value. The config goes to jscpd as well. */
 const VALUE_FLAGS: readonly FlagSpec[] = [
-  { name: WRAPPER_FLAGS.counts, noun: "path" },
-  { name: WRAPPER_FLAGS.scan, noun: "name" },
+  { forwards: true, name: "--config", noun: "path" },
+  { forwards: false, name: WRAPPER_FLAGS.counts, noun: "path" },
+  { forwards: false, name: WRAPPER_FLAGS.scan, noun: "name" },
 ];
 
-/** The wrapper's flag that names the config, which jscpd reads too. */
-const CONFIG_FLAG: FlagSpec = { name: "--config", noun: "path" };
+/** The flag that names the config, the one value flag that jscpd reads. */
+const CONFIG_NAME = "--config";
 
 /** Whether `arg` is `spec` or the joined `--flag=value` form of it. */
 const isFlag = (arg: string, { name }: FlagSpec): boolean =>
@@ -92,82 +95,58 @@ const valueFlag = (
         value: checkedValue(spec, arg.slice(spec.name.length + 1)),
       };
 
-/** The flags the wrapper owns, and the arguments that remain for jscpd. */
-interface OwnFlags {
-  args: string[];
-  check: boolean;
-  counts: string | undefined;
-  scan: string | undefined;
-  update: boolean;
-}
-
 /** The wrapper's own flags, read from `input`, and the jscpd arguments that
- * remain. A flag that names no value fails loudly. */
-const ownFlags = (input: readonly string[]): OwnFlags => {
-  const flags: OwnFlags = {
-    args: [],
-    check: false,
-    counts: undefined,
-    scan: undefined,
-    update: false,
-  };
+ * remain. A flag that names no value fails loudly, and so does a run that
+ * names no config. */
+const ownFlags = (input: readonly string[]): ScanOptions => {
+  const args: string[] = [];
   /** The value each named flag gave, keyed by the flag's name. */
   const named = new Map<string, string>();
+  let check = false;
+  let update = false;
   let index = 0;
   while (index < input.length) {
     const arg = requireValue(input[index], "A cpd argument is missing.");
     if (arg === WRAPPER_FLAGS.update) {
-      flags.update = true;
+      update = true;
       index += 1;
       continue;
     }
     if (arg === WRAPPER_FLAGS.check) {
-      flags.check = true;
+      check = true;
       index += 1;
       continue;
     }
-    const next = input[index + 1];
     const spec = VALUE_FLAGS.find((value) => isFlag(arg, value));
-    if (spec !== undefined) {
-      const read = valueFlag(spec, arg, next);
-      named.set(spec.name, read.value);
-      index += read.consumed;
-      continue;
-    }
-    if (!isFlag(arg, CONFIG_FLAG)) {
-      flags.args.push(arg);
+    if (spec === undefined) {
+      args.push(arg);
       index += 1;
       continue;
     }
-    const config = valueFlag(CONFIG_FLAG, arg, next);
-    flags.args.push(CONFIG_FLAG.name, config.value);
-    index += config.consumed;
+    const read = valueFlag(spec, arg, input[index + 1]);
+    named.set(spec.name, read.value);
+    if (spec.forwards) args.push(spec.name, read.value);
+    index += read.consumed;
   }
-  flags.counts = named.get(WRAPPER_FLAGS.counts);
-  flags.scan = named.get(WRAPPER_FLAGS.scan);
-  return flags;
-};
-
-/** The value of the `--config` flag among `args`, or undefined when the
- * arguments name none. `ownFlags` rejects a flag with no value, so the value
- * follows the flag. */
-const configOf = (args: readonly string[]): string | undefined => {
-  const index = args.indexOf(CONFIG_FLAG.name);
-  if (index === -1) return;
-  return requireValue(args[index + 1], "--config needs a path.");
-};
-
-/** The options of one scan. The run fails loudly when a flag that names a
- * value has none, and when `--config` is absent. A scan that checks or updates
- * a count needs both the counts file and the scan name. An update with a check
- * updates: the scan rewrites the count, so there is nothing to check against
- * it. */
-export const scanOptions = (input: readonly string[]): ScanOptions => {
-  const { args, check, counts, scan, update } = ownFlags(input);
-  const config = configOf(args);
+  const config = named.get(CONFIG_NAME);
   if (config === undefined) {
     throw new Error("scripts/cpd.ts needs --config <file>");
   }
+  return {
+    args,
+    check,
+    config,
+    counts: named.get(WRAPPER_FLAGS.counts),
+    scan: named.get(WRAPPER_FLAGS.scan),
+    update,
+  };
+};
+
+/** The options of one scan. A scan that checks or updates a count needs both
+ * the counts file and the scan name. An update with a check updates: the scan
+ * rewrites the count, so there is nothing to check against it. */
+export const scanOptions = (input: readonly string[]): ScanOptions => {
+  const { args, check, config, counts, scan, update } = ownFlags(input);
   if ((counts === undefined || scan === undefined) && (check || update)) {
     throw new Error(
       `scripts/cpd.ts: ${WRAPPER_FLAGS.update} and ${WRAPPER_FLAGS.check} ` +

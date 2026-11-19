@@ -574,8 +574,7 @@ A flagged pair is one merge:
   pair instead. The command writes only a lower count.
 - The counts for `main`, `test`, `helpers` and `support` hold the cloned code
   that existed when the strict scans started to count renamed copies. After a
-  merge, remove the fixed clones with `deno task cpd:update`. Never raise a
-  count.
+  merge, remove the fixed clones with `deno task cpd:update`.
 - A count is the number of duplicated places that one scan reports. A place
   counts once, however many clone pairs link it. A line that moves, a blank
   line, a file rename, and a new partner for a recorded place keep the count.
