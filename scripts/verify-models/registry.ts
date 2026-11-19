@@ -1,4 +1,5 @@
 import type { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
+import { modalLifecycleVerification } from "#scripts/verify-models/modal-lifecycle-registration.ts";
 import {
   type CheckPhase,
   dataFrom,
@@ -55,6 +56,7 @@ const splitControl = (
 /** The source inventory, review context, and checks share this declaration. */
 export const VERIFICATION_MODULES = [
   { context: [], kind: "helper", module: "ModelRules" },
+  modalLifecycleVerification,
   {
     context: [
       "verification/ModelRules.tla",

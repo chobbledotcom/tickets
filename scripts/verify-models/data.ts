@@ -77,12 +77,19 @@ export const tlaRecords = <const Schema extends TlaRecordSchema>(
   name: string,
   schema: Schema,
   values: readonly TlaFact<Schema>[],
+  collection: "Set" | "Seq" = "Set",
 ): string => {
   const fields = Object.entries(schema)
     .map(([field, type]) => `${field}: ${type}`)
     .join(", ");
   const alias = `${name.charAt(0).toLowerCase()}${name.slice(1)}Fact`;
-  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${unique(values.map((value, index) => record(value, `${name}[${index}]`))).join(",\n")}\n}`;
+  const rendered = values.map((value, index) =>
+    record(value, `${name}[${index}]`),
+  );
+  const isSet = collection === "Set";
+  const [open, close] = isSet ? ["{", "}"] : ["<<", ">>"];
+  const rows = isSet ? unique(rendered) : rendered;
+  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: ${collection}($${alias});\n${name} == ${open}\n${rows.join(",\n")}\n${close}`;
 };
 
 export const tlaModule = (

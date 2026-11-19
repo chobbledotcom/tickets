@@ -218,15 +218,26 @@ describeWithEnv("listings form", { db: true }, () => {
       ],
     ]);
 
-    test("ticked groups are saved; unticked junk ids are not", async () => {
+    test("ticked groups are saved", async () => {
       const group = await createTestGroup({ name: "Form group" });
       const row = await createListing({
-        groupIds: [String(group.id), "0", "-4"],
+        groupIds: [String(group.id)],
       });
       const links = await getDb().execute(
         sql`SELECT groupListing.group_id FROM group_listings AS groupListing WHERE groupListing.listing_id = ${row.id}`,
       );
       expect(links.rows.map((r) => r.group_id)).toEqual([group.id]);
+    });
+
+    test("a group box that is not a group id is refused, not dropped", async () => {
+      const group = await createTestGroup({ name: "Form group" });
+      const result = await tryCreateListing({
+        groupIds: [String(group.id), "0", "-4"],
+      });
+      expect(result).toEqual({
+        error: "Choose Groups from the list. Reload the page and choose again.",
+        ok: false,
+      });
     });
   });
 

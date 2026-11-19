@@ -9,6 +9,7 @@ import { buildUpdateListingResource } from "#routes/admin/listings-form.ts";
 import { listingFormView } from "#templates/fields/listing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { testFormParams } from "#test-utils/form-values.ts";
 import type { AdminLevel } from "#types";
 
@@ -21,6 +22,7 @@ const readEdit = async (
   const listing = await createTestListing({ name });
   const stored = (await getStoredListingWithCount(listing.id))!;
   const form = testFormParams({
+    ...baseListingForm,
     maxAttendees: "50",
     maxQuantity: "1",
     name,

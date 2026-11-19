@@ -1,5 +1,4 @@
 import { settings } from "#db/settings.ts";
-import { isNotNullish } from "#fp";
 import { toMajorUnits } from "#shared/currency.ts";
 import { showUseDefaultsToggle } from "#shared/listing-defaults.ts";
 import {
@@ -13,8 +12,6 @@ import type { AdminLevel, DayPrices, ListingWithCount } from "#types";
 const checked = (name: string, value: unknown): TestFormValues =>
   value ? { [name]: "1" } : {};
 const flagChoice = (value: unknown): string => (value ? "1" : "");
-const optionalNumber = (v: number | null | undefined): string =>
-  isNotNullish(v) ? String(v) : "";
 const repeated = (value: string): string[] =>
   value ? value.split(",").map((part) => part.trim()) : [];
 
@@ -78,7 +75,9 @@ const isUntouched = (value: TestFormValues[string]): boolean =>
   value === "" || value === "0";
 
 /** The create form a writer's page sends. A fixture that asks for a value
- *  in a box the page hides throws, so it must turn the feature on first. */
+ *  in a box the page hides throws, so it must turn the feature on first.
+ *  Each count box carries the value its page draws, which is the column
+ *  default the fixture leaves out. */
 export const buildCreateListingForm = (
   input: Omit<ListingInput, "slug" | "slugIndex">,
   adminLevel: AdminLevel = "owner",
@@ -96,13 +95,18 @@ export const buildCreateListingForm = (
   return shown;
 };
 
+/** The value a count box shows: the stored value, or the column default the
+ *  fixture leaves out. */
+const shownCount = (
+  value: number | null | undefined,
+  fallback: number,
+): string => String(value ?? fallback);
+
 const createListingBoxes = (
   input: Omit<ListingInput, "slug" | "slugIndex">,
 ): TestFormValues => {
   const closesAtParts = splitClosesAt(input.closesAt, null);
   const dateParts = splitClosesAt(input.date, null);
-  const initialSiteMonths =
-    input.initialSiteMonths ?? (input.assignBuiltSite ? 1 : 0);
   return {
     ...checked("assignBuiltSite", input.assignBuiltSite),
     ...checked("bookableAlone", input.bookableAlone),
@@ -114,21 +118,24 @@ const createListingBoxes = (
     dateDate: dateParts.date,
     dateTime: dateParts.time,
     description: input.description ?? "",
-    durationDays: optionalNumber(input.durationDays),
+    durationDays: shownCount(input.durationDays, 1),
     ...checked("usesLogistics", input.usesLogistics),
     ...dayPriceFormFields(input.dayPrices),
     fields: repeated(input.fields ?? "email"),
     ...checked("hidden", input.hidden),
-    initialSiteMonths: String(initialSiteMonths),
+    initialSiteMonths: shownCount(
+      input.initialSiteMonths,
+      input.assignBuiltSite ? 1 : 0,
+    ),
     listingType: input.listingType ?? "",
     location: input.location ?? "",
     maxAttendees: String(input.maxAttendees),
-    maximumDaysAfter: optionalNumber(input.maximumDaysAfter),
+    maximumDaysAfter: shownCount(input.maximumDaysAfter, 90),
     maxPrice: toMajorUnits(input.maxPrice),
-    maxQuantity: String(input.maxQuantity ?? 1),
-    minimumDaysBefore: optionalNumber(input.minimumDaysBefore),
-    minQuantity: String(input.minQuantity ?? 1),
-    monthsPerUnit: String(input.monthsPerUnit ?? 0),
+    maxQuantity: shownCount(input.maxQuantity, 1),
+    minimumDaysBefore: shownCount(input.minimumDaysBefore, 1),
+    minQuantity: shownCount(input.minQuantity, 1),
+    monthsPerUnit: shownCount(input.monthsPerUnit, 0),
     name: input.name,
     nonTransferable: flagChoice(input.nonTransferable),
     ...checked("purchaseOnly", input.purchaseOnly),

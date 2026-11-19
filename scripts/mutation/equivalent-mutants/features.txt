@@ -61,14 +61,14 @@ src/shared/db/name-registry.ts::matchName.ids~0awlhoy  ?? → || audited:1sl3bgs
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → || audited:1sl3bgs # matchName index.get(): number[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/bundle-groups.ts::validateGroups~0bnxwrf  ?? → || audited:1m08ncr # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/bundle-site.ts::groupViewOf.isPackage~1hwf5fo  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
-src/features/admin/catalog-transfer/bundle-site.ts::collectPairs~0bnxwrf  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/bundle-site.ts::collectPairs.isPackage~0bnxwrf  ?? → || audited:1j8dvjv # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → || audited:1w12n5i # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → || audited:1w12n5i # formatTransferIssues flat.nested: object|undefined — an object is always truthy
 # isStorableDatetime: the first m[N] read sits in a `=== undefined` test that is
 # always false (m[0] is the whole match), each `? 0 :` fallback feeds a `> bound`
 # guard it can never trip, and the month/day range checks are redundant with the
 # UTC round-trip.
-src/features/admin/catalog-transfer/schema.ts::filterDayPricesToDuration.max~0mwju9v  ?? → || audited:1w12n5i # durationDays is validated to be at least 1, so `?? 1` and `|| 1` pick the same value
+src/features/admin/catalog-transfer/schema.ts::ListingDataSchema~0mwju9v  ?? → || audited:084b5xi # durationDays is validated to be at least 1, so `?? 1` and `|| 1` pick the same value
 
 # middleware.ts's Content-Type fallback already equals the only falsy string.
 # Once a tracking key is found, continuing instead of breaking can only
@@ -184,10 +184,8 @@ src/features/public/order.ts::bookingUrlFor.chosen.kind~17n3p4g   → "mutated" 
 src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated" audited:1jdhljg # the same key always carries its id, so the id half is never missing
 
 # Listing form (listings-form.ts) — a redundant day-price row the parser drops,
-# a default the field's own bounds make unreachable, and a fallback whose left
-# side is never falsy-but-present.
+# and a result that is null or an object, so both fallbacks agree.
 src/features/admin/listings-form.ts::parseDayPricesFromForm~11szepb  1 → 0 audited:170yimz # reading day_price_0 as well changes nothing: parseDayPrices keeps only whole day counts of 1 or more
-src/features/admin/listings-form.ts::readListingForm.input.dayPrices~01qwnbh ??→||  audited:114ejy0   # durationDays is a number field with min 1 whose validate rejects anything below 1, so the value here is a positive number or absent
 src/features/admin/listings-form.ts::buildCreateListingResource.create~1t2nxlh  ?? → || audited:170yimz # writtenResult returns null or a result object, and every object is truthy
 src/features/admin/listings-form.ts::buildUpdateListingResource.update~17jwr6r  ?? → || audited:170yimz # writtenResult returns null or a result object, and every object is truthy
 src/features/admin/listings-edit.ts::handleNewListingGet.templateId~06kqyx5  ?? → || audited:04qz4ln # gate.template?.id is a TemplateId or undefined, and every TemplateId is a non-empty string, so the fallback runs on exactly the same input either way

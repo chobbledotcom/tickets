@@ -80,9 +80,8 @@ export type BundlePlan = {
 export const describeFailure = ({ item, reasons }: BundleFailure): string =>
   reasons.map((reason) => `"${item}": ${reason}`).join("; ");
 
-/** Do two membership declarations land the same row? Overrides the write
- * drops (a non-package group's quantity, say) normalise away first. Only a
- * difference that matters counts as a conflict. */
+/** Do two membership declarations land the same row? A pair declared from
+ *  both sides must agree, or the import refuses. */
 export const sameMembership = (
   a: PlannedMembership,
   b: PlannedMembership,

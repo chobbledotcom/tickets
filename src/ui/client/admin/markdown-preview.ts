@@ -19,13 +19,11 @@ import {
   type PreviewNote,
 } from "#shared/markdown-preview.ts";
 import { openAdminModal } from "#src/ui/client/admin/modal.ts";
-import { cloneContent, requiredChild } from "#src/ui/client/dom.ts";
-
-/** Find the CSRF token for the form a textarea belongs to. */
-const csrfTokenFor = (textarea: HTMLTextAreaElement): string =>
-  textarea
-    .closest("form")
-    ?.querySelector<HTMLInputElement>('input[name="csrfToken"]')?.value ?? "";
+import {
+  cloneContent,
+  csrfTokenFor,
+  requiredChild,
+} from "#src/ui/client/dom.ts";
 
 /** A failed request leaves the field's text intact. */
 const fetchPreview = async (

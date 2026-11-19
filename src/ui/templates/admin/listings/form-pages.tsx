@@ -6,6 +6,8 @@ import { isBuilderEnabled } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
+import type { ChosenImage } from "#shared/images/picker.ts";
+import { listingImagesEnabled } from "#shared/listing-image-field.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   inferTemplate,
@@ -221,12 +223,22 @@ export const adminListingPickerPage = (session: AdminSession): string => {
   );
 };
 
+/** The physical product and custom templates collect pictures while the
+ * listing is still new. The chosen images travel with the create and attach
+ * in the same write. */
+const newPageImages = (
+  templateId: string | null | undefined,
+  images: readonly ChosenImage[] | undefined,
+): readonly ChosenImage[] | undefined =>
+  listingImagesEnabled(templateId) ? (images ?? []) : undefined;
+
 export const adminListingNewPage = (
   groups: Group[],
   session: AdminSession,
   opts?: {
     customiseOpen?: boolean;
     error?: string;
+    images?: readonly ChosenImage[];
     templateId?: string | null;
     values?: FieldValues;
     selectedGroupIds?: number[];
@@ -236,6 +248,7 @@ export const adminListingNewPage = (
     error,
     templateId,
     customiseOpen = false,
+    images: submittedImages,
     values: submitted,
     selectedGroupIds = [],
   } = opts ?? {};
@@ -256,6 +269,7 @@ export const adminListingNewPage = (
     : template
       ? seeds
       : { ...seeds, ...defaultsToFieldValues(form.defaults) };
+  const images = newPageImages(templateId, submittedImages);
   return createListingPageFromForm(
     form,
     session,
@@ -279,6 +293,7 @@ export const adminListingNewPage = (
           advancedOpen: !!error,
           customiseOpen,
           durationWarning: "",
+          ...(images === undefined ? {} : { images }),
           useDefaultsChecked,
           values: newValues,
         })}

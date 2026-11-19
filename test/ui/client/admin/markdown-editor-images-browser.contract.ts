@@ -430,5 +430,20 @@ describeWithBrowser(
         expect(await dialog.locator(OPTION).count()).toBe(0);
       });
     });
+    test("the new listing form's Images field opens the shared picker", async () => {
+      await makeImage("Harbour");
+      await withPage(async (page) => {
+        await page.goto("/admin/listing/new?template=physical-product");
+        const trigger = page.locator("[data-listing-images-trigger]");
+        await trigger.waitFor();
+        await trigger.click();
+
+        const dialog = page.locator(`${DIALOG}[open]`);
+        await dialog.waitFor();
+        const options = dialog.locator(OPTION);
+        await options.getByText("Harbour", { exact: true }).waitFor();
+        expect(await options.allTextContents()).toEqual(["Harbour"]);
+      });
+    });
   },
 );

@@ -45,10 +45,13 @@ describe("the image picker template", () => {
     );
 
     const textInputs = inputsOf(html).filter(({ type }) => type === "text");
-    expect(textInputs.map(({ value }) => value)).toEqual([null, null]);
+    expect(textInputs.map(({ value }) => value)).toEqual([null]);
+    const textarea =
+      /<textarea[^>]*name="altText"[^>]*>([\s\S]*?)<\/textarea>/.exec(html);
+    expect(textarea?.[1]).toBe("");
   });
 
-  test("the upload form carries the images area's fields", () => {
+  test("the picker's upload form carries its own fields", () => {
     const fields = inputsOf(String(ImagePickerTemplate())).map(
       ({ name, required, type }) => ({ name, required, type }),
     );
@@ -56,9 +59,13 @@ describe("the image picker template", () => {
     expect(fields).toEqual([
       { name: "csrfToken", required: false, type: "hidden" },
       { name: "name", required: true, type: "text" },
-      { name: "altText", required: false, type: "text" },
       { name: "image", required: false, type: "file" },
     ]);
+    expect(
+      /<textarea[^>]*name="altText"[^>]*><\/textarea>/.test(
+        String(ImagePickerTemplate()),
+      ),
+    ).toBe(true);
   });
 
   test("the dialog carries the parts that the browser wires", () => {
@@ -80,6 +87,7 @@ describe("the image picker template", () => {
     expect(notes).toEqual([
       ["empty", "No images yet."],
       ["loading", "Loading…"],
+      ["loadFailed", "The image library could not load. Please try again."],
       ["uploadFailed", "The image could not be uploaded. Please try again."],
     ]);
   });

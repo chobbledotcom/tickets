@@ -11,15 +11,16 @@ import type { NodeView } from "prosemirror-view";
 import * as v from "valibot";
 import { bindFirst } from "#shared/fp-bind.ts";
 import {
+  IMAGE_LIBRARY_CHANGED,
   type ImageOption,
   ImageOptionsReplySchema,
 } from "#shared/images/picker.ts";
 import { shortFormImageId } from "#shared/images/short-form.ts";
 
 /** The site's image library as one editor reads it: fetched on first use,
- * then cached. `forget` drops the cache, so the next read fetches again. */
+ * then cached. The page's library-changed event drops the cache, so the next
+ * read fetches again. */
 export interface ImageLibrary {
-  forget: () => void;
   load: () => Promise<ImageOption[]>;
 }
 
@@ -33,12 +34,18 @@ const fetchImageOptions = async (): Promise<ImageOption[]> => {
 
 export const createImageLibrary = (): ImageLibrary => {
   let options: Promise<ImageOption[]> | null = null;
-  return {
-    forget: () => {
+  if (typeof document !== "undefined") {
+    document.addEventListener(IMAGE_LIBRARY_CHANGED, () => {
       options = null;
-    },
+    });
+  }
+  return {
     load: () => {
-      options ??= fetchImageOptions();
+      options ??= fetchImageOptions().catch((error) => {
+        // A failed load must not poison every later open in this session.
+        options = null;
+        throw error;
+      });
       return options;
     },
   };
