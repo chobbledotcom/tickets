@@ -50,8 +50,6 @@ export type DeleteSpec<TEntity> = {
   name: (entity: TEntity) => string;
   /** ConfirmForm label ("type X to confirm"). */
   label: string;
-  /** Page + form heading. */
-  heading: string;
   /** A `<Raw html={t(...)}/>` "this will delete X" warning paragraph. */
   confirm?: (entity: TEntity) => TCall;
   /** A plain-text confirm prompt paragraph. */
@@ -71,6 +69,19 @@ export type ResourceLabels = {
   deleteTitle: string;
   deleteButton: string;
 };
+
+/** One resource's page labels. The six catalog keys follow one scheme, so the
+ *  resource key supplies every label: `<resource>.add.heading`,
+ *  `<resource>.add.submit`, `<resource>.add.title`, `<resource>.delete.heading`,
+ *  `<resource>.delete.submit`, and the shared noun `terms.<resource>`. */
+export const pageLabels = (resource: string): ResourceLabels => ({
+  addHeading: t(`${resource}.add.heading`),
+  addSubmit: t(`${resource}.add.submit`),
+  addTitle: t(`${resource}.add.title`),
+  deleteButton: t(`${resource}.delete.submit`),
+  deleteTitle: t(`${resource}.delete.heading`),
+  listTitle: t(`terms.${resource}`),
+});
 
 /** The list-page facet of a resource: its table columns, empty-state markup,
  *  and optional intro/action-row content. Omitted entirely by resources whose
@@ -200,7 +211,7 @@ export const defineAdminResourcePages = <TEntity extends { id: number }>(
       active: config.active,
       buttonText: config.labels.deleteButton,
       danger: del.danger,
-      heading: del.heading,
+      heading: config.labels.deleteTitle,
       label: del.label,
       name: del.name(entity),
       title: config.labels.deleteTitle,

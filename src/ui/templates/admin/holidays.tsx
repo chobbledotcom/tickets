@@ -24,6 +24,7 @@ import {
   type AdminResourcePages,
   confirmByName,
   defineRecordPages,
+  pageLabels,
 } from "#templates/admin/resource-pages.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -89,20 +90,12 @@ export const getHolidayPages = (): AdminResourcePages<Holiday> =>
         key: "holidays.delete.confirm",
       }),
       danger: false,
-      heading: t("holidays.delete.heading"),
       ...confirmByName(
         "holidays.delete.confirm_label",
         "holidays.delete.confirm_prompt",
       ),
     },
-    labels: {
-      addHeading: t("holidays.add.heading"),
-      addSubmit: t("holidays.add.submit"),
-      addTitle: t("holidays.add.title"),
-      deleteButton: t("holidays.delete.submit"),
-      deleteTitle: t("holidays.delete.heading"),
-      listTitle: t("terms.holidays"),
-    },
+    labels: pageLabels("holidays"),
     list: {
       actions: (
         <ActionButton href={adminPattern("holidayNew")} icon="plus">

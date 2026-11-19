@@ -15,6 +15,7 @@ import {
 } from "#shared/bulk-email-targets/registry.ts";
 import type { BulkEmailTarget } from "#shared/bulk-email-targets/types.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 
 export const COMPOSE_PATH = adminPattern("emails");
@@ -36,7 +37,7 @@ const validateFormBody = async (
     return errorRedirect(COMPOSE_PATH, t("bulk_email.listing_gone"));
   }
   const validation = validateDraftInput({
-    body: form.getString("body"),
+    body: readSubmittedMarkdown(form, "body"),
     marketing: form.getFlag("marketing"),
     subject: form.getString("subject"),
     target,

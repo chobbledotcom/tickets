@@ -127,6 +127,8 @@ describe("logisticsAgentPages new page", () => {
       "Add logistics agent",
       "Create agent",
       'action="/admin/logistics"',
+      'name="name"',
+      'placeholder="Van 1"',
     ]);
     // A direct URL stays usable while the feature is hidden, without restoring
     // its navigation link.

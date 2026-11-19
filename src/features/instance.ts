@@ -33,12 +33,14 @@ const presentsInstanceKey = (request: Request): boolean => {
   );
 };
 
-/** One built site's machine-readable upgrade credentials. `siteUrl` is the
- * site's public origin. The update workflow polls the site's read-only page
- * while the update runs. */
+/** One built site's machine-readable upgrade credentials. `id` is the
+ * instance's numeric site id, which the deploy log uses to name the site
+ * without printing its URL. `siteUrl` is the site's public origin. The update
+ * workflow polls the site's read-only page while the update runs. */
 type SiteCredentials = {
   dbToken: string;
   dbUrl: string;
+  id: number;
   name: string;
   scriptId: string;
   siteUrl: string;
@@ -85,6 +87,7 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
     .map((site) => ({
       dbToken: site.dbToken,
       dbUrl: site.dbUrl,
+      id: site.id,
       name: site.name,
       scriptId: site.hostingId,
       siteUrl: site.siteUrl,

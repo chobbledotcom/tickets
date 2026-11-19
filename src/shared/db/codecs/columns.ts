@@ -40,6 +40,7 @@ import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { LOGISTICS_AGENT_FIELDS } from "#shared/records/logistics-agent-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import type {
   RecurringIntervalChoice,
@@ -150,7 +151,7 @@ export const CODECS = {
     // empty.
     slug_index: typed<BlindIndex>(),
   },
-  logistics_agents: { name: sealed },
+  logistics_agents: fieldCodecs("logistics_agents", LOGISTICS_AGENT_FIELDS),
   modifiers: {
     active: yesNo,
     calc_kind: typed<CalcKind>(),

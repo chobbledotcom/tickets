@@ -1,19 +1,20 @@
 import type { MessageGroup } from "#locales/message-groups.generated.ts";
 
-/** Copy used by the admin layout itself, independent of the page it wraps. */
-export const ADMIN_SHELL_MESSAGE_GROUPS = [
-  "activity-log",
-  "admin-shell",
-  "common",
-  "nav",
-  "nouns",
-] as const satisfies readonly MessageGroup[];
-
 /** Copy used by the public layout and navigation. */
 export const PUBLIC_SHELL_MESSAGE_GROUPS = [
   "common",
   "nav",
   "nouns",
+] as const satisfies readonly MessageGroup[];
+
+/** Copy used by the admin layout itself, independent of the page it wraps:
+ *  the public shell's copy and the admin copy. The layout carries the
+ *  editor's image picker, so the image copy is here. */
+export const ADMIN_SHELL_MESSAGE_GROUPS = [
+  ...PUBLIC_SHELL_MESSAGE_GROUPS,
+  "activity-log",
+  "admin-shell",
+  "images",
 ] as const satisfies readonly MessageGroup[];
 
 /** Add route-owned copy to the shared public shell. */

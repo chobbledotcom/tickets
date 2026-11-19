@@ -393,12 +393,6 @@
       "fields": ["childIdsByParent"]
     }
   ],
-  "src/shared/db/logistics-agents.ts": [
-    {
-      "path": [{ "name": "LogisticsAgentInput" }],
-      "fields": ["name"]
-    }
-  ],
   "src/shared/db/modifier-resolve.ts": [
     {
       "path": [{ "name": "ListingGroupMembership" }],

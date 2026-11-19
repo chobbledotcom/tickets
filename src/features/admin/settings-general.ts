@@ -29,6 +29,7 @@ import {
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
 import {
   PAYMENT_PROVIDERS,
   providerCurrencyBlock,
@@ -60,12 +61,13 @@ const formLocation = (definition: SingleFieldSettingsForm) => {
 };
 
 /** A settings extractor that masks the field's submitted value with demo
- * sample data when demo mode is on. */
+ * sample data when demo mode is on. The terms and footer boxes hold Markdown,
+ * so their indentation stays. */
 const demoExtract =
   (fields: DemoFieldMap, fieldName: string) =>
   (form: FormParams): string => {
     applyDemoOverrides(form, fields);
-    return form.getString(fieldName);
+    return readSubmittedMarkdown(form, fieldName);
   };
 
 /** A settings save log line: the removed message when the value is empty,

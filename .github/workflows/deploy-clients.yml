@@ -124,32 +124,52 @@ jobs:
           echo "Got credentials for $count site(s) on tier ${TIER} or more eager"
 
           for i in $(seq 0 $((count - 1))); do
+            site_id=$(jq -r ".sites[$i].id // empty" <<<"$sites_json")
             script_id=$(jq -r ".sites[$i].scriptId" <<<"$sites_json")
             db_url=$(jq -r ".sites[$i].dbUrl" <<<"$sites_json")
             db_token=$(jq -r ".sites[$i].dbToken" <<<"$sites_json")
             site_url=$(jq -r ".sites[$i].siteUrl" <<<"$sites_json")
-            # The returned URL and token are credentials. Keep them out of the logs.
+
+            # The numeric site id identifies the site in this log. The site URL
+            # and the database credential are private: mask each one before a
+            # later error can print it.
+            if [ -z "$site_id" ]; then
+              echo "✗ The main instance returned no numeric site id. Upgrade the main instance to a build that sends it, then re-run." >&2
+              exit 1
+            fi
+            if [ -z "$site_url" ] || [ "$site_url" = "null" ]; then
+              echo "✗ Site ${site_id} has no site URL, so the update-mode wait has no page to check. Set the site URL, then re-run." >&2
+              exit 1
+            fi
+            echo "::add-mask::$site_url"
             echo "::add-mask::$db_url"
             echo "::add-mask::$db_token"
+            site_hosts="$(deno run scripts/update-mode-hosts.ts "$site_url")"
+            for host in ${site_hosts//,/ }; do
+              echo "::add-mask::$host"
+            done
+            db_host=$(sed -E 's#^[A-Za-z][A-Za-z0-9+.-]*://([^/@]+@)?([^/:?]+).*#\2#' <<<"$db_url")
+            if [ -n "$db_host" ] && [ "$db_host" != "$db_url" ]; then
+              echo "::add-mask::$db_host"
+            fi
 
-            echo "Backing up Script ${script_id}.."
+            echo "Site ${site_id}: backing up.."
             DB_URL="$db_url" DB_TOKEN="$db_token" deno task backup
 
-            echo "Putting site ${script_id} into update mode.."
-            site_host="$(sed -E 's#^[a-z]+://([^/]+).*#\1#' <<<"$site_url")"
+            echo "Site ${site_id}: putting into update mode.."
             deno run \
               --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
-              --allow-net="api.bunny.net,$site_host" \
+              --allow-net="api.bunny.net,$site_hosts" \
               scripts/update-mode.ts begin "$script_id" "$site_url"
 
-            echo "Updating site ${script_id}.."
+            echo "Site ${site_id}: deploying.."
             code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST \
               "https://api.bunny.net/compute/script/${script_id}/code" \
               -H "AccessKey: ${BUNNY_ACCESS_KEY}" \
               -H "Content-Type: application/json" \
               -d @/tmp/code-payload.json)
             if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
-              echo "  ✗ upload failed (HTTP $code): $(cat /tmp/resp)"
+              echo "  ✗ site ${site_id} upload failed (HTTP $code): $(cat /tmp/resp)" >&2
               exit 1
             fi
             code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST \
@@ -157,14 +177,14 @@ jobs:
               -H "AccessKey: ${BUNNY_ACCESS_KEY}" \
               -H "Content-Type: application/json" -d '{}')
             if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
-              echo "  ✗ publish failed (HTTP $code): $(cat /tmp/resp)"
+              echo "  ✗ site ${site_id} publish failed (HTTP $code): $(cat /tmp/resp)" >&2
               exit 1
             fi
 
-            echo "Waking site ${script_id} and lifting update mode.."
+            echo "Site ${site_id}: waking the new build and lifting update mode.."
             deno run \
               --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
-              --allow-net="api.bunny.net,$site_host" \
+              --allow-net="api.bunny.net,$site_hosts" \
               scripts/update-mode.ts end "$script_id" "$site_url" "$BUILD_TAG"
-            echo "  ✓ ${script_id} updated"
+            echo "  ✓ Site ${site_id} updated"
           done

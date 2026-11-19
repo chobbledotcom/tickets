@@ -8,11 +8,7 @@ import { t } from "#i18n";
 import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { formatBytes } from "#shared/format-units.ts";
-import {
-  defineFieldsForm,
-  defineForm,
-  type FormValues,
-} from "#shared/forms/definition.ts";
+import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import {
   type ChoiceOptions,
   type Field,
@@ -428,19 +424,3 @@ export type ListingFormValues = FormValues<ReturnType<typeof getListingForm>>;
 export type ListingEditFormValues = FormValues<
   ReturnType<typeof getListingEditForm>
 >;
-
-/** Logistics agent form field definitions
- */
-const logisticsAgentFields = [
-  {
-    label: t("logistics.agent_name"),
-    name: "name",
-    placeholder: "Van 1",
-    required: true,
-    type: "text",
-  },
-] as const satisfies readonly Field[];
-
-export const logisticsAgentForm = defineForm({
-  fields: logisticsAgentFields,
-});
