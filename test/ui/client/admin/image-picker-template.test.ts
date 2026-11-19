@@ -66,15 +66,20 @@ const submit = async (
   await flush();
 };
 
+/** The image edit page's refusal, carrying the given body. */
+const refusal = (html: string): Response => {
+  const refused = new Response(html);
+  Object.defineProperty(refused, "url", {
+    value: "http://localhost/admin/images/new",
+  });
+  return refused;
+};
+
 /** Answer the upload with a refused page, then return the picker. */
 const refusedUpload = async (errorHtml: string): Promise<PickerDialogParts> => {
   installDom(PICKER_TEMPLATE);
   const dialog = parts();
-  const refused = new Response(errorHtml);
-  Object.defineProperty(refused, "url", {
-    value: "http://localhost/admin/images/new",
-  });
-  fetchStubHolder.stub = stubFetch(refused);
+  fetchStubHolder.stub = stubFetch(refusal(errorHtml));
   wireUploadForm(dialog, () => undefined);
   await submit(dialog);
   return dialog;
@@ -274,6 +279,24 @@ describe("the image picker template", () => {
     expect(dialog.grid.textContent).toBe(
       "The image could not be uploaded. Please try again.",
     );
+  });
+
+  test("replaces the failure note when a second upload is refused", async () => {
+    installDom(PICKER_TEMPLATE);
+    const dialog = parts();
+    fetchStubHolder.stub = stubFetch(
+      refusal('<div class="error" role="alert">First refusal</div>'),
+      refusal('<div class="error" role="alert">Second refusal</div>'),
+    );
+    wireUploadForm(dialog, () => undefined);
+
+    await submit(dialog);
+    await submit(dialog);
+
+    expect(
+      dialog.grid.querySelectorAll('[data-note="uploadFailed"]').length,
+    ).toBe(1);
+    expect(dialog.grid.textContent).toBe("Second refusal");
   });
 
   test("sends the chosen file's bytes with its name", async () => {
