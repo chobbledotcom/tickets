@@ -243,10 +243,10 @@ Each TypeScript scan skips import and re-export statements through its
 a destructured dynamic import, `const { name } = await import("…");`. Source
 files carry no ignore markers around imports.
 
-With literals ignored, two long lists of strings match, for example two word
-lists of the band-name generator. A list of strings is data, and no helper can
-share it. Each declared list that holds only strings is wrapped in
-`/* jscpd:ignore-start -- a list of strings, not code */` and
+With literals ignored, two declarations of static data match, for example two
+long lists of strings or two object hashes whose values are literals. Static
+data is data, and no helper can share it. Each such declaration is wrapped in
+`/* jscpd:ignore-start -- static data, not code */` and
 `/* jscpd:ignore-end */`. The rule does not cover SQL text, such as the check
 rules in `charges.ts`, or the message group lists inside the `area(...)` calls
 in `area-loaders.ts`. Markers inside a call cut the long matches into many

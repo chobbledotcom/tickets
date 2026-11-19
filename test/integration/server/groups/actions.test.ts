@@ -42,6 +42,7 @@ describeWithEnv(
             "/admin/groups",
             {
               csrfToken,
+              maxAttendees: "0",
               name: "Redirect Test",
               termsAndConditions: "",
             },
@@ -66,6 +67,7 @@ describeWithEnv(
             `/admin/groups/${group.id}/edit`,
             {
               csrfToken,
+              maxAttendees: "0",
               name: "Edited Redir",
               slug: "edited-redir",
               termsAndConditions: "",

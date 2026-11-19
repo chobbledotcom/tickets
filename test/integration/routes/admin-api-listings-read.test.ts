@@ -5,6 +5,7 @@ import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { putListingChildren } from "#test-utils/listing-parents/helpers.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { bookingPageHtml } from "#test-utils/parents.ts";
 import {
@@ -27,7 +28,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         (body) => {
           expect(body.listing.name).toBe("Detail Listing");
           expect(body.listing.id).toBe(listing.id);
-          expect(body.listing.slug_index).toBeUndefined();
+          expect(Object.hasOwn(body.listing, "slug_index")).toBe(false);
         },
       );
     });
@@ -84,16 +85,11 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
-    test("accepts listing ID 1 as a positive integer", async () => {
+    test("accepts a stored listing id as a child", async () => {
       const listing = await createTestListing({ name: "Positive IDs" });
+      const child = await createTestListing({ name: "Positive Child" });
 
-      await assertJson(
-        apiRequest(`/api/admin/listings/${listing.id}`, {
-          body: { child_listing_ids: [1] },
-          method: "PUT",
-        }),
-        200,
-      );
+      await assertJson(putListingChildren(listing.id, [child.id]), 200);
     });
 
     test("rejects a fractional child listing ID", async () => {

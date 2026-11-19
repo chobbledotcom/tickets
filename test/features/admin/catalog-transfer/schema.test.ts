@@ -229,19 +229,26 @@ describe("ListingDataSchema day prices", () => {
     durationDays?: number,
   ) => parseListing({ dayPrices, durationDays });
 
-  test("drops keys beyond the listing's own duration", () => {
+  test("refuses a price above the listing's own duration", () => {
     const result = parseDayPrices({ 1: 100, 2: 200, 5: 500 }, 2);
+    expectIssueMessage(
+      result,
+      "dayPrices holds a price for a day the listing does not last",
+    );
+  });
+
+  test("refuses a price above the one-day duration a listing takes when it gives none", () => {
+    expectIssueMessage(
+      parseDayPrices({ 1: 100, 2: 200 }),
+      "dayPrices holds a price for a day the listing does not last",
+    );
+  });
+
+  test("keeps a price for a day the listing lasts", () => {
+    const result = parseDayPrices({ 1: 100, 2: 200 }, 2);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.output.dayPrices).toEqual({ 1: 100, 2: 200 });
-    }
-  });
-
-  test("keeps only the first day price when the duration is absent", () => {
-    const result = parseDayPrices({ 1: 100, 2: 200 });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.output.dayPrices).toEqual({ 1: 100 });
     }
   });
 

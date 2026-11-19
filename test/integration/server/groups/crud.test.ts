@@ -107,6 +107,7 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
           "/admin/groups",
           {
             csrfToken,
+            maxAttendees: "0",
             name: "Manager Group",
             termsAndConditions: "",
           },
@@ -209,6 +210,7 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
       test(title, async () => {
         await seed();
         const { response } = await adminFormPost("/admin/groups", {
+          maxAttendees: "0",
           name,
           termsAndConditions: "",
         });

@@ -129,21 +129,43 @@ describeWithEnv("duplicated listing child edges", { db: true }, () => {
     });
   });
 
-  test("cleans submitted ids before saving a valid edge", async () => {
+  test("refuses a submitted child that names no listing", async () => {
+    const [, parent, child] = await createNamedListings(
+      "Grandparent",
+      "Parent",
+      "Child",
+    );
+
+    expect(await validateChildEdges(parent, [child.id, 999_999])).toEqual({
+      error: t("listings_table.children_err_missing"),
+      ok: false,
+    });
+  });
+
+  test("refuses a submitted child that names the parent itself", async () => {
+    const [, parent, child] = await createNamedListings(
+      "Grandparent",
+      "Parent",
+      "Child",
+    );
+
+    expect(await validateChildEdges(parent, [parent.id, child.id])).toEqual({
+      error: t("listings_table.children_err_self", { name: "Parent" }),
+      ok: false,
+    });
+  });
+
+  test("collapses a repeated child id to one edge", async () => {
     const [grandparent, parent, child] = await createNamedListings(
       "Grandparent",
       "Parent",
       "Child",
     );
 
-    expect(
-      await validateChildEdges(parent, [
-        parent.id,
-        child.id,
-        child.id,
-        999_999,
-      ]),
-    ).toEqual({ childIds: [child.id], ok: true });
+    expect(await validateChildEdges(parent, [child.id, child.id])).toEqual({
+      childIds: [child.id],
+      ok: true,
+    });
 
     await listingChildren.setIds(grandparent.id, [parent.id]);
     expect(await validateChildEdges(parent, [child.id])).toEqual({

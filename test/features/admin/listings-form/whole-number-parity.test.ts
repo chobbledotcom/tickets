@@ -20,8 +20,13 @@ import {
 
 const listingForm = (extra: TestFormValues = {}) =>
   testFormParams({
+    durationDays: "1",
     maxAttendees: "50",
+    maximumDaysAfter: "90",
+    maxPrice: "100.00",
     maxQuantity: "5",
+    minimumDaysBefore: "1",
+    minQuantity: "1",
     name: "Parsed listing",
     ...extra,
   });

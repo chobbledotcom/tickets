@@ -234,13 +234,13 @@ describe("validateForm", () => {
     }
   });
 
-  test("uses a default when the submitted value is empty", () => {
+  test("leaves a blank box empty instead of reading its default", () => {
     const fields: Field[] = [
       field({ defaultValue: "fallback", label: "Code", name: "code" }),
     ];
     expect(validateForm(new FormParams(), fields)).toEqual({
       valid: true,
-      values: { code: "fallback" },
+      values: { code: "" },
     });
   });
 
