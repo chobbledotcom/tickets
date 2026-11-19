@@ -26,16 +26,33 @@ const launchOptions = async (
   return requireValue(calledWith, "Chromium was not launched.");
 };
 
+/** The launch options without the browser environment. */
+const withoutEnvironment = ({
+  env: _env,
+  ...rest
+}: LaunchOptions): LaunchOptions => rest;
+
 describe("screenshot browser options", () => {
   test("includes only provided launch fields", () => {
-    expect(browserLaunchOptions(true, undefined, undefined)).toEqual({
-      headless: true,
-    });
-    expect(browserLaunchOptions(false, "/usr/bin/ch", ["--flag"])).toEqual({
+    expect(
+      withoutEnvironment(browserLaunchOptions(true, undefined, undefined)),
+    ).toEqual({ headless: true });
+    expect(
+      withoutEnvironment(
+        browserLaunchOptions(false, "/usr/bin/ch", ["--flag"]),
+      ),
+    ).toEqual({
       args: ["--flag"],
       executablePath: "/usr/bin/ch",
       headless: false,
     });
+  });
+
+  test("launches Chromium without the shell's library path", () => {
+    const env = browserLaunchOptions(true).env;
+
+    expect(env?.LD_LIBRARY_PATH).toBeUndefined();
+    expect(env?.PATH).toBe(Deno.env.get("PATH"));
   });
 
   test("bounds a contract page with strict action and navigation timeouts", () => {
@@ -52,7 +69,10 @@ describe("screenshot browser options", () => {
   });
 
   test("launches Chromium with screenshot-mode headless and CDP fix", async () => {
-    expect(await launchOptions()).toEqual({
+    const options = await launchOptions();
+
+    expect(options.env?.LD_LIBRARY_PATH).toBeUndefined();
+    expect(withoutEnvironment(options)).toEqual({
       args: ["--disable-features=CDPScreenshotNewSurface"],
       executablePath: "/path/to/chromium",
       headless: true,
@@ -60,9 +80,12 @@ describe("screenshot browser options", () => {
   });
 
   test("passes screenshot launch overrides to Chromium", async () => {
-    expect(
-      await launchOptions({ ignoreDefaultArgs: ["--hide-scrollbars"] }),
-    ).toEqual({
+    const options = await launchOptions({
+      ignoreDefaultArgs: ["--hide-scrollbars"],
+    });
+
+    expect(options.env?.LD_LIBRARY_PATH).toBeUndefined();
+    expect(withoutEnvironment(options)).toEqual({
       args: ["--disable-features=CDPScreenshotNewSurface"],
       executablePath: "/path/to/chromium",
       headless: true,
