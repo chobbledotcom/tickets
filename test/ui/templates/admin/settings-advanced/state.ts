@@ -13,7 +13,6 @@ export const advancedDefaultState: AdvancedSettingsPageState = {
   bunnyDnsSubdomainSuffix: "",
   bunnySubdomain: "",
   businessEmail: "",
-  catalogGalleryEnabled: false,
   cdnHostname: "",
   confirmationTemplates: { html: "", subject: "", text: "" },
   customCss: "",

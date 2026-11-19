@@ -316,8 +316,8 @@ const renderGroupCard = (group: Group, soldOut: boolean): string => {
 
 /**
  * Homepage with listings - lists all active upcoming listings with booking links.
- * With `galleryView` on (the catalog-gallery setting), the listing cards render
- * as a product-card gallery instead of the classic prose cards.
+ * When most visible listings carry a picture, the cards render as a
+ * product-card gallery instead of the classic prose cards.
  */
 export const homepagePage = (
   listings: TicketListing[],
