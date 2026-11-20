@@ -44,7 +44,8 @@ const PAYMENT_SCHEMA = v.object({
   amount: v.pipe(v.number(), v.check(isPositiveSafeInteger)),
 });
 
-/** One adjustment's refusal, or the validated entry. */
+/** One adjustment's refusal, or the validated entry. A taxable adjustment is a
+ *  charge that the tax counts, so it must bill the attendee. */
 const parseAdjustment = (
   item: unknown,
   at: string,
@@ -52,7 +53,7 @@ const parseAdjustment = (
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
     return errorResult(`${at} must name a description and an amount`);
   }
-  const { amount, description } = item as Record<string, unknown>;
+  const { amount, description, taxable } = item as Record<string, unknown>;
   if (typeof description !== "string" || description === "") {
     return errorResult(`${at}.description must be text`);
   }
@@ -66,7 +67,14 @@ const parseAdjustment = (
       `${at}.amount must be a whole number of pence or cents, not zero`,
     );
   }
-  return okResult({ amount, description });
+  if (taxable === undefined) return okResult({ amount, description });
+  if (typeof taxable !== "boolean") {
+    return errorResult(`${at}.taxable must be true or false`);
+  }
+  if (taxable && amount < 0) {
+    return errorResult(`${at}.taxable only applies to a charge, not a writeoff`);
+  }
+  return okResult({ amount, description, taxable });
 };
 
 /** Parse every element of an optional array, or the first refusal. Absent

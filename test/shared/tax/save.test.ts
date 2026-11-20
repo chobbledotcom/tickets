@@ -78,8 +78,11 @@ const postLegacyLegs = async (
   );
 };
 
-const booking = async (legacy = false) => {
-  await settings.update.tax(NO_TAX);
+/** A taxable delivery charge the API create posts beside the listed line. */
+const DELIVERY = { amount: 2000, description: "Delivery", taxable: true };
+
+const booking = async (legacy = false, withDelivery = false) => {
+  await settings.update.tax(withDelivery ? added : NO_TAX);
   const listing = await createTestListing({
     maxAttendees: 10,
     name: "Tax place",
@@ -97,10 +100,14 @@ const booking = async (legacy = false) => {
           [],
         );
       }
-    : apiCreateLedgerPoster(listPriceOrder([{ listing, quantity: 1 }]), {
-        adjustments: [],
-        payments: [],
-      });
+    : apiCreateLedgerPoster(
+        listPriceOrder(
+          [{ listing, quantity: 1 }],
+          withDelivery ? added : NO_TAX,
+          withDelivery ? [DELIVERY.amount] : [],
+        ),
+        { adjustments: withDelivery ? [DELIVERY] : [], payments: [] },
+      );
   const attendee = bookedAttendee(
     await createAttendeeAtomicImpl(
       {
@@ -180,6 +187,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
     const assessments = await readTaxAssessments([fixture.attendee.id]);
     expect(assessments.map((row) => row.state.revision)).toEqual([0, 1]);
     expect(assessments[1]!.state.assessment.basis).toEqual({
+      charges: [],
       lines: [{ gross: 10000, listingId: fixture.listing.id }],
       modifiers: [],
     });
@@ -220,6 +228,39 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
       ),
     ).toEqual([0, 1, 2, 3, 4]);
     await expectOriginalLegsKept(original);
+  });
+
+  it("corrects a taxable charge with the lines when the tax setting changes", async () => {
+    const fixture = await booking(false, true);
+    expect(await figures(fixture)).toEqual({
+      income: 10000,
+      owed: 14400,
+      tax: 2400,
+    });
+    const original = await allTransfers();
+    await settings.update.tax(included);
+    expect((await buildTaxSavePlan(fixture.attendee.id)).preview).toMatchObject(
+      { afterBalance: 12000, afterTax: 2000, beforeBalance: 14400 },
+    );
+    await save(fixture);
+    expect(await figures(fixture)).toEqual({
+      income: 8333,
+      owed: 12000,
+      tax: 2000,
+    });
+    const assessments = await readTaxAssessments([fixture.attendee.id]);
+    expect(assessments[1]!.state.assessment.charges).toEqual([{ gross: 1667 }]);
+    expect(assessments[1]!.state.assessment.basis.charges).toEqual([
+      { gross: 2000 },
+    ]);
+    await expectOriginalLegsKept(original);
+    await settings.update.tax(added);
+    await save(fixture);
+    expect(await figures(fixture)).toEqual({
+      income: 10000,
+      owed: 14400,
+      tax: 2400,
+    });
   });
 
   it("preserves payments and write-offs instead of taxing the unpaid balance", async () => {

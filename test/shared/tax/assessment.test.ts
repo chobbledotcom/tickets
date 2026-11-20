@@ -1,9 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { assessTax } from "#shared/tax/assessment.ts";
-import type { TaxBasis, TaxPolicy } from "#shared/tax/types.ts";
+import * as v from "valibot";
+import {
+  TaxAssessmentSchema,
+  type TaxBasisInput,
+  type TaxPolicy,
+} from "#shared/tax/types.ts";
 
-const basis: TaxBasis = {
+const basis: TaxBasisInput = {
   lines: [{ gross: 10000, listingId: 1 }],
   modifiers: [],
 };
@@ -16,7 +21,8 @@ const included: TaxPolicy = {
 describe("a booking tax assessment", () => {
   it("adds tax to the listed amount without a change to income", () => {
     expect(assessTax(basis, added)).toEqual({
-      basis,
+      basis: { ...basis, charges: [] },
+      charges: [],
       lines: basis.lines,
       modifiers: [],
       policy: added,
@@ -99,5 +105,41 @@ describe("a booking tax assessment", () => {
     );
     expect(assessment.taxAmount).toBe(800000000000);
     expect(assessment.total).toBe(8000800000000000);
+  });
+
+  it("taxes a taxable charge with the lines", () => {
+    const assessment = assessTax(
+      { ...basis, charges: [{ gross: 2000 }] },
+      added,
+    );
+    expect(assessment.taxableTotal).toBe(12000);
+    expect(assessment.taxAmount).toBe(2400);
+    expect(assessment.total).toBe(14400);
+    expect(assessment.charges).toEqual([{ gross: 2000 }]);
+  });
+
+  it("takes included tax out of a taxable charge as well as the lines", () => {
+    const assessment = assessTax(
+      { ...basis, charges: [{ gross: 2000 }] },
+      included,
+    );
+    expect(assessment.taxAmount).toBe(2000);
+    expect(assessment.lines).toEqual([{ gross: 8333, listingId: 1 }]);
+    expect(assessment.charges).toEqual([{ gross: 1667 }]);
+    expect(assessment.total).toBe(12000);
+  });
+
+  it("reads a stored assessment from before charges existed", () => {
+    const { charges: _basisCharges, ...legacyBasis } = assessTax(
+      basis,
+      added,
+    ).basis;
+    const { charges: _charges, ...legacy } = assessTax(basis, added);
+    const stored = v.parse(TaxAssessmentSchema, {
+      ...legacy,
+      basis: legacyBasis,
+    });
+    expect(stored.charges).toEqual([]);
+    expect(stored.basis.charges).toEqual([]);
   });
 });

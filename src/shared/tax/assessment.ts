@@ -4,6 +4,7 @@ import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 import {
   type TaxAssessment,
   type TaxBasis,
+  type TaxBasisInput,
   TaxBasisSchema,
   type TaxPolicy,
   TaxPolicySchema,
@@ -33,15 +34,17 @@ export const roundedRatio = (
       (denominator * 2n),
   );
 
-/** The fixed listed basis excludes booking fees, payments and write-offs. */
+/** The fixed basis holds the priced lines, the modifiers and the taxable
+ * charges. It excludes booking fees, payments and write-offs. */
 export const assessTax = (
-  basis: TaxBasis,
+  input: TaxBasisInput,
   policy: TaxPolicy,
 ): TaxAssessment => {
-  v.parse(TaxBasisSchema, basis);
+  const basis: TaxBasis = v.parse(TaxBasisSchema, input);
   v.parse(TaxPolicySchema, policy);
   const taxableTotal = minorUnits(
     sum(basis.lines.map((line) => line.gross)) +
+      sum(basis.charges.map((charge) => charge.gross)) +
       sum(basis.modifiers.map((modifier) => modifier.delta)),
   );
   const taxAmount =
@@ -57,11 +60,17 @@ export const assessTax = (
   const included = policy.mode === "calculate_from_total";
   const weights = [
     ...basis.lines.map((line) => line.gross),
+    ...basis.charges.map((charge) => charge.gross),
     ...basis.modifiers.map((modifier) => Math.max(0, modifier.delta)),
   ];
   const shares = largestRemainderAllocation(weights, included ? taxAmount : 0);
+  const chargeStart = basis.lines.length;
+  const modifierStart = chargeStart + basis.charges.length;
   return {
     basis,
+    charges: basis.charges.map((charge, index) => ({
+      gross: charge.gross - shares[chargeStart + index]!,
+    })),
     lines: basis.lines.map((line, index) => ({
       ...line,
       gross: line.gross - shares[index]!,
@@ -70,7 +79,7 @@ export const assessTax = (
       ...modifier,
       delta:
         modifier.delta > 0
-          ? modifier.delta - shares[basis.lines.length + index]!
+          ? modifier.delta - shares[modifierStart + index]!
           : modifier.delta,
     })),
     policy,
