@@ -204,7 +204,11 @@ describe("ticketViewPage ticket cards", () => {
    * the booking, on the thing booked, and on the card itself. */
   const oneCardPage = (
     entry: Parameters<typeof testTokenEntry>[0],
-    onTheCard: { attachmentUrl?: string; modifiers?: ModifierLine[] } = {},
+    onTheCard: {
+      attachmentUrl?: string;
+      modifiers?: ModifierLine[];
+      tax?: number;
+    } = {},
   ): string =>
     ticketViewPage([{ entry: testTokenEntry(entry), token, ...onTheCard }]);
 
@@ -267,10 +271,35 @@ describe("ticketViewPage ticket cards", () => {
     );
   });
 
+  test("shows the added tax and the total that holds it", () => {
+    const html = oneCardPage(
+      { attendee: { price_paid: "107500" } },
+      { tax: 21_500 },
+    );
+    expectIncludesAll(html, [
+      `Price: ${formatCurrency(107_500)}`,
+      `ticket-card-tax">Tax: ${formatCurrency(21_500)}`,
+      `ticket-card-total"><strong>Total:</strong> ${formatCurrency(129_000)}`,
+    ]);
+    assert(!html.includes("ticket-card-modifiers"));
+  });
+
+  test("adds the tax to the modifier total", () => {
+    const html = oneCardPage(
+      { attendee: { price_paid: "1000" } },
+      { modifiers: [{ amount: 100, name: "Service charge" }], tax: 220 },
+    );
+    assertStringIncludes(
+      html,
+      `ticket-card-total"><strong>Total:</strong> ${formatCurrency(1320)}`,
+    );
+  });
+
   test("adds no modifier rows or total when no modifier changed the price", () => {
     const html = oneCardPage({ attendee: { price_paid: "1500" } });
     assert(!html.includes("ticket-card-modifiers"));
     assert(!html.includes("ticket-card-total"));
+    assert(!html.includes("ticket-card-tax"));
   });
 
   test("warns that a non-transferable ticket needs ID at the door", () => {

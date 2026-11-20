@@ -24,9 +24,15 @@ const weightsFor = (entries: readonly TokenEntry[]): number[] => {
     : entries.map((entry) => entry.attendee.quantity);
 };
 
-/** Split one order's modifiers across its cards. Largest remainder keeps every
- *  share a whole number of pennies, and the shares add up to the order's own
- *  figure. A share of zero changes no price, so the card omits it. */
+/** Split one order's amount across its cards. Largest remainder keeps every
+ *  share a whole number of pennies, and the shares add up to the amount. */
+const allocateAcrossOrder = (
+  entries: readonly TokenEntry[],
+  amount: number,
+): number[] => largestRemainderAllocation(weightsFor(entries), amount);
+
+/** Split one order's modifiers across its cards. A share of zero changes no
+ *  price, so the card omits it. */
 const splitOrder = (
   entries: readonly TokenEntry[],
   modifiers: readonly ModifierLine[],
@@ -34,12 +40,8 @@ const splitOrder = (
   const shares = new Map<TokenEntry, ModifierLine[]>(
     entries.map((entry) => [entry, []]),
   );
-  const weights = weightsFor(entries);
   for (const modifier of modifiers) {
-    const parts = largestRemainderAllocation(
-      weights,
-      Math.abs(modifier.amount),
-    );
+    const parts = allocateAcrossOrder(entries, Math.abs(modifier.amount));
     const sign = Math.sign(modifier.amount);
     for (const [index, entry] of entries.entries()) {
       const amount = sign * parts[index]!;
@@ -68,6 +70,28 @@ export const splitModifiersAcrossCards = (
       modifiersByOrder.get(order) ?? [],
     );
     for (const [entry, lines] of orderShares) shares.set(entry, lines);
+  }
+  return shares;
+};
+
+/** The tax each booking card shows: its share of the tax that its order adds
+ *  to the total. It follows the same weights as the modifier split, so the
+ *  shares add up to the order's tax. A card with no share is absent. */
+export const splitTaxAcrossCards = (
+  entries: readonly TokenEntry[],
+  taxByOrder: ReadonlyMap<string, number>,
+): Map<TokenEntry, number> => {
+  const byOrder = groupToMap(
+    (entry: TokenEntry) => entry.ledgerEventGroup,
+    (entry: TokenEntry) => entry,
+  )(entries);
+  const shares = new Map<TokenEntry, number>();
+  for (const [order, orderEntries] of byOrder) {
+    const tax = taxByOrder.get(order) ?? 0;
+    const parts = allocateAcrossOrder(orderEntries, tax);
+    for (const [index, entry] of orderEntries.entries()) {
+      if (parts[index]! > 0) shares.set(entry, parts[index]!);
+    }
   }
   return shares;
 };

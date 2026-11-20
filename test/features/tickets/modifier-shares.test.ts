@@ -6,6 +6,7 @@ import { sumOf } from "#fp";
 import {
   type ModifierLine,
   splitModifiersAcrossCards,
+  splitTaxAcrossCards,
 } from "#routes/tickets/modifier-shares.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
@@ -153,4 +154,31 @@ describe("splitModifiersAcrossCards", () => {
       expect(totals.every((total) => total >= 0)).toBe(true);
     });
   }
+});
+
+describe("splitTaxAcrossCards", () => {
+  test("gives one card its order's whole tax", () => {
+    const entry = card(2, 2000);
+    expect(
+      splitTaxAcrossCards([entry], new Map([["evt-order", 400]])).get(entry),
+    ).toBe(400);
+  });
+
+  test("splits the tax by ticket income and keeps every penny", () => {
+    const costly = card(1, 46_150);
+    const middle = card(1, 52_576);
+    const cheap = card(1, 57_834);
+    const shares = splitTaxAcrossCards(
+      [costly, middle, cheap],
+      new Map([["evt-order", 31_312]]),
+    );
+    const parts = [costly, middle, cheap].map((entry) => shares.get(entry)!);
+    expect(parts).toEqual([9230, 10_515, 11_567]);
+    expect(sumOf((part: number) => part)(parts)).toBe(31_312);
+  });
+
+  test("gives a card in an order with no added tax no share", () => {
+    const entry = card(1, 1000);
+    expect(splitTaxAcrossCards([entry], new Map()).has(entry)).toBe(false);
+  });
 });
