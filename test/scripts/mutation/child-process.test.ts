@@ -53,6 +53,14 @@ test("a captured child in its own group returns its exit code", async () => {
   expect(code).toBe(0);
 });
 
+test("a child started with an already aborted signal is killed at once", async () => {
+  const code = await denoExitCode(["eval", "setTimeout(() => {}, 60_000)"], {
+    signal: AbortSignal.abort(),
+  });
+
+  expect(code).not.toBe(0);
+});
+
 test("aborting a captured child kills its whole process group at once", async () => {
   const controller = new AbortController();
   const running = denoExitCode(

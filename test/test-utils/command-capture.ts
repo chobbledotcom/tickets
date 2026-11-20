@@ -25,8 +25,7 @@ const successfulOutput = (): Deno.CommandOutput => ({
 });
 
 const streamOf = (bytes: Uint8Array): Deno.ChildProcess["stdout"] =>
-  (new Response(bytes as BodyInit).body ??
-    new ReadableStream()) as Deno.ChildProcess["stdout"];
+  new Blob([bytes as BlobPart]).stream() as Deno.ChildProcess["stdout"];
 
 export const captureCommands = (
   output: Deno.CommandOutput = successfulOutput(),
@@ -42,7 +41,6 @@ export const captureCommands = (
         output: () => Promise.resolve(output),
         spawn: () =>
           stubChildProcess({
-            kill: () => true,
             pid: 0,
             status: Promise.resolve(output),
             stderr: streamOf(output.stderr),

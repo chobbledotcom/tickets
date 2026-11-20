@@ -34,33 +34,24 @@ export const denoExitDetail = async (
   options: DenoRunOptions = {},
 ): Promise<{ code: number; output: string }> => {
   const { signal, ...rest } = options;
-  const group = signal !== undefined;
   const child = new Deno.Command(Deno.execPath(), {
     args,
     ...rest,
     clearEnv: rest.env !== undefined,
-    ...(group ? { detached: true, stdin: "null" as const } : {}),
+    ...(signal === undefined
+      ? {}
+      : { detached: true, stdin: "null" as const }),
     stderr: "piped",
     stdout: "piped",
   }).spawn();
-  const kill = (): void => {
-    if (group) {
-      killGroup(child.pid);
-      return;
-    }
-    try {
-      child.kill("SIGKILL");
-    } catch {
-      // The child finished between the timer and the kill.
-    }
-  };
+  const kill = (): void => killGroup(child.pid);
   signal?.addEventListener("abort", kill, { once: true });
   if (signal?.aborted === true) kill();
   const stdout = text(child.stdout);
   const stderr = text(child.stderr);
   const status = await child.status;
   signal?.removeEventListener("abort", kill);
-  if (group) killGroup(child.pid);
+  if (signal !== undefined) killGroup(child.pid);
   return {
     code: status.code,
     output: (await stdout) + (await stderr),

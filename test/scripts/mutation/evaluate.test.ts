@@ -398,4 +398,29 @@ describe("mutant evaluation", () => {
     expect(result.status).toBe("killed");
     expect(result.detectedBy).toBe("direct-tests");
   });
+
+  test("keeps the original's frozen direct tests as a cause, not a verdict", async () => {
+    const state = setup();
+    const frozen = {
+      batch: ["test/shared/example.test.ts"],
+      durationMs: 90_000,
+      limitMs: 60_000,
+    };
+    state.deps.runTests = () =>
+      Promise.resolve({ durationMs: 90_000, frozen, outcome: "cancelled" });
+
+    const result = await evaluateOriginalTests(
+      plan({ rebuildTestState: false }),
+      runConfig,
+      new AbortController().signal,
+      state.deps,
+    );
+
+    expect(result).toEqual({
+      detectedBy: null,
+      frozen,
+      status: "cancelled",
+      timings: [{ durationMs: 90_000, phase: "direct-tests" }],
+    });
+  });
 });
