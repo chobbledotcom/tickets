@@ -48,6 +48,61 @@
   vertical-align: middle;
 }
 
+/* The library grid: items wrap, so they stay the same size on every screen
+   and the row holds as many as fit. */
+.image-library-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.image-library-item {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--space-s);
+  max-width: 22rem;
+  padding: var(--space-s);
+  @include panel-border;
+}
+
+/* The name and the thumbnail are one link, so the whole picture is the
+   target. */
+.image-library-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  color: inherit;
+  text-decoration: none;
+}
+
+.image-library-name {
+  margin: 0;
+  font-size: 1.1em;
+  overflow-wrap: anywhere;
+}
+
+.image-library-grid .image-library-thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+/* A long alt text scrolls inside its own box instead of growing the item. */
+.image-library-alt {
+  max-height: 4.5rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--color-text-secondary);
+}
+
 .image-library-preview .image-library-thumb {
   width: min(100%, 18rem);
   height: auto;
