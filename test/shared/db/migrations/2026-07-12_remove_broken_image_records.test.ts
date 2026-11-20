@@ -27,7 +27,11 @@ describeWithEnv(
       const real = await makeImage("Real");
       const brokenId = await insertBrokenImage();
       await insertBrokenImage({ name: "Also broken" });
-      await setImagesForItem("listing", listing.id, [brokenId, real.id]);
+      await setImagesForItem({
+        imageIds: [brokenId, real.id],
+        itemId: listing.id,
+        itemType: "listing",
+      });
 
       await runMigration();
 
@@ -59,7 +63,11 @@ describeWithEnv(
       // order) has already identified this broken record when the malformed
       // one throws — a regression that deletes as it scans would remove it.
       const brokenId = await insertBrokenImage();
-      await setImagesForItem("listing", listing.id, [brokenId]);
+      await setImagesForItem({
+        imageIds: [brokenId],
+        itemId: listing.id,
+        itemType: "listing",
+      });
       const malformed = await execute(
         sql`INSERT INTO images (name, filename, filename_thumb, alt_text)
          VALUES (${await encrypt("Unknown corruption")}, 'not-a-ciphertext', 'not-a-ciphertext', '')`,

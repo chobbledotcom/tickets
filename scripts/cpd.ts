@@ -166,10 +166,13 @@ Do NOT reach for ${bold("/* jscpd:ignore */")} to silence this. Fix the duplicat
      best one; a larger, more holistic curry across the call sites is very
      frequently far better.
 
-  ${bold("3. jscpd:ignore is the LAST resort.")} The configs already skip import
-     and re-export statements, so imports never need a marker. Keep a marker
-     for the rare unavoidable scrap of boilerplate/infrastructure we have no
-     control over. Anywhere else an ignore tag is a code smell, not a fix.
+  ${bold("3. jscpd:ignore is for static data, not code.")} The configs skip
+     imports and re-exports, so those never need a marker. A declaration that
+     holds only static data is data, not code. This covers a list of strings
+     and an object hash whose values are literals. Wrap the whole declaration
+     in /* jscpd:ignore-start -- static data, not code */ and
+     /* jscpd:ignore-end */. Anywhere else an ignore tag is a code smell, not a
+     fix.
 
   ${yellow("Never restructure the code just to break the token match")} (a
      config object, a rename, reordering) while two parallel implementations

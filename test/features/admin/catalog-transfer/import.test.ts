@@ -2,12 +2,14 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { getGroupPackagePrices, getListingsByGroupId } from "#db/groups.ts";
+import { getListingsByGroupId } from "#db/groups.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPlanListing } from "#test-utils/db-helpers/catalog-import-fixtures.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -66,33 +68,36 @@ describeWithEnv("catalog group import", { db: true }, () => {
     });
   });
 
-  test("clears package values when importing an ordinary group", async () => {
+  test("refuses package values when importing an ordinary group", async () => {
     const member = await createTestListing({
       canPayMore: true,
       name: "Ordinary group member",
     });
-    const result = await importCatalog({
-      group: { name: "Ordinary imported group" },
-      kind: "group",
-      members: [{ listing: member.name, packagePrice: 500, quantity: 2 }],
-      version: 1,
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
-    const [stored] = await getGroupPackagePrices(
-      requireEntityImport(result).id,
-    );
-    if (!stored) throw new Error("The imported group membership is missing");
-    expect({
-      listing_id: stored.listingId,
-      package_price: stored.packagePrice,
-      quantity: stored.quantity,
-    }).toEqual({
-      listing_id: member.id,
-      package_price: null,
-      quantity: 1,
-    });
+    const cases: readonly (readonly [Record<string, unknown>, string[]])[] = [
+      [
+        { listing: member.name, packagePrice: 500, quantity: 2 },
+        ["Only a package group can hold", "packagePrice"],
+      ],
+      // One value gets a message that says to remove it, not them.
+      [
+        { listing: member.name, packagePrice: 500 },
+        [
+          "Only a package group can hold packagePrice",
+          "Remove it or make the group a package.",
+        ],
+      ],
+    ];
+    for (const [memberFields, parts] of cases) {
+      const message = importRefusal(
+        await importCatalog({
+          group: { name: "Ordinary imported group" },
+          kind: "group",
+          members: [memberFields],
+          version: 1,
+        }),
+      );
+      expectIncludesAll(message, parts);
+    }
   });
 
   test("rejects a package day override the member cannot offer", async () => {

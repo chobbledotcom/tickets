@@ -107,7 +107,11 @@ describeWithEnv(
       await disablePublicSite();
       const listing = await createTestListing({ name: "Gallery Item" });
       const image = await makeImage("RenderCtxGallery");
-      await setImagesForItem("listing", listing.id, [image.id]);
+      await setImagesForItem({
+        imageIds: [image.id],
+        itemId: listing.id,
+        itemType: "listing",
+      });
       await withRequestContext(async () => {
         const out = await renderCtx(
           pageCtx({ id: listing.id, type: "listing" }),

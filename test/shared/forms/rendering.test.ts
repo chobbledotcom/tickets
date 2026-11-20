@@ -370,8 +370,8 @@ describe("renderFields", () => {
         value: null,
       },
       {
-        description: "blank for an explicit empty string",
-        expected: "",
+        description: "the default for an explicit empty string",
+        expected: ' value="Default"',
         value: "",
       },
     ] as const) {

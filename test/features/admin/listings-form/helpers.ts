@@ -14,11 +14,18 @@ import {
 } from "#test-utils/form-values.ts";
 import type { Listing } from "#types";
 
-/** The smallest form the create page accepts, plus the given boxes. */
+/** The smallest form the create page accepts, plus the given boxes. Every
+ *  box the page draws carries a value, and the count and price boxes carry
+ *  the declared column defaults. */
 export const listingForm = (extra: TestFormValues = {}) =>
   testFormParams({
+    durationDays: "1",
     maxAttendees: "50",
+    maximumDaysAfter: "90",
+    maxPrice: "100.00",
     maxQuantity: "5",
+    minimumDaysBefore: "1",
+    minQuantity: "1",
     name: "Parsed listing",
     unitPrice: "0",
     ...extra,

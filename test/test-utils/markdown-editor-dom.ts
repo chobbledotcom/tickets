@@ -41,6 +41,8 @@ const PICKER_TEMPLATE = await withRequestContext(() => {
   return String(ImagePickerTemplate());
 });
 
+export { PICKER_TEMPLATE };
+
 /** Install a lone markdown textarea and enhance it. The page carries the
  * image picker template unless `imageStorage` is false. Options add a footer
  * strip as the preview module lays out, a stylesheet that the editor's
