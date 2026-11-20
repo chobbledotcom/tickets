@@ -20,10 +20,7 @@ import type { Locator, Page } from "playwright";
 import { ensureMessageGroups, t } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import {
-  describeWithBrowser,
-  withSignedInPage,
-} from "#test-utils/browser-contract.ts";
+import { describeWithBrowser } from "#test-utils/browser-contract.ts";
 import {
   CONTENT_BOX,
   DIALOG,
@@ -52,8 +49,7 @@ describeWithBrowser(
   (contract) => {
     /** The shared signed-in page, bound to the contract's browser and
      * address. */
-    const withPage = async <T>(run: (page: Page) => Promise<T>): Promise<T> =>
-      withSignedInPage(contract.browser, contract.baseUrl, run);
+    const { withPage } = contract;
 
     /** The new-page form with its rich editor mounted. */
     const openPageEditor = async (page: Page): Promise<void> => {

@@ -76,7 +76,6 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/listing/:id/delete": handleAdminListingDelete,
   "POST /admin/listing/:id/edit": handleAdminListingEditPost,
   "POST /admin/listing/:id/images": listingImageHandlers.set,
-  "POST /admin/listing/:id/images/upload": listingImageHandlers.upload,
   "POST /admin/listing/:id/income": handleAdminListingIncomePost,
   "POST /admin/listing/:id/reactivate": idRouteFor(listingReactivate.post),
   "POST /admin/listings/recalculate/:listingId": handleListingRecalculatePost,
