@@ -84,7 +84,7 @@ const PAGE_FRAGMENTS = [
 const INDEX_FRAGMENTS = [
   "# Model walkthroughs",
   "[A sample walkthrough](Sample.md)",
-  "a model rule or a production declaration changes",
+  "a guide names a rule or a declaration that no longer exists",
   "## The notation key",
 ] as const;
 /* jscpd:ignore-end */
