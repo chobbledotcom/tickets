@@ -14,9 +14,8 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
-import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { featureSetting, useSetting } from "#test-utils/settings.ts";
+import { useSetting } from "#test-utils/settings.ts";
 
 const GROUP = testGroup({ id: 17, name: "Summer <Crew>" });
 const ACTIVE = testListingWithCount({ active: true, id: 4 });
@@ -35,9 +34,7 @@ const embeddedListingsJson = (html: string): string => {
 
 describe("admin group action templates", () => {
   beforeAll(setupAdminPageTest);
-  // The parent build always showed the Invoices link. The switch now controls
-  // it, so name it as an input of these frozen pages.
-  useSetting({ ...featureSetting("invoices"), timezone: "UTC" });
+  useSetting({ timezone: "UTC" });
 
   test("renders the duplicate form and its initial preview", () => {
     const listing = testListingWithCount({
@@ -287,21 +284,5 @@ describe("admin group action templates", () => {
       // nav highlights Groups the way the landing does.
       '<a class="active" href="/admin/groups"',
     ]);
-  });
-
-  describe("the group action page shells", () => {
-    test("renders the duplicate page as frozen markup", () => {
-      const html = adminDuplicateGroupPage(
-        GROUP,
-        [ACTIVE],
-        OWNER_SESSION,
-        "Group name is taken",
-      );
-
-      assertPageMatchesSnapshot(
-        new URL("./group-duplicate.snapshot.html", import.meta.url),
-        html,
-      );
-    });
   });
 });

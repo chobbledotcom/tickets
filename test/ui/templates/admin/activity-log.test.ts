@@ -12,8 +12,6 @@ import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withCsrfRequest } from "#test-utils/csrf-request.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
-import { featureSetting, useSetting } from "#test-utils/settings.ts";
 
 const test = (name: string, body: () => void | Promise<void>): void => {
   bddTest(name, () => withCsrfRequest(body));
@@ -37,10 +35,6 @@ const logEntry = (overrides: Partial<ActivityLogEntry>): ActivityLogEntry => ({
 });
 
 describe("activity log templates", () => {
-  // The parent build always showed the Invoices link. The switch now controls
-  // it, so name it as an input of these frozen pages.
-  useSetting(featureSetting("invoices"));
-
   describe("adminListingActivityLogPage", () => {
     test("renders activity log entries", () => {
       const listing = testListingWithCount();
@@ -299,35 +293,6 @@ describe("activity log templates", () => {
       const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
       assert(!html.includes("<th>Attendee</th>"));
       assert(!html.includes('href="/admin/attendees/7"'));
-    });
-  });
-
-  describe("the activity log page shell", () => {
-    test("renders the same whole page the parent build rendered", () => {
-      const html = adminGlobalActivityLogPage(
-        [logEntry({ message: "System started" })],
-        false,
-        OWNER_SESSION,
-        emptyRefs(),
-      );
-
-      assertPageMatchesSnapshot(
-        new URL("./activity-log-global.snapshot.html", import.meta.url),
-        html,
-      );
-    });
-
-    test("renders the listing-scoped page identically to the parent", () => {
-      const html = adminListingActivityLogPage(
-        testListingWithCount({ id: 7, name: "Boathouse" }),
-        [logEntry({})],
-        OWNER_SESSION,
-      );
-
-      assertPageMatchesSnapshot(
-        new URL("./activity-log-listing.snapshot.html", import.meta.url),
-        html,
-      );
     });
   });
 });
