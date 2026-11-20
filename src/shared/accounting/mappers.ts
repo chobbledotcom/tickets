@@ -88,7 +88,7 @@ export type BookingFacts = {
   readonly attendeeId: number;
   readonly occurredAt: string;
   readonly eventId: string;
-  readonly charges?: ReadonlyArray<{ gross: number }>;
+  readonly charges?: ReadonlyArray<{ gross: number }> | undefined;
   readonly lines: ReadonlyArray<{ listingId: number; gross: number }>;
   readonly modifiers: ReadonlyArray<{ modifierId: number; delta: number }>;
   readonly bookingFee: number;
