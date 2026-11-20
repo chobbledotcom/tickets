@@ -8,7 +8,7 @@
 
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { buildOrderLines } from "#booking/order-lines.ts";
-import { isMemberNodeOf } from "#booking/tree.ts";
+import { isMemberNodeOf, shownListingIds } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { answerModifierQuantities } from "#db/modifier-resolve.ts";
 import {
@@ -134,11 +134,7 @@ export const prepareOrder = async (
     selectedNodes.some(isMemberNodeOf(pkg.groupId)),
   );
   const standIns = ctxStandInNames({ ...ctx, packages: selectedPackages });
-  const shownSelectedIds = new Set(
-    selectedNodes
-      .filter((node) => node.visibility === "SHOWN")
-      .map((node) => node.listingId),
-  );
+  const shownSelectedIds = shownListingIds(selectedNodes);
   const dayErrorStandIns = new Map(
     [...standIns.byListingId].filter(
       ([listingId]) => !shownSelectedIds.has(listingId),
@@ -239,12 +235,11 @@ export const prepareOrder = async (
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
   // A listing-level question asks under each booked listing the buyer can
   // see. A concealed package member has no field, so it owes no answer.
-  const lineAnswersResult = parseLineTextAnswers(
-    form,
-    activeQuestions,
-    namedLines(items, namedListingIds),
-    foldedCtx.questionListingMap,
-  );
+  const lineAnswersResult = parseLineTextAnswers(form, {
+    lines: namedLines(items, namedListingIds),
+    questionListingMap: foldedCtx.questionListingMap,
+    questions: activeQuestions,
+  });
   if (!lineAnswersResult.ok) {
     return { error: lineAnswersResult.error, ok: false };
   }

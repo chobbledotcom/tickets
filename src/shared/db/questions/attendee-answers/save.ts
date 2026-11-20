@@ -155,6 +155,13 @@ const pushAnswerRows = <Row extends { attendeeId: number }>(
   );
 };
 
+/** The string id of a stored answer, or the lookup that finds the id of a
+ * prepared answer by its blind index. */
+const stringIdOf = (value: number | string): SqlSlot =>
+  typeof value === "string"
+    ? sql`(SELECT id FROM strings WHERE text_index = ${value})`
+    : value;
+
 /** The insert of each listing's own answers. The join to the attendee's
  * booking rows files an answer against every row the attendee holds for its
  * listing. A row with no booked quantity takes none. */
@@ -191,13 +198,7 @@ const lineAnswerStatements = (
           AND line.quantity > 0`,
     columns: sql`attendee_id, question_id, listing_id, string_id`,
     rows,
-    rowValues: (row) => [
-      row.questionId,
-      row.listingId,
-      typeof row.value === "string"
-        ? sql`(SELECT id FROM strings WHERE text_index = ${row.value})`
-        : row.value,
-    ],
+    rowValues: (row) => [row.questionId, row.listingId, stringIdOf(row.value)],
   });
   return statements;
 };
@@ -287,12 +288,7 @@ const answerSaveStatements = (
         INNER JOIN questions AS question ON question.id = selected.question_id`,
     columns: sql`attendee_id, question_id, string_id`,
     rows: textRows,
-    rowValues: (row) => [
-      row.questionId,
-      typeof row.value === "string"
-        ? sql`(SELECT id FROM strings WHERE text_index = ${row.value})`
-        : row.value,
-    ],
+    rowValues: (row) => [row.questionId, stringIdOf(row.value)],
   });
   return [
     ...statements,

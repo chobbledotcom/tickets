@@ -94,6 +94,15 @@ export type BookingTree = {
   readonly nodes: readonly BookingNode[];
 };
 
+/** The listing ids of the nodes that a buyer can see. A hidden node is never
+ * named on a buyer surface. */
+export const shownListingIds = (nodes: readonly BookingNode[]): Set<number> =>
+  new Set(
+    nodes
+      .filter((node) => node.visibility === "SHOWN")
+      .map((node) => node.listingId),
+  );
+
 /** The listing ids that keep their own buyer-chosen `quantity<id>` control:
  * every node whose quantity is the buyer's choice (a standalone listing, plus a
  * member the cart also added by its own slug). Both the render side (which rows

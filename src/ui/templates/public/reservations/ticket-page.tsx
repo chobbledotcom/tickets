@@ -23,6 +23,7 @@ import {
   explicitStandaloneIds,
   type PagePackage,
 } from "#booking/page-packages.ts";
+import { shownListingIds } from "#booking/tree.ts";
 import { t } from "#i18n";
 import { daysAgo } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -318,11 +319,7 @@ export const ticketPage = ({
             listings,
             packages,
             childrenByParentId,
-            new Set(
-              tree.nodes
-                .filter((node) => node.visibility === "SHOWN")
-                .map((node) => node.listingId),
-            ),
+            shownListingIds(tree.nodes),
           )}
           dates={dates}
           dayCountPriceFor={dayCountPriceFor}

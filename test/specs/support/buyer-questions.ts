@@ -151,23 +151,29 @@ type BooksAnsweringAQuestion = (
   answer: string,
 ) => Promise<void>;
 
+/** The buyer's contact details and the given choices, sent as an order. */
+const sendOrder = async (
+  browser: TestBrowser,
+  choices: Record<string, string>,
+): Promise<void> => {
+  await fillInAndSend(
+    browser,
+    { email: "buyer@example.com", name: "Casey Buyer", ...choices },
+    "Continue",
+  );
+  assertStringIncludes(browser.pageText, "Thank you for your order");
+};
+
 export const visitorBooksAnswering: BooksAnsweringAQuestion = async (
   world,
   listingName,
   answer,
 ) => {
   const browser = await visitorOpensBooking(world, listingName);
-  await fillInAndSend(
-    browser,
-    {
-      email: "buyer@example.com",
-      name: "Casey Buyer",
-      [`quantity${listingNamed(world, listingName).id}`]: "1",
-      [questionFieldOn(world, browser)]: answer,
-    },
-    "Continue",
-  );
-  assertStringIncludes(browser.pageText, "Thank you for your order");
+  await sendOrder(browser, {
+    [`quantity${listingNamed(world, listingName).id}`]: "1",
+    [questionFieldOn(world, browser)]: answer,
+  });
 };
 
 /** A visitor books one place of each named listing in one order, typing each
@@ -189,16 +195,7 @@ export const visitorBooksEachListingAnswering = async (
       [field, answer],
     ];
   });
-  await fillInAndSend(
-    browser,
-    {
-      email: "buyer@example.com",
-      name: "Casey Buyer",
-      ...Object.fromEntries(fields),
-    },
-    "Continue",
-  );
-  assertStringIncludes(browser.pageText, "Thank you for your order");
+  await sendOrder(browser, Object.fromEntries(fields));
 };
 
 /** What the owner's page for the booking on a listing says about the

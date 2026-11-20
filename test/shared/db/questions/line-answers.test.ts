@@ -62,7 +62,12 @@ const parseFor = (
   lines = [discoA],
   questionListingMap?: ReadonlyMap<number, number[]>,
   questions = [pupilName],
-) => parseLineTextAnswers(form(entries), questions, lines, questionListingMap);
+) =>
+  parseLineTextAnswers(form(entries), {
+    lines,
+    questionListingMap,
+    questions,
+  });
 
 describe("parseLineTextAnswers", () => {
   test("reads one answer for each booked listing", () => {

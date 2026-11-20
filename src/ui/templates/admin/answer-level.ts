@@ -7,5 +7,5 @@ const ANSWER_LEVEL_LABELS: Record<QuestionAnswerLevel, () => string> = {
 };
 
 /** How often a question asks, in the words the admin pages use. */
-export const answerLevelLabel = (level: QuestionAnswerLevel): string =>
+export const answerLevelLabel = (level: QuestionAnswerLevel) =>
   ANSWER_LEVEL_LABELS[level]();

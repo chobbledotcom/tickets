@@ -2,7 +2,7 @@
  * listing. The question has one text field for each listing it asks. */
 
 import type { TicketListing } from "#booking/model.ts";
-import type { BookingTree } from "#booking/tree.ts";
+import { type BookingTree, shownListingIds } from "#booking/tree.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import {
   type AnswerLine,
@@ -20,11 +20,7 @@ export const pageAnswerLines = (
   tree: BookingTree,
   childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
 ): AnswerLine[] => {
-  const shownIds = new Set(
-    tree.nodes
-      .filter((node) => node.visibility === "SHOWN")
-      .map((node) => node.listingId),
-  );
+  const shownIds = shownListingIds(tree.nodes);
   const shown = listings.filter((info) => shownIds.has(info.listing.id));
   const children = shown.flatMap(
     (info) => childrenByParentId?.get(info.listing.id) ?? [],
@@ -34,6 +30,22 @@ export const pageAnswerLines = (
       id: info.listing.id,
       name: info.listing.name,
     })),
+  );
+};
+
+/** The text field for one question under one listing. */
+const lineField = (questionId: number, line: AnswerLine): JSX.Element => {
+  const name = lineAnswerFieldName(questionId, line.id);
+  return (
+    <label class="custom-question" data-listing-ids={String(line.id)}>
+      {line.name}
+      <input
+        maxlength={MAX_TEXTAREA_LENGTH}
+        name={name}
+        type="text"
+        value={savedFormValue(name)}
+      />
+    </label>
   );
 };
 
@@ -49,19 +61,6 @@ export const renderLineQuestion = (
     data-listing-ids={lines.map((line) => line.id).join(" ")}
   >
     <legend>{questionTextContent(question)}</legend>
-    {lines.map((line) => {
-      const name = lineAnswerFieldName(question.id, line.id);
-      return (
-        <label class="custom-question" data-listing-ids={String(line.id)}>
-          {line.name}
-          <input
-            maxlength={MAX_TEXTAREA_LENGTH}
-            name={name}
-            type="text"
-            value={savedFormValue(name)}
-          />
-        </label>
-      );
-    })}
+    {lines.map((line) => lineField(question.id, line))}
   </fieldset>
 );

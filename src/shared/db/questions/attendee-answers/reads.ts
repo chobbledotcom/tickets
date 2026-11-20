@@ -224,6 +224,9 @@ export const getAttendeeTextAnswers = async (
     attendeeId,
   ) ?? new Map();
 
+/** Reads the owner's private key, only when there is something to decrypt. */
+type OwnerKeyReader = () => Promise<CryptoKey>;
+
 /** One answer to a question that asks once for each booked listing. */
 export type LineAnswer = {
   listingId: number;
@@ -243,7 +246,7 @@ type LineAnswerRow = {
  * so each pair shows once. */
 export const getAttendeeLineAnswers = async (
   attendeeId: number,
-  privateKey: () => Promise<CryptoKey>,
+  privateKey: OwnerKeyReader,
 ): Promise<LineAnswer[]> => {
   const rows = await queryAll<LineAnswerRow>(
     sql`SELECT DISTINCT line.listing_id, attendee_answer.question_id, string.encrypted_text
