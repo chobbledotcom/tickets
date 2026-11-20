@@ -101,8 +101,10 @@ caught. Two clocks exist, and neither one scores a mutant.
 The first clock limits each planned run. The limit for each run is three times
 its baseline time, plus 10 seconds. A run past the limit is a frozen loop, not a
 verdict: the runner stops, names the mutant, the run, and the limit, and scores
-nothing. A loop whose step a mutant neutralises is the usual cause, so the fix
-is to bound that loop (see `src/shared/dates.ts`).
+nothing. The run starts in its own process group, so stopping it also stops its
+test workers and any browser it started. A loop whose step a mutant neutralises
+is the usual cause, so the fix is to bound that loop (see
+`src/shared/dates.ts`).
 
 The second clock is `--deadline`, a whole-run guard (default one hour) for a run
 that no planned-run limit stopped: when it fires the run fails with no score and

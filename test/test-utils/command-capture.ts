@@ -6,11 +6,15 @@ export interface CapturedCommand {
 }
 
 /** The captured stand-in for `Deno.Command`: records what was asked, answers
- *  with the captured output. */
+ *  with the captured output. A spawned stand-in reports pid 0, so the runner's
+ *  process-group kill names no real group. */
 export type CapturedCommandFactory = (
   command: string | URL,
   options: Deno.CommandOptions,
-) => { output(): Promise<Deno.CommandOutput> };
+) => {
+  output(): Promise<Deno.CommandOutput>;
+  spawn(): Deno.ChildProcess;
+};
 
 const successfulOutput = (): Deno.CommandOutput => ({
   code: 0,
@@ -19,6 +23,10 @@ const successfulOutput = (): Deno.CommandOutput => ({
   stdout: new Uint8Array(),
   success: true,
 });
+
+const streamOf = (bytes: Uint8Array): Deno.ChildProcess["stdout"] =>
+  (new Response(bytes as BodyInit).body ??
+    new ReadableStream()) as Deno.ChildProcess["stdout"];
 
 export const captureCommands = (
   output: Deno.CommandOutput = successfulOutput(),
@@ -30,7 +38,17 @@ export const captureCommands = (
   return {
     Command: (command, options) => {
       commands.push({ command, options });
-      return { output: () => Promise.resolve(output) };
+      return {
+        output: () => Promise.resolve(output),
+        spawn: () =>
+          stubChildProcess({
+            kill: () => true,
+            pid: 0,
+            status: Promise.resolve(output),
+            stderr: streamOf(output.stderr),
+            stdout: streamOf(output.stdout),
+          }),
+      };
     },
     commands,
   };

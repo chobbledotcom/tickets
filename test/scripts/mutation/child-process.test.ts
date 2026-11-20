@@ -44,3 +44,31 @@ test("a child without an explicit environment inherits parent values", () =>
 
     expect(code).toBe(0);
   }));
+
+test("a captured child in its own group returns its exit code", async () => {
+  const code = await denoExitCode(["eval", "Deno.exit(0)"], {
+    signal: new AbortController().signal,
+  });
+
+  expect(code).toBe(0);
+});
+
+test("aborting a captured child kills its whole process group at once", async () => {
+  const controller = new AbortController();
+  const running = denoExitCode(
+    [
+      "eval",
+      "--allow-all",
+      [
+        "const child = new Deno.Command(Deno.execPath(), {",
+        '  args: ["eval", "--allow-all", "setTimeout(() => {}, 60_000)"],',
+        "}).spawn();",
+        "await child.status;",
+      ].join("\n"),
+    ],
+    { signal: controller.signal },
+  );
+  controller.abort();
+
+  expect(await running).not.toBe(0);
+});

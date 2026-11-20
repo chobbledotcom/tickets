@@ -7,7 +7,7 @@ import {
   type MutantEvaluation,
 } from "./evaluate.ts";
 import { type StaticGate, type TestRunConfig, testEnv } from "./execution.ts";
-import { type IgnoreList, suppresses } from "./ignore.ts";
+import { type IgnoreList, splitSuppressedMutants } from "./ignore.ts";
 import { planFor, type TimedTest } from "./plan.ts";
 import { evaluateStaticMutants, type StaticEvaluation } from "./static.ts";
 import {
@@ -135,12 +135,12 @@ export const runFileMutants = async (
   };
   // A confirmed equivalent needs no gate and no test: its proof says no input
   // can tell it from the original. The audit can still disprove the entry.
-  const suppressed = new Set(
-    plan.mutants.filter((mutant) =>
-      suppresses(opts.ignoreList, ctx.unconfirmedKeys, plan.file, mutant),
-    ),
+  const { active, suppressed } = splitSuppressedMutants(
+    plan.mutants,
+    opts.ignoreList,
+    ctx.unconfirmedKeys,
+    plan.file,
   );
-  const active = plan.mutants.filter((mutant) => !suppressed.has(mutant));
   const staticResults =
     active.length === 0
       ? []
@@ -157,7 +157,7 @@ export const runFileMutants = async (
   );
   for (const mutant of plan.mutants) {
     if (opts.isAborted()) break;
-    if (suppressed.has(mutant)) {
+    if (suppressed.includes(mutant)) {
       const result: MutantResult = {
         detectedBy: null,
         file: plan.file,
