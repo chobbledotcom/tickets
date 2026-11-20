@@ -2,9 +2,9 @@
 \* A modal is an admin window that leaves the rest of the page usable.
 \* A key names one window.
 \* The stack orders windows from bottom to top. Minimise hides a window's body
-\* and saves its expanded position. Restore must use that saved position, not
-\* a later drag position. Example: minimise a at pixel 2, drag it to pixel 0,
-\* then restore it. It must return to 2 when the viewport has enough space.
+\* and saves its expanded position. A later drag must not replace that saved
+\* position. Example: minimise a at pixel 0, then drag it to pixel 2.
+\* Its saved expanded position must stay at 0.
 EXTENDS Apalache, Integers, FiniteSets, Sequences, ModalLifecycleData, ModelRules
 
 \* scripts/verify-models/modal-lifecycle.ts calls transitionModals from
@@ -21,30 +21,30 @@ EXTENDS Apalache, Integers, FiniteSets, Sequences, ModalLifecycleData, ModelRule
 \* Every selected source/event pair must have one actual reducer call, including
 \* no-ops. Missing, duplicate, noninteger, and invalid links stop extraction.
 \* Input metadata is an assumed fixture input, not an observed reducer output.
-\* This matrix avoids a deep set expression with 2318 edge records. It changes
-\* no selected input or transition. The laws below remain independent rules.
+\* This matrix stores one observed target for each selected source/event pair.
+\* The laws below remain independent rules.
 \* Generated snapshotsFact and eventsFact aliases describe the record tables.
 \* Targets has the explicit type Seq(Seq(Int)). Operator types remain explicit.
 \*
 \* Domain: a, b, and c are example window keys, not actual page identifiers.
 \* Rank 0 means absent. Positive ranks 1 through 3 run from bottom to top.
-\* Points of a and b are 0 or 2 pixels on both axes. Saved point -1 means expanded.
-\* An absent window also has point -1. Pixel sizes are 2 by 2. Viewports are
-\* 2 by 2 and 4 by 4. Moves of a request -1 and 3 to cross both boundaries.
-\* Opens of a choose 0 or 2. Window b opens at 0 and does not drag. It still
-\* opens, raises, closes, minimises, and restores. Window c only opens, raises,
-\* and closes. It stays expanded at point 0. Resize measures all three windows.
-\* The producer rejects any other position or saved point for c before projection.
+\* Window a has point 0 or 2 on both axes. Saved point -1 means expanded.
+\* An absent window also has point -1. Pixel sizes are 2 by 2.
+\* Window a opens at 0 or 2, raises, closes, minimises, and restores.
+\* Its move requests point 3 with a 4 by 4 viewport, so the legal limit is 2.
+\* Restore and resize use a 2 by 2 viewport, so the legal limit is 0.
+\* Windows b and c only open at 0 and close. Resize measures all three windows.
+\* The producer rejects any moved or minimised state for c before projection.
 \* Each point has equal left and top coordinates. This keeps the domain small
 \* but permits distinct saved and dragged points, duplicate events, close then
 \* reopen, all stack orders, and resize before restore. Three keys let close
 \* leave two survivors, so an incorrect reversal of their order is observable.
-\* Events can occur in any
-\* order. These examples do not prove the laws for all pixel inputs.
+\* Events can occur in any order.
+\* These examples do not prove the laws for all pixel inputs.
 \*
-\* This gives 122 state rows, 19 input rows, and 2318 observed transition rows.
-\* The viewport is an event input,
-\* not persistent browser state. Only move, restore, and resize must clamp.
+\* The generated Snapshots, Events, and Targets tables give the selected domain.
+\* The viewport is an event input, not persistent browser state.
+\* Only move, restore, and resize must clamp.
 \* Assumed: input keys are unique and measurements are finite. Each live window
 \* has a resize measurement. Open receives its initial positioned point.
 \* The model checks a synchronous pure reducer, not browser event delivery,

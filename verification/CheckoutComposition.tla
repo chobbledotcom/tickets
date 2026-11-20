@@ -164,8 +164,7 @@ Safety ==
 
 \* Select any supplied order at its first pass with no final check or failure.
 \* \E means at least one fact supplies the choice. These are checker choices,
-\* not a workflow that executes checkout. The primes in this existing Init
-\* relation denote next values, not ordinary unprimed start-state conditions.
+\* not a workflow that executes checkout. Unprimed assignments set initial values.
 \* An order with no modifiers starts at its final-check index.
 Init ==
   \E orderFact \in Orders :

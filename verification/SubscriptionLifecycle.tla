@@ -123,8 +123,8 @@ Init ==
 \* ended subscription does not change and takes no payment.
 ProviderStep ==
   /\ provider \in LiveStatuses
-  /\ provider' \in Statuses
-  /\ paid' \in {paid, 1}
+  /\ (\E nextStatus \in Statuses : provider' := nextStatus)
+  /\ (\E nextPaid \in {paid, 1} : paid' := nextPaid)
   /\ UNCHANGED <<stored, recorded, movesSafe>>
 
 \* The fact starts from the current state.

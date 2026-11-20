@@ -116,7 +116,7 @@ Safety ==
 
 \* Start after the floor shares, before any extra unit award.
 \* \E lets the checker select any supplied case.
-\* Primes describe the initial output values in this initialisation action.
+\* Unprimed assignments set the initial values for the selected case.
 Init ==
   \E caseFact \in SplitCases :
     /\ current := caseFact.caseTag
