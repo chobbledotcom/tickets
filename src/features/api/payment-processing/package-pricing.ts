@@ -24,7 +24,7 @@ import {
   lineGroupId,
   standaloneLineListingIds,
 } from "#booking/signed-metadata.ts";
-import { uniqueBy } from "#fp";
+import { requiredMapValue, uniqueBy } from "#fp";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import type { RegistrationPackagePricing } from "#shared/registration-package-facts.ts";
@@ -101,11 +101,17 @@ export const orderEdgeDriftedFromFacts = (
   const childrenByParentId = new Map(
     topLevel.map(({ listing }) => [
       listing.id,
-      (facts.childIdsByParent.get(listing.id) ?? []).map((childId) => {
-        const child = facts.listingsById.get(childId);
-        if (!child) throw new Error(`Missing linked listing ${childId}`);
-        return buildTicketListing(child, false, undefined);
-      }),
+      (facts.childIdsByParent.get(listing.id) ?? []).map((childId) =>
+        buildTicketListing(
+          requiredMapValue(
+            facts.listingsById,
+            childId,
+            `Missing linked listing ${childId}`,
+          ),
+          false,
+          undefined,
+        ),
+      ),
     ]),
   );
   const nonFolded = intent.items.filter(hasOwnUnits);

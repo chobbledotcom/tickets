@@ -1,3 +1,5 @@
+import { requiredMapValue } from "#fp";
+
 type LiveTables = {
   tables: Map<string, Set<string>>;
 };
@@ -62,7 +64,10 @@ export const assertLiveTableColumns = (
   table: string,
   required: readonly string[],
 ): void => {
-  const existing = live.tables.get(table);
-  if (!existing) throw new Error(missingTableMessage(kind, table));
-  assertColumnsPresent(kind, table, existing, required);
+  assertColumnsPresent(
+    kind,
+    table,
+    requiredMapValue(live.tables, table, missingTableMessage(kind, table)),
+    required,
+  );
 };

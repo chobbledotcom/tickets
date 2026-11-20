@@ -27,6 +27,7 @@ import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
+import { abortUnless } from "#db/guarded-writes.ts";
 import { among, valued, whereTail } from "#db/select/expression.ts";
 import { tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -49,8 +50,10 @@ import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
  * `batch()` — a zero-row capacity statement is not itself an error and would
  * otherwise commit alongside the unconditional PII/DELETE writes.
  */
-export const CAPACITY_GUARD: SqlStatement = sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-        SELECT NULL, NULL, 1 WHERE changes() = 0`;
+export const CAPACITY_GUARD: SqlStatement = abortUnless(
+  sql`listing_attendees (listing_id, attendee_id, quantity)`,
+  sql`NULL, NULL, 1`,
+)(sql`changes() != 0`);
 
 /** A desired final-state line for the atomic update path — the shared
  * DesiredListingLine the listings types module exports. */

@@ -1,5 +1,6 @@
 import { attendeeOwedSubquery } from "#accounting/projection-sql.ts";
 
+import { abortUnless } from "#db/guarded-writes.ts";
 import { preparePaymentReferenceWrite } from "#db/payment-reference-store.ts";
 import {
   encryptTicketTokens,
@@ -18,8 +19,10 @@ import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 const paymentFinalizeGuard = (
   requiredWhen: SqlStatement = sql`1 = 1`,
 ): SqlStatement =>
-  sql`INSERT INTO processed_payments (payment_session_id, processed_at)
-        SELECT '', NULL WHERE changes() != ${1} AND ${requiredWhen}`;
+  abortUnless(
+    sql`processed_payments (payment_session_id, processed_at)`,
+    sql`'', NULL`,
+  )(sql`changes() = ${1} OR NOT (${requiredWhen})`);
 
 /**
  * SQL predicate: no refund run is holding this attendee's payment rows.
