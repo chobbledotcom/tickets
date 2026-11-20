@@ -1,5 +1,5 @@
-/* The shared image picker dialog's listing additions, and the new-listing
- * form's chosen-picture list. */
+/* The shared image picker dialog's layout, and the new-listing form's
+ * chosen-picture list. */
 
 @use "mixins" as *;
 
@@ -42,6 +42,14 @@
 .md-image-dialog .md-image-option[aria-pressed="true"] {
   background: var(--color-bg-secondary);
   border-color: var(--color-link);
+  outline: 2px solid var(--color-link);
+  outline-offset: 2px;
+}
+
+.md-image-dialog [data-note="loadFailed"],
+.md-image-dialog [data-note="uploadFailed"] {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .md-image-upload textarea {
@@ -50,7 +58,7 @@
   width: 100%;
 }
 
-@media (max-width: 36rem) {
+@media (max-width: 48rem) {
   .md-image-columns {
     grid-template-columns: 1fr;
   }
@@ -67,7 +75,7 @@
   gap: var(--space-s);
   list-style: none;
   margin: 0;
-  padding: 10px 0;
+  padding: var(--space-s) 0;
 }
 
 .listing-images-item {

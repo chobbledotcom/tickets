@@ -298,14 +298,16 @@ const writeCreateListingJoins: (
       await validateListingGroupMembershipsTx(tx)([id], input.groupIds!),
     );
   }
-  // The pictures chosen on the new listing form attach in the same write,
-  // so a create never commits without the pictures its form showed.
-  await setImagesForItem({
-    imageIds,
-    itemId: id,
-    itemType: "listing",
-    transaction: tx,
-  });
+  // The pictures chosen on the new listing form attach in the same write.
+  // Each link lands only while its image still exists.
+  if (imageIds.length > 0) {
+    await setImagesForItem({
+      imageIds,
+      itemId: id,
+      itemType: "listing",
+      transaction: tx,
+    });
+  }
 };
 
 /** One listing write's answer: the row, or the text that refused it. */

@@ -401,7 +401,7 @@ contract and the code together.
 
 ## Pull requests
 
-One stack of five. Each layer is green and useful alone.
+One stack of six. Each layer is green and useful alone.
 
 | Layer | Behaviour | Story |
 | --- | --- | --- |
@@ -410,6 +410,7 @@ One stack of five. Each layer is green and useful alone.
 | 3 | The scheduled check: status and recurring payments in the ledger, with VAT | "Recurring payments reach the books" |
 | 4 | The owner cancels. Edits, deletes, and merges must keep live subscription plans. | "Cancelling a subscription" |
 | 5 | Stripe subscription deliveries record the status and the renewals at once, and the endpoint asks for those events | None: a provider boundary, proven by direct tests |
+| 6 | Production-backed TLA checks for the four lower layers | None: a verification layer. The [model check contract](subscription-models-plan.md) defines the scope. |
 
 Layer 1 replaces no old path. No layer adds a compatibility surface.
 
@@ -438,3 +439,5 @@ the only coverage. The tests for each layer are:
   check, and the delete refusal.
 - Layer 5: each delivery outcome through the real webhook route, the endpoint
   events, and the connection test for an endpoint that lacks one.
+- Layer 6: every model proof and every negative control through
+  `deno task verify:models`.

@@ -15,6 +15,8 @@ import type {
 } from "#shared/tables/column.ts";
 import { AgentHeader } from "#templates/admin/agent-header.tsx";
 import { ImagePickerTemplate } from "#templates/admin/image-picker.tsx";
+import { MarkdownPreviewTemplate } from "#templates/admin/markdown-preview.tsx";
+import { AdminModalTemplate } from "#templates/admin/modal.tsx";
 import {
   AdminNav,
   type NavActive,
@@ -82,6 +84,8 @@ export const AdminPage = ({
     {/* The markdown editor hides its image control on a page without the
         picker, so a page without storage offers no picker. */}
     {isStorageEnabled() && <ImagePickerTemplate />}
+    <AdminModalTemplate />
+    <MarkdownPreviewTemplate />
   </Layout>
 );
 

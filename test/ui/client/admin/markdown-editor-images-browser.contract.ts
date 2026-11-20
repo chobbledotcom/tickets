@@ -293,7 +293,7 @@ describeWithBrowser(
         // button is picked by its own name.
         await page.getByRole("button", { name: "Preview" }).click();
 
-        const shown = page.locator(".md-preview-dialog .md-preview-content");
+        const shown = page.locator("dialog.admin-modal .md-preview-content");
         await shown.locator("img").waitFor();
         expect(await shown.locator("img").getAttribute("src")).toBe(
           "/image/harbour.webp",
@@ -428,6 +428,21 @@ describeWithBrowser(
         // The late answer must not reopen the dismissed dialog.
         expect(await dialog.getAttribute("open")).toBeNull();
         expect(await dialog.locator(OPTION).count()).toBe(0);
+      });
+    });
+    test("the new listing form's Images field opens the shared picker", async () => {
+      await makeImage("Harbour");
+      await withPage(async (page) => {
+        await page.goto("/admin/listing/new?template=physical-product");
+        const section = page.locator("[data-listing-images]");
+        await section.locator("[data-listing-images-trigger]").click();
+
+        const dialog = section.locator(DIALOG);
+        await dialog.waitFor();
+        const options = dialog.locator(OPTION);
+        await options.getByText("Harbour", { exact: true }).waitFor();
+        expect(await dialog.getAttribute("open")).not.toBeNull();
+        expect(await options.allTextContents()).toEqual(["Harbour"]);
       });
     });
   },

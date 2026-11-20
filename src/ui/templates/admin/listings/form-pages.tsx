@@ -6,17 +6,16 @@ import { isBuilderEnabled } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
-import type { ImageOption } from "#shared/images/picker.ts";
+import type { ChosenImage } from "#shared/images/picker.ts";
+import { listingImagesEnabled } from "#shared/listing-image-field.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   inferTemplate,
   LISTING_TEMPLATES,
   type ListingTemplate,
-  newListingCollectsImages,
   type TemplateId,
   type TemplateRequirement,
 } from "#shared/listing-templates.ts";
-import { isStorageEnabled } from "#shared/storage.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import {
   Icon,
@@ -229,11 +228,9 @@ export const adminListingPickerPage = (session: AdminSession): string => {
  * in the same write. */
 const newPageImages = (
   templateId: string | null | undefined,
-  images: readonly ImageOption[] | undefined,
-): readonly ImageOption[] | undefined =>
-  newListingCollectsImages(templateId) && isStorageEnabled()
-    ? (images ?? [])
-    : undefined;
+  images: readonly ChosenImage[] | undefined,
+): readonly ChosenImage[] | undefined =>
+  listingImagesEnabled(templateId) ? (images ?? []) : undefined;
 
 export const adminListingNewPage = (
   groups: Group[],
@@ -241,7 +238,7 @@ export const adminListingNewPage = (
   opts?: {
     customiseOpen?: boolean;
     error?: string;
-    images?: readonly ImageOption[];
+    images?: readonly ChosenImage[];
     templateId?: string | null;
     values?: FieldValues;
     selectedGroupIds?: number[];

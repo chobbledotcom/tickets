@@ -1,7 +1,7 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { executeBatch, queryAll } from "#db/client.ts";
+import { executeBatch, queryAll, withTransaction } from "#db/client.ts";
 import {
   addPageImageUrls,
   addTicketPageImageUrls,
@@ -13,6 +13,7 @@ import {
   deleteImageRecord,
   getAllImages,
   getImageFilenamesForItem,
+  getImagesByIds,
   getImagesForItem,
   getImageUsesForImage,
   imageUseTargets,
@@ -218,6 +219,45 @@ describeWithEnv("db > images", { db: true }, () => {
         imageThumbUrl: "",
         imageUrl: "",
       });
+    });
+
+    test("reads the chosen images in the submitted order", async () => {
+      const { first, second } = await createImagePair("Chosen");
+
+      expect(
+        await getImagesByIds([second.id, 9999, first.id, second.id]),
+      ).toEqual([
+        {
+          filenameThumb: second.filenameThumb,
+          id: second.id,
+          name: second.name,
+        },
+        {
+          filenameThumb: first.filenameThumb,
+          id: first.id,
+          name: first.name,
+        },
+      ]);
+      expect(await getImagesByIds([])).toEqual([]);
+    });
+
+    test("rolls back image links when the transaction fails", async () => {
+      const listing = await createTestListing({ name: "Rollback listing" });
+      const image = await makeImage("Rollback");
+
+      await expect(
+        withTransaction(async (tx) => {
+          await setImagesForItem({
+            imageIds: [image.id],
+            itemId: listing.id,
+            itemType: "listing",
+            transaction: tx,
+          });
+          throw new Error("rollback");
+        }),
+      ).rejects.toThrow("rollback");
+
+      expect(await linkedImageIds("listing", listing.id)).toEqual([]);
     });
 
     test("sets one item's ordered images through the collection path", async () => {

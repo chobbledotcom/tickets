@@ -67,8 +67,9 @@ export const readForSubscriptionOrNull = async <Resource>(
  * Store the status `observed` for the subscription of `row`, with every paid
  * renewal. Stripe reported `observed` before this reads the invoices, so the
  * list holds each payment made up to that status. A row that ends here keeps
- * all its money in the ledger. A refused invoice read hands back false. A
- * refused write throws to the caller.
+ * all its money in the ledger. Every write requires the same booking identity,
+ * even without renewals. A refused invoice read hands back false. A refused
+ * write throws to the caller.
  */
 export const recordObserved = async (
   row: LiveRow,
@@ -82,7 +83,10 @@ export const recordObserved = async (
   const groups = await Promise.all(
     invoices.filter(isRenewal).map((invoice) => renewalLegs(row, invoice)),
   );
-  const companion = groups.length > 0 ? [renewalBookingGuard(row)] : [];
+  const companion =
+    groups.length > 0 || observed !== row.subscriptionStatus
+      ? [renewalBookingGuard(row)]
+      : [];
   if (observed !== row.subscriptionStatus)
     companion.push(statusWrite(row, observed));
   await postTransferGroups(groups, companion);

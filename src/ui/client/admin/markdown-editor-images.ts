@@ -12,7 +12,7 @@
 import { schema } from "prosemirror-markdown";
 import { Plugin } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import type { ImageOption } from "#shared/images/picker.ts";
+import type { ImageChoice } from "#shared/images/picker.ts";
 import { shortFormImageAddress } from "#shared/images/short-form.ts";
 import {
   createImageLibrary,
@@ -20,31 +20,23 @@ import {
   imageNodeView,
 } from "#src/ui/client/admin/markdown-editor-image-view.ts";
 import { createToolbarButton } from "#src/ui/client/admin/markdown-editor-toolbar.ts";
-import { requiredChild } from "#src/ui/client/dom.ts";
 import {
   clonePickerDialog,
   fillGrid,
+  imageOptionNodes,
   noteFrom,
   optionButton,
+  type PickerDialogParts,
   pickerTemplateOrNull,
-  uploadedIdOrNull,
   wireDialogClose,
+  wireUploadForm,
 } from "./image-picker-template.ts";
 
-/** The facts an inserted reference needs: the id it names and its alt text. */
-type ImageChoice = Pick<ImageOption, "id" | "name">;
-
-/** One editor's picker: the cloned dialog's parts, the template its notes
- *  come from, and the library its grid shows. */
-interface Picker {
-  dialog: HTMLDialogElement;
+/** One editor's picker: the cloned dialog's parts and the library its grid
+ *  shows. */
+interface Picker extends PickerDialogParts {
   editor: () => EditorView;
-  form: HTMLFormElement;
-  grid: HTMLElement;
   library: ImageLibrary;
-  name: HTMLInputElement;
-  submit: HTMLButtonElement;
-  template: HTMLTemplateElement;
 }
 
 /** Inserts the short-form image reference at the caret. */
@@ -63,89 +55,41 @@ const insertImageRef = (view: EditorView, choice: ImageChoice): void => {
 
 /** The dialog's close gives the caret back to the editor. */
 const chooseImage = (picker: Picker, choice: ImageChoice): void => {
-  insertImageRef(picker.editor(), choice);
+  if (!picker.editor().isDestroyed) insertImageRef(picker.editor(), choice);
   picker.dialog.close();
 };
 
-/** The thumbnails, or the empty note for a library without images. */
-const optionNodes = (picker: Picker, options: ImageOption[]): Node[] => {
-  if (options.length === 0) return [noteFrom(picker.template, "empty")];
-  return options.map((option, index) =>
-    optionButton(option, index, () => chooseImage(picker, option)),
-  );
-};
-
 /** The page renders the picker only with image storage, so a library that
- *  cannot load means the server is down. The failure is not caught. */
+ *  cannot load is a real failure. Show a note and let the operator retry. */
 const openPicker = async (picker: Picker): Promise<void> => {
   // A destroyed editor's view cannot dispatch, and the teardown leaves the
   // button mounted: the control stays inert.
   if (picker.editor().isDestroyed) return;
   fillGrid(picker.grid, "loading", [noteFrom(picker.template, "loading")]);
   picker.dialog.showModal();
-  const options = await picker.library.load();
-  // A dialog closed before the answer stays as it is.
-  if (picker.dialog.open) {
-    fillGrid(picker.grid, "ready", optionNodes(picker, options));
-  }
-};
-
-const finishUpload = (picker: Picker, choice: ImageChoice): void => {
-  // The library changed under the cached list. The next open refetches, and
-  // the inserted picture's own lookup finds the new image's URL.
-  picker.library.forget();
-  // The next open offers a clean form, ready for another upload.
-  picker.form.reset();
-  chooseImage(picker, choice);
-};
-
-/** The submit is intercepted, so the unsaved description edits stay on the
- *  page. A native POST navigates away and loses them. */
-const submitUpload = async (picker: Picker, event: Event): Promise<void> => {
-  // The dialog nests inside the page's own form: without this stop the
-  // submit bubbles up and submits the page too.
-  event.stopPropagation();
-  event.preventDefault();
-  if (picker.submit.disabled) return;
-  picker.submit.disabled = true;
-  const name = picker.name.value;
-  const id = await uploadedIdOrNull(picker.form);
-  picker.submit.disabled = false;
-  if (id === null) {
-    picker.grid.replaceChildren(noteFrom(picker.template, "uploadFailed"));
+  const options = await picker.library.load().catch(() => null);
+  if (options === null) {
+    if (picker.dialog.open) {
+      fillGrid(picker.grid, "ready", [noteFrom(picker.template, "loadFailed")]);
+    }
     return;
   }
-  finishUpload(picker, { id, name });
-};
-
-/** Clones the template's dialog and names the parts the picker drives. */
-const clonePicker = (
-  template: HTMLTemplateElement,
-  mount: HTMLElement,
-  library: ImageLibrary,
-  editor: () => EditorView,
-): Picker => {
-  const parts = clonePickerDialog(template, mount);
-  return {
-    ...parts,
-    editor,
-    library,
-    name: requiredChild<HTMLInputElement>(parts.form, 'input[name="name"]'),
-    submit: requiredChild<HTMLButtonElement>(
-      parts.form,
-      'button[type="submit"]',
-    ),
-    template,
-  };
+  // A dialog closed before the answer stays as it is.
+  if (picker.dialog.open) {
+    fillGrid(
+      picker.grid,
+      "ready",
+      imageOptionNodes(picker.template, options, (option, index) =>
+        optionButton(option, index, () => chooseImage(picker, option)),
+      ),
+    );
+  }
 };
 
 const wirePicker = (picker: Picker, button: HTMLButtonElement): void => {
   const { dialog } = picker;
   wireDialogClose(dialog, () => picker.editor().focus());
-  picker.form.addEventListener(
-    "submit",
-    (event) => void submitUpload(picker, event),
-  );
+  wireUploadForm(picker, (choice) => chooseImage(picker, choice));
   // While the modal dialog is open its backdrop swallows clicks, so the
   // button only ever opens.
   button.addEventListener("click", () => void openPicker(picker));
@@ -180,7 +124,11 @@ export const createImageToolbarItem = (
   // cannot store anything.
   button.hidden = template === null;
   if (template !== null) {
-    const picker = clonePicker(template, mount, library, () => view);
+    const picker: Picker = {
+      ...clonePickerDialog(template, mount),
+      editor: () => view,
+      library,
+    };
     wirePicker(picker, button);
   }
 
