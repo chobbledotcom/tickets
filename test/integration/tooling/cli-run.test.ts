@@ -18,7 +18,7 @@ describe("CLI run", () => {
       runDeps(testTable, transport),
     );
     expect(result.code).toBe(0);
-    expect(result.err).toBeUndefined();
+    expect(result.err ?? "").toBe("");
     expect(JSON.parse(result.out ?? "")).toEqual({ gadgets: [{ id: 1 }] });
     expect(result.out?.endsWith("\n")).toBe(true);
   });
@@ -30,7 +30,7 @@ describe("CLI run", () => {
       runDeps(testTable, transport),
     );
     expect(result.code).toBe(0);
-    expect(result.err).toBeUndefined();
+    expect(result.err ?? "").toBe("");
     const answer = JSON.parse(result.out ?? "");
     expect(Object.keys(answer.resources)).toEqual(["gadgets"]);
     expect(answer.resources.gadgets.label).toBe("Gadget");
