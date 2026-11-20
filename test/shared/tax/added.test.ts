@@ -18,6 +18,10 @@ const saved = (
 });
 
 const addTax = { mode: "add_to_total", rateBasisPoints: 2000 } as const;
+const included = {
+  mode: "calculate_from_total",
+  rateBasisPoints: 2000,
+} as const;
 
 describe("addedTaxByOrder", () => {
   test("holds the tax that an active tax-added order adds", () => {
@@ -27,7 +31,6 @@ describe("addedTaxByOrder", () => {
   });
 
   test("leaves out an order whose prices already hold their tax", () => {
-    const included = { mode: "calculate_from_total", rateBasisPoints: 2000 };
     expect(addedTaxByOrder([saved("order-a", included, 0)]).size).toBe(0);
   });
 
@@ -44,7 +47,6 @@ describe("addedTaxByOrder", () => {
   });
 
   test("reads the latest saved assessment of each order", () => {
-    const included = { mode: "calculate_from_total", rateBasisPoints: 2000 };
     const reassessed = addedTaxByOrder([
       saved("order-a", addTax, 0),
       saved("order-a", included, 1),
