@@ -12,6 +12,7 @@ import type { Window } from "happy-dom";
 import { STATIC_ASSET_OUTFILES } from "#scripts/static-assets/outfiles.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { initAdminModalShell } from "#src/ui/client/admin/modal.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import { cleanup, enhanced, select } from "#test-utils/markdown-editor-dom.ts";
 import {
@@ -69,12 +70,15 @@ describe("the image picker dialog", () => {
     handle.view.destroy();
   });
 
-  test("opens the server's picker in a window over the page", () => {
+  test("opens the server's picker in a window over the page", async () => {
+    fetchStubHolder.stub = stubFetch(twoImageList());
     const { window, handle } = enhanced("hello");
     // The window does not exist until the operator presses the button.
     expect(window.document.querySelector("dialog.admin-modal")).toBeNull();
     toolbarImageButton(window).click();
     const dialog = imageDialog(window);
+    // Let the library answer before the test ends.
+    await untilReady(imageGrid(window));
 
     // The window carries the template's catalog copy in its title bar, the
     // shell's controls, and the images area's upload fields.
