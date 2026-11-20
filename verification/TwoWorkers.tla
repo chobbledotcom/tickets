@@ -1,7 +1,7 @@
 -------------------------- MODULE TwoWorkers --------------------------
 \* This module describes the possible states of one refund claim.
 \* EXTENDS imports integer arithmetic and generated example decisions.
-EXTENDS Integers, TwoWorkersData
+EXTENDS Apalache, Integers, TwoWorkersData
 
 \* A payment provider is the outside service that charges or refunds money.
 \* A refund run is one attempt by this application to return a payment.
@@ -124,13 +124,13 @@ Safety ==
 
 \* Start before either run obtains a claim, not before payment creation.
 Init ==
-  /\ storedOwner = "none"
-  /\ storedCommandId = ""
-  /\ storedWrittenAt = ""
-  /\ storedPhase = ""
-  /\ storedClaimStale = FALSE
-  /\ worker1Held = FALSE
-  /\ worker2Held = FALSE
+  /\ storedOwner := "none"
+  /\ storedCommandId := ""
+  /\ storedWrittenAt := ""
+  /\ storedPhase := ""
+  /\ storedClaimStale := FALSE
+  /\ worker1Held := FALSE
+  /\ worker2Held := FALSE
 
 \* One run tries to take the row through a matching production decision.
 \* \E lets the checker choose any fact that matches the current conditions.
@@ -141,14 +141,14 @@ TakeStep ==
   \E fact \in TakeFacts :
     /\ fact.existingOwner = storedOwner
     /\ fact.existingClaimStale = storedClaimStale
-    /\ storedOwner' = IF fact.admitted THEN fact.worker ELSE storedOwner
-    /\ storedCommandId' = IF fact.admitted THEN fact.newCommandId ELSE storedCommandId
-    /\ storedWrittenAt' = IF fact.admitted THEN fact.newWrittenAt ELSE storedWrittenAt
-    /\ storedPhase' = IF fact.admitted THEN fact.newPhase ELSE storedPhase
-    /\ storedClaimStale' = IF fact.admitted THEN FALSE ELSE storedClaimStale
-    /\ worker1Held' =
+    /\ storedOwner' := IF fact.admitted THEN fact.worker ELSE storedOwner
+    /\ storedCommandId' := IF fact.admitted THEN fact.newCommandId ELSE storedCommandId
+    /\ storedWrittenAt' := IF fact.admitted THEN fact.newWrittenAt ELSE storedWrittenAt
+    /\ storedPhase' := IF fact.admitted THEN fact.newPhase ELSE storedPhase
+    /\ storedClaimStale' := IF fact.admitted THEN FALSE ELSE storedClaimStale
+    /\ worker1Held' :=
          IF fact.admitted /\ fact.worker = "w1" THEN TRUE ELSE worker1Held
-    /\ worker2Held' =
+    /\ worker2Held' :=
          IF fact.admitted /\ fact.worker = "w2" THEN TRUE ELSE worker2Held
 
 \* One run tries to release the claim under its command, time, and phase.
@@ -160,14 +160,14 @@ SettleStep ==
     /\ fact.storedCommandId = storedCommandId
     /\ fact.storedWrittenAt = storedWrittenAt
     /\ fact.storedPhase = storedPhase
-    /\ storedOwner' = IF fact.accepted THEN "none" ELSE storedOwner
-    /\ storedCommandId' = IF fact.accepted THEN "" ELSE storedCommandId
-    /\ storedWrittenAt' = IF fact.accepted THEN "" ELSE storedWrittenAt
-    /\ storedPhase' = IF fact.accepted THEN "" ELSE storedPhase
-    /\ storedClaimStale' = storedClaimStale
-    /\ worker1Held' =
+    /\ storedOwner' := IF fact.accepted THEN "none" ELSE storedOwner
+    /\ storedCommandId' := IF fact.accepted THEN "" ELSE storedCommandId
+    /\ storedWrittenAt' := IF fact.accepted THEN "" ELSE storedWrittenAt
+    /\ storedPhase' := IF fact.accepted THEN "" ELSE storedPhase
+    /\ UNCHANGED storedClaimStale
+    /\ worker1Held' :=
          IF fact.accepted /\ fact.fenceWorker = "w1" THEN FALSE ELSE worker1Held
-    /\ worker2Held' =
+    /\ worker2Held' :=
          IF fact.accepted /\ fact.fenceWorker = "w2" THEN FALSE ELSE worker2Held
 
 \* The current lease becomes expired without a real clock or elapsed duration.
@@ -175,7 +175,7 @@ SettleStep ==
 \* Expiry does not clear ownership or cancel a provider request in flight.
 LeaseExpiry ==
   /\ ~storedClaimStale
-  /\ storedClaimStale' = TRUE
+  /\ storedClaimStale' := TRUE
   /\ UNCHANGED <<storedOwner, storedCommandId, storedWrittenAt, storedPhase,
                  worker1Held, worker2Held>>
 

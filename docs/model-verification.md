@@ -82,6 +82,13 @@ A model must not claim that a safety check establishes eventual completion.
 A selected finite domain does not establish the claim for all production inputs.
 Generated decision facts do not establish database atomicity, provider truth, or race safety by themselves.
 
+## Write assignments and actions clearly
+
+Extend `Apalache` and write each state update as `x' := e`. Write `x := e` in
+`Init`. Use `UNCHANGED` for a value that does not change. Do not branch an
+action with `IF-THEN-ELSE`. Write one action for each branch. Join the actions
+with `\/`. Use `IF-THEN-ELSE` only to compute a value.
+
 ## Build facts that can expose a fault
 
 Execute the production decision or transition. Preserve refused outcomes as

@@ -1,5 +1,5 @@
 ---------------------------- MODULE RefundReversal ----------------------------
-EXTENDS FiniteSets, ModelRules, RefundReversalData
+EXTENDS Apalache, FiniteSets, ModelRules, RefundReversalData
 
 \* This module names a mathematical model. EXTENDS imports finite-set rules,
 \* shared checks and generated facts. == defines a name, not an assignment.
@@ -131,37 +131,32 @@ Safety ==
 \* and checks that each Next action from any Safety state preserves Safety.
 \* This abstract induction check does not establish concrete database races.
 Init ==
-  /\ round = "first"
-  /\ recorded = {}
-  /\ allPlansSafe = TRUE
-  /\ legsSafe = TRUE
+  /\ round := "first"
+  /\ recorded := {}
+  /\ allPlansSafe := TRUE
+  /\ legsSafe := TRUE
 
 \* Check every decision and leg fact for round r. \A means every member.
-\* Facts of other rounds impose no condition in this step. /\ requires all
-\* conditions. Unprimed names denote current values. A prime denotes the
-\* next value. ChecksStillPass keeps any failure. The first round remembers
-\* every reversed group and advances to replay. Replay keeps that set and
-\* round. These are checker actions over facts, not an executable SQL plan.
+\* Facts of other rounds impose no condition in this step. ChecksStillPass
+\* keeps any failure. These are checker actions over facts, not an executable
+\* SQL plan.
 PlanRound(r) ==
-  /\ allPlansSafe' = ChecksStillPass(allPlansSafe,
+  /\ allPlansSafe' := ChecksStillPass(allPlansSafe,
        \A fact \in ReversalFacts : fact.round = r => SafeReversal(fact))
-  /\ legsSafe' = ChecksStillPass(legsSafe,
+  /\ legsSafe' := ChecksStillPass(legsSafe,
        \A leg \in LegFacts : leg.round = r => SafeLeg(leg))
-  /\ IF r = "first"
-     THEN
-       /\ recorded' = {reversal.group :
-           reversal \in {fact \in ReversalFacts :
-             fact.round = r /\ fact.reverses}}
-       /\ round' = "replay"
-     ELSE
-       UNCHANGED <<round, recorded>>
 
 \* Only the first label and empty memory admit FirstPlan. These conditions
 \* align the first facts with their ledger before first-plan refund posts.
+\* The first plan remembers every reversed group and advances to replay.
 FirstPlan ==
   /\ round = "first"
   /\ recorded = {}
   /\ PlanRound("first")
+  /\ recorded' := {reversal.group :
+       reversal \in {fact \in ReversalFacts :
+         fact.round = "first" /\ fact.reverses}}
+  /\ round' := "replay"
 
 \* Only the replay label admits ReplayPlan. Its facts came from the grown
 \* ledger where a fixture requested replay. A recorded group must not reverse
@@ -169,6 +164,7 @@ FirstPlan ==
 ReplayPlan ==
   /\ round = "replay"
   /\ PlanRound("replay")
+  /\ UNCHANGED <<round, recorded>>
 
 \* Next defines the permitted actions. \/ offers alternatives. UNCHANGED
 \* permits no change. Replay can repeat, but no rule requires even the first

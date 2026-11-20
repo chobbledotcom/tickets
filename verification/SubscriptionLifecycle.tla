@@ -1,5 +1,5 @@
 ---------------------- MODULE SubscriptionLifecycle ----------------------
-EXTENDS Integers, ModelRules, SubscriptionRules, SubscriptionLifecycleData
+EXTENDS Apalache, Integers, ModelRules, SubscriptionRules, SubscriptionLifecycleData
 
 \* A booking row links an attendee (a buyer) to a listing (a ticket). The row
 \* keeps the status word that Stripe last reported for its subscription.
@@ -112,9 +112,11 @@ Safety == TypeOK /\ StateSafe /\ movesSafe
 \* The checkout stores the status that Stripe reported, with no renewal yet.
 \* A gap in the facts makes the first state unsafe.
 Init ==
-  /\ stored \in Statuses /\ provider = stored
-  /\ paid = 0 /\ recorded = 0
-  /\ movesSafe = Coverage
+  /\ (\E initialStatus \in Statuses :
+        /\ stored := initialStatus
+        /\ provider := initialStatus)
+  /\ paid := 0 /\ recorded := 0
+  /\ movesSafe := Coverage
 
 \* Stripe changes a live subscription to any status, and can take one renewal
 \* payment. This step is an assumption about Stripe, not an observed fact. An
@@ -139,12 +141,12 @@ StartsHere(m) ==
 CommandStep ==
   \E index \in MovesIndices :
     LET m == MovesAt(index) IN
-    /\ movesSafe' =
+    /\ movesSafe' :=
          ChecksStillPass(movesSafe, m.position = index /\ MoveLaw(m))
-    /\ stored' = (IF StartsHere(m) THEN m.storedAfter ELSE stored)
-    /\ provider' = (IF StartsHere(m) THEN m.providerAfter ELSE provider)
-    /\ recorded' = (IF StartsHere(m) THEN m.recordedAfter ELSE recorded)
-    /\ paid' = paid
+    /\ stored' := (IF StartsHere(m) THEN m.storedAfter ELSE stored)
+    /\ provider' := (IF StartsHere(m) THEN m.providerAfter ELSE provider)
+    /\ recorded' := (IF StartsHere(m) THEN m.recordedAfter ELSE recorded)
+    /\ UNCHANGED paid
 
 \* Next permits a Stripe change, a command, or a pause. No fairness rule
 \* requires a check to run. This is safety, not completion.
