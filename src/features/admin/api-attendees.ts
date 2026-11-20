@@ -87,7 +87,8 @@ const emailPendingFor = (lines: ApiLine[]): PendingNotificationFlag =>
 
 /** The gross ledger order for an API-created booking. Every line is at the
  *  listing's list price unless the caller agreed a per-unit price for it. It
- *  carries no extras. The taxable adjustments join the tax basis. The receipts (payments, adjustments) ride the poster. */
+ *  carries no extras. The taxable adjustments join the tax basis. The other
+ *  receipts (payments, adjustments) ride the poster. */
 const toLedgerOrder = (
   lines: ApiLine[],
   adjustments: CreateAdjustment[],
