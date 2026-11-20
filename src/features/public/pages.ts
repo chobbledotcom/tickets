@@ -145,6 +145,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
       ...groups.map((group) => group.description),
       settings.siteFooter,
     ]);
+    const galleryView = settings.listingMode === "image";
     return htmlResponse(
       homepagePage(
         homeListings,
@@ -159,6 +160,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
         soldOutPackages,
         requestedDate,
         attributesByListing,
+        galleryView,
       ),
     );
   });

@@ -156,6 +156,9 @@ jobs:
       - name: Check TLA model standards
         run: deno task check:tla
 
+      - name: Check model walkthroughs
+        run: deno task check:model-guides
+
       # A pass names its inputs, so a restored pass is safe.
       - name: Restore the model passes
         uses: actions/cache@v4.3.0

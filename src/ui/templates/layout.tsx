@@ -32,6 +32,10 @@ interface LayoutProps {
    * through `body[data-page-family]`. */
   family: PageFamily;
   headExtra?: string | undefined;
+  /** Marks the page when no image storage is configured, so the markdown
+   * editor's image control renders inert. The admin shell supplies it: the
+   * storage module must stay off this generic layout's static import graph. */
+  imageStorageOff?: boolean;
   theme?: Theme;
   title: string;
 }
@@ -47,6 +51,7 @@ export const Layout = ({
   children,
   contentClassName,
   family,
+  imageStorageOff,
   theme,
 }: LayoutProps): SafeHtml => {
   const resolvedTheme = theme ?? settings.theme;
@@ -56,6 +61,7 @@ export const Layout = ({
     "<!DOCTYPE html>" +
     (
       <html
+        data-image-storage={imageStorageOff ? "off" : undefined}
         data-theme={resolvedTheme}
         data-underline-links={settings.underlineLinks}
         lang="en"

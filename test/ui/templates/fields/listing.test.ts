@@ -137,11 +137,11 @@ describe("listing form contact fields setting", () => {
     expectValid(ownerFields(), listingForm({ fields: ["email", "phone"] }));
   });
 
-  test("warns that attendees won't be emailed their ticket without email collection", () => {
+  test("warns that buyers won't be emailed their order confirmation without email collection", () => {
     const fieldsField = ownerFields().find((f) => f.name === "fields")!;
     expectIncludesAll(fieldsField.hintHtml, [
       "<strong>",
-      "emailed their ticket",
+      "emailed their order confirmation",
     ]);
   });
 });

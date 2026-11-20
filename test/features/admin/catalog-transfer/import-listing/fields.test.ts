@@ -66,7 +66,7 @@ const importRefusals: ImportRefusal[] = [
     // The shared listing-input rule runs inside the import transaction, so
     // the pairing refusal lands before any insert.
     contains:
-      "Min tickets per purchase must not be more than Max tickets per purchase",
+      "Min quantity per purchase must not be more than max quantity per purchase",
     label: "rejects a minimum quantity above the maximum",
     listing: { maxQuantity: 2, minQuantity: 3, name: "High Floor" },
   },

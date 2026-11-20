@@ -70,6 +70,7 @@ import {
   parseListingDefaults,
   serializeListingDefaults,
 } from "#shared/listing-defaults.ts";
+import type { ListingMode } from "#shared/listing-mode.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { EMAIL_BODY_KEYS } from "#shared/settings/registry.ts";
 import {
@@ -175,6 +176,10 @@ const settingsBase = {
   },
   get listingDefaults(): ListingDefaults {
     return parseListingDefaults(snap(CONFIG_KEYS.LISTING_DEFAULTS));
+  },
+
+  get listingMode(): ListingMode {
+    return snap("listing_mode") === "image" ? "image" : "text";
   },
   // --- Core ---
   loadKeys,
@@ -288,6 +293,9 @@ const settingsBase = {
       await writeEncrypted(CONFIG_KEYS.LISTING_DEFAULTS, json);
       setSnapshotField(CONFIG_KEYS.LISTING_DEFAULTS, json);
     },
+    listingMode: rawUpdate(CONFIG_KEYS.LISTING_MODE, "listing_mode") as (
+      v: ListingMode,
+    ) => Promise<void>,
     orderEnabled: boolUpdate(CONFIG_KEYS.ORDER_ENABLED, "order_enabled"),
     orphanPurgeRetention: rawUpdate(
       CONFIG_KEYS.ORPHAN_PURGE_RETENTION,

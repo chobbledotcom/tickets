@@ -96,7 +96,7 @@ const validateMaxPrice = (input: ListingInput): string | null => {
   return input.maxPrice < minPrice
     ? `Maximum price must be at least ${formatCurrency(
         100,
-      )} more than the ticket price`
+      )} more than the price`
     : null;
 };
 

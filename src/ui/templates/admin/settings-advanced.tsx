@@ -4,6 +4,7 @@
 
 import { t } from "#i18n";
 import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
+import type { ListingMode } from "#shared/listing-mode.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
@@ -51,6 +52,7 @@ export type AdvancedSettingsPageState = {
   googleWalletServiceAccountEmail: string;
   hostGoogleWalletLabel: string;
   theme: Theme;
+  listingMode: ListingMode;
   listingColumnOrder: string;
   attendeeColumnOrder: string;
   /** The logistics feature decides whether the run-sheet template boxes show,
@@ -93,6 +95,7 @@ export const adminAdvancedSettingsPage = (
       {s.logisticsEnabled && LogisticsRunSheetTemplateForm(s)}
       {settingsForm(SETTINGS_FORMS.customCss, s)}
       {settingsForm(SETTINGS_FORMS.showPublicApi, s)}
+      {settingsForm(SETTINGS_FORMS.listingMode, s)}
       {settingsForm(SETTINGS_FORMS.externalOrder, s)}
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}

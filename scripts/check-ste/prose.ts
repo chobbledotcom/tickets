@@ -41,6 +41,7 @@ type Policy =
   | "text"
   | "span";
 
+/* jscpd:ignore-start -- a list of strings, not code */
 const POLICY: Record<MarkdownToken["type"], Policy> = {
   blockquote: "container",
   br: "span",
@@ -64,6 +65,7 @@ const POLICY: Record<MarkdownToken["type"], Policy> = {
   table: "omit",
   text: "text",
 };
+/* jscpd:ignore-end */
 
 /** Marked only emits the types `POLICY` names for the documents this check
  * reads. A type outside that record crashes loudly. */
