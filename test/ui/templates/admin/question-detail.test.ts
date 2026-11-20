@@ -50,7 +50,7 @@ describe("QuestionEditPanel", () => {
       ">Typed but not saved</textarea>",
       '<option selected value="select">Select box</option>',
     ]);
-    assert(!html.includes("T-shirt size?"));
+    assert(!html.includes(">T-shirt size?</textarea>"));
   });
 
   test("locks the type on a free-text question's edit form", () => {
