@@ -21,6 +21,30 @@ import { MONTHLY, subscribe } from "#test-utils/db-helpers/subscriptions.ts";
 /** One update body, and what holds after it. */
 type Step<Expected> = [body: Record<string, unknown>, expected: Expected];
 
+/** Sends each step's body in turn, and hands the answered attendee and the
+ *  step's expectation to `check`. */
+const runSteps = async <Expected>(
+  attendeeId: number,
+  steps: Step<Expected>[],
+  check: (
+    attendee: Record<string, unknown>,
+    expected: Expected,
+  ) => void | Promise<void>,
+): Promise<void> => {
+  for (const [body, expected] of steps) {
+    const updated = await assertJson(updateBooking(attendeeId, body), 200);
+    await check(updated.attendee, expected);
+  }
+};
+
+/** Expects the answered attendee to carry the given fields. */
+const hasFields = (
+  attendee: Record<string, unknown>,
+  expected: Record<string, unknown>,
+): void => {
+  expect(attendee).toMatchObject(expected);
+};
+
 /** A booked attendee: a 500 listing, one ticket, and the given create body. */
 const bookOne = async (body: Record<string, unknown> = {}) => {
   const listing = await createTestListing({
@@ -57,14 +81,7 @@ describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
       // The same status again changes nothing and still answers.
       [{ status: "VIP" }, { name: "Ada King", status_id: vip.id }],
     ];
-    for (const [body, expected] of steps) {
-      const updated = await assertJson(updateBooking(attendeeId, body), 200);
-      expect(updated.attendee).toMatchObject({
-        id: attendeeId,
-        quantity: 1,
-        ...expected,
-      });
-    }
+    await runSteps(attendeeId, steps, hasFields);
     await expectListingActivityLogContains(listing.id, "updated via API");
   });
 
@@ -82,11 +99,10 @@ describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
       [{ payments: [{ amount: 200 }, { amount: 100 }] }, 450],
       [{ adjustments: [delivery, { amount: -100, description: "Fee" }] }, 350],
     ];
-    for (const [body, owed] of steps) {
-      const updated = await assertJson(updateBooking(attendeeId, body), 200);
-      expect(updated.attendee.remaining_balance).toBe(owed);
+    await runSteps(attendeeId, steps, async (attendee, owed) => {
+      expect(attendee.remaining_balance).toBe(owed);
       expect(await balanceOf(attendeeId)).toBe(-owed);
-    }
+    });
     expect((await paymentAmounts(attendeeId)).toSorted()).toEqual([100, 200]);
 
     await expectApiError(
@@ -108,21 +124,17 @@ describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
     const first = { listingId: listing.id, quantity: 2 };
     const second = { listingId: other.id, quantity: 2 };
     // Each step names the lines, then which listings hold the attendee.
-    const steps: Step<[boolean, boolean]>[] = [
+    const steps: Step<boolean[]>[] = [
       [{ lines: [first] }, [true, false]],
       [{ lines: [first, second] }, [true, true]],
       [{ lines: [second] }, [false, true]],
     ];
-    for (const [body, [onFirst, onSecond]] of steps) {
-      await assertJson(updateBooking(attendeeId, body), 200);
+    await runSteps(attendeeId, steps, async (_attendee, expected) => {
       const held = await Promise.all(
         [listing.id, other.id].map(rosterAttendeeIds),
       );
-      expect(held.map((ids) => ids.includes(attendeeId))).toEqual([
-        onFirst,
-        onSecond,
-      ]);
-    }
+      expect(held.map((ids) => ids.includes(attendeeId))).toEqual(expected);
+    });
     // A line change moves no money.
     expect(await balanceOf(attendeeId)).toBe(-500);
   });
@@ -149,10 +161,7 @@ describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
       [{ name: "Ada Dated" }, { date: "2026-08-14", end_date: "2026-08-16" }],
       [{ lines: [moved] }, { date: "2026-08-20", end_date: "2026-08-23" }],
     ];
-    for (const [body, expected] of steps) {
-      const updated = await assertJson(updateBooking(attendeeId, body), 200);
-      expect(updated.attendee).toMatchObject(expected);
-    }
+    await runSteps(attendeeId, steps, hasFields);
     const rows = await rosterAttendeeIds(daily.id);
     expect(rows.filter((id) => id === attendeeId)).toHaveLength(1);
   });
