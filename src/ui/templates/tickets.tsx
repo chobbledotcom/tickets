@@ -69,10 +69,9 @@ const optionalHtml = <T,>(
   render: (v: T) => string,
 ): string => (value ? render(value) : "");
 
-/** What the buyer paid on top of the price line: one row per modifier that
- *  changed this card's price with its signed amount, the tax that the order
- *  added, and then the total those figures reach. The card shows none of it
- *  when no modifier or tax changed the price. */
+/** Render the rows below the price line: one per modifier with its signed
+ *  amount, the tax that the order added, and the total. A card with no
+ *  modifier and no tax shows none of them. */
 const renderPriceAdjustments = (
   modifiers: readonly ModifierLine[],
   tax: number,
