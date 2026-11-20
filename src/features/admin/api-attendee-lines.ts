@@ -9,22 +9,13 @@
 import type { DesiredListingLine } from "#db/attendee-types.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
-import { DAY_MS } from "#shared/now.ts";
-import { clampDurationDays } from "#types";
+import { bookingDurationDays } from "#routes/admin/attendee-form-dates.ts";
 import type { ApiLine } from "./api-attendees-parse.ts";
 
 /** The line a stored row already is: the same identity, date and quantity. */
 const keptLine = ({ booking, key }: ExistingLine): DesiredListingLine => ({
-  date: booking.start_at === null ? null : booking.start_at.slice(0, 10),
-  durationDays:
-    booking.start_at === null || booking.end_at === null
-      ? 1
-      : clampDurationDays(
-          Math.round(
-            (Date.parse(booking.end_at) - Date.parse(booking.start_at)) /
-              DAY_MS,
-          ),
-        ),
+  date: booking.start_at?.slice(0, 10) ?? null,
+  durationDays: bookingDurationDays(booking) ?? 1,
   exists: true,
   key,
   listingId: booking.listing_id,
