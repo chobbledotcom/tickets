@@ -87,9 +87,7 @@ export type ListingAnswerRefs = {
   listingAnswerIds?: Record<string, number[]> | undefined;
   /** Per-listing free-text string refs: maps listingId → question/string ids. */
   listingTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
-  /** Per-listing free-text refs for a question that asks once for each booked
-   * listing. Each listing keeps its own answer, so the webhook files these
-   * against the listing's booking row and never merges them by question. */
+  /** Free-text refs for questions that ask once for each booked listing. */
   lineTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
 };
 /**
@@ -104,7 +102,6 @@ const ListingKeySchema = v.pipe(
   v.regex(/^[1-9][0-9]*$/u, "A listing key must be a listing id"),
 );
 
-/** Free-text refs filed under the listing each one belongs to. */
 const TextAnswerRefsByListingSchema = v.optional(
   v.record(ListingKeySchema, v.array(TextAnswerRefSchema)),
 );

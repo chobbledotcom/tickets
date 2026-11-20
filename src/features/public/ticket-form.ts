@@ -30,7 +30,6 @@ export const parseQuantityValue = (raw: string, minDefault = 1): number => {
 export type AnswerInfo = {
   activeQuestions: TicketCtx["questions"];
   answerIds: number[];
-  /** The answers to the questions that ask once for each booked listing. */
   lineTextAnswers: LineTextAnswer[];
   textAnswers: TextAnswer[];
   selectedListingIds: Set<number>;
@@ -77,12 +76,10 @@ const answeredQuestionPairs = (
  * `String(listingId)`. */
 export type ListingAnswerMaps = {
   answerIds: Record<string, number[]>;
-  /** Each listing's own answers, kept apart so none merges by question. */
   lineTextAnswers: Record<string, TextAnswer[]>;
   textAnswers: Record<string, TextAnswer[]>;
 };
 
-/** Files each listing's own answers under that listing alone. */
 const lineAnswersByListing = (
   answers: readonly LineTextAnswer[],
 ): Record<string, TextAnswer[]> =>

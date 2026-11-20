@@ -234,16 +234,14 @@ export type LineAnswer = {
   text: string;
 };
 
-/** Row shape for a line answer joined onto its booking row and its string. */
 type LineAnswerRow = {
   encrypted_text: OwnerKeyEncrypted;
   listing_id: number;
   question_id: number;
 };
 
-/** The answers an attendee gave for each booked listing, decrypted for the
- * owner. A listing booked through two paths has one answer for each question,
- * so each pair shows once. */
+/** The attendee's answers for each booked listing, decrypted for the owner.
+ * A listing booked through two paths shows each answer once. */
 export const getAttendeeLineAnswers = async (
   attendeeId: number,
   privateKey: OwnerKeyReader,

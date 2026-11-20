@@ -36,7 +36,6 @@ import { reorderableListPage } from "#templates/components/reorder-list.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
 import type { AdminSession } from "#types";
-import { answerLevelLabel } from "./answer-level.ts";
 import {
   type ListingPanelProps,
   listingChoicePanel,
@@ -77,14 +76,6 @@ const questionListingsFor =
       totalListings,
     });
 
-/** The column that says how often each question asks. */
-const answerLevelColumn = () => ({
-  cell: (question: QuestionWithAnswers) =>
-    answerLevelLabel(question.answerLevel),
-  header: t("questions.answer_level_column"),
-  key: "answer-level",
-});
-
 /** List all questions in a reorderable table, mirroring the listings table:
  * reorder arrows in the first column, then the question, its answer count, and
  * the listings it applies to. */
@@ -109,7 +100,6 @@ export const adminQuestionsPage = (
         header: t("questions.question_column"),
         key: "question",
       },
-      answerLevelColumn(),
       {
         cell: (question) => question.answers.length,
         class: "quantity",

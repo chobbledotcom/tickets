@@ -96,11 +96,9 @@ export type SelectedQuestionAnswers = {
 /** A free-text answer submitted for a question (plaintext, pre-string-interning). */
 export type TextAnswer = { questionId: number; text: string };
 
-/** A free-text answer to one booked listing's own question (plaintext,
- *  pre-string-interning). */
+/** A free-text answer to one booked listing's own question. */
 export type LineTextAnswer = TextAnswer & { listingId: number };
 
-/** A line answer resolved to its interned string id. */
 export type LineTextAnswerId = TextAnswerId & { listingId: number };
 
 /** A free-text answer resolved to its interned string id. */
@@ -109,10 +107,4 @@ export type TextAnswerId = { questionId: number; stringId: number };
 /** Outcome of parsing a form's submitted answers. */
 export type ParsedQuestionAnswers =
   | { ok: true; answerIds: number[]; textAnswers: TextAnswer[] }
-  | { ok: false; error: string };
-
-/** Outcome of parsing the answers to the questions that ask once for each
- *  booked listing. */
-export type ParsedLineAnswers =
-  | { ok: true; lineTextAnswers: LineTextAnswer[] }
   | { ok: false; error: string };

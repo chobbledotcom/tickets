@@ -235,9 +235,8 @@ export const applyQrTokenOverride = async (
   }
 };
 
-/** Files each listing's text answers as stored strings, or nothing when no
- * text was typed. The strings are created only now, so a rejected order
- * leaves none behind. */
+/** Files each listing's text answers as stored strings. The strings are
+ * created only now, so a rejected order leaves none behind. */
 const storedTextAnswers = async (
   typed: readonly TextAnswer[],
   byListing: Record<string, TextAnswer[]>,
@@ -263,8 +262,7 @@ const storedTextAnswers = async (
   );
 };
 
-/** The stored strings of every text answer. A booking-level answer files
- * under each listing its question applies to. A listing's own answer files
+/** The stored strings of every text answer. A listing's own answer files
  * under that listing alone. */
 export const computeTextAnswerRefs = async (
   ctx: TicketCtx,

@@ -85,8 +85,7 @@ const textRefsWithStringId = (
   return resolved;
 };
 
-/** Each booked listing's text refs with a usable string id, keyed by
- * `String(listing.id)`. A listing with none has no entry. */
+/** Each booked listing's text refs that have a usable string id. */
 const resolvedRefsByListing = (
   listings: readonly ListingWithCount[],
   refsByListing: Record<string, TextAnswerRef[]> | undefined,

@@ -42,8 +42,6 @@ export const questionTables = declaredTables([
           )(defaulted(text, "radio")),
         ],
         ["assign_all", wholeNumberStartingAtZero],
-        // How often a free-text question asks: once for the booking, or once
-        // for each booked listing. Fixed after create.
         [
           "answer_level",
           oneOf(
@@ -276,8 +274,6 @@ export const questionTables = declaredTables([
           name: "idx_attendee_answers_unique",
           unique: true,
         },
-        // One answer to a question for the whole booking, and one answer
-        // to it for each booked listing.
         {
           columns: ["attendee_id", "question_id"],
           name: "idx_attendee_string_answers_unique",

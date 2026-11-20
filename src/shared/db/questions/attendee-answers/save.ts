@@ -88,8 +88,7 @@ export type PreparedAnswerSave = {
 type AttendeeRef = {
   /** The attendee_id value of one row. */
   idOf: (attendeeId: number) => SqlSlot;
-  /** The delete that clears the attendee's previous answers to the booking.
-   * Answers filed against a booked listing stay. */
+  /** The delete that clears the attendee's previous booking answers. */
   delete: (attendeeIds: number[]) => SqlStatement;
 };
 
@@ -155,7 +154,6 @@ const pushAnswerRows = <Row extends { attendeeId: number }>(
   );
 };
 
-/** The rows of every attendee's answer set, each tagged with its attendee. */
 const attendeeRows = <Row extends object>(
   normalized: Map<number, NormalizedAnswerSet>,
   rowsOf: (set: NormalizedAnswerSet) => Row[],

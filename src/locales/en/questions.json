@@ -6,7 +6,6 @@
   "questions.order_column": "Order",
   "questions.question_column": "Question",
   "questions.answers_column": "Answers",
-  "questions.answer_level_column": "Asks",
   "questions.answer_level.booking": "One per booking",
   "questions.answer_level.listing": "One per listing",
   "questions.answer_level.locked": "You cannot change how often a question asks. Add a new question instead.",

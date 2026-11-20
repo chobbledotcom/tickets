@@ -94,8 +94,7 @@ export type BookingTree = {
   readonly nodes: readonly BookingNode[];
 };
 
-/** The listing ids of the nodes that a buyer can see. A hidden node is never
- * named on a buyer surface. */
+/** The listing ids of the nodes that a buyer can see. */
 export const shownListingIds = (nodes: readonly BookingNode[]): Set<number> =>
   new Set(
     nodes

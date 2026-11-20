@@ -55,8 +55,7 @@ import {
   type SubmissionPricingParams,
 } from "./pricing.ts";
 
-/** The booked listings the buyer can see, once each. A listing booked through
- * two paths has one answer for each question. */
+/** The booked listings the buyer can see, once each. */
 const namedLines = (
   items: readonly CheckoutItem[],
   namedListingIds: ReadonlySet<number>,
@@ -233,8 +232,7 @@ export const prepareOrder = async (
     activeQuestions.filter((question) => !isListingLevel(question)),
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
-  // A listing-level question asks under each booked listing the buyer can
-  // see. A concealed package member has no field, so it owes no answer.
+  // A concealed package member has no field, so it owes no answer.
   const lineAnswersResult = parseLineTextAnswers(form, {
     lines: namedLines(items, namedListingIds),
     questionListingMap: foldedCtx.questionListingMap,
@@ -247,7 +245,7 @@ export const prepareOrder = async (
   const info: AnswerInfo = {
     activeQuestions,
     answerIds: answersResult.answerIds,
-    lineTextAnswers: lineAnswersResult.lineTextAnswers,
+    lineTextAnswers: lineAnswersResult.value,
     selectedListingIds,
     textAnswers: answersResult.textAnswers,
   };

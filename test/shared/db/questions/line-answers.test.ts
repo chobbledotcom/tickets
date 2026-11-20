@@ -77,11 +77,11 @@ describe("parseLineTextAnswers", () => {
         discoB,
       ]),
     ).toEqual({
-      lineTextAnswers: [
+      ok: true,
+      value: [
         { listingId: 10, questionId: 4, text: "Ava" },
         { listingId: 20, questionId: 4, text: "Ben" },
       ],
-      ok: true,
     });
   });
 
@@ -93,8 +93,8 @@ describe("parseLineTextAnswers", () => {
         new Map([[4, [20]]]),
       ),
     ).toEqual({
-      lineTextAnswers: [{ listingId: 20, questionId: 4, text: "Ben" }],
       ok: true,
+      value: [{ listingId: 20, questionId: 4, text: "Ben" }],
     });
   });
 
@@ -119,10 +119,7 @@ describe("parseLineTextAnswers", () => {
       parseFor({ question4_listing10: limit }),
     ]).toEqual([
       { error: "Answer is too long: Pupil name (Disco A)", ok: false },
-      {
-        lineTextAnswers: [{ listingId: 10, questionId: 4, text: limit }],
-        ok: true,
-      },
+      { ok: true, value: [{ listingId: 10, questionId: 4, text: limit }] },
     ]);
   });
 
@@ -130,8 +127,8 @@ describe("parseLineTextAnswers", () => {
     expect(
       parseFor({ question4_listing10: "Ava", question4_listing20: "Ben" }),
     ).toEqual({
-      lineTextAnswers: [{ listingId: 10, questionId: 4, text: "Ava" }],
       ok: true,
+      value: [{ listingId: 10, questionId: 4, text: "Ava" }],
     });
   });
 
@@ -140,6 +137,6 @@ describe("parseLineTextAnswers", () => {
       parseFor({}, [discoA], undefined, [
         { ...pupilName, answerLevel: "booking" },
       ]),
-    ).toEqual({ lineTextAnswers: [], ok: true });
+    ).toEqual({ ok: true, value: [] });
   });
 });

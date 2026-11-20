@@ -2,11 +2,11 @@
 
 import type {
   LineTextAnswer,
-  ParsedLineAnswers,
   Question,
   QuestionWithAnswers,
 } from "#db/question-types.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** A booked listing a line answer belongs to. */
 export type AnswerLine = { id: number; name: string };
@@ -31,32 +31,21 @@ export const linesAskedBy = (
       askedListingIds === undefined || askedListingIds.includes(line.id),
   );
 
-/** The words a refusal names the answer by: the question and its listing. */
-const answerName = (question: Pick<Question, "text">, line: AnswerLine) =>
-  `${question.text} (${line.name})`;
-
-type LineAnswerRead =
-  | { ok: true; answer: LineTextAnswer }
-  | { ok: false; error: string };
-
 /** Read one question's answer for one listing: present, and within the limit. */
 const readLineAnswer = (
   form: URLSearchParams,
   question: QuestionWithAnswers,
   line: AnswerLine,
-): LineAnswerRead => {
+): Result<LineTextAnswer> => {
   const text = (
     form.get(lineAnswerFieldName(question.id, line.id)) ?? ""
   ).trim();
-  const name = answerName(question, line);
+  const name = `${question.text} (${line.name})`;
   if (text.length > MAX_TEXTAREA_LENGTH) {
-    return { error: `Answer is too long: ${name}`, ok: false };
+    return errorResult(`Answer is too long: ${name}`);
   }
-  if (text === "") return { error: `Please answer: ${name}`, ok: false };
-  return {
-    answer: { listingId: line.id, questionId: question.id, text },
-    ok: true,
-  };
+  if (text === "") return errorResult(`Please answer: ${name}`);
+  return okResult({ listingId: line.id, questionId: question.id, text });
 };
 
 /** What an order is asked: its questions, the listings it books, and which
@@ -85,12 +74,12 @@ const answersOwed = ({
 export const parseLineTextAnswers = (
   form: URLSearchParams,
   asked: OrderQuestions,
-): ParsedLineAnswers => {
+): Result<LineTextAnswer[]> => {
   const lineTextAnswers: LineTextAnswer[] = [];
   for (const { line, question } of answersOwed(asked)) {
     const read = readLineAnswer(form, question, line);
     if (!read.ok) return read;
-    lineTextAnswers.push(read.answer);
+    lineTextAnswers.push(read.value);
   }
-  return { lineTextAnswers, ok: true };
+  return okResult(lineTextAnswers);
 };

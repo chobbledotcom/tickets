@@ -1,21 +1,17 @@
-/** The answers an attendee gave to questions that ask once for each listing. */
-
 import { getAllListings } from "#db/listings/records.ts";
 import { getAttendeeLineAnswers } from "#db/questions/attendee-answers/reads.ts";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { fieldById, requiredMapValue } from "#fp";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 
-/** One answer, with the question and the listing it answers named. */
 export type LineAnswerRow = {
   answer: string;
   listingName: string;
   question: string;
 };
 
-/** The attendee's answers for each booked listing, in question order. The
- * answers of a deleted question or listing go with it, so every answer read
- * here names a question and a listing that still exist. */
+/** The attendee's answers for each booked listing. A deleted question or
+ * listing takes its answers, so each answer here names both. */
 export const loadLineAnswerRows = async (
   attendeeId: number,
 ): Promise<LineAnswerRow[]> => {

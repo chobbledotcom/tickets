@@ -52,13 +52,4 @@ describeWithEnv("Question answer level pins", { db: true }, () => {
       "This question asks: One per listing.",
     ]);
   });
-
-  test("the questions list names how often each question asks", async () => {
-    await createdListingLevel();
-    const page = await (await adminGet("/admin/questions")).text();
-    expectIncludesAll(page, [
-      "One per listing",
-      t("questions.answer_level_column"),
-    ]);
-  });
 });
