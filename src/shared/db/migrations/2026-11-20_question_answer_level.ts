@@ -3,14 +3,14 @@ import { schemaMigration } from "./define.ts";
 
 export default schemaMigration(
   "2026-11-20_question_answer_level",
-  "Add answer_level to custom questions, and listing_attendee_id to attendee answers. A free-text question can ask once for each booked listing. Every stored answer and question keeps asking once for the booking.",
+  "Add answer_level to custom questions, and booking_row_id to attendee answers. A free-text question can ask once for each booked listing. Every stored answer and question keeps asking once for the booking.",
   {
     columns: {
-      attendee_answers: ["listing_attendee_id"],
+      attendee_answers: ["booking_row_id"],
       questions: ["answer_level"],
     },
     indexes: [
-      "idx_attendee_answers_listing_attendee_id",
+      "idx_attendee_answers_booking_row_id",
       "idx_attendee_listing_answers_unique",
       "idx_attendee_string_answers_unique",
     ],

@@ -97,7 +97,7 @@ const idsRef: AttendeeRef = {
   delete: (attendeeIds) =>
     deleteFrom(tables.attendee_answers).where({
       attendeeId: attendeeIds,
-      listingAttendeeId: null,
+      bookingRowId: null,
     }),
   idOf: (attendeeId) => attendeeId,
 };
@@ -110,7 +110,7 @@ const bookedRef = (tokenIndex: string): AttendeeRef => {
     delete: () =>
       deleteFrom(tables.attendee_answers).where({
         attendeeId: attendee,
-        listingAttendeeId: null,
+        bookingRowId: null,
       }),
     idOf: () => attendee,
   };
@@ -196,7 +196,7 @@ const lineAnswerStatements = (
   const statements: SqlStatement[] = [];
   pushAnswerRows(statements, ref, {
     afterValues: sql`INSERT INTO attendee_answers
-          (attendee_id, question_id, string_id, listing_attendee_id)
+          (attendee_id, question_id, string_id, booking_row_id)
         SELECT selected.attendee_id, selected.question_id, selected.string_id, line.id
         FROM selected
         INNER JOIN questions AS question ON question.id = selected.question_id

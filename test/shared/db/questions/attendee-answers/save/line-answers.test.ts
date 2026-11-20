@@ -29,15 +29,15 @@ import type { Attendee } from "#types";
 
 const storedRows = (attendeeId: number) =>
   queryAll<{
-    listing_attendee_id: number | null;
+    booking_row_id: number | null;
     listing_id: number | null;
     question_id: number;
     string_id: number;
   }>(
-    sql`SELECT given.listing_attendee_id, line.listing_id,
+    sql`SELECT given.booking_row_id, line.listing_id,
             given.question_id, given.string_id
        FROM attendee_answers AS given
-       LEFT JOIN listing_attendees AS line ON line.id = given.listing_attendee_id
+       LEFT JOIN listing_attendees AS line ON line.id = given.booking_row_id
       WHERE given.attendee_id = ${attendeeId}
       ORDER BY line.listing_id, given.question_id`,
   );
@@ -183,7 +183,7 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
       lineAnswers: [lineAnswer(child.id, pupil.id, "Kit")],
     });
     const rows = await storedRows(attendee.id);
-    expect(new Set(rows.map((row) => row.listing_attendee_id)).size).toBe(2);
+    expect(new Set(rows.map((row) => row.booking_row_id)).size).toBe(2);
     expect(await readLineAnswers(attendee.id)).toEqual([
       lineAnswer(child.id, pupil.id, "Kit"),
     ]);

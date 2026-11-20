@@ -22,11 +22,11 @@ const removeAnswerLevel = (): Promise<unknown> =>
   executeBatch([
     sql`DROP TRIGGER trg_listing_attendees_answers_delete`,
     sql`DROP INDEX idx_attendee_listing_answers_unique`,
-    sql`DROP INDEX idx_attendee_answers_listing_attendee_id`,
+    sql`DROP INDEX idx_attendee_answers_booking_row_id`,
     sql`DROP INDEX idx_attendee_string_answers_unique`,
     sql`CREATE UNIQUE INDEX idx_attendee_string_answers_unique
           ON attendee_answers (attendee_id, question_id)`,
-    sql`ALTER TABLE attendee_answers DROP COLUMN listing_attendee_id`,
+    sql`ALTER TABLE attendee_answers DROP COLUMN booking_row_id`,
     sql`ALTER TABLE questions DROP COLUMN answer_level`,
   ]);
 
@@ -58,10 +58,10 @@ describeWithEnv("db > migrations > question answer level", { db: true }, () => {
     await questionAnswerLevel(context).up();
 
     expect(await indexSql("idx_attendee_string_answers_unique")).toContain(
-      "WHERE listing_attendee_id IS NULL",
+      "WHERE booking_row_id IS NULL",
     );
     expect(await indexSql("idx_attendee_listing_answers_unique")).toContain(
-      "WHERE listing_attendee_id IS NOT NULL",
+      "WHERE booking_row_id IS NOT NULL",
     );
   });
 
@@ -75,7 +75,7 @@ describeWithEnv("db > migrations > question answer level", { db: true }, () => {
             VALUES (9301, 'Name?', 'free_text', 'listing')`,
       sql`INSERT INTO strings (id, text_index, encrypted_text) VALUES (9401, 'idx', 'enc')`,
       sql`INSERT INTO listing_attendees (id, attendee_id, listing_id) VALUES (9501, 1, 1)`,
-      sql`INSERT INTO attendee_answers (attendee_id, question_id, string_id, listing_attendee_id)
+      sql`INSERT INTO attendee_answers (attendee_id, question_id, string_id, booking_row_id)
             VALUES (1, 9301, 9401, 9501)`,
       sql`DELETE FROM listing_attendees WHERE id = 9501`,
     ]);

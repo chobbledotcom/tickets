@@ -232,8 +232,8 @@ const LINE_ANSWER_TRIGGERS: Trigger[] = [
   afterRowDelete(
     "trg_listing_attendees_answers_delete",
     "listing_attendees",
-    { attendee_answers: ["listing_attendee_id"], listing_attendees: ["id"] },
-    sql`DELETE FROM attendee_answers WHERE listing_attendee_id = OLD.id`,
+    { attendee_answers: ["booking_row_id"], listing_attendees: ["id"] },
+    sql`DELETE FROM attendee_answers WHERE booking_row_id = OLD.id`,
   ),
 ];
 

@@ -44,7 +44,7 @@ const selectAttendeeAnswerRows = <R>(
        FROM attendee_answers AS attendee_answer
        ${join}
       WHERE ${sqlName(`attendee_answer.${column}`)} IS NOT NULL
-        AND attendee_answer.listing_attendee_id IS NULL
+        AND attendee_answer.booking_row_id IS NULL
         AND attendee_answer.attendee_id IN (${idSlots})`,
     readAll,
   );
@@ -252,7 +252,7 @@ export const getAttendeeLineAnswers = async (
     sql`SELECT DISTINCT line.listing_id, attendee_answer.question_id, string.encrypted_text
        FROM attendee_answers AS attendee_answer
        INNER JOIN listing_attendees AS line
-         ON line.id = attendee_answer.listing_attendee_id
+         ON line.id = attendee_answer.booking_row_id
        INNER JOIN strings AS string ON string.id = attendee_answer.string_id
       WHERE attendee_answer.attendee_id = ${attendeeId}
       ORDER BY attendee_answer.question_id, line.listing_id`,

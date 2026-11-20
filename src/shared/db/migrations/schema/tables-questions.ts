@@ -257,7 +257,7 @@ export const questionTables = declaredTables([
         ["string_id", wholeNumberOrNull],
         // The booked listing a per-listing answer belongs to. NULL for an
         // answer to the whole booking, which is every row before this column.
-        ["listing_attendee_id", wholeNumberOrNull],
+        ["booking_row_id", wholeNumberOrNull],
       ],
       indexes: [
         {
@@ -265,8 +265,8 @@ export const questionTables = declaredTables([
           name: "idx_attendee_answers_attendee_id",
         },
         {
-          columns: ["listing_attendee_id"],
-          name: "idx_attendee_answers_listing_attendee_id",
+          columns: ["booking_row_id"],
+          name: "idx_attendee_answers_booking_row_id",
         },
         { columns: ["answer_id"], name: "idx_attendee_answers_answer_id" },
         { columns: ["question_id"], name: "idx_attendee_answers_question_id" },
@@ -282,13 +282,13 @@ export const questionTables = declaredTables([
           columns: ["attendee_id", "question_id"],
           name: "idx_attendee_string_answers_unique",
           unique: true,
-          where: sql`listing_attendee_id IS NULL`,
+          where: sql`booking_row_id IS NULL`,
         },
         {
-          columns: ["attendee_id", "question_id", "listing_attendee_id"],
+          columns: ["attendee_id", "question_id", "booking_row_id"],
           name: "idx_attendee_listing_answers_unique",
           unique: true,
-          where: sql`listing_attendee_id IS NOT NULL`,
+          where: sql`booking_row_id IS NOT NULL`,
         },
       ],
     },

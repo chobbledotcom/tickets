@@ -57,7 +57,7 @@ const recordAnswersStatement = (
     FROM asked
     LEFT JOIN attendee_answers AS given
       ON given.attendee_id = asked.attendee_id AND given.question_id = asked.question_id
-      AND given.listing_attendee_id IS NULL
+      AND given.booking_row_id IS NULL
     LEFT JOIN answers AS answer ON answer.id = given.answer_id
     LEFT JOIN strings AS string ON string.id = given.string_id
     WHERE true
@@ -105,7 +105,7 @@ const comparedAnswers = (
       UNION
       SELECT given.attendee_id, given.question_id FROM attendee_answers AS given
       INNER JOIN recorded ON recorded.attendee_id = given.attendee_id
-      WHERE given.listing_attendee_id IS NULL
+      WHERE given.booking_row_id IS NULL
     )
     SELECT ${columns}
     FROM pair
@@ -113,7 +113,7 @@ const comparedAnswers = (
       ON booked.attendee_id = pair.attendee_id AND booked.question_id = pair.question_id
     LEFT JOIN attendee_answers AS given
       ON given.attendee_id = pair.attendee_id AND given.question_id = pair.question_id
-      AND given.listing_attendee_id IS NULL
+      AND given.booking_row_id IS NULL
     LEFT JOIN answers AS givenChoice ON givenChoice.id = given.answer_id
     LEFT JOIN answers AS bookedChoice ON bookedChoice.id = booked.answer_id
     LEFT JOIN strings AS givenString ON givenString.id = given.string_id
