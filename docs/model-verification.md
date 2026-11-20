@@ -261,6 +261,10 @@ The runner still plans both proof obligations and every declared negative contro
 
 The `Model checks` workflow runs the same task without a pass cache each night.
 It finds a change to the checker environment or the machine.
+A plan job runs `deno task verify:models --list`, which prints the model names
+as JSON. The workflow starts one job for each name. Each job runs on its own
+runner and runs `deno task verify:models --model <name>`. The jobs run in
+parallel, and one failed model does not stop the others.
 
 If a check fails, the runner stops new work and awaits the active processes.
 It propagates the failure and retains the input and checker artifacts.
