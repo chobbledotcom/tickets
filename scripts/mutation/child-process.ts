@@ -38,9 +38,7 @@ export const denoExitDetail = async (
     args,
     ...rest,
     clearEnv: rest.env !== undefined,
-    ...(signal === undefined
-      ? {}
-      : { detached: true, stdin: "null" as const }),
+    ...(signal === undefined ? {} : { detached: true, stdin: "null" as const }),
     stderr: "piped",
     stdout: "piped",
   }).spawn();
