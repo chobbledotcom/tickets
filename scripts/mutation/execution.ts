@@ -101,6 +101,9 @@ const quietCommandOptions = (
   stdout: "null",
 });
 
+// Biome runs one-shot, not through `--use-server`: with Biome 2.4.16, 20 warm
+// one-file runs had a 17.3 ms median alone and 51.2 ms through the server.
+// Keep it so unless a new benchmark says otherwise.
 const createLinter = async (deps: StaticGateDeps): Promise<StaticGate> => {
   const resolved = await deps.resolveBiome([]);
   return {
@@ -124,6 +127,9 @@ const createLinter = async (deps: StaticGateDeps): Promise<StaticGate> => {
   };
 };
 
+/** Catches a mutant that turns valid code into a type error, such as `+ → *`
+ *  on a string concatenation, or any change that breaks a parameter or return
+ *  type. */
 const createTypeChecker = (deps: StaticGateDeps): StaticGate => ({
   exit: (file, workspace, signal) =>
     deps.denoExit(["check", file], {
