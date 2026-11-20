@@ -149,7 +149,9 @@
 
 /* Tick badge — revealed only when the card's checkbox is checked */
 .order-card-tick {
-  @include pinned-top-right;
+  position: absolute;
+  top: var(--space-s);
+  right: var(--space-s);
   display: none;
   align-items: center;
   justify-content: center;

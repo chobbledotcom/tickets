@@ -51,8 +51,7 @@ export const enhanceMarkdownTextarea = (
   // is exactly what the server validates.
   const maxLength = textarea.maxLength;
 
-  // The image picker. It lives inside the mount, so it dies with the editor.
-  const imageItem = createImageToolbarItem(mount);
+  const imageItem = createImageToolbarItem();
   const view: EditorView = new EditorView(mount, {
     dispatchTransaction: (tr) => {
       const nextMarkdown = tr.docChanged ? serializeMarkdown(tr.doc) : null;

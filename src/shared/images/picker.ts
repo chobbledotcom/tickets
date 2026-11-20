@@ -71,6 +71,10 @@ export const imageOptionsOf = (images: readonly StoredImage[]): ImageOption[] =>
  * it has no image storage. */
 export const IMAGE_PICKER_ID = "md-image-picker";
 
+/** The `data-copy` name of the template's title. The picker's window shows
+ * these words in its title bar. */
+export const PICKER_TITLE_COPY = "title";
+
 /** The notes that the picker's grid can show in place of thumbnails. */
 export const PICKER_NOTES = [
   "empty",

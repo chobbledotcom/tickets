@@ -1,5 +1,4 @@
-/* The rich markdown editor: its formatting toolbar and the image picker
- * dialog. */
+/* The rich markdown editor: its formatting toolbar and the image picker. */
 
 @use "mixins" as *;
 
@@ -42,17 +41,9 @@
   }
 }
 
-/* The image picker dialog: a thumbnail grid over an upload form, styled on
- * the preview dialog's shell. */
-.md-image-dialog {
-  width: min(100% - 2 * var(--space-lg), 60rem);
-  max-height: calc(100dvh - 2 * var(--space-lg));
-  padding: var(--space-m);
-
-  h2 {
-    margin-top: 0;
-  }
-
+/* The image picker: a thumbnail grid beside an upload form. The admin modal
+ * shell supplies the window around it. */
+.md-image-picker {
   .md-image-grid {
     display: grid;
     gap: var(--space-s);

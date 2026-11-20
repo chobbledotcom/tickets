@@ -1,21 +1,18 @@
-/* The shared image picker dialog's layout, and the new-listing form's
- * chosen-picture list. */
+/* The shared image picker's layout, and the new-listing form's chosen-picture
+ * list. The picker shows in the shared admin modal. */
 
 @use "mixins" as *;
 
-.md-image-dialog {
-  width: min(100% - 2 * var(--space-lg), 60rem);
-  max-width: min(100% - 2 * var(--space-lg), 60rem);
-  &[open] {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+/* The picker's window is wider than the default. A phone or a coarse pointer
+ * keeps the shell's full-screen shape, so this rule stops short of them. */
+@media (min-width: 769px) and (pointer: fine) {
+  .admin-modal:has(.md-image-picker) {
+    width: min(100% - 2 * var(--space-lg), 60rem);
   }
 }
 
 .md-image-columns {
   display: grid;
-  flex: 1 1 auto;
   gap: var(--space-m);
   grid-template-columns: repeat(2, minmax(0, 1fr));
   min-height: 0;
@@ -28,25 +25,24 @@
   min-height: 0;
 }
 
-.md-image-dialog .md-image-grid {
+.md-image-picker .md-image-grid {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
 }
 
-.md-image-dialog .md-image-upload {
+.md-image-picker .md-image-upload {
   margin-top: 0;
 }
 
-.md-image-dialog .md-image-option[aria-pressed="true"] {
+.md-image-picker .md-image-option[aria-pressed="true"] {
   background: var(--color-bg-secondary);
   border-color: var(--color-link);
   outline: 2px solid var(--color-link);
   outline-offset: 2px;
 }
 
-.md-image-dialog [data-note="loadFailed"],
-.md-image-dialog [data-note="uploadFailed"] {
+.md-image-picker [data-note="loadFailed"],
+.md-image-picker [data-note="uploadFailed"] {
   color: var(--color-text);
   font-weight: 600;
 }
@@ -60,10 +56,6 @@
 @media (max-width: 48rem) {
   .md-image-columns {
     grid-template-columns: 1fr;
-  }
-
-  .md-image-dialog[open] {
-    overflow-y: auto;
   }
 }
 
