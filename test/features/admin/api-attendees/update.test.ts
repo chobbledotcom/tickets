@@ -18,6 +18,9 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { MONTHLY, subscribe } from "#test-utils/db-helpers/subscriptions.ts";
 
+/** One update body, and what holds after it. */
+type Step<Expected> = [body: Record<string, unknown>, expected: Expected];
+
 /** A booked attendee: a 500 listing, one ticket, and the given create body. */
 const bookOne = async (body: Record<string, unknown> = {}) => {
   const listing = await createTestListing({
@@ -42,131 +45,121 @@ const balanceOf = (attendeeId: number): Promise<number> =>
   accountBalance(account("attendee", attendeeId));
 
 describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
-  test("changes the status by name and leaves the other fields alone", async () => {
+  test("updates the fields a body names and keeps the rest", async () => {
     const { attendeeId, listing } = await bookOne();
     const vip = await records.attendee_statuses.insert({ name: "VIP" });
-
-    const first = await assertJson(
-      updateBooking(attendeeId, { status: "VIP" }),
-      200,
-    );
-    expect(first.attendee).toMatchObject({
-      email: "ada@example.com",
-      id: attendeeId,
-      name: "Ada Lovelace",
-      quantity: 1,
-      status_id: vip.id,
-    });
+    const steps: Step<Record<string, unknown>>[] = [
+      [{ status: "VIP" }, { name: "Ada Lovelace", status_id: vip.id }],
+      [
+        { name: "Ada King", phone: "01234 567890" },
+        { email: "ada@example.com", name: "Ada King", phone: "01234 567890" },
+      ],
+      // The same status again changes nothing and still answers.
+      [{ status: "VIP" }, { name: "Ada King", status_id: vip.id }],
+    ];
+    for (const [body, expected] of steps) {
+      const updated = await assertJson(updateBooking(attendeeId, body), 200);
+      expect(updated.attendee).toMatchObject({
+        id: attendeeId,
+        quantity: 1,
+        ...expected,
+      });
+    }
     await expectListingActivityLogContains(listing.id, "updated via API");
-
-    // The same update again changes nothing and still answers.
-    const again = await assertJson(
-      updateBooking(attendeeId, { status: "VIP" }),
-      200,
-    );
-    expect(again.attendee.status_id).toBe(vip.id);
   });
 
-  test("changes the contact fields it names and keeps the rest", async () => {
-    const { attendeeId } = await bookOne();
-    const updated = await assertJson(
-      updateBooking(attendeeId, { name: "Ada King", phone: "01234 567890" }),
-      200,
-    );
-    expect(updated.attendee).toMatchObject({
-      email: "ada@example.com",
-      name: "Ada King",
-      phone: "01234 567890",
+  test("receipts post once, replay as no-ops, and never change", async () => {
+    const delivery = { amount: 250, description: "Delivery" };
+    const { attendeeId } = await bookOne({
+      adjustments: [delivery],
+      payments: [{ amount: 200 }],
     });
-  });
-
-  test("a payment added to the list posts once and moves the balance", async () => {
-    const { attendeeId } = await bookOne({ payments: [{ amount: 200 }] });
-    expect(await balanceOf(attendeeId)).toBe(-300);
-    const payments = [{ amount: 200 }, { amount: 100 }];
-
-    const added = await assertJson(
-      updateBooking(attendeeId, { payments }),
-      200,
-    );
-    expect(added.attendee.remaining_balance).toBe(200);
-    expect(await balanceOf(attendeeId)).toBe(-200);
+    // 500 sale, plus 250 delivery, less 200 paid.
+    expect(await balanceOf(attendeeId)).toBe(-550);
+    const steps: Step<number>[] = [
+      [{ payments: [{ amount: 200 }, { amount: 100 }] }, 450],
+      // An exact replay posts nothing.
+      [{ payments: [{ amount: 200 }, { amount: 100 }] }, 450],
+      [{ adjustments: [delivery, { amount: -100, description: "Fee" }] }, 350],
+    ];
+    for (const [body, owed] of steps) {
+      const updated = await assertJson(updateBooking(attendeeId, body), 200);
+      expect(updated.attendee.remaining_balance).toBe(owed);
+      expect(await balanceOf(attendeeId)).toBe(-owed);
+    }
     expect((await paymentAmounts(attendeeId)).toSorted()).toEqual([100, 200]);
 
-    // An exact replay posts nothing.
-    const replay = await assertJson(
-      updateBooking(attendeeId, { payments }),
-      200,
-    );
-    expect(replay.attendee.remaining_balance).toBe(200);
-    expect(await balanceOf(attendeeId)).toBe(-200);
-    expect(await paymentAmounts(attendeeId)).toHaveLength(2);
-  });
-
-  test("a payment already stored with a different amount is refused", async () => {
-    const { attendeeId } = await bookOne({ payments: [{ amount: 200 }] });
     await expectApiError(
       updateBooking(attendeeId, { payments: [{ amount: 250 }] }),
       400,
       "payments[0] is already recorded with a different amount",
     );
-    // Nothing moved.
-    expect(await balanceOf(attendeeId)).toBe(-300);
-    expect(await paymentAmounts(attendeeId)).toEqual([200]);
+    expect(await balanceOf(attendeeId)).toBe(-350);
   });
 
-  test("a payment sent to a payment-free booking posts one leg", async () => {
-    const { attendeeId } = await bookOne();
-    const updated = await assertJson(
-      updateBooking(attendeeId, { payments: [{ amount: 500 }] }),
-      200,
-    );
-    expect(updated.attendee.remaining_balance).toBe(0);
-    expect(await paymentAmounts(attendeeId)).toEqual([500]);
-  });
-
-  test("named adjustments replay as the create's do and a new one adds", async () => {
-    const { attendeeId } = await bookOne({
-      adjustments: [{ amount: 250, description: "Delivery" }],
-    });
-    expect(await balanceOf(attendeeId)).toBe(-750);
-
-    const adjustments = [
-      { amount: 250, description: "Delivery" },
-      { amount: -100, description: "Loyalty" },
-    ];
-    const updated = await assertJson(
-      updateBooking(attendeeId, { adjustments }),
-      200,
-    );
-    expect(updated.attendee.remaining_balance).toBe(650);
-    expect(await balanceOf(attendeeId)).toBe(-650);
-  });
-
-  test("a line change moves the row and leaves the ledger alone", async () => {
+  test("lines change rows, add a listing, and drop an unnamed one", async () => {
     const { attendeeId, listing } = await bookOne();
-    const updated = await assertJson(
-      updateBooking(attendeeId, {
-        lines: [{ listingId: listing.id, quantity: 2 }],
-      }),
-      200,
-    );
-    expect(updated.attendee.quantity).toBe(2);
+    const other = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 3,
+      name: "Other Fair",
+      unitPrice: 300,
+    });
+    const first = { listingId: listing.id, quantity: 2 };
+    const second = { listingId: other.id, quantity: 2 };
+    // Each step names the lines, then which listings hold the attendee.
+    const steps: Step<[boolean, boolean]>[] = [
+      [{ lines: [first] }, [true, false]],
+      [{ lines: [first, second] }, [true, true]],
+      [{ lines: [second] }, [false, true]],
+    ];
+    for (const [body, [onFirst, onSecond]] of steps) {
+      await assertJson(updateBooking(attendeeId, body), 200);
+      const held = await Promise.all(
+        [listing.id, other.id].map(rosterAttendeeIds),
+      );
+      expect(held.map((ids) => ids.includes(attendeeId))).toEqual([
+        onFirst,
+        onSecond,
+      ]);
+    }
+    // A line change moves no money.
     expect(await balanceOf(attendeeId)).toBe(-500);
   });
 
-  test("a body with no lines keeps the stored lines", async () => {
-    const { attendeeId } = await bookOne();
-    const updated = await assertJson(
-      updateBooking(attendeeId, { name: "Ada" }),
-      200,
+  test("a daily booking keeps its dates, then moves its row in place", async () => {
+    const daily = await createTestListing({
+      listingType: "daily",
+      maxAttendees: 10,
+      name: "Dated Update Fair",
+    });
+    const line = {
+      date: "2026-08-14",
+      durationDays: 2,
+      listingId: daily.id,
+      quantity: 1,
+    };
+    const created = await assertJson(
+      createBooking(daily.id, { lines: [line] }),
+      201,
     );
-    expect(updated.attendee).toMatchObject({ name: "Ada", quantity: 1 });
+    const attendeeId = created.attendee.id as number;
+    const moved = { ...line, date: "2026-08-20", durationDays: 3 };
+    const steps: Step<Record<string, unknown>>[] = [
+      [{ name: "Ada Dated" }, { date: "2026-08-14", end_date: "2026-08-16" }],
+      [{ lines: [moved] }, { date: "2026-08-20", end_date: "2026-08-23" }],
+    ];
+    for (const [body, expected] of steps) {
+      const updated = await assertJson(updateBooking(attendeeId, body), 200);
+      expect(updated.attendee).toMatchObject(expected);
+    }
+    const rows = await rosterAttendeeIds(daily.id);
+    expect(rows.filter((id) => id === attendeeId)).toHaveLength(1);
   });
 
   test("refuses a body field it cannot accept", async () => {
     const { attendeeId } = await bookOne();
-    const refusals: [Record<string, unknown>, string][] = [
+    const refusals: Step<string>[] = [
       [{ status: "No such status" }, "Unknown status 'No such status'"],
       [{ status: 5 }, "status must be text"],
       [{ name: "" }, "name is required"],
@@ -187,121 +180,15 @@ describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
     }
   });
 
-  test("answers 404 for an attendee that does not exist", async () => {
-    await expectApiError(
-      updateBooking(987654, { name: "Nobody" }),
-      404,
-      "Attendee not found",
-    );
-  });
-
-  test("adds a line for another listing and drops a line it leaves out", async () => {
-    const { attendeeId, listing } = await bookOne();
-    const other = await createTestListing({
-      maxAttendees: 10,
-      maxQuantity: 3,
-      name: "Other Fair",
-      unitPrice: 300,
-    });
-
-    await assertJson(
-      updateBooking(attendeeId, {
-        lines: [
-          { listingId: listing.id, quantity: 1 },
-          { listingId: other.id, quantity: 2 },
-        ],
-      }),
-      200,
-    );
-    expect(await rosterAttendeeIds(listing.id)).toContain(attendeeId);
-    expect(await rosterAttendeeIds(other.id)).toContain(attendeeId);
-
-    await assertJson(
-      updateBooking(attendeeId, {
-        lines: [{ listingId: other.id, quantity: 2 }],
-      }),
-      200,
-    );
-    expect(await rosterAttendeeIds(listing.id)).not.toContain(attendeeId);
-    expect(await rosterAttendeeIds(other.id)).toContain(attendeeId);
-  });
-
-  test("a daily booking keeps its dates when the body names no lines", async () => {
-    const daily = await createTestListing({
-      listingType: "daily",
-      maxAttendees: 10,
-      name: "Dated Update Fair",
-    });
-    const created = await assertJson(
-      createBooking(daily.id, {
-        lines: [
-          {
-            date: "2026-08-14",
-            durationDays: 2,
-            listingId: daily.id,
-            quantity: 1,
-          },
-        ],
-      }),
-      201,
-    );
-    const updated = await assertJson(
-      updateBooking(created.attendee.id, { name: "Ada Dated" }),
-      200,
-    );
-    expect(updated.attendee).toMatchObject({
-      date: "2026-08-14",
-      end_date: "2026-08-16",
-      name: "Ada Dated",
-    });
-  });
-
-  test("a daily line that moves day changes its row in place", async () => {
-    const daily = await createTestListing({
-      listingType: "daily",
-      maxAttendees: 10,
-      name: "Moving Fair",
-    });
-    const created = await assertJson(
-      createBooking(daily.id, {
-        lines: [{ date: "2026-08-14", listingId: daily.id, quantity: 1 }],
-      }),
-      201,
-    );
-    const attendeeId = created.attendee.id as number;
-
-    const moved = await assertJson(
-      updateBooking(attendeeId, {
-        lines: [
-          {
-            date: "2026-08-20",
-            durationDays: 3,
-            listingId: daily.id,
-            quantity: 1,
-          },
-        ],
-      }),
-      200,
-    );
-    expect(moved.attendee).toMatchObject({
-      date: "2026-08-20",
-      end_date: "2026-08-23",
-    });
-    const rows = (await rosterAttendeeIds(daily.id)).filter(
-      (id) => id === attendeeId,
-    );
-    expect(rows).toHaveLength(1);
-  });
-
-  test("refuses to drop a line that holds a running subscription", async () => {
+  test("refuses an update the save cannot make", async () => {
     const booking = await subscribe("Ada", MONTHLY);
-    const other = await createTestListing({
+    const elsewhere = await createTestListing({
       maxAttendees: 10,
       name: "Elsewhere Fair",
     });
     await expectApiError(
       updateBooking(booking.attendeeId, {
-        lines: [{ listingId: other.id, quantity: 1 }],
+        lines: [{ listingId: elsewhere.id, quantity: 1 }],
       }),
       400,
       "A line with a running subscription cannot be removed. Cancel the subscription first.",
@@ -309,15 +196,22 @@ describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
     expect(await rosterAttendeeIds(booking.listingId)).toContain(
       booking.attendeeId,
     );
-  });
 
-  test("refuses an update that would change the booking's tax", async () => {
+    // A tax policy that changed since the booking needs the operator's say.
     const { attendeeId } = await bookOne();
     await settings.update.tax({ mode: "add_to_total", rateBasisPoints: 2000 });
     await expectApiError(
       updateBooking(attendeeId, { name: "Ada Taxed" }),
       400,
       "The tax on this booking has changed. Confirm the new tax on the attendee page, then send the update again.",
+    );
+  });
+
+  test("answers 404 for an attendee that does not exist", async () => {
+    await expectApiError(
+      updateBooking(987654, { name: "Nobody" }),
+      404,
+      "Attendee not found",
     );
   });
 });
