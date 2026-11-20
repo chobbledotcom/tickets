@@ -47,7 +47,8 @@ const openAdminPage = async (
   await page.getByRole("button", { name: PREVIEW_BUTTON }).first().waitFor();
 };
 
-/** Opens the preview for one field and waits for its window. */
+/** Opens the preview for one field and waits for its window to settle. A
+ * window rises in when it opens, and its box is off until the rise ends. */
 const openPreview = async (
   page: Page,
   index: number,
@@ -56,6 +57,9 @@ const openPreview = async (
   await page.getByRole("button", { name: PREVIEW_BUTTON }).nth(index).click();
   const dialog = page.locator(`dialog[data-modal-key="${key}"]`);
   await dialog.waitFor();
+  await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((rise) => rise.finished));
+  });
   return dialog;
 };
 
