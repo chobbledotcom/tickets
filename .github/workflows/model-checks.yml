@@ -1,0 +1,46 @@
+name: Model checks
+
+# A cached model check is a recorded verdict for the same inputs. This suite
+# deliberately runs with no pass cache, so it finds a change to the checker,
+# the runner environment, or the machine. It does not gate merges.
+on:
+  schedule:
+    # Nightly at 04:11 UTC. The off-the-hour minute is not a peak for
+    # scheduled runs.
+    - cron: "11 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The models profile carries Apalache and Java. Every run step uses it, as the
+# model step in test.yml does.
+defaults:
+  run:
+    shell: devenv --profile models shell bash -- -e {0}
+
+jobs:
+  model-checks:
+    runs-on: ubicloud-standard-8
+    # The full uncached run takes about 46 minutes with two workers. A wedged
+    # checker must fail loudly, so the job has a hard limit.
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up devenv
+        uses: $/.github/actions/setup-devenv
+        with:
+          profile: models
+
+      # The runner reads .verify-models-passes. A restored cache would hide
+      # exactly the environment change this job exists to find.
+      - name: Assert the pass cache is empty
+        run: test ! -e .verify-models-passes
+
+      - name: Run every model check
+        run: deno task verify:models

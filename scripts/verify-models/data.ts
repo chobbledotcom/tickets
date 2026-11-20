@@ -1,10 +1,10 @@
 import type * as v from "valibot";
-import { unique } from "#fp";
+import { chunk, unique } from "#fp";
 
 type TlaAtom = string | boolean | number;
 
 export type TlaRecord = Readonly<Record<string, TlaAtom>>;
-type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool" | "Int">>;
+export type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool" | "Int">>;
 type FieldValues = { Bool: boolean; Int: number; Str: string };
 export type TlaFact<Schema extends TlaRecordSchema> = {
   readonly [Field in keyof Schema]: FieldValues[Schema[Field]];
@@ -69,8 +69,85 @@ export const tlaSet = (values: readonly string[]): string =>
 
 const record = (value: TlaRecord, name: string): string =>
   `[${Object.entries(value)
+    .sort(([left], [right]) => left.localeCompare(right))
     .map(([field, value]) => `${field} |-> ${atom(value, `${name}.${field}`)}`)
     .join(", ")}]`;
+
+// The type checker takes more than linear time over one long literal, so a
+// named operator carries each page of at most 32 rows. An indexed lookup
+// selects a page, then a row within that page. The semantic set is the union
+// of one small set for each page.
+const RECORD_PAGE_SIZE = 32;
+
+/** Names one operator for each page of values. `wrap` writes a page as a set
+ *  or as a sequence of the given type. */
+const pageOperators = (
+  name: string,
+  type: string,
+  values: readonly string[],
+  wrap: (members: string) => string,
+): { definitions: string[]; names: string[] } => {
+  const pages = chunk(RECORD_PAGE_SIZE)([...values]);
+  const names = pages.map((_, index) => `${name}${index}`);
+  return {
+    definitions: pages.map(
+      (page, index) =>
+        `\\* @type: ${type};\n${names[index]} == ${wrap(page.join(", "))}`,
+    ),
+    names,
+  };
+};
+
+/** The definitions that one named list of values of one type renders. */
+type ListDefinitions = (
+  name: string,
+  type: string,
+  values: readonly string[],
+) => string[];
+
+const indexedDefinitions: ListDefinitions = (name, type, values) => {
+  const pages = pageOperators(
+    `${name}Page`,
+    `Seq(${type})`,
+    values,
+    (members) => `<<${members}>>`,
+  );
+  return [
+    ...pages.definitions,
+    `\\* @type: Seq(Seq(${type}));\n${name}Pages == <<${pages.names.join(", ")}>>`,
+    `${name}Count == ${values.length}`,
+    `${name}Indices == 1..${values.length}`,
+    `\\* ${name}At requires index \\in ${name}Indices; no value is defined outside that domain.`,
+    `\\* @type: (Int) => ${type};\n${name}At(index) == ${name}Pages[((index - 1) \\div ${RECORD_PAGE_SIZE}) + 1][((index - 1) % ${RECORD_PAGE_SIZE}) + 1]`,
+  ];
+};
+
+/** One small set for each page of rows, and the set of all rows as their
+ *  union. A table with no row is the empty set. */
+const pagedSet: ListDefinitions = (name, type, values) => {
+  const parts = pageOperators(
+    `${name}Part`,
+    `Set(${type})`,
+    values,
+    (members) => `{${members}}`,
+  );
+  const whole = parts.names.length === 0 ? "{}" : parts.names.join(" \\cup ");
+  return [
+    ...parts.definitions,
+    `\\* @type: Set(${type});\n${name} == ${whole}`,
+  ];
+};
+
+/** Preserve a semantic string set and index its distinct identities separately. */
+export const tlaStringSet = (name: string, values: readonly string[]): string =>
+  [
+    `${name} == ${tlaSet(values)}`,
+    ...indexedDefinitions(
+      name,
+      "Str",
+      unique([...values]).map((value) => atom(value, "set member")),
+    ),
+  ].join("\n");
 
 /** One field declaration supplies both the fact type and the checker type. */
 export const tlaRecords = <const Schema extends TlaRecordSchema>(
@@ -82,7 +159,19 @@ export const tlaRecords = <const Schema extends TlaRecordSchema>(
     .map(([field, type]) => `${field}: ${type}`)
     .join(", ");
   const alias = `${name.charAt(0).toLowerCase()}${name.slice(1)}Fact`;
-  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${unique(values.map((value, index) => record(value, `${name}[${index}]`))).join(",\n")}\n}`;
+  const rows = unique(
+    values.map((value, index) => record(value, `${name}[${index}]`)),
+  );
+  const names = rows.map((_, index) => `${name}Record${index}`);
+  const definitions = rows.map(
+    (row, index) => `\\* @type: $${alias};\n${names[index]} == ${row}`,
+  );
+  return [
+    `\\* @typeAlias: ${alias} = { ${fields} };`,
+    ...definitions,
+    ...pagedSet(name, `$${alias}`, names),
+    ...indexedDefinitions(name, `$${alias}`, names),
+  ].join("\n");
 };
 
 export const tlaModule = (
