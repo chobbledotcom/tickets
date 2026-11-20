@@ -4,78 +4,35 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import type { Window } from "happy-dom";
 import * as v from "valibot";
-import { requireValue } from "#shared/required-value.ts";
+import { openAdminModal } from "#src/ui/client/admin/modal.ts";
 import {
-  type AdminModalLifecycle,
-  closeAdminModal,
-  initAdminModalShell,
-  isAdminModalOpen,
-  openAdminModal,
-} from "#src/ui/client/admin/modal.ts";
-import { AdminModalTemplate } from "#templates/admin/modal.tsx";
-import {
-  closeDialogs,
-  createDomInstaller,
   fireEvent,
   requireElement,
   requireElements,
 } from "#test-utils/happy-dom.ts";
-import { withRequestContext } from "#test-utils/request-context.ts";
+import {
+  cleanupModals,
+  dialogsIn,
+  oneWindow,
+  open,
+  type OpenWindow,
+  OTHER_SETTINGS,
+  page,
+  pointer,
+  SETTINGS,
+  stackOf,
+} from "#test-utils/modal-dom.ts";
 
-const TEMPLATE = await withRequestContext(() => String(AdminModalTemplate()));
-
-const { installDom, cleanup } = createDomInstaller(["Element"]);
-
-const SETTINGS = {
-  collapsedTitle: "First, small",
-  key: "first",
-  title: "First",
-};
-
-const OTHER_SETTINGS = {
-  collapsedTitle: "Second, small",
-  key: "second",
-  title: "Second",
-};
-
-type Open = { dialog: HTMLDialogElement; window: Window };
-
-type DragPage = Open & {
+type DragPage = OpenWindow & {
   bar: HTMLElement;
   capture: { captured: number[]; released: number[] };
   start: { left: number; top: number };
-};
-
-const page = (html = TEMPLATE): Window => {
-  const window = installDom(html);
-  initAdminModalShell();
-  return window;
-};
-
-const dialogsIn = (window: Window): HTMLDialogElement[] =>
-  requireElements<HTMLDialogElement>(window.document, "dialog.admin-modal");
-
-/** Read the raised dialog from focus, not DOM insertion order. */
-const open = (
-  window: Window,
-  settings: unknown = SETTINGS,
-): HTMLDialogElement => {
-  openAdminModal(settings, document.createElement("div"));
-  return requireElement<HTMLDialogElement>(window.document, "dialog:focus");
-};
-
-const oneWindow = (): Open => {
-  const window = page();
-  return { dialog: open(window), window };
 };
 
 const placed = (dialog: HTMLElement): { left: number; top: number } => ({
   left: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-left")),
   top: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-top")),
 });
-
-const stackOf = (window: Window): number[] =>
-  dialogsIn(window).map((dialog) => Number(dialog.style.zIndex));
 
 /** Give the shell a size to clamp against. A DOM without a layout answers
  *  every rectangle with zeroes. */
@@ -87,21 +44,6 @@ const setSize = (window: Window, width: number, height: number): void => {
     });
   }
 };
-
-const pointer = (
-  window: Window,
-  type: string,
-  x: number,
-  y: number,
-  options: { button?: number; pointerId?: number } = {},
-): unknown =>
-  new window.PointerEvent(type, {
-    bubbles: true,
-    button: options.button ?? 0,
-    clientX: x,
-    clientY: y,
-    pointerId: options.pointerId ?? 7,
-  });
 
 const captureOn = (
   bar: HTMLElement,
@@ -147,53 +89,6 @@ const click = (target: Element, window: Window): void => {
   fireEvent(target, new window.MouseEvent("click", { bubbles: true }));
 };
 
-/** The state the shell keeps on the window. happy-dom's window type does not
- *  carry the shell's property. */
-const lifecycleOf = (window: Window): AdminModalLifecycle | undefined =>
-  Reflect.get(window, "adminModalLifecycle");
-
-/** What is dim now: the page's attribute, and the key of each dim window. */
-const dimmed = (
-  window: Window,
-): { page: string | undefined; windows: (string | undefined)[] } => ({
-  page: window.document.documentElement.dataset.adminModalPageDim,
-  windows: dialogsIn(window)
-    .filter((dialog) => dialog.classList.contains("is-dim"))
-    .map((dialog) => dialog.dataset.modalKey),
-});
-
-const expectDim = (
-  window: Window,
-  page: string | undefined,
-  windows: string[],
-): void => {
-  expect(dimmed(window)).toEqual({ page, windows });
-};
-
-/** A page with two windows open: "first" below "second". */
-const twoWindows = (): {
-  first: HTMLDialogElement;
-  second: HTMLDialogElement;
-  window: Window;
-} => {
-  const window = page();
-  const first = open(window);
-  const second = open(window, OTHER_SETTINGS);
-  return { first, second, window };
-};
-
-const pressKey = (target: Element, window: Window, key: string): void => {
-  fireEvent(
-    target,
-    new window.KeyboardEvent("keydown", { bubbles: true, key }),
-  );
-};
-
-/** A press on the page behind the windows. */
-const pressPage = (window: Window): void => {
-  fireEvent(window.document.body, pointer(window, "pointerdown", 5, 5));
-};
-
 type DomEvent = InstanceType<Window["Event"]>;
 
 const fire = (
@@ -208,10 +103,7 @@ const fire = (
 };
 
 describe("the admin modal shell", () => {
-  afterEach(async () => {
-    closeDialogs(document, "dialog.admin-modal");
-    await cleanup();
-  });
+  afterEach(cleanupModals);
 
   test("opens a window with its title, its controls, and the content", () => {
     const window = page();
@@ -514,192 +406,5 @@ describe("the admin modal shell", () => {
     expect(placed(dialog)).toEqual({ left: 200, top: 200 });
     releasePointer(ready);
     fire(window, window, "resize");
-  });
-  test("dims the page and the windows that do not have the focus", () => {
-    const window = page();
-    expectDim(window, undefined, []);
-
-    open(window);
-    expectDim(window, "true", []);
-
-    // The newest window has the focus, so the older one is dim.
-    open(window, OTHER_SETTINGS);
-    expectDim(window, "true", ["first"]);
-  });
-
-  test("a press on the page gives the page the focus and closes nothing", () => {
-    const { window } = twoWindows();
-
-    pressPage(window);
-
-    expectDim(window, "false", ["first", "second"]);
-    expect(dialogsIn(window)).toHaveLength(2);
-    expect(dialogsIn(window).every((dialog) => dialog.open)).toBe(true);
-  });
-
-  test("a press inside a window gives it the focus back", () => {
-    const { first, window } = twoWindows();
-    pressPage(window);
-
-    fireEvent(first, pointer(window, "pointerdown", 10, 10));
-
-    // The pressed window comes to the top and is the only bright thing.
-    expectDim(window, "true", ["second"]);
-    expect(stackOf(window)).toEqual([1001, 1000]);
-  });
-
-  test("focus that moves out of the windows and back moves the dim", () => {
-    const { dialog: first, window } = oneWindow();
-    const outside = window.document.createElement("button");
-    window.document.body.append(outside);
-
-    fireEvent(outside, new window.Event("focusin", { bubbles: true }));
-    expectDim(window, "false", ["first"]);
-
-    fireEvent(first, new window.Event("focusin", { bubbles: true }));
-    expectDim(window, "true", []);
-  });
-
-  test("a press on a page control that stops its events still moves the focus", () => {
-    const window = page();
-    open(window);
-    const control = window.document.createElement("button");
-    window.document.body.append(control);
-    control.addEventListener("pointerdown", (event) => event.stopPropagation());
-
-    fireEvent(control, pointer(window, "pointerdown", 5, 5));
-
-    expect(dimmed(window).page).toBe("false");
-  });
-
-  test("opening or raising a window gives it the focus from the page", () => {
-    const window = page();
-    open(window);
-    pressPage(window);
-
-    // A second open under the same key raises the window that is open.
-    open(window);
-    expectDim(window, "true", []);
-
-    pressPage(window);
-    open(window, OTHER_SETTINGS);
-    expectDim(window, "true", ["first"]);
-  });
-
-  test("clears the dim when the last window closes", () => {
-    const { first, second, window } = twoWindows();
-
-    requireElement<HTMLButtonElement>(second, ".admin-modal-close").click();
-    expectDim(window, "true", []);
-
-    requireElement<HTMLButtonElement>(first, ".admin-modal-close").click();
-    expectDim(window, undefined, []);
-  });
-
-  test("closes the window that has the focus on Escape", () => {
-    const { first, second, window } = twoWindows();
-
-    pressKey(second, window, "Tab");
-    expect(second.isConnected).toBe(true);
-    pressKey(second, window, "Escape");
-
-    expect(second.isConnected).toBe(false);
-    expect(first.isConnected).toBe(true);
-  });
-
-  test("keeps the window open while canClose says no", () => {
-    const window = page();
-    const allowed = { close: false };
-    openAdminModal(SETTINGS, document.createElement("div"), {
-      canClose: () => allowed.close,
-    });
-    const dialog = requireElement<HTMLDialogElement>(
-      window.document,
-      "dialog.admin-modal",
-    );
-
-    requireElement<HTMLButtonElement>(dialog, ".admin-modal-close").click();
-    pressKey(dialog, window, "Escape");
-    expect(dialog.open).toBe(true);
-    expect(isAdminModalOpen("first")).toBe(true);
-
-    allowed.close = true;
-    pressKey(dialog, window, "Escape");
-    expect(dialog.open).toBe(false);
-    expect(isAdminModalOpen("first")).toBe(false);
-  });
-
-  test("closes from code without asking canClose", () => {
-    const window = page();
-    openAdminModal(SETTINGS, document.createElement("div"), {
-      canClose: () => false,
-    });
-
-    closeAdminModal("first");
-
-    expect(dialogsIn(window)).toHaveLength(0);
-    expect(isAdminModalOpen("first")).toBe(false);
-    // A window that is already gone is not an error.
-    closeAdminModal("first");
-  });
-
-  test("runs onClose once, however the window closes", () => {
-    const window = page();
-    const closes: string[] = [];
-    const openWithHook = (label: string): HTMLDialogElement => {
-      openAdminModal(SETTINGS, document.createElement("div"), {
-        onClose: () => closes.push(label),
-      });
-      return requireElement<HTMLDialogElement>(
-        window.document,
-        "dialog.admin-modal",
-      );
-    };
-
-    const byControl = openWithHook("control");
-    requireElement<HTMLButtonElement>(byControl, ".admin-modal-close").click();
-    openWithHook("code");
-    closeAdminModal("first");
-    const byNative = openWithHook("native");
-    byNative.close();
-
-    expect(closes).toEqual(["control", "code", "native"]);
-  });
-
-  test("keeps the hooks a window opened with when it is raised", () => {
-    const window = page();
-    const closes: string[] = [];
-    openAdminModal(SETTINGS, document.createElement("div"), {
-      onClose: () => closes.push("first hook"),
-    });
-    openAdminModal(SETTINGS, document.createElement("div"), {
-      onClose: () => closes.push("second hook"),
-    });
-
-    closeAdminModal("first");
-
-    expect(closes).toEqual(["first hook"]);
-    expect(dialogsIn(window)).toHaveLength(0);
-  });
-
-  test("keeps its state on the window, so every bundle's copy shares it", () => {
-    const window = page();
-    expect(lifecycleOf(window)).toBeUndefined();
-
-    open(window);
-    open(window, OTHER_SETTINGS);
-
-    // A second copy of the module reads the same state and sees both windows.
-    expect([
-      ...requireValue(lifecycleOf(window), "the shared state").shells.keys(),
-    ]).toEqual(["first", "second"]);
-  });
-
-  test("knows which windows are open", () => {
-    page();
-    expect(isAdminModalOpen("first")).toBe(false);
-    openAdminModal(SETTINGS, document.createElement("div"));
-    expect(isAdminModalOpen("first")).toBe(true);
-    expect(isAdminModalOpen("second")).toBe(false);
   });
 });
