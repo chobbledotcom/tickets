@@ -17,6 +17,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectDownloadHeaders } from "#test-utils/download.ts";
 import { adminGet, withTestSession } from "#test-utils/session.ts";
 import {
   makeListing,
@@ -35,14 +36,7 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       const listing = await makeListing("Gala Night");
       await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
       const response = await adminGet("/admin/attendees/csv");
-      assertStringIncludes(
-        response.headers.get("content-type") ?? "",
-        "text/csv",
-      );
-      assertStringIncludes(
-        response.headers.get("content-disposition") ?? "",
-        'filename="attendees.csv"',
-      );
+      expectDownloadHeaders(response, "text/csv", 'filename="attendees.csv"');
       const csv = await response.text();
       expectIncludesAll(csv, ["Alice", "alice@example.com", "Gala Night"]);
     });

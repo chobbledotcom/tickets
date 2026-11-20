@@ -19,17 +19,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
 import { accountBalance } from "#accounting/queries.ts";
-import { getDb } from "#db/client.ts";
-import {
-  getListingAggregateRecalculation,
-  listingAggregates,
-} from "#db/listings/aggregates.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
 } from "#db/listings/records.ts";
 import { TICKET_COUNTS_PREDICATE } from "#db/migrations/schema/listing-aggregates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  expectListingAggregateSplit,
+  recalculateListingAggregates,
+} from "#test-utils/db-helpers/listing-aggregate-recalc.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold } from "#test-utils/servicing.ts";
 
@@ -47,20 +46,20 @@ const createHoldAndInvalidate = async (quantity: number) => {
 
 describe("servicing §10 — tickets_count predicate excludes servicing by kind", () => {
   test("TICKET_COUNTS_PREDICATE gates on kind='attendee' (mutation: dropping it counts servicing as tickets)", () => {
-    expect(TICKET_COUNTS_PREDICATE).toMatch(/kind\s*=\s*'attendee'/);
-    expect(TICKET_COUNTS_PREDICATE).toMatch(/quantity\s*>\s*0/);
+    expect(TICKET_COUNTS_PREDICATE.sql).toMatch(/kind\s*=\s*'attendee'/);
+    expect(TICKET_COUNTS_PREDICATE.sql).toMatch(/quantity\s*>\s*0/);
   });
 });
 
 describeWithEnv("servicing §10 — listing aggregates", { db: true }, () => {
   test("booked_quantity includes servicing holds (this is what blocks capacity)", async () => {
     const listing = await createHoldAndInvalidate(3);
-    expect((await getListingWithCount(listing.id))?.attendee_count).toBe(3);
+    expect((await getListingWithCount(listing.id))?.attendeeCount).toBe(3);
   });
 
   test("tickets_count excludes servicing holds (servicing is not a ticket)", async () => {
     const listing = await createHoldAndInvalidate(3);
-    expect((await getListingWithCount(listing.id))?.tickets_count).toBe(0);
+    expect((await getListingWithCount(listing.id))?.ticketsCount).toBe(0);
   });
 
   test("income is unaffected by servicing holds (servicing is free)", async () => {
@@ -71,29 +70,11 @@ describeWithEnv("servicing §10 — listing aggregates", { db: true }, () => {
 
   test("aggregate recompute matches the triggers (recalc never re-introduces servicing into tickets_count)", async () => {
     const listing = await createHoldAndInvalidate(3);
-    const before = await getListingWithCount(listing.id);
-    // Reset to zero then recompute from the live rows: the split must hold.
-    await listingAggregates.reset(listing.id, [
-      "booked_quantity",
-      "tickets_count",
-    ]);
-    const recalc = await getListingAggregateRecalculation(
-      (await getListingWithCount(listing.id))!,
+    // The hold books 3 places and sells no ticket, so the recompute and the
+    // triggers that carry it back must both keep servicing out of tickets.
+    expectListingAggregateSplit(
+      await recalculateListingAggregates(listing.id),
+      { bookedQuantity: 3, ticketsCount: 0 },
     );
-    expect(recalc.booked_quantity.recalculated).toBe(3);
-    expect(recalc.tickets_count.recalculated).toBe(0);
-    // Apply the recalculated values and confirm the trigger-maintained shape.
-    await getDb().execute({
-      args: [
-        recalc.booked_quantity.recalculated,
-        recalc.tickets_count.recalculated,
-        listing.id,
-      ],
-      sql: "UPDATE listings SET booked_quantity = ?, tickets_count = ? WHERE id = ?",
-    });
-    invalidateListingsCache();
-    const after = await getListingWithCount(listing.id);
-    expect(after?.attendee_count).toBe(before?.attendee_count);
-    expect(after?.tickets_count).toBe(0);
   });
 });

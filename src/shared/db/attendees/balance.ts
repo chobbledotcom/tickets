@@ -8,7 +8,6 @@
  * balance is cleared is a no-op.
  */
 
-import type { InValue } from "@libsql/client";
 import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import {
@@ -18,21 +17,27 @@ import {
   reservationSubtotalSubquery,
 } from "#accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#accounting/refs.ts";
-import { guardedInsertStatement } from "#accounting/rows.ts";
+import { insertStatement } from "#accounting/rows.ts";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { remainingBalanceFromLedger } from "#db/attendees/select.ts";
-import {
-  executeBatchWithResults,
-  queryBatch,
-  queryOne,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
+import { executeBatchWithResults, queryOne } from "#db/client.ts";
 import { markOpenInvoicesPaidStatement } from "#db/invoices.ts";
+import { readBatch } from "#db/read.ts";
+import { type Condition, equal, inQuery } from "#db/select/expression.ts";
+import { from, tableNode } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
+import {
+  type RowsStatement,
+  type SqlStatement,
+  sql,
+  typedSql,
+} from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { nowIso } from "#shared/now.ts";
@@ -60,10 +65,9 @@ export const getAttendeeBalanceState = async (
     status_id: number | null;
     remaining_balance: number;
   }>(
-    `SELECT status_id, ${remainingBalanceFromLedger(
-      "attendees.id",
-    )} FROM attendees WHERE id = ? AND kind = ?`,
-    [attendeeId, ATTENDEE_KIND],
+    sql`SELECT status_id, ${remainingBalanceFromLedger(
+      tableNode(tables.attendees, "attendees").id,
+    )} FROM attendees WHERE id = ${attendeeId} AND kind = ${ATTENDEE_KIND}`,
   );
   return row
     ? {
@@ -103,30 +107,20 @@ type OrderRow = {
   listing_name: EnvKeyEncrypted | null;
 };
 
-const attendeeOrderRowsStatement = (attendeeId: number): SqlStatement => ({
-  args: [attendeeId],
-  sql:
-    // quantity > 0: a no-quantity sentinel line is not an order line — exclude it
-    // so the pay page shows (and checks out against) a real product, never a
-    // lower-id ghost.
-    `SELECT listingAttendee.listing_id,
-            listingAttendee.package_group_id,
-            listingAttendee.quantity,
-            listing.name AS listing_name
-       FROM listing_attendees AS listingAttendee
-       LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
-      WHERE listingAttendee.attendee_id = ? AND listingAttendee.quantity > 0
-      ORDER BY listingAttendee.id`,
-});
+/** The money of an order, as its one row gives it. */
+type OrderMoneyRow = {
+  amount_paid: number;
+  full_price: number;
+  reservation_subtotal: number;
+};
 
-const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => {
-  const sql = `SELECT ${externalCashBalanceSubquery("attendee", "?")} AS amount_paid,
-               ${orderTotalSubquery("attendee", "?")} AS full_price,
-               ${reservationSubtotalSubquery("attendee", "?")} AS reservation_subtotal`;
-  return {
-    args: Array.from(sql.matchAll(/\?/g), () => String(attendeeId)),
-    sql,
-  };
+const attendeeOrderMoneyStatement = (attendeeId: number) => {
+  const id = String(attendeeId);
+  return typedSql<RowsStatement<OrderMoneyRow>>(
+    sql`SELECT ${externalCashBalanceSubquery("attendee", id)} AS amount_paid,
+               ${orderTotalSubquery("attendee", id)} AS full_price,
+               ${reservationSubtotalSubquery("attendee", id)} AS reservation_subtotal`,
+  );
 };
 
 const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
@@ -142,18 +136,25 @@ const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
 export const getAttendeeOrderSummary = async (
   attendeeId: number,
 ): Promise<OrderSummary> => {
-  const [orderResult, paidResult] = await queryBatch([
-    attendeeOrderRowsStatement(attendeeId),
+  const [rows, [paidRow]] = await readBatch([
+    // quantity > 0: a no-quantity sentinel line is not an order line. The pay
+    // page must show, and check out against, a real product, never a lower-id
+    // ghost.
+    typedSql<RowsStatement<OrderRow>>(
+      sql`SELECT listingAttendee.listing_id,
+            listingAttendee.package_group_id,
+            listingAttendee.quantity,
+            listing.name AS listing_name
+       FROM listing_attendees AS listingAttendee
+       LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
+      WHERE listingAttendee.attendee_id = ${attendeeId} AND listingAttendee.quantity > 0
+      ORDER BY listingAttendee.id`,
+    ),
     attendeeOrderMoneyStatement(attendeeId),
   ]);
-  const rows = resultRows<OrderRow>(orderResult!);
   // The scalar SELECT has no FROM clause, so SQLite always returns one row.
-  const paidRow = resultRows<{
-    amount_paid: number;
-    full_price: number;
-    reservation_subtotal: number;
-  }>(paidResult!)[0]!;
-  const depositPaid = Number(paidRow.amount_paid);
+  const money = paidRow!;
+  const depositPaid = Number(money.amount_paid);
 
   // The LEFT JOIN keeps dangling booking rows visible so we can preserve the
   // previous behavior of dropping lines whose listing has since been deleted.
@@ -161,9 +162,9 @@ export const getAttendeeOrderSummary = async (
 
   return {
     depositPaid,
-    fullPrice: Number(paidRow.full_price),
+    fullPrice: Number(money.full_price),
     lines,
-    reservationSubtotal: Number(paidRow.reservation_subtotal),
+    reservationSubtotal: Number(money.reservation_subtotal),
     totalQuantity: sumOf((l: OrderLine) => l.quantity)(lines),
   };
 };
@@ -191,7 +192,7 @@ export const settleAttendeeBalance = async (
   attendeeId: number,
   expectedAmount: number,
   settle: { id: string; occurredAt: string },
-  extraStatements: { sql: string; args: InValue[] }[] = [],
+  extraStatements: SqlStatement[] = [],
 ): Promise<SettleBalanceResult> => {
   const state = await getAttendeeBalanceState(attendeeId);
   if (!state) return { reason: "not_found", settled: false };
@@ -205,26 +206,34 @@ export const settleAttendeeBalance = async (
   // `expectedAmount`. A concurrent settle whose payment leg already landed sees
   // owed = 0 and no-ops, so the balance settles exactly once — no stored column.
   const owed = attendeeOwedSubquery(String(attendeeId));
+  /** The test that keeps this attendee while they still owe `expectedAmount`,
+   *  and while each of `also` holds. */
+  const whileOwed =
+    (...also: ((attendee: Node<"attendees">) => Condition)[]) =>
+    (attendee: Node<"attendees">) => [
+      equal(attendee.id, attendeeId),
+      ...also.map((test) => test(attendee)),
+      equal(owed, expectedAmount),
+    ];
   const results = await executeBatchWithResults([
-    {
-      // Verdict (first statement): a harmless self-update while they still owe
-      // the expected amount. A mismatched or already-settled balance matches 0
-      // rows, exactly like the old column guard.
-      args: [attendeeId, expectedAmount],
-      sql: `UPDATE attendees SET status_id = status_id WHERE id = ? AND ${owed} = ?`,
-    },
-    {
-      // Lifecycle move: only reservations advance to the paid default. Other
-      // statuses are operator-owned and stay put once their balance is cleared.
-      args: [paid.id, attendeeId, expectedAmount],
-      sql: `UPDATE attendees SET status_id = COALESCE(?, status_id)
-             WHERE id = ?
-               AND status_id IN (
-                 SELECT status.id FROM attendee_statuses AS status
-                  WHERE status.is_reservation = 1
-               )
-               AND ${owed} = ?`,
-    },
+    // Verdict (first statement): a harmless self-update while they still owe
+    // the expected amount. A mismatched or already-settled balance matches 0
+    // rows.
+    update(tables.attendees, (attendee) => ({
+      statusId: attendee.statusId,
+    })).where(whileOwed()),
+    // Lifecycle move: only reservations advance to the paid default. Other
+    // statuses are operator-owned and stay put once their balance is cleared.
+    update(tables.attendees, { statusId: paid.id }).where(
+      whileOwed((attendee) =>
+        inQuery(
+          attendee.statusId,
+          from(tables.attendee_statuses)
+            .where({ isReservation: 1 })
+            .values((status) => status.id),
+        ),
+      ),
+    ),
     ...extraStatements,
     // An invoice bills this attendee's outstanding balance. Clearing that
     // balance closes the open invoice in the same transaction.
@@ -233,7 +242,7 @@ export const settleAttendeeBalance = async (
     // INSERT OR IGNORE on a settle-stable reference plus the same owed guard
     // makes a retried/raced webhook a no-op. Runs after the status move so its
     // guard still sees the pre-payment balance.
-    guardedInsertStatement(
+    insertStatement(
       {
         amount: expectedAmount,
         destination: attendeeAccount(attendeeId),
@@ -244,8 +253,7 @@ export const settleAttendeeBalance = async (
         source: WORLD,
       },
       nowIso(),
-      `${owed} = ?`,
-      [expectedAmount],
+      sql`${owed} = ${expectedAmount}`,
     ),
   ]);
 
@@ -261,8 +269,7 @@ export const settleAttendeeBalance = async (
   // real line normally exists; the lookup stays nullable for a purely
   // ledger-owed attendee with no booking row.
   const firstListing = await queryOne<{ listing_id: number }>(
-    "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 ORDER BY id LIMIT 1",
-    [attendeeId],
+    sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${attendeeId} AND quantity > 0 ORDER BY id LIMIT 1`,
   );
   const listingId = firstListing ? firstListing.listing_id : null;
 

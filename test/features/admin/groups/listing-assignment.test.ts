@@ -11,21 +11,40 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
+/** POST the add-listings form for `groupId` and return the raw response. */
+const addListings = async (
+  groupId: number,
+  listingIds: readonly number[],
+): Promise<Response> =>
+  (
+    await adminFormPost(`/admin/groups/${groupId}/add-listings`, {
+      listingIds: listingIds.map(String),
+    })
+  ).response;
+
 const expectRejectedListingBatch = async (
   groupId: number,
   listingIds: number[],
   message: string,
 ): Promise<void> => {
-  const { response } = await adminFormPost(
-    `/admin/groups/${groupId}/add-listings`,
-    {
-      listing_ids: listingIds.map(String),
-    },
-  );
+  const response = await addListings(groupId, listingIds);
   expectFlash(response, message, false);
   // A refused batch must not add its first listing before it notices the next.
   expect(await getListingsByGroupId(groupId)).toEqual([]);
 };
+
+/** A daily listing — the type a standard group refuses. */
+const createDailyOutsider = (name: string) =>
+  createTestListing({
+    listingType: "daily",
+    maximumDaysAfter: 30,
+    minimumDaysBefore: 0,
+    name,
+  });
+
+/** A customisable-days listing — the shape a fixed-length group refuses. */
+const createCustomisableOutsider = (name: string) =>
+  createTestListing({ customisableDays: true, dayPrices: { 1: 100 }, name });
 
 describeWithEnv("admin group listing assignment", { db: true }, () => {
   test("adds the chosen listings to the group", async () => {
@@ -33,12 +52,7 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
     const first = await createTestListing({ name: "First joiner" });
     const second = await createTestListing({ name: "Second joiner" });
 
-    const { response } = await adminFormPost(
-      `/admin/groups/${group.id}/add-listings`,
-      {
-        listing_ids: [String(first.id), String(second.id)],
-      },
-    );
+    const response = await addListings(group.id, [first.id, second.id]);
     expectFlash(response, t("success.listings_added_to_group"));
     expect(
       (await getListingsByGroupId(group.id)).map((l) => l.id).toSorted(),
@@ -48,19 +62,9 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
   test("refuses a listing whose type differs from the group's", async () => {
     const group = await createTestGroup({ name: "Standard group" });
     await createTestListing({ groupId: group.id, name: "Standard member" });
-    const daily = await createTestListing({
-      listingType: "daily",
-      maximumDaysAfter: 30,
-      minimumDaysBefore: 0,
-      name: "Daily outsider",
-    });
+    const daily = await createDailyOutsider("Daily outsider");
 
-    const { response } = await adminFormPost(
-      `/admin/groups/${group.id}/add-listings`,
-      {
-        listing_ids: [String(daily.id)],
-      },
-    );
+    const response = await addListings(group.id, [daily.id]);
     expectFlash(
       response,
       t("error.group_listing_type_mismatch", { type: "standard" }),
@@ -74,12 +78,7 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
   test("refuses mixed listing types added together to an empty group", async () => {
     const group = await createTestGroup({ name: "Empty group" });
     const standard = await createTestListing({ name: "Standard outsider" });
-    const daily = await createTestListing({
-      listingType: "daily",
-      maximumDaysAfter: 30,
-      minimumDaysBefore: 0,
-      name: "Daily outsider",
-    });
+    const daily = await createDailyOutsider("Daily outsider");
 
     await expectRejectedListingBatch(
       group.id,
@@ -91,11 +90,9 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
   test("refuses mixed customisable-days settings added together to an empty group", async () => {
     const group = await createTestGroup({ name: "Empty group" });
     const fixed = await createTestListing({ name: "Fixed outsider" });
-    const customisable = await createTestListing({
-      customisableDays: true,
-      dayPrices: { 1: 100 },
-      name: "Customisable outsider",
-    });
+    const customisable = await createCustomisableOutsider(
+      "Customisable outsider",
+    );
 
     await expectRejectedListingBatch(
       group.id,
@@ -107,20 +104,11 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
   test("concurrent incompatible additions leave one group member", async () => {
     const group = await createTestGroup({ name: "Concurrent group" });
     const standard = await createTestListing({ name: "Standard outsider" });
-    const daily = await createTestListing({
-      listingType: "daily",
-      maximumDaysAfter: 30,
-      minimumDaysBefore: 0,
-      name: "Daily outsider",
-    });
+    const daily = await createDailyOutsider("Daily outsider");
 
     await Promise.all([
-      adminFormPost(`/admin/groups/${group.id}/add-listings`, {
-        listing_ids: [String(standard.id)],
-      }),
-      adminFormPost(`/admin/groups/${group.id}/add-listings`, {
-        listing_ids: [String(daily.id)],
-      }),
+      addListings(group.id, [standard.id]),
+      addListings(group.id, [daily.id]),
     ]);
 
     const memberIds = (await getListingsByGroupId(group.id)).map(
@@ -136,18 +124,11 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
       groupId: group.id,
       name: "Fixed member",
     });
-    const customisable = await createTestListing({
-      customisableDays: true,
-      dayPrices: { 1: 100 },
-      name: "Customisable outsider",
-    });
-
-    const { response } = await adminFormPost(
-      `/admin/groups/${group.id}/add-listings`,
-      {
-        listing_ids: [String(customisable.id)],
-      },
+    const customisable = await createCustomisableOutsider(
+      "Customisable outsider",
     );
+
+    const response = await addListings(group.id, [customisable.id]);
     expectFlash(response, t("error.group_customisable_days_unexpected"), false);
     // Not just the same count: the group still holds exactly the member it had.
     expect(
@@ -165,12 +146,7 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
       name: "Donation",
     });
 
-    const { response } = await adminFormPost(
-      `/admin/groups/${group.id}/add-listings`,
-      {
-        listing_ids: [String(donation.id)],
-      },
-    );
+    const response = await addListings(group.id, [donation.id]);
 
     expectFlash(
       response,
@@ -183,12 +159,7 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
   test("adds nothing when no listing was chosen", async () => {
     const group = await createTestGroup({ name: "Untouched group" });
 
-    const { response } = await adminFormPost(
-      `/admin/groups/${group.id}/add-listings`,
-      {
-        listing_ids: [],
-      },
-    );
+    const response = await addListings(group.id, []);
     expectFlash(response, t("success.listings_added_to_group"));
     expect(await getListingsByGroupId(group.id)).toEqual([]);
   });
@@ -196,9 +167,7 @@ describeWithEnv("admin group listing assignment", { db: true }, () => {
   test("ignores a listing id that names nothing", async () => {
     const group = await createTestGroup({ name: "Ghost group" });
 
-    await adminFormPost(`/admin/groups/${group.id}/add-listings`, {
-      listing_ids: ["0", "999999"],
-    });
+    await addListings(group.id, [0, 999_999]);
     expect(await getListingsByGroupId(group.id)).toEqual([]);
   });
 });

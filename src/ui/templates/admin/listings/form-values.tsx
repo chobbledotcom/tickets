@@ -8,7 +8,6 @@ import {
   type FieldValues,
 } from "#shared/forms/values.ts";
 import {
-  hasAnyListingDefault,
   type ListingDefaultField,
   type ListingDefaultKind,
   type ListingDefaults,
@@ -19,26 +18,22 @@ import type { ListingTemplate } from "#shared/listing-templates.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { getListingForm } from "#templates/fields/listing.ts";
-import {
-  type AdminSession,
-  clampDurationDays,
-  type ListingWithCount,
-} from "#types";
+import { clampDurationDays, type ListingWithCount } from "#types";
 import { formatBookableDays } from "./helpers.ts";
 
 const formatDatetimeLocal = (iso: string | null): string | null =>
   iso ? utcToLocalInput(iso, settings.timezone) : null;
 
 export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
-  const max = listing ? clampDurationDays(listing.duration_days) : 1;
-  const prices = listing?.day_prices ?? {};
+  const max = listing ? clampDurationDays(listing.durationDays) : 1;
+  const prices = listing?.dayPrices ?? {};
   const rows = Array.from({ length: max }, (_, i) => i + 1)
     .map((n) => {
       const stored = prices[n];
       const value = stored !== undefined ? toMajorUnits(stored) : "";
       return (
         `<label>${t("listings_table.day_price_row_label", { n })}` +
-        `<input type="text" inputmode="decimal" name="day_price_${n}" ` +
+        `<input type="text" inputmode="decimal" name="dayPrice${n}" ` +
         `value="${escapeHtml(value)}" pattern="${moneyPattern()}" ` +
         `placeholder="${t("listings_table.day_price_placeholder")}" title="${t(
           "listings_table.day_price_input_title",
@@ -59,14 +54,16 @@ export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
 const listingFieldFormatters: Partial<
   Record<keyof ListingWithCount, (e: ListingWithCount) => string | null>
 > = {
-  bookable_days: (e) => formatBookableDays(e.bookable_days),
-  closes_at: (e) => formatDatetimeLocal(e.closes_at),
+  bookableDays: (e) => formatBookableDays(e.bookableDays),
+  closesAt: (e) => formatDatetimeLocal(e.closesAt),
   date: (e) => (e.date ? formatDatetimeLocal(e.date) : null),
-  initial_site_months: (e) =>
-    e.initial_site_months ? String(e.initial_site_months) : "",
-  max_price: (e) => toMajorUnits(e.max_price),
-  months_per_unit: (e) => (e.months_per_unit ? String(e.months_per_unit) : ""),
-  unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
+  initialSiteMonths: (e) =>
+    e.initialSiteMonths ? String(e.initialSiteMonths) : "",
+  maxPrice: (e) => toMajorUnits(e.maxPrice),
+  monthsPerUnit: (e) => (e.monthsPerUnit ? String(e.monthsPerUnit) : ""),
+  recurringPrice: (e) =>
+    e.recurringPrice > 0 ? toMajorUnits(e.recurringPrice) : "",
+  unitPrice: (e) => toMajorUnits(e.unitPrice),
 };
 
 export const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
@@ -132,8 +129,3 @@ export const listingFormClassAttr = (
   const classes = listingFormClassFor(template, defaults);
   return classes ? { class: classes } : {};
 };
-
-export const showUseDefaultsToggle = (
-  session: AdminSession,
-  defaults: ListingDefaults,
-): boolean => hasAnyListingDefault(defaults) && session.adminLevel !== "editor";

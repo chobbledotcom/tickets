@@ -8,6 +8,7 @@ import {
   unsubscribeHash,
 } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { resetI18nForTest, t } from "#i18n";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -29,7 +30,7 @@ const postUnsubscribe = async (
 ): Promise<Response> => {
   const token = csrf ?? (await signCsrfToken());
   return handleRequest(
-    mockFormRequest("/unsubscribe", { csrf_token: token, ...data }),
+    mockFormRequest("/unsubscribe", { csrfToken: token, ...data }),
   );
 };
 
@@ -38,8 +39,7 @@ const postUnsubscribe = async (
  * forget pin's claim is precisely that the row is gone. */
 const rowExists = async (hash: string): Promise<boolean> =>
   (await queryOne<{ present: number }>(
-    "SELECT 1 AS present FROM contact_preferences WHERE contact_hash = ?",
-    [hash],
+    sql`SELECT 1 AS present FROM contact_preferences WHERE contact_hash = ${hash}`,
   )) !== null;
 
 // The GET renders and POST actions are told in the customer's terms by the

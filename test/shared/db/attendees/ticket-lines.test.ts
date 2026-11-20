@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
-import { executeUpdate } from "#db/client.ts";
+import { execute } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
+import { update } from "#db/write.ts";
+
 import { pairKey } from "#shared/keys.ts";
 import { bookRefundedSibling } from "#test-utils/attendees/refunded-sibling.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -20,10 +23,11 @@ describeWithEnv("db > attendees > pair bookings", { db: true }, () => {
       { listingId: gala.id, quantity: 3 },
       { listingId: workshop.id, quantity: 2 },
     ]);
-    await executeUpdate(
-      "listing_attendees",
-      { checked_in: 1 },
-      { attendee_id: ada.id, listing_id: gala.id },
+    await execute(
+      update(tables.listing_attendees, { checkedIn: 1 }).where({
+        attendeeId: ada.id,
+        listingId: gala.id,
+      }),
     );
 
     const bookings = await getPairBookings([

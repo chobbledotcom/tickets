@@ -1,0 +1,134 @@
+/** Article spacing, the error, success and info blocks, and the alert
+ * animation. */
+
+@use "mixins" as *;
+
+/* Articles are vertical stacks */
+article {
+  @include stack;
+}
+
+/* App-specific additions */
+.error {
+  --error-glow: rgba(204, 0, 0, 0.55);
+  background: #ffeeee;
+  border-left: 4px solid #cc0000;
+  color: #cc0000;
+  padding: var(--space-m);
+}
+
+.success {
+  background: #eeffee;
+  border-left: 4px solid #006600;
+  color: #006600;
+  padding: var(--space-m);
+}
+
+output.success {
+  display: block;
+}
+
+.info {
+  background: #eef4ff;
+  border-left: 4px solid #0066cc;
+  color: #0055aa;
+  padding: var(--space-m);
+}
+
+[data-theme="dark"] .error {
+  --error-glow: rgba(255, 85, 85, 0.5);
+  background: #3c2020;
+  color: #ff5555;
+}
+[data-theme="dark"] .success {
+  background: #203c20;
+  color: #50fa7b;
+}
+[data-theme="dark"] .info {
+  background: #1f2a3c;
+  color: #8ab4ff;
+}
+
+/* A live error alert (the shared ErrorAlert component: role="alert", raised in
+   response to the operator's action) fades in with a brief glow that fades back
+   out, so it stands out from the form around it and is easy to spot. It is also
+   focusable (tabindex="-1" + autofocus), so the browser scrolls to the first
+   one on the page. Standing notes (the ErrorNote component) carry no
+   role="alert" and stay calm. Skipped entirely under reduced-motion. */
+@keyframes error-alert-in {
+  0% {
+    opacity: 0;
+    box-shadow: 0 0 0 0 transparent;
+  }
+  25% {
+    opacity: 1;
+    box-shadow: 0 0 16px 3px var(--error-glow);
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .error[role="alert"] {
+    animation: error-alert-in 0.9s ease-out;
+  }
+}
+
+/* The attendee's status heading, shown above the tab strip whenever more than
+   one status exists. Like the notes below it, the heading is identical on every
+   attendee tab, so pin it too — switching tabs holds it still. */
+.attendee-status {
+  view-transition-name: attendee-status;
+}
+
+/* Per-attendee operator/system notes */
+.attendee-notes {
+  /* The notes banner sits above the tab strip on every attendee tab, so pin it
+     too: switching tabs keeps the same alerts in place instead of re-fading
+     them in on each navigation. */
+  view-transition-name: attendee-notes;
+}
+.system-note {
+  background: var(--color-surface-alt, #f4f4f4);
+  border-left: 4px solid #888;
+  margin-bottom: var(--space-s);
+  padding: var(--space-m);
+  position: relative;
+}
+.system-note-alert {
+  background: #ffeeee;
+  border-left-color: #cc0000;
+  color: #cc0000;
+}
+[data-theme="dark"] .system-note-alert {
+  background: #3c2020;
+  color: #ff5555;
+}
+.system-note-dismiss {
+  float: right;
+  font-size: 1.4em;
+  line-height: 1;
+  margin-left: var(--space-s);
+  text-decoration: none;
+}
+.system-note-tag {
+  font-size: 0.75em;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  margin-right: var(--space-s);
+  text-transform: uppercase;
+}
+.attendee-notes-summary {
+  margin-bottom: var(--space-m);
+  padding: var(--space-m);
+}
+.attendee-notes-summary summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+.attendee-notes-summary-group {
+  margin-top: var(--space-s);
+}
+

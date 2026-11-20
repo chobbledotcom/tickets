@@ -52,11 +52,11 @@ const writeScopeLinks = (
   if (modifier.scope === "listings") {
     return modifierListings.setIds(
       modifier.id,
-      selectedIds(form, "listing_ids"),
+      selectedIds(form, "listingIds"),
     );
   }
   if (modifier.scope === "groups") {
-    return modifierGroups.setIds(modifier.id, selectedIds(form, "group_ids"));
+    return modifierGroups.setIds(modifier.id, selectedIds(form, "groupIds"));
   }
   return Promise.resolve();
 };
@@ -69,8 +69,8 @@ const scopeLinksChildGuard = (
 ): Promise<string | null> =>
   childAddOnSaveError({
     active: modifier.active,
-    groupIds: selectedIds(form, "group_ids"),
-    listingIds: selectedIds(form, "listing_ids"),
+    groupIds: selectedIds(form, "groupIds"),
+    listingIds: selectedIds(form, "listingIds"),
     name: modifier.name,
     scope: modifier.scope,
     trigger: modifier.trigger,
@@ -96,6 +96,6 @@ export const handleAnswerLinks: TypedRouteHandler<
     request,
     id,
     (modifier, form) =>
-      setModifierAnswers(modifier.id, selectedIds(form, "answer_ids")),
+      setModifierAnswers(modifier.id, selectedIds(form, "answerIds")),
     "Answers updated",
   );

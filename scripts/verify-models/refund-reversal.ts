@@ -9,6 +9,7 @@ import { postTransferGroups } from "#accounting/store.ts";
 import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
 import { execute, setDb } from "#db/client.ts";
 import { rebuildWipedSchema } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import { once, requiredMapValue, unique } from "#fp";
 import {
   type ModelDataSource,
@@ -128,16 +129,7 @@ const postFixture = async (fixture: Fixture): Promise<void> => {
 const postAssessment = async (record: StoredTaxAssessment): Promise<void> => {
   const { assessment, kind, revision } = record.state;
   await execute(
-    "INSERT INTO booking_tax_assessments (booking_group, revision, attendee_id, event_group, state, assessment, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [
-      record.bookingGroup,
-      revision,
-      record.attendeeId,
-      record.eventGroup,
-      kind,
-      JSON.stringify(assessment),
-      record.occurredAt,
-    ],
+    sql`INSERT INTO booking_tax_assessments (booking_group, revision, attendee_id, event_group, state, assessment, occurred_at) VALUES (${record.bookingGroup}, ${revision}, ${record.attendeeId}, ${record.eventGroup}, ${kind}, ${JSON.stringify(assessment)}, ${record.occurredAt})`,
   );
 };
 

@@ -25,17 +25,17 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element =>
     secretFields: [
       {
         labelKey: "settings.advanced.apple_signing_cert",
-        name: "apple_wallet_signing_cert",
+        name: "appleWalletSigningCert",
         placeholder: "-----BEGIN CERTIFICATE-----",
       },
       {
         labelKey: "settings.advanced.apple_signing_key",
-        name: "apple_wallet_signing_key",
+        name: "appleWalletSigningKey",
         placeholder: "-----BEGIN PRIVATE KEY-----",
       },
       {
         labelKey: "settings.advanced.apple_wwdr_cert",
-        name: "apple_wallet_wwdr_cert",
+        name: "appleWalletWwdrCert",
         placeholder: "-----BEGIN CERTIFICATE-----",
       },
     ],
@@ -43,14 +43,14 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element =>
     textFields: [
       {
         labelKey: "settings.advanced.apple_pass_type_id",
-        name: "apple_wallet_pass_type_id",
+        name: "appleWalletPassTypeId",
         placeholder: "pass.com.example.tickets",
         type: "text",
         value: s.appleWalletPassTypeId,
       },
       {
         labelKey: "settings.advanced.apple_team_id",
-        name: "apple_wallet_team_id",
+        name: "appleWalletTeamId",
         placeholder: "ABC1234567",
         type: "text",
         value: s.appleWalletTeamId,

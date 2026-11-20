@@ -3,9 +3,11 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { getListingWithActivityLogOrNull } from "#test-utils/activity-log.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { emptyBookingLine } from "#test-utils/attendees/helpers.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { getTestDataKey, getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
@@ -16,12 +18,14 @@ import {
 import {
   buildAttendeeEditForm,
   createTestAttendee,
+  createTestAttendeeWithToken,
   existingAttendeeLines,
 } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestBuiltSite,
   updateTestBuiltSite,
 } from "#test-utils/db-helpers/built-sites.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   addAttendee,
@@ -55,6 +59,32 @@ import {
   withSetting,
 } from "#test-utils/settings.ts";
 import { lastLogMessage } from "#test-utils/settings-handlers.ts";
+
+/** The overrides `buildAttendeeEditForm` accepts. */
+type EditFormOverrides = NonNullable<
+  Parameters<typeof buildAttendeeEditForm>[1]
+>;
+
+/** An attendee holding two booking lines on one ten-place listing, together
+ *  with the editor form that attendee opens. `edit` chooses the overrides the
+ *  form takes. */
+const twoLineAttendee = async (
+  name: string,
+  email: string,
+  edit: (listingId: number) => EditFormOverrides = () => ({}),
+) => {
+  const { attendee, listing } = await createTestAttendeeWithToken(
+    name,
+    email,
+    { maxAttendees: 10, maxQuantity: 5 },
+    2,
+  );
+  return {
+    attendee,
+    form: await buildAttendeeEditForm(attendee.id, edit(listing.id)),
+    listing,
+  };
+};
 
 describe("test-utils — db-backed & settings contracts", () => {
   afterEach(() => {
@@ -122,9 +152,9 @@ describe("test-utils — db-backed & settings contracts", () => {
 
       resetDb();
       await createTestDbWithSetup();
-      await getDb().execute("DELETE FROM settings WHERE key = ?", [
-        CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
-      ]);
+      await getDb().execute(
+        sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.WRAPPED_PRIVATE_KEY}`,
+      );
       settings.invalidateCache();
       await settings.loadKeys([CONFIG_KEYS.WRAPPED_PRIVATE_KEY]);
 
@@ -147,9 +177,9 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("storedFeatureEnabled fails when the feature setting is missing", async () => {
-      await getDb().execute("DELETE FROM settings WHERE key = ?", [
-        CONFIG_KEYS.ENABLED_FEATURES,
-      ]);
+      await getDb().execute(
+        sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`,
+      );
 
       await expect(storedFeatureEnabled("site")).rejects.toThrow(
         `Setting ${CONFIG_KEYS.ENABLED_FEATURES} was not stored`,
@@ -217,38 +247,22 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("buildAttendeeEditForm preserves existing booking lines by default", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { form, listing } = await twoLineAttendee(
         "Default Form",
         "default-form@example.com",
-        2,
       );
-
-      const form = await buildAttendeeEditForm(attendee.id);
 
       expect(form.name).toBe("");
       // One indexed line per existing booking row.
-      expect(form.line_listing_0).toBe(String(listing.id));
-      expect(form.qty_0).toBe("2");
-      expect(form.line_key_0).not.toBe("");
+      expect(form.lineListing0).toBe(String(listing.id));
+      expect(form.qty0).toBe("2");
+      expect(form.lineKey0).not.toBe("");
     });
 
     test("existingAttendeeLines returns the complete stored form line", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee, listing } = await twoLineAttendee(
         "Stored Form",
         "stored-form@example.com",
-        2,
       );
 
       expect(await existingAttendeeLines(attendee.id)).toEqual([
@@ -263,51 +277,35 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("buildAttendeeEditForm preserves a no-quantity line by default", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee, listing } = await listingWithAttendee(
+        10,
         "No Quantity Form",
         "no-quantity-form@example.com",
       );
-      await getDb().execute({
-        args: [attendee.id],
-        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-      });
+      await emptyBookingLine(listing.id, attendee.id);
 
       const form = await buildAttendeeEditForm(attendee.id);
 
-      expect(form.qty_0).toBe("0");
-      expect(form.noqty_0).toBe("1");
+      expect(form).toMatchObject({ noqty0: "1", qty0: "0" });
     });
 
     test("buildAttendeeEditForm defaults new override lines to one ticket with no key", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { form, listing } = await twoLineAttendee(
         "Override Form",
         "override-form@example.com",
-        2,
+        (listingId) => ({ lines: [{ eventId: listingId }] }),
       );
 
-      const form = await buildAttendeeEditForm(attendee.id, {
-        lines: [{ eventId: listing.id }],
-      });
-
-      expect(form.line_listing_0).toBe(String(listing.id));
-      expect(form.qty_0).toBe("1");
-      expect(form.line_key_0).toBe("");
+      expect(form.lineListing0).toBe(String(listing.id));
+      expect(form.qty0).toBe("1");
+      expect(form.lineKey0).toBe("");
     });
 
     test("attendeeLineIndex distinguishes package paths and misses cleanly", () => {
       const html = [
-        '<input name="line_listing_0" value="7">',
-        '<input name="line_package_0" value="3">',
-        '<input name="line_listing_1" value="7">',
+        '<input name="lineListing0" value="7">',
+        '<input name="linePackage0" value="3">',
+        '<input name="lineListing1" value="7">',
       ].join("");
       expect(attendeeLineIndex(html, 7, 3)).toBe("0");
       expect(attendeeLineIndex(html, 7, 0)).toBe("1");

@@ -9,7 +9,7 @@ import { logActivity } from "#db/activity-log.ts";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
-import { getActiveHolidays } from "#db/holidays.ts";
+import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import {
   getAttendeesByListingIds,
   getDailyListingAttendeeDates,
@@ -94,12 +94,7 @@ const compileDateOptions = (
   attendeeDates: string[],
   standardListingDateMap: Map<string, number[]>,
   standardListings: ListingWithCount[],
-  holidays: {
-    id: number;
-    name: string;
-    start_date: string;
-    end_date: string;
-  }[],
+  holidays: Holiday[],
 ): DatePickerDate[] => {
   const availableDates = pipe(
     flatMap((listing: ListingWithCount) =>
@@ -125,7 +120,7 @@ const compileDateOptions = (
               standardListingDateMap,
               d,
               `Calendar date ${d} missing`,
-            ).includes(e.id) && e.attendee_count > 0,
+            ).includes(e.id) && e.attendeeCount > 0,
         ),
       ),
     )(standardDates),
@@ -203,7 +198,7 @@ const buildLogisticsCsvContext = async (
 ): Promise<CalendarLogisticsCsv | undefined> => {
   if (!settings.features.logistics) return;
   const listingIds = new Set(
-    listings.filter((l) => l.uses_logistics).map((l) => l.id),
+    listings.filter((l) => l.usesLogistics).map((l) => l.id),
   );
   if (!attendees.some((a) => listingIds.has(a.listing_id))) return;
   const rows = await getLogisticsAssignmentsForAttendees(
@@ -238,9 +233,9 @@ const withCalendarSession = (
 /** Split the cached listing list once for the calendar view/export. */
 const loadListingContext = async () => {
   const allListings = await getAllListings();
-  const dailyListings = allListings.filter((e) => e.listing_type === "daily");
+  const dailyListings = allListings.filter((e) => e.listingType === "daily");
   const standardListings = allListings.filter(
-    (e) => e.listing_type === "standard",
+    (e) => e.listingType === "standard",
   );
   const standardListingDateMap = buildStandardListingDateMap(standardListings);
   return {
@@ -285,13 +280,13 @@ const buildAvailabilityRows = async (
   const remaining = await getListingRemainingForRange(bookable, dateFilter, 1);
   return map(
     (l: ListingWithCount): AvailabilityRow => ({
-      canPayMore: l.can_pay_more,
+      canPayMore: l.canPayMore,
       id: l.id,
       name: l.name,
       // getListingRemainingForRange returns an entry for every listing passed.
       remaining: requiredMapValue(remaining, l.id, `Listing ${l.id} missing`),
-      total: l.max_attendees,
-      unitPrice: l.unit_price,
+      total: l.maxAttendees,
+      unitPrice: l.unitPrice,
     }),
   )(bookable);
 };

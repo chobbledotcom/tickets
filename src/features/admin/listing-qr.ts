@@ -47,7 +47,7 @@ import type { AdminSession, ListingWithCount } from "#types";
 import { loadListingOr } from "./load-listing.ts";
 
 export const EMPTY_QR_VALUES: AdminListingQrValues = {
-  customer_name: "",
+  customerName: "",
   date: "",
   quantity: "1",
   value: "",
@@ -62,7 +62,7 @@ export const EMPTY_QR_VALUES: AdminListingQrValues = {
 export const loadBookableDates = async (
   listing: ListingWithCount,
 ): Promise<string[]> => {
-  if (listing.listing_type !== "daily") return [];
+  if (listing.listingType !== "daily") return [];
   const holidays = await getActiveHolidays();
   return keepParentDailyDatesChildrenCanServe(
     listing,
@@ -133,7 +133,7 @@ const renderPage = (
   );
 
 const extractRawValues = (form: FormParams): AdminListingQrValues => ({
-  customer_name: form.getString("customer_name").trim(),
+  customerName: form.getString("customerName").trim(),
   date: form.getString("date").trim(),
   quantity: form.getString("quantity").trim() || "1",
   value: form.getString("value").trim(),
@@ -142,8 +142,8 @@ const extractRawValues = (form: FormParams): AdminListingQrValues => ({
 const getPriceBounds = (
   listing: ListingWithCount,
 ): { minPrice: number; maxPrice: number } => ({
-  maxPrice: listing.can_pay_more ? listing.max_price : Number.MAX_SAFE_INTEGER,
-  minPrice: listing.can_pay_more ? listing.unit_price : 0,
+  maxPrice: listing.canPayMore ? listing.maxPrice : Number.MAX_SAFE_INTEGER,
+  minPrice: listing.canPayMore ? listing.unitPrice : 0,
 });
 
 /**
@@ -162,7 +162,7 @@ const qrDateError = (
   date: string,
   bookableDates: readonly string[],
 ): string | null => {
-  if (listing.listing_type !== "daily") return null;
+  if (listing.listingType !== "daily") return null;
   if (!date) return "Date is required for daily listings";
   return bookableDates.includes(date) ? null : "Please select a valid date";
 };
@@ -194,13 +194,13 @@ const createQrFormValidator = (
     // or the minimum upward. A below-minimum prefill lands on 0.
     const belowMinimum = belowMinError(
       quantity,
-      listing.min_quantity,
-      bookingError.belowMinimumQuantity(listing.min_quantity),
+      listing.minQuantity,
+      bookingError.belowMinimumQuantity(listing.minQuantity),
     );
     if (belowMinimum) return { error: belowMinimum, valid: false };
-    if (quantity > listing.max_quantity) {
+    if (quantity > listing.maxQuantity) {
       return {
-        error: bookingError.aboveMaximumQuantity(listing.max_quantity),
+        error: bookingError.aboveMaximumQuantity(listing.maxQuantity),
         valid: false,
       };
     }
@@ -208,7 +208,7 @@ const createQrFormValidator = (
     // The signed name pre-fills a booking or rides direct-checkout metadata.
     // It answers to the same contact-name rule the booking form runs. An
     // unchecked name only fails later, at the buyer's form or at Square.
-    const nameError = validateName(values.customer_name);
+    const nameError = validateName(values.customerName);
     if (nameError) return { error: nameError, valid: false };
 
     const error =
@@ -239,7 +239,7 @@ const parsedFromValues = (
   }
   return {
     date: values.date || undefined,
-    name: values.customer_name || undefined,
+    name: values.customerName || undefined,
     quantity,
     value: valueMinor,
   };

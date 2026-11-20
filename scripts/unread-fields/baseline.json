@@ -13,12 +13,6 @@
       "fields": ["slug"]
     }
   ],
-  "src/features/admin/api-holidays.ts": [
-    {
-      "path": [{ "name": "CreateHolidayBody" }],
-      "fields": ["end_date", "name", "start_date"]
-    }
-  ],
   "src/features/admin/api-listing-body.ts": [
     {
       "path": [{ "name": "CreateListingBody" }],
@@ -174,7 +168,7 @@
     },
     {
       "path": [{ "name": "AdminApiHoliday" }],
-      "fields": ["end_date", "id", "name", "start_date"]
+      "fields": ["id"]
     },
     {
       "path": [{ "name": "AdminApiOptionBody" }],
@@ -287,16 +281,6 @@
       "fields": ["Id", "LastModified"]
     }
   ],
-  "src/shared/catalog-fields/fields.ts": [
-    {
-      "path": [{ "name": "ListingInput" }],
-      "fields": ["attachmentName", "attachmentUrl", "maxAttendees"]
-    },
-    {
-      "path": [{ "name": "PackageMemberInput" }],
-      "fields": ["dayPrices", "price"]
-    }
-  ],
   "src/shared/checkout-pricing.ts": [
     {
       "path": [{ "name": "ModifierApplication" }],
@@ -307,10 +291,6 @@
     {
       "path": [{ "name": "ActivityLogEntry" }],
       "fields": ["id"]
-    },
-    {
-      "path": [{ "name": "ActivityLogInput" }],
-      "fields": ["attendeeId", "listingId", "message"]
     },
     {
       "path": [{ "name": "ListingWithActivityLog" }],
@@ -341,12 +321,6 @@
       "fields": ["checked_in", "split_logistics_agents"]
     }
   ],
-  "src/shared/db/attendees/select.ts": [
-    {
-      "path": [{ "name": "GetAttendeesQuery" }],
-      "fields": ["order"]
-    }
-  ],
   "src/shared/db/attendees/servicing.ts": [
     {
       "path": [{ "name": "ServicingBookingSummary" }],
@@ -355,12 +329,6 @@
     {
       "path": [{ "name": "ServicingEvent" }],
       "fields": ["kind"]
-    }
-  ],
-  "src/shared/db/attributes.ts": [
-    {
-      "path": [{ "name": "AttributeOption" }],
-      "fields": ["attribute_id"]
     }
   ],
   "src/shared/db/backup.ts": [
@@ -385,18 +353,6 @@
     {
       "path": [{ "name": "BuiltSiteFormInput" }],
       "fields": ["dbProvider", "hostingProvider", "updates"]
-    },
-    {
-      "path": [{ "name": "BuiltSiteInput" }],
-      "fields": ["siteData"]
-    },
-    {
-      "path": [{ "name": "BuiltSitePlainInput" }],
-      "fields": ["assignable", "assignedAttendeeId", "assignedListingId", "readOnlyFrom", "renewalTokenIndex", "updates"]
-    },
-    {
-      "path": [{ "name": "BuiltSiteRow" }],
-      "fields": ["assignable", "assigned_attendee_id", "assigned_listing_id", "read_only_from", "renewal_token_index", "site_data_revision", "updates"]
     }
   ],
   "src/shared/db/common-schema.ts": [
@@ -421,20 +377,10 @@
       "fields": ["active"]
     }
   ],
-  "src/shared/db/holidays.ts": [
-    {
-      "path": [{ "name": "HolidayInput" }],
-      "fields": ["name"]
-    }
-  ],
   "src/shared/db/images.ts": [
     {
-      "path": [{ "name": "ImageInput" }],
-      "fields": ["altText", "filename", "filenameThumb", "name"]
-    },
-    {
       "path": [{ "name": "OrderedImage" }],
-      "fields": ["sort_order"]
+      "fields": ["sortOrder"]
     }
   ],
   "src/shared/db/listing-parents.ts": [
@@ -447,40 +393,16 @@
       "fields": ["childIdsByParent"]
     }
   ],
-  "src/shared/db/listings/select.ts": [
-    {
-      "path": [{ "name": "GetListingsQuery" }],
-      "fields": ["order"]
-    }
-  ],
-  "src/shared/db/logistics-agents.ts": [
-    {
-      "path": [{ "name": "LogisticsAgentInput" }],
-      "fields": ["name"]
-    }
-  ],
   "src/shared/db/modifier-resolve.ts": [
     {
       "path": [{ "name": "ListingGroupMembership" }],
       "fields": ["active"]
     }
   ],
-  "src/shared/db/news-posts.ts": [
-    {
-      "path": [{ "name": "NewsPostInput" }],
-      "fields": ["created"]
-    }
-  ],
   "src/shared/db/notes/types.ts": [
     {
       "path": [{ "name": "SystemNote" }],
-      "fields": ["entity_type"]
-    }
-  ],
-  "src/shared/db/numbered-statement.ts": [
-    {
-      "path": [{ "name": "SqlParameterToken" }],
-      "fields": ["sql"]
+      "fields": ["entityType"]
     }
   ],
   "src/shared/db/ordered-collection.ts": [
@@ -504,7 +426,7 @@
   "src/shared/db/processed-payments.ts": [
     {
       "path": [{ "name": "ProcessedPayment" }],
-      "fields": ["payment_reference", "payment_session_id", "processed_at"]
+      "fields": ["paymentReference", "paymentSessionId", "processedAt"]
     }
   ],
   "src/shared/db/provider-refund-authority.ts": [
@@ -523,16 +445,10 @@
       "fields": ["updatedAt"]
     }
   ],
-  "src/shared/db/question-types.ts": [
-    {
-      "path": [{ "name": "Answer" }],
-      "fields": ["question_id", "sort_order"]
-    }
-  ],
   "src/shared/db/questions/tables.ts": [
     {
       "path": [{ "name": "QuestionInput" }],
-      "fields": ["assignAll", "displayType", "text"]
+      "fields": ["assignAll"]
     }
   ],
   "src/shared/db/refund-all-candidates.ts": [
@@ -547,18 +463,6 @@
       "fields": ["auto_purge_orphans", "booking_fee", "calendar_feeds_enabled", "calendar_feeds_group_by", "contact_form_enabled", "country", "currency", "external_order_enabled", "order_enabled", "orphan_purge_retention", "payment_provider", "payment_provider_setting", "phone_prefix", "show_public_api", "square_sandbox", "superuser_choice", "theme", "timezone", "underline_links"]
     }
   ],
-  "src/shared/db/site-pages.ts": [
-    {
-      "path": [{ "name": "SitePageInput" }],
-      "fields": ["sortOrder"]
-    }
-  ],
-  "src/shared/db/slugged-content-input.ts": [
-    {
-      "path": [{ "name": "SluggedContentInput" }],
-      "fields": ["slugIndex"]
-    }
-  ],
   "src/shared/db/sms-messages.ts": [
     {
       "path": [{ "name": "SmsMessageRow" }],
@@ -569,12 +473,6 @@
     {
       "path": [{ "name": "TemplateData" }],
       "fields": ["amount_owed", "attendee", "currency", "entries", "listing_names", "ticket_url"]
-    }
-  ],
-  "src/shared/email.ts": [
-    {
-      "path": [{ "name": "EmailListing" }],
-      "fields": ["active", "hidden", "listing_type"]
     }
   ],
   "src/shared/email/bulk.ts": [
@@ -606,15 +504,15 @@
   "src/shared/forms/field.ts": [
     {
       "path": [{ "name": "ChoiceField" }],
-      "fields": ["accept", "markdown"]
+      "fields": ["accept"]
     },
     {
       "path": [{ "name": "FileField" }],
-      "fields": ["markdown", "options"]
+      "fields": ["options"]
     },
     {
       "path": [{ "name": "InputField" }],
-      "fields": ["accept", "markdown", "options"]
+      "fields": ["accept", "options"]
     },
     {
       "path": [{ "name": "TextareaField" }],
@@ -650,7 +548,7 @@
   "src/shared/listing-attribute-filter.ts": [
     {
       "path": [{ "name": "AttributeFilterGroup" }],
-      "fields": ["sort_order"]
+      "fields": ["sortOrder"]
     }
   ],
   "src/shared/listing-defaults.ts": [
@@ -662,7 +560,7 @@
   "src/shared/listing-parents-rules.ts": [
     {
       "path": [{ "name": "EdgeListing" }],
-      "fields": ["day_prices"]
+      "fields": ["dayPrices"]
     }
   ],
   "src/shared/listing-templates.ts": [
@@ -945,6 +843,18 @@
       "fields": ["e"]
     }
   ],
+  "src/shared/records/group-fields.ts": [
+    {
+      "path": [{ "name": "PackageMemberInput" }],
+      "fields": ["dayPrices", "price"]
+    }
+  ],
+  "src/shared/records/listing-fields.ts": [
+    {
+      "path": [{ "name": "ListingInput" }],
+      "fields": ["attachmentName", "attachmentUrl"]
+    }
+  ],
   "src/shared/reservation-amount.ts": [
     {
       "path": [{ "name": "ReservationDepositAllocation" }],
@@ -955,20 +865,6 @@
     {
       "path": [{ "name": "DeleteBody" }],
       "fields": ["confirm_identifier"]
-    }
-  ],
-  "src/shared/rest/resource.ts": [
-    {
-      "path": [{ "name": "DeleteResult" }],
-      "fields": ["notFound"]
-    },
-    {
-      "path": [{ "name": "Resource" }],
-      "fields": ["fields", "table"]
-    },
-    {
-      "path": [{ "name": "UpdateResult" }],
-      "fields": ["notFound"]
     }
   ],
   "src/shared/schema-atlas/machine-spec.ts": [
@@ -1055,12 +951,8 @@
   ],
   "src/shared/stripe/client.ts": [
     {
-      "path": [{ "name": "StripeCheckoutLineItemParams" }],
-      "fields": ["price_data", "quantity"]
-    },
-    {
       "path": [{ "name": "StripeCheckoutSessionCreateParams" }],
-      "fields": ["cancel_url", "customer_email", "expires_at", "line_items", "metadata", "mode", "payment_method_types", "success_url"]
+      "fields": ["cancel_url", "customer_email", "expires_at", "metadata", "payment_method_types", "success_url"]
     },
     {
       "path": [{ "name": "StripeWebhookEndpointCreateParams" }],
@@ -1087,18 +979,6 @@
   ],
   "src/shared/types.ts": [
     {
-      "path": [{ "name": "ApiKey" }],
-      "fields": ["created", "key_index", "last_used", "name"]
-    },
-    {
-      "path": [{ "name": "ImageUse" }],
-      "fields": ["sort_order"]
-    },
-    {
-      "path": [{ "name": "Modifier" }],
-      "fields": ["code"]
-    },
-    {
       "path": [{ "name": "NagItem" }],
       "fields": ["id"]
     },
@@ -1107,16 +987,8 @@
       "fields": ["v"]
     },
     {
-      "path": [{ "name": "Session" }],
-      "fields": ["csrf_token"]
-    },
-    {
       "path": [{ "name": "Settings" }],
       "fields": ["key", "value"]
-    },
-    {
-      "path": [{ "name": "UserLogisticsAgent" }],
-      "fields": ["agent_id", "id", "user_id"]
     }
   ],
   "src/shared/update.ts": [
@@ -1138,10 +1010,6 @@
     }
   ],
   "src/shared/webhook.ts": [
-    {
-      "path": [{ "name": "WebhookListing" }],
-      "fields": ["attendee_count", "can_pay_more", "day_prices", "max_attendees", "unit_price"]
-    },
     {
       "path": [{ "name": "WebhookPayload" }],
       "fields": ["amount_owed", "business_email", "currency", "notification_type", "payment_id", "price_paid", "ticket_url", "tickets", "timestamp"]

@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { queryAll } from "#db/client.ts";
 import { getOrCreateStringIds, pairStringIds } from "#db/questions/strings.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("custom questions > shared strings", { db: true }, () => {
@@ -24,8 +25,7 @@ describeWithEnv("custom questions > shared strings", { db: true }, () => {
       // wrong number): a mutant id matches no row or a different text_index.
       for (const text of texts) {
         const rows = await queryAll<{ text_index: string }>(
-          "SELECT text_index FROM strings WHERE id = ?",
-          [ids.get(text)!],
+          sql`SELECT text_index FROM strings WHERE id = ${ids.get(text)!}`,
         );
         expect(rows.length).toBe(1);
         expect(rows[0]!.text_index).toBe(await hmacHash(text));
@@ -51,8 +51,8 @@ describeWithEnv("custom questions > shared strings", { db: true }, () => {
       ];
       // Deliberately out of order to prove pairing is by index, not position.
       const found = [
-        { id: 11, text_index: "idx-b" },
-        { id: 7, text_index: "idx-a" },
+        { id: 11, textIndex: "idx-b" },
+        { id: 7, textIndex: "idx-a" },
       ];
       expect(pairStringIds(rows, found)).toEqual(
         new Map([

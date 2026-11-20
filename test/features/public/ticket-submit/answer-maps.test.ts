@@ -5,8 +5,6 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { questionListings } from "#db/questions/queries.ts";
-import { questionsTable } from "#db/questions/tables.ts";
 import type { AnswerInfo } from "#routes/public/ticket-form.ts";
 import {
   computeListingAnswerMap,
@@ -15,6 +13,7 @@ import {
 import type { TicketCtx } from "#routes/public/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { freeTextQuestionsOn } from "#test-utils/db-helpers/question-seeds.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { ticketContext } from "#test-utils/ticket-ctx.ts";
 
@@ -62,11 +61,9 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
 
     test("gives text answers their stored string ids, keyed per listing", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
-      const question = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Say something",
-      });
-      await questionListings.setIds(question.id, [listing.id]);
+      const [question] = await freeTextQuestionsOn(listing.id, [
+        "Say something",
+      ]);
       const ctx = await ticketContext([listing.id]);
 
       const map = await computeListingTextAnswerIdMap(

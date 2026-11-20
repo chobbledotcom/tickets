@@ -24,7 +24,7 @@ const findRefundActivityEntry = async (listingId: number) => {
   const refundEntry = entries.find((e) =>
     e.message.includes("Automatic refund"),
   );
-  expect(refundEntry?.listing_id).toBe(listingId);
+  expect(refundEntry?.listingId).toBe(listingId);
   return refundEntry!;
 };
 

@@ -24,32 +24,6 @@ export const providerOrBunny = <
   provider: TProvider,
 ): "bunny" | TProvider => (value === provider ? provider : "bunny");
 
-export interface BuiltSiteRow {
-  assignable: number;
-  assigned_attendee_id: number | null;
-  assigned_listing_id: number | null;
-  created: string;
-  database_key_rotation_started: number;
-  id: number;
-  read_only_from: string;
-  renewal_token_index: string | null;
-  site_data: string;
-  site_data_revision: number;
-  updates: UpdateTier;
-}
-
-export type BuiltSitePlainInput = {
-  assignable?: number;
-  assignedAttendeeId?: number | null;
-  assignedListingId?: number | null;
-  databaseKeyRotationStarted?: number;
-  readOnlyFrom?: string;
-  renewalTokenIndex?: string | null;
-  updates?: UpdateTier;
-};
-
-export type BuiltSiteInput = BuiltSitePlainInput & { siteData: string };
-
 export interface BuiltSite {
   assignable: boolean;
   assignedAttendeeId: number | null;

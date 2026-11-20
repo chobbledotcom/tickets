@@ -12,21 +12,23 @@
  */
 
 import { buildListingCapCondition } from "#db/capacity.ts";
-import { resultRows, type SqlStatement, withTransaction } from "#db/client.ts";
+import { resultRows, withTransaction } from "#db/client.ts";
 import { holidays } from "#db/holidays.ts";
 import {
   type AssignPlan,
   undatedBookingsForListing,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
-import { listingsTable } from "#db/listings/records.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { records, rowValuesOf } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { ASSIGN_UNDATED_FIELD } from "#templates/admin/listings/assign-day-card.tsx";
+import type { ListingFormView } from "#templates/fields/listing.ts";
 import type { ListingWithCount } from "#types";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
@@ -74,12 +76,11 @@ export const wouldBeStartDates = async (
   getBookableStartDates(
     {
       ...stored,
-      bookable_days: input.bookableDays ?? stored.bookable_days,
-      customisable_days: input.customisableDays ?? stored.customisable_days,
-      duration_days: input.durationDays ?? stored.duration_days,
-      maximum_days_after: input.maximumDaysAfter ?? stored.maximum_days_after,
-      minimum_days_before:
-        input.minimumDaysBefore ?? stored.minimum_days_before,
+      bookableDays: input.bookableDays ?? stored.bookableDays,
+      customisableDays: input.customisableDays ?? stored.customisableDays,
+      durationDays: input.durationDays ?? stored.durationDays,
+      maximumDaysAfter: input.maximumDaysAfter ?? stored.maximumDaysAfter,
+      minimumDaysBefore: input.minimumDaysBefore ?? stored.minimumDaysBefore,
     },
     await holidays.getAll(),
   );
@@ -102,20 +103,17 @@ const dateVerdictsStatement = (
   dates: readonly string[],
   durationDays: number,
 ): SqlStatement =>
-  numberedStatement((bind) => {
-    const columns = dates
-      .map((date, index) => {
-        const fits = buildListingCapCondition({
+  sql`SELECT ${sqlCommas(
+    dates.map(
+      (date, index) =>
+        sql`(${buildListingCapCondition({
           date,
           durationDays,
           listingId,
           quantity,
-        })(bind);
-        return `(${fits}) AS ok${index}`;
-      })
-      .join(", ");
-    return `SELECT ${columns}`;
-  });
+        })}) AS ${sqlName(`ok${index}`)}`,
+    ),
+  )}`;
 
 /** Judge each offered date against the listing row the save writes, with
  * the production per-day cap SQL. The row write runs inside a transaction
@@ -129,10 +127,11 @@ export const probeAssignDates = async (
 ): Promise<boolean[]> => {
   try {
     return await withTransaction(async (tx) => {
-      // `updateStatement` is optional only on the façade type. The REST layer
-      // calls it the same way (see `parseWriteAndCommit` in resource.ts).
       await tx.execute(
-        await listingsTable.updateStatement!(stored.id, wouldBe),
+        await records.listings.updateStatement(
+          stored.id,
+          rowValuesOf(tables.listings, wouldBe),
+        ),
       );
       const results = await tx.batch([
         dateVerdictsStatement(stored.id, quantity, dates, durationDays),
@@ -152,9 +151,10 @@ export const probeAssignDates = async (
 export const planListingTypeSwitch = async (
   stored: ListingWithCount,
   form: FormParams,
+  view: ListingFormView,
 ): Promise<SwitchStep> => {
-  if (form.getString("listing_type") !== "daily") return { kind: "none" };
-  if (stored.listing_type === "daily") return { kind: "none" };
+  if (form.getString("listingType") !== "daily") return { kind: "none" };
+  if (stored.listingType === "daily") return { kind: "none" };
   const rows = await undatedBookingsForListing(stored.id);
   if (rows.length === 0) return { kind: "none" };
 
@@ -164,7 +164,7 @@ export const planListingTypeSwitch = async (
   const places = rows.reduce((total, row) => total + row.quantity, 0);
   const chosen = form.getString(ASSIGN_UNDATED_FIELD);
 
-  const parsed = await buildUpdateListingResource(form, stored).parseInput(
+  const parsed = await buildUpdateListingResource(stored, view).parseInput(
     form,
   );
   if (!parsed.ok) return { error: parsed.error, kind: "invalid" };
@@ -248,7 +248,7 @@ export const renderListingSwitchAssignPage = async (
         entity,
         ctx,
         error,
-        form.getNumberArray("group_ids"),
+        form.getNumberArray("groupIds"),
         page,
       ),
     status,

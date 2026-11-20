@@ -4,7 +4,7 @@
  * hand only the fact it is about.
  */
 
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";

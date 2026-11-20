@@ -73,7 +73,7 @@ export const formFold = (
       date: built.date,
       dayCount,
       hasCustomisable: built.parents.some(
-        (parent) => parent.listing.customisable_days,
+        (parent) => parent.listing.customisableDays,
       ),
       quantities: built.quantities,
     },

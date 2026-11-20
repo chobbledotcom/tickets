@@ -52,8 +52,8 @@ const rowOf = (row: ScanRow): TokenEntry => ({
   listing: {
     id: row.listingId,
     name: `Listing ${row.listingId}`,
-    non_transferable: row.nonTransferable,
-    purchase_only: row.purchaseOnly,
+    nonTransferable: row.nonTransferable,
+    purchaseOnly: row.purchaseOnly,
   } as ListingWithCount,
   parentListingId: 0,
 });
@@ -113,8 +113,8 @@ const factsOf = (
       ),
       `No representative listing ${entry.listing.id}`,
     ).name,
-    nonTransferable: entry.listing.non_transferable,
-    purchaseOnly: entry.listing.purchase_only,
+    nonTransferable: entry.listing.nonTransferable,
+    purchaseOnly: entry.listing.purchaseOnly,
     refunded: entry.attendee.refunded,
   });
   /** The places this booking already holds on one listing, across all the

@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { withTransaction } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
-import { listingChildren } from "#db/listing-parents.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import {
   performListingDelete,
@@ -14,11 +12,15 @@ import {
   toggleListingActive,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { downloadRaw, uploadRaw } from "#shared/storage.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   listingWithTwoUndatedBookings,
@@ -26,6 +28,7 @@ import {
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import { withLocalStorageEnabled } from "#test-utils/mocks.ts";
+import { makeParent } from "#test-utils/parents-scenario.ts";
 import type { ListingWithCount } from "#types";
 import { inputFor } from "./listings-actions/helpers.ts";
 
@@ -35,14 +38,14 @@ describe("listingInputToEdge", () => {
   test("defaults every optional field for a sparse input", () => {
     const sparse = { name: "Bare" } as unknown as ListingInput;
     expect(listingInputToEdge(sparse, 7)).toEqual({
-      assign_built_site: false,
-      customisable_days: false,
-      day_prices: {},
-      duration_days: 1,
+      assignBuiltSite: false,
+      customisableDays: false,
+      dayPrices: {},
+      durationDays: 1,
       id: 7,
-      listing_type: "standard",
-      min_quantity: 1,
-      months_per_unit: 0,
+      listingType: "standard",
+      minQuantity: 1,
+      monthsPerUnit: 0,
       name: "Bare",
     });
   });
@@ -58,14 +61,14 @@ describe("listingInputToEdge", () => {
       name: "Full",
     } as unknown as ListingInput;
     expect(listingInputToEdge(input, 3)).toEqual({
-      assign_built_site: true,
-      customisable_days: true,
-      day_prices: { 1: 100, 2: 200 },
-      duration_days: 2,
+      assignBuiltSite: true,
+      customisableDays: true,
+      dayPrices: { 1: 100, 2: 200 },
+      durationDays: 2,
       id: 3,
-      listing_type: "daily",
-      min_quantity: 1,
-      months_per_unit: 12,
+      listingType: "daily",
+      minQuantity: 1,
+      monthsPerUnit: 12,
       name: "Full",
     });
   });
@@ -245,9 +248,10 @@ describeWithEnv("validateListingInput", { db: true }, () => {
 
 describeWithEnv("validateListingInput package membership", { db: true }, () => {
   test("rejects a package group when the listing is a child of another", async () => {
-    const parent = await createTestListing({ name: "Edge Parent" });
-    const child = await createTestListing({ name: "Edge Child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { child } = await makeParent({
+      children: [{ name: "Edge Child" }],
+      parent: { name: "Edge Parent" },
+    });
     const pkg = await createTestGroup({ isPackage: true, name: "Edge Pkg" });
 
     // A package member may never itself be another listing's child, and the
@@ -262,14 +266,11 @@ describeWithEnv("validateListingInput package membership", { db: true }, () => {
   });
 
   test("rejects a hidden package when the listing gates its own children", async () => {
-    const gp = await createTestListing({ name: "Gate Parent" });
-    const gc = await createTestListing({ name: "Gate Child" });
-    await listingChildren.setIds(gp.id, [gc.id]);
-    const hidden = await createTestGroup({
-      isPackage: true,
-      name: "Hidden Pkg",
+    const { parent: gp } = await makeParent({
+      children: [{ name: "Gate Child" }],
+      parent: { name: "Gate Parent" },
     });
-    await groups.table.update(hidden.id, { hidePackageListings: true });
+    const hidden = await createHiddenPackageGroup("Hidden Pkg");
 
     // A hidden package collapses members to the package name, so a member that
     // gates children (would render a child selector) leaks them.
@@ -315,33 +316,33 @@ describeWithEnv("toggleListingActive", { db: true }, () => {
     });
   });
 
-  test("deactivates, persists, and logs the deactivation", async () => {
-    const listing = await createTestListing({ name: "Toggle Off" });
+  /** Toggle `listing` to `active`, assert the row it wrote, and assert the
+   *  activity row that names the listing and the direction. */
+  const expectToggled = async (
+    listing: { id: number; name: string },
+    active: boolean,
+    verb: "deactivated" | "reactivated",
+  ): Promise<void> => {
     const withCount = (await getListingWithCount(listing.id))!;
-    const result = await toggleListingActive(listing.id, withCount, false);
-    expect(result).toMatchObject({ updated: { active: false } });
+    const result = await toggleListingActive(listing.id, withCount, active);
+    expect(result).toMatchObject({ updated: { active } });
     const log = await getAllActivityLog();
     expect(
       log.some(
-        (e) =>
-          e.message.includes("Toggle Off") && e.message.includes("deactivated"),
+        (e) => e.message.includes(listing.name) && e.message.includes(verb),
       ),
     ).toBe(true);
+  };
+
+  test("deactivates, persists, and logs the deactivation", async () => {
+    const listing = await createTestListing({ name: "Toggle Off" });
+    await expectToggled(listing, false, "deactivated");
   });
 
   test("reactivates and logs the reactivation", async () => {
     const listing = await createTestListing({ name: "Toggle On" });
-    await listingsTable.update(listing.id, { active: false });
-    const withCount = (await getListingWithCount(listing.id))!;
-    const result = await toggleListingActive(listing.id, withCount, true);
-    expect(result).toMatchObject({ updated: { active: true } });
-    const log = await getAllActivityLog();
-    expect(
-      log.some(
-        (e) =>
-          e.message.includes("Toggle On") && e.message.includes("reactivated"),
-      ),
-    ).toBe(true);
+    await updateListing(listing.id, { active: false });
+    await expectToggled(listing, true, "reactivated");
   });
 });
 
@@ -350,7 +351,7 @@ describeWithEnv("performListingDelete", { db: true }, () => {
     await withLocalStorageEnabled(async () => {
       const listing = await createTestListing({ name: "Delete Me" });
       await uploadRaw(new Uint8Array([1, 2, 3]), "delete-me.pdf");
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "delete-me.pdf",
         attachmentUrl: "delete-me.pdf",
       });
@@ -370,14 +371,14 @@ describeWithEnv("performListingDelete", { db: true }, () => {
     await withLocalStorageEnabled(async () => {
       const listing = await createTestListing({ name: "Delete Blocked" });
       await uploadRaw(new Uint8Array([4, 5, 6]), "delete-blocked.pdf");
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "delete-blocked.pdf",
         attachmentUrl: "delete-blocked.pdf",
       });
       const withCount = (await getListingWithCount(listing.id))!;
 
       await withDbFault(
-        `CREATE TRIGGER test_listing_delete_fault
+        sql`CREATE TRIGGER test_listing_delete_fault
           BEFORE DELETE ON listings
           BEGIN
             SELECT RAISE(ABORT, 'listing delete unavailable');
@@ -397,32 +398,26 @@ describeWithEnv("performListingDelete", { db: true }, () => {
 });
 
 /** The guard's verdict for one listing's would-be daily save. */
-const guardVerdictIs = async (
-  listing: ListingWithCount,
-  expected: string | null,
-): Promise<void> => {
-  await withTransaction(async (tx) => {
-    const refusal = await refuseUndatedListingSwitch(
+const guardVerdict = (listing: ListingWithCount): Promise<string | null> =>
+  withTransaction((tx) =>
+    refuseUndatedListingSwitch(
       tx,
       listing.id,
       inputFor({ groupIds: [], listingType: "daily" }),
-    );
-    expect(refusal).toBe(expected);
-  });
-};
+    ),
+  );
 
 describeWithEnv("refuseUndatedListingSwitch", { db: true }, () => {
   test("names the undated bookings a bare switch would strand", async () => {
     const listing = await listingWithTwoUndatedBookings();
-    await guardVerdictIs(
-      listing,
+    expect(await guardVerdict(listing)).toBe(
       t("listings_table.switch_daily_undated_guard", { count: 2 }),
     );
   });
 
   test("lets a save through when nothing would be stranded", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
-    await guardVerdictIs(listing, null);
+    expect(await guardVerdict(listing)).toBe(null);
   });
 
   test("reads a missing listing type as the ordinary kind it stays", async () => {

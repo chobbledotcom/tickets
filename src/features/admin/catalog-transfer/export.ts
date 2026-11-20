@@ -16,16 +16,15 @@ import {
 } from "#db/listing-prices.ts";
 import {
   getStoredListingWithCount,
-  listingNames,
+  listingNamesByIds,
 } from "#db/listings/records.ts";
 import { mapNotNullish, requiredMapValue } from "#fp";
 import { withGroupOrNull } from "#routes/admin/find-group.ts";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
-import {
-  groupCatalogFields,
-  listingCatalogFields,
-} from "#shared/catalog-fields/fields.ts";
 import { namedError } from "#shared/named-error.ts";
+import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { closedFieldsFor } from "#shared/records/write-access.ts";
+import { transferValues } from "#shared/rest/field-reads.ts";
 import type { AdminLevel } from "#types";
 import { getListingGroupMemberships } from "./membership.ts";
 import {
@@ -103,11 +102,10 @@ export const exportListing = async (
 
   const listingData = parseExport(
     ListingDataSchema,
-    projectCatalogFields(
-      listingCatalogFields,
-      "transfer",
+    transferValues(
+      LISTING_FIELDS,
       listing,
-      adminLevel === "editor" ? ["webhookUrl"] : [],
+      closedFieldsFor(LISTING_FIELDS, adminLevel),
     ),
     "listing",
   );
@@ -119,7 +117,7 @@ export const exportListing = async (
     listingParents.getIds(id),
   ]);
   const groupDayPrices = await getGroupDayPricesByGroupIds(
-    memberships.map((m) => m.group_id),
+    memberships.map((m) => m.groupId),
   );
 
   // Every membership row references an existing group (FK), and `groupNames`
@@ -127,17 +125,17 @@ export const exportListing = async (
   const groupMemberships: ListingMembership[] = memberships.map((m) => ({
     group: requiredMapValue(
       groupNames,
-      m.group_id,
-      `Group ${m.group_id} missing`,
+      m.groupId,
+      `Group ${m.groupId} missing`,
     ),
     ...overrideFields(
-      m.package_price,
+      m.packagePrice,
       m.quantity,
-      groupDayPrices.get(m.group_id)?.get(id),
+      groupDayPrices.get(m.groupId)?.get(id),
     ),
   }));
 
-  const parentNames = await listingNames.byIds(parentIds);
+  const parentNames = await listingNamesByIds(parentIds);
   const parents = mapNotNullish((parentId: number) =>
     parentNames.get(parentId),
   )(parentIds);
@@ -162,14 +160,14 @@ export const exportGroup = (
   withGroupOrNull(id, async (group) => {
     const groupData = parseExport(
       GroupDataSchema,
-      projectCatalogFields(groupCatalogFields, "transfer", group),
+      transferValues(GROUP_FIELDS, group),
       "group",
     );
     if (groupData instanceof CatalogExportError) return groupData;
 
     const rows = await getGroupPackagePrices(id);
     const [namesByListing, dayPrices] = await Promise.all([
-      listingNames.byIds(rows.map((r) => r.listing_id)),
+      listingNamesByIds(rows.map((r) => r.listingId)),
       getGroupDayPrices(id),
     ]);
 
@@ -178,13 +176,13 @@ export const exportGroup = (
     const members: GroupMember[] = rows.map((row) => ({
       listing: requiredMapValue(
         namesByListing,
-        row.listing_id,
-        `Listing ${row.listing_id} missing`,
+        row.listingId,
+        `Listing ${row.listingId} missing`,
       ),
       ...overrideFields(
-        row.package_price,
+        row.packagePrice,
         row.quantity,
-        dayPrices.get(row.listing_id),
+        dayPrices.get(row.listingId),
       ),
     }));
 

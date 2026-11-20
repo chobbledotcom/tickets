@@ -1,11 +1,12 @@
 import { settings } from "#db/settings.ts";
+import { compact } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { isBuilderEnabled } from "#shared/config.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
-import { isStorageEnabled } from "#shared/storage.ts";
+import type { ChosenImage } from "#shared/images/picker.ts";
+import { showUseDefaultsToggle } from "#shared/listing-defaults.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
   type FormSection,
@@ -16,12 +17,11 @@ import {
   getListingEditForm,
   getListingForm,
   type ListingFormView,
+  listingFormView,
 } from "#templates/fields/listing.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
-import {
-  renderDayPricesFieldset,
-  showUseDefaultsToggle,
-} from "./form-values.tsx";
+import { renderDayPricesFieldset } from "./form-values.tsx";
+import { ListingImagesField } from "./listing-images.tsx";
 
 type ListingFieldsOptions = { includeSlug?: boolean; nameAutofocus?: boolean };
 
@@ -31,40 +31,56 @@ type ListingRenderValues = FormRenderValuesFor<
   ReturnType<typeof getListingForm>["fields"]
 >;
 
+/** A purchase-only, non-dated product seed: the buyer pays, nothing is
+ *  checked in, and the form collects exactly the given contact fields. */
+const purchaseSeed = (fields: string): ListingRenderValues => ({
+  fields,
+  listingType: "standard",
+  purchaseOnly: "1",
+  usesLogistics: "",
+});
+
+/** A checked-in seed booked on a day the buyer picks from the given days. */
+const dailySeed = (bookableDays: string): ListingRenderValues => ({
+  bookableDays,
+  durationDays: "1",
+  fields: "email",
+  listingType: "daily",
+  maximumDaysAfter: "90",
+  minimumDaysBefore: "1",
+  purchaseOnly: "",
+  usesLogistics: "",
+});
+
+/* jscpd:ignore-start -- a list of strings, not code */
 export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
+  "day-pass": dailySeed(ALL_BOOKABLE_DAYS),
+  donation: { ...purchaseSeed("email"), canPayMore: "1" },
   "hireable-item": {
-    bookable_days: ALL_BOOKABLE_DAYS,
-    duration_days: "1",
+    ...dailySeed(ALL_BOOKABLE_DAYS),
     fields: "email,phone,address",
-    listing_type: "daily",
-    maximum_days_after: "90",
-    minimum_days_before: "1",
-    purchase_only: "1",
-    uses_logistics: "1",
+    purchaseOnly: "1",
+    usesLogistics: "1",
   },
   "one-off-event": {
     fields: "email",
-    listing_type: "standard",
-    purchase_only: "",
-    uses_logistics: "",
+    listingType: "standard",
+    purchaseOnly: "",
+    usesLogistics: "",
   },
-  "online-digital": {
+  "online-digital": purchaseSeed("email"),
+  "physical-product": purchaseSeed("email,address"),
+  subscription: {
     fields: "email",
-    listing_type: "standard",
-    purchase_only: "1",
-    uses_logistics: "",
+    listingType: "standard",
+    purchaseOnly: "",
+    recurringInterval: "month",
+    usesLogistics: "",
   },
-  "weekly-event": {
-    bookable_days: ALL_BOOKABLE_DAYS,
-    duration_days: "1",
-    fields: "email",
-    listing_type: "daily",
-    maximum_days_after: "90",
-    minimum_days_before: "1",
-    purchase_only: "",
-    uses_logistics: "",
-  },
+  // One day ticked, so the operator picks the day the class runs.
+  "weekly-event": dailySeed(VALID_DAY_NAMES[0]),
 };
+/* jscpd:ignore-end */
 
 type ListingSectionId = ReturnType<typeof getListingForm>["sections"][number];
 type ListingSectionRenderer = (
@@ -79,12 +95,12 @@ export const advancedSectionHasValues = (
   listing: ListingWithCount,
   builderEnabled: boolean,
 ): boolean => {
-  if (listing.thank_you_url || listing.webhook_url) return true;
+  if (listing.thankYouUrl || listing.webhookUrl) return true;
   return (
     builderEnabled &&
-    (listing.months_per_unit > 0 ||
-      listing.initial_site_months > 0 ||
-      listing.assign_built_site)
+    (listing.monthsPerUnit > 0 ||
+      listing.initialSiteMonths > 0 ||
+      listing.assignBuiltSite)
   );
 };
 
@@ -94,7 +110,7 @@ export const DurationWarning = ({
   listing: ListingWithCount;
 }): JSX.Element => (
   <div
-    data-duration-original={listing.duration_days}
+    data-duration-original={listing.durationDays}
     hidden
     id="duration-warning"
   >
@@ -120,6 +136,7 @@ export const ListingFormSections = ({
   childOfNote = "",
   customiseOpen,
   isTemplated,
+  images,
   showUseDefaults = false,
   useDefaultsChecked = false,
 }: {
@@ -133,6 +150,8 @@ export const ListingFormSections = ({
   childOfNote?: string;
   customiseOpen: boolean;
   isTemplated: boolean;
+  /** The chosen pictures, when this form offers the Images section. */
+  images?: readonly ChosenImage[];
   showUseDefaults?: boolean;
   useDefaultsChecked?: boolean;
 }): JSX.Element => {
@@ -150,7 +169,7 @@ export const ListingFormSections = ({
       {after}
     </>
   );
-  const sections: FormSection[] = [
+  const sections: FormSection[] = compact([
     {
       children: (
         <>
@@ -163,6 +182,13 @@ export const ListingFormSections = ({
       ),
       legend: t("listings_table.basics"),
     },
+    images
+      ? {
+          children: <ListingImagesField selected={images} />,
+          className: "listing-section listing-section--images",
+          legend: t("listings_table.images"),
+        }
+      : null,
     {
       children: <Raw html={sectionFields("tickets")} />,
       legend: t("listings_table.tickets_pricing"),
@@ -187,7 +213,7 @@ export const ListingFormSections = ({
       children: <Raw html={sectionFields("options")} />,
       legend: t("listings_table.options_visibility"),
     },
-  ];
+  ]);
   return (
     <>
       {(isTemplated || showUseDefaults) && (
@@ -210,7 +236,7 @@ export const ListingFormSections = ({
               <input
                 checked={useDefaultsChecked}
                 id="use-defaults"
-                name="use_defaults"
+                name="useDefaults"
                 type="checkbox"
                 value="1"
               />
@@ -219,10 +245,6 @@ export const ListingFormSections = ({
             </label>
           )}
         </fieldset>
-      )}
-
-      {!showUseDefaults && useDefaultsChecked && (
-        <input name="use_defaults" type="hidden" value="1" />
       )}
 
       <FormSections sections={sections} />
@@ -259,14 +281,11 @@ export const listingFormPageState = (
   showUseDefaults: boolean;
 } => {
   const defaults = settings.listingDefaults;
-  const showUseDefaults = showUseDefaultsToggle(session, defaults);
   const view: ListingFormView = {
-    builder: isBuilderEnabled(),
-    logistics: settings.features.logistics,
+    ...listingFormView(session.adminLevel),
     ...(fields.nameAutofocus ? { nameAutofocus: true } : {}),
-    storage: isStorageEnabled(),
-    webhook: session.adminLevel !== "editor",
   };
+  const showUseDefaults = showUseDefaultsToggle(view.closed, defaults);
   const renderSection: ListingSectionRenderer = fields.includeSlug
     ? (id, values) => getListingEditForm(view).section(id, values)
     : (id, values) => getListingForm(view).section(id, values);

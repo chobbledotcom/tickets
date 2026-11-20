@@ -9,7 +9,11 @@
  * the server-side validation handles it. */
 type QuantityInput = HTMLSelectElement | HTMLInputElement;
 
-const selectedTicketQuantity = (inputs: NodeListOf<QuantityInput>): number => {
+/** A listing quantity or a package count: `quantity<id>` or
+ *  `packageQuantity<groupId>`. */
+const TICKET_QUANTITY_NAME = /^(quantity|packageQuantity)\d+$/;
+
+const selectedTicketQuantity = (inputs: QuantityInput[]): number => {
   let total = 0;
   for (const input of inputs) {
     const raw = input.value.trim();
@@ -22,9 +26,11 @@ const selectedTicketQuantity = (inputs: NodeListOf<QuantityInput>): number => {
 export const initTicketQuantityRequired = (): void => {
   const forms = document.querySelectorAll<HTMLFormElement>("form");
   for (const form of forms) {
-    const qtyInputs = form.querySelectorAll<QuantityInput>(
-      '[name^="quantity_"], [name^="package_quantity_"]',
-    );
+    const qtyInputs = [
+      ...form.querySelectorAll<QuantityInput>(
+        '[name^="quantity"], [name^="packageQuantity"]',
+      ),
+    ].filter((input) => TICKET_QUANTITY_NAME.test(input.name));
     if (qtyInputs.length === 0) continue;
 
     let errorEl: HTMLDivElement | null = null;

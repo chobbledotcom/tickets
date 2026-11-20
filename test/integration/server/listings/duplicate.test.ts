@@ -2,7 +2,8 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { listingsTable } from "#db/listings/records.ts";
+import { listingReader } from "#db/listings/select.ts";
+import { sql } from "#db/sql.ts";
 import {
   assertAdminHtml,
   expectIncludesAll,
@@ -97,8 +98,10 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
         name: "Original",
         thankYouUrl: "https://example.com",
       });
-      const readBack = stub(listingsTable, "findByIdPrimary", () =>
-        Promise.resolve(null),
+      const readBack = stub(
+        listingReader,
+        "statement",
+        () => sql`SELECT 1 AS id WHERE 0`,
       );
       const { handleRequest } = await import("#routes");
 
@@ -111,8 +114,8 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
               "/admin/listing",
               {
                 ...baseListingForm,
-                csrf_token: csrfToken,
-                duplicated_from: "1",
+                csrfToken,
+                duplicatedFrom: "1",
                 name: "Copy",
               },
               cookie,

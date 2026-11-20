@@ -18,8 +18,13 @@ import {
 } from "#booking/tree.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { treePackage as pkg } from "#test-utils/package-cap-fixtures.ts";
+import type { ListingWithCount } from "#types";
 
-const resolved = (overrides = {}, closed = false, groupRemaining?: number) =>
+const resolved = (
+  overrides: Partial<ListingWithCount> = {},
+  closed = false,
+  groupRemaining?: number,
+) =>
   buildTicketListing(testListingWithCount(overrides), closed, groupRemaining);
 
 describe("booking tree — node identity (nodeKey scheme)", () => {
@@ -57,20 +62,20 @@ describe("booking tree — node identity (nodeKey scheme)", () => {
 
 describe("booking tree — form field-name SSOT", () => {
   test("matches the exact names render emits and submit parses", () => {
-    expect(quantityFieldName(4)).toBe("quantity_4");
-    expect(customPriceFieldName(4)).toBe("custom_price_4");
-    expect(childQuantityFieldName(2, 9)).toBe("child_qty_2_9");
-    expect(childPriceFieldName(2, 9)).toBe("child_price_2_9");
+    expect(quantityFieldName(4)).toBe("quantity4");
+    expect(customPriceFieldName(4)).toBe("customPrice4");
+    expect(childQuantityFieldName(2, 9)).toBe("childQty2_9");
+    expect(childPriceFieldName(2, 9)).toBe("childPrice2_9");
     // Per group, so a page selling several bundles posts one count each.
-    expect(packageQuantityFieldName(3)).toBe("package_quantity_3");
+    expect(packageQuantityFieldName(3)).toBe("packageQuantity3");
     expect(packageQuantityFieldName(8)).not.toBe(packageQuantityFieldName(3));
   });
 
   test("child field names embed both the parent and child id", () => {
     // The parent id precedes the child id, so a child under two parents differs.
-    expect(childQuantityFieldName(2, 9)).toBe("child_qty_2_9");
+    expect(childQuantityFieldName(2, 9)).toBe("childQty2_9");
     expect(childQuantityFieldName(3, 9)).not.toBe(childQuantityFieldName(2, 9));
-    expect(childPriceFieldName(2, 9)).toBe("child_price_2_9");
+    expect(childPriceFieldName(2, 9)).toBe("childPrice2_9");
     expect(childPriceFieldName(3, 9)).not.toBe(childPriceFieldName(2, 9));
   });
 });
@@ -79,22 +84,22 @@ describe("booking tree — form field-name SSOT", () => {
 const qtyField = (node: BookingNode) => nodeQuantityFieldName(node);
 
 describe("booking tree — nodeKey → field-name projection", () => {
-  test("standalone / regular-group / parent nodes post quantity_<id>", () => {
+  test("standalone / regular-group / parent nodes post quantity<id>", () => {
     const tree = buildBookingTree({
       listings: [resolved({ id: 4, slug: "ab12c" })],
       slugs: ["ab12c"],
     });
-    expect(qtyField(tree.nodes[0]!)).toBe("quantity_4");
+    expect(qtyField(tree.nodes[0]!)).toBe("quantity4");
   });
 
-  test("a required child posts child_qty_<parentId>_<childId>", () => {
+  test("a required child posts childQty<parentId>_<childId>", () => {
     const tree = buildBookingTree({
       childrenByParentId: new Map([[4, [resolved({ id: 9, slug: "chld1" })]]]),
       listings: [resolved({ id: 4, slug: "ab12c" })],
       slugs: ["ab12c"],
     });
     const child = tree.nodes[0]!.children[0]!;
-    expect(qtyField(child)).toBe("child_qty_4_9");
+    expect(qtyField(child)).toBe("childQty4_9");
   });
 
   test("a package member has no per-member quantity field (uses its package's count)", () => {
@@ -106,31 +111,31 @@ describe("booking tree — nodeKey → field-name projection", () => {
     expect(qtyField(tree.nodes[0]!)).toBeNull();
   });
 
-  test("a regular (non-package) group member DOES post quantity_<id>", () => {
+  test("a regular (non-package) group member DOES post quantity<id>", () => {
     const tree = buildBookingTree({
       listings: [resolved({ id: 7, slug: "ab12c" })],
       root: { groupId: 3, kind: "group" },
       slugs: ["ab12c"],
     });
-    expect(qtyField(tree.nodes[0]!)).toBe("quantity_7");
+    expect(qtyField(tree.nodes[0]!)).toBe("quantity7");
   });
 
   test("pay-more price field mirrors the node's edge", () => {
     const standalone = buildBookingTree({
-      listings: [resolved({ can_pay_more: true, id: 4, max_price: 5000 })],
+      listings: [resolved({ canPayMore: true, id: 4, maxPrice: 5000 })],
       slugs: ["ab12c"],
     });
-    expect(nodePriceFieldName(standalone.nodes[0]!)).toBe("custom_price_4");
+    expect(nodePriceFieldName(standalone.nodes[0]!)).toBe("customPrice4");
 
     const withChild = buildBookingTree({
       childrenByParentId: new Map([
-        [4, [resolved({ can_pay_more: true, id: 9, max_price: 5000 })]],
+        [4, [resolved({ canPayMore: true, id: 9, maxPrice: 5000 })]],
       ]),
       listings: [resolved({ id: 4 })],
       slugs: ["ab12c"],
     });
     expect(nodePriceFieldName(withChild.nodes[0]!.children[0]!)).toBe(
-      "child_price_4_9",
+      "childPrice4_9",
     );
   });
 
@@ -256,8 +261,8 @@ describe("buildBookingTree — node facets", () => {
           4,
           [
             resolved({ id: 9 }), // standard → date-less
-            resolved({ id: 10, listing_type: "daily" }), // daily → inherits
-            resolved({ customisable_days: true, id: 11 }), // customisable → inherits
+            resolved({ id: 10, listingType: "daily" }), // daily → inherits
+            resolved({ customisableDays: true, id: 11 }), // customisable → inherits
           ],
         ],
       ]),
@@ -287,7 +292,7 @@ describe("buildBookingTree — price rule precedence", () => {
   test("OVERRIDE beats pay-more and day-price for a package member", () => {
     expect(
       priceOf({
-        listings: [resolved({ can_pay_more: true, id: 7, max_price: 9000 })],
+        listings: [resolved({ canPayMore: true, id: 7, maxPrice: 9000 })],
         packages: [pkg(3, [7], { prices: new Map([[7, 500]]) })],
         slugs: ["x"],
       }),
@@ -299,11 +304,11 @@ describe("buildBookingTree — price rule precedence", () => {
       priceOf({
         listings: [
           resolved({
-            can_pay_more: true,
-            customisable_days: true,
+            canPayMore: true,
+            customisableDays: true,
             id: 7,
-            max_price: 9000,
-            unit_price: 1000,
+            maxPrice: 9000,
+            unitPrice: 1000,
           }),
         ],
         slugs: ["x"],
@@ -314,7 +319,7 @@ describe("buildBookingTree — price rule precedence", () => {
   test("DAY_PRICE only for a customisable listing without pay-more", () => {
     expect(
       priceOf({
-        listings: [resolved({ customisable_days: true, id: 7 })],
+        listings: [resolved({ customisableDays: true, id: 7 })],
         slugs: ["x"],
       }),
     ).toEqual({ kind: "DAY_PRICE" });
@@ -325,7 +330,7 @@ describe("buildBookingTree — price rule precedence", () => {
     // date only drives availability, so it must not be day-priced.
     expect(
       priceOf({
-        listings: [resolved({ id: 7, listing_type: "daily" })],
+        listings: [resolved({ id: 7, listingType: "daily" })],
         slugs: ["x"],
       }),
     ).toEqual({ kind: "BASE" });

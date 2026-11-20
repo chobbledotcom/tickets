@@ -7,17 +7,21 @@
  * here. The column list and row mapping therefore live in exactly one place.
  */
 
-import type { InValue, ResultSet } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
+import { type BatchExecutor, resultRows } from "#db/client.ts";
 import {
-  type BatchExecutor,
-  orIgnore,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
-import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
-import { type Read, readStatement } from "#db/read.ts";
-import { equals, matchesNoRows } from "#db/where-clauses.ts";
+  among,
+  type Expr,
+  type Operand,
+  valued,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import type { Node, Query } from "#db/select/shape.ts";
+import { type RowOf, tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { type InsertOptions, insertInto, type NewValues } from "#db/write.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
   AccountRef,
@@ -55,13 +59,10 @@ type TransferRow = TransferEndpoints & {
   posted_by: string;
 };
 
-const COLUMNS =
-  "id, source_type, source_id, dest_type, dest_id, amount, " +
-  "occurred_at, recorded_at, reference, event_group, kind, memo, " +
-  "reverses_id, reverses_group, posted_by";
+const COLUMNS = sql`id, source_type, source_id, dest_type, dest_id, amount, occurred_at, recorded_at, reference, event_group, kind, memo, reverses_id, reverses_group, posted_by`;
 
 /** Turn a database row into the {@link Transfer} the rest of the code uses.
- *  A kindless leg is stored as `kind = ''` (see {@link legColumns}). It maps
+ *  A kindless leg is stored as `kind = ''` (see {@link legRow}). It maps
  *  back to an *omitted* `kind`, mirroring `reverses_id`, so a stored transfer
  *  and a never-stored {@link TransferInput} agree on what "no kind" looks like. */
 const rowToTransfer = (row: TransferRow): Transfer => ({
@@ -80,93 +81,83 @@ const rowToTransfer = (row: TransferRow): Transfer => ({
   source: account(row.source_type, row.source_id),
 });
 
-/** One column of a transfers INSERT: its name, the SQL placeholder/expression
- *  for its value, and the args that expression binds. */
-type LegColumn = { col: string; expr: string; args: InValue[] };
+/** Gives one leg side's account id. The default binds the id. The batch
+ *  booking writer swaps in its in-batch subquery for the attendee side
+ *  ({@link bookingLegBatchInsert}). */
+type AccountIdOf = (acct: AccountRef) => Operand<string>;
 
-/** A plain bound-placeholder column. */
-const lit = (col: string, value: InValue): LegColumn => ({
-  args: [value],
-  col,
-  expr: "?",
+const literalId: AccountIdOf = (acct) => acct.id;
+
+/**
+ * The new transfers row for one leg — the single place the table's INSERT
+ * columns and defaults live. Every insert variant (plain, `OR IGNORE`,
+ * guarded, batch-booking) writes this one row. A new column — or a changed
+ * default — is then written exactly once and can never drift between the
+ * write paths.
+ */
+const legRow = (
+  t: TransferInput,
+  recordedAt: string,
+  idOf: AccountIdOf = literalId,
+): NewValues<"transfers"> => ({
+  amount: t.amount,
+  destId: idOf(t.destination),
+  destType: t.destination.type,
+  eventGroup: t.eventGroup,
+  kind: t.kind ?? "",
+  memo: t.memo ?? "",
+  occurredAt: instantToEpochMs(t.occurredAt),
+  postedBy: t.postedBy ?? "system",
+  recordedAt: instantToEpochMs(recordedAt),
+  reference: t.reference,
+  reversesGroup: t.reversesGroup ?? "",
+  reversesId: t.reversesId ?? null,
+  sourceId: idOf(t.source),
+  sourceType: t.source.type,
 });
 
-/** Renders one leg side's account id column. The default binds the id as a
- *  literal. The batch booking writer swaps in its in-batch subquery for the
- *  attendee side ({@link bookingLegBatchInsert}). */
-type AccountIdColumn = (col: string, acct: AccountRef) => LegColumn;
-
-const literalId: AccountIdColumn = (col, acct) => lit(col, acct.id);
-
-/**
- * The column→value plan for one transfers row, in a fixed order — the single
- * place the table's INSERT columns and defaults live. Every insert variant
- * (plain, `OR IGNORE`, guarded, batch-booking) renders from this one plan via
- * {@link renderInsert}. A new column — or a changed default — is then written
- * exactly once and can never drift between the write paths.
- */
-const legColumns = (
-  t: TransferInput,
-  recordedAt: string,
-  idCol: AccountIdColumn = literalId,
-): LegColumn[] => [
-  lit("source_type", t.source.type),
-  idCol("source_id", t.source),
-  lit("dest_type", t.destination.type),
-  idCol("dest_id", t.destination),
-  lit("amount", t.amount),
-  lit("occurred_at", instantToEpochMs(t.occurredAt)),
-  lit("recorded_at", instantToEpochMs(recordedAt)),
-  lit("reference", t.reference),
-  lit("event_group", t.eventGroup),
-  lit("kind", t.kind ?? ""),
-  lit("memo", t.memo ?? ""),
-  lit("reverses_id", t.reversesId ?? null),
-  lit("reverses_group", t.reversesGroup ?? ""),
-  lit("posted_by", t.postedBy ?? "system"),
-];
-
-/**
- * Render the INSERT for a column plan. Without a guard it is a plain
- * `VALUES (…)` insert. With one, the values become `SELECT … WHERE <guard>`, so
- * the row lands only while the guard still holds. One statement either way, so
- * it can ride in a single batch. Each column keeps its own placeholder (the
- * guard's args are appended after the columns'). A stray `$`/`?` in the
- * guard SQL can never re-bind a column value.
- */
-const renderInsert = (
-  columns: LegColumn[],
-  guard?: { sql: string; args: InValue[] },
-): SqlStatement => {
-  const exprs = columns.map((column) => column.expr).join(", ");
-  return {
-    args: [...columns.flatMap((column) => column.args), ...(guard?.args ?? [])],
-    sql:
-      `INSERT INTO transfers (${columns.map((column) => column.col).join(", ")}) ` +
-      (guard ? `SELECT ${exprs} WHERE ${guard.sql}` : `VALUES (${exprs})`),
-  };
-};
-
-/** Build the INSERT for one transfer. `recordedAt` is the write-time clock. */
-export const insertStatement = (
-  t: TransferInput,
-  recordedAt: string,
-): SqlStatement => renderInsert(legColumns(t, recordedAt));
-
-/**
- * A guarded INSERT for one transfer: `INSERT … SELECT … WHERE <guard>`, so a leg
- * can be folded into a one-shot batch and land only when the guard still holds.
- * Used to post a balance-payment leg atomically inside the settle batch (which
- * stays a batch, not an interactive transaction, for its concurrency guard).
- * Renders from the shared {@link legColumns} plan.
- */
-export const guardedInsertStatement = (
-  t: TransferInput,
-  recordedAt: string,
-  guardSql: string,
-  guardArgs: InValue[],
+/** Insert one leg row. With a guard the values become `SELECT … WHERE
+ *  <guard>`, so the row lands only while the guard still holds. One statement
+ *  either way, so it can ride in a single batch. */
+const insertLeg = (
+  options: InsertOptions<"transfers">,
+  row: NewValues<"transfers">,
+  guard: SqlStatement | undefined,
 ): SqlStatement =>
-  renderInsert(legColumns(t, recordedAt), { args: guardArgs, sql: guardSql });
+  insertInto(
+    tables.transfers,
+    row,
+    guard === undefined ? options : { ...options, when: valued(guard) },
+  );
+
+const INSERT: InsertOptions<"transfers"> = {};
+const INSERT_IF_NEW: InsertOptions<"transfers"> = { or: "IGNORE" };
+
+/** The INSERT for one transfer under one set of insert options. `recordedAt`
+ * is the write-time clock. With a guard the leg lands only while the guard
+ * holds, so the leg can ride in a one-shot batch. */
+const insertUnder = (
+  options: InsertOptions<"transfers">,
+  t: TransferInput,
+  recordedAt: string,
+  guard?: SqlStatement,
+): SqlStatement => insertLeg(options, legRow(t, recordedAt), guard);
+
+/** Build the INSERT for one transfer. The settle batch passes a guard to post
+ * a balance-payment leg atomically. That batch stays a batch, not an
+ * interactive transaction, for its concurrency guard. */
+export const insertStatement = bindFirst(insertUnder)(INSERT);
+
+/** {@link insertStatement}, dropping a leg whose unique `reference` is
+ * already stored: a replayed write re-derives the same reference and lands
+ * nowhere. */
+export const insertIfNewStatement = bindFirst(insertUnder)(INSERT_IF_NEW);
+
+/** One insert-if-new statement for each leg, all recorded at one time. */
+export const insertIfNewStatements = (
+  legs: readonly Parameters<typeof insertIfNewStatement>[0][],
+  recordedAt: string,
+): SqlStatement[] => legs.map((leg) => insertIfNewStatement(leg, recordedAt));
 
 /**
  * Build an idempotent, guarded INSERT for one booking leg, for the single-batch
@@ -181,35 +172,46 @@ export const guardedInsertStatement = (
 export const bookingLegBatchInsert = (
   t: TransferInput,
   recordedAt: string,
-  attendeeIdSql: string,
-  attendeeIdArg: InValue,
-  guard: { sql: string; args: InValue[] },
+  attendeeIdSql: SqlStatement,
+  guard: SqlStatement,
 ): SqlStatement =>
-  orIgnore(
-    renderInsert(
-      legColumns(t, recordedAt, (col, acct) =>
-        acct.type === ATTENDEE
-          ? {
-              args: [attendeeIdArg],
-              col,
-              expr: `CAST(${attendeeIdSql} AS TEXT)`,
-            }
-          : literalId(col, acct),
-      ),
-      guard,
+  insertLeg(
+    INSERT_IF_NEW,
+    legRow(t, recordedAt, (acct) =>
+      acct.type === ATTENDEE
+        ? valued(sql`CAST(${attendeeIdSql} AS TEXT)`)
+        : literalId(acct),
     ),
+    guard,
   );
 
 /** The transfers held by one answered query. */
 const transfersIn = (result: ResultSet): Transfer[] =>
   resultRows<TransferRow>(result).map(rowToTransfer);
 
-/** Which transfers to read, in what order, how many — everything but the
- * columns and the table, which a transfer read always knows. */
-export type TransferRead = Omit<Read, "columns" | "from">;
+/** A read of the ledger, before it names its columns. */
+type LedgerRead = Query<Node<"transfers">>;
 
-const transferStatement = (query: TransferRead): SqlStatement =>
-  readStatement({ ...query, columns: COLUMNS, from: "transfers" });
+/** Which transfers to read, in what order, how many: the ledger read with its
+ * conditions, its order and its limit. A transfer read always knows the
+ * columns and the table. */
+export type TransferRead = (ledger: LedgerRead) => LedgerRead;
+
+const everyTransfer: TransferRead = (ledger) => ledger;
+
+/** Wants every transfer whose `column` is one of `values`. An empty list asks
+ *  for nothing, and is answered without a round trip. */
+export const byColumnIn =
+  (
+    column: keyof RowOf<"transfers">,
+    values: readonly (string | number)[],
+  ): TransferRead =>
+  (ledger) =>
+    // The column is a text or a number column, as `values` is.
+    ledger.where((leg) => among(leg[column] as Expr<string | number>, values));
+
+const transferStatement = (read: LedgerRead): SqlStatement =>
+  read.columns(() => COLUMNS);
 
 /** One set of rows for each query, in the order the queries were given. A
  *  caller can then name them by destructuring rather than counting positions. */
@@ -230,8 +232,8 @@ export const selectTransfersMany = async <
   queries: Queries,
 ): Promise<TransfersPerQuery<Queries>> => {
   const asked = queries
-    .map((query, index) => ({ index, query }))
-    .filter(({ query }) => !matchesNoRows(query.where ?? []));
+    .map((query, index) => ({ index, query: query(from(tables.transfers)) }))
+    .filter(({ query }) => !query.matchesNothing());
   const answers =
     asked.length === 0
       ? []
@@ -255,24 +257,20 @@ export const selectTransfersMany = async <
  * the query. Pass nothing to read the whole table. */
 export const selectTransfers = async (
   read: BatchExecutor,
-  query: TransferRead = {},
+  query: TransferRead = everyTransfer,
 ): Promise<Transfer[]> => {
   const [rows] = await selectTransfersMany(read, [query]);
   return rows;
 };
 
-/** Read transfers whose rows a deferred numbered WHERE selects. A scope that
- *  names one value in several places binds it once and reuses its token. */
+/** Read transfers whose rows a WHERE condition selects. The condition reads
+ *  the ledger row as `transfer`. */
 export const selectTransfersScope = async (
   read: BatchExecutor,
-  where: NumberedSql,
+  where: SqlStatement,
 ): Promise<Transfer[]> => {
-  const statement = numberedStatement(where);
   const [result] = await read([
-    {
-      args: statement.args,
-      sql: `SELECT ${COLUMNS} FROM transfers WHERE ${statement.sql}`,
-    },
+    sql`SELECT ${COLUMNS} FROM transfers AS transfer WHERE ${where}`,
   ]);
   return transfersIn(requireValue(result, "Ledger read went unanswered"));
 };
@@ -282,11 +280,11 @@ export const selectByEventGroup = (
   read: BatchExecutor,
   eventGroup: string,
 ): Promise<Transfer[]> =>
-  selectTransfers(read, { where: equals("event_group", eventGroup) });
+  selectTransfers(read, byColumnIn("eventGroup", [eventGroup]));
 
 /** The stored transfer with this id, or null when none exists. */
 export const selectById = async (
   read: BatchExecutor,
   id: number,
 ): Promise<Transfer | null> =>
-  (await selectTransfers(read, { where: equals("id", id) }))[0] ?? null;
+  (await selectTransfers(read, byColumnIn("id", [id])))[0] ?? null;

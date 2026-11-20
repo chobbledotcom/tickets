@@ -2,72 +2,74 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
-import {
-  expectHtmlResponse,
-  expectIncludesAll,
-} from "#test-utils/assertions.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { adminFormPost, adminMultipartPost } from "#test-utils/session.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
+import {
+  submitListingCreate,
+  submitListingEdit,
+} from "#test-utils/listing-submits.ts";
+
+/** Post the create form with the base boxes plus the given ones, check the
+ *  answer's status, and return the page text and the stored listing. */
+const createAnswer = async (status: number, boxes: TestFormValues) => {
+  const { response } = await submitListingCreate(boxes);
+  expect(response.status).toBe(status);
+  return { listing: await getListingWithCount(1), text: await response.text() };
+};
+
+/** A refused create shows the message and stores nothing. */
+const expectRefusedCreate = async (
+  boxes: TestFormValues,
+  message: string,
+): Promise<string> => {
+  const { listing, text } = await createAnswer(400, boxes);
+  assertStringIncludes(text, message);
+  expect(listing).toBeNull();
+  return text;
+};
 
 describeWithEnv("server listings > create validation", { db: true }, () => {
   describe("POST /admin/listing with unit_price", () => {
     test("creates listing with unit_price when authenticated", async () => {
-      const { response } = await adminFormPost("/admin/listing", {
-        max_attendees: "50",
-        max_quantity: "1",
+      const { listing } = await createAnswer(302, {
         name: "Paid Listing",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: "10.00",
+        unitPrice: "10.00",
       });
-      expect(response.status).toBe(302);
+      expect(listing?.unitPrice).toBe(1000);
     });
 
-    test("creates a free listing when unit_price is blank (no price)", async () => {
-      // Exercises the optional-price parse's blank path: a blank unit_price
-      // resolves to no price, and the listing stores 0 (free).
-      const { response } = await adminFormPost("/admin/listing", {
-        max_attendees: "50",
-        max_quantity: "1",
-        name: "Free Listing",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: "",
-      });
-      expect(response.status).toBe(302);
-      expect((await getListingWithCount(1))?.unit_price).toBe(0);
+    test("refuses a blank unit_price and asks for 0 for a free listing", async () => {
+      await expectRefusedCreate(
+        { name: "Free Listing", unitPrice: "" },
+        "Enter a ticket price. Type 0 for free.",
+      );
     });
   });
   describe("POST /admin/listing day-price validation", () => {
     test("rejects a create when a day price is over-precise for the currency", async () => {
       // 10.005 has 3 decimals — invalid in GBP (2). Without validation this
       // would be silently dropped; instead the save is rejected.
-      const { response } = await adminFormPost("/admin/listing", {
-        day_price_1: "10.005",
-        max_attendees: "50",
-        max_quantity: "1",
-        name: "Bad Day Price",
-        thank_you_url: "https://example.com/thanks",
-      });
-      expect(response.status).toBe(400);
-      assertStringIncludes(await response.text(), "valid day price");
-      // Nothing was created.
-      expect(await getListingWithCount(1)).toBeNull();
+      await expectRefusedCreate(
+        { dayPrice1: "10.005", name: "Bad Day Price" },
+        "valid day price",
+      );
     });
 
     test("keeps repeated bookable days after a rejected create", async () => {
-      const { response } = await adminMultipartPost("/admin/listing", {
-        bookable_days: ["Monday", "Wednesday"],
-        day_price_1: "10.005",
-        listing_type: "daily",
-        max_attendees: "50",
-        max_quantity: "1",
-        name: "Bad Day Price",
-      });
-      expect(response.status).toBe(400);
-      const html = await response.text();
+      const html = await expectRefusedCreate(
+        {
+          bookableDays: ["Monday", "Wednesday"],
+          dayPrice1: "10.005",
+          listingType: "daily",
+          name: "Bad Day Price",
+        },
+        "valid day price",
+      );
       expectIncludesAll(html, [
         'value="Monday" checked',
         'value="Wednesday" checked',
@@ -75,64 +77,46 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
     });
 
     test("accepts a create with a valid day price and stores it", async () => {
-      const { response } = await adminFormPost("/admin/listing", {
-        day_price_1: "10.00",
-        max_attendees: "50",
-        max_quantity: "1",
+      const { listing } = await createAnswer(302, {
+        dayPrice1: "10.00",
         name: "Good Day Price",
-        thank_you_url: "https://example.com/thanks",
       });
-      expect(response.status).toBe(302);
-      expect((await getListingWithCount(1))?.day_prices).toEqual({ 1: 1000 });
+      expect(listing?.dayPrices).toEqual({ 1: 1000 });
     });
   });
   describe("POST /admin/listing with can_pay_more", () => {
     test("creates listing with can_pay_more enabled", async () => {
-      const { response } = await adminMultipartPost("/admin/listing", {
-        can_pay_more: "1",
-        max_attendees: "50",
-        max_quantity: "1",
+      const { listing } = await createAnswer(302, {
+        canPayMore: "1",
         name: "Pay More Listing",
-        unit_price: "10.00",
+        unitPrice: "10.00",
       });
-      expect(response.status).toBe(302);
-
-      const listing = await getListingWithCount(1);
-      expect(listing?.can_pay_more).toBe(true);
-      expect(listing?.unit_price).toBe(1000);
+      expect([listing?.canPayMore, listing?.unitPrice]).toEqual([true, 1000]);
     });
 
     test("creates listing with can_pay_more disabled by default", async () => {
-      const { response } = await adminMultipartPost("/admin/listing", {
-        max_attendees: "50",
-        max_quantity: "1",
+      const { listing } = await createAnswer(302, {
         name: "Normal Listing",
-        unit_price: "5.00",
+        unitPrice: "5.00",
       });
-      expect(response.status).toBe(302);
-
-      const listing = await getListingWithCount(1);
-      expect(listing?.can_pay_more).toBe(false);
+      expect(listing?.canPayMore).toBe(false);
     });
 
     test("updates listing can_pay_more via edit", async () => {
       const listing = await createTestListing({ unitPrice: 1000 });
 
-      const { response } = await adminMultipartPost(
-        `/admin/listing/${listing.id}/edit`,
-        {
-          can_pay_more: "1",
-          max_attendees: String(listing.max_attendees),
-          max_quantity: String(listing.max_quantity),
-          name: listing.name,
-          slug: listing.slug,
-          unit_price: "10.00",
-        },
-      );
+      const { response } = await submitListingEdit(listing.id, {
+        canPayMore: "1",
+        maxAttendees: String(listing.maxAttendees),
+        maxQuantity: String(listing.maxQuantity),
+        name: listing.name,
+        slug: listing.slug,
+        unitPrice: "10.00",
+      });
       expect(response.status).toBe(302);
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.can_pay_more).toBe(true);
+      expect(updated?.canPayMore).toBe(true);
     });
   });
   describe("POST /admin/listing with max_price", () => {
@@ -142,28 +126,24 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         maxPrice: 50000,
       });
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.max_price).toBe(50000);
-      expect(saved?.can_pay_more).toBe(true);
+      expect(saved?.maxPrice).toBe(50000);
+      expect(saved?.canPayMore).toBe(true);
     });
 
     test("max_price defaults to 10000 when not set", async () => {
       const listing = await createTestListing({ canPayMore: true });
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.max_price).toBe(10000);
+      expect(saved?.maxPrice).toBe(10000);
     });
 
     test("rejects max_price less than unit_price + 100 when can_pay_more", async () => {
-      const { response } = await adminMultipartPost("/admin/listing", {
-        can_pay_more: "1",
-        max_attendees: "50",
-        max_price: "10.50",
-        max_quantity: "1",
-        name: "Bad Max Price",
-        unit_price: "10.00",
-      });
-      await expectHtmlResponse(
-        response,
-        400,
+      await expectRefusedCreate(
+        {
+          canPayMore: "1",
+          maxPrice: "10.50",
+          name: "Bad Max Price",
+          unitPrice: "10.00",
+        },
         "Maximum price must be at least £1 more than the ticket price",
       );
     });
@@ -174,7 +154,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         unitPrice: 1000,
       });
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.max_price).toBe(1050);
+      expect(saved?.maxPrice).toBe(1050);
     });
 
     test("accepts max_price equal to unit_price + 100", async () => {
@@ -182,7 +162,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         maxPrice: 1100,
         unitPrice: 1000,
       });
-      expect(listing.max_price).toBe(1100);
+      expect(listing.maxPrice).toBe(1100);
     });
 
     test("updates max_price via edit", async () => {
@@ -192,7 +172,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       });
       await updateTestListing(listing.id, { maxPrice: 25000 });
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.max_price).toBe(25000);
+      expect(updated?.maxPrice).toBe(25000);
     });
   });
 });

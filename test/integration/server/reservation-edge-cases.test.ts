@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import {
@@ -16,6 +16,7 @@ import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
+  insertModifier,
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
@@ -30,6 +31,17 @@ import {
   stubPaidSession,
 } from "#test-utils/reservation/helpers.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
+
+/** The figures a reservation leaves on its attendee: the whole £10 sale counts
+ *  as paid gross whatever the deposit collected, so the balance is what is
+ *  still owed after the deposit, its fee, and any discount. */
+const expectReservationFigures = (
+  attendee: { pricePaid: number; remainingBalance: number },
+  remainingBalance: number,
+): void => {
+  expect(attendee.pricePaid).toBe(1000);
+  expect(attendee.remainingBalance).toBe(remainingBalance);
+};
 
 describeWithEnv(
   "server (reservation deposit at checkout)",
@@ -123,8 +135,8 @@ describeWithEnv(
           "#test-utils/processed-payments.ts"
         );
         const record = await getProcessedPayment("cs_addon_sold");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
+        expect(record?.attendeeId).toBeNull();
+        expect(record?.failureData).not.toBe("");
       } finally {
         session.restore();
         refund.restore();
@@ -135,7 +147,7 @@ describeWithEnv(
       const listing = await setupReservationListing();
       // Clear the public-default flag so the required lookup fails.
       await getDb().execute(
-        "UPDATE attendee_statuses SET is_public_default = 0",
+        sql`UPDATE attendee_statuses SET is_public_default = 0`,
       );
       attendeeStatuses.invalidate();
       await expect(captureCheckoutIntent(listing)).rejects.toThrow(
@@ -162,8 +174,7 @@ describeWithEnv(
       );
       // Gross sale leg is the full £10 even though £0 was collected up front;
       // the whole £10 is owed. (price_paid no longer tracks cash — concern 5.)
-      expect(attendee.pricePaid).toBe(1000);
-      expect(attendee.remainingBalance).toBe(1000);
+      expectReservationFigures(attendee, 1000);
       const summary = await getAttendeeOrderSummary(attendee.id);
       expect(summary.fullPrice).toBe(1100);
       expect(summary.reservationSubtotal).toBe(1000);
@@ -176,17 +187,14 @@ describeWithEnv(
       const attendee = await bookFreeOrder(listing);
       // Gross sale leg is the full £10 (provider skipped, £0 collected); the
       // whole £10 is owed. price_paid no longer tracks cash collected.
-      expect(attendee.pricePaid).toBe(1000);
-      expect(attendee.remainingBalance).toBe(1000);
+      expectReservationFigures(attendee, 1000);
       expect(attendee.statusId).toBe(statusId);
     });
 
     test("reservation discounts reduce the paid deposit and remaining balance", async () => {
       const listing = await setupReservationListing({ bookingFee: "0" });
       const statusId = await setPublicReservation("10%");
-      const modifier = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
+      const modifier = await insertModifier({
         direction: "discount",
         name: "Discount",
       });
@@ -204,8 +212,7 @@ describeWithEnv(
       );
       // Gross sale leg (£10 list); the £5 discount and £0.50 deposit are
       // separate legs. The £4.50 owed stays accurate.
-      expect(attendee.pricePaid).toBe(1000);
-      expect(attendee.remainingBalance).toBe(450);
+      expectReservationFigures(attendee, 450);
       expect(attendee.statusId).toBe(statusId);
     });
   },

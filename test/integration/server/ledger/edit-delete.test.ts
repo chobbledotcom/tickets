@@ -31,13 +31,13 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
       "Edit money change",
       'name="amount"',
       'value="12.34"',
-      'name="occurred_at"',
+      'name="occurredAt"',
       'value="2026-06-22T09:30"',
       "Delete money change",
       "Warning: This permanently deletes this money change.",
       `Type the exact amount &quot;${formatCurrency(1234)}&quot; to confirm.`,
       formatCurrency(1234),
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
     ]);
   });
 
@@ -50,7 +50,7 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     const html = await response.text();
     assertStringIncludes(
       html,
-      'name="return_url" type="hidden" value="/admin/ledger"',
+      'name="returnUrl" type="hidden" value="/admin/ledger"',
     );
     assert(!html.includes('value="/null"'));
   });
@@ -69,8 +69,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
       `/admin/ledger/entries/${sale!.id}/edit`,
       {
         amount: "99.99",
-        occurred_at: "2026-06-23T10:15",
-        return_url: "/admin/ledger?view=dual",
+        occurredAt: "2026-06-23T10:15",
+        returnUrl: "/admin/ledger?view=dual",
       },
     );
     expect(postEdit.response.status).toBe(404);
@@ -78,8 +78,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     const postDelete = await adminFormPost(
       `/admin/ledger/entries/${sale!.id}/delete`,
       {
-        confirm_identifier: formatCurrency(sale!.amount),
-        return_url: "/admin/ledger?view=dual",
+        confirmIdentifier: formatCurrency(sale!.amount),
+        returnUrl: "/admin/ledger?view=dual",
       },
     );
     expect(postDelete.response.status).toBe(404);
@@ -99,8 +99,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
       `/admin/ledger/entries/${entry!.id}/edit`,
       {
         amount: "7.89",
-        occurred_at: "2026-06-23T10:15",
-        return_url: "/admin/ledger?view=dual",
+        occurredAt: "2026-06-23T10:15",
+        returnUrl: "/admin/ledger?view=dual",
       },
     );
     await expectFlashRedirect(
@@ -125,8 +125,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
         `/admin/ledger/entries/${entry!.id}/edit`,
         {
           amount,
-          occurred_at: "2026-06-23T10:15",
-          return_url: "/admin/ledger",
+          occurredAt: "2026-06-23T10:15",
+          returnUrl: "/admin/ledger",
         },
       );
       expect(response.status).toBe(302);
@@ -146,16 +146,16 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
 
     const postEdit = await adminFormPost("/admin/ledger/entries/999999/edit", {
       amount: "1.00",
-      occurred_at: "2026-06-23T10:15",
-      return_url: "/admin/ledger",
+      occurredAt: "2026-06-23T10:15",
+      returnUrl: "/admin/ledger",
     });
     expect(postEdit.response.status).toBe(404);
 
     const postDelete = await adminFormPost(
       "/admin/ledger/entries/999999/delete",
       {
-        confirm_identifier: "£1.00",
-        return_url: "/admin/ledger",
+        confirmIdentifier: "£1.00",
+        returnUrl: "/admin/ledger",
       },
     );
     expect(postDelete.response.status).toBe(404);
@@ -167,8 +167,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     const [entry] = await allTransfers();
     const deletePath = `/admin/ledger/entries/${entry!.id}/delete`;
     const wrong = await adminFormPost(deletePath, {
-      confirm_identifier: "£0.01",
-      return_url: `/admin/attendees/${attendeeId}`,
+      confirmIdentifier: "£0.01",
+      returnUrl: `/admin/attendees/${attendeeId}`,
     });
     assertStringIncludes(
       wrong.response.headers.get("location") ?? "",
@@ -177,8 +177,8 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     expect(await allTransfers()).toHaveLength(1);
 
     const correct = await adminFormPost(deletePath, {
-      confirm_identifier: formatCurrency(entry!.amount),
-      return_url: `/admin/attendees/${attendeeId}`,
+      confirmIdentifier: formatCurrency(entry!.amount),
+      returnUrl: `/admin/attendees/${attendeeId}`,
     });
     await expectFlashRedirect(
       `/admin/attendees/${attendeeId}`,
@@ -195,9 +195,9 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
       `/admin/ledger/attendee/${attendeeId}/add`,
       {
         amount: "5.00",
-        entry_type: MANUAL_ATTENDEE_CHARGE,
-        occurred_at: "2026-06-22T09:30",
-        return_url: "/admin/ledger",
+        entryType: MANUAL_ATTENDEE_CHARGE,
+        occurredAt: "2026-06-22T09:30",
+        returnUrl: "/admin/ledger",
       },
     );
     await expectFlashRedirect(

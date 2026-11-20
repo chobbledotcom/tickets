@@ -29,6 +29,7 @@ import {
   sendSuperuserCredentialsEmail,
 } from "#shared/superuser.ts";
 import { times } from "#test-utils/arrays.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
@@ -136,7 +137,7 @@ const createOwnerUser =
     );
   };
 
-const withSuperuserQueryLog = async <T>(
+const expectSuperuserQueryLog = async <T>(
   body: () => T | Promise<T>,
 ): Promise<T> =>
   withRequestContext(async () => {
@@ -392,7 +393,7 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
 describeWithEnv("getSuperuserState account lookup", { db: true }, () => {
   const withAdminEmail = withConfiguredAdminEmail(useAdminEmailEnv());
   const withAdminEmailQueryLog = (body: () => Promise<void>): Promise<void> =>
-    withAdminEmail(() => withSuperuserQueryLog(body));
+    withAdminEmail(() => expectSuperuserQueryLog(body));
 
   test("resolves the superuser by blind index, never scanning the whole users table", async () => {
     await withAdminEmailQueryLog(async () => {
@@ -454,7 +455,7 @@ describeWithEnv("getSuperuserState account lookup", { db: true }, () => {
     await withAdminEmail(async () => {
       await getSuperuserState(); // warm cache
       invalidateUsersCache();
-      await withSuperuserQueryLog(expectLoggedSuperuserStateRead);
+      await expectSuperuserQueryLog(expectLoggedSuperuserStateRead);
     });
   });
 
@@ -470,7 +471,7 @@ describeWithEnv("getSuperuserState account lookup", { db: true }, () => {
       // The raced result predates the write, so it must not have been written
       // back. A follow-up read therefore misses the cache and re-queries rather
       // than serving the poisoned entry for the rest of the TTL.
-      await withSuperuserQueryLog(async () => {
+      await expectSuperuserQueryLog(async () => {
         await getSuperuserState();
         expectSuperuserLookupQuery(true);
       });
@@ -508,11 +509,7 @@ describe("generateSuperuserPassword", () => {
 
   test("excludes ambiguous characters (0, O, I, l, 1)", () => {
     for (const pw of samplePasswords(20)(100)) {
-      assert(!pw.includes("0"));
-      assert(!pw.includes("O"));
-      assert(!pw.includes("I"));
-      assert(!pw.includes("l"));
-      assert(!pw.includes("1"));
+      expectExcludesAll(pw, ["0", "O", "I", "l", "1"]);
     }
   });
 
@@ -619,18 +616,18 @@ describeWithEnv("createActivatedSuperuser", { db: true }, () => {
     const { user } = await createActivatedAdmin("pass1234abcd")();
     expect(await decryptUsername(user)).toBe("admin");
     expect(await decryptAdminLevel(user)).toBe("owner");
-    expect(user.kek_version).toBe(2);
-    expect(user.invite_code_hash).toBeNull();
-    expect(user.invite_expiry).toBeNull();
-    expect(user.invite_wrapped_data_key).toBeNull();
-    expect(user.wrapped_data_key).toMatch(/^wk:1:[^:]+:[^:]+$/);
+    expect(user.kekVersion).toBe(2);
+    expect(user.inviteCodeHash).toBeNull();
+    expect(user.inviteExpiry).toBeNull();
+    expect(user.inviteWrappedDataKey).toBeNull();
+    expect(user.wrappedDataKey).toMatch(/^wk:1:[^:]+:[^:]+$/);
   });
 
   test("created user's password can be verified with the raw password", async () => {
     const password = "mysecretpw";
     await createActivatedAdmin(password)();
     const fetchedUser = await getUserByUsername("admin");
-    expect(fetchedUser?.kek_version).toBe(2);
+    expect(fetchedUser?.kekVersion).toBe(2);
     expect(await verifyUserPassword(fetchedUser!, password)).toMatch(
       new RegExp(`^pbkdf2:${getPbkdf2Iterations()}:[^:]+:[^:]+$`),
     );

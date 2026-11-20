@@ -1,6 +1,6 @@
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import { hashEmail, unsubscribeHash } from "#db/contact-preferences.ts";
+import { insertEmailTemplate } from "#db/email-templates.ts";
 import { settings } from "#db/settings.ts";
 import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";
 import {
@@ -55,6 +55,14 @@ export const seedDraft = async (draft: BulkEmailDraft) =>
     ),
   });
 
+/** Seed a saved template encrypted with the owner's public key, as a save
+ * stores it. */
+export const seedTemplate = async (subject: string, body: string) =>
+  insertEmailTemplate(
+    await encryptWithOwnerKey(subject, settings.publicKey),
+    await encryptWithOwnerKey(body, settings.publicKey),
+  );
+
 /** Seed a two-attendee listing where one attendee has unsubscribed, then save
  * a marketing draft targeting it. Shared by the preview and send tests that
  * own the direct cover of the skipping branches. */
@@ -63,7 +71,7 @@ export const seedMarketingDraftWithUnsubscriber = async () => {
   await unsubscribeHash(await hashEmail("alice@example.com"));
   await adminFormPost("/admin/emails/preview", {
     body: "Promo",
-    listing_id: String(listing.id),
+    listingId: String(listing.id),
     marketing: "1",
     subject: "Sale",
   });

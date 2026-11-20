@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import {
   type AdminApiTransport,
   adminApiChildCreate,
@@ -125,6 +126,26 @@ const syncAttributeOptions = async (
   }
 };
 
+/** The part of the listing list answer that names the site features. */
+const SiteFeaturesSchema = v.object({
+  features: v.object({ attributes: v.boolean() }),
+});
+
+/** The attribute step of a site that has attributes turned off: nothing is
+ *  read or written. Null tells each listing body to leave the selection out. */
+const skipAttributes = (
+  planned: readonly PlannedAttribute[],
+  report: Report,
+): null => {
+  if (planned.length > 0) {
+    line(
+      report,
+      `skipped ${planned.length} attributes: the attributes feature is off on the site`,
+    );
+  }
+  return null;
+};
+
 /** Create the site's attributes and options; returns option id by attribute
  * value. Existing attributes and options are matched by name and reused, so a
  * rerun never duplicates them. */
@@ -246,7 +267,7 @@ const importProduct = async (
   text: string,
   plan: ImportPlan,
   files: CatalogFiles,
-  optionIds: ReadonlyMap<string, number>,
+  optionIds: ReadonlyMap<string, number> | null,
   groupIdsBySlug: ReadonlyMap<string, number>,
   flags: ImportFlags,
   report: Report,
@@ -333,8 +354,9 @@ export const runImport = async (
     `${flags.dir}/src/categories`,
     catalog.flatMap(({ product }) => product.categories),
   );
-  const existing = (await adminApiList(transport, ADMIN_API_RESOURCES.listings))
-    .listings;
+  const snapshot = await adminApiList(transport, ADMIN_API_RESOURCES.listings);
+  const existing = snapshot.listings;
+  const { features } = v.parse(SiteFeaturesSchema, snapshot);
   const existingGroups = (
     await adminApiList(transport, ADMIN_API_RESOURCES.groups)
   ).groups;
@@ -390,12 +412,10 @@ export const runImport = async (
     existingGroups,
   );
   ensureConsistentAttributeSpellings(active.map(({ product }) => product));
-  const optionIds = await syncAttributes(
-    transport,
-    attributeVocabulary(active.map(({ product }) => product)),
-    flags.plan,
-    report,
-  );
+  const vocabulary = attributeVocabulary(active.map(({ product }) => product));
+  const optionIds = features.attributes
+    ? await syncAttributes(transport, vocabulary, flags.plan, report)
+    : skipAttributes(vocabulary, report);
   const groupIdsBySlug = await syncGroups(
     transport,
     existingGroups,

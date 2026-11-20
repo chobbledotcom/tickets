@@ -48,12 +48,12 @@ export const listingTypeFromRequest = (request: Request): ListingFilter => {
 
 /** The category a listing falls under: purchase-only first, then its type. */
 export const listingCategory = (listing: {
-  purchase_only: boolean;
-  listing_type: ListingType;
+  purchaseOnly: boolean;
+  listingType: ListingType;
 }): ListingFilter =>
-  listing.purchase_only
+  listing.purchaseOnly
     ? "purchase-only"
-    : listing.listing_type === "daily"
+    : listing.listingType === "daily"
       ? "daily"
       : "standard";
 
@@ -64,7 +64,7 @@ export const listingCategory = (listing: {
  */
 export const filterListingsByType =
   (type: ListingFilter) =>
-  <T extends { purchase_only: boolean; listing_type: ListingType }>(
+  <T extends { purchaseOnly: boolean; listingType: ListingType }>(
     listings: readonly T[],
   ): T[] =>
     type === "all"

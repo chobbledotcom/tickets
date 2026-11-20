@@ -21,10 +21,9 @@ import {
   listingNamed,
   tickOnListingTab,
 } from "#test/specs/support/listings.ts";
-import { movingRowsOn } from "#test/specs/support/reordering.ts";
+import { upArrowOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
-  type AsksAboutOneThing,
   type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
@@ -53,7 +52,7 @@ const ownerWritesQuestion = (
   withAdminPage(world, "/admin/questions", async (browser) => {
     await fillInAndSend(
       browser,
-      { display_type: displayType, text },
+      { displayType: displayType, text },
       "Add question",
     );
     const id = browser.currentUrl.match(/\/admin\/questions\/(\d+)/)?.[1];
@@ -70,7 +69,7 @@ const ownerAssignsQuestionTo: ActOnOneThing = (world, listingName) =>
     world,
     listingName,
     "questions",
-    "question_ids",
+    "questionIds",
     askedQuestion(world).id,
     "Questions updated",
   );
@@ -125,7 +124,7 @@ export const questionFieldOn = (
   world: TicketsWorld,
   browser: TestBrowser,
 ): string => {
-  const name = `question_${askedQuestion(world).id}`;
+  const name = `question${askedQuestion(world).id}`;
   assertStringIncludes(browser.currentHtml, `name="${name}"`);
   return name;
 };
@@ -149,7 +148,7 @@ export const visitorBooksAnswering: BooksAnsweringAQuestion = async (
     {
       email: "buyer@example.com",
       name: "Casey Buyer",
-      [`quantity_${listingNamed(world, listingName).id}`]: "1",
+      [`quantity${listingNamed(world, listingName).id}`]: "1",
       [questionFieldOn(world, browser)]: answer,
     },
     "Continue",
@@ -264,8 +263,8 @@ const openAtAnswer: OpensAtOneRow = async (world, name) => {
   };
 };
 
-/** The arrows the question's page offers for moving one answer. */
-const answerArrows = movingRowsOn(
+/** The up arrow on each answer of the question's page. */
+const answerUpArrow = upArrowOn(
   (world) => `/admin/questions/${askedQuestion(world).id}/answers`,
   openAtAnswer,
 );
@@ -283,13 +282,11 @@ export const ownerAddsAnswer = async (
 };
 
 /** The owner moves one answer a step up the question's page. */
-export const ownerMovesAnswerUp: ActOnOneThing = (world, name) =>
-  answerArrows.move(world, name, "up");
+export const ownerMovesAnswerUp = answerUpArrow.movesUp;
 
 /** Whether the question's page still offers to move an answer up. A top
  * answer is one nobody could move further, so the page offers no arrow. */
-export const answerOffersMoveUp: AsksAboutOneThing = (world, name) =>
-  answerArrows.canMove(world, name, "up");
+export const answerOffersMoveUp = answerUpArrow.offersMoveUp;
 
 /** The answers one served booking page offers for a named question, in the
  * order the page renders them. */
@@ -299,7 +296,7 @@ export const offeredAnswersInOrder = async (
   text: string,
 ): Promise<string[]> => {
   const browser = await visitorOpensBooking(world, listingName);
-  const field = `question_${questionIdFor(world, text)}`;
+  const field = `question${questionIdFor(world, text)}`;
   assertStringIncludes(browser.currentHtml, `name="${field}"`);
   // Each answer renders as one labelled radio under the question's name, in
   // the order the site put them in, so the labels themselves are the order a

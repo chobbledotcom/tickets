@@ -26,21 +26,21 @@ describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
       const { response } = await adminFormPost(`/admin/servicing/${id}`, {
         amount,
         memo: "Bad",
-        target_listing_id: String(listing.id),
+        targetListingId: String(listing.id),
       });
       await expectCostFormError(response, id, before);
     }
     expect(await listingCostOf(listing.id)).toBe(0);
   });
 
-  test("an invalid create target_listing_id writes no service_cost transfer", async () => {
+  test("an invalid create targetListingId writes no service_cost transfer", async () => {
     const { id, listing } = await createServicingHold();
     const before = (await allTransfers()).length;
     for (const target of ["", "abc", "0", "-3"]) {
       const { response } = await adminFormPost(`/admin/servicing/${id}`, {
         amount: "90.00",
         memo: "Bad",
-        target_listing_id: target,
+        targetListingId: target,
       });
       await expectCostFormError(response, id, before);
     }
@@ -48,7 +48,7 @@ describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
     const { response } = await adminFormPost(`/admin/servicing/${id}`, {
       amount: "90.00",
       memo: "Bad",
-      target_listing_id: String(other.id),
+      targetListingId: String(other.id),
     });
     await expectCostFormError(response, id, before);
     expect(await listingCostOf(listing.id)).toBe(0);

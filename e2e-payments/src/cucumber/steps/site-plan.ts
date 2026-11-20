@@ -62,11 +62,11 @@ Given(
     step(`Registering an assignable built site (${site.url})`);
     await owner.goto("/admin/built-sites/new");
     await owner.fill("name", site.name);
-    await owner.fill("site_url", site.url);
+    await owner.fill("siteUrl", site.url);
     // The purchase's renewal pushes are Bunny API calls, and this case's app
     // server answers those from canned bodies, so any hosting id reaches a
     // canned answer.
-    await owner.fill("hosting_id", "42");
+    await owner.fill("hostingId", "42");
     await owner.check("assignable");
     await owner.clickButton(
       await catalogWords("built-sites", "built_sites.create_built_site_button"),

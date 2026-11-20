@@ -2,7 +2,11 @@ import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import { executeBatch, getDb, insert } from "#db/client.ts";
+import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { executeBatch, getDb } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { nowMs } from "#shared/now.ts";
 import { CLAIM_MIRROR } from "#test-utils/payment-claim.ts";
 
@@ -12,12 +16,12 @@ export const insertFinalizedPayment = async (
   opts: { attendeeId?: number; paymentReference?: string } = {},
 ): Promise<void> => {
   await getDb().execute(
-    insert("processed_payments", {
-      attendee_id: opts.attendeeId ?? 1,
-      payment_reference: opts.paymentReference ?? "",
-      payment_session_id: sessionId,
-      processed_at: processedAtIso,
-      ticket_tokens: "",
+    insertInto(tables.processed_payments, {
+      attendeeId: opts.attendeeId ?? 1,
+      paymentReference: (opts.paymentReference ?? "") as OwnerKeyEncrypted | "",
+      paymentSessionId: sessionId,
+      processedAt: processedAtIso,
+      ticketTokens: "",
     }),
   );
 };
@@ -27,10 +31,10 @@ export const insertUnfinalizedPayment = async (
   processedAtIso: string,
 ): Promise<void> => {
   await getDb().execute(
-    insert("processed_payments", {
-      attendee_id: null,
-      payment_session_id: sessionId,
-      processed_at: processedAtIso,
+    insertInto(tables.processed_payments, {
+      attendeeId: null,
+      paymentSessionId: sessionId,
+      processedAt: processedAtIso,
     }),
   );
 };
@@ -40,11 +44,12 @@ export const insertFailedPayment = async (
   processedAtIso: string,
 ): Promise<void> => {
   await getDb().execute(
-    insert("processed_payments", {
-      attendee_id: null,
-      failure_data: '{"error":"sold out","status":409,"refunded":true}',
-      payment_session_id: sessionId,
-      processed_at: processedAtIso,
+    insertInto(tables.processed_payments, {
+      attendeeId: null,
+      failureData:
+        '{"error":"sold out","status":409,"refunded":true}' as EnvKeyEncrypted,
+      paymentSessionId: sessionId,
+      processedAt: processedAtIso,
     }),
   );
 };
@@ -57,21 +62,21 @@ export const insertClaimedPayment = async (
   attendeeId: number | null = null,
 ): Promise<void> => {
   await getDb().execute(
-    insert("processed_payments", {
-      attendee_id: attendeeId,
-      failure_data: '{"error":"sold out","status":409,"refunded":true}',
-      payment_session_id: sessionId,
-      processed_at: processedAtIso,
-      protected_state: CLAIM_MIRROR,
+    insertInto(tables.processed_payments, {
+      attendeeId: attendeeId,
+      failureData:
+        '{"error":"sold out","status":409,"refunded":true}' as EnvKeyEncrypted,
+      paymentSessionId: sessionId,
+      processedAt: processedAtIso,
+      protectedState: CLAIM_MIRROR,
     }),
   );
 };
 
 export const paymentExists = async (sessionId: string): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [sessionId],
-    sql: "SELECT 1 FROM processed_payments WHERE payment_session_id = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM processed_payments WHERE payment_session_id = ${sessionId}`,
+  );
   return rows.length > 0;
 };
 
@@ -94,11 +99,11 @@ export const insertSumupCheckout = async (
   createdAtIso: string,
 ): Promise<void> => {
   await getDb().execute(
-    insert("sumup_checkouts", {
-      created_at: createdAtIso,
+    insertInto(tables.sumup_checkouts, {
+      createdAt: createdAtIso,
       metadata: "ciphertext",
-      reference_index: referenceIndex,
-      wrapped_key: "wk",
+      referenceIndex: referenceIndex,
+      wrappedKey: "wk",
     }),
   );
 };
@@ -106,10 +111,9 @@ export const insertSumupCheckout = async (
 export const sumupCheckoutExists = async (
   referenceIndex: string,
 ): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [referenceIndex],
-    sql: "SELECT 1 FROM sumup_checkouts WHERE reference_index = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM sumup_checkouts WHERE reference_index = ${referenceIndex}`,
+  );
   return rows.length > 0;
 };
 
@@ -119,11 +123,11 @@ export const insertString = async (
   usedCount: number,
 ): Promise<void> => {
   await getDb().execute(
-    insert("strings", {
+    insertInto(tables.strings, {
       created,
-      encrypted_text: "ciphertext",
-      text_index: textIndex,
-      used_count: usedCount,
+      encryptedText: "ciphertext",
+      textIndex: textIndex,
+      usedCount: usedCount,
     }),
   );
 };
@@ -135,20 +139,19 @@ export const insertStrings = (
 ): Promise<void> =>
   executeBatch(
     Array.from({ length: count }, (_, index) =>
-      insert("strings", {
+      insertInto(tables.strings, {
         created,
-        encrypted_text: "ciphertext",
-        text_index: `${prefix}-${index}`,
-        used_count: 0,
+        encryptedText: "ciphertext",
+        textIndex: `${prefix}-${index}`,
+        usedCount: 0,
       }),
     ),
   );
 
 export const stringExists = async (textIndex: string): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [textIndex],
-    sql: "SELECT 1 FROM strings WHERE text_index = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM strings WHERE text_index = ${textIndex}`,
+  );
   return rows.length > 0;
 };
 
@@ -159,18 +162,16 @@ export const insertLoginAttempt = async (
   lastAttempt: number,
 ): Promise<string> => {
   const ipHash = await hmacHash(ipPlain);
-  await getDb().execute({
-    args: [ipHash, attempts, lockedUntil, lastAttempt],
-    sql: "INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt) VALUES (?, ?, ?, ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt) VALUES (${ipHash}, ${attempts}, ${lockedUntil}, ${lastAttempt})`,
+  );
   return ipHash;
 };
 
 export const loginAttemptExists = async (ipHash: string): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [ipHash],
-    sql: "SELECT 1 FROM login_attempts WHERE ip = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM login_attempts WHERE ip = ${ipHash}`,
+  );
   return rows.length > 0;
 };
 
@@ -180,18 +181,16 @@ export const insertTokenAttempt = async (
   lastAttempt: number,
 ): Promise<string> => {
   const ipHash = await hmacHash(ipPlain);
-  await getDb().execute({
-    args: [ipHash, "[]", lockedUntil, lastAttempt, lastAttempt],
-    sql: "INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, ?, ?, ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (${ipHash}, ${"[]"}, ${lockedUntil}, ${lastAttempt}, ${lastAttempt})`,
+  );
   return ipHash;
 };
 
 export const tokenAttemptExists = async (ipHash: string): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [ipHash],
-    sql: "SELECT 1 FROM token_attempts WHERE ip = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM token_attempts WHERE ip = ${ipHash}`,
+  );
   return rows.length > 0;
 };
 
@@ -200,19 +199,17 @@ export const insertContactPreference = async (
   unsubscribed: number,
   lastActivity: number,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [hash, unsubscribed, lastActivity],
-    sql: "INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity) VALUES (?, ?, 1, '', ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity) VALUES (${hash}, ${unsubscribed}, 1, '', ${lastActivity})`,
+  );
 };
 
 export const contactPreferenceExists = async (
   hash: string,
 ): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [hash],
-    sql: "SELECT 1 FROM contact_preferences WHERE contact_hash = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM contact_preferences WHERE contact_hash = ${hash}`,
+  );
   return rows.length > 0;
 };
 
@@ -220,20 +217,19 @@ export const insertOrphanAttendee = async (
   createdIso: string,
 ): Promise<number> => {
   const result = await getDb().execute(
-    insert("attendees", {
+    insertInto(tables.attendees, {
       created: createdIso,
-      pii_blob: "",
-      ticket_token_index: `prune-orphan-${crypto.randomUUID()}`,
+      piiBlob: "",
+      ticketTokenIndex: `prune-orphan-${crypto.randomUUID()}`,
     }),
   );
   return Number(result.lastInsertRowid);
 };
 
 export const attendeeExists = async (id: number): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [id],
-    sql: "SELECT 1 FROM attendees WHERE id = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM attendees WHERE id = ${id}`,
+  );
   return rows.length > 0;
 };
 
@@ -244,18 +240,16 @@ export const insertScanOperation = async (
   operationId: string,
   createdIso: string,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [operationId, "a-token-digest", "[3]", 1, createdIso],
-    sql: "INSERT INTO processed_scan_operations (operation_id, token_hash, listing_ids, quantity, created) VALUES (?, ?, ?, ?, ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO processed_scan_operations (operation_id, token_hash, listing_ids, quantity, created) VALUES (${operationId}, ${"a-token-digest"}, ${"[3]"}, ${1}, ${createdIso})`,
+  );
 };
 
 export const scanOperationExists = async (
   operationId: string,
 ): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [operationId],
-    sql: "SELECT 1 FROM processed_scan_operations WHERE operation_id = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM processed_scan_operations WHERE operation_id = ${operationId}`,
+  );
   return rows.length > 0;
 };

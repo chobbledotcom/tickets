@@ -30,17 +30,17 @@ const aggregateFieldsFor =
     buildAggregateFields(specs);
 
 const LISTING_AGGREGATE_FIELDS = [
-  { labelKey: "fields.listing.booked_quantity", name: "booked_quantity" },
-  { labelKey: "fields.listing.tickets_count", name: "tickets_count" },
+  { labelKey: "fields.listing.booked_quantity", name: "bookedQuantity" },
+  { labelKey: "fields.listing.tickets_count", name: "ticketsCount" },
 ] as const satisfies readonly AggregateFieldSpec[];
 
 const MODIFIER_AGGREGATE_FIELDS = [
-  { labelKey: "fields.modifier.total_uses", name: "total_uses" },
-  { labelKey: "fields.modifier.usage_count", name: "usage_count" },
+  { labelKey: "fields.modifier.total_uses", name: "totalUses" },
+  { labelKey: "fields.modifier.usage_count", name: "usageCount" },
 ] as const satisfies readonly AggregateFieldSpec[];
 
 const ANSWER_AGGREGATE_FIELDS = [
-  { labelKey: "fields.answer.times_selected", name: "times_selected" },
+  { labelKey: "fields.answer.times_selected", name: "timesSelected" },
 ] as const satisfies readonly AggregateFieldSpec[];
 
 export const getListingAggregateFields = aggregateFieldsFor(

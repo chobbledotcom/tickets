@@ -194,7 +194,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       labelKey: "listings_table.scanner",
       sections: [],
       slug: "scanner",
-      visible: staffAnd((entity) => !entity.listing.purchase_only),
+      visible: staffAnd((entity) => !entity.listing.purchaseOnly),
     },
     // Editors and above can edit, but not in read-only mode. In that mode the
     // global guard redirects the edit route to /read-only. Hide the tab then

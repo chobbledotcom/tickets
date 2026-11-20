@@ -4,33 +4,62 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
-import { handleRequest } from "#routes";
+import { records } from "#db/record-table.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { assertJson, expectRejectsEmptyName } from "#test-utils/assertions.ts";
+import {
+  expectApiRecord,
+  type JsonBody,
+  postJson,
+  putJson,
+  requestAs,
+} from "#test-utils/api/admin-json.ts";
+import {
+  expectApiError,
+  expectRejectsEmptyName,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  apiRequest,
   createTestAgentSession,
   createTestEditorSession,
-  requestAsSession,
 } from "#test-utils/session.ts";
+
+/** The path of one group in the admin API. */
+const groupPath = (id: number | string): string => `/api/admin/groups/${id}`;
+
+/** The group that an admin API answer holds. */
+const expectGroup = expectApiRecord("group");
+
+/** Rename a group through the admin API as a signed-in session. */
+const renameAs = async (cookie: string, id: number, name: string) =>
+  requestAs({ cookie, csrfToken: await signCsrfToken() }, groupPath(id), {
+    body: { name },
+    method: "PUT",
+  });
+
+/** Change a new group through the admin API and check the group that the
+ *  answer holds. */
+const expectGroupChange = async (
+  fields: Parameters<typeof createTestGroup>[0],
+  changes: JsonBody,
+  check: (group: JsonBody) => void,
+): Promise<void> => {
+  const group = await createTestGroup(fields);
+  await expectGroup(putJson(groupPath(group.id), changes), 200, check);
+};
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("PUT /api/admin/groups/:groupId", () => {
     test("updates group name", async () => {
       const group = await createTestGroup({ name: "Old Group" });
 
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { name: "New Group Name" },
-          method: "PUT",
-        }),
+      await expectGroup(
+        putJson(groupPath(group.id), { name: "New Group Name" }),
         200,
-        (body) => {
-          expect(body.group.name).toBe("New Group Name");
-          expect(body.group.slug).toBe(group.slug);
+        (row) => {
+          expect(row.name).toBe("New Group Name");
+          expect(row.slug).toBe(group.slug);
         },
       );
     });
@@ -42,25 +71,10 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       const group = await createTestGroup({ name: "Editor Edit" });
       const editor = await createTestEditorSession();
 
-      await assertJson(
-        handleRequest(
-          requestAsSession(
-            `/api/admin/groups/${group.id}`,
-            {
-              cookie: editor.cookie,
-              csrfToken: await signCsrfToken(),
-            },
-            {
-              body: JSON.stringify({ name: "Editor Renamed" }),
-              headers: { "content-type": "application/json" },
-              method: "PUT",
-            },
-          ),
-        ),
+      await expectGroup(
+        renameAs(editor.cookie, group.id, "Editor Renamed"),
         200,
-        (body) => {
-          expect(body.group.name).toBe("Editor Renamed");
-        },
+        (row) => expect(row.name).toBe("Editor Renamed"),
       );
     });
 
@@ -68,112 +82,71 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       const group = await createTestGroup({ name: "Agent Edit" });
       const agent = await createTestAgentSession();
 
-      const response = await handleRequest(
-        requestAsSession(
-          `/api/admin/groups/${group.id}`,
-          {
-            cookie: agent.cookie,
-            csrfToken: await signCsrfToken(),
-          },
-          {
-            body: JSON.stringify({ name: "Agent Renamed" }),
-            headers: { "content-type": "application/json" },
-            method: "PUT",
-          },
-        ),
-      );
+      const response = await renameAs(agent.cookie, group.id, "Agent Renamed");
       expect(response.status).toBe(403);
-      const row = await groups.table.read.one({ id: group.id });
+      const row = await records.groups.find(group.id);
       expect(row?.name).toBe("Agent Edit");
     });
 
     test("refuses a malformed catalog field, naming the field", async () => {
       const group = await createTestGroup({ name: "Catalog Guard" });
 
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { hidden: "maybe", name: "Catalog Guard" },
-          method: "PUT",
+      await expectApiError(
+        putJson(groupPath(group.id), {
+          hidden: "maybe",
+          name: "Catalog Guard",
         }),
         400,
-        (body) => {
-          expect(body.error).toBe("hidden has an invalid value");
-        },
+        "hidden has an invalid value",
       );
     });
 
     test("updates slug", async () => {
-      const group = await createTestGroup({ name: "Slug Group" });
-
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { slug: "custom-slug" },
-          method: "PUT",
-        }),
-        200,
-        (body) => {
-          expect(body.group.slug).toBe("custom-slug");
-        },
+      await expectGroupChange(
+        { name: "Slug Group" },
+        { slug: "custom-slug" },
+        (row) => expect(row.slug).toBe("custom-slug"),
       );
     });
 
     test("updates max_attendees and terms", async () => {
-      const group = await createTestGroup({
-        maxAttendees: 10,
-        name: "Update Fields",
-      });
-
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: {
-            max_attendees: 100,
-            terms_and_conditions: "Updated terms",
-          },
-          method: "PUT",
-        }),
-        200,
-        (body) => {
-          expect(body.group.max_attendees).toBe(100);
-          expect(body.group.terms_and_conditions).toBe("Updated terms");
-          expect(body.group.name).toBe("Update Fields");
+      await expectGroupChange(
+        { maxAttendees: 10, name: "Update Fields" },
+        { max_attendees: 100, terms_and_conditions: "Updated terms" },
+        (row) => {
+          expect(row.max_attendees).toBe(100);
+          expect(row.terms_and_conditions).toBe("Updated terms");
+          expect(row.name).toBe("Update Fields");
         },
       );
     });
 
     test("updates description", async () => {
-      const group = await createTestGroup({ name: "Desc Group" });
-
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { description: "New description" },
-          method: "PUT",
-        }),
-        200,
-        (body) => {
-          expect(body.group.description).toBe("New description");
-          expect(body.group.name).toBe("Desc Group");
+      await expectGroupChange(
+        { name: "Desc Group" },
+        { description: "New description" },
+        (row) => {
+          expect(row.description).toBe("New description");
+          expect(row.name).toBe("Desc Group");
         },
       );
     });
 
     test("preserves description when not provided in update", async () => {
-      const created = await assertJson(
-        apiRequest("/api/admin/groups", {
-          body: { description: "Keep this", name: "Keep Desc" },
-          method: "POST",
+      const created = await expectGroup(
+        postJson("/api/admin/groups", {
+          description: "Keep this",
+          name: "Keep Desc",
         }),
         201,
       );
 
-      await assertJson(
-        apiRequest(`/api/admin/groups/${created.group.id}`, {
-          body: { name: "Renamed" },
-          method: "PUT",
-        }),
+      await expectGroup(
+        putJson(groupPath(String(created.id)), { name: "Renamed" }),
         200,
-        (body) => {
-          expect(body.group.name).toBe("Renamed");
-          expect(body.group.description).toBe("Keep this");
+        (row) => {
+          expect(row.name).toBe("Renamed");
+          expect(row.description).toBe("Keep this");
         },
       );
     });
@@ -181,108 +154,72 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("updates hidden flag", async () => {
       const group = await createTestGroup({ name: "Toggle Group" });
 
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { hidden: true },
-          method: "PUT",
-        }),
-        200,
-        (body) => {
-          expect(body.group.hidden).toBe(true);
-        },
-      );
-
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { hidden: false },
-          method: "PUT",
-        }),
-        200,
-        (body) => {
-          expect(body.group.hidden).toBe(false);
-        },
-      );
+      for (const hidden of [true, false]) {
+        await expectGroup(
+          putJson(groupPath(group.id), { hidden }),
+          200,
+          (row) => expect(row.hidden).toBe(hidden),
+        );
+      }
     });
 
     test("rejects a malformed catalog field without changing the group", async () => {
       const group = await createTestGroup({ maxAttendees: 12 });
 
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group.id}`, {
-          body: { max_attendees: "20" },
-          method: "PUT",
-        }),
+      await expectApiError(
+        putJson(groupPath(group.id), { max_attendees: "20" }),
         400,
-        (body) => {
-          expect(body.error).toBe("max_attendees has an invalid value");
-        },
+        "max_attendees has an invalid value",
       );
 
-      expect(
-        (await groups.table.read.one({ id: group.id }))?.max_attendees,
-      ).toBe(12);
+      expect((await records.groups.find(group.id))?.maxAttendees).toBe(12);
     });
 
     test("returns 404 for non-existent group", async () => {
-      await assertJson(
-        apiRequest("/api/admin/groups/99999", {
-          body: { name: "Nope" },
-          method: "PUT",
-        }),
+      await expectApiError(
+        putJson(groupPath(99999), { name: "Nope" }),
         404,
-        (body) => {
-          expect(body.error).toBe("Group not found");
-        },
+        "Group not found",
       );
     });
 
     test("returns 404 when the group vanishes during update", async () => {
       const group = await createTestGroup({ name: "Vanishing group" });
       await getDb().execute(
-        `CREATE TRIGGER delete_group_during_update
+        sql`CREATE TRIGGER delete_group_during_update
          AFTER UPDATE ON groups
-         WHEN NEW.id = ${group.id}
+         WHEN NEW.id = ${sqlLiteral(group.id)}
          BEGIN
            DELETE FROM groups WHERE id = NEW.id;
          END`,
       );
 
       try {
-        await assertJson(
-          apiRequest(`/api/admin/groups/${group.id}`, {
-            body: { name: "Gone" },
-            method: "PUT",
-          }),
+        await expectApiError(
+          putJson(groupPath(group.id), { name: "Gone" }),
           404,
-          (body) => {
-            expect(body.error).toBe("Group not found");
-          },
+          "Group not found",
         );
       } finally {
         await getDb().execute(
-          "DROP TRIGGER IF EXISTS delete_group_during_update",
+          sql`DROP TRIGGER IF EXISTS delete_group_during_update`,
         );
       }
     });
 
     test("rejects empty name", async () => {
       const group = await createTestGroup();
-      await expectRejectsEmptyName(`/api/admin/groups/${group.id}`);
+      await expectRejectsEmptyName(groupPath(group.id));
     });
 
     test("rejects duplicate slug", async () => {
       const group1 = await createTestGroup({ name: "Group One" });
       const group2 = await createTestGroup({ name: "Group Two" });
 
-      await assertJson(
-        apiRequest(`/api/admin/groups/${group2.id}`, {
-          body: { slug: group1.slug },
-          method: "PUT",
-        }),
+      await expectApiError(
+        putJson(groupPath(group2.id), { slug: group1.slug }),
         400,
-        (body) => {
-          expect(body.error).toBe("Slug is already in use");
-        },
+        "Slug is already in use",
       );
     });
   });

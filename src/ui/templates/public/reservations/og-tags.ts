@@ -60,8 +60,8 @@ export const ticketPageHeadExtra = (
   return buildOgTags(
     {
       description: headerDescription,
-      image_alt_text: headerImage.image_alt_text,
-      image_url: headerImage.image_url,
+      image_alt_text: headerImage.imageAltText,
+      image_url: headerImage.imageUrl,
       name: headerName,
       slug: slugs.join("+"),
     },

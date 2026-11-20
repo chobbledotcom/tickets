@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { ProviderCheckoutError } from "#payment/checkout-failure.ts";
 import { matchKey } from "#shared/keys.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -18,6 +18,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // Enables Stripe and creates a standard paid listing: 50 spots that redirect
@@ -137,7 +138,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       });
 
       const response = await submitTicketForm(listing.slug, {
-        day_count: "2",
+        dayCount: "2",
         email: "john@example.com",
         name: "John Doe",
       });
@@ -183,7 +184,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       try {
         const response = await submitTicketForm(listing.slug, {
-          day_count: "2",
+          dayCount: "2",
           email: "john@example.com",
           name: "John Doe",
         });
@@ -202,46 +203,38 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       // An opt-in add-on and a promo-code discount, both whole-order. A second
       // add-on is offered but left unselected (its quantity field stays 0).
-      const addOn = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
-        direction: "charge",
+      const addOn = await insertModifier({
         name: "T-shirt",
       });
-      const skippedAddOn = await modifiersTable.insert({
-        calcKind: "fixed",
+      const skippedAddOn = await insertModifier({
         calcValue: 3,
-        direction: "charge",
         name: "Tote bag",
       });
-      const promo = await modifiersTable.insert({
+      const promo = await insertModifier({
         calcKind: "percent",
         calcValue: 10,
         direction: "discount",
         name: "SAVE10",
       });
-      await getDb().execute({
-        args: ["optional", addOn.id],
-        sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
-      });
-      await getDb().execute({
-        args: ["optional", skippedAddOn.id],
-        sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
-      });
-      await getDb().execute({
-        args: ["code", await hmacHash(matchKey("SAVE10")), promo.id],
-        sql: "UPDATE modifiers SET trigger = ?, code_index = ? WHERE id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`,
+      );
+      await getDb().execute(
+        sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${skippedAddOn.id}`,
+      );
+      await getDb().execute(
+        sql`UPDATE modifiers SET trigger = ${"code"}, code_index = ${await hmacHash(matchKey("SAVE10"))} WHERE id = ${promo.id}`,
+      );
 
       const { checkout, getCaptured } = stubCheckout("cs_modifiers_web");
 
       try {
         const response = await submitTicketForm(listing.slug, {
           // The second add-on's field is omitted entirely (left unselected).
-          [`addon_${addOn.id}`]: "2",
+          [`addon${addOn.id}`]: "2",
           email: "john@example.com",
           name: "John Doe",
-          promo_code: "save10",
+          promoCode: "save10",
         });
 
         expect(response.status).toBe(302);

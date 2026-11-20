@@ -3,6 +3,7 @@ import { beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
@@ -51,9 +52,9 @@ describeWithEnv("server (setup concurrency)", { db: true }, () => {
         handleRequest(
           mockSetupFormRequest(
             {
-              admin_password: "mypassword123",
-              admin_password_confirm: "mypassword123",
-              admin_username: username,
+              adminPassword: "mypassword123",
+              adminPasswordConfirm: "mypassword123",
+              adminUsername: username,
               country: "GB",
             },
             csrfToken,
@@ -69,13 +70,12 @@ describeWithEnv("server (setup concurrency)", { db: true }, () => {
         responses.map((response) => response.headers.get("location")).sort(),
       ).toEqual(["/", "/setup/complete"]);
       const count = await getDb().execute(
-        "SELECT COUNT(*) AS n FROM users AS user",
+        sql`SELECT COUNT(*) AS n FROM users AS user`,
       );
       expect(Number(count.rows[0]!.n)).toBe(1);
-      const setupDone = await getDb().execute({
-        args: [CONFIG_KEYS.SETUP_COMPLETE],
-        sql: "SELECT value FROM settings AS setting WHERE key = ?",
-      });
+      const setupDone = await getDb().execute(
+        sql`SELECT value FROM settings AS setting WHERE key = ${CONFIG_KEYS.SETUP_COMPLETE}`,
+      );
       expect(setupDone.rows.map((row) => row.value)).toEqual(["true"]);
     } finally {
       completeStub.restore();

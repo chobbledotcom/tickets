@@ -105,7 +105,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
           // Verify tokens are NOT persisted in DB (redirect has them in URL, no need to store)
           const record = await getProcessedPayment("cs_test_paid");
-          expect(record?.ticket_tokens).toBe("");
+          expect(record?.ticketTokens).toBe("");
         },
       );
     });
@@ -272,9 +272,9 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             const processed = await getProcessedPayment(
               "cs_concurrent_confirm",
             );
-            expect(processed?.attendee_id).toBe(attendees[0]!.id);
-            expect(processed?.failure_data).toBe("");
-            expect(processed?.ticket_tokens).toBe("");
+            expect(processed?.attendeeId).toBe(attendees[0]!.id);
+            expect(processed?.failureData).toBe("");
+            expect(processed?.ticketTokens).toBe("");
           } finally {
             releaseBooking.resolve();
             pauseWinner.restore();

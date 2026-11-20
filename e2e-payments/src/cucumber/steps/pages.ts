@@ -324,6 +324,6 @@ export const submitRenderedRefundForm = async (
 ): Promise<void> =>
   fillAndSubmit(
     session,
-    { confirm_identifier: bookerName },
+    { confirmIdentifier: bookerName },
     await catalogWords("attendees", "admin.attendees.refund_submit"),
   );

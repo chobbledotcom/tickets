@@ -18,7 +18,7 @@ describeWithEnv(
       const response = await awaitTestRequest("/unsubscribe", {
         data: {
           action: "resubscribe",
-          csrf_token: csrf,
+          csrfToken: csrf,
           email: "abc123hash",
         },
         method: "POST",

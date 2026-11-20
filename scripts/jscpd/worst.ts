@@ -51,7 +51,8 @@ export const readClonePairs = (report: unknown): ClonePair[] =>
       tokens,
     }));
 
-const placeKey = ({ end, file, start }: Place): string =>
+/** Where one place sits. Two reports of the same place share this key. */
+export const placeKey = ({ end, file, start }: Place): string =>
   `${file}:${start}-${end}`;
 
 /** Follows the links from a place to the place that leads its family. A place

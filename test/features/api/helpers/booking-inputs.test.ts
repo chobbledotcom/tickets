@@ -118,8 +118,11 @@ describeWithEnv("API booking helper inputs", { db: true }, () => {
     });
     const form = new FormParams({ customPrice: "15.00" });
 
-    expect(resolveCustomPrice(fixed, form)).toBeUndefined();
-    expect(resolveCustomPrice(flexible, form)).toBe(1500);
+    // A fixed-price listing ignores the posted price; only a pay-more listing reads it.
+    expect([
+      resolveCustomPrice(fixed, form),
+      resolveCustomPrice(flexible, form),
+    ]).toEqual([undefined, 1500]);
   });
 
   test("returns the custom-price validation message", async () => {
@@ -215,6 +218,18 @@ describe("API helper composition", () => {
     expect([...params.entries()]).toEqual([
       ["count", "2"],
       ["enabled", "false"],
+    ]);
+  });
+
+  test("names each box by its camelCase field, from a snake or camel key", () => {
+    const params = toFormParams({
+      dayCount: 3,
+      special_instructions: "Ground floor",
+    });
+
+    expect([...params.entries()]).toEqual([
+      ["dayCount", "3"],
+      ["specialInstructions", "Ground floor"],
     ]);
   });
 });

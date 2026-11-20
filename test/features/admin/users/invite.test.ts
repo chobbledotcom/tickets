@@ -11,6 +11,8 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { getUserByUsername } from "#db/users.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
@@ -28,18 +30,17 @@ import {
   getTestSession,
 } from "#test-utils/session.ts";
 
-const NEW_PATH = "/admin/user/new";
+const NEW_PATH = "/admin/users/new";
 const LIST_PATH = "/admin/users";
 
 const invite = (username: string, adminLevel = "manager") =>
-  adminFormPost(LIST_PATH, { admin_level: adminLevel, username });
+  adminFormPost(LIST_PATH, { adminLevel, username });
 
 /** The invite's stored wrapped key, or null when it carries none. */
 const wrappedKeyOf = async (username: string): Promise<string | null> => {
   const user = await getUserByUsername(username);
   const row = await queryOne<{ invite_wrapped_data_key: string | null }>(
-    "SELECT invite_wrapped_data_key FROM users WHERE id = ?",
-    [user!.id],
+    sql`SELECT invite_wrapped_data_key FROM users WHERE id = ${user!.id}`,
   );
   return row!.invite_wrapped_data_key;
 };
@@ -109,10 +110,13 @@ describeWithEnv("an invite that cannot be made", { db: true }, () => {
   });
 
   test("refuses one the form itself will not accept", async () => {
-    const { response } = await invite("", "manager");
+    const { response } = await invite("someone", "bogus");
 
-    expect(response.status).toBe(302);
-    assertStringIncludes(response.headers.get("location") ?? "", NEW_PATH);
+    await expectFlashRedirect(
+      NEW_PATH,
+      t("error.invalid_role"),
+      false,
+    )(response);
   });
 });
 
@@ -134,7 +138,7 @@ describeWithEnv("removing a user", { db: true }, () => {
     const id = await idOf("goner");
 
     const { response } = await adminFormPost(`${LIST_PATH}/${id}/delete`, {
-      confirm_identifier: "goner",
+      confirmIdentifier: "goner",
     });
 
     await expectFlashRedirect(LIST_PATH, t("success.user_deleted"))(response);
@@ -146,7 +150,7 @@ describeWithEnv("removing a user", { db: true }, () => {
     const id = await idOf("exactly");
 
     const { response } = await adminFormPost(`${LIST_PATH}/${id}/delete`, {
-      confirm_identifier: "not exactly",
+      confirmIdentifier: "not exactly",
     });
 
     await expectFlashRedirect(
@@ -162,7 +166,7 @@ describeWithEnv("removing a user", { db: true }, () => {
 
     const { response } = await adminFormPost(
       `${LIST_PATH}/${owner.id}/delete`,
-      { confirm_identifier: TEST_ADMIN_USERNAME },
+      { confirmIdentifier: TEST_ADMIN_USERNAME },
     );
 
     expect(response.status).toBe(400);
@@ -171,7 +175,7 @@ describeWithEnv("removing a user", { db: true }, () => {
 
   test("answers 404 for a user that is not there", async () => {
     const { response } = await adminFormPost(`${LIST_PATH}/99999/delete`, {
-      confirm_identifier: "ghost",
+      confirmIdentifier: "ghost",
     });
 
     expect(response.status).toBe(404);
@@ -188,15 +192,15 @@ describeWithEnv(
       // it cannot wrap the invite's copy, so the invite is refused rather than
       // creating a user who could never read attendee details.
       const { cookie, csrfToken } = await getTestSession();
-      await execute("UPDATE sessions SET wrapped_data_key = NULL");
+      await execute(sql`UPDATE sessions SET wrapped_data_key = NULL`);
       const { handleRequest } = await import("#routes");
 
       const response = await handleRequest(
         mockFormRequest(
           LIST_PATH,
           {
-            admin_level: "manager",
-            csrf_token: csrfToken,
+            adminLevel: "manager",
+            csrfToken,
             username: "keyless",
           },
           cookie,
@@ -240,10 +244,9 @@ describeWithEnv(
       // way the invite wrote it.
       const { encrypt } = await import("#crypto/encryption.ts");
       const { invalidateUsersCache } = await import("#db/users.ts");
-      await execute("UPDATE users SET invite_expiry = ? WHERE id = ?", [
-        await encrypt(new Date(Date.now() - 1000).toISOString()),
-        user.id,
-      ]);
+      await execute(
+        sql`UPDATE users SET invite_expiry = ${await encrypt(new Date(Date.now() - 1000).toISOString())} WHERE id = ${user.id}`,
+      );
       invalidateUsersCache();
 
       const html = await (await adminGet(LIST_PATH)).text();
@@ -256,11 +259,10 @@ describeWithEnv(
 describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
   const agentUserWithVan = async (username: string) => {
     const { enableFeature } = await import("#test-utils/settings.ts");
-    const { logisticsAgents } = await import("#db/logistics-agents.ts");
     await enableFeature("logistics");
-    const van = await logisticsAgents.table.insert({ name: "Van 1" });
+    const van = await records.logistics_agents.insert({ name: "Van 1" });
     await adminFormPost(LIST_PATH, {
-      admin_level: "agent",
+      adminLevel: "agent",
       username,
     });
     return { userId: (await getUserByUsername(username))!.id, van };
@@ -278,7 +280,7 @@ describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
     const { userId, van } = await agentUserWithVan("loggeddriver");
 
     const { response } = await adminFormPost(`${LIST_PATH}/${userId}/agents`, {
-      agent_ids: String(van.id),
+      agentIds: String(van.id),
     });
 
     await expectFlashRedirect(LIST_PATH, t("success.agents_updated"))(response);

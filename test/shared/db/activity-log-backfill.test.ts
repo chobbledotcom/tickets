@@ -12,6 +12,7 @@ import {
 } from "#db/activity-log-backfill.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
@@ -137,11 +138,11 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
     await maintenance.run(MAINTENANCE_TASKS);
     expect(
       await queryOne<{ checkpoint: string }>(
-        "SELECT checkpoint FROM maintenance_tasks WHERE name = 'activity_log_backfill'",
+        sql`SELECT checkpoint FROM maintenance_tasks WHERE name = 'activity_log_backfill'`,
       ),
     ).toEqual({ checkpoint: "complete" });
     await execute(
-      "UPDATE maintenance_tasks SET next_run_at = 0 WHERE name = 'activity_log_backfill'",
+      sql`UPDATE maintenance_tasks SET next_run_at = 0 WHERE name = 'activity_log_backfill'`,
     );
     const queries: string[] = [];
     const restore = recordQueries(queries);
@@ -160,8 +161,7 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
 
   test("surfaces a corrupt legacy message to the task runner", async () => {
     await execute(
-      "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
-      [`${ENCRYPTION_PREFIX}AAAA:BBBB`, nowIso()],
+      sql`INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (${`${ENCRYPTION_PREFIX}AAAA:BBBB`}, ${nowIso()}, NULL, NULL)`,
     );
     await expect(runActivityLogBackfill(settings.publicKey)).rejects.toThrow();
   });

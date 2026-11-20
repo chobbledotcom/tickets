@@ -106,7 +106,7 @@ const handleAttendeeRefund = attendeeActions.refund.verified(
   async (data, form) => {
     const attendeeId = data.attendee.id;
     const listingId = data.listing.id;
-    const returnUrl = form.getString("return_url");
+    const returnUrl = form.getString("returnUrl");
     // An attendee needs this exact live booking line before its payment can be
     // refunded from this listing.
     if (!data.activeBooking) {

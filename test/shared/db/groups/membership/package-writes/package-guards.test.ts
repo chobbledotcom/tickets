@@ -13,9 +13,10 @@ import {
 } from "#db/groups/membership/package-writes.ts";
 import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
-import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import type { PackageMemberInput } from "#shared/records/group-fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -38,7 +39,7 @@ const runAndFirstPrice = async (
     await writePackageMembersTx(tx, groupId, existing, { isPackage }, members);
   });
   const prices = await getGroupPackagePrices(groupId);
-  return prices[0]!.package_price;
+  return prices[0]!.packagePrice;
 };
 
 describeWithEnv(
@@ -56,8 +57,8 @@ describeWithEnv(
       ]);
 
       expect(flags).toEqual([
-        { hide_package_listings: false, is_package: false },
-        { hide_package_listings: true, is_package: true },
+        { hidePackageListings: false, isPackage: false },
+        { hidePackageListings: true, isPackage: true },
         null,
       ]);
     });
@@ -67,7 +68,7 @@ describeWithEnv(
         "Tx block unpackage",
         true,
       );
-      const existing = { hide_package_listings: true, is_package: true };
+      const existing = { hidePackageListings: true, isPackage: true };
 
       await expect(
         withTransaction(async (tx) => {
@@ -87,7 +88,7 @@ describeWithEnv(
         "Tx visible unpackage",
         false,
       );
-      const existing = { hide_package_listings: false, is_package: true };
+      const existing = { hidePackageListings: false, isPackage: true };
 
       expect(await runAndFirstPrice(group.id, existing, false)).toBeNull();
     });
@@ -101,7 +102,7 @@ describeWithEnv(
       await setGroupPackageMembers(group.id, [
         { listingId: member.id, price: 500 },
       ]);
-      const existing = { hide_package_listings: true, is_package: true };
+      const existing = { hidePackageListings: true, isPackage: true };
 
       expect(
         await runAndFirstPrice(group.id, existing, false, [
@@ -118,7 +119,7 @@ describeWithEnv(
       await setGroupPackageMembers(group.id, [
         { listingId: member.id, price: 700 },
       ]);
-      const existing = { hide_package_listings: true, is_package: true };
+      const existing = { hidePackageListings: true, isPackage: true };
 
       // Pass undefined so existing overrides are left untouched.
       await withTransaction(async (tx) => {
@@ -132,7 +133,7 @@ describeWithEnv(
       });
 
       const prices = await getGroupPackagePrices(group.id);
-      expect(prices[0]!.package_price).toBe(700);
+      expect(prices[0]!.packagePrice).toBe(700);
     });
 
     test("writePackageMembersTx rechecks package member rules for an existing package", async () => {
@@ -143,7 +144,7 @@ describeWithEnv(
       });
       const child = await createTestListing({ name: "Tx recheck child" });
       await listingChildren.setIds(parent.id, [child.id]);
-      const existing = { hide_package_listings: true, is_package: true };
+      const existing = { hidePackageListings: true, isPackage: true };
 
       await expect(
         withTransaction(async (tx) => {
@@ -171,14 +172,13 @@ describeWithEnv(
 
       await expect(
         withTransaction(async (tx) => {
-          await tx.execute({
-            args: [group.id],
-            sql: "UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ?",
-          });
+          await tx.execute(
+            sql`UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ${group.id}`,
+          );
           await writePackageMembersTx(
             tx,
             group.id,
-            { hide_package_listings: false, is_package: false },
+            { hidePackageListings: false, isPackage: false },
             { isPackage: true },
             undefined,
           );
@@ -214,7 +214,7 @@ describeWithEnv(
           await writePackageMembersTx(
             tx,
             group.id,
-            { hide_package_listings: false, is_package: false },
+            { hidePackageListings: false, isPackage: false },
             { isPackage: false },
             [],
           );
@@ -234,7 +234,7 @@ describeWithEnv(
           await writePackageMembersTx(
             tx,
             group.id,
-            { hide_package_listings: false, is_package: false },
+            { hidePackageListings: false, isPackage: false },
             { isPackage: true },
             [],
           );

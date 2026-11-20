@@ -18,8 +18,8 @@ import { withEnv } from "#test-utils/env.ts";
 
 const note = (overrides: Partial<SystemNote> = {}): SystemNote => ({
   created: "2026-06-23T10:00:00.000Z",
-  entity_id: 5,
-  entity_type: "attendee",
+  entityId: 5,
+  entityType: "attendee",
   id: 1,
   note: "Refunded — see the [ledger](/admin/ledger?attendee=5).",
   type: "system",
@@ -123,9 +123,9 @@ describe("AttendeeNotesSummary", () => {
         isOwner={false}
         names={names}
         notes={[
-          note({ entity_id: 5, id: 1, note: "first" }),
-          note({ entity_id: 5, id: 2, note: "second" }),
-          note({ entity_id: 6, id: 3, note: "other" }),
+          note({ entityId: 5, id: 1, note: "first" }),
+          note({ entityId: 5, id: 2, note: "second" }),
+          note({ entityId: 6, id: 3, note: "other" }),
         ]}
       />,
     );
@@ -144,7 +144,7 @@ describe("AttendeeNotesSummary", () => {
       <AttendeeNotesSummary
         isOwner={false}
         names={new Map()}
-        notes={[note({ entity_id: 9 })]}
+        notes={[note({ entityId: 9 })]}
       />,
     );
     assertStringIncludes(html, "#9");
@@ -157,7 +157,7 @@ describe("AttendeeNotesSummary", () => {
       <AttendeeNotesSummary
         isOwner={false}
         names={new Map([[5, "Alice"]])}
-        notes={[note({ entity_id: 5 })]}
+        notes={[note({ entityId: 5 })]}
       />,
     );
     assertStringIncludes(staffHtml, "see the ledger");
@@ -167,7 +167,7 @@ describe("AttendeeNotesSummary", () => {
       <AttendeeNotesSummary
         isOwner
         names={new Map([[5, "Alice"]])}
-        notes={[note({ entity_id: 5 })]}
+        notes={[note({ entityId: 5 })]}
       />,
     );
     assertStringIncludes(ownerHtml, 'href="/admin/ledger?attendee=5"');
@@ -197,8 +197,8 @@ describe("adminNoteNewPage", () => {
       "Add a note for Alice Example",
       'action="/admin/attendee/5/note"',
       'name="note"',
-      'name="csrf_token"',
-      'name="return_url" type="hidden" value="/admin/attendees/5"',
+      'name="csrfToken"',
+      'name="returnUrl" type="hidden" value="/admin/attendees/5"',
     ]);
   });
 
@@ -223,7 +223,7 @@ describe("adminNoteDeletePage", () => {
       activeSection: "/admin/attendees",
       note: note({ note: "delete this" }),
       noteAction: (note) =>
-        `/admin/attendee/${note.entity_id}/note/${note.id}/delete`,
+        `/admin/attendee/${note.entityId}/note/${note.id}/delete`,
       returnUrl: "/admin/attendees/5",
       session: OWNER_SESSION,
     });
@@ -233,7 +233,7 @@ describe("adminNoteDeletePage", () => {
       'action="/admin/attendee/5/note/1/delete"',
     ]);
     // The intermediate page is deliberately NOT the copy/paste confirmation.
-    assert(!html.includes('name="confirm_identifier"'));
+    assert(!html.includes('name="confirmIdentifier"'));
     // It bounces back via return_url.
     assertStringIncludes(html, 'value="/admin/attendees/5"');
   });

@@ -15,12 +15,9 @@ import { submitTicketForm } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { submitListingEdit } from "#test-utils/listing-submits.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-import {
-  adminFormPost,
-  adminGet,
-  setupListingAndLogin,
-} from "#test-utils/session.ts";
+import { adminGet, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server listings > audit log and daily admin view",
@@ -33,12 +30,11 @@ describeWithEnv(
           thankYouUrl: "https://example.com",
         });
 
-        await adminFormPost(`/admin/listing/${listing.id}/edit`, {
-          max_attendees: "200",
-          max_quantity: "1",
+        await submitListingEdit(listing.id, {
+          maxAttendees: "200",
           name: listing.name,
           slug: listing.slug,
-          thank_you_url: "https://example.com/updated",
+          thankYouUrl: "https://example.com/updated",
         });
 
         const logs = await getListingActivityLog(listing.id);

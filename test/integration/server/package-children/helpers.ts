@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { queryAll } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import type { stripeApi } from "#shared/stripe.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -32,9 +34,8 @@ interface BookingRow {
 /** Real bookings, excluding a refunded order's quantity-zero placeholder. */
 export const bookingRows = (listingId: number): Promise<BookingRow[]> =>
   queryAll(
-    `SELECT quantity, package_group_id, parent_listing_id FROM listing_attendees
-      WHERE listing_id = ? AND quantity > 0 ORDER BY id DESC`,
-    [listingId],
+    sql`SELECT quantity, package_group_id, parent_listing_id FROM listing_attendees
+      WHERE listing_id = ${listingId} AND quantity > 0 ORDER BY id DESC`,
   );
 
 /** Assert that one child unit was booked beneath the expected member. */
@@ -118,9 +119,8 @@ export const capAddonsAtThree = async (
   childId: number,
   childBId: number,
 ): Promise<void> => {
-  const { listingsTable } = await import("#db/listings/records.ts");
-  await listingsTable.update(childId, { maxAttendees: 2, maxQuantity: 2 });
-  await listingsTable.update(childBId, { maxAttendees: 1, maxQuantity: 1 });
+  await updateListing(childId, { maxAttendees: 2, maxQuantity: 2 });
+  await updateListing(childBId, { maxAttendees: 1, maxQuantity: 1 });
 };
 
 /** Make every package member and child free. */

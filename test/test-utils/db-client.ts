@@ -59,8 +59,6 @@ export const createTestDbClient = async (path: string): Promise<Client> => {
   return proxyMembers(client, {
     batch: (statements: InStatement[], mode?: TransactionMode) =>
       freeAbandonedConnectionsOnBusy(() => client.batch(statements, mode)),
-    // wrapExecute keeps both execute call shapes — (sql, args) and one
-    // statement object — forwarding exactly as the real client expects.
     execute: wrapExecute(client, (_statement, run) =>
       freeAbandonedConnectionsOnBusy(run),
     ),

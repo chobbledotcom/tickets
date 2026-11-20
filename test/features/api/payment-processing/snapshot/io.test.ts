@@ -7,11 +7,8 @@ import { execute } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import {
-  modifierGroups,
-  modifierListings,
-  modifiersTable,
-} from "#db/modifiers.ts";
+import { modifierGroups, modifierListings } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
@@ -25,6 +22,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const loadStaleScopePricing = async (scope: "groups" | "listings") => {
@@ -38,10 +36,9 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
   });
   const group = await createTestGroup({ name: "Modifier group" });
   await setListingGroups(groupLink.id, [group.id]);
-  const modifier = await modifiersTable.insert({
+  const modifier = await insertModifier({
     calcKind: "percent",
     calcValue: 10,
-    direction: "charge",
     name: "Scoped charge",
     scope,
   });
@@ -50,8 +47,8 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
 
   const intent = bookingIntent(
     [
-      { e: listingLink.id, p: listingLink.unit_price, q: 1 },
-      { e: groupLink.id, p: groupLink.unit_price, q: 1 },
+      { e: listingLink.id, p: listingLink.unitPrice, q: 1 },
+      { e: groupLink.id, p: groupLink.unitPrice, q: 1 },
     ],
     { modifiers: [{ i: modifier.id, q: 1 }] },
   );
@@ -65,7 +62,7 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
       name: listing.name,
       quantity: 1,
       slug: listing.slug,
-      unitPrice: listing.unit_price,
+      unitPrice: listing.unitPrice,
     })),
     modifiers: snapshot.modifierSpecs,
     name: intent.name,
@@ -95,7 +92,7 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     const intent = bookingIntent(
       listings.map((listing) => ({
         e: listing.id,
-        p: listing.unit_price,
+        p: listing.unitPrice,
         q: 1,
       })),
     );
@@ -117,8 +114,7 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     const requestedGroup = await bookingEventGroup("snapshot-requested-event");
     const otherGroup = await bookingEventGroup("snapshot-other-event");
     await execute(
-      "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
-      [otherGroup, attendee.id],
+      sql`UPDATE listing_attendees SET ledger_event_group = ${otherGroup} WHERE attendee_id = ${attendee.id}`,
     );
     await postTransfers([
       {
@@ -230,18 +226,15 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
       },
     ]);
 
-    const directModifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 5,
+    const directModifier = await insertModifier({
       direction: "discount",
       minVisits: 3,
       name: "Direct discount",
       scope: "listings",
     });
-    const groupModifier = await modifiersTable.insert({
+    const groupModifier = await insertModifier({
       calcKind: "percent",
       calcValue: 10,
-      direction: "charge",
       name: "Package charge",
       scope: "groups",
     });
@@ -251,8 +244,7 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     const email = "snapshot@example.com";
     const phone = "+447700900123";
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, visits, stats_blob) VALUES (?, ?, ?), (?, ?, ?)",
-      [await hashEmail(email), 3, "{}", await hashPhone(phone), 7, "{}"],
+      sql`INSERT INTO contact_preferences (contact_hash, visits, stats_blob) VALUES (${await hashEmail(email)}, ${3}, ${"{}"}), (${await hashPhone(phone)}, ${7}, ${"{}"})`,
     );
 
     const eventId = "snapshot-complete";
@@ -263,8 +255,7 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
       email,
     );
     await execute(
-      "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
-      [eventGroup, attendee.id, parent.id],
+      sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${attendee.id} AND listing_id = ${parent.id}`,
     );
     await postTransfers([
       {

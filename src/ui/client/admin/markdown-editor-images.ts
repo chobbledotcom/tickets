@@ -1,194 +1,147 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
- * The image dropdown for the markdown editor toolbar: lists the site's
- * existing images by name and inserts the short-form reference
- * (`![Alt](img#id)`) at the caret. The server translates img#id to the real
- * image URL at render time, so the editor stores the stable short form.
+ * The image picker for the markdown editor toolbar. The server renders the
+ * picker's markup on each admin page with image storage, as a `<template>`.
+ * Each editor clones it, fills the grid from the image library, uploads new
+ * images, and inserts the short-form reference (`![Alt](img#id)`) at the
+ * caret. The server translates img#id to the real image URL at render time,
+ * so the editor stores the stable short form.
  */
 
 import { schema } from "prosemirror-markdown";
 import { Plugin } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
+import type { ImageChoice } from "#shared/images/picker.ts";
+import { shortFormImageAddress } from "#shared/images/short-form.ts";
+import {
+  createImageLibrary,
+  type ImageLibrary,
+  imageNodeView,
+} from "#src/ui/client/admin/markdown-editor-image-view.ts";
 import { createToolbarButton } from "#src/ui/client/admin/markdown-editor-toolbar.ts";
-import { createButton, createElementWithClass } from "#src/ui/client/dom.ts";
+import {
+  clonePickerDialog,
+  fillGrid,
+  imageOptionNodes,
+  noteFrom,
+  optionButton,
+  type PickerDialogParts,
+  pickerTemplateOrNull,
+  wireDialogClose,
+  wireUploadForm,
+} from "./image-picker-template.ts";
 
-/** The image facts the dropdown shows: the library entry's id and name. */
-export interface ImageOption {
-  id: number;
-  name: string;
+/** One editor's picker: the cloned dialog's parts and the library its grid
+ *  shows. */
+interface Picker extends PickerDialogParts {
+  editor: () => EditorView;
+  library: ImageLibrary;
 }
 
-/** Keeps a malformed library entry out of the dropdown: the entry needs an
- * id to reference and a name to show. */
-const isImageOption = (entry: unknown): entry is ImageOption => {
-  if (typeof entry !== "object" || entry === null) return false;
-  return (
-    "id" in entry &&
-    typeof entry.id === "number" &&
-    "name" in entry &&
-    typeof entry.name === "string"
-  );
-};
-
-const EMPTY_MESSAGE = "No images uploaded yet.";
-const UNAVAILABLE_MESSAGE = "Images are unavailable right now.";
-
-/** Insert the short-form image reference at the caret and refocus. */
-const insertImageRef = (view: EditorView, option: ImageOption): void => {
+/** Inserts the short-form image reference at the caret. */
+const insertImageRef = (view: EditorView, choice: ImageChoice): void => {
   view.dispatch(
     view.state.tr
       .replaceSelectionWith(
         schema.nodes.image.create({
-          alt: option.name,
-          src: `img#${option.id}`,
+          alt: choice.name,
+          src: shortFormImageAddress(choice.id),
         }),
       )
       .scrollIntoView(),
   );
-  view.focus();
 };
 
-/** A muted one-line panel note (the empty and unavailable states). */
-const mutedLine = (text: string): HTMLElement => {
-  const line = createElementWithClass("p", "md-image-dropdown-note");
-  line.textContent = text;
-  return line;
+/** The dialog's close gives the caret back to the editor. */
+const chooseImage = (picker: Picker, choice: ImageChoice): void => {
+  if (!picker.editor().isDestroyed) insertImageRef(picker.editor(), choice);
+  picker.dialog.close();
 };
 
-/** The image control: the element for the toolbar row and the view plugin
- * that tears the dropdown down with the editor. */
+/** The page renders the picker only with image storage, so a library that
+ *  cannot load is a real failure. Show a note and let the operator retry. */
+const openPicker = async (picker: Picker): Promise<void> => {
+  // A destroyed editor's view cannot dispatch, and the teardown leaves the
+  // button mounted: the control stays inert.
+  if (picker.editor().isDestroyed) return;
+  fillGrid(picker.grid, "loading", [noteFrom(picker.template, "loading")]);
+  picker.dialog.showModal();
+  const options = await picker.library.load().catch(() => null);
+  if (options === null) {
+    if (picker.dialog.open) {
+      fillGrid(picker.grid, "ready", [noteFrom(picker.template, "loadFailed")]);
+    }
+    return;
+  }
+  // A dialog closed before the answer stays as it is.
+  if (picker.dialog.open) {
+    fillGrid(
+      picker.grid,
+      "ready",
+      imageOptionNodes(picker.template, options, (option, index) =>
+        optionButton(option, index, () => chooseImage(picker, option)),
+      ),
+    );
+  }
+};
+
+const wirePicker = (picker: Picker, button: HTMLButtonElement): void => {
+  const { dialog } = picker;
+  wireDialogClose(dialog, () => picker.editor().focus());
+  wireUploadForm(picker, (choice) => chooseImage(picker, choice));
+  // While the modal dialog is open its backdrop swallows clicks, so the
+  // button only ever opens.
+  button.addEventListener("click", () => void openPicker(picker));
+};
+
+/** The image control: the element for the toolbar row and the plugin that
+ *  binds the editor view and renders the image nodes. */
 export interface ImageToolbarItem {
   element: HTMLElement;
   plugin: Plugin;
 }
 
-/** Build the toolbar's image control: the button and its dropdown panel. */
-export const createImageToolbarItem = (): ImageToolbarItem => {
-  const control = document.createElement("span");
-  control.className = "md-image-control";
-
-  const panel = document.createElement("div");
-  panel.className = "md-image-dropdown";
-  panel.id = `md-image-dropdown-${crypto.randomUUID()}`;
-  panel.hidden = true;
-
+/** Build the toolbar's image control: the button and its modal dialog. The
+ *  dialog lives inside the editor's mount, so it dies with the editor and
+ *  survives the plugin-view recreations the rich/raw toggle's state rebuild
+ *  causes. */
+export const createImageToolbarItem = (
+  mount: HTMLElement,
+): ImageToolbarItem => {
   const button = createToolbarButton(
     "md-toolbar-button md-toolbar-image",
     "Image",
     "Insert image",
   );
-  button.setAttribute("aria-expanded", "false");
-  button.setAttribute("aria-controls", panel.id);
-  button.addEventListener("click", () => {
-    if (panel.hidden) open();
-    else close();
-  });
-
-  control.append(button, panel);
-
-  // The option buttons dispatch through the editor view. The plugin's view
-  // callback sets this during the EditorView constructor, before any click
-  // can reach the panel.
+  button.setAttribute("aria-haspopup", "dialog");
+  const library = createImageLibrary();
+  // The plugin's view callback sets this during the EditorView constructor,
+  // before any click can reach the control.
   let view: EditorView;
+  const template = pickerTemplateOrNull();
+  // Without image storage the control hides, rather than offer a picker that
+  // cannot store anything.
+  button.hidden = template === null;
+  if (template !== null) {
+    const picker: Picker = {
+      ...clonePickerDialog(template, mount),
+      editor: () => view,
+      library,
+    };
+    wirePicker(picker, button);
+  }
 
-  // One fetch per mount, cached. A failed load is never cached, so the next
-  // open retries.
-  let options: Promise<ImageOption[]> | null = null;
-  const fetchOptions = async (): Promise<ImageOption[]> => {
-    const response = await fetch("/admin/images/options");
-    if (!response.ok) {
-      throw new Error(`image options responded ${response.status}`);
-    }
-    const body = (await response.json()) as { images: unknown };
-    if (!Array.isArray(body.images)) {
-      throw new Error("image options responded without an images array");
-    }
-    return body.images.map((entry) => {
-      if (!isImageOption(entry)) {
-        throw new Error("image options responded with a malformed entry");
-      }
-      return entry;
-    });
-  };
-  const loadOptions = (): Promise<ImageOption[]> => {
-    options ??= fetchOptions();
-    return options;
-  };
-
-  const renderOptions = (loaded: ImageOption[]): void => {
-    panel.replaceChildren();
-    if (loaded.length === 0) {
-      panel.append(mutedLine(EMPTY_MESSAGE));
-      return;
-    }
-    for (const option of loaded) {
-      const item = createButton("md-image-option");
-      item.textContent = option.name;
-      item.addEventListener("click", () => {
-        insertImageRef(view, option);
-        close();
-      });
-      panel.append(item);
-    }
-  };
-
-  const settle = async (): Promise<void> => {
-    try {
-      const loaded = await loadOptions();
-      if (panel.hidden) return;
-      panel.dataset.state = "ready";
-      renderOptions(loaded);
-    } catch {
-      // A failed load is never cached, so the next open retries.
-      options = null;
-      if (panel.hidden) return;
-      panel.dataset.state = "error";
-      panel.replaceChildren(mutedLine(UNAVAILABLE_MESSAGE));
-    }
-  };
-
-  // A click anywhere outside the control closes the panel. Escape closes it
-  // and returns focus to the button. Both listeners live only while the
-  // panel is open.
-  const onDocumentClick = (event: Event): void => {
-    if (!control.contains(event.target as Node)) close();
-  };
-  const onDocumentKeydown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape") {
-      close();
-      button.focus();
-    }
-  };
-
-  const open = (): void => {
-    // A destroyed editor's view cannot dispatch, and the teardown leaves
-    // the button mounted: the control stays inert.
-    if (view.isDestroyed) return;
-    panel.hidden = false;
-    button.setAttribute("aria-expanded", "true");
-    document.addEventListener("click", onDocumentClick);
-    document.addEventListener("keydown", onDocumentKeydown);
-    panel.dataset.state = "loading";
-    panel.replaceChildren(mutedLine("Loading…"));
-    void settle();
-  };
-
-  const close = (): void => {
-    panel.hidden = true;
-    button.setAttribute("aria-expanded", "false");
-    document.removeEventListener("click", onDocumentClick);
-    document.removeEventListener("keydown", onDocumentKeydown);
-  };
-
-  // EditorView.destroy() destroys plugin views, so this destroy runs when
-  // the editor is destroyed and closes the panel even if it is still open.
-  // A destroyed editor leaves no document listeners behind.
+  // ProseMirror stores whatever the view callback returns and probes it for
+  // update/destroy, so that value must be an object. The image node view
+  // resolves through the same library cache the picker uses.
   const plugin = new Plugin({
+    props: { nodeViews: { image: imageNodeView(library) } },
     view: (editorView) => {
       view = editorView;
-      return { destroy: close };
+      return {};
     },
   });
 
-  return { element: control, plugin };
+  return { element: button, plugin };
 };

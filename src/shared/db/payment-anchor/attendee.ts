@@ -1,11 +1,15 @@
 /** Durable refund identity attached to an attendee. */
 
-import type { SqlStatement } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import {
   paymentRowStateValues,
   type RowSettlement,
 } from "#db/payment-claim.ts";
+import { records } from "#db/record-table.ts";
+import { and, not } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { EMPTY_ROW_STATE } from "#payment/row-state.ts";
 import { checkingClaimFor, grantClaim } from "#payment/row-transitions.ts";
@@ -64,26 +68,32 @@ export const prepareClaimedAttendeePaymentAnchor = async (
         heldSince,
         rows: new Map([[sessionId, { claim: "release", phase: "checking" }]]),
       },
-      statement: numberedStatement((bind) => {
-        const attendee = bind(attendeeId);
-        const storedIndex = bind(stored.index);
-        const matchingIndexSlots = matchingIndexes
-          .map((index) => (index === stored.index ? storedIndex : bind(index)))
-          .join(", ");
-        return `INSERT INTO processed_payments
-            (payment_session_id, attendee_id, processed_at, payment_reference,
-             payment_reference_index, failure_data, protected_state)
-          SELECT ${bind(sessionId)}, ${attendee}, ${bind(heldSince)}, ${bind(stored.encrypted)},
-                 ${storedIndex}, ${bind(state.failureData)}, ${bind(state.protectedState)}
-           WHERE EXISTS (
-             SELECT 1 FROM attendees AS attendee WHERE attendee.id = ${attendee}
-           )
-              AND NOT EXISTS (
-                SELECT 1 FROM processed_payments AS payment
-                WHERE payment.attendee_id = ${attendee}
-                  AND payment.payment_reference_index IN (${matchingIndexSlots})
-              )`;
-      }),
+      statement: insertInto(
+        tables.processed_payments,
+        {
+          attendeeId,
+          failureData: state.failureData,
+          paymentReference: stored.encrypted,
+          paymentReferenceIndex: stored.index,
+          paymentSessionId: sessionId,
+          processedAt: heldSince,
+          protectedState: state.protectedState,
+        },
+        {
+          when: and(
+            records.attendees.byId(attendeeId).exists(),
+            not(
+              from(tables.processed_payments)
+                .as("payment")
+                .where({
+                  attendeeId,
+                  paymentReferenceIndex: matchingIndexes,
+                })
+                .exists(),
+            ),
+          ),
+        },
+      ),
     };
   };
   return {

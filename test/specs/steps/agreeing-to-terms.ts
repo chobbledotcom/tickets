@@ -58,7 +58,7 @@ Then(
     expectIncludesAll(html, [
       await settings.terms,
       agreeBoxLabel(),
-      'name="agree_terms"',
+      'name="agreeTerms"',
     ]);
   },
 );
@@ -70,7 +70,7 @@ Then(
     expectIncludesAll(currentHtml, [
       await settings.terms,
       agreeBoxLabel(),
-      'name="agree_terms"',
+      'name="agreeTerms"',
     ]);
   },
 );
@@ -79,7 +79,7 @@ Then(
   "the {word} page offers no box to agree to",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const html = (await openBookingPage(listingNamed(this, name))).currentHtml;
-    assert(!html.includes('name="agree_terms"'));
+    assert(!html.includes('name="agreeTerms"'));
   },
 );
 
@@ -90,7 +90,7 @@ Then(
     // A browser will not send a form with a required box clear, so the
     // insistence is what stops a real customer — the server's own refusal
     // of an order that arrives without the agreement is the direct suite's.
-    expect(boxOffered(html, "agree_terms").insisted).toBe(true);
+    expect(boxOffered(html, "agreeTerms").insisted).toBe(true);
   },
 );
 
@@ -98,7 +98,7 @@ Then(
   "the page selling both insists the terms box is ticked before it will send",
   async function (this: TicketsWorld): Promise<void> {
     const { currentHtml } = await openTicketAndMugPage(this);
-    expect(boxOffered(currentHtml, "agree_terms").insisted).toBe(true);
+    expect(boxOffered(currentHtml, "agreeTerms").insisted).toBe(true);
   },
 );
 

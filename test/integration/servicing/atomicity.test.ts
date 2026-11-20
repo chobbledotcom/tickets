@@ -11,12 +11,17 @@
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import {
   createServicingHold,
@@ -53,28 +58,17 @@ const attachTextAndChoiceQuestions = async (
   choiceQuestionId: number;
   choiceAnswerId: number;
 }> => {
-  const { answersTable, questionsTable } = await import(
-    "#db/questions/tables.ts"
-  );
-  const { questionListings } = await import("#db/questions/queries.ts");
-  const textQuestion = await questionsTable.insert({
-    assignAll: false,
-    displayType: "free_text",
-    text: "Boiler notes?",
-  });
-  const choiceQuestion = await questionsTable.insert({
-    assignAll: false,
-    displayType: "radio",
+  const [textQuestion] = await freeTextQuestionsOn(listingId, [
+    "Boiler notes?",
+  ]);
+  const {
+    answers: [choiceAnswer],
+    question: choiceQuestion,
+  } = await seedQuestion({
+    answers: ["Vaillant"],
+    listingIds: [listingId],
     text: "Boiler model?",
   });
-  const choiceAnswer = await answersTable.insert({
-    questionId: choiceQuestion.id,
-    sortOrder: 0,
-    text: "Vaillant",
-  });
-  for (const q of [textQuestion.id, choiceQuestion.id]) {
-    await questionListings.setIds(q, [listingId]);
-  }
   return {
     choiceAnswerId: choiceAnswer.id,
     choiceQuestionId: choiceQuestion.id,
@@ -158,7 +152,7 @@ describeWithEnv(
       expect((await servicingRowsForListing(listing.id)).length).toBe(0);
       const { queryOne } = await import("#db/client.ts");
       const row = await queryOne<{ c: number }>(
-        "SELECT COUNT(*) AS c FROM attendees WHERE kind = 'servicing'",
+        sql`SELECT COUNT(*) AS c FROM attendees WHERE kind = 'servicing'`,
       );
       expect(Number(row!.c)).toBe(0);
     });

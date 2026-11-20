@@ -79,7 +79,7 @@ describeWithEnv("bulk-email listing-day target", { db: true }, () => {
     ).resolves.toEqual(expected);
     await expect(
       targetFromForm(
-        new FormParams({ day: MONDAY, listing_id: String(listing.id) }),
+        new FormParams({ day: MONDAY, listingId: String(listing.id) }),
       ),
     ).resolves.toEqual(expected);
   });
@@ -105,7 +105,7 @@ describeWithEnv("bulk-email listing-day target", { db: true }, () => {
       targetFromQuery(new URLSearchParams({ listing: String(listing.id) })),
     ).resolves.toEqual(expected);
     await expect(
-      targetFromForm(new FormParams({ listing_id: String(listing.id) })),
+      targetFromForm(new FormParams({ listingId: String(listing.id) })),
     ).resolves.toEqual(expected);
   });
 
@@ -130,7 +130,7 @@ describeWithEnv("bulk-email listing-day target", { db: true }, () => {
       ).resolves.toBeNull();
     }
     await expect(
-      targetFromForm(new FormParams({ day: "", listing_id: id })),
+      targetFromForm(new FormParams({ day: "", listingId: id })),
     ).resolves.toBeNull();
     await expect(
       targetFromForm(new FormParams({ day: MONDAY })),
@@ -148,7 +148,7 @@ describeWithEnv("bulk-email listing-day target", { db: true }, () => {
       }),
     ).toEqual({
       fields: [
-        ["listing_id", String(listing.id)],
+        ["listingId", String(listing.id)],
         ["day", MONDAY],
       ],
       mode: "fixed",

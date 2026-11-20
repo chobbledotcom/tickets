@@ -82,7 +82,7 @@ const handleAttachmentDownload: TypedRouteHandler<
 
   // Look up listing and verify it has an attachment
   const listing = await getListingWithCount(id);
-  if (!listing?.attachment_url) return notFoundResponse();
+  if (!listing?.attachmentUrl) return notFoundResponse();
 
   // Authorize against the EXACT (attendee, listing) booking row with a real
   // (quantity > 0) line — not a left-joined sibling row. A line later marked
@@ -92,15 +92,15 @@ const handleAttachmentDownload: TypedRouteHandler<
   }
 
   // Download and decrypt from CDN
-  const data = await downloadImage(listing.attachment_url);
+  const data = await downloadImage(listing.attachmentUrl);
   if (!data) return notFoundResponse();
 
   // Increment download counter (fire-and-forget)
   await incrementAttachmentDownloads(attendeeId, id);
 
   // Serve with Content-Disposition for proper download filename
-  const contentType = getAttachmentMediaType(listing.attachment_name);
-  const disposition = buildContentDisposition(listing.attachment_name);
+  const contentType = getAttachmentMediaType(listing.attachmentName);
+  const disposition = buildContentDisposition(listing.attachmentName);
   return new Response(data.buffer as BodyInit, {
     headers: {
       "content-disposition": disposition,

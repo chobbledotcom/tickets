@@ -31,7 +31,7 @@ attendeeTableSuite(() => {
       expect(
         hasInputWithValue(
           render(makeOpts()),
-          "csrf_token",
+          "csrfToken",
           getCurrentCsrfToken(),
         ),
       ).toBe(true);
@@ -57,16 +57,16 @@ attendeeTableSuite(() => {
 
     test("includes activeFilter as return_filter", () => {
       const html = render(makeOpts({ activeFilter: "in" }));
-      expect(hasInputWithValue(html, "return_filter", "in")).toBe(true);
+      expect(hasInputWithValue(html, "returnFilter", "in")).toBe(true);
     });
 
     test("includes return_url when provided", () => {
       const html = render(makeOpts({ returnUrl: "/checkin/abc" }));
-      expect(hasInputWithValue(html, "return_url", "/checkin/abc")).toBe(true);
+      expect(hasInputWithValue(html, "returnUrl", "/checkin/abc")).toBe(true);
     });
 
     test("omits return_url when not provided", () => {
-      assert(!render(makeOpts()).includes("return_url"));
+      assert(!render(makeOpts()).includes('name="returnUrl"'));
     });
   });
 

@@ -4,7 +4,9 @@ import {
   checkListingAvailability as hasAvailableSpots,
   unfitListingIds,
 } from "#db/attendees/capacity/checks.ts";
+import { getDb } from "#db/client.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -86,63 +88,84 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
     expect(await hasAvailableSpots(listing.id, 1, "2026-02-11")).toBe(true);
   });
 
-  test("multi-day range: every day must have room (listing cap)", async () => {
-    const listing = await createDailyTestListing({
-      durationDays: 3,
-      maxAttendees: 2,
-    });
-    await bookAttendee(listing, {
-      date: "2026-05-03",
-      durationDays: 1,
-      quantity: 2,
-    });
-    expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 3)).toBe(false);
-    expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 1)).toBe(true);
-  });
+  /** A range query to pin: the quantity asked for, the first day, how many
+   *  days it covers, and the answer. */
+  type RangeCheck = readonly [
+    quantity: number,
+    from: string,
+    days: number,
+    expected: boolean,
+  ];
 
-  test("multi-day range: every day must have room (group cap)", async () => {
-    const { listing } = await setupGroupCappedSibling(
-      2,
-      2,
-      100,
-      "2026-05-02",
-      2,
-    );
-    expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 2)).toBe(false);
-  });
+  /** Each row is one test: it arranges the bookings under test and pins every
+   *  range query on them. A multi-day booking needs room on every day. */
+  const rangeCases: readonly {
+    readonly name: string;
+    readonly arrange: () => Promise<{
+      readonly listing: { readonly id: number };
+    }>;
+    readonly checks: readonly RangeCheck[];
+  }[] = [
+    {
+      arrange: async () => {
+        const listing = await createDailyTestListing({
+          durationDays: 3,
+          maxAttendees: 2,
+        });
+        await bookAttendee(listing, {
+          date: "2026-05-03",
+          durationDays: 1,
+          quantity: 2,
+        });
+        return { listing };
+      },
+      checks: [
+        [1, "2026-05-01", 3, false],
+        [1, "2026-05-01", 1, true],
+      ],
+      name: "multi-day range: every day must have room (listing cap)",
+    },
+    {
+      arrange: () => setupGroupCappedSibling(2, 2, 100, "2026-05-02", 2),
+      checks: [[1, "2026-05-01", 2, false]],
+      name: "multi-day range: every day must have room (group cap)",
+    },
+    {
+      arrange: () => setupGroupCappedSibling(0, 3, 5, "2026-05-02", 50),
+      checks: [[1, "2026-05-01", 3, true]],
+      name: "multi-day range: an uncapped group never limits availability",
+    },
+    {
+      arrange: async () => {
+        // Groups normally hold one listing type, but an listing can be flipped
+        // after booking — its rows must then count on every day of the range
+        // (the `listing_type != 'daily'` arm of the group predicate).
+        const setup = await setupGroupCappedSibling(5, 2, 100, "2026-09-01", 3);
+        await getDb().execute(
+          sql`UPDATE listings SET listing_type = 'standard' WHERE id = ${setup.sibling.id}`,
+        );
+        return setup;
+      },
+      // Sibling's 3 now count on every day — a 2-day booking far from
+      // 2026-09-01 still only has 5 - 3 = 2 group spots per day.
+      checks: [
+        [3, "2026-11-01", 2, false],
+        [2, "2026-11-01", 2, true],
+      ],
+      name: "multi-day range: non-daily group rows count against every day",
+    },
+  ];
 
-  test("multi-day range: an uncapped group never limits availability", async () => {
-    const { listing } = await setupGroupCappedSibling(
-      0,
-      3,
-      5,
-      "2026-05-02",
-      50,
-    );
-    expect(await hasAvailableSpots(listing.id, 1, "2026-05-01", 3)).toBe(true);
-  });
-
-  test("multi-day range: non-daily group rows count against every day", async () => {
-    // Groups normally hold one listing type, but an listing can be flipped
-    // after booking — its rows must then count on every day of the range
-    // (the `listing_type != 'daily'` arm of the group predicate).
-    const { listing, sibling } = await setupGroupCappedSibling(
-      5,
-      2,
-      100,
-      "2026-09-01",
-      3,
-    );
-    const { getDb } = await import("#db/client.ts");
-    await getDb().execute({
-      args: [sibling.id],
-      sql: "UPDATE listings SET listing_type = 'standard' WHERE id = ?",
+  for (const { arrange, checks, name } of rangeCases) {
+    test(name, async () => {
+      const { listing } = await arrange();
+      for (const [quantity, from, days, expected] of checks) {
+        expect(await hasAvailableSpots(listing.id, quantity, from, days)).toBe(
+          expected,
+        );
+      }
     });
-    // Sibling's 3 now count on every day — a 2-day booking far from
-    // 2026-09-01 still only has 5 - 3 = 2 group spots per day.
-    expect(await hasAvailableSpots(listing.id, 3, "2026-11-01", 2)).toBe(false);
-    expect(await hasAvailableSpots(listing.id, 2, "2026-11-01", 2)).toBe(true);
-  });
+  }
 
   test("checks a grouped daily listing without a query per day or group", async () => {
     const group = await createTestGroup({ maxAttendees: 5 });

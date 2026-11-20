@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   siteBaseUrl,
+  siteFetchHosts,
   toStableHostname,
   visitSiteUrl,
 } from "#shared/site-address.ts";
@@ -88,6 +89,32 @@ describe("siteBaseUrl", () => {
   });
 });
 
+describe("siteFetchHosts", () => {
+  test("names the stored host and its stable twin", () => {
+    expect(siteFetchHosts("https://tickets-g71vh.bunny.run").join(",")).toBe(
+      "tickets-g71vh.bunny.run,tickets-g71vh.b-cdn.net",
+    );
+  });
+
+  test("names one host when the site has one address", () => {
+    expect(siteFetchHosts("https://site.b-cdn.net").join(",")).toBe(
+      "site.b-cdn.net",
+    );
+  });
+
+  test("keeps a non-default port on both hosts", () => {
+    expect(siteFetchHosts("https://child.bunny.run:8443").join(",")).toBe(
+      "child.bunny.run:8443,child.b-cdn.net:8443",
+    );
+  });
+
+  test("accepts a bare hostname", () => {
+    expect(siteFetchHosts("child.bunny.run").join(",")).toBe(
+      "child.bunny.run,child.b-cdn.net",
+    );
+  });
+});
+
 describe("visitSiteUrl", () => {
   test("swaps a bunny.net host for its b-cdn.net address", () => {
     expect(visitSiteUrl("https://child.newsite.bunny.net")).toBe(
@@ -132,18 +159,18 @@ describe("visitSiteUrl", () => {
   });
 
   test("gives no address for an empty saved URL", () => {
-    expect(visitSiteUrl("")).toBeUndefined();
+    expect(visitSiteUrl("")).toBe(undefined);
   });
 
   test("gives no address for a truncated URL", () => {
-    expect(visitSiteUrl("https://")).toBeUndefined();
+    expect(visitSiteUrl("https://")).toBe(undefined);
   });
 
   test("gives no address for a non-http scheme", () => {
-    expect(visitSiteUrl("javascript:alert(1)")).toBeUndefined();
+    expect(visitSiteUrl("javascript:alert(1)")).toBe(undefined);
   });
 
   test("gives no address for a URL on another scheme", () => {
-    expect(visitSiteUrl("ftp://example.com")).toBeUndefined();
+    expect(visitSiteUrl("ftp://example.com")).toBe(undefined);
   });
 });

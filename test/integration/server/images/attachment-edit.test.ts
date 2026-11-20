@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { toMajorUnits } from "#shared/currency.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -27,26 +27,28 @@ const editFormData = async (
   const listing = await getListingWithCount(listingId);
   if (!listing) throw new Error(`Listing not found: ${listingId}`);
   return {
-    bookable_days: listing.bookable_days,
-    closes_at_date: "",
-    closes_at_time: "",
-    csrf_token: csrfToken,
-    date_date: "",
-    date_time: "",
+    bookableDays: listing.bookableDays,
+    closesAtDate: "",
+    closesAtTime: "",
+    csrfToken,
+    dateDate: "",
+    dateTime: "",
     description: listing.description,
+    durationDays: String(listing.durationDays),
     fields: (listing.fields || "email").split(","),
-    listing_type: listing.listing_type,
+    listingType: listing.listingType,
     location: listing.location,
-    max_attendees: String(listing.max_attendees),
-    max_price: toMajorUnits(listing.max_price),
-    max_quantity: String(listing.max_quantity),
-    maximum_days_after: String(listing.maximum_days_after),
-    minimum_days_before: String(listing.minimum_days_before),
+    maxAttendees: String(listing.maxAttendees),
+    maximumDaysAfter: String(listing.maximumDaysAfter),
+    maxPrice: toMajorUnits(listing.maxPrice),
+    maxQuantity: String(listing.maxQuantity),
+    minimumDaysBefore: String(listing.minimumDaysBefore),
+    minQuantity: String(listing.minQuantity),
     name: listing.name,
     slug: listing.slug,
-    thank_you_url: listing.thank_you_url ?? "",
-    unit_price: listing.unit_price > 0 ? toMajorUnits(listing.unit_price) : "",
-    webhook_url: listing.webhook_url ?? "",
+    thankYouUrl: listing.thankYouUrl ?? "",
+    unitPrice: toMajorUnits(listing.unitPrice),
+    webhookUrl: listing.webhookUrl ?? "",
   };
 };
 
@@ -112,7 +114,7 @@ describeWithEnv(
           )(response);
 
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.attachment_url).toBe("");
+          expect(updated?.attachmentUrl).toBe("");
         });
       });
 
@@ -132,7 +134,7 @@ describeWithEnv(
               );
               expect(response.status).toBe(302);
               const updated = await getListingWithCount(listing.id);
-              expect(updated?.attachment_url).toBe("");
+              expect(updated?.attachmentUrl).toBe("");
             });
           });
         },
@@ -153,8 +155,8 @@ describeWithEnv(
           )(response);
 
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.attachment_url).toMatch(/guide\.pdf$/);
-          expect(updated?.attachment_name).toBe("guide.pdf");
+          expect(updated?.attachmentUrl).toMatch(/guide\.pdf$/);
+          expect(updated?.attachmentName).toBe("guide.pdf");
         });
       });
 
@@ -175,13 +177,13 @@ describeWithEnv(
           );
           expectImageErrorRedirect(response, "25MB");
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.attachment_url).toBe("");
+          expect(updated?.attachmentUrl).toBe("");
         });
       });
 
       test("deletes old attachment when uploading new one", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
+        await updateListing(listing.id, {
           attachmentName: "old.pdf",
           attachmentUrl: "old-file.pdf",
         });

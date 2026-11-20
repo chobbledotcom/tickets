@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, executeBatch } from "#db/client.ts";
+import { executeBatch } from "#db/client.ts";
 import {
   countLegacyPaymentReferences,
   legacyPaymentReferencePage,
 } from "#db/payment-reference-rebuild.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
@@ -14,15 +15,10 @@ import {
 } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  bookAttendee,
-  bookedAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { bookLegacyPaidAttendee } from "#test-utils/historical-payment-references.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { bookTaggedWithBlankIndex } from "#test-utils/tagged-payment-rows.ts";
 
 const REBUILD_PATH = "/admin/migrate/rebuild-payment-references";
 
@@ -30,7 +26,7 @@ const postRebuild = async (fields: Record<string, string>): Promise<Response> =>
   handleRequest(
     mockFormRequest(
       REBUILD_PATH,
-      { csrf_token: await testCsrfToken(), ...fields },
+      { csrfToken: await testCsrfToken(), ...fields },
       await testCookie(),
     ),
   );
@@ -46,16 +42,15 @@ const cloneRebuildableRows = async (
     (_, index) => `sess_clone_${index + 1}`,
   );
   await executeBatch(
-    sessionIds.map((sessionId) => ({
-      args: [sessionId, fromSessionId],
-      sql: `INSERT INTO processed_payments
+    sessionIds.map(
+      (sessionId) => sql`INSERT INTO processed_payments
               (payment_session_id, attendee_id, processed_at,
                payment_reference, payment_reference_index)
-            SELECT ?, attendee_id, processed_at,
+            SELECT ${sessionId}, attendee_id, processed_at,
                    payment_reference, payment_reference_index
               FROM processed_payments
-             WHERE payment_session_id = ?`,
-    })),
+             WHERE payment_session_id = ${fromSessionId}`,
+    ),
   );
 };
 
@@ -68,10 +63,10 @@ const runFields = async (
   const page = await legacyPaymentReferencePage(await getTestPrivateKey());
   const untagged = page.filter((row) => !row.alreadyTagged);
   return {
-    confirm_identifier: String(untagged.length),
+    confirmIdentifier: String(untagged.length),
     ...Object.fromEntries(
       untagged.map((row) => [
-        `provider_${row.paymentSessionId}`,
+        `provider${row.paymentSessionId}`,
         providers[row.reference] ?? "stripe",
       ]),
     ),
@@ -87,7 +82,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
       REBUILD_PATH,
       "There is 1 payment record to rebuild.",
       "pi_route_waiting",
-      'name="provider_sess_route_waiting"',
+      'name="providersess_route_waiting"',
       "Type 1 to confirm how many records this run will rebuild:",
       "Rebuild payment records",
     );
@@ -110,7 +105,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
     )(
       await postRebuild({
         ...(await runFields()),
-        provider_sess_route_noprov: "",
+        providersess_route_noprov: "",
       }),
     );
   });
@@ -123,8 +118,8 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
       false,
     )(
       await postRebuild({
-        confirm_identifier: "7",
-        provider_sess_route_mismatch: "stripe",
+        confirmIdentifier: "7",
+        providersess_route_mismatch: "stripe",
       }),
     );
   });
@@ -149,23 +144,11 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
   });
 
   test("a record that already names its provider needs no choice", async () => {
-    const listing = await createTestListing();
-    const tagged = bookedAttendee(
-      await bookAttendee(listing, {
-        email: "route-kept-tag@example.com",
-        name: "Route Kept Tag",
-        paymentId: "pi_route_kept_tag",
-      }),
-    );
-    await finalizeProcessedPayment("sess_route_kept_tag", tagged.id, "", {
-      kind: "tagged",
-      provider: "square",
-      reference: "pi_route_kept_tag",
+    await bookTaggedWithBlankIndex("sess_route_kept_tag", {
+      email: "route-kept-tag@example.com",
+      name: "Route Kept Tag",
+      paymentId: "pi_route_kept_tag",
     });
-    await execute(
-      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
-      ["sess_route_kept_tag"],
-    );
     await assertAdminHtml(
       REBUILD_PATH,
       t("migrate.rebuild.already_tagged"),
@@ -175,7 +158,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
     await expectFlashRedirect(
       REBUILD_PATH,
       t("migrate.rebuild.flash_done", { count: 1, unqualifiedAttendees: 0 }),
-    )(await postRebuild({ ...(await runFields()), confirm_identifier: "0" }));
+    )(await postRebuild({ ...(await runFields()), confirmIdentifier: "0" }));
     expect(await countLegacyPaymentReferences()).toBe(0);
   });
 

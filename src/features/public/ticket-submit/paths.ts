@@ -86,8 +86,8 @@ export const publicReservationAmount = async (): Promise<
   string | undefined
 > => {
   const status = await requirePublicDefaultStatus();
-  return status.is_reservation && status.reservation_amount
-    ? status.reservation_amount
+  return status.isReservation && status.reservationAmount
+    ? status.reservationAmount
     : undefined;
 };
 

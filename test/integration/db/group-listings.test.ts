@@ -8,7 +8,7 @@ import {
   setListingGroups,
 } from "#db/groups.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
-
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -52,7 +52,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     ]);
 
     const rows = await getGroupPackagePrices(group.id);
-    expect(rows.map((r) => [r.listing_id, r.package_price]).sort()).toEqual(
+    expect(rows.map((r) => [r.listingId, r.packagePrice]).sort()).toEqual(
       [
         [a.id, 1500],
         [b.id, 0],
@@ -67,21 +67,17 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     // the source of truth since group_listings.package_price was retired.
     expect(
       await queryAll(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
-        [a.id, String(group.id)],
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${a.id} AND price_type = 'group' AND price_id = ${String(group.id)}`,
       ),
     ).toEqual([{ unit_price: 1500 }]);
     // Clearing the overrides removes the row (so getGroupPackagePrices reads null).
     await setGroupPackageMembers(group.id, []);
     expect(
       await queryAll(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group'",
-        [a.id],
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${a.id} AND price_type = 'group'`,
       ),
     ).toEqual([]);
-    expect((await getGroupPackagePrices(group.id))[0]!.package_price).toBe(
-      null,
-    );
+    expect((await getGroupPackagePrices(group.id))[0]!.packagePrice).toBe(null);
   });
 
   test("leaving a package group clears the listing's override row (no resurrection on re-add)", async () => {
@@ -89,8 +85,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 1500 }]);
     const overrideRows = () =>
       queryAll(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
-        [a.id, String(group.id)],
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${a.id} AND price_type = 'group' AND price_id = ${String(group.id)}`,
       );
     expect((await overrideRows()).length).toBe(1);
 
@@ -104,7 +99,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     await setListingGroups(a.id, [group.id]);
     const readded = await getGroupPackagePrices(group.id);
     expect(
-      readded.find((r) => r.listing_id === a.id)?.package_price ?? null,
+      readded.find((r) => r.listingId === a.id)?.packagePrice ?? null,
     ).toBe(null);
   });
 
@@ -118,8 +113,8 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
       { listingId: a.id, price: 900, quantity: 5 },
     ]);
     const rows = await getGroupPackagePrices(group.id);
-    const member = rows.find((r) => r.listing_id === a.id)!;
-    expect(member.package_price).toBe(900);
+    const member = rows.find((r) => r.listingId === a.id)!;
+    expect(member.packagePrice).toBe(900);
     expect(member.quantity).toBe(5);
   });
 
@@ -132,7 +127,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
       { listingId: b.id, price: 200 },
     ]);
     const rows = await getGroupPackagePrices(group.id);
-    const byId = new Map(rows.map((r) => [r.listing_id, r.quantity]));
+    const byId = new Map(rows.map((r) => [r.listingId, r.quantity]));
     expect(byId.get(a.id)).toBe(3);
     expect(byId.get(b.id)).toBe(1);
 
@@ -140,7 +135,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     await setGroupPackageMembers(group.id, []);
     const cleared = await getGroupPackagePrices(group.id);
     expect(
-      cleared.every((r) => r.quantity === 1 && r.package_price === null),
+      cleared.every((r) => r.quantity === 1 && r.packagePrice === null),
     ).toBe(true);
   });
 
@@ -171,13 +166,12 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     // Reconstruct a pre-migration shape: re-add the dropped column with data, so
     // the migration's up() exercises its backfill + column-drop path.
     await execute(
-      "ALTER TABLE listings ADD COLUMN group_id INTEGER NOT NULL DEFAULT 0",
+      sql`ALTER TABLE listings ADD COLUMN group_id INTEGER NOT NULL DEFAULT 0`,
     );
     const listing = await createTestListing({ name: "Legacy" });
-    await execute("UPDATE listings SET group_id = ? WHERE id = ?", [
-      77,
-      listing.id,
-    ]);
+    await execute(
+      sql`UPDATE listings SET group_id = ${77} WHERE id = ${listing.id}`,
+    );
 
     const migration = MIGRATIONS.find(
       (m) => m.id === "2026-06-28_group_listings",
@@ -187,7 +181,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     // The legacy value is migrated into group_listings and the column is gone.
     expect(await listingGroups.getIds(listing.id)).toEqual([77]);
     const columns = await queryAll<{ name: string }>(
-      "PRAGMA table_info(listings)",
+      sql`PRAGMA table_info(listings)`,
     );
     expect(columns.some((c) => c.name === "group_id")).toBe(false);
 

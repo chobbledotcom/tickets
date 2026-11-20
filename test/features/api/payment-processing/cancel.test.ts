@@ -2,7 +2,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import type {
   SessionMetadata,
@@ -120,10 +121,9 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    await getDb().execute({
-      args: [turnedOff.id],
-      sql: "UPDATE listings SET active = 0 WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listings SET active = 0 WHERE id = ${turnedOff.id}`,
+    );
     return { group, member };
   };
 
@@ -182,7 +182,7 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    await groups.table.update(group.id, { isPackage: false });
+    await records.groups.update(group.id, { isPackage: false });
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 

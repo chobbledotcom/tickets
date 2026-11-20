@@ -3,10 +3,12 @@
 import * as v from "valibot";
 import { isNotNullish, reduce } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { type AuthPolicy, withAuth } from "#routes/auth.ts";
+import { type AuthPolicy, type AuthSession, withAuth } from "#routes/auth.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { objectEntries } from "#shared/rest/api-body-fields.ts";
-import type { WriteMapper } from "#shared/rest/crud-api-types.ts";
+import type { InputValidator } from "#shared/rest/record.ts";
 import {
+  type AsyncResult,
   errorResult,
   okResult,
   parseOptionalResult,
@@ -17,10 +19,19 @@ import {
   parseDateString,
   parseDateStringOrThrow,
 } from "#shared/validation/date-string.ts";
-import type { AdminSession } from "#types";
+import { requiredTrimmedText } from "#shared/validation/string.ts";
 
 /** JSON body for confirmed delete endpoints */
 export type DeleteBody = { confirm_identifier: string };
+
+/** Answer one parsed JSON body: run the handler, or its error response. */
+export const answerParsed = async <T>(
+  parsed: AsyncResult<T>,
+  run: ResponseHandler<[value: T]>,
+): Promise<Response> => {
+  const result = await parsed;
+  return result.ok ? run(result.value) : apiErrorResponse(result.error);
+};
 
 /**
  * Parse a required non-empty string field from a JSON body.
@@ -36,7 +47,7 @@ const requireString = (
 
 /** Parse every item with one shared first-error traversal. The parser sees the
  *  item's index, so a refusal can name its place. */
-const parseEach =
+export const parseEach =
   <Input, Output>(parseItem: (item: Input, index: number) => Result<Output>) =>
   (items: readonly Input[]): Result<Output[]> =>
     reduce(
@@ -155,10 +166,7 @@ export const requireEntityField = <Field extends string>(
     const required = requireStrings(body, [field]);
     return required.ok ? okResult(required.value[field]) : required;
   }
-  const trimmed = supplied.value.trim();
-  return trimmed === ""
-    ? errorResult(`${field} cannot be empty`)
-    : okResult(trimmed);
+  return requiredTrimmedText(supplied.value, `${field} cannot be empty`);
 };
 
 /** Read the display name a create or an update stores: the supplied text, else
@@ -170,36 +178,6 @@ export const writeEntityName = (
 ): Result<string> => {
   const name = (supplied ?? stored ?? "").trim();
   return name === "" ? errorResult("name cannot be empty") : okResult(name);
-};
-
-/** Wrap a write mapper with the shared name read. The name refusal answers
- *  before the mapper runs. */
-export const withWriteName =
-  <
-    Body extends { name?: string | undefined },
-    Row extends { name: string },
-    Input,
-  >(
-    build: (
-      name: string,
-      body: Body,
-      existing: Row | null,
-    ) => Result<Input> | Promise<Result<Input>>,
-  ): WriteMapper<Input, Body, Row | null> =>
-  (body, existing) => {
-    const name = writeEntityName(body.name, existing?.name ?? null);
-    return name.ok ? build(name.value, body, existing) : name;
-  };
-
-/** Combine the two date results of one range in field order: the start date
- *  reports first, then the end date. */
-export const dateRange = (
-  startDate: Result<DateString>,
-  endDate: Result<DateString>,
-): Result<{ endDate: DateString; startDate: DateString }> => {
-  if (!startDate.ok) return startDate;
-  if (!endDate.ok) return endDate;
-  return okResult({ endDate: endDate.value, startDate: startDate.value });
 };
 
 /**
@@ -215,16 +193,6 @@ export const optionalDateString = (
   fallback: string,
 ): Result<DateString> =>
   readDateField(body, key, optionalDateAbsent(key, fallback));
-
-/**
- * Read an optional number from a JSON body, falling back to `fallback` when the
- * key is absent or holds the wrong type.
- */
-export const bodyNumber = (
-  body: Record<string, unknown>,
-  key: string,
-  fallback: number,
-): number => (typeof body[key] === "number" ? body[key] : fallback);
 
 /** Read one optional field of a named type. An absent key keeps the stored
  *  value. A supplied value of another type is refused with the field-named
@@ -325,8 +293,8 @@ export type ValidatedInput<Input> =
  * error response on failure.
  */
 export const parseAndValidate = async <Input>(
-  parsed: Result<Input> | Promise<Result<Input>>,
-  validate?: (input: Input, id?: number) => Promise<string | null>,
+  parsed: AsyncResult<Input>,
+  validate?: InputValidator<Input>,
   id?: number,
 ): Promise<ValidatedInput<Input>> => {
   const result = await parsed;
@@ -359,7 +327,7 @@ export const parseUpdateSlug = async <Index extends string>(
 /** Callback receiving an entity row plus auth context */
 export type EntityHandler<Row> = (
   row: Row,
-  session: AdminSession,
+  session: AuthSession,
   body: Record<string, unknown>,
 ) => Promise<Response>;
 
@@ -374,7 +342,7 @@ export type EntityHandler<Row> = (
  */
 export const withApiEntity = <Row>(
   request: Request,
-  lookup: (id: number) => Promise<Row | null>,
+  lookup: (id: number, session: AuthSession) => Promise<Row | null>,
   id: number,
   notFoundLabel: string,
   handler: EntityHandler<Row>,
@@ -383,7 +351,7 @@ export const withApiEntity = <Row>(
     apiErrorResponse(`${notFoundLabel} not found`, 404),
 ): Promise<Response> =>
   withAuth(request, policy, async (session, body) => {
-    const row = await lookup(id);
+    const row = await lookup(id, session);
     if (!row) return notFound();
     return handler(row, session, body);
   });

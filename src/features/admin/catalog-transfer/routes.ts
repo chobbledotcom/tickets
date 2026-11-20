@@ -104,7 +104,7 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
     if (isDemoMode()) {
       return errorRedirect(IMPORT_PATH, t("catalog_transfer.demo_disabled"));
     }
-    const file = requireUploadedFile(formData, "catalog_file", () =>
+    const file = requireUploadedFile(formData, "catalogFile", () =>
       errorRedirect(IMPORT_PATH, t("catalog_transfer.no_file")),
     );
     if (file instanceof Response) return file;

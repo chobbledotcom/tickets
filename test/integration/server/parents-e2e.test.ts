@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { sql } from "#db/sql.ts";
 import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -77,9 +78,8 @@ const orderRowsFor = async (
 ): Promise<{ order_token: string; parent_listing_id: number }[]> => {
   const { queryAll } = await import("#db/client.ts");
   return queryAll<{ order_token: string; parent_listing_id: number }>(
-    `SELECT order_token, parent_listing_id FROM listing_attendees
-     WHERE listing_id = ? ORDER BY id DESC`,
-    [listingId],
+    sql`SELECT order_token, parent_listing_id FROM listing_attendees
+     WHERE listing_id = ${listingId} ORDER BY id DESC`,
   );
 };
 
@@ -192,7 +192,7 @@ const setupStandalone = async (): Promise<{
     date,
     email: "ada@example.com",
     name: "Ada Lovelace",
-    [`quantity_${standalone.id}`]: "1",
+    [`quantity${standalone.id}`]: "1",
   });
   expectReserved(res);
   return { date, standalone };
@@ -208,8 +208,8 @@ describeWithEnv(
 
       // Per-unit selectors are namespaced per parent+child (invariant I1/I2).
       expectIncludesAll(html, [
-        `name="child_qty_${parent.id}_${childA.id}"`,
-        `name="child_qty_${parent.id}_${childB.id}"`,
+        `name="childQty${parent.id}_${childA.id}"`,
+        `name="childQty${parent.id}_${childB.id}"`,
         // The live hint supplies the exact target after the buyer chooses a parent
         // quantity, so the initial note stays true before that choice.
         "Choose add-ons to match your ticket quantity",

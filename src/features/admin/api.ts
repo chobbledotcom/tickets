@@ -10,14 +10,8 @@
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { syncListingPrices } from "#db/listing-price-sync.ts";
 import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
-import {
-  getAllListings,
-  getListingWithCount,
-  getListingWithCountPrimary,
-  listingsTable,
-} from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { mapById, requiredMapValue } from "#fp";
 import { attendeeStatusApiRoutes } from "#routes/admin/api-attendee-statuses.ts";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
@@ -29,23 +23,31 @@ import { questionApiRoutes } from "#routes/admin/api-questions.ts";
 import { sitePageApiRoutes } from "#routes/admin/api-site-pages.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
-import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
+import { withoutKey } from "#shared/fp-records.ts";
 import {
   performListingDelete,
-  refuseUndatedListingSwitch,
   toggleListingActive,
-  validateListingInput,
 } from "#shared/listings-actions.ts";
-import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import {
+  LISTING_WRITE_KEYS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
+import { listingRecord } from "#shared/records/listings.ts";
+import {
+  siteFeatures,
+  withoutHiddenKeys,
+} from "#shared/records/write-access.ts";
 import type {
   CrudSideEffectValidate,
   HydratedRows,
 } from "#shared/rest/crud-api-types.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
+import { recordApi, recordJsonDeletePolicy } from "#shared/rest/record-api.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#types";
 import { handleCreateAttendee, toApiAttendee } from "./api-attendees.ts";
@@ -67,7 +69,11 @@ import {
 // The listing delete, deactivate, and reactivate routes are staff-only, the
 // same audience the dashboard's lifecycle controls declare
 // (areas-a-l.ts "listings": listingDelete, deactivate, reactivate).
-const listingGate = apiEntityGate(getListingWithCount, "Listing", ADMIN_API);
+const listingGate = apiEntityGate(
+  getListingWithCount,
+  "Listing",
+  recordJsonDeletePolicy(listingRecord),
+);
 
 /** Custom DELETE handler: performListingDelete runs the orphaned-add-on guard
  * and the DB deletes in one transaction, then cleans up storage and logs */
@@ -101,11 +107,9 @@ const handleToggleActive = (
     return jsonResponse({ listing: await toApiListing(result.updated) });
   });
 
-/** Strip slug_index from listing row, producing the admin API shape */
-export const toAdminListing = ({
-  slug_index: _,
-  ...rest
-}: ListingWithCount): AdminListing => rest;
+/** Strip the slug index from a listing row, producing the admin listing shape */
+export const toAdminListing: (row: ListingWithCount) => AdminListing =
+  withoutKey("slugIndex");
 
 /** Batched join-table hydration for a set of listing rows, keyed by listing
  * id. One query per link table covers the whole list rather than one per row.
@@ -132,10 +136,11 @@ const hydrateListingJoins = async (
  * plus the ids of its groups, plus its selected attribute options. */
 const toApiListing = async (
   row: ListingWithCount,
-): Promise<Record<string, unknown>> => ({
-  ...toAdminListing(row),
-  ...(await hydrateListingJoins([row])).get(row.id),
-});
+): Promise<Record<string, unknown>> =>
+  withoutHiddenKeys(LISTING_WRITE_KEYS, {
+    ...snakeCaseKeys(toAdminListing(row)),
+    ...(await hydrateListingJoins([row])).get(row.id),
+  });
 
 /** One of the listing's on/off routes: deactivate turns it off, reactivate
  * turns it back on. */
@@ -164,7 +169,7 @@ const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
           )
         ).map(toApiAttendee),
       }),
-    ADMIN_API,
+    recordJsonDeletePolicy(listingRecord),
   );
 
 /** The JSON write's join validation: the base joins come from the input. The
@@ -182,44 +187,31 @@ const prepareApiListingJoins: CrudSideEffectValidate<
   };
 };
 
-const listingApiRoutes = defineCrudApi<
+const listingApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.listings,
-  Listing,
-  ListingInput,
-  ListingWithCount,
+  RecordShapeOf<Listing, ListingInput, ListingWithCount>,
   PreparedListingJoins
->(ADMIN_API_RESOURCES.listings, {
-  afterCommit: syncListingPrices,
-  // The add-on reachability half of the save refuses inside the row write's
-  // transaction, so two concurrent page-removing saves cannot both commit.
-  // The API has no assign step, so a type switch that leaves undated
-  // bookings behind is refused here outright.
-  checkTx: refuseUndatedListingSwitch,
+>(listingRecord, {
   customHandlers: {
     attendees: handleListingAttendees,
     deactivate: toggleActiveRoute(false),
     delete: handleDeleteListing,
     reactivate: toggleActiveRoute(true),
   },
-  // Role parity with the listing pages: create/edit/duplicate admit content
-  // admins (owner, manager, editor — areas-a-l.ts "listings"). The delete,
-  // deactivate, and reactivate routes are staff-only. An editor therefore
-  // writes through the API exactly as far as the dashboard allows.
-  deletePolicy: ADMIN_API,
-  getAll: getAllListings,
   hydrate: hydrateListingJoins,
-  linkActivityToRow: true,
-  listExtras: (session) => ({ admin_level: session.adminLevel }),
-  lookup: getListingWithCount,
-  lookupAfterWrite: getListingWithCountPrimary,
-  nameField: "name",
-  policy: CONTENT_API,
+  // The features tell a caller which listing keys this site takes.
+  listExtras: (session) => ({
+    admin_level: session.adminLevel,
+    features: siteFeatures(),
+  }),
   /** The dashboard's editor table is money-free (listing-table.tsx), so the
    *  editor's API answers hide the staff-only money totals too. The editor
    *  form also hides webhook_url and use_defaults. The write parser freezes
    *  both: the stored webhook receives attendee PII, and its URL can carry
-   *  credentials or query tokens. */
-  projectResponse: (row, session) => {
+   *  credentials or query tokens. Every answer leaves out the keys whose
+   *  feature is off. */
+  projectResponse: (full, session) => {
+    const row = withoutHiddenKeys(LISTING_WRITE_KEYS, full);
     if (session.adminLevel !== "editor") return row;
     const {
       cost: _cost,
@@ -236,10 +228,8 @@ const listingApiRoutes = defineCrudApi<
     validate: prepareApiListingJoins,
   },
   stripKeys: ["slug_index"],
-  table: listingsTable,
   toCreateInput: bodyToCreateInput,
   toUpdateInput: bodyToUpdateInput,
-  validate: validateListingInput,
 });
 
 export const adminApiRoutes = {

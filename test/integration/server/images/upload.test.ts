@@ -34,8 +34,8 @@ const submitListingImageUpload = (
     mockMultipartRequest(
       `/admin/listing/${listingId}/images/upload`,
       {
-        alt_text: "",
-        csrf_token: csrfToken,
+        altText: "",
+        csrfToken,
         name: file.name,
       },
       cookie,
@@ -119,7 +119,7 @@ describeWithEnv(
                 cookie,
               )(response);
               const updated = await getListingWithCount(listing.id);
-              expect(updated?.image_url).toBe("");
+              expect(updated?.imageUrl).toBe("");
             });
           });
         },
@@ -141,7 +141,7 @@ describeWithEnv(
           );
           await expectImageErrorRedirect(response, "JPEG, PNG, or WebP");
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).toBe("");
+          expect(updated?.imageUrl).toBe("");
         });
       });
 
@@ -191,9 +191,9 @@ describeWithEnv(
 
           const updated = await getListingWithCount(listing.id);
           // Source PNG is transcoded to a full WebP plus a WebP thumbnail.
-          expect(updated?.image_url).toMatch(/\.webp$/);
-          expect(updated?.image_thumb_url).toMatch(/\.webp$/);
-          expect(updated?.image_thumb_url).not.toBe(updated?.image_url);
+          expect(updated?.imageUrl).toMatch(/\.webp$/);
+          expect(updated?.imageThumbUrl).toMatch(/\.webp$/);
+          expect(updated?.imageThumbUrl).not.toBe(updated?.imageUrl);
         });
       });
 
@@ -243,7 +243,7 @@ describeWithEnv(
           );
           expect(response.status).toBe(302);
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.image_url).toBe("old-failing.jpg");
+          expect(updated?.imageUrl).toBe("old-failing.jpg");
           expect(await getImagesForItem("listing", listing.id)).toHaveLength(2);
         });
       });

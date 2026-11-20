@@ -15,7 +15,7 @@ describeAdminSettings(() => {
     setDemoModeForTest(true);
     try {
       const { response } = await adminFormPost("/admin/settings/stripe", {
-        stripe_secret_key: "sk_test_demo",
+        stripeSecretKey: "sk_test_demo",
       });
       expectFlash(response, "Cannot configure Stripe in demo mode", false);
     } finally {
@@ -29,7 +29,7 @@ describeAdminSettings(() => {
 
     await withSuccessfulStripeWebhook(async () => {
       const { response } = await adminFormPost("/admin/settings/stripe", {
-        stripe_secret_key: "sk_test_sales_off",
+        stripeSecretKey: "sk_test_sales_off",
       });
       expect(response.status).toBe(302);
       expect(settings.paymentProvider).toBeNull();

@@ -9,25 +9,23 @@
  * transaction** — two concurrent adds of the same page can't both slip through.
  */
 
+import { targetRowsRemoval } from "#db/child-rows.ts";
 import {
   execute,
   executeBatch,
   queryAll,
   resultRows,
-  type SqlStatement,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { type Condition, whereTail } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { existingSitePageIdsStatement } from "#db/site-pages.ts";
-import {
-  clauseArgs,
-  deleteWhere,
-  type WhereClause,
-  whereSql,
-} from "#db/where-clauses.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
@@ -40,21 +38,22 @@ import {
 } from "#shared/site-pages/target.ts";
 import type { SitePageItem, SitePageItemType } from "#types";
 
-const SELECT_COLS = "page_id, item_type, item_id, sort_order";
+const SELECT_COLS = sql`page_id AS pageId, item_type AS itemType, item_id AS itemId,
+  sort_order AS sortOrder`;
 
 /** One item on one page — the composite key the edge table is unique on. */
-const itemOnPage = (
-  pageId: number,
-  target: SitePageItemTarget,
-): WhereClause[] => sitePageItemTargets.whereAlso(target, "page_id", pageId);
+const itemOnPage = (pageId: number, target: SitePageItemTarget): Condition[] =>
+  sitePageItemTargets.whereAlso(target, "page_id", pageId);
 
 /**
  * The statement that clears every edge pointing at one listing, group, or page,
  * for callers to fold into that record's own delete batch (so the cleanup is
  * atomic with the row delete — no dangling public-nav entry).
  */
-export const clearItemEdgesStatement =
-  sitePageItemTargets.deleteFrom("site_page_items");
+export const clearItemEdgesStatement = targetRowsRemoval(
+  tables.site_page_items,
+  sitePageItemTargets,
+);
 
 export const sitePageItemOrder = defineOrderedCollection({
   key: ["item_type", "item_id"] as const,
@@ -62,17 +61,13 @@ export const sitePageItemOrder = defineOrderedCollection({
   table: "site_page_items",
 });
 
-const allItemsStatement: SqlStatement = {
-  args: [],
-  sql: `SELECT ${SELECT_COLS} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`,
-};
-
-const fetchAllItems = (): Promise<SitePageItem[]> =>
-  queryAll<SitePageItem>(allItemsStatement.sql);
+const allItemsStatement: SqlStatement = sql`SELECT ${SELECT_COLS} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`;
 
 // Request-scoped: one query per request feeds the whole nav forest, fresh next
 // request, and cleared on any write to site_page_items.
-const itemsCache = requestCache(fetchAllItems);
+const itemsCache = requestCache(() =>
+  queryAll<SitePageItem>(allItemsStatement),
+);
 registerTableInvalidation(["site_page_items"], itemsCache.invalidate);
 
 /** Every edge, ordered — the single read the public nav's forest is built from. */
@@ -92,22 +87,19 @@ export const invalidatePageItemsCache = (): void => itemsCache.invalidate();
  * {@link SitePageItem}s the core can consume). */
 export const getItemsForPage = (pageId: number): Promise<SitePageItem[]> =>
   queryAll<SitePageItem>(
-    `SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ? ORDER BY sort_order ASC, item_id ASC`,
-    [pageId],
+    sql`SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ${pageId} ORDER BY sort_order ASC, item_id ASC`,
   );
 
+/** The page and the item that one page-item change names. */
+type PageItem = [pageId: number, itemType: SitePageItemType, itemId: number];
+
 type PageItemChange<T> = (
-  pageId: number,
-  itemType: SitePageItemType,
-  itemId: number,
-  transaction?: TxScope,
+  ...args: [...PageItem, transaction?: TxScope]
 ) => Promise<T>;
 
 type PageItemChangeInTransaction<T> = (
   transaction: TxScope,
-  pageId: number,
-  itemType: SitePageItemType,
-  itemId: number,
+  ...item: PageItem
 ) => Promise<T>;
 
 /** Give a page-item change the caller's transaction, or open its own. A simple
@@ -116,11 +108,7 @@ type PageItemChangeInTransaction<T> = (
 const pageItemChange =
   <T>(
     change: PageItemChangeInTransaction<T>,
-    direct?: (
-      pageId: number,
-      itemType: SitePageItemType,
-      itemId: number,
-    ) => Promise<T>,
+    direct?: (...item: PageItem) => Promise<T>,
   ): PageItemChange<T> =>
   (pageId, itemType, itemId, transaction) =>
     transaction === undefined && direct
@@ -161,23 +149,21 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
     sitePageItemTargets.of(itemType)(itemId),
   );
   const duplicate = resultRows<SitePageItem>(
-    await tx.execute({
-      args: clauseArgs(onThisPage),
-      sql: `SELECT ${SELECT_COLS} FROM site_page_items${whereSql(onThisPage)}`,
-    }),
+    await tx.execute(
+      sql`SELECT ${SELECT_COLS} FROM site_page_items${whereTail(onThisPage)}`,
+    ),
   );
   if (duplicate.length > 0) return false;
   if (itemType === "page") {
     // Read all page edges once and enforce both page invariants against the
     // same in-transaction snapshot, before inserting.
     const pageEdges = resultRows<SitePageItem>(
-      await tx.execute({
-        args: [],
-        sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE item_type = 'page'`,
-      }),
+      await tx.execute(
+        sql`SELECT ${SELECT_COLS} FROM site_page_items WHERE item_type = 'page'`,
+      ),
     );
     // Single-parent: the page must not already be nested elsewhere.
-    if (pageEdges.some((e) => e.item_id === itemId)) return false;
+    if (pageEdges.some((e) => e.itemId === itemId)) return false;
     // Acyclic: nesting it here must not close a loop (self or ancestor).
     // The walk needs only the child → parent edge map — never a page row.
     const parentByChild = pageParentMapFromEdges(pageEdges);
@@ -189,10 +175,14 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
     scope: pageId,
     transaction: tx,
   });
-  await tx.execute({
-    args: [pageId, itemType, itemId, next],
-    sql: "INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (?, ?, ?, ?)",
-  });
+  await tx.execute(
+    insertInto(tables.site_page_items, {
+      itemId,
+      itemType,
+      pageId,
+      sortOrder: next,
+    }),
+  );
   return true;
 };
 
@@ -205,7 +195,7 @@ const itemDeleteStatement = (
   itemType: SitePageItemType,
   itemId: number,
 ): SqlStatement =>
-  deleteWhere("site_page_items")(
+  deleteFrom(tables.site_page_items).where(() =>
     itemOnPage(pageId, sitePageItemTargets.of(itemType)(itemId)),
   );
 
@@ -222,11 +212,7 @@ const runItemDelete = async (
 export const removePageItem: PageItemChange<void> = pageItemChange(
   (transaction, ...args) =>
     runItemDelete((statement) => transaction.execute(statement), ...args),
-  (...args) =>
-    runItemDelete(
-      (statement) => execute(statement.sql, statement.args),
-      ...args,
-    ),
+  (...args) => runItemDelete((statement) => execute(statement), ...args),
 );
 
 /**
@@ -238,8 +224,8 @@ export const removePageItem: PageItemChange<void> = pageItemChange(
  */
 export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
   executeBatch([
-    { args: [pageId], sql: "DELETE FROM site_page_items WHERE page_id = ?" },
+    deleteFrom(tables.site_page_items).where({ pageId }),
     clearItemEdgesStatement(sitePageItemTargets.of("page")(pageId)),
     clearImageUsesForItemStatement(imageUseTargets.of("page")(pageId)),
-    { args: [pageId], sql: "DELETE FROM site_pages WHERE id = ?" },
+    deleteFrom(tables.site_pages).where({ id: pageId }),
   ]);

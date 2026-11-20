@@ -2,9 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { applyAttendeeAtomicEdit } from "#db/attendees/atomic-update.ts";
 import { execute, queryOne } from "#db/client.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+import { givePlan, MONTHLY } from "#test-utils/db-helpers/subscriptions.ts";
 import {
   addLine,
   bookForEdit,
@@ -16,39 +18,37 @@ import {
 
 const withDatabaseTrigger = async <Result>(
   name: string,
-  sql: string,
+  trigger: SqlStatement,
   run: () => Promise<Result>,
 ): Promise<Result> => {
-  await execute(sql);
+  await execute(trigger);
   try {
     return await run();
   } finally {
-    await execute(`DROP TRIGGER ${name}`);
+    await execute(sql`DROP TRIGGER ${sqlName(name)}`);
   }
 };
 
+/** Book one quantity-1 line on a fresh ten-seat listing. */
+const bookOneLine = (name: string) =>
+  bookOnNewListing({ maxAttendees: 10 }, { name, quantity: 1 });
+
 describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
   test("uses empty date and zero relationship ids in a standard line key", async () => {
-    const { listing, existing } = await bookOnNewListing(
-      { maxAttendees: 10 },
-      { name: "Key", quantity: 1 },
-    );
+    const { listing, existing } = await bookOneLine("Key");
 
     expect(existing[0]!.key).toBe(`${listing.id}||0|0`);
   });
 
   test("clears logistics state when quantity becomes zero", async () => {
-    const { listing, attendee, blob, existing } = await bookOnNewListing(
-      { maxAttendees: 10 },
-      { name: "No quantity", quantity: 1 },
-    );
+    const { listing, attendee, blob, existing } =
+      await bookOneLine("No quantity");
     await execute(
-      `UPDATE listing_attendees
+      sql`UPDATE listing_attendees
           SET checked_in = 1, start_agent_id = 7, end_agent_id = 8,
               start_time = '09:00', end_time = '10:00',
               start_done = 1, end_done = 1
-        WHERE attendee_id = ?`,
-      [attendee.id],
+        WHERE attendee_id = ${attendee.id}`,
     );
 
     const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
@@ -58,10 +58,9 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
     expect(update.success).toBe(true);
     expect(
       await queryOne(
-        `SELECT quantity, checked_in, start_agent_id, end_agent_id,
+        sql`SELECT quantity, checked_in, start_agent_id, end_agent_id,
                 start_time, end_time, start_done, end_done
-           FROM listing_attendees WHERE attendee_id = ?`,
-        [attendee.id],
+           FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
       ),
     ).toEqual({
       checked_in: 0,
@@ -96,15 +95,13 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
   });
 
   test("rejects an existing-line update that affects no row", async () => {
-    const { listing, attendee, blob, existing } = await bookOnNewListing(
-      { maxAttendees: 10 },
-      { name: "Ignored update", quantity: 1 },
-    );
+    const { listing, attendee, blob, existing } =
+      await bookOneLine("Ignored update");
 
     await expect(
       withDatabaseTrigger(
         "test_ignore_booking_update",
-        `CREATE TRIGGER test_ignore_booking_update
+        sql`CREATE TRIGGER test_ignore_booking_update
            BEFORE UPDATE ON listing_attendees
            BEGIN SELECT RAISE(IGNORE); END`,
         () =>
@@ -125,11 +122,11 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
     await expect(
       withDatabaseTrigger(
         "test_take_insert_capacity",
-        `CREATE TRIGGER test_take_insert_capacity
+        sql`CREATE TRIGGER test_take_insert_capacity
            AFTER UPDATE ON attendees
            BEGIN
              UPDATE listings SET booked_quantity = max_attendees
-              WHERE id = ${listing2.id};
+              WHERE id = ${sqlLiteral(listing2.id)};
            END`,
         () =>
           applyAttendeeAtomicEdit(attendee.id, blob, [
@@ -139,4 +136,32 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
       ),
     ).rejects.toThrow();
   });
+
+  for (const [status, success] of [
+    ["active", false],
+    ["canceled", true],
+  ] as const) {
+    test(`a removed line with a ${status} subscription ${success ? "goes" : "stays"}`, async () => {
+      const { listing1, listing2 } = await twoListings();
+      const { attendee, blob } = await bookForEdit(listing1, {
+        name: "Subscriber",
+        quantity: 1,
+      });
+      await givePlan(attendee.id, "sub_edit", { ...MONTHLY, status });
+
+      const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
+        addLine(listing2.id),
+      ]);
+
+      expect(update).toEqual(
+        success
+          ? expect.objectContaining({ success: true })
+          : {
+              listingIds: [listing1.id],
+              reason: "subscription_live",
+              success: false,
+            },
+      );
+    });
+  }
 });

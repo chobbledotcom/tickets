@@ -3,7 +3,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { routeTicketView } from "#routes/tickets/index.ts";
@@ -52,7 +52,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
       "Ada",
       "ada@test.com",
     );
-    await listingsTable.update(listing.id, {
+    await updateListing(listing.id, {
       attachmentName: "Guide.pdf",
       attachmentUrl: "guide.pdf",
     });

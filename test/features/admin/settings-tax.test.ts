@@ -21,14 +21,14 @@ const formOf = (entries: Record<string, string>): FormParams => {
 
 const settingsForm = (entries: Record<string, string>): FormParams =>
   formOf({
-    expected_tax: JSON.stringify({ mode: "none" }),
+    expectedTax: JSON.stringify({ mode: "none" }),
     ...entries,
   });
 
 describe("parseTaxSettingsForm", () => {
   test("accepts none with a blank rate", () => {
     const parsed = parseTaxSettingsForm(
-      settingsForm({ tax_mode: "none", tax_rate: "" }),
+      settingsForm({ taxMode: "none", taxRate: "" }),
     );
     expect(parsed).toEqual({
       expected: { mode: "none" },
@@ -39,7 +39,7 @@ describe("parseTaxSettingsForm", () => {
 
   test("accepts none with a rate typed in", () => {
     const parsed = parseTaxSettingsForm(
-      settingsForm({ tax_mode: "none", tax_rate: "20" }),
+      settingsForm({ taxMode: "none", taxRate: "20" }),
     );
     expect(parsed).toEqual({
       expected: { mode: "none" },
@@ -50,7 +50,7 @@ describe("parseTaxSettingsForm", () => {
 
   test("parses a rate into basis points", () => {
     const parsed = parseTaxSettingsForm(
-      settingsForm({ tax_mode: "add_to_total", tax_rate: "20.5" }),
+      settingsForm({ taxMode: "add_to_total", taxRate: "20.5" }),
     );
     expect(parsed).toEqual({
       expected: { mode: "none" },
@@ -61,7 +61,7 @@ describe("parseTaxSettingsForm", () => {
 
   test("refuses an unknown mode", () => {
     const parsed = parseTaxSettingsForm(
-      settingsForm({ tax_mode: "wat", tax_rate: "" }),
+      settingsForm({ taxMode: "wat", taxRate: "" }),
     );
     expect(parsed).toEqual({
       error: "Tax settings are invalid. Reload the page and try again.",
@@ -71,7 +71,7 @@ describe("parseTaxSettingsForm", () => {
 
   test("refuses a rate that is not a number", () => {
     const parsed = parseTaxSettingsForm(
-      settingsForm({ tax_mode: "add_to_total", tax_rate: "twenty" }),
+      settingsForm({ taxMode: "add_to_total", taxRate: "twenty" }),
     );
     expect(parsed).toEqual({
       error: "Enter a non-negative tax rate with at most two decimal places.",
@@ -81,7 +81,7 @@ describe("parseTaxSettingsForm", () => {
 
   test("refuses an unreadable stored expected policy", () => {
     const parsed = parseTaxSettingsForm(
-      formOf({ expected_tax: "{", tax_mode: "none", tax_rate: "" }),
+      formOf({ expectedTax: "{", taxMode: "none", taxRate: "" }),
     );
     expect(parsed).toEqual({
       error: "Tax settings are invalid. Reload the page and try again.",
@@ -90,7 +90,7 @@ describe("parseTaxSettingsForm", () => {
   });
 
   test("treats a missing rate field as blank", () => {
-    const parsed = parseTaxSettingsForm(settingsForm({ tax_mode: "none" }));
+    const parsed = parseTaxSettingsForm(settingsForm({ taxMode: "none" }));
     expect(parsed).toEqual({
       expected: { mode: "none" },
       ok: true,
@@ -157,7 +157,7 @@ describe("TaxSaveFields", () => {
       }),
     );
     expectIncludesAll(html, [
-      'name="tax_preview"',
+      'name="taxPreview"',
       'value="tok-1"',
       "Your Tax settings changed. Save this attendee to apply them",
       "Amount",
@@ -194,9 +194,9 @@ describe("TaxSaveFields", () => {
 const postTaxForm = async (stored: TaxPolicy, rate: string) => {
   await settings.update.tax(stored);
   return adminFormPost("/admin/settings/tax", {
-    expected_tax: JSON.stringify({ mode: "none" }),
-    tax_mode: "add_to_total",
-    tax_rate: rate,
+    expectedTax: JSON.stringify({ mode: "none" }),
+    taxMode: "add_to_total",
+    taxRate: rate,
   });
 };
 
@@ -210,8 +210,8 @@ describeWithEnv("server (settings form) — tax save", { db: true }, () => {
     });
     const page = await awaitTestRequest("/admin/settings", { cookie });
     const html = await page.text();
-    expect(hasCheckedInput(html, "tax_mode", "add_to_total")).toBe(true);
-    expect(inputTagWithValue(html, "20.00", "tax_rate")).not.toBe("");
+    expect(hasCheckedInput(html, "taxMode", "add_to_total")).toBe(true);
+    expect(inputTagWithValue(html, "20.00", "taxRate")).not.toBe("");
   });
 
   test("refuses a rate the site cannot store", async () => {
@@ -240,7 +240,7 @@ describeWithEnv("server (settings form) — tax save", { db: true }, () => {
     const { cookie } = await getTestSession();
     const page = await awaitTestRequest("/admin/settings", { cookie });
     const html = await page.text();
-    expect(hasCheckedInput(html, "tax_mode", "none")).toBe(true);
-    expect(inputTagWithValue(html, "", "tax_rate")).not.toBe("");
+    expect(hasCheckedInput(html, "taxMode", "none")).toBe(true);
+    expect(inputTagWithValue(html, "", "taxRate")).not.toBe("");
   });
 });

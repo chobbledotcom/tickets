@@ -10,12 +10,13 @@
  * This module is pure and never touches the database.
  */
 
+import { amongConstants, type Expr } from "#db/select/expression.ts";
 import { type ListingType, ListingTypeSchema } from "#types";
 
 /** The two listing facts that decide which capacity checks apply. */
 export type CapacityFacet = {
-  listing_type: ListingType;
-  customisable_days: boolean;
+  listingType: ListingType;
+  customisableDays: boolean;
 };
 
 /** Every capacity check the system can apply to a booking. */
@@ -38,17 +39,17 @@ export type CapacityRule = {
 
 /** A daily listing's spots are counted for each date it occupies. */
 const bookedPerDate = (facet: CapacityFacet): boolean =>
-  facet.listing_type === "daily";
+  facet.listingType === "daily";
 
 /** Every listing, whatever its facets. */
 const everyListing = (): boolean => true;
 
 /** Every combination of the capacity facets. */
 export const allCapacityFacets = (): CapacityFacet[] =>
-  ListingTypeSchema.options.flatMap((listing_type) =>
-    [false, true].map((customisable_days) => ({
-      customisable_days,
-      listing_type,
+  ListingTypeSchema.options.flatMap((listingType) =>
+    [false, true].map((customisableDays) => ({
+      customisableDays,
+      listingType,
     })),
   );
 
@@ -83,7 +84,7 @@ export const assertCapacityRulesCoherent = (
     );
     if (counting.length !== 1) {
       throw new Error(
-        `A ${facet.listing_type} listing (customisable_days: ${facet.customisable_days}) ` +
+        `A ${facet.listingType} listing (customisable_days: ${facet.customisableDays}) ` +
           `must have exactly one own-cap counting rule, found ${counting.length}`,
       );
     }
@@ -181,9 +182,9 @@ export const listingTypesWithRule = (
   rules: readonly CapacityRule[] = CAPACITY_RULES,
 ): ListingType[] => {
   const rule = rules.find((candidate) => candidate.key === key)!;
-  return ListingTypeSchema.options.filter((listing_type) => {
-    const [plain, customisable] = [false, true].map((customisable_days) =>
-      rule.appliesTo({ customisable_days, listing_type }),
+  return ListingTypeSchema.options.filter((listingType) => {
+    const [plain, customisable] = [false, true].map((customisableDays) =>
+      rule.appliesTo({ customisableDays, listingType }),
     );
     if (plain !== customisable) {
       throw new Error(
@@ -201,16 +202,12 @@ export const listingTypesWithRule = (
  * and the inline SQL guard: the guard interpolates these fragments instead of
  * hardcoding type literals, so it enforces the same declaration the JS
  * preflight reads. The type list is never empty ({@link
- * assertCapacityRulesCoherent} rejects a rule applying to no listing), and
- * types come from our own picklist, never user input.
+ * assertCapacityRulesCoherent} rejects a rule applying to no listing).
  */
 export const capacityRuleTypeSql = (
   key: CapacityRuleKey,
-  column: string,
-): string =>
-  `${column} IN (${listingTypesWithRule(key)
-    .map((type) => `'${type}'`)
-    .join(", ")})`;
+  column: Expr<string>,
+): Expr<boolean> => amongConstants(column, listingTypesWithRule(key));
 
 const perDateTypes = listingTypesWithRule("perDateCap");
 

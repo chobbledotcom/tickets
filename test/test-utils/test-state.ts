@@ -1,4 +1,6 @@
 import { loadMigrations } from "#db/migrations/context.ts";
+import { tables } from "#db/select/tables.ts";
+import { insertInto } from "#db/write.ts";
 /**
  * Run-scoped test state: the golden schema database plus the completed
  * site-setup rows (settings, users, admin session) that DB tests start from.
@@ -23,16 +25,18 @@ import { loadMigrations } from "#db/migrations/context.ts";
 
 import { join } from "node:path";
 import * as v from "valibot";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   attendeeStatuses,
   ensureDefaultAttendeeStatus,
 } from "#db/attendee-statuses.ts";
-import { getDb, insert, setDb } from "#db/client.ts";
+import { executeScript, getDb, setDb } from "#db/client.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "#db/migrations/schema/version.ts";
 import { fullSchemaCreateStatements } from "#db/migrations/schema-sync.ts";
 import { LATEST_UPDATE, SCHEMA_HASH } from "#db/migrations.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { lazyRef, once } from "#fp";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
@@ -54,30 +58,32 @@ const STATE_JSON_FILE = "state.json";
 // as they come off the ceremony's database, types the replay (no casts), and
 // validates state.json — a file written by one process and read by another,
 // so a real boundary.
+
+/** A column value that `encrypt()` wrote. */
+const EncryptedSchema = v.custom<EnvKeyEncrypted>(
+  (value) => typeof value === "string" && value.startsWith("enc:1:"),
+);
 const SettingsRowSchema = v.object({ key: v.string(), value: v.string() });
 
 const UserRowSchema = v.object({
-  admin_level: v.string(),
+  adminLevel: EncryptedSchema,
   id: v.number(),
-  invite_code_hash: v.nullable(v.string()),
-  invite_expiry: v.nullable(v.string()),
-  invite_wrapped_data_key: v.nullable(v.string()),
-  kek_version: v.number(),
-  password_hash: v.string(),
-  username_hash: v.string(),
-  username_index: v.string(),
-  wrapped_data_key: v.nullable(v.string()),
+  inviteCodeHash: v.nullable(v.string()),
+  inviteExpiry: v.nullable(v.string()),
+  inviteWrappedDataKey: v.nullable(v.string()),
+  kekVersion: v.number(),
+  passwordHash: v.string(),
+  usernameHash: EncryptedSchema,
+  usernameIndex: v.string(),
+  wrappedDataKey: v.nullable(v.string()),
 });
 
-/** The columns a captured user row carries, as one SELECT list. */
-const USER_ROW_COLUMNS = Object.keys(UserRowSchema.entries).join(", ");
-
 const AdminSessionRowSchema = v.object({
-  csrf_token: v.string(),
+  csrfToken: v.string(),
   expires: v.number(),
   token: v.string(),
-  user_id: v.nullable(v.number()),
-  wrapped_data_key: v.nullable(v.string()),
+  userId: v.nullable(v.number()),
+  wrappedDataKey: v.nullable(v.string()),
 });
 
 /**
@@ -112,35 +118,27 @@ export const invalidateTestDbCache = (): void => {
   setSnapshotDisabled(true);
 };
 
-const sqlString = (value: string): string => `'${value.replaceAll("'", "''")}'`;
-
 // Lazy (and cached): the migration modules are only needed to stamp a fresh
 // schema, so isolates seeded from the run-wide snapshot never load them.
-const buildTestSchemaSql = once(async (): Promise<string> => {
+const buildTestSchemaStatements = once(async (): Promise<SqlStatement[]> => {
   const migrations = await loadMigrations();
-  return `${[
+  return [
     ...fullSchemaCreateStatements(),
     ...TRIGGERS.map((trigger) => trigger.sql),
-    `INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ${sqlString(
-      LATEST_UPDATE,
-    )})`,
-    `INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ${sqlString(
-      SCHEMA_HASH,
-    )})`,
+    sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ${sqlLiteral(LATEST_UPDATE)})`,
+    sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ${sqlLiteral(SCHEMA_HASH)})`,
     ...migrations.map(
       (migration) =>
-        `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (${sqlString(
-          migration.id,
-        )}, ${sqlString(migration.description)}, '2026-01-01T00:00:00.000Z')`,
+        sql`INSERT OR REPLACE INTO ${sqlName(SCHEMA_MIGRATIONS_TABLE)} (id, description, applied_at) VALUES (${sqlLiteral(migration.id)}, ${sqlLiteral(migration.description)}, '2026-01-01T00:00:00.000Z')`,
     ),
-  ].join(";\n")};`;
+  ];
 });
 
 /** Build the full test schema plus the default attendee status into `path`. */
 const createGoldenDbAt = async (path: string): Promise<void> => {
   const client = await createTestDbClient(path);
   setDb(client);
-  await client.executeMultiple(await buildTestSchemaSql());
+  await executeScript(await buildTestSchemaStatements());
   await ensureDefaultAttendeeStatus();
   attendeeStatuses.invalidate();
   client.close();
@@ -210,9 +208,9 @@ export const reusableSetupState = (country: string): SetupState | null => {
 export const replaySetupState = async (state: SetupState): Promise<void> => {
   await getDb().batch(
     [
-      { args: [], sql: "DELETE FROM settings" },
-      ...state.settings.map((row) => insert("settings", row)),
-      ...state.users.map((row) => insert("users", row)),
+      sql`DELETE FROM settings`,
+      ...state.settings.map((row) => insertInto(tables.settings, row)),
+      ...state.users.map((row) => insertInto(tables.users, row)),
     ],
     "write",
   );
@@ -245,7 +243,7 @@ const createDirectAdminSession = async (): Promise<{
   const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
   const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
   const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
-  const dataKey = await unwrapKey(user.wrapped_data_key!, kek);
+  const dataKey = await unwrapKey(user.wrappedDataKey!, kek);
 
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
@@ -279,20 +277,26 @@ export const runSetupCeremony = async (
   settings.setForTest({ timezone: "UTC" });
 
   const settingsResult = await getDb().execute(
-    "SELECT key, value FROM settings AS setting",
+    sql`SELECT key, value FROM settings AS setting`,
   );
   const settingsRows = settingsResult.rows.map((row) =>
     v.parse(SettingsRowSchema, row),
   );
   const usersResult = await getDb().execute(
-    `SELECT ${USER_ROW_COLUMNS} FROM users AS user`,
+    sql`SELECT admin_level AS adminLevel, id,
+            invite_code_hash AS inviteCodeHash, invite_expiry AS inviteExpiry,
+            invite_wrapped_data_key AS inviteWrappedDataKey,
+            kek_version AS kekVersion, password_hash AS passwordHash,
+            username_hash AS usernameHash, username_index AS usernameIndex,
+            wrapped_data_key AS wrappedDataKey
+     FROM users AS user`,
   );
   const users = usersResult.rows.map((row) => v.parse(UserRowSchema, row));
 
   const liveSession = await createDirectAdminSession();
   const sessionsResult = await getDb().execute(
-    `SELECT token, csrf_token, expires,
-            wrapped_data_key, user_id
+    sql`SELECT token, csrf_token AS csrfToken, expires,
+            wrapped_data_key AS wrappedDataKey, user_id AS userId
      FROM sessions AS session LIMIT 1`,
   );
   const sessionRow = sessionsResult.rows[0];

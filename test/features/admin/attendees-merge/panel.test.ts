@@ -15,7 +15,10 @@ import {
 } from "#test-utils/attendees/merge.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   bookTestAttendee,
   createTestAttendeeDirect,
@@ -188,13 +191,13 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         maxAttendees: 50,
         name: "Daily E",
       });
-      const result = await bookAttendee(dailyListing, {
-        date: "2026-05-01",
-        email: "john@example.com",
-        name: "John Smith",
-      });
-      if (!result.success) throw new Error("createAttendeeAtomic failed");
-      const sourceToken = result.attendees[0]!.ticket_token;
+      const sourceToken = bookedAttendee(
+        await bookAttendee(dailyListing, {
+          date: "2026-05-01",
+          email: "john@example.com",
+          name: "John Smith",
+        }),
+      ).ticket_token;
 
       const response = await mergeActionsPage(target.id, sourceToken);
       // start_at is set for daily listings — exercises the b.start_at ? `— date` : "" branch
@@ -249,10 +252,10 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         moveableRow,
         '<td><span class="muted">Will be moved</span></td><td></td></tr>',
       );
-      assert(!moveableRow.includes('name="booking_'));
+      assert(!moveableRow.includes('name="booking'));
       assertStringIncludes(
         tableRowContaining(html, `Listing #${listing1.id}`),
-        `name="booking_${listing1.id}:null:0:0"`,
+        `name="booking${listing1.id}:null:0:0"`,
       );
     });
 
@@ -274,7 +277,7 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "None",
         "Pasta",
         "Curry",
-        `name="answer_${q.id}"`,
+        `name="answer${q.id}"`,
         '<th scope="row">Meal</th>',
       );
     });

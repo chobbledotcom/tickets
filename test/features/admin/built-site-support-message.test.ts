@@ -57,7 +57,7 @@ describeWithEnv(
       });
       await withSavedWrites(async (saved) => {
         const { response } = await adminFormPost(tabPath(site.id), {
-          support_message: "# New hours\n\nCall after 6pm.",
+          supportMessage: "# New hours\n\nCall after 6pm.",
         });
         await expectFlashRedirect(
           tabPath(site.id),
@@ -105,7 +105,7 @@ describeWithEnv(
       await withSavedWrites(async (saved) => {
         const { response } = await adminFormPost(tabPath(site.id), {
           // The four leading spaces open an indented code block in markdown.
-          support_message: "    plain code block",
+          supportMessage: "    plain code block",
         });
         await expectFlashRedirect(
           tabPath(site.id),
@@ -130,7 +130,7 @@ describeWithEnv(
         const { response } = await adminFormPost(tabPath(site.id), {
           // 1025 two-byte characters hold 2050 bytes: past the 2048-byte cap
           // while seating under it in characters.
-          support_message: "é".repeat(1025),
+          supportMessage: "é".repeat(1025),
         });
         await expectFlashRedirect(
           tabPath(site.id),
@@ -159,7 +159,7 @@ describeWithEnv(
         }),
       );
       const { response } = await adminFormPost(tabPath(siteId), {
-        support_message: value,
+        supportMessage: value,
       });
       const followed = await followRedirectWithFlash(
         response,
@@ -200,7 +200,7 @@ describeWithEnv(
       );
       expectIncludesAll(html, [
         "# Draft kept through the outage",
-        'name="support_message"',
+        'name="supportMessage"',
         "The support message could not be read",
       ]);
     });
@@ -237,7 +237,7 @@ describeWithEnv(
         }),
       );
       const { response } = await adminFormPost(tabPath(site.id), {
-        support_message: "hi",
+        supportMessage: "hi",
       });
       await expectFlashRedirect(
         tabPath(site.id),

@@ -55,11 +55,11 @@ describeWithEnv(
         submitMultiTicketForm(slug, {
           email: "john@example.com",
           name: "John Doe",
-          [`quantity_${listing1Id}`]: listing1Quantity,
-          [`quantity_${listing2Id}`]: "1",
+          [`quantity${listing1Id}`]: listing1Quantity,
+          [`quantity${listing2Id}`]: "1",
           ...(customPrice === undefined
             ? {}
-            : { [`custom_price_${listing1Id}`]: customPrice }),
+            : { [`customPrice${listing1Id}`]: customPrice }),
         });
 
       test("GET ticket page shows pay-more inputs only for can_pay_more listings", async () => {
@@ -72,8 +72,8 @@ describeWithEnv(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
         );
         const html = await response.text();
-        assertStringIncludes(html, `name="custom_price_${listing1.id}"`);
-        assert(!html.includes(`name="custom_price_${listing2.id}"`));
+        assertStringIncludes(html, `name="customPrice${listing1.id}"`);
+        assert(!html.includes(`name="customPrice${listing2.id}"`));
       });
 
       test("POST ticket with can_pay_more redirects to checkout", async () => {

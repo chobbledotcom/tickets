@@ -6,15 +6,19 @@
  */
 
 import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
-import { queryAll } from "#db/client.ts";
-import { type ListsByIds, rowsByIds, rowsByIdsPrimary } from "#db/query.ts";
+import { queryAll, queryAllPrimary } from "#db/client.ts";
+import type { ListsByIds } from "#db/query.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { attendeesWithChangedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
-import { answersTable } from "#db/questions/tables.ts";
+import { readRows } from "#db/read.ts";
+import { rowsForIds } from "#db/rows-for-ids.ts";
+import { equal } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { groupToMap, mapParallel } from "#fp";
 
 /** Group `(attendee_id, answer_id)` rows into an attendee → answer-ids map. */
@@ -24,30 +28,30 @@ const choiceAnswerMapFromRows = groupToMap(
 );
 
 /** Load `attendee_answers` rows for a set of attendees, restricted to rows where
- * `column` is set (non-null). Returns an empty array for an empty attendee
- * list, so the two batch readers (choice ids, decrypted free-text) share one
- * empty-guard + IN-clause query instead of each spelling it out. */
+ * `column` is set (non-null). The two batch readers (choice ids, decrypted
+ * free-text) share this one query. */
 const selectAttendeeAnswerRows = <R>(
   attendeeIds: number[],
   column: string,
-  selectColumns: string,
-  join = "",
-  readRows: typeof rowsByIds = rowsByIds,
+  selectColumns: SqlStatement,
+  join: SqlStatement = sql``,
+  readAll: typeof queryAll = queryAll,
 ): Promise<R[]> =>
-  readRows<R>(
+  rowsForIds<R>(
     attendeeIds,
-    (placeholders) =>
-      `SELECT ${selectColumns}
+    (idSlots) =>
+      sql`SELECT ${selectColumns}
        FROM attendee_answers AS attendee_answer
        ${join}
-      WHERE attendee_answer.${column} IS NOT NULL
-        AND attendee_answer.attendee_id IN (${placeholders})`,
+      WHERE ${sqlName(`attendee_answer.${column}`)} IS NOT NULL
+        AND attendee_answer.attendee_id IN (${idSlots})`,
+    readAll,
   );
 
 /** The choice-id read over the two readers: the shared shape, the caller
  * decides which side of the replication it needs. */
 const choiceAnswerIdsWith =
-  (readRows: typeof rowsByIds): ListsByIds =>
+  (readAll: typeof queryAll): ListsByIds =>
   async (attendeeIds) =>
     choiceAnswerMapFromRows(
       await selectAttendeeAnswerRows<{
@@ -56,18 +60,18 @@ const choiceAnswerIdsWith =
       }>(
         attendeeIds,
         "answer_id",
-        "attendee_answer.attendee_id, attendee_answer.answer_id",
-        "",
-        readRows,
+        sql`attendee_answer.attendee_id, attendee_answer.answer_id`,
+        sql``,
+        readAll,
       ),
     );
 
-const choiceAnswerIdsBatch = choiceAnswerIdsWith(rowsByIds);
+const choiceAnswerIdsBatch = choiceAnswerIdsWith(queryAll);
 
 /** Attendee → chosen-answer-ids read pinned to the primary: the registration
  * emails read answers the booking saved earlier in the same request, before a
  * replica can have caught up. */
-export const choiceAnswerIdsPrimary = choiceAnswerIdsWith(rowsByIdsPrimary);
+export const choiceAnswerIdsPrimary = choiceAnswerIdsWith(queryAllPrimary);
 
 /**
  * Attendee → chosen-answer-ids map for every real (`kind = 'attendee'`)
@@ -79,7 +83,7 @@ export const getListingChoiceAnswerMap = async (
   listingId: number,
 ): Promise<Map<number, number[]>> => {
   const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
-    `SELECT attendee_answer.attendee_id, attendee_answer.answer_id
+    sql`SELECT attendee_answer.attendee_id, attendee_answer.answer_id
        FROM attendee_answers AS attendee_answer
       WHERE attendee_answer.answer_id IS NOT NULL
         AND attendee_answer.attendee_id IN (
@@ -87,8 +91,7 @@ export const getListingChoiceAnswerMap = async (
             FROM listing_attendees AS listingAttendee
             JOIN attendees AS attendee
               ON attendee.id = listingAttendee.attendee_id
-           WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}')`,
-    [listingId],
+           WHERE listingAttendee.listing_id = ${listingId} AND attendee.kind = ${sqlLiteral(ATTENDEE_KIND)})`,
   );
   return choiceAnswerMapFromRows(rows);
 };
@@ -109,8 +112,8 @@ export const getAttendeeTextAnswersBatch = async (
   const rows = await selectAttendeeAnswerRows<TextAnswerRow>(
     attendeeIds,
     "question_id",
-    "attendee_answer.attendee_id, attendee_answer.question_id, string.encrypted_text",
-    "JOIN strings AS string ON string.id = attendee_answer.string_id",
+    sql`attendee_answer.attendee_id, attendee_answer.question_id, string.encrypted_text`,
+    sql`JOIN strings AS string ON string.id = attendee_answer.string_id`,
   );
   // Decrypt in parallel, then group by attendee into questionId→text maps.
   const decrypted = await mapParallel(async (row: TextAnswerRow) => ({
@@ -220,35 +223,27 @@ export const getAttendeeTextAnswers = async (
     attendeeId,
   ) ?? new Map();
 
-/** Row shape for an attendee's chosen answer joined onto its decrypted text. */
-type ChoiceAnswerRow = {
-  answer_id: number;
-  answer_text: string;
-  question_id: number;
-};
-
 /** Get attendee answers mapped by question ID.
  * Returns Map<questionId, { answerId, answerText }> for a single attendee. */
 export const getAttendeeAnswersByQuestion = async (
   attendeeId: number,
 ): Promise<Map<number, { answerId: number; answerText: string }>> => {
-  const rows = await queryAll<ChoiceAnswerRow>(
-    `SELECT answer.question_id, attendeeAnswer.answer_id, answer.text AS answer_text
-     FROM attendee_answers AS attendeeAnswer
-     JOIN answers AS answer ON answer.id = attendeeAnswer.answer_id
-     WHERE attendeeAnswer.answer_id IS NOT NULL AND attendeeAnswer.attendee_id = ?`,
-    [attendeeId],
+  const rows = await readRows(
+    from(tables.attendee_answers)
+      .join("choice", tables.answers, (given) =>
+        equal(given.choice.id, given.answerId),
+      )
+      .where({ attendeeId })
+      .select((given) => ({
+        answerId: given.choice.id,
+        answerText: given.choice.text,
+        questionId: given.choice.questionId,
+      })),
   );
-  // Decrypt each chosen answer's text in parallel, then key by question id.
-  const decrypted = await mapParallel(async (row: ChoiceAnswerRow) => ({
-    answerId: row.answer_id,
-    answerText: await answersTable.readColumn("text", row.answer_text),
-    questionId: row.question_id,
-  }))(rows);
   return new Map(
-    decrypted.map((d) => [
-      d.questionId,
-      { answerId: d.answerId, answerText: d.answerText },
+    rows.map(({ answerId, answerText, questionId }) => [
+      questionId,
+      { answerId, answerText },
     ]),
   );
 };

@@ -14,12 +14,12 @@ const question = (
   answers: answers.map((a, i) => ({
     active: true,
     id: a.id,
-    question_id: id,
-    sort_order: i,
+    questionId: id,
+    sortOrder: i,
     text: a.text,
   })),
-  assign_all: false,
-  display_type: "radio",
+  assignAll: false,
+  displayType: "radio",
   id,
   text,
 });
@@ -36,8 +36,8 @@ const DIET_Q = question(2, "Dietary Requirements", [
 
 const NOTES_Q: QuestionWithAnswers = {
   answers: [],
-  assign_all: false,
-  display_type: "free_text",
+  assignAll: false,
+  displayType: "free_text",
   id: 3,
   text: "Notes",
 };

@@ -119,7 +119,7 @@ const rowListing = (id: number, name: string, slug: string): TicketListing =>
 const bundledRow = (over: Partial<ChildRenderCtx> = {}): string =>
   renderRows({
     childCtx: { ...childCtx(), ...over },
-    listings: [tl(7, 10, { min_quantity: 3, name: "Bundled", slug: "bun010" })],
+    listings: [tl(7, 10, { minQuantity: 3, name: "Bundled", slug: "bun010" })],
   });
 
 const occurrences = (html: string, needle: string): number =>
@@ -134,8 +134,8 @@ describe("buildPageListingRows", () => {
       ],
     });
     expectIncludesAll(html, [
-      '<label>Listing A<select name="quantity_1">',
-      '<label>Listing B<select name="quantity_2">',
+      '<label>Listing A<select name="quantity1">',
+      '<label>Listing B<select name="quantity2">',
     ]);
     expect(occurrences(html, 'class="ticket-row"')).toBe(2);
     // The rows are joined edge to edge, and nothing renders in a row's
@@ -151,7 +151,7 @@ describe("buildPageListingRows", () => {
     };
     const html = renderRows({ listings: [closed] });
     assertStringIncludes(html, "Registration Closed");
-    assert(!html.includes('name="quantity_1"'));
+    assert(!html.includes('name="quantity1"'));
   });
 
   test("a parent whose child-limited ceiling sits below its minimum is sold out", () => {
@@ -161,12 +161,12 @@ describe("buildPageListingRows", () => {
       children: new Map([[7, [tl(10, 2, { name: "Add-on", slug: "add010" })]]]),
     });
     assertStringIncludes(html, "Sold Out");
-    assert(!html.includes('name="quantity_7"'));
+    assert(!html.includes('name="quantity7"'));
   });
 
   test("a parent at or above its minimum under the same ceiling stays bookable", () => {
     const html = bundledRow();
-    assertStringIncludes(html, 'name="quantity_7"');
+    assertStringIncludes(html, 'name="quantity7"');
     assert(!html.includes("ticket-row sold-out"));
   });
 
@@ -195,22 +195,22 @@ describe("buildPageListingRows", () => {
         [2, 4],
       ]),
     });
-    assertStringIncludes(html, 'name="quantity_7"');
+    assertStringIncludes(html, 'name="quantity7"');
     assert(!html.includes("ticket-row sold-out"));
   });
 
   test("a row with pay-what-you-want renders its price input, a priced row does not", () => {
     const payMore = tl(2, 10, {
-      can_pay_more: true,
-      max_price: 5000,
+      canPayMore: true,
+      maxPrice: 5000,
       name: "Listing B",
       slug: "cd34e",
     });
     const html = renderRows({
       listings: [rowListing(1, "Listing A", "ab12c"), payMore],
     });
-    assert(!html.includes('name="custom_price_1"'));
-    assertStringIncludes(html, 'name="custom_price_2"');
+    assert(!html.includes('name="customPrice1"'));
+    assertStringIncludes(html, 'name="customPrice2"');
   });
 
   test("a parent row renders its add-on selector once, in the parent's own row", () => {
@@ -232,7 +232,7 @@ describe("buildPageListingRows", () => {
       prefill,
     });
     expectIncludesAll(html, [
-      '<label>Number of Tickets<select name="quantity_1">',
+      '<label>Number of Tickets<select name="quantity1">',
       '<option value="3" selected>',
     ]);
     assert(!html.includes("Listing A"));
@@ -246,16 +246,16 @@ describe("buildPageListingRows", () => {
     });
     assertStringIncludes(
       html,
-      '<input type="hidden" name="quantity_1" value="1" />',
+      '<input type="hidden" name="quantity1" value="1" />',
     );
     assert(!html.includes("Number of"));
-    assert(!html.includes('<select name="quantity_1">'));
+    assert(!html.includes('<select name="quantity1">'));
   });
 
   test("a hidden quantity still states the term a plan grants", () => {
     const plan = tl(1, 1, {
-      assign_built_site: true,
-      initial_site_months: 3,
+      assignBuiltSite: true,
+      initialSiteMonths: 3,
       name: "Listing A",
       slug: "ab12c",
     });
@@ -265,15 +265,15 @@ describe("buildPageListingRows", () => {
       listings: [plan],
     });
     expectIncludesAll(html, [
-      '<input type="hidden" name="quantity_1" value="1" />',
+      '<input type="hidden" name="quantity1" value="1" />',
       t("public.ticket.fixed_term_granted", { count: 3 }),
     ]);
   });
 
   test("a built-site plan is sold in months, an ordinary listing in tickets", () => {
     const plan = tl(1, 5, {
-      assign_built_site: true,
-      initial_site_months: 3,
+      assignBuiltSite: true,
+      initialSiteMonths: 3,
       name: "Listing A",
       slug: "ab12c",
     });
@@ -286,7 +286,7 @@ describe("buildPageListingRows", () => {
     expectIncludesAll(planHtml, [
       '<option value="1">3 months</option>',
       '<option value="2">6 months</option>',
-      '<label>Number of months<select name="quantity_1">',
+      '<label>Number of months<select name="quantity1">',
     ]);
     assert(!planHtml.includes("Number of Tickets"));
     assert(!planHtml.includes('">2</option>'));
@@ -296,7 +296,7 @@ describe("buildPageListingRows", () => {
       listings: [rowListing(1, "Listing A", "ab12c")],
     });
     expectIncludesAll(ordinaryHtml, [
-      '<label>Number of Tickets<select name="quantity_1">',
+      '<label>Number of Tickets<select name="quantity1">',
       '<option value="2">2</option>',
     ]);
     assert(!ordinaryHtml.includes("Number of months"));
@@ -304,9 +304,9 @@ describe("buildPageListingRows", () => {
 
   test("a renewal page prices every tier by its months per unit", () => {
     const tier = tl(1, 5, {
-      assign_built_site: false,
-      initial_site_months: 0,
-      months_per_unit: 1,
+      assignBuiltSite: false,
+      initialSiteMonths: 0,
+      monthsPerUnit: 1,
       name: "Monthly",
       slug: "ab12c",
     });
@@ -316,7 +316,7 @@ describe("buildPageListingRows", () => {
       renewal: true,
     });
     expectIncludesAll(html, [
-      '<label>Number of months<select name="quantity_1">',
+      '<label>Number of months<select name="quantity1">',
       // Fulfillment extends the site by months per unit: two units of a
       // one-month-per-unit tier are two months.
       '<option value="2">2 months</option>',
@@ -336,7 +336,7 @@ describe("buildPageListingRows", () => {
       "&times;2",
       '<option value="1" selected>',
     ]);
-    assert(!html.includes('name="quantity_7"'));
+    assert(!html.includes('name="quantity7"'));
     assert(!html.includes("mutated"));
   });
 
@@ -370,8 +370,8 @@ describe("buildPageListingRows", () => {
       packages: [pagePackage(3, [7]), pagePackage(4, [8])],
     });
     expectIncludesAll(html, [
-      "package_quantity_3",
-      "package_quantity_4",
+      'name="packageQuantity3"',
+      'name="packageQuantity4"',
       "<legend>Package 3</legend>",
       "<legend>Package 4</legend>",
       // The sections render edge to edge, with no filler between them.
@@ -407,7 +407,7 @@ describe("buildPageListingRows", () => {
       singlePackagePage: true,
     });
     expect(html).toBe(
-      `<label>Number of packages<select name="package_quantity_3" data-package-members="7:1">${quantityOptions(5, 1)}</select></label>`,
+      `<label>Number of packages<select name="packageQuantity3" data-package-members="7:1">${quantityOptions(5, 1)}</select></label>`,
     );
     assert(!html.includes("Listing A"));
   });
@@ -419,7 +419,7 @@ describe("buildPageListingRows", () => {
       packages: [pagePackage(3, [7], { description: "Two together" })],
     });
     assertStringIncludes(html, 'class="ticket-package sold-out"');
-    assert(!html.includes("package_quantity_3"));
+    assert(!html.includes('name="packageQuantity3"'));
     assert(!html.includes("Two together"));
     assertStringIncludes(html, "Sold Out");
   });
@@ -432,6 +432,6 @@ describe("buildPageListingRows", () => {
       standaloneListingIds: new Set([7]),
     });
     expect(occurrences(html, 'data-sole-parent="7"')).toBe(1);
-    expectIncludesAll(html, ["&times;2", 'name="quantity_7"']);
+    expectIncludesAll(html, ["&times;2", 'name="quantity7"']);
   });
 });

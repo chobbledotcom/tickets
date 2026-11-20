@@ -38,8 +38,8 @@ const rowOn = (
     listing: {
       id: listingId,
       name,
-      non_transferable: state.nonTransferable ?? false,
-      purchase_only: state.purchaseOnly ?? false,
+      nonTransferable: state.nonTransferable ?? false,
+      purchaseOnly: state.purchaseOnly ?? false,
     },
   });
 

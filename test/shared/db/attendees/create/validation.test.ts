@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { requireAttendee } from "#test-utils/db-helpers/attendee-creation.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -58,7 +59,7 @@ describeWithEnv("db > attendees > create validation", { db: true }, () => {
     expect(requireAttendee(result).quantity).toBe(0);
     expect(
       await queryOne<{ count: number }>(
-        "SELECT COUNT(*) AS count FROM contact_preferences",
+        sql`SELECT COUNT(*) AS count FROM contact_preferences`,
       ),
     ).toEqual({ count: 0 });
   });

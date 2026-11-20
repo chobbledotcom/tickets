@@ -71,9 +71,9 @@ const ticked =
       )
       .map(checkboxId);
 
-const tickedGroups = ticked("group_ids");
-const tickedQuestions = ticked("question_ids");
-const tickedOptions = ticked("option_ids");
+const tickedGroups = ticked("groupIds");
+const tickedQuestions = ticked("questionIds");
+const tickedOptions = ticked("optionIds");
 
 const editHtml = async (
   listingId: number,

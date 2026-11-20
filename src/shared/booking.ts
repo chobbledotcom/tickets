@@ -6,16 +6,16 @@
  * Callers handle input parsing/validation and response formatting.
  */
 
-import { planBookingPayment } from "#booking/payment-plan.ts";
 import { requirePublicStatusId } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { requiredMapValue } from "#fp";
 import { apiCreateLedgerPoster } from "#shared/checkout-complete.ts";
 import { listPriceOrder } from "#shared/checkout-pricing.ts";
-import { isPaymentsEnabled } from "#shared/config.ts";
+import { isPaymentsEnabled, saleProviderOrNull } from "#shared/config.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
-import { checkoutItem, getActivePaymentProvider } from "#shared/payments.ts";
+import { checkoutItem, createActiveCheckout } from "#shared/payments.ts";
+import { subscriptionOrderError } from "#shared/subscriptions/checkout-rules.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#types";
 
@@ -40,7 +40,7 @@ export const createdBookingEntries = (
 /** True when the listing still has spots for this quantity on this date (no
  * date for a date-less listing, whose capacity is one running total). */
 export const listingHasSpots = (
-  listing: Pick<ListingWithCount, "id" | "duration_days">,
+  listing: Pick<ListingWithCount, "id" | "durationDays">,
   quantity: number,
   date: string | null | undefined,
 ): Promise<boolean> =>
@@ -48,7 +48,7 @@ export const listingHasSpots = (
     listing.id,
     quantity,
     date,
-    listing.duration_days,
+    listing.durationDays,
   );
 
 /** Booking result — callers map this to their response format */
@@ -75,29 +75,25 @@ export const processBooking = async (
   answerIds?: number[],
 ): Promise<BookingResult> => {
   const paymentsEnabled = isPaymentsEnabled();
-  const payment = planBookingPayment({
-    customUnitPrice,
-    paymentsEnabled,
-    quantity,
-    unitPrice: listing.unit_price,
-  });
+  const unitPrice = customUnitPrice ?? listing.unitPrice;
+  const intent = {
+    ...contact,
+    date,
+    items: [checkoutItem(listing, quantity, unitPrice)],
+    listingAnswerIds: singleListingAnswerIds(listing.id, answerIds),
+  };
+  const refusal = subscriptionOrderError(
+    saleProviderOrNull(),
+    intent,
+    unitPrice * quantity,
+  );
+  if (refusal) return { error: refusal, type: "checkout_failed" };
 
-  if (payment.kind === "checkout") {
+  if (paymentsEnabled && unitPrice > 0) {
     const available = await listingHasSpots(listing, quantity, date);
     if (!available) return { type: "sold_out" };
 
-    // Provider is guaranteed to exist when isPaymentsEnabled() is true
-    const provider = (await getActivePaymentProvider())!;
-
-    const result = await provider.createCheckoutSession(
-      {
-        ...contact,
-        date,
-        items: [checkoutItem(listing, quantity, payment.unitPrice)],
-        listingAnswerIds: singleListingAnswerIds(listing.id, answerIds),
-      },
-      baseUrl,
-    );
+    const result = await createActiveCheckout(intent, baseUrl);
     if (!result) return { type: "checkout_failed" };
     if ("error" in result) {
       return { error: result.error, type: "checkout_failed" };
@@ -112,9 +108,7 @@ export const processBooking = async (
   // reservation — so nothing is collected up front but the balance is tracked.
   // The attendee starts in the public-default status, matching the web free
   // path so a balance-carrying booking is never left status-less.
-  const order = listPriceOrder([
-    { listing, quantity, unitPrice: customUnitPrice ?? listing.unit_price },
-  ]);
+  const order = listPriceOrder([{ listing, quantity, unitPrice }]);
   const remainingBalance = order.tax.total;
   const result = await attendeesApi.createAttendeeAtomic(
     {
@@ -122,7 +116,7 @@ export const processBooking = async (
       bookings: [
         {
           date,
-          durationDays: listing.duration_days,
+          durationDays: listing.durationDays,
           listingId: listing.id,
           quantity,
         },

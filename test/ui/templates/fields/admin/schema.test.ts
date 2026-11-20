@@ -56,14 +56,14 @@ describe("admin field schemas", () => {
       },
       {
         label: "Start date",
-        name: "start_date",
+        name: "startDate",
         required: true,
         type: "date",
       },
       {
         hint: "Must be on or after the start date",
         label: "End date",
-        name: "end_date",
+        name: "endDate",
         required: true,
         type: "date",
       },
@@ -81,32 +81,32 @@ describe("admin field schemas", () => {
       },
       {
         label: "Site URL",
-        name: "site_url",
+        name: "siteUrl",
         placeholder: "https://example.b-cdn.net",
         required: true,
         type: "url",
       },
       {
         label: "Database URL",
-        name: "db_url",
+        name: "dbUrl",
         placeholder: "libsql://your-db.turso.io",
         type: "url",
       },
       {
         label: "Database token",
-        name: "db_token",
+        name: "dbToken",
         placeholder: "Database auth token",
         type: "password",
       },
       {
         label: "Hosting ID",
-        name: "hosting_id",
+        name: "hostingId",
         placeholder: "Script ID or app ID",
         type: "text",
       },
       {
         label: "Hosting provider",
-        name: "hosting_provider",
+        name: "hostingProvider",
         options: [
           {
             label: "Bunny",
@@ -121,7 +121,7 @@ describe("admin field schemas", () => {
       },
       {
         label: "Database provider",
-        name: "db_provider",
+        name: "dbProvider",
         options: [
           {
             label: "Bunny DB",
@@ -175,7 +175,7 @@ describe("admin field schemas", () => {
         autocomplete: "username",
         hint: "Letters, numbers, hyphens, underscores (1-250 characters)",
         label: "Admin username *",
-        name: "admin_username",
+        name: "adminUsername",
         pattern: "[a-zA-Z0-9][a-zA-Z0-9_\\-]*",
         required: true,
         title:
@@ -186,14 +186,14 @@ describe("admin field schemas", () => {
         autocomplete: "new-password",
         hint: "Minimum 8 characters",
         label: "Admin password *",
-        name: "admin_password",
+        name: "adminPassword",
         required: true,
         type: "password",
       },
       {
         autocomplete: "new-password",
         label: "Confirm admin password *",
-        name: "admin_password_confirm",
+        name: "adminPasswordConfirm",
         required: true,
         type: "password",
       },
@@ -205,7 +205,7 @@ describe("admin field schemas", () => {
       {
         autocomplete: "current-password",
         label: "Current password",
-        name: "current_password",
+        name: "currentPassword",
         required: true,
         type: "password",
       },
@@ -213,14 +213,14 @@ describe("admin field schemas", () => {
         autocomplete: "new-password",
         hint: "Minimum 8 characters",
         label: "New password",
-        name: "new_password",
+        name: "newPassword",
         required: true,
         type: "password",
       },
       {
         autocomplete: "new-password",
         label: "Confirm new password",
-        name: "new_password_confirm",
+        name: "newPasswordConfirm",
         required: true,
         type: "password",
       },
@@ -233,7 +233,7 @@ describe("admin field schemas", () => {
         autocomplete: "off",
         hint: "Enter a new key to update",
         label: "Stripe secret key",
-        name: "stripe_secret_key",
+        name: "stripeSecretKey",
         placeholder: "sk_live_... or sk_test_...",
         required: true,
         type: "password",
@@ -247,7 +247,7 @@ describe("admin field schemas", () => {
         autocomplete: "off",
         hint: "Your Square application's access token",
         label: "Square access token",
-        name: "square_access_token",
+        name: "squareAccessToken",
         placeholder: "EAAAl...",
         required: true,
         type: "password",
@@ -256,7 +256,7 @@ describe("admin field schemas", () => {
         autocomplete: "off",
         hint: "Your Square location ID (found in Square Dashboard under Locations)",
         label: "Location ID",
-        name: "square_location_id",
+        name: "squareLocationId",
         placeholder: "L...",
         required: true,
         type: "text",
@@ -270,7 +270,7 @@ describe("admin field schemas", () => {
         autocomplete: "off",
         hint: "The signature key from your Square webhook subscription",
         label: "Webhook signature key",
-        name: "square_webhook_signature_key",
+        name: "squareWebhookSignatureKey",
         required: true,
         type: "password",
       },
@@ -283,7 +283,7 @@ describe("admin field schemas", () => {
         autocomplete: "off",
         hint: "Your SumUp secret API key, from me.sumup.com → For Developers → API Keys",
         label: "SumUp API key",
-        name: "sumup_api_key",
+        name: "sumupApiKey",
         placeholder: "Paste your SumUp API key",
         required: true,
         type: "password",
@@ -292,7 +292,7 @@ describe("admin field schemas", () => {
         autocomplete: "off",
         hint: "Your SumUp merchant code, shown in your SumUp account profile (must match the API key's account)",
         label: "Merchant code",
-        name: "sumup_merchant_code",
+        name: "sumupMerchantCode",
         placeholder: "M...",
         required: true,
         type: "text",
@@ -315,7 +315,7 @@ describe("admin field schemas", () => {
       {
         invalidMessage: "Invalid role",
         label: "Role",
-        name: "admin_level",
+        name: "adminLevel",
         options: [
           {
             label: "Choose a role…",
@@ -346,5 +346,16 @@ describe("admin field schemas", () => {
         type: "select",
       },
     ]);
+  });
+});
+
+describe("the built-site form", () => {
+  test("the site URL label links to the saved address", () => {
+    const [, siteUrl] = getBuiltSiteForm("https://a.example/?x=1&y=2").fields;
+    expect(siteUrl).toMatchObject({
+      labelSuffixHtml:
+        ' <a href="https://a.example/?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">(visit)</a>',
+      name: "siteUrl",
+    });
   });
 });

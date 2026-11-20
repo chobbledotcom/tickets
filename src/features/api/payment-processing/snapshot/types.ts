@@ -1,4 +1,5 @@
 import type { ModifierSpec } from "#shared/payments.ts";
+import type { ModifierCalc } from "#shared/price-modifier.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
 import type { GroupListing, ListingWithCount } from "#types";
@@ -26,10 +27,7 @@ export interface SnapshotDayPriceRow {
   unitPrice: number;
 }
 
-export interface SnapshotModifierRow {
-  calcKind: ModifierSpec["kind"];
-  calcValue: number;
-  direction: "charge" | "discount";
+export interface SnapshotModifierRow extends ModifierCalc {
   id: number;
   minVisits: number;
   name: string;

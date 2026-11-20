@@ -28,7 +28,7 @@ export type ExternalSourceEntry = {
 };
 
 /** The site's word for each kind of record a link can name. */
-const RECORD_KIND: Record<ExternalSourceLink["link_type"], string> = {
+const RECORD_KIND: Record<ExternalSourceLink["linkType"], string> = {
   attendee: "Attendee",
   group: "Group",
   listing: "Listing",
@@ -36,26 +36,26 @@ const RECORD_KIND: Record<ExternalSourceLink["link_type"], string> = {
 
 /** The admin page of the record a link names. */
 const recordPath = (link: ExternalSourceLink): string => {
-  if (link.link_type === "attendee") {
-    return adminPath("attendee", { attendeeId: link.link_id });
+  if (link.linkType === "attendee") {
+    return adminPath("attendee", { attendeeId: link.linkId });
   }
-  if (link.link_type === "group") {
-    return adminPath("group", { id: link.link_id });
+  if (link.linkType === "group") {
+    return adminPath("group", { id: link.linkId });
   }
-  return adminPath("listing", { id: link.link_id });
+  return adminPath("listing", { id: link.linkId });
 };
 
 /** The record a link names, opening its own admin page. */
 const recordLink = (link: ExternalSourceLink): Child => (
   <a href={recordPath(link)}>
-    {`${RECORD_KIND[link.link_type]} ${link.link_id}`}
+    {`${RECORD_KIND[link.linkType]} ${link.linkId}`}
   </a>
 );
 
 /** The address the source's pattern gives this link, or the site's word for a
  *  record the other system has not named yet. */
 const addressCell = ({ link, source }: ExternalLinkMatch): Child => {
-  const url = externalLinkUrl(source.url_pattern, link.external_id);
+  const url = externalLinkUrl(source.urlPattern, link.externalId);
   return url === null ? (
     t("features.external_sources.not_named")
   ) : (
@@ -72,7 +72,7 @@ const linkColumns: TableColumn<ExternalLinkMatch>[] = [
   translatedTableColumn(
     "external_id",
     "features.external_sources.external_id",
-    ({ link }) => link.external_id ?? t("features.external_sources.not_named"),
+    ({ link }) => link.externalId ?? t("features.external_sources.not_named"),
   ),
   translatedTableColumn(
     "address",
@@ -94,7 +94,7 @@ const sourceSection = ({ links, source }: ExternalSourceEntry): Child => (
     <h2>{source.name}</h2>
     <p>
       <strong>{t("features.external_sources.url_pattern")}</strong>{" "}
-      <code>{source.url_pattern}</code>
+      <code>{source.urlPattern}</code>
     </p>
     <p>
       <strong>{t("features.external_sources.created")}</strong> {source.created}

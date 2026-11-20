@@ -2,17 +2,18 @@
  * Sessions table operations
  */
 
+import { pick } from "@std/collections";
 import { hashSessionToken } from "#crypto/hashing.ts";
 import type { WrappedKey } from "#crypto/sealed.ts";
-import {
-  deleteByField,
-  execute,
-  insert,
-  queryAll,
-  queryOne,
-} from "#db/client.ts";
+import { execute, queryAll, queryOne } from "#db/client.ts";
+import { pickedColumns } from "#db/picked-columns.ts";
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
+import { notEqual } from "#db/select/expression.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
 import type { UserAuthFields } from "#db/users.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { ttlCache } from "#fp";
 import {
   type CacheInvalidation,
@@ -20,7 +21,6 @@ import {
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
 import { requireValue } from "#shared/required-value.ts";
-
 import type { Session } from "#types";
 
 /**
@@ -83,32 +83,28 @@ export const createSession = async (
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(token);
   const session = {
-    csrf_token: csrfToken,
+    csrfToken,
     expires,
     token: tokenHash,
-    user_id: userId,
-    wrapped_data_key: wrappedDataKey,
+    userId,
+    wrappedDataKey,
   };
-  const { sql, args } = insert("sessions", session);
-  await execute(sql, args);
+  await execute(insertInto(tables.sessions, session));
   // Pre-cache the new session using token hash as key
   cacheSession(tokenHash, session);
 };
 
-/** The sessions columns selected by the by-token and list reads. */
-const SESSION_COLUMN_NAMES = [
-  "token",
-  "csrf_token",
-  "expires",
-  "wrapped_data_key",
-  "user_id",
-] as const;
-
-const SESSION_COLUMNS = SESSION_COLUMN_NAMES.join(", ");
-
-/** The same columns read through a join, where the table carries an alias. */
-const sessionColumnsOn = (alias: string): string =>
-  SESSION_COLUMN_NAMES.map((column) => `${alias}.${column}`).join(", ");
+/** The sessions columns that the by-token and list reads select, from the
+ *  table under the word `session`. */
+const SESSION_COLUMNS = pickedColumns(
+  pick(tableNode(tables.sessions, "session"), [
+    "token",
+    "csrfToken",
+    "expires",
+    "wrappedDataKey",
+    "userId",
+  ]),
+).list;
 
 /**
  * Get a session by token (with 10s TTL cache)
@@ -124,8 +120,7 @@ export const getSession = async (token: string): Promise<Session | null> => {
   // Query DB and cache result (token column contains the hash)
   const session = await primaryRefill.fetch(() =>
     queryOne<Session>(
-      `SELECT ${SESSION_COLUMNS} FROM sessions WHERE token = ?`,
-      [tokenHash],
+      sql`SELECT ${SESSION_COLUMNS} FROM sessions AS session WHERE session.token = ${tokenHash}`,
     ),
   );
   cacheSession(tokenHash, session);
@@ -142,19 +137,19 @@ export type SessionWithUser = {
 
 /** The joined row: session columns, plus the user's if one still exists. */
 type SessionUserRow = Session & {
-  user_row_id: number | null;
-  admin_level: UserAuthFields["admin_level"] | null;
+  userRowId: number | null;
+  adminLevel: UserAuthFields["adminLevel"] | null;
 };
 
 const joinedUser = (row: SessionUserRow): UserAuthFields | null =>
-  row.user_row_id === null
+  row.userRowId === null
     ? null
     : {
-        admin_level: requireValue(
-          row.admin_level,
-          `Session user ${row.user_row_id} has no admin level`,
+        adminLevel: requireValue(
+          row.adminLevel,
+          `Session user ${row.userRowId} has no admin level`,
         ),
-        id: row.user_row_id,
+        id: row.userRowId,
       };
 
 /**
@@ -175,19 +170,18 @@ export const getSessionWithUser = async (
   const tokenHash = await hashSessionToken(token);
   const row = await primaryRefill.fetch(() =>
     queryOne<SessionUserRow>(
-      `SELECT ${sessionColumnsOn("session")},
-              adminUser.id AS user_row_id, adminUser.admin_level
+      sql`SELECT ${SESSION_COLUMNS},
+              adminUser.id AS userRowId, adminUser.admin_level AS adminLevel
          FROM sessions AS session
          LEFT JOIN users AS adminUser ON adminUser.id = session.user_id
-        WHERE session.token = ?`,
-      [tokenHash],
+        WHERE session.token = ${tokenHash}`,
     ),
   );
   if (row === null) {
     cacheSession(tokenHash, null);
     return null;
   }
-  const { admin_level: _level, user_row_id: _userRowId, ...session } = row;
+  const { adminLevel: _level, userRowId: _userRowId, ...session } = row;
   cacheSession(tokenHash, session);
   return { session, user: joinedUser(row) };
 };
@@ -198,14 +192,14 @@ export const getSessionWithUser = async (
  */
 export const deleteSession = async (token: string): Promise<void> => {
   const tokenHash = await hashSessionToken(token);
-  await deleteByField("sessions", "token", tokenHash);
+  await execute(deleteFrom(tables.sessions).where({ token: tokenHash }));
 };
 
 /**
  * Delete all sessions (used when password is changed)
  */
 export const deleteAllSessions = async (): Promise<void> => {
-  await execute("DELETE FROM sessions");
+  await execute(deleteFrom(tables.sessions).everyRow());
 };
 
 /**
@@ -213,7 +207,7 @@ export const deleteAllSessions = async (): Promise<void> => {
  */
 export const getAllSessions = (): Promise<Session[]> =>
   queryAll<Session>(
-    `SELECT ${SESSION_COLUMNS} FROM sessions ORDER BY expires DESC`,
+    sql`SELECT ${SESSION_COLUMNS} FROM sessions AS session ORDER BY session.expires DESC`,
   );
 
 /**
@@ -225,7 +219,11 @@ export const deleteOtherSessions = async (
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(currentToken);
   const currentSession = await getSession(currentToken);
-  await execute("DELETE FROM sessions WHERE token != ?", [tokenHash]);
+  await execute(
+    deleteFrom(tables.sessions).where((session) =>
+      notEqual(session.token, tokenHash),
+    ),
+  );
 
   // The write invalidation clears every entry; the unchanged current session
   // can be restored without another database read.

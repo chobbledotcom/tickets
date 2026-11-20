@@ -33,7 +33,7 @@ const LEDGER_ENTRY_FIELDS = [
   {
     invalidMessage: t("admin.ledger.form.occurred_at_invalid"),
     label: t("admin.ledger.form.occurred_at"),
-    name: "occurred_at",
+    name: "occurredAt",
     parse: parseOccurredAt,
     required: true,
     requiredMessage: t("admin.ledger.form.occurred_at_required"),
@@ -50,7 +50,7 @@ const ledgerEntryAddFields = (options: LedgerEntryAddOption[]) =>
     {
       invalidMessage: t("admin.ledger.form.entry_type_invalid"),
       label: t("admin.ledger.add.type"),
-      name: "entry_type",
+      name: "entryType",
       options: requireChoiceOptions(
         t("admin.ledger.add.type"),
         options.map((option) => ({

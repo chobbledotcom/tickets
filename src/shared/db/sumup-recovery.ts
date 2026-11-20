@@ -9,14 +9,10 @@
  * SQL that carries it out.
  */
 
-import {
-  execute,
-  inPlaceholders,
-  queryAll,
-  queryBatch,
-  resultRows,
-} from "#db/client.ts";
+import { queryAll, queryBatch, resultRows } from "#db/client.ts";
 import { SCAN_LIMIT } from "#db/schema-anomaly-scan.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { changeSumupCheckouts } from "#db/sumup-checkouts.ts";
 import {
   parseSumupRecoveryState,
   RECOVERY_CHECKABLE_NODES,
@@ -46,8 +42,6 @@ export type DueSumupCheckout = {
   readonly sumupId: string;
 };
 
-const CHECKABLE_SLOTS = inPlaceholders(RECOVERY_CHECKABLE_NODES);
-
 /**
  * The oldest checkouts whose check time has come, newest-last so a row that
  * keeps failing cannot hold the front of the queue: its own check time moves
@@ -61,14 +55,13 @@ export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
     recovery_state: string;
     sumup_id: string;
   }>(
-    `SELECT reference_index, sumup_id, recovery_state, next_check_at
+    sql`SELECT reference_index, sumup_id, recovery_state, next_check_at
        FROM sumup_checkouts
-      WHERE recovery_state IN (${CHECKABLE_SLOTS})
+      WHERE recovery_state IN (${sqlList(RECOVERY_CHECKABLE_NODES)})
         AND next_check_at IS NOT NULL
-        AND next_check_at <= ?
+        AND next_check_at <= ${nowIso()}
       ORDER BY next_check_at
-      LIMIT ?`,
-    [...RECOVERY_CHECKABLE_NODES, nowIso(), SUMUP_RECOVERY_BATCH],
+      LIMIT ${SUMUP_RECOVERY_BATCH}`,
   );
   // Reading the stored word back through the machine is what turns a row
   // nothing here could have written into a raised error rather than work.
@@ -88,25 +81,19 @@ export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
  * matches the state and check time it was read with, so two runners that
  * looked at one row cannot both believe they wrote it — the loser finds no
  * row. */
-const moveSumupRecoveryRow = async (
+const moveSumupRecoveryRow = (
   checkout: DueSumupCheckout,
   recoveryState: RecoveryNodeId,
   nextCheckAt: string | null,
-): Promise<number> => {
-  const result = await execute(
-    `UPDATE sumup_checkouts
-        SET recovery_state = ?, next_check_at = ?
-      WHERE reference_index = ? AND recovery_state = ? AND next_check_at = ?`,
-    [
-      recoveryState,
-      nextCheckAt,
-      checkout.referenceIndex,
-      checkout.state,
-      checkout.checkedAt,
-    ],
+): Promise<number> =>
+  changeSumupCheckouts(
+    { nextCheckAt: nextCheckAt, recoveryState: recoveryState },
+    {
+      nextCheckAt: checkout.checkedAt,
+      recoveryState: checkout.state,
+      referenceIndex: checkout.referenceIndex,
+    },
   );
-  return result.rowsAffected;
-};
 
 /**
  * Move one row on by the event its check amounted to.
@@ -165,11 +152,10 @@ export type UnansweredSumupMoney = {
  * `waiting` rows once they are old. `created_at` is the clock on purpose —
  * the check time moves forward after every attempt, so a row nothing can
  * answer (or a task that cannot run at all) never looks overdue by it. */
-const UNANSWERED_WHERE = `(recovery_state IN (${inPlaceholders(
-  RECOVERY_UNANSWERED_NODES,
-)})
-    OR (recovery_state IN (${inPlaceholders(RECOVERY_UNANSWERED_WHEN_OLD_NODES)})
-        AND created_at < ?))`;
+const unansweredWhere = (): SqlStatement =>
+  sql`(recovery_state IN (${sqlList(RECOVERY_UNANSWERED_NODES)})
+    OR (recovery_state IN (${sqlList(RECOVERY_UNANSWERED_WHEN_OLD_NODES)})
+        AND created_at < ${isoBefore(SUMUP_UNANSWERED_AFTER_MS)}))`;
 
 interface UnansweredCountRow {
   readonly total: number;
@@ -188,25 +174,15 @@ interface UnansweredListRow {
  */
 export const listUnansweredSumupMoney =
   async (): Promise<UnansweredSumupMoney> => {
-    const args = [
-      ...RECOVERY_UNANSWERED_NODES,
-      ...RECOVERY_UNANSWERED_WHEN_OLD_NODES,
-      isoBefore(SUMUP_UNANSWERED_AFTER_MS),
-    ];
+    const unanswered = unansweredWhere();
     const [countResult, listResult] = await queryBatch([
-      {
-        args: [...args],
-        sql: `SELECT COUNT(*) AS total FROM sumup_checkouts
-         WHERE ${UNANSWERED_WHERE}`,
-      },
-      {
-        args: [...args, SCAN_LIMIT],
-        sql: `SELECT reference_index, recovery_state, created_at
+      sql`SELECT COUNT(*) AS total FROM sumup_checkouts
+         WHERE ${unanswered}`,
+      sql`SELECT reference_index, recovery_state, created_at
           FROM sumup_checkouts
-         WHERE ${UNANSWERED_WHERE}
+         WHERE ${unanswered}
          ORDER BY created_at
-         LIMIT ?`,
-      },
+         LIMIT ${SCAN_LIMIT}`,
     ]);
     const counted = requireValue(
       countResult,

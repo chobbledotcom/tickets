@@ -2,6 +2,7 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { records } from "#db/record-table.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -62,7 +63,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions", () => {
     testRequiresAuth("/admin/questions", {
-      body: { display_type: "radio" as const, text: "Test?" },
+      body: { displayType: "radio" as const, text: "Test?" },
       method: "POST",
     });
 
@@ -79,7 +80,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("does not enable Questions for an invalid create", async () => {
       await setAdminFeatureEnabled("questions", false);
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio",
+        displayType: "radio",
         text: "",
       });
       response.body?.cancel();
@@ -91,7 +92,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await expect(
         withFeatureWriteFailure(async () => {
           await adminFormPost("/admin/questions", {
-            display_type: "radio",
+            displayType: "radio",
             text: "Hidden?",
           });
         }),
@@ -104,7 +105,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("redirects to the new question's detail page", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "Redirect target?",
       });
       const { getAllQuestionsWithAnswers } = await import(
@@ -120,7 +121,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("rejects empty text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "",
       });
       // Invalid create bounces back to the questions list with the error flash;
@@ -148,7 +149,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("creates select questions", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "select" as const,
+        displayType: "select" as const,
         text: "Choose one?",
       });
       const { getAllQuestionsWithAnswers } = await import(
@@ -157,7 +158,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const question = (await getAllQuestionsWithAnswers()).find(
         (q) => q.text === "Choose one?",
       );
-      expect(question?.display_type).toBe("select");
+      expect(question?.displayType).toBe("select");
       await expectFlashRedirect(
         `/admin/questions/${question!.id}`,
         "Question created",
@@ -166,7 +167,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("rejects unsupported display types", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "dropdown",
+        displayType: "dropdown",
         text: "Choose one?",
       });
       expect(response.status).toBe(302);
@@ -181,7 +182,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("rejects whitespace-only text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "   ",
       });
       expect(response.status).toBe(302);
@@ -198,7 +199,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       // rendered on public booking pages).
       const { MAX_TEXTAREA_LENGTH } = await import("#shared/limits.ts");
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "a".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
       expect(response.status).toBe(302);
@@ -270,7 +271,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions/:id/edit", () => {
     testRequiresAuth("/admin/questions/1/edit", {
-      body: { display_type: "radio" as const, text: "Edited" },
+      body: { displayType: "radio" as const, text: "Edited" },
       method: "POST",
       setup: async () => {
         await createQuestion("Edit me");
@@ -280,7 +281,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("updates question text", async () => {
       const id = await createQuestion("Before edit");
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "After edit",
       });
       await expectFlashRedirect(
@@ -289,14 +290,29 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify the question was updated
-      const { questionsTable } = await import("#db/questions/tables.ts");
-      const updated = await questionsTable.read.one({ id: id });
+      const updated = await records.questions.find(id);
       expect(updated!.text).toBe("After edit");
     });
 
+    test("renaming a question keeps its place in the order", async () => {
+      const firstId = await createQuestion("First question?");
+      await createQuestion("Second question?");
+
+      await adminFormPost(`/admin/questions/${firstId}/edit`, {
+        displayType: "radio" as const,
+        text: "First renamed?",
+      });
+
+      const { getAllQuestionsWithAnswers } = await import(
+        "#db/questions/queries.ts"
+      );
+      expect(
+        (await getAllQuestionsWithAnswers()).map(({ text }) => text),
+      ).toEqual(["First renamed?", "Second question?"]);
+    });
+
     test("does not update a question when enabling the feature fails", async () => {
-      const { questionsTable } = await import("#db/questions/tables.ts");
-      const question = await questionsTable.insert({
+      const question = await records.questions.insert({
         displayType: "radio",
         text: "Before?",
       });
@@ -304,20 +320,18 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await expect(
         withFeatureWriteFailure(async () => {
           await adminFormPost(`/admin/questions/${question.id}/edit`, {
-            display_type: "radio",
+            displayType: "radio",
             text: "After?",
           });
         }),
       ).rejects.toThrow("feature enable failed");
-      expect((await questionsTable.read.one({ id: question.id }))?.text).toBe(
-        "Before?",
-      );
+      expect((await records.questions.find(question.id))?.text).toBe("Before?");
     });
 
     test("rejects empty text with error page", async () => {
       const id = await createQuestion("Keep me");
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "",
       });
       expect(response.status).toBe(302);
@@ -331,7 +345,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("rejects unsupported display types on edit", async () => {
       const id = await createQuestion("Keep me");
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
-        display_type: "dropdown",
+        displayType: "dropdown",
         text: "Still here",
       });
       expect(response.status).toBe(302);
@@ -345,38 +359,36 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("keeps a free-text question free-text, ignoring a submitted choice type", async () => {
-      const { questionsTable } = await import("#db/questions/tables.ts");
-      const q = await questionsTable.insert({
+      const q = await records.questions.insert({
         displayType: "free_text",
         text: "Notes?",
       });
       const { response } = await adminFormPost(
         `/admin/questions/${q.id}/edit`,
-        { display_type: "radio" as const, text: "Notes updated" },
+        { displayType: "radio" as const, text: "Notes updated" },
       );
       await expectFlashRedirect(
         `/admin/questions/${q.id}`,
         "Question updated",
       )(response);
-      const updated = await questionsTable.read.one({ id: q.id });
-      expect(updated!.display_type).toBe("free_text");
+      const updated = await records.questions.find(q.id);
+      expect(updated!.displayType).toBe("free_text");
       expect(updated!.text).toBe("Notes updated");
     });
 
     test("does not let a choice question be converted to free-text", async () => {
       const id = await createQuestion("Colour?");
-      const { questionsTable } = await import("#db/questions/tables.ts");
       await adminFormPost(`/admin/questions/${id}/edit`, {
-        display_type: "free_text",
+        displayType: "free_text",
         text: "Colour?",
       });
-      const updated = await questionsTable.read.one({ id: id });
-      expect(updated!.display_type).toBe("radio");
+      const updated = await records.questions.find(id);
+      expect(updated!.displayType).toBe("radio");
     });
 
     test("returns 404 for non-existent question on edit", async () => {
       const { response } = await adminFormPost("/admin/questions/999/edit", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "Updated",
       });
       expectStatus(404)(response);
@@ -385,7 +397,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("redirects with error when question disappears during empty text validation", async () => {
       // Edit with empty text on a non-existent question triggers the requireTextOrError redirect
       const { response } = await adminFormPost("/admin/questions/999/edit", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "",
       });
       expect(response.status).toBe(302);

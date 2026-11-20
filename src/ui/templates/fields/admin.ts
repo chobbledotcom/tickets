@@ -14,11 +14,13 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "#shared/limits.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
+import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import { LOGISTICS_AGENT_FIELDS } from "#shared/records/logistics-agent-fields.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
-import { picklistOptions } from "#templates/fields/picklist-options.ts";
+import { blankThenPicklistOptions } from "#templates/fields/picklist-options.ts";
+import { fieldsForm } from "#templates/fields/record-fields.ts";
 import {
   getUsernameFieldBase,
-  validateDate,
   validateHttpsDomainUrl,
   validateUpdateTier,
   validateUsername,
@@ -42,36 +44,9 @@ const getLoginFields = () =>
 
 export const getLoginForm = defineFieldsForm(getLoginFields);
 
-/**
- * Holiday form field definitions (per-request builder)
- */
-const getHolidayFields = () =>
-  [
-    {
-      label: t("fields.holiday.name"),
-      name: "name",
-      placeholder: t("fields.holiday.name_placeholder"),
-      required: true,
-      type: "text",
-    },
-    {
-      label: t("fields.holiday.start_date"),
-      name: "start_date",
-      required: true,
-      type: "date",
-      validate: validateDate,
-    },
-    {
-      hint: t("fields.holiday.end_date_hint"),
-      label: t("fields.holiday.end_date"),
-      name: "end_date",
-      required: true,
-      type: "date",
-      validate: validateDate,
-    },
-  ] as const satisfies readonly Field[];
+export const getHolidayForm = fieldsForm(HOLIDAY_FIELDS);
 
-export const getHolidayForm = defineFieldsForm(getHolidayFields);
+export const getLogisticsAgentForm = fieldsForm(LOGISTICS_AGENT_FIELDS);
 
 /** One built-site box: its label and placeholder come from the field's
  * catalog keys, so every form naming this value says the same words. */
@@ -123,14 +98,14 @@ export const providerChoices = <
 }): readonly [
   {
     label: string;
-    name: "hosting_provider";
+    name: "hostingProvider";
     options: Hosting;
     type: "select";
   },
-  { label: string; name: "db_provider"; options: Db; type: "select" },
+  { label: string; name: "dbProvider"; options: Db; type: "select" },
 ] => [
-  builtSiteChoice("hosting_provider", "hosting_provider", choices.hosting),
-  builtSiteChoice("db_provider", "db_provider", choices.db),
+  builtSiteChoice("hostingProvider", "hosting_provider", choices.hosting),
+  builtSiteChoice("dbProvider", "db_provider", choices.db),
 ];
 
 /**
@@ -145,19 +120,19 @@ const getBuiltSiteFields = (visitUrl?: string) =>
   [
     { ...builtSiteBox("name", "name", "text" as const), required: true },
     {
-      ...builtSiteBox("site_url", "site_url", "url" as const),
+      ...builtSiteBox("siteUrl", "site_url", "url" as const),
       required: true,
       validate: validateHttpsDomainUrl,
       ...(visitUrl && { labelSuffixHtml: visitLinkHtml(visitUrl) }),
     },
-    builtSiteBox("db_url", "db_url", "url" as const),
+    builtSiteBox("dbUrl", "db_url", "url" as const),
     {
-      ...builtSiteBox("db_token", "db_token", "password" as const),
+      ...builtSiteBox("dbToken", "db_token", "password" as const),
       // A libsql auth token is a pasted machine credential, like the wallet
       // PEM keys: a real one runs past the single-line cap.
       maxlength: MAX_TEXTAREA_LENGTH,
     },
-    builtSiteBox("hosting_id", "hosting_id", "text" as const),
+    builtSiteBox("hostingId", "hosting_id", "text" as const),
     ...providerChoices({
       db: [
         { label: t("fields.built_site.provider.bunny_db"), value: "bunny" },
@@ -241,7 +216,7 @@ const getSetupFields = () =>
       label: t("fields.setup.username"),
       maxlength: MAX_INPUT_LENGTH,
       minlength: 1,
-      name: "admin_username",
+      name: "adminUsername",
       pattern: "[a-zA-Z0-9][a-zA-Z0-9_\\-]*",
       required: true,
       title: t("fields.setup.username_title"),
@@ -249,9 +224,9 @@ const getSetupFields = () =>
       validate: validateUsername,
     },
     ...newPasswordFields(
-      "admin_password",
+      "adminPassword",
       t("fields.setup.password"),
-      "admin_password_confirm",
+      "adminPasswordConfirm",
       t("fields.setup.confirm_password"),
     ),
   ] as const satisfies readonly Field[];
@@ -266,14 +241,14 @@ const getChangePasswordFields = () =>
     {
       autocomplete: "current-password",
       label: t("fields.change_password.current"),
-      name: "current_password",
+      name: "currentPassword",
       required: true,
       type: "password",
     },
     ...newPasswordFields(
-      "new_password",
+      "newPassword",
       t("fields.change_password.new"),
-      "new_password_confirm",
+      "newPasswordConfirm",
       t("fields.change_password.confirm"),
     ),
   ] as const satisfies readonly Field[];
@@ -356,14 +331,14 @@ const providerCredentialFieldBuilder =
 
 /** The Square access-token and location fields. */
 export const squareAccessTokenFields = providerCredentialFieldBuilder({
-  idField: { keyLabel: "location_id", name: "square_location_id" },
+  idField: { keyLabel: "location_id", name: "squareLocationId" },
   provider: "square",
   secretKeyLabel: "access_token",
 });
 
 /** The SumUp API-key and merchant-code fields. */
 export const sumupFields = providerCredentialFieldBuilder({
-  idField: { keyLabel: "merchant_code", name: "sumup_merchant_code" },
+  idField: { keyLabel: "merchant_code", name: "sumupMerchantCode" },
   provider: "sumup",
   secretKeyLabel: "api_key",
 });
@@ -382,7 +357,7 @@ export const getStripeKeyFields = (): Field[] => [
  * Square webhook settings form field definitions (per-request builder)
  */
 export const getSquareWebhookFields = (): Field[] => [
-  credentialField("fields.square.webhook_key", "square_webhook_signature_key", {
+  credentialField("fields.square.webhook_key", "squareWebhookSignatureKey", {
     noPlaceholder: true,
   }),
 ];
@@ -404,11 +379,12 @@ const getInviteUserFields = () =>
       // owner first). The operator must pick a role deliberately.
       invalidMessage: t("error.invalid_role"),
       label: t("fields.user.role"),
-      name: "admin_level",
-      options: [
-        { label: t("fields.user.role_placeholder"), value: "" },
-        ...picklistOptions(AdminLevelSchema, "fields.user"),
-      ],
+      name: "adminLevel",
+      options: blankThenPicklistOptions(
+        t("fields.user.role_placeholder"),
+        AdminLevelSchema,
+        "fields.user",
+      ),
       required: true,
       type: "select",
     },

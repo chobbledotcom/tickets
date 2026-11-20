@@ -12,7 +12,7 @@ describe("adminListingPage total revenue", () => {
 
   test("shows total revenue for paid listings", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 2, unit_price: 1000 }),
+      testListingWithCount({ attendeeCount: 2, unitPrice: 1000 }),
       {
         attendees: [
           testAttendee({ payment_id: "pi_test_1", price_paid: "1000" }),
@@ -25,7 +25,7 @@ describe("adminListingPage total revenue", () => {
 
   test("does not show total revenue for free listings", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 1, unit_price: 0 }),
+      testListingWithCount({ attendeeCount: 1, unitPrice: 0 }),
       { attendees: [testAttendee()] },
     );
     assert(!html.includes("Total Revenue"));
@@ -33,7 +33,7 @@ describe("adminListingPage total revenue", () => {
 
   test("shows zero revenue for paid listing with no attendees", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 0, unit_price: 1000 }),
+      testListingWithCount({ attendeeCount: 0, unitPrice: 1000 }),
     );
     expectIncludesAll(html, ["Total Revenue", "£0"]);
   });

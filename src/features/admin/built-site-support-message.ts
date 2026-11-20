@@ -15,7 +15,7 @@ export const handleSaveSiteSupportMessage = builtSiteFormPost(
   async (site, _session, form, _request) => {
     // Raw, not getString: markdown's own meaning (an indented code block,
     // the blank line before a list) lives in the whitespace.
-    const value = form.getRaw("support_message");
+    const value = form.getRaw("supportMessage");
     if (supportMessageTooLong(value)) {
       return refuseTab(
         "support-message",

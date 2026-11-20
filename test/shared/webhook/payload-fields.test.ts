@@ -20,6 +20,17 @@ import {
 } from "#test-utils/factories.ts";
 import type { EmailEntry } from "#test-utils/internal.ts";
 
+/** Assert each field a record reports, so a record's whole report reads as one
+ *  table. */
+const expectFields = <T extends object>(
+  subject: T,
+  fields: Partial<Record<keyof T, unknown>>,
+): void => {
+  for (const field of Object.keys(fields) as (keyof T)[]) {
+    expect(subject[field]).toBe(fields[field]);
+  }
+};
+
 describeWithEnv("buildWebhookPayload", { db: true }, () => {
   const packagePricing = (
     prices: ReadonlyMap<number, number> = new Map(),
@@ -44,30 +55,34 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
       "public",
     );
 
-    expect(payload.notification_type).toBe("registration.completed");
-    expect(payload.source).toBe("public");
-    expect(payload.name).toBe("Jane Doe");
-    expect(payload.email).toBe("jane@example.com");
-    expect(payload.phone).toBe("555-1234");
-    expect(payload.price_paid).toBeNull();
-    expect(payload.currency).toBe("GBP");
-    expect(payload.payment_id).toBeNull();
-    expect(payload.ticket_url).toBe("https://localhost/t/AABB001122");
+    expectFields(payload, {
+      business_email: "",
+      currency: "GBP",
+      email: "jane@example.com",
+      name: "Jane Doe",
+      notification_type: "registration.completed",
+      payment_id: null,
+      phone: "555-1234",
+      price_paid: null,
+      source: "public",
+      ticket_url: "https://localhost/t/AABB001122",
+    });
     expect(payload.tickets).toHaveLength(1);
-    expect(payload.tickets[0]!.listing_name).toBe("Test Listing");
-    expect(payload.tickets[0]!.listing_slug).toBe("test-listing");
-    expect(payload.tickets[0]!.unit_price).toBe(0);
-    expect(payload.tickets[0]!.quantity).toBe(1);
-    expect(payload.tickets[0]!.date).toBeNull();
-    expect(payload.tickets[0]!.ticket_token).toBe("AABB001122");
-    expect(payload.timestamp).toBeDefined();
-    expect(payload.business_email).toBe("");
+    expectFields(payload.tickets[0]!, {
+      date: null,
+      listing_name: "Test Listing",
+      listing_slug: "test-listing",
+      quantity: 1,
+      ticket_token: "AABB001122",
+      unit_price: 0,
+    });
+    expect(payload.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
   });
 
   test("builds payload for a single paid listing with price_paid on attendee", async () => {
     const entries = [
       makeEntry(
-        { unit_price: 500 },
+        { unitPrice: 500 },
         { payment_id: "pi_abc123", price_paid: "1000", quantity: 2 },
       ),
     ];
@@ -90,7 +105,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     // per unit, not the paid-now amount divided by quantity.
     const entries = [
       makeEntry(
-        { id: 42, unit_price: 0 },
+        { id: 42, unitPrice: 0 },
         {
           package_group_id: 7,
           payment_id: "pi_pkg",
@@ -121,7 +136,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
   test("falls back to the base price for a package member with no override", async () => {
     const entries = [
       makeEntry(
-        { id: 43, unit_price: 1200 },
+        { id: 43, unitPrice: 1200 },
         { package_group_id: 7, price_paid: "1200", quantity: 1 },
       ),
     ];
@@ -150,7 +165,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     // per-day override: the payload's unit_price is that override, derived
     // from the stored [start, end) range — never the base listing price.
     const entries = twoNightPackageEntries(
-      { customisable_days: true, id: 44, unit_price: 0 },
+      { customisableDays: true, id: 44, unitPrice: 0 },
       "1500",
     );
     const payload = buildWebhookPayload(
@@ -170,11 +185,11 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     // 2-day price the checkout actually charged — never the base unit_price.
     const entries = twoNightPackageEntries(
       {
-        customisable_days: true,
-        day_prices: { 2: 3000 },
-        duration_days: 2,
+        customisableDays: true,
+        dayPrices: { 2: 3000 },
+        durationDays: 2,
         id: 45,
-        unit_price: 0,
+        unitPrice: 0,
       },
       "3000",
     );
@@ -189,11 +204,11 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     const entries = [
       makeEntry(
         {
-          customisable_days: true,
-          day_prices: { 1: 500, 2: 1500 },
-          duration_days: 2,
+          customisableDays: true,
+          dayPrices: { 1: 500, 2: 1500 },
+          durationDays: 2,
           id: 46,
-          unit_price: 500,
+          unitPrice: 500,
         },
         {
           date: "2026-08-01",
@@ -213,11 +228,11 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     // reports it once — not summed across the booking lines.
     const entries = [
       makeEntry(
-        { id: 1, name: "Listing A", slug: "listing-a", unit_price: 1000 },
+        { id: 1, name: "Listing A", slug: "listing-a", unitPrice: 1000 },
         { price_paid: "0", remaining_balance: 3000, ticket_token: "AA00BB" },
       ),
       makeEntry(
-        { id: 2, name: "Listing B", slug: "listing-b", unit_price: 2000 },
+        { id: 2, name: "Listing B", slug: "listing-b", unitPrice: 2000 },
         { price_paid: "0", remaining_balance: 3000, ticket_token: "CC11DD" },
       ),
     ];
@@ -231,7 +246,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
   test("builds payload for multi-listing entries", async () => {
     const entries = [
       makeEntry(
-        { id: 1, name: "Listing A", slug: "listing-a", unit_price: 300 },
+        { id: 1, name: "Listing A", slug: "listing-a", unitPrice: 300 },
         {
           payment_id: "pi_multi",
           price_paid: "300",
@@ -239,7 +254,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
         },
       ),
       makeEntry(
-        { id: 2, name: "Listing B", slug: "listing-b", unit_price: 700 },
+        { id: 2, name: "Listing B", slug: "listing-b", unitPrice: 700 },
         {
           payment_id: "pi_multi",
           price_paid: "1400",
@@ -251,20 +266,24 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
 
     const payload = await buildWebhookPayload(entries, "EUR", "public");
 
-    expect(payload.name).toBe("Jane Doe");
-    expect(payload.price_paid).toBe(1700);
-    expect(payload.payment_id).toBe("pi_multi");
-    expect(payload.ticket_url).toBe(
-      "https://localhost/t/AA00BB11CC+DD22EE33FF",
-    );
+    expectFields(payload, {
+      name: "Jane Doe",
+      payment_id: "pi_multi",
+      price_paid: 1700,
+      ticket_url: "https://localhost/t/AA00BB11CC+DD22EE33FF",
+    });
     expect(payload.tickets).toHaveLength(2);
-    expect(payload.tickets[0]!.listing_name).toBe("Listing A");
-    expect(payload.tickets[0]!.unit_price).toBe(300);
-    expect(payload.tickets[0]!.ticket_token).toBe("AA00BB11CC");
-    expect(payload.tickets[1]!.listing_name).toBe("Listing B");
-    expect(payload.tickets[1]!.unit_price).toBe(700);
-    expect(payload.tickets[1]!.quantity).toBe(2);
-    expect(payload.tickets[1]!.ticket_token).toBe("DD22EE33FF");
+    expectFields(payload.tickets[0]!, {
+      listing_name: "Listing A",
+      ticket_token: "AA00BB11CC",
+      unit_price: 300,
+    });
+    expectFields(payload.tickets[1]!, {
+      listing_name: "Listing B",
+      quantity: 2,
+      ticket_token: "DD22EE33FF",
+      unit_price: 700,
+    });
   });
 
   test("includes price_paid for free can_pay_more listing where attendee paid", async () => {
@@ -274,7 +293,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
           payment_id: "pi_donate",
           price_paid: "500",
         }),
-        listing: makeListing({ can_pay_more: true, unit_price: 0 }),
+        listing: makeListing({ canPayMore: true, unitPrice: 0 }),
       },
     ];
 
@@ -314,7 +333,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
 
   test("returns 0 price_paid when attendee has no price_paid on paid listing", async () => {
     const payload = await buildWebhookPayload(
-      [makeEntry({ unit_price: 500 }, { quantity: 3 })],
+      [makeEntry({ unitPrice: 500 }, { quantity: 3 })],
       "GBP",
       "public",
     );

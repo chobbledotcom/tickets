@@ -8,6 +8,7 @@ import {
   setImagesForItem,
 } from "#db/images.ts";
 import removeBrokenImageRecords from "#db/migrations/2026-07-12_remove_broken_image_records.ts";
+import { sql } from "#db/sql.ts";
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -26,23 +27,27 @@ describeWithEnv(
       const real = await makeImage("Real");
       const brokenId = await insertBrokenImage();
       await insertBrokenImage({ name: "Also broken" });
-      await setImagesForItem("listing", listing.id, [brokenId, real.id]);
+      await setImagesForItem({
+        imageIds: [brokenId, real.id],
+        itemId: listing.id,
+        itemType: "listing",
+      });
 
       await runMigration();
 
       // Both broken records and the one's link are gone; the real image and
       // its link survive at its original sort order.
       const remainingIds = await queryAll<{ id: number }>(
-        "SELECT id FROM images ORDER BY id",
+        sql`SELECT id FROM images ORDER BY id`,
       );
       expect(remainingIds.map((row) => row.id)).toEqual([real.id]);
       expect(await getImageUsesForImage(brokenId)).toEqual([]);
       expect(await getImageUsesForImage(real.id)).toEqual([
         {
-          image_id: real.id,
-          item_id: listing.id,
-          item_type: "listing",
-          sort_order: 1,
+          imageId: real.id,
+          itemId: listing.id,
+          itemType: "listing",
+          sortOrder: 1,
         },
       ]);
       // The library reads clean afterwards — nothing left to fall back on.
@@ -58,11 +63,14 @@ describeWithEnv(
       // order) has already identified this broken record when the malformed
       // one throws — a regression that deletes as it scans would remove it.
       const brokenId = await insertBrokenImage();
-      await setImagesForItem("listing", listing.id, [brokenId]);
+      await setImagesForItem({
+        imageIds: [brokenId],
+        itemId: listing.id,
+        itemType: "listing",
+      });
       const malformed = await execute(
-        `INSERT INTO images (name, filename, filename_thumb, alt_text)
-         VALUES (?, 'not-a-ciphertext', 'not-a-ciphertext', '')`,
-        [await encrypt("Unknown corruption")],
+        sql`INSERT INTO images (name, filename, filename_thumb, alt_text)
+         VALUES (${await encrypt("Unknown corruption")}, 'not-a-ciphertext', 'not-a-ciphertext', '')`,
       );
       const malformedId = Number(malformed.lastInsertRowid);
 
@@ -74,7 +82,7 @@ describeWithEnv(
       // Every record survives — including the already-identified broken one
       // and its item link, because deletes only run after the full scan.
       const remaining = await queryAll<{ id: number }>(
-        "SELECT id FROM images ORDER BY id",
+        sql`SELECT id FROM images ORDER BY id`,
       );
       expect(remaining.map((row) => row.id)).toEqual([
         kept.id,
@@ -83,10 +91,10 @@ describeWithEnv(
       ]);
       expect(await getImageUsesForImage(brokenId)).toEqual([
         {
-          image_id: brokenId,
-          item_id: listing.id,
-          item_type: "listing",
-          sort_order: 0,
+          imageId: brokenId,
+          itemId: listing.id,
+          itemType: "listing",
+          sortOrder: 0,
         },
       ]);
     });

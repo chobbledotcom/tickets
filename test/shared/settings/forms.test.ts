@@ -62,7 +62,7 @@ const EXPECTED_FORM_ROWS = [
     "main",
     "/admin/settings/tax",
     "settings-tax",
-    ["tax_mode", "tax_rate", "expected_tax"],
+    ["taxMode", "taxRate", "expectedTax"],
     "Tax",
   ),
   single(
@@ -72,7 +72,7 @@ const EXPECTED_FORM_ROWS = [
     "text",
     "/admin/settings/business-email",
     "settings-business-email",
-    "business_email",
+    "businessEmail",
     "Business email",
     "businessEmail",
   ),
@@ -81,7 +81,7 @@ const EXPECTED_FORM_ROWS = [
     "main",
     "/admin/settings/theme",
     "settings-theme",
-    ["theme", "underline_links"],
+    ["theme", "underlineLinks"],
     "Site theme",
   ),
   multi(
@@ -89,7 +89,7 @@ const EXPECTED_FORM_ROWS = [
     "main",
     "/admin/settings/calendar-feeds",
     "settings-calendar-feeds",
-    ["calendar_feeds_enabled", "calendar_feeds_group_by"],
+    ["calendarFeedsEnabled", "calendarFeedsGroupBy"],
     "Calendar feeds",
   ),
   single(
@@ -99,7 +99,7 @@ const EXPECTED_FORM_ROWS = [
     "textarea",
     "/admin/settings/terms",
     "settings-terms",
-    "terms_and_conditions",
+    "termsAndConditions",
     "Terms and conditions",
     "termsAndConditions",
   ),
@@ -110,7 +110,7 @@ const EXPECTED_FORM_ROWS = [
     "textarea",
     "/admin/settings/site-footer",
     "settings-site-footer",
-    "site_footer",
+    "siteFooter",
     "Site footer",
     "siteFooter",
   ),
@@ -121,7 +121,7 @@ const EXPECTED_FORM_ROWS = [
     "text",
     "/admin/settings/embed-hosts",
     "settings-embed-hosts",
-    "embed_hosts",
+    "embedHosts",
     "Embed host restrictions",
     "embedHosts",
   ),
@@ -132,7 +132,7 @@ const EXPECTED_FORM_ROWS = [
     "text",
     "/admin/settings/booking-fee",
     "settings-booking-fee",
-    "booking_fee",
+    "bookingFee",
     "Booking fee",
     "bookingFee",
   ),
@@ -143,7 +143,7 @@ const EXPECTED_FORM_ROWS = [
     "text",
     "/admin/settings/listing-column-order",
     "settings-listing-column-order",
-    "column_order",
+    "columnOrder",
     "Listing column order",
     "listingColumnOrder",
   ),
@@ -154,7 +154,7 @@ const EXPECTED_FORM_ROWS = [
     "text",
     "/admin/settings/attendee-column-order",
     "settings-attendee-column-order",
-    "column_order",
+    "columnOrder",
     "Attendee column order",
     "attendeeColumnOrder",
   ),
@@ -165,7 +165,7 @@ const EXPECTED_FORM_ROWS = [
     "textarea",
     "/admin/settings/custom-css",
     "settings-custom-css",
-    "custom_css",
+    "customCss",
     "Custom CSS",
     "customCss",
   ),
@@ -176,7 +176,7 @@ const EXPECTED_FORM_ROWS = [
     "boolean",
     "/admin/settings/show-public-api",
     "settings-show-public-api",
-    "show_public_api",
+    "showPublicApi",
     "Public API",
     "showPublicApi",
   ),
@@ -185,7 +185,7 @@ const EXPECTED_FORM_ROWS = [
     "advanced",
     "/admin/settings/address-lookup",
     "settings-address-lookup",
-    ["address_lookup_provider", "address_lookup_api_key"],
+    ["addressLookupProvider", "addressLookupApiKey"],
     "Address lookup",
   ),
   single(
@@ -206,7 +206,7 @@ const EXPECTED_FORM_ROWS = [
     "boolean",
     "/admin/settings/external-order",
     "settings-external-order",
-    "external_order_enabled",
+    "externalOrderEnabled",
     "External order buttons",
     "externalOrderEnabled",
   ),
@@ -340,8 +340,8 @@ describe("settings form schema", () => {
 
   test("answers a field's browser limits from its declaration", () => {
     expect(
-      settingsFormFieldAttributes("settings-business-email", "business_email"),
-    ).toEqual({ maxlength: 250, name: "business_email" });
+      settingsFormFieldAttributes("settings-business-email", "businessEmail"),
+    ).toEqual({ maxlength: 250, name: "businessEmail" });
     expect(() =>
       settingsFormFieldAttributes("settings-business-email", "not_a_field"),
     ).toThrow("Settings field does not exist: not_a_field");
@@ -365,7 +365,7 @@ describe("settings form schema", () => {
 
   // Field names are deliberately not unique across forms: two forms may post
   // the same field name to different actions (e.g. both column-order forms
-  // post "column_order").
+  // post "columnOrder").
   test("uses unique names, actions, and form ids", () => {
     for (const field of ["name", "action", "formId"] as const) {
       const all = values(field);

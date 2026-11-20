@@ -26,11 +26,11 @@ export const stopOpeningOn: ChangeOneThing<string> = async (
   name,
   weekday,
 ) => {
-  await setBoxOnListing(world, name, "bookable_days", (served) => {
+  await setBoxOnListing(world, name, "bookableDays", (served) => {
     // Only days carried by a real, usable checkbox count: a day rendered as a
     // fixed hidden box is one nobody could untick, so the story must fail
     // rather than post an edit no organiser could make.
-    const ticked = tickedCheckboxes(served, "bookable_days");
+    const ticked = tickedCheckboxes(served, "bookableDays");
     assertArrayIncludes(ticked, [weekday]);
     return ticked.filter((day) => day !== weekday);
   });

@@ -10,7 +10,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { appendImageToItem, imagesTable } from "#db/images.ts";
+import { appendImageToItem, insertImageRecord } from "#db/images.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -29,13 +29,13 @@ const twoPictures = async (
   itemType: "group" | "listing",
   itemId: number,
 ): Promise<void> => {
-  const first = await imagesTable.insert({
+  const first = await insertImageRecord({
     altText: "First alt",
     filename: nonEmptyString("gallery-one.webp"),
     filenameThumb: nonEmptyString("gallery-one-thumb.webp"),
     name: "One",
   });
-  const second = await imagesTable.insert({
+  const second = await insertImageRecord({
     altText: "",
     filename: nonEmptyString("gallery-two.webp"),
     filenameThumb: nonEmptyString("gallery-two-thumb.webp"),

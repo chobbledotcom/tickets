@@ -16,6 +16,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   expectFlashRedirect,
@@ -74,10 +76,10 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     // coverage.
     test("rejects a status that is both a reservation and the paid default", async () => {
       const { response } = await adminFormPost(PATH, {
-        is_paid_default: "1",
-        is_reservation: "1",
+        isPaidDefault: "1",
+        isReservation: "1",
         name: "Contradiction",
-        reservation_amount: "10",
+        reservationAmount: "10",
       });
       await expectFlashRedirect(
         `${PATH}/new`,
@@ -110,9 +112,9 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     // story tells it too, in the organiser's own words.
     test("refuses to delete the public default", async () => {
       const seed = await seedStatus();
-      await attendeeStatuses.table.insert({ name: "Spare" });
+      await records.attendee_statuses.insert({ name: "Spare" });
       const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`, {
-        confirm_identifier: seed.name,
+        confirmIdentifier: seed.name,
       });
       await expectFlashRedirect(
         `${PATH}/${seed.id}/delete`,
@@ -122,15 +124,16 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
 
     test("refuses to delete a status that is in use", async () => {
-      const inUse = await attendeeStatuses.table.insert({ name: "Active" });
+      const inUse = await records.attendee_statuses.insert({
+        name: "Active",
+      });
       // A current `created` keeps this booking-less attendee out of the
       // orphaned-record auto-purge so it still counts as "in use".
-      await getDb().execute({
-        args: [new Date().toISOString(), inUse.id],
-        sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-      });
+      await getDb().execute(
+        sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${inUse.id})`,
+      );
       const { response } = await adminFormPost(`${PATH}/${inUse.id}/delete`, {
-        confirm_identifier: "Active",
+        confirmIdentifier: "Active",
       });
       await expectFlashRedirect(
         `${PATH}/${inUse.id}/delete`,
@@ -140,9 +143,11 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
 
     test("deletes a spare, unused status", async () => {
-      const spare = await attendeeStatuses.table.insert({ name: "Disposable" });
+      const spare = await records.attendee_statuses.insert({
+        name: "Disposable",
+      });
       const { response } = await adminFormPost(`${PATH}/${spare.id}/delete`, {
-        confirm_identifier: "Disposable",
+        confirmIdentifier: "Disposable",
       });
       await expectFlashRedirect(PATH, "Status deleted")(response);
       expect(await getAttendeeStatus(spare.id)).toBeNull();
@@ -150,19 +155,19 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
     test("returns 404 deleting a missing status", async () => {
       const { response } = await adminFormPost(`${PATH}/9999/delete`, {
-        confirm_identifier: "anything",
+        confirmIdentifier: "anything",
       });
       expect(response.status).toBe(404);
     });
 
     test("refuses to delete the paid default", async () => {
       // Move the paid default onto a new (non-public) status, then delete it.
-      await adminFormPost(PATH, { is_paid_default: "1", name: "Settled" });
+      await adminFormPost(PATH, { isPaidDefault: "1", name: "Settled" });
       const settled = (await attendeeStatuses.getAll()).find(
         (s) => s.name === "Settled",
       )!;
       const { response } = await adminFormPost(`${PATH}/${settled.id}/delete`, {
-        confirm_identifier: "Settled",
+        confirmIdentifier: "Settled",
       });
       await expectFlashRedirect(
         `${PATH}/${settled.id}/delete`,

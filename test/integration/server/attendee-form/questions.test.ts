@@ -4,13 +4,15 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
@@ -31,27 +33,22 @@ describeWithEnv(
           name: "QB Event",
         });
 
-        const qA = await questionsTable.insert({
-          displayType: "radio",
+        const {
+          answers: [aA],
+          question: qA,
+        } = await seedQuestion({
+          answers: ["Medium"],
+          listingIds: [eventA.id],
           text: "Shirt size?",
         });
-        const aA = await answersTable.insert({
-          questionId: qA.id,
-          sortOrder: 0,
-          text: "Medium",
-        });
-        await listingQuestions.setIds(eventA.id, [qA.id]);
-
-        const qB = await questionsTable.insert({
-          displayType: "radio",
+        const {
+          answers: [aB],
+          question: qB,
+        } = await seedQuestion({
+          answers: ["Vegan"],
+          listingIds: [eventB.id],
           text: "Meal choice?",
         });
-        const aB = await answersTable.insert({
-          questionId: qB.id,
-          sortOrder: 0,
-          text: "Vegan",
-        });
-        await listingQuestions.setIds(eventB.id, [qB.id]);
 
         const created = await attendeesApi.createAttendeeAtomic({
           bookings: [
@@ -85,8 +82,8 @@ describeWithEnv(
       ): Promise<Set<number>> => {
         const form = await buildAttendeeEditForm(ids.attendeeId, {
           extra: {
-            [`question_${ids.qA.id}`]: String(ids.aA.id),
-            [`question_${ids.qB.id}`]: qbAnswer,
+            [`question${ids.qA.id}`]: String(ids.aA.id),
+            [`question${ids.qB.id}`]: qbAnswer,
           },
           name,
         });
@@ -140,21 +137,14 @@ describeWithEnv(
           maxAttendees: 10,
           name: "Shared",
         });
-        const q = await questionsTable.insert({
-          displayType: "radio",
+        const {
+          answers: [a1, a2],
+          question: q,
+        } = await seedQuestion({
+          answers: ["S", "L"],
+          listingIds: [event.id],
           text: "Size?",
         });
-        const a1 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
-          text: "S",
-        });
-        const a2 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 1,
-          text: "L",
-        });
-        await listingQuestions.setIds(event.id, [q.id]);
 
         const makeAttendee = async (name: string, email: string) => {
           const result = await attendeesApi.createAttendeeAtomic({
@@ -172,7 +162,7 @@ describeWithEnv(
 
         // Edit Alice's answer; her save must not touch Bob's row.
         const form = await buildAttendeeEditForm(alice, {
-          extra: { [`question_${q.id}`]: String(a2.id) },
+          extra: { [`question${q.id}`]: String(a2.id) },
           name: "Alice",
         });
         const { response } = await adminFormPost(
@@ -193,11 +183,9 @@ describeWithEnv(
         maxAttendees: 10,
         name: "Free text listing",
       });
-      const question = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Access needs?",
-      });
-      await listingQuestions.setIds(listing.id, [question.id]);
+      const [question] = await freeTextQuestionsOn(listing.id, [
+        "Access needs?",
+      ]);
       const created = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: listing.id, quantity: 1 }],
         email: "free-text@example.com",
@@ -208,7 +196,7 @@ describeWithEnv(
       const form = await buildAttendeeEditForm(attendeeId, {
         email: "free-text@example.com",
         extra: {
-          [`question_${question.id}`]: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+          [`question${question.id}`]: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
         },
         name: "Free Text",
       });

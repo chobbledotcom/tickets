@@ -17,7 +17,7 @@ describe("adminSettingsPage", () => {
     const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
     assertStringIncludes(html, "Underline links");
     const checkbox =
-      html.match(/<input[^>]*name="underline_links"[^>]*>/)?.[0] ?? "";
+      html.match(/<input[^>]*name="underlineLinks"[^>]*>/)?.[0] ?? "";
     assertStringIncludes(checkbox, 'type="checkbox"');
     assert(!checkbox.includes("checked"));
   });
@@ -27,7 +27,7 @@ describe("adminSettingsPage", () => {
       ...defaultSettingsState(),
       underlineLinks: true,
     });
-    const checkbox = html.match(/<input[^>]*name="underline_links"[^>]*>/);
+    const checkbox = html.match(/<input[^>]*name="underlineLinks"[^>]*>/);
     assertStringIncludes(checkbox?.[0] ?? "", "checked");
   });
 
@@ -44,8 +44,8 @@ describe("adminSettingsPage", () => {
     const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
     expectIncludesAll(html, [
       'action="/admin/settings/calendar-feeds"',
-      'name="calendar_feeds_enabled"',
-      'name="calendar_feeds_group_by"',
+      'name="calendarFeedsEnabled"',
+      'name="calendarFeedsGroupBy"',
     ]);
     assert(!html.includes("&lt;form"));
   });
@@ -55,7 +55,7 @@ describe("adminSettingsPage", () => {
       ...defaultSettingsState(),
       calendarFeedsEnabled: true,
     });
-    expect(hasCheckedInput(html, "calendar_feeds_enabled", "true")).toBe(true);
+    expect(hasCheckedInput(html, "calendarFeedsEnabled", "true")).toBe(true);
   });
 
   test("hides the booking fee form until a payment provider is chosen", () => {
@@ -73,7 +73,7 @@ describe("adminSettingsPage", () => {
       'action="/admin/settings/booking-fee"',
       'id="settings-booking-fee"',
     ]);
-    const input = html.match(/<input[^>]*name="booking_fee"[^>]*>/)?.[0];
+    const input = html.match(/<input[^>]*name="bookingFee"[^>]*>/)?.[0];
     assertStringIncludes(input ?? "", 'type="number"');
     assertStringIncludes(input ?? "", 'min="0"');
     assertStringIncludes(input ?? "", 'max="10"');

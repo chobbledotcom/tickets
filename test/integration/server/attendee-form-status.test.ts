@@ -1,12 +1,9 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
-import {
-  attendeeStatuses,
-  requirePaidDefaultStatus,
-} from "#db/attendee-statuses.ts";
+import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
@@ -15,6 +12,9 @@ import {
   hashEmail,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
+import { expectOmitsAll } from "#test-utils/assertions/omissions.ts";
 import {
   expectHtmlResponse,
   expectIncludesAll,
@@ -25,8 +25,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
   buildAttendeeEditForm,
-  createTestAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
@@ -70,7 +70,7 @@ describeWithEnv(
       };
 
       const newReservation = () =>
-        attendeeStatuses.table.insert({
+        records.attendee_statuses.insert({
           isReservation: true,
           name: "Reserved",
           reservationAmount: "10%",
@@ -85,7 +85,7 @@ describeWithEnv(
         const reservation = await newReservation();
         const id = await seedAttendee(null, 0);
         const form = await buildAttendeeEditForm(id, {
-          extra: { status_id: String(reservation.id) },
+          extra: { statusId: String(reservation.id) },
           name: "Reserver",
         });
         const { response } = await adminFormPost(
@@ -102,14 +102,14 @@ describeWithEnv(
       });
 
       test("edit coerces a blank status back to the public default, not null", async () => {
-        // The form offers no "no status" choice, so a blank status_id (only
+        // The form offers no "no status" choice, so a blank statusId (only
         // reachable from a hand-crafted POST) must not clear the attendee — it
         // falls back to the public default instead.
         const reservation = await newReservation(); // a second, non-default status
         const publicDefault = await requirePaidDefaultStatus(); // the seed is also public default
         const id = await seedAttendee(reservation.id, 1500);
         const form = await buildAttendeeEditForm(id, {
-          extra: { status_id: "" },
+          extra: { statusId: "" },
           name: "Reserver",
         });
         await adminFormPost(`/admin/attendees/${id}`, form);
@@ -160,7 +160,7 @@ describeWithEnv(
         const html = await getEdit(id);
 
         assertStringIncludes(html, "consider moving it to a paid status");
-        assert(!html.includes("still unpaid"));
+        expectOmitsAll(html, ["still unpaid"]);
       });
 
       test("edit page stays quiet for a reservation that still owes a balance", async () => {
@@ -169,15 +169,13 @@ describeWithEnv(
         const html = await getEdit(id);
         // No notice — this is the normal mid-reservation state (balance owed, not
         // yet paid). The balance itself is not shown as an editable field.
-        assert(!html.includes("still unpaid"));
-        assert(!html.includes("consider moving"));
+        expectOmitsAll(html, ["still unpaid", "consider moving"]);
       });
 
       test("edit page stays quiet when nothing is owed", async () => {
         const id = await seedAttendee(null, 0);
         const html = await getEdit(id);
-        assert(!html.includes("still unpaid"));
-        assert(!html.includes("paid status but still owes"));
+        expectOmitsAll(html, ["still unpaid", "paid status but still owes"]);
       });
 
       test("edit page shows the attendee's status as a heading when multiple statuses exist", async () => {
@@ -203,21 +201,19 @@ describeWithEnv(
         // Fresh installs seed a single status, which carries no information.
         const id = await seedAttendee(null, 0);
         const html = await getEdit(id);
-        assert(!html.includes("<h2>Status:"));
+        expectOmitsAll(html, ["<h2>Status:"]);
       });
 
       test("edit page status select offers no 'no status' option", async () => {
         const reservation = await newReservation(); // a second status, so the select is shown
         const id = await seedAttendee(reservation.id, 0);
         const html = await getEdit(id);
-        // The empty placeholder choice is gone entirely.
-        assert(!html.includes("No status"));
-        // The status select itself has no empty-value option any more.
-        assert(
-          !html.includes(
-            '<select id="status_id" name="status_id"><option selected value="">',
-          ),
-        );
+        // The empty placeholder choice is gone entirely, and the status select
+        // itself carries no empty-value option any more.
+        expectOmitsAll(html, [
+          "No status",
+          '<select id="statusId" name="statusId"><option selected value="">',
+        ]);
       });
 
       test("edit page pre-selects the public default when the attendee has no status", async () => {
@@ -232,13 +228,13 @@ describeWithEnv(
         const only = await requirePaidDefaultStatus(); // the single seeded status
         const id = await seedAttendee(only!.id, 0);
         const html = await getEdit(id);
-        // No status dropdown is rendered for a single-status site...
-        assert(!html.includes('<select id="status_id"'));
-        assert(!html.includes("No status"));
+        // No status dropdown is rendered for a single-status site, and no
+        // "No status" choice is offered either.
+        expectOmitsAll(html, ['<select id="statusId"', "No status"]);
         // ...but the status is still submitted so a save can't clear it.
         assertStringIncludes(
           html,
-          `<input name="status_id" type="hidden" value="${only!.id}">`,
+          `<input name="statusId" type="hidden" value="${only!.id}">`,
         );
       });
     });
@@ -307,21 +303,17 @@ describeWithEnv(
       });
 
       test("changing an attendee's email on edit never copies the note onto the new email", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          maxQuantity: 5,
-        });
+        const { attendee } = await listingWithAttendee(
+          100,
+          "Alice",
+          "alice@example.com",
+          { maxQuantity: 5 },
+        );
         const pk = await getTestPrivateKey();
         const aliceHash = await hashEmail("alice@example.com");
         const bobHash = await hashEmail("bob@example.com");
         // Alice's contact carries a private note; the attendee starts as Alice.
         await saveContactRecord(aliceHash, seededRecord("Alice private note"));
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "Alice",
-          "alice@example.com",
-        );
 
         // Switch the attendee's email to Bob and save the form.
         const form = await buildAttendeeEditForm(attendee.id, {
@@ -343,25 +335,18 @@ describeWithEnv(
       });
 
       test("keeps the repair link when a contact's stats_blob is corrupt", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          maxQuantity: 5,
-        });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee } = await listingWithAttendee(
+          100,
           "Corrupt Contact",
           "corrupt@example.com",
+          { maxQuantity: 5 },
         );
         const hash = await hashEmail("corrupt@example.com");
         // Leave this contact's encrypted stats unreadable — the exact state the
         // best-effort SMS write path can persist — but keep recent activity so
         // the request's prune doesn't delete the row before it is read.
-        await getDb().execute({
-          args: [hash, Date.now()],
-          sql: `INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, 'corrupt-blob', ?)
-              ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob', last_activity = excluded.last_activity`,
-        });
+        await getDb().execute(sql`INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (${hash}, 'corrupt-blob', ${Date.now()})
+              ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob', last_activity = excluded.last_activity`);
 
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         // The page renders AND keeps the /admin/history repair link for the bad
@@ -376,10 +361,8 @@ describeWithEnv(
 
     describe("attendee page tabs", () => {
       test("an unknown tab slug 404s", async () => {
-        const listing = await createTestListing({ maxAttendees: 10 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee } = await listingWithAttendee(
+          10,
           "Tabbed",
           "tabbed@example.com",
         );
@@ -398,10 +381,8 @@ describeWithEnv(
       });
 
       test("the banner notes are visible on non-overview tabs too", async () => {
-        const listing = await createTestListing({ maxAttendees: 10 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee } = await listingWithAttendee(
+          10,
           "Noted",
           "noted@example.com",
         );

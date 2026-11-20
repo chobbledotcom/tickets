@@ -12,8 +12,8 @@ import type { Modifier } from "#types";
 
 /** Human-readable summary of a modifier's rule, e.g. "Discount · 10%". */
 export const ruleSummary = (m: Modifier): string => {
-  const value = String(m.calc_value);
-  if (m.calc_kind === "multiply") {
+  const value = String(m.calcValue);
+  if (m.calcKind === "multiply") {
     return t("modifiers.rule.multiply", { value });
   }
   const action = t(
@@ -22,7 +22,7 @@ export const ruleSummary = (m: Modifier): string => {
       : "modifiers.action.charge",
   );
   return t(
-    m.calc_kind === "percent"
+    m.calcKind === "percent"
       ? "modifiers.rule.percent"
       : "modifiers.rule.fixed",
     { action, value },
@@ -41,10 +41,10 @@ export const modifierToFieldValues = (
     modifier,
     fields,
     {
-      max_per_order: (m) => m.max_per_order ?? "",
-      min_subtotal: (m) =>
-        m.min_subtotal ? Number(toMajorUnits(m.min_subtotal)) : "",
-      min_visits: (m) => m.min_visits || "",
+      maxPerOrder: (m) => m.maxPerOrder ?? "",
+      minSubtotal: (m) =>
+        m.minSubtotal ? Number(toMajorUnits(m.minSubtotal)) : "",
+      minVisits: (m) => m.minVisits || "",
       stock: (m) => m.stock ?? "",
     },
     modifier ? undefined : { active: "1" },
@@ -53,6 +53,6 @@ export const modifierToFieldValues = (
 export const modifierAggregateToFieldValues = (
   modifier: Modifier,
 ): Record<string, string | number> => ({
-  total_uses: modifier.total_uses,
-  usage_count: modifier.usage_count,
+  totalUses: modifier.totalUses,
+  usageCount: modifier.usageCount,
 });

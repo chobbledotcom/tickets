@@ -254,7 +254,7 @@ export const bulkEmailComposePage = (
             <CheckboxLabel
               checked={false}
               label={` ${t("bulk_email.update_existing_checkbox")}`}
-              name="update_existing"
+              name="updateExisting"
               value="1"
             />
           </fieldset>
@@ -265,7 +265,7 @@ export const bulkEmailComposePage = (
             <label>
               {t("bulk_email.template_to_update_label")}
               <SelectField
-                name="template_id"
+                name="templateId"
                 options={idOptions(state.templates, (tpl) => tpl.subject)}
                 value={String(state.selectedTemplateId)}
               />

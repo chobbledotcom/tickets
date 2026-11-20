@@ -45,7 +45,7 @@
 // defaults while the form's "Use defaults" switch is on. Gated on the per-field
 // marker class so only the fields that actually have a default set are hidden.
 // $class is the kebab-case field name (the marker class suffix); $field is the
-// snake-case form field name.
+// camelCase form field name.
 @mixin hide-when-using-defaults($class, $field) {
   @include hidden-in-form(
     ".listing-form--default-#{$class}:has(#use-defaults:checked)",
@@ -56,7 +56,7 @@
 // Daily-only scheduling fields are grouped in one section, hidden entirely for
 // standard listings (which book a single fixed date instead).
 @include hidden-when-selected(
-  "listing_type",
+  "listingType",
   "standard",
   ".listing-section--daily",
 );
@@ -65,20 +65,20 @@
 // day pricing (where it caps how many days a visitor may pick), so it is hidden
 // only for a standard listing without customisable days.
 @include hidden-in-form(
-  ':has(select[name="listing_type"] option[value="standard"]:checked):not(:has(input[name="customisable_days"]:checked))',
-  'label:has([name="duration_days"])',
+  ':has(select[name="listingType"] option[value="standard"]:checked):not(:has(input[name="customisableDays"]:checked))',
+  'label:has([name="durationDays"])',
 );
 
 // Hide the listing date field for daily listings (dates are chosen per booking).
 @include hidden-when-selected(
-  "listing_type",
+  "listingType",
   "daily",
-  'label:has([name="date_date"])',
+  'label:has([name="dateDate"])',
 );
 
 // Day prices only apply when "Customisable Days" is enabled; revealed in place
 // right beneath the checkbox that controls them.
-@include reveal-when-checked("customisable_days", "#day-prices");
+@include reveal-when-checked("customisableDays", "#day-prices");
 
 // ---------------------------------------------------------------------------
 // Listing template mode: hide dimension toggles while the Customise checkbox
@@ -87,8 +87,8 @@
 // ---------------------------------------------------------------------------
 
 form.listing-form--templated:not(:has(#customise-listing:checked)) {
-  label:has(input[name="purchase_only"]),
-  label:has(input[name="uses_logistics"]) {
+  label:has(input[name="purchaseOnly"]),
+  label:has(input[name="usesLogistics"]) {
     display: none;
   }
 }
@@ -96,7 +96,7 @@ form.listing-form--templated:not(:has(#customise-listing:checked)) {
 form.listing-form--templated.listing-form--hide-type:not(
   :has(#customise-listing:checked)
 ) {
-  label:has(select[name="listing_type"]) {
+  label:has(select[name="listingType"]) {
     display: none;
   }
 }
@@ -104,7 +104,7 @@ form.listing-form--templated.listing-form--hide-type:not(
 form.listing-form--templated.listing-form--hide-date:not(
   :has(#customise-listing:checked)
 ) {
-  label:has([name="date_date"]) {
+  label:has([name="dateDate"]) {
     display: none;
   }
 }
@@ -112,7 +112,7 @@ form.listing-form--templated.listing-form--hide-date:not(
 form.listing-form--templated.listing-form--no-daily:not(
   :has(#customise-listing:checked)
 ) {
-  label:has([name="customisable_days"]),
+  label:has([name="customisableDays"]),
   #day-prices {
     display: none;
   }
@@ -125,39 +125,39 @@ form.listing-form--templated.listing-form--no-daily:not(
 // in the DOM, so unticking Use defaults reveals them pre-filled with the
 // defaults to customise from.
 // ---------------------------------------------------------------------------
-@include hide-when-using-defaults("uses-logistics", "uses_logistics");
-@include hide-when-using-defaults("bookable-days", "bookable_days");
-@include hide-when-using-defaults("minimum-days-before", "minimum_days_before");
-@include hide-when-using-defaults("maximum-days-after", "maximum_days_after");
-@include hide-when-using-defaults("duration-days", "duration_days");
-@include hide-when-using-defaults("customisable-days", "customisable_days");
-@include hide-when-using-defaults("webhook-url", "webhook_url");
-@include hide-when-using-defaults("thank-you-url", "thank_you_url");
+@include hide-when-using-defaults("uses-logistics", "usesLogistics");
+@include hide-when-using-defaults("bookable-days", "bookableDays");
+@include hide-when-using-defaults("minimum-days-before", "minimumDaysBefore");
+@include hide-when-using-defaults("maximum-days-after", "maximumDaysAfter");
+@include hide-when-using-defaults("duration-days", "durationDays");
+@include hide-when-using-defaults("customisable-days", "customisableDays");
+@include hide-when-using-defaults("webhook-url", "webhookUrl");
+@include hide-when-using-defaults("thank-you-url", "thankYouUrl");
 @include hide-when-using-defaults("hidden", "hidden");
 
 // Hide the max price field unless "Allow Pay More" is checked.
-@include reveal-when-checked("can_pay_more", 'label:has([name="max_price"])');
+@include reveal-when-checked("canPayMore", 'label:has([name="maxPrice"])');
 
 // Package-only controls — the per-member price/quantity table and the
 // "hide listings within package" toggle — appear only once "Package" is ticked.
-@include reveal-when-checked("is_package", ".package-prices");
+@include reveal-when-checked("isPackage", ".package-prices");
 @include reveal-when-checked(
-  "is_package",
-  'label:has(input[name="hide_package_listings"])',
+  "isPackage",
+  'label:has(input[name="hidePackageListings"])',
 );
 
 // "Show hidden listings" decides what a REGULAR group's public page offers, so
 // the package form hides it: a package's members stay in the bundle whatever
 // this box would say.
 @include hidden-in-form(
-  ':has(input[name="is_package"]:checked)',
-  'label:has(input[name="show_hidden_listings"])',
+  ':has(input[name="isPackage"]:checked)',
+  'label:has(input[name="showHiddenListings"])',
 );
 
 // Hide the reservation amount field unless "This is a reservation" is checked.
 @include reveal-when-checked(
-  "is_reservation",
-  '> label:has([name="reservation_amount"])',
+  "isReservation",
+  '> label:has([name="reservationAmount"])',
 );
 
 // The promo-code field only applies to a promo-code-triggered modifier, so it is

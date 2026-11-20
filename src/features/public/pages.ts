@@ -78,10 +78,10 @@ const soldOutPackageIds = (
     groups
       .filter(
         ({ group, members }) =>
-          group.is_package &&
+          group.isPackage &&
           members.some(
             (member) =>
-              member.listing_type === "daily" && unavailableIds.has(member.id),
+              member.listingType === "daily" && unavailableIds.has(member.id),
           ),
       )
       .map(({ group }) => group.id),
@@ -96,7 +96,7 @@ const dailyDateFilter = (
   unavailableIds: ReadonlySet<number>,
   requestedDate: string | null,
 ): DailyDateFilter | null =>
-  listings.some((e) => e.listing_type === "daily")
+  listings.some((e) => e.listingType === "daily")
     ? { date: requestedDate, unavailableIds }
     : null;
 
@@ -127,7 +127,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
         ? new Set<number>()
         : await loadDailyDateAvailability(
             [
-              ...listings.filter((e) => e.listing_type === "daily"),
+              ...listings.filter((e) => e.listingType === "daily"),
               ...publicGroups.flatMap(({ members }) => members),
             ],
             requestedDate,

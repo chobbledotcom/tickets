@@ -7,16 +7,13 @@ import { filter, flatMap, map, pipe, reduce } from "#fp";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type { ListingWithCount } from "#types";
 
-type AttributeFilterOption = Pick<
-  AttributeOption,
-  "id" | "sort_order" | "text"
->;
+type AttributeFilterOption = Pick<AttributeOption, "id" | "sortOrder" | "text">;
 
 export type AttributeFilterGroup = {
   id: number;
   name: string;
   options: AttributeFilterOption[];
-  sort_order: number;
+  sortOrder: number;
 };
 
 export type SelectedAttributeFilters = Map<number, number>;
@@ -28,12 +25,12 @@ type MutableFilterGroup = Omit<AttributeFilterGroup, "options"> & {
   options: Map<number, AttributeFilterOption>;
 };
 
-// Order by sort_order, then by id to break ties. Works for both attributes and
-// their options — anything that carries a sort_order and an id.
-const bySortOrderThenId = <T extends { sort_order: number; id: number }>(
+// Order by sortOrder, then by id to break ties. Works for both attributes and
+// their options — anything that carries a sortOrder and an id.
+const bySortOrderThenId = <T extends { sortOrder: number; id: number }>(
   left: T,
   right: T,
-): number => left.sort_order - right.sort_order || left.id - right.id;
+): number => left.sortOrder - right.sortOrder || left.id - right.id;
 
 const addAttributeOptions = (
   filters: Map<number, MutableFilterGroup>,
@@ -43,13 +40,13 @@ const addAttributeOptions = (
     id: attribute.id,
     name: attribute.name,
     options: new Map<number, AttributeFilterOption>(),
-    sort_order: attribute.sort_order,
+    sortOrder: attribute.sortOrder,
   };
   reduce(
     (options, option: AttributeOption) =>
       options.set(option.id, {
         id: option.id,
-        sort_order: option.sort_order,
+        sortOrder: option.sortOrder,
         text: option.text,
       }),
     group.options,

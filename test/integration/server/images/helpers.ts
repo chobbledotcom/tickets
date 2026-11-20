@@ -1,6 +1,6 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { imagesTable, setImagesForItem } from "#db/images.ts";
+import { insertImageRecord, setImagesForItem } from "#db/images.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 
 /** Insert an image row and link it to a listing, as if it were already
@@ -11,7 +11,7 @@ export const linkStoredImage = async (
   filename: string,
   filenameThumb = `${filename}-thumb.webp`,
 ) => {
-  const image = await imagesTable.insert({
+  const image = await insertImageRecord({
     filename: nonEmptyString(filename, "test image filename"),
     filenameThumb: nonEmptyString(
       filenameThumb,
@@ -19,7 +19,11 @@ export const linkStoredImage = async (
     ),
     name: filename,
   });
-  await setImagesForItem("listing", listingId, [image.id]);
+  await setImagesForItem({
+    imageIds: [image.id],
+    itemId: listingId,
+    itemType: "listing",
+  });
   return image;
 };
 

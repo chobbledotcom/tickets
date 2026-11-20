@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
 
@@ -38,7 +39,7 @@ describe("ticketViewPage wallet links and package cards", () => {
 
   test("leaves no placeholder text on a plain card", () => {
     const html = ticketViewPage([cardFromEntry({}, token)]);
-    assert(!html.includes("mutated"));
+    expectExcludesAll(html, ["mutated"]);
   });
 
   test("joins consecutive cards with no placeholder text between them", () => {
@@ -47,7 +48,7 @@ describe("ticketViewPage wallet links and package cards", () => {
       cardFromEntry({ listing: { id: 2, name: "Second" } }, "AABB0011CCDDEEF2"),
     ]);
     expectIncludesAll(html, ["First", "Second"]);
-    assert(!html.includes("mutated"));
+    expectExcludesAll(html, ["mutated"]);
   });
 
   test("shows the QR code and the token on a check-in card", () => {
@@ -60,7 +61,7 @@ describe("ticketViewPage wallet links and package cards", () => {
 
   test("shows the listing image with its card class", () => {
     const html = ticketViewPage([
-      cardFromEntry({ listing: { image_url: "photo.jpg" } }, token),
+      cardFromEntry({ listing: { imageUrl: "photo.jpg" } }, token),
     ]);
     expectIncludesAll(html, [
       'class="ticket-card-image"',
@@ -86,36 +87,32 @@ describe("ticketViewPage wallet links and package cards", () => {
       `href="/wallet/${token}.pkpass"`,
       ">Apple Wallet</a>",
     ]);
-    assert(!html.includes("Google Wallet"));
-    assert(!html.includes("gwallet"));
+    expectExcludesAll(html, ["Google Wallet", "gwallet"]);
   });
 
   test("offers only the Google Wallet link when Apple Wallet is off", () => {
     const html = ticketViewPage([cardFromEntry({}, token)], false, true);
     expectIncludesAll(html, [`href="/gwallet/${token}"`, ">Google Wallet</a>"]);
-    assert(!html.includes("Apple Wallet"));
-    assert(!html.includes(".pkpass"));
+    expectExcludesAll(html, ["Apple Wallet", ".pkpass"]);
   });
 
   test("offers no wallet links when no wallet provider is enabled", () => {
     const html = ticketViewPage([cardFromEntry({}, token)]);
-    assert(!html.includes("ticket-card-wallet"));
-    assert(!html.includes("wallet-link"));
-    assert(!html.includes("Add to:"));
+    expectExcludesAll(html, ["ticket-card-wallet", "wallet-link", "Add to:"]);
   });
 
   test("leaves no placeholder text on a purchase-only card", () => {
     const html = ticketViewPage(
-      [cardFromEntry({ listing: { purchase_only: true } }, token)],
+      [cardFromEntry({ listing: { purchaseOnly: true } }, token)],
       true,
       true,
     );
-    assert(!html.includes("mutated"));
+    expectExcludesAll(html, ["mutated"]);
   });
 
   test("heads and titles a purchase-only page Your Purchase", () => {
     const html = ticketViewPage([
-      cardFromEntry({ listing: { purchase_only: true } }, token),
+      cardFromEntry({ listing: { purchaseOnly: true } }, token),
     ]);
     expectIncludesAll(html, [
       "<h1>Your Purchase</h1>",
@@ -141,7 +138,7 @@ describe("ticketViewPage wallet links and package cards", () => {
       "1 Ticket",
     ]);
     expect(html.split("Welcome Pack").length - 1).toBe(1);
-    assert(!html.includes("mutated"));
+    expectExcludesAll(html, ["mutated"]);
   });
 
   test("totals the booked quantity on a hidden-listings package card", () => {
@@ -158,8 +155,7 @@ describe("ticketViewPage wallet links and package cards", () => {
       html,
       '<div class="ticket-card-package-qty"><span class="package-member-qty">&times;5</span></div>',
     );
-    assert(!html.includes("Spa Day"));
-    assert(!html.includes("Meal For Two"));
+    expectExcludesAll(html, ["Spa Day", "Meal For Two"]);
   });
 
   test("shows no ID-required notice when every package member is transferable", () => {
@@ -169,13 +165,12 @@ describe("ticketViewPage wallet links and package cards", () => {
       false,
       packageDisplays(false),
     );
-    assert(!html.includes("ticket-card-notice"));
-    assert(!html.includes("Non-transferable"));
+    expectExcludesAll(html, ["ticket-card-notice", "Non-transferable"]);
   });
 
   test("warns that a package needs ID when a member is non-transferable", () => {
     const html = ticketViewPage(
-      [packageMember(undefined, { id: 1, non_transferable: true })],
+      [packageMember(undefined, { id: 1, nonTransferable: true })],
       false,
       false,
       packageDisplays(false),
@@ -191,7 +186,7 @@ describe("ticketViewPage wallet links and package cards", () => {
       [
         packageMember(
           { date: "2026-06-15" },
-          { duration_days: 1, id: 1, listing_type: "daily" },
+          { durationDays: 1, id: 1, listingType: "daily" },
         ),
       ],
       false,
@@ -218,7 +213,6 @@ describe("ticketViewPage wallet links and package cards", () => {
       packageDisplays(false),
     );
     expectIncludesAll(html, ["Welcome Pack", "Solo Show"]);
-    assert(!html.includes("wallet-link"));
-    assert(!html.includes("Apple Wallet"));
+    expectExcludesAll(html, ["wallet-link", "Apple Wallet"]);
   });
 });

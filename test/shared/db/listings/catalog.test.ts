@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingChildren } from "#db/listing-parents.ts";
 import {
   getCatalogListings,
   getListingOfferFlags,
@@ -13,6 +12,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { makeParent } from "#test-utils/parents.ts";
 
 describeWithEnv("db > listing catalog", { db: true }, () => {
   test("reads offer flags and picker names", async () => {
@@ -25,23 +25,23 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
 
     expect(await getListingOfferFlags(listing.id)).toEqual({
       active: true,
-      assign_built_site: false,
+      assignBuiltSite: false,
       hidden: true,
-      months_per_unit: 3,
-      purchase_only: true,
+      monthsPerUnit: 3,
+      purchaseOnly: true,
     });
-    expect(await getListingOfferFlags(listing.id + 1)).toBeUndefined();
+    expect(await getListingOfferFlags(listing.id + 1)).toBe(undefined);
     expect(await getListingPickerNames()).toEqual(
       new Map([
         [
           listing.id,
           {
             active: true,
-            assign_built_site: false,
+            assignBuiltSite: false,
             hidden: true,
-            months_per_unit: 3,
+            monthsPerUnit: 3,
             name: "Picker listing",
-            purchase_only: true,
+            purchaseOnly: true,
           },
         ],
       ]),
@@ -62,14 +62,14 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
     expect(await getCatalogListings()).toEqual([
       {
         active: true,
-        can_pay_more: false,
-        customisable_days: false,
+        canPayMore: false,
+        customisableDays: false,
         hidden: false,
         id: member.id,
-        listing_type: "standard",
+        listingType: "standard",
         name: "Independent member",
         slug: member.slug,
-        unit_price: 1234,
+        unitPrice: 1234,
       },
     ]);
   });
@@ -106,9 +106,10 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
   });
 
   test("omits a required child unless it can be booked alone", async () => {
-    const parent = await createTestListing({ name: "Parent" });
-    const child = await createTestListing({ name: "Required child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { parent } = await makeParent({
+      children: [{ name: "Required child" }],
+      parent: { name: "Parent" },
+    });
 
     expect((await getCatalogListings()).map((listing) => listing.id)).toEqual([
       parent.id,

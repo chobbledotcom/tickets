@@ -4,13 +4,16 @@ import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
 } from "#db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { handleRequest } from "#routes";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
@@ -66,23 +69,16 @@ describeWithEnv(
       });
 
       // Create a question and answer via DB
-      const { questionsTable, answersTable } = await import(
-        "#db/questions/tables.ts"
-      );
-      const { listingQuestions } = await import("#db/questions/queries.ts");
       const { getAttendeeAnswersBatch } = await import(
         "#db/questions/attendee-answers/reads.ts"
       );
-      const q = await questionsTable.insert({
-        displayType: "radio",
+      const {
+        answers: [a],
+      } = await seedQuestion({
+        answers: ["Large"],
+        listingIds: [listing1.id],
         text: "Size?",
       });
-      const a = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Large",
-      });
-      await listingQuestions.setIds(listing1.id, [q.id]);
 
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({
@@ -128,32 +124,20 @@ describeWithEnv(
       await setupStripe();
 
       // Listing with questions (paid) and listing without questions (free)
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        name: "Multi Q Paid",
-        unitPrice: 1000,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        name: "Multi No Q Free",
-      });
+      const [listing1, listing2] = await createListingPair(
+        { maxAttendees: 50, name: "Multi Q Paid", unitPrice: 1000 },
+        { maxAttendees: 50, name: "Multi No Q Free" },
+      );
 
       // Add a custom question only to listing1
-      const q = await questionsTable.insert({
-        displayType: "radio",
+      const {
+        answers: [a1],
+        question: q,
+      } = await seedQuestion({
+        answers: ["None", "Vegetarian"],
+        listingIds: [listing1.id],
         text: "Dietary needs?",
       });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "None",
-      });
-      await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Vegetarian",
-      });
-      await listingQuestions.setIds(listing1.id, [q.id]);
 
       // Submit multi-ticket form with a question answer selected.
       // One listing is paid, so this triggers the payment flow.
@@ -165,9 +149,9 @@ describeWithEnv(
         {
           email: "qbuyer@example.com",
           name: "Q Buyer",
-          [`quantity_${listing1.id}`]: "1",
-          [`quantity_${listing2.id}`]: "1",
-          [`question_${q.id}`]: String(a1.id),
+          [`quantity${listing1.id}`]: "1",
+          [`quantity${listing2.id}`]: "1",
+          [`question${q.id}`]: String(a1.id),
         },
         "cs_multi_q_stub",
       );
@@ -210,26 +194,13 @@ describeWithEnv(
       await setupStripe();
 
       // One attendee books two listings, each asking its own free-text question.
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        name: "Free Text Paid",
-        unitPrice: 1000,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        name: "Free Text Free",
-      });
+      const [listing1, listing2] = await createListingPair(
+        { maxAttendees: 50, name: "Free Text Paid", unitPrice: 1000 },
+        { maxAttendees: 50, name: "Free Text Free" },
+      );
 
-      const q1 = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Access needs?",
-      });
-      const q2 = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Dietary needs?",
-      });
-      await listingQuestions.setIds(listing1.id, [q1.id]);
-      await listingQuestions.setIds(listing2.id, [q2.id]);
+      const [q1] = await freeTextQuestionsOn(listing1.id, ["Access needs?"]);
+      const [q2] = await freeTextQuestionsOn(listing2.id, ["Dietary needs?"]);
 
       // Drive the real checkout so ticket-submit parses the free-text answers and
       // packs them into the checkout intent (encrypting the strings on the way).
@@ -239,10 +210,10 @@ describeWithEnv(
         {
           email: "textbuyer@example.com",
           name: "Text Buyer",
-          [`quantity_${listing1.id}`]: "1",
-          [`quantity_${listing2.id}`]: "1",
-          [`question_${q1.id}`]: "Wheelchair access",
-          [`question_${q2.id}`]: "Vegan",
+          [`quantity${listing1.id}`]: "1",
+          [`quantity${listing2.id}`]: "1",
+          [`question${q1.id}`]: "Wheelchair access",
+          [`question${q2.id}`]: "Vegan",
         },
         "cs_text_q_stub",
       );

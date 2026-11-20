@@ -91,8 +91,8 @@ const openActionForm = async (
   await browser.clickLink(t("entity.tab.actions"));
   const words = actionWords(action);
   await browser.clickLink(words.link);
-  const typedValues = { confirm_identifier: attendeeName };
-  const formHtml = browser.formBodyFor(words.button, ["confirm_identifier"]);
+  const typedValues = { confirmIdentifier: attendeeName };
+  const formHtml = browser.formBodyFor(words.button, ["confirmIdentifier"]);
   return {
     action,
     browser,

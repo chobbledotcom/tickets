@@ -3,7 +3,8 @@ import { beforeEach, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -47,8 +48,8 @@ describeWithEnv("API package detail", { db: true }, () => {
     expect(pkg.maxPurchasable).toBe(5);
     // The merged member field setting, so a client knows what to submit.
     expect(pkg.fields).toBe("email");
-    expect(pkg.availableDates).toBeUndefined();
-    expect(pkg.dayCounts).toBeUndefined();
+    expect(pkg).not.toHaveProperty("availableDates");
+    expect(pkg).not.toHaveProperty("dayCounts");
     expect(pkg.members).toEqual([
       { name: "Fixed Kit A", quantity: 2, slug: expect.any(String) },
       { name: "Fixed Kit B", quantity: 1, slug: expect.any(String) },
@@ -61,7 +62,7 @@ describeWithEnv("API package detail", { db: true }, () => {
     // counts 2–5 are the only valid ones and the GET must say so — a client
     // that reads only the cap would book a count the fold refuses.
     const { a, group } = await fixedPackage("Floor Kit", "floor-kit");
-    await listingsTable.update(a.id, { minQuantity: 3 });
+    await updateListing(a.id, { minQuantity: 3 });
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
@@ -111,7 +112,7 @@ describeWithEnv("API package detail", { db: true }, () => {
     ]);
     // Four units per bundle from 10 spots cap the bundle at 2; a minimum of
     // 9 needs ceil(9/4) = 3 bundles — past the cap, under the member's own.
-    await listingsTable.update(a.id, { minQuantity: 9 });
+    await updateListing(a.id, { minQuantity: 9 });
     expect((await apiGet(`/api/packages/${group.slug}`)).status).toBe(404);
     expect((await apiBookPackage(group.slug)).response.status).toBe(404);
   });
@@ -127,7 +128,7 @@ describeWithEnv("API package detail", { db: true }, () => {
       { days: 1, priceMinor: 1500 },
       { days: 2, priceMinor: 2400 },
     ]);
-    expect(pkg.priceMinor).toBeUndefined();
+    expect(pkg).not.toHaveProperty("priceMinor");
     expect(Array.isArray(pkg.availableDates)).toBe(true);
     expect(pkg.availableDates.length).toBeGreaterThan(0);
   });
@@ -150,12 +151,11 @@ describeWithEnv("API package detail", { db: true }, () => {
     expect(parentMember.children).toHaveLength(1);
     expect(parentMember.children[0].name).toBe("Kit Addon");
 
-    const { groups } = await import("#db/groups.ts");
-    await groups.table.update(group.id, { hidePackageListings: true });
+    await records.groups.update(group.id, { hidePackageListings: true });
     const { package: hidden } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
-    expect(hidden.members).toBeUndefined();
+    expect(hidden).not.toHaveProperty("members");
     expect(hidden.name).toBe("Parent Kit");
   });
 
@@ -226,13 +226,12 @@ describeWithEnv("API package detail", { db: true }, () => {
       unitPrice: 0,
     });
     await listingChildren.setIds(a.id, [child.id]);
-    const { groups } = await import("#db/groups.ts");
-    await groups.table.update(group.id, { hidePackageListings: true });
+    await records.groups.update(group.id, { hidePackageListings: true });
 
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
-    expect(pkg.members).toBeUndefined();
+    expect(pkg).not.toHaveProperty("members");
     expect(pkg.fields).toBe("email,phone");
   });
 

@@ -50,7 +50,7 @@ const QuestionListingAssignment = ({
       </p>
     );
   }
-  const listingText = question.assign_all
+  const listingText = question.assignAll
     ? t("questions.all_listings")
     : allListings
         .filter((listing) => assignedListingIds.has(listing.id))
@@ -73,18 +73,18 @@ const QuestionListingAssignment = ({
           },
         ]}
         heading={
-          question.assign_all
+          question.assignAll
             ? ({ type }) => t("questions.linked_all_listings", { type })
             : undefined
         }
         leading={
           <CheckboxLabel
-            checked={question.assign_all || undefined}
+            checked={question.assignAll || undefined}
             label={t("questions.assign_all_listings")}
-            name="assign_all"
+            name="assignAll"
           />
         }
-        name="listing_ids"
+        name="listingIds"
       />
     </SaveForm>
   );
@@ -105,26 +105,26 @@ export const QuestionEditPanel = ({
         submitLabel={t("questions.edit.update")}
       >
         <Raw html={questionTextForm.renderField("text", question.text)} />
-        {question.display_type === "free_text" ? (
+        {question.displayType === "free_text" ? (
           // Free-text questions cannot become choice questions (a conversion
           // orphans any stored text answers), so lock the type.
-          <input name="display_type" type="hidden" value="free_text" />
+          <input name="displayType" type="hidden" value="free_text" />
         ) : (
           <label>
             Display as
             <SelectField
-              name="display_type"
+              name="displayType"
               options={[
                 { label: "Radio buttons", value: "radio" },
                 { label: "Select box", value: "select" },
               ]}
-              value={question.display_type}
+              value={question.displayType}
             />
           </label>
         )}
       </SaveForm>
     </WritableOnly>
-    {question.display_type === "free_text" && (
+    {question.displayType === "free_text" && (
       <div class="prose">
         <p>
           <em>{t("questions.edit.free_text_note")}</em>
@@ -144,7 +144,7 @@ export const QuestionAnswersSection = ({
   question: QuestionWithAnswers;
   answerCounts: Map<number, number>;
 }): JSX.Element | null => {
-  if (question.display_type === "free_text") return null;
+  if (question.displayType === "free_text") return null;
   return (
     <>
       <h2>{t("questions.edit.answers_heading")}</h2>

@@ -127,19 +127,19 @@ describe("test-utils — error paths & contracts", () => {
     test("preserves existing unitPrice when update does not specify unitPrice", async () => {
       // Create listing with a unit price
       const listing = await createTestListing({ unitPrice: 2500 });
-      expect(listing.unit_price).toBe(2500);
+      expect(listing.unitPrice).toBe(2500);
       // Update without specifying unitPrice -> formatPrice(undefined, 2500)
       const updated = await updateTestListing(listing.id, { maxAttendees: 50 });
-      expect(updated.unit_price).toBe(2500);
-      expect(updated.max_attendees).toBe(50);
+      expect(updated.unitPrice).toBe(2500);
+      expect(updated.maxAttendees).toBe(50);
     });
 
     test("preserves existing closesAt when update does not specify closesAt", async () => {
       const listing = await createTestListing({ closesAt: "2099-06-15T14:30" });
-      expect(listing.closes_at).toBe("2099-06-15T14:30:00.000Z");
+      expect(listing.closesAt).toBe("2099-06-15T14:30:00.000Z");
       const updated = await updateTestListing(listing.id, { maxAttendees: 50 });
-      expect(updated.closes_at).toBe("2099-06-15T14:30:00.000Z");
-      expect(updated.max_attendees).toBe(50);
+      expect(updated.closesAt).toBe("2099-06-15T14:30:00.000Z");
+      expect(updated.maxAttendees).toBe(50);
     });
   });
 
@@ -152,7 +152,7 @@ describe("test-utils — error paths & contracts", () => {
       const listing = await createTestListing({ thankYouUrl: undefined });
       expect(listing.id).toBeGreaterThan(0);
       // thankYouUrl: undefined triggers the default empty string
-      expect(listing.thank_you_url).toBe("");
+      expect(listing.thankYouUrl).toBe("");
     });
   });
 
@@ -273,10 +273,13 @@ describe("test-utils — error paths & contracts", () => {
         const response = await fetch("data:text/plain,fallback");
 
         expect(await response.text()).toBe("fallback");
-        expect(fetchMock.calls).toEqual([
-          { body: null, url: "data:text/plain,fallback" },
-        ]);
-        expect(fetchMock.emailCall()).toBeUndefined();
+        expect({
+          calls: fetchMock.calls,
+          emailCall: fetchMock.emailCall(),
+        }).toStrictEqual({
+          calls: [{ body: null, url: "data:text/plain,fallback" }],
+          emailCall: undefined,
+        });
       } finally {
         fetchMock.restore();
       }
@@ -375,13 +378,19 @@ describe("test-utils — error paths & contracts", () => {
 
     test("email sandbox replaces an existing fetch stub and restores all state", () => {
       const sandbox = emailTestSandbox();
+      const original = globalThis.fetch;
 
       sandbox.stubFetch(() => Promise.resolve(new Response("first")));
+      const firstStub = sandbox.fetchStub;
       sandbox.stubFetch(() => Promise.resolve(new Response("second")));
-      expect(sandbox.fetchStub).toBeDefined();
+      const secondStub = sandbox.fetchStub;
+      expect(firstStub?.restored).toBe(true);
+      expect(secondStub?.restored).toBe(false);
 
       sandbox.teardown();
-      expect(sandbox.fetchStub).toBeUndefined();
+      expect(secondStub?.restored).toBe(true);
+      expect(globalThis.fetch).toBe(original);
+      expect(sandbox).toMatchObject({ fetchStub: undefined });
     });
   });
 

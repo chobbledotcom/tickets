@@ -14,6 +14,8 @@ import {
   attendeeStatusWrites,
 } from "#db/attendee-statuses.ts";
 import { execute } from "#db/client.ts";
+import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
+import { statusRecord } from "#shared/records/statuses.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -35,20 +37,23 @@ const create = async (
 };
 
 const remove = (id: number, name: string, extra: Record<string, string> = {}) =>
-  adminFormPost(`${PATH}/${id}/delete`, { confirm_identifier: name, ...extra });
+  adminFormPost(`${PATH}/${id}/delete`, { confirmIdentifier: name, ...extra });
 
 const names = async (): Promise<string[]> =>
   (await attendeeStatuses.getAll()).map((one) => one.name);
 
 const attendeeStatusCount = async (statusId: number): Promise<number> => {
   const rows = await execute(
-    "SELECT COUNT(*) AS held FROM attendees WHERE status_id = ?",
-    [statusId],
+    sql`SELECT COUNT(*) AS held FROM attendees WHERE status_id = ${statusId}`,
   );
   return Number(rows.rows[0]!.held);
 };
 
 describeWithEnv("deleting a status", { db: true }, () => {
+  test("the record's delete command answers not-found for an unknown id", async () => {
+    expect(await statusRecord.remove(999_999)).toEqual({ kind: "not-found" });
+  });
+
   test("removes one nothing depends on", async () => {
     const id = await create("Spare");
 
@@ -98,7 +103,7 @@ describeWithEnv("deleting a status", { db: true }, () => {
 
   test("refuses the one a paid booking gets", async () => {
     const only = (await attendeeStatuses.getAll())[0]!;
-    const spare = await create("Public Instead", { is_public_default: "1" });
+    const spare = await create("Public Instead", { isPublicDefault: "1" });
     expect(spare).toBeGreaterThan(0);
 
     const { response } = await remove(only.id, only.name);
@@ -113,10 +118,9 @@ describeWithEnv("deleting a status", { db: true }, () => {
   test("a held status refuses a delete with no target, and everything stays", async () => {
     const { attendee } = await setupListingAndAttendee({ name: "On It" });
     const id = await create("In Use");
-    await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
-      id,
-      attendee.id,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET status_id = ${id} WHERE id = ${attendee.id}`,
+    );
 
     const { response } = await remove(id, "In Use");
 
@@ -164,10 +168,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     const otherId = await create("Landing Status");
     const busyId = await create("Busy");
     const { attendee } = await setupListingAndAttendee({ name: "Holder" });
-    await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
-      busyId,
-      attendee.id,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET status_id = ${busyId} WHERE id = ${attendee.id}`,
+    );
     return { attendeeId: attendee.id, busyId, otherId };
   };
 
@@ -179,7 +182,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     expectIncludesAll(html, [
       "Busy",
       "1 attendee holds this status.",
-      'name="reassign_status_id"',
+      'name="reassignStatusId"',
       "Landing Status",
     ]);
   });
@@ -189,30 +192,29 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${id}/delete`)).text();
 
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
   });
 
   test("a lone status attendees hold shows the prerequisite instead of an empty picker", async () => {
     const { attendee } = await setupListingAndAttendee({ name: "Lonely" });
     const only = (await attendeeStatuses.getAll())[0]!;
-    await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
-      only.id,
-      attendee.id,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET status_id = ${only.id} WHERE id = ${attendee.id}`,
+    );
 
     const html = await (await adminGet(`${PATH}/${only.id}/delete`)).text();
 
     // No target exists to move them to, so the page says what the save will
     // refuse on instead of rendering a picker with nothing to pick.
     assertStringIncludes(html, "You must keep at least one status");
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
   });
 
   test("a default status's delete page names the prerequisite instead of a picker", async () => {
     // A second status, so the default is not also the last one left.
     await create("Elsewhere");
     const defaulted = (await attendeeStatuses.getAll()).find(
-      (one) => one.is_public_default,
+      (one) => one.isPublicDefault,
     )!;
 
     const html = await (
@@ -223,14 +225,14 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
       html,
       "Choose another public default before deleting this status",
     );
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
     assertStringIncludes(html, "Delete status");
   });
 
   test("a paid default's delete page names the paid prerequisite", async () => {
-    await create("Own Public Default", { is_public_default: "1" });
+    await create("Own Public Default", { isPublicDefault: "1" });
     const paid = (await attendeeStatuses.getAll()).find(
-      (one) => one.is_paid_default && !one.is_public_default,
+      (one) => one.isPaidDefault && !one.isPublicDefault,
     )!;
 
     const html = await (await adminGet(`${PATH}/${paid.id}/delete`)).text();
@@ -239,7 +241,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
       html,
       "Choose another paid default before deleting this status",
     );
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
     assertStringIncludes(html, "Delete status");
   });
 
@@ -247,13 +249,13 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     const { attendeeId, busyId, otherId } = await arrangeBusy();
 
     const { response } = await remove(busyId, "Busy", {
-      reassign_status_id: String(otherId),
+      reassignStatusId: String(otherId),
     });
 
     await expectFlashRedirect(PATH, "Status deleted")(response);
-    const rows = await execute("SELECT status_id FROM attendees WHERE id = ?", [
-      attendeeId,
-    ]);
+    const rows = await execute(
+      sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
+    );
     expect(Number(rows.rows[0]!.status_id)).toBe(otherId);
     assertArrayIncludes(await names(), ["Landing Status"]);
     assert(!(await names()).includes("Busy"));
@@ -266,7 +268,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     const { busyId } = await arrangeBusy();
 
     const { response } = await remove(busyId, "Busy", {
-      reassign_status_id: "999999",
+      reassignStatusId: "999999",
     });
 
     await expectFlashRedirect(
@@ -283,9 +285,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     const faultName = "test_status_reassign_fault";
 
     const fault = withDbFault(
-      `CREATE TRIGGER ${faultName}
+      sql`CREATE TRIGGER ${sqlName(faultName)}
          BEFORE UPDATE ON attendees
-         WHEN NEW.status_id = ${otherId}
+         WHEN NEW.status_id = ${sqlLiteral(otherId)}
        BEGIN SELECT RAISE(ABORT, 'reassign unavailable'); END`,
       faultName,
       () => attendeeStatusWrites.delete(busyId, otherId),
@@ -294,9 +296,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     assertArrayIncludes(await names(), ["Busy"]);
     expect(await attendeeStatusCount(busyId)).toBe(1);
-    const rows = await execute("SELECT status_id FROM attendees WHERE id = ?", [
-      attendeeId,
-    ]);
+    const rows = await execute(
+      sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
+    );
     expect(Number(rows.rows[0]!.status_id)).toBe(busyId);
   });
 });

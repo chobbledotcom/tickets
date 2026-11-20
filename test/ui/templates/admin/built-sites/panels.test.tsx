@@ -242,7 +242,7 @@ describe("secrets panel", () => {
     expectIncludesAll(html, [
       "Pair warning",
       "rejects every contact form submission",
-      'name="confirm_pair_secrets"',
+      'name="confirmPairSecrets"',
       "required",
     ]);
   });

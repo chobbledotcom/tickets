@@ -12,6 +12,8 @@ import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
+import type { AccountRef } from "#shared/ledger/types.ts";
 import {
   overviewStatsFromAttendees,
   overviewStatsFromDbStats,
@@ -22,18 +24,18 @@ import {
   createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
+import { createPricedListing } from "#test-utils/db-helpers/priced-listing.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 import {
   finalizeReservedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-import { isPaidListing } from "#types";
+import { type Attendee, isPaidListing, type ListingWithCount } from "#types";
 
 const checkIn = (attendeeId: number, listingId: number): Promise<unknown> =>
   execute(
-    "UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id = ?",
-    [attendeeId, listingId],
+    sql`UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
   );
 
 /** The listing-with-count plus the attendee-derived reference stats the SQL
@@ -60,7 +62,7 @@ const postIncompleteSale = async (
 
 /** One payment leg received by `destination` under `eventGroup`. */
 const postPaymentLeg = async (
-  destination: ReturnType<typeof attendeeAccount>,
+  destination: AccountRef,
   eventGroup: string,
   reference: string,
 ): Promise<void> => {
@@ -77,12 +79,26 @@ const postPaymentLeg = async (
   ]);
 };
 
+/** A priced listing holding one attendee whose booking-group sale received no
+ *  payment, so the sale reads incomplete until a payment lands in its group. */
+const setupUnpaidSale = async (
+  name: string,
+  email: string,
+): Promise<{ attendee: Attendee; listing: ListingWithCount }> => {
+  const listing = await createPricedListing({ maxAttendees: 50 });
+  const attendee = await createPaidAttendeeWithoutLedger(
+    listing.id,
+    name,
+    email,
+    "",
+  );
+  await postIncompleteSale(attendee.id, listing.id, 500);
+  return { attendee, listing };
+};
+
 describeWithEnv("db > listing-overview-stats", { db: true }, () => {
   test("matches the attendee-derived reference across payment states", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 100,
-      unitPrice: 500,
-    });
+    const listing = await createPricedListing({ maxAttendees: 100 });
     // A1: paid in full (sale + payment), qty 1, checked in.
     const a1 = await createPaidTestAttendee(
       listing.id,
@@ -147,46 +163,50 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     const stats = await getListingOverviewStats(listing);
     const { grossSales } = await listingMoneyTotals(emptyRange, [listing.id]);
 
-    // Exact expected figures for the seeded scenario.
-    expect(stats.incompleteQuantity).toBe(1); // A3
-    expect(stats.completeQuantitySum).toBe(5); // A1+A2+A4+A5 = 1+2+1+1
-    expect(stats.ticketsTotal).toBe(5);
-    expect(stats.rowsTotal).toBe(4);
-    expect(stats.ticketsCheckedIn).toBe(2); // A1 + A4
-    expect(stats.rowsCheckedIn).toBe(2);
-    expect(stats.incompleteSales).toBe(300); // A3's unpaid sale
+    // Exact expected figures for the seeded scenario: A3's unpaid sale keeps
+    // one booking out of the complete split; A1 and A4 are checked in.
+    expect(stats).toMatchObject({
+      completeQuantitySum: 5,
+      incompleteQuantity: 1,
+      incompleteSales: 300,
+      rowsCheckedIn: 2,
+      rowsTotal: 4,
+      ticketsCheckedIn: 2,
+      ticketsTotal: 5,
+    });
     expect(grossSales).toBe(2100); // 500 + 500 + 300 + 800
 
     // …and the assembled view reproduces the attendee-derived reference exactly.
     const view = overviewStatsFromDbStats(
       stats,
-      withCount.attendee_count,
+      withCount.attendeeCount,
       grossSales,
       isPaidListing(withCount),
     );
     expect(view).toEqual(reference);
-    expect(view.adjustedCount).toBe(5); // 6 booked − 1 incomplete
-    expect(view.completeRevenue).toBe(1800); // 2100 gross − 300 unpaid
+    expect(view).toMatchObject({ adjustedCount: 5, completeRevenue: 1800 });
   });
 
   test("counts nothing incomplete and skips the ledger scan for a free listing", async () => {
-    const listing = await createTestListing({
+    const listing = await createPricedListing({
       maxAttendees: 50,
       unitPrice: 0,
     });
     await createPaidTestAttendee(listing.id, "F1", "f1@example.com", "", 0, 3);
 
     const stats = await getListingOverviewStats(listing);
-    expect(stats.incompleteQuantity).toBe(0);
-    expect(stats.incompleteSales).toBe(0);
-    expect(stats.completeQuantitySum).toBe(3);
-    expect(stats.ticketsTotal).toBe(3);
-    expect(stats.rowsTotal).toBe(1);
+    expect(stats).toMatchObject({
+      completeQuantitySum: 3,
+      incompleteQuantity: 0,
+      incompleteSales: 0,
+      rowsTotal: 1,
+      ticketsTotal: 3,
+    });
 
     const { withCount, reference } = await referenceFor(listing.id);
     const view = overviewStatsFromDbStats(
       stats,
-      withCount.attendee_count,
+      withCount.attendeeCount,
       0,
       isPaidListing(withCount),
     );
@@ -195,30 +215,15 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
   });
 
   test("does not mark an empty-payment-id attendee incomplete once a processed payment reference exists", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 500,
-    });
-    const attendee = await createPaidAttendeeWithoutLedger(
-      listing.id,
+    const { attendee, listing } = await setupUnpaidSale(
       "Balance Paid",
       "balance-paid@example.com",
-      "",
-      500,
-      1,
     );
-    await postIncompleteSale(attendee.id, listing.id, 500);
-    await postTransfers([
-      {
-        amount: 500,
-        destination: attendeeAccount(attendee.id),
-        eventGroup: await balanceEventGroup("overview_balance_paid"),
-        kind: KIND.payment,
-        occurredAt: "2026-06-21T00:00:00.000Z",
-        reference: "overview-balance-payment",
-        source: WORLD,
-      },
-    ]);
+    await postPaymentLeg(
+      attendeeAccount(attendee.id),
+      await balanceEventGroup("overview_balance_paid"),
+      "overview-balance-payment",
+    );
     await reserveSession("overview_balance_paid");
     await finalizeReservedPayment(
       "overview_balance_paid",
@@ -228,13 +233,18 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     );
 
     const stats = await getListingOverviewStats(listing);
-    expect(stats.incompleteQuantity).toBe(0);
-    expect(stats.incompleteSales).toBe(0);
-    expect(stats.completeQuantitySum).toBe(1);
+    expect(stats).toMatchObject({
+      completeQuantitySum: 1,
+      incompleteQuantity: 0,
+      incompleteSales: 0,
+    });
   });
 
   test("ignores servicing rows and other listings' bookings", async () => {
-    const other = await createTestListing({ maxAttendees: 10, unitPrice: 500 });
+    const [other, listing] = await createListingPair({
+      maxAttendees: 10,
+      unitPrice: 500,
+    });
     await createPaidTestAttendee(
       other.id,
       "Other",
@@ -243,10 +253,6 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
       500,
       1,
     );
-    const listing = await createTestListing({
-      maxAttendees: 10,
-      unitPrice: 500,
-    });
     await createPaidTestAttendee(
       listing.id,
       "Mine",
@@ -257,27 +263,20 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     );
 
     const stats = await getListingOverviewStats(listing);
-    expect(stats.completeQuantitySum).toBe(1);
-    expect(stats.incompleteQuantity).toBe(0);
+    expect(stats).toMatchObject({
+      completeQuantitySum: 1,
+      incompleteQuantity: 0,
+    });
   });
 
   test("a balance payment does not pay an unpaid sale", async () => {
     // The payment that clears a sale must land in the sale's own event group:
     // a balance payment from another order credits the same attendee, but the
     // sale it never covered stays incomplete.
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 500,
-    });
-    const attendee = await createPaidAttendeeWithoutLedger(
-      listing.id,
+    const { attendee, listing } = await setupUnpaidSale(
       "Other Order Paid",
       "other-order-paid@example.com",
-      "",
-      500,
-      1,
     );
-    await postIncompleteSale(attendee.id, listing.id, 500);
     await postPaymentLeg(
       attendeeAccount(attendee.id),
       await balanceEventGroup("overview_other_order_paid"),
@@ -285,37 +284,24 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     );
 
     const stats = await getListingOverviewStats(listing);
-    expect(stats.incompleteQuantity).toBe(1);
-    expect(stats.incompleteSales).toBe(500);
+    expect(stats).toMatchObject({
+      incompleteQuantity: 1,
+      incompleteSales: 500,
+    });
   });
 
   test("does not count a refunded balance-paid attendee whose reference was pruned", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 500,
-    });
-    const attendee = await createPaidAttendeeWithoutLedger(
-      listing.id,
-      "Refunded Balance",
-      "refunded-balance@example.com",
-      "",
-      500,
-      1,
-    );
     // A balance-paid booking: a booking-group sale with no booking-group
     // payment, the payment sitting in its own balance event group.
-    await postIncompleteSale(attendee.id, listing.id, 500);
-    await postTransfers([
-      {
-        amount: 500,
-        destination: attendeeAccount(attendee.id),
-        eventGroup: await balanceEventGroup("overview_refunded_balance"),
-        kind: KIND.payment,
-        occurredAt: "2026-06-21T00:00:00.000Z",
-        reference: "overview-refunded-balance-payment",
-        source: WORLD,
-      },
-    ]);
+    const { attendee, listing } = await setupUnpaidSale(
+      "Refunded Balance",
+      "refunded-balance@example.com",
+    );
+    await postPaymentLeg(
+      attendeeAccount(attendee.id),
+      await balanceEventGroup("overview_refunded_balance"),
+      "overview-refunded-balance-payment",
+    );
     // Then it is refunded: a `refund_cash` leg sourced from the attendee. Once
     // that exists prunePayments drops the processed reference, so no surviving
     // reference remains — only the ledger-fed refunded flag keeps this out of
@@ -333,7 +319,9 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     ]);
 
     const stats = await getListingOverviewStats(listing);
-    expect(stats.incompleteQuantity).toBe(0);
-    expect(stats.incompleteSales).toBe(0);
+    expect(stats).toMatchObject({
+      incompleteQuantity: 0,
+      incompleteSales: 0,
+    });
   });
 });

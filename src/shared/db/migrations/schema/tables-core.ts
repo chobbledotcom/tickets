@@ -1,6 +1,11 @@
 /** Core schema tables: system config, auth, listings, assets, rate limits. */
 
-import { datedRowColumns, itemLinkColumns } from "./columns.ts";
+import { sql } from "#db/sql.ts";
+import {
+  datedRowColumns,
+  itemLinkColumns,
+  recurringOfferColumns,
+} from "./columns.ts";
 import {
   checked,
   defaulted,
@@ -14,10 +19,10 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import { declaredTables } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 
-export const coreTables: [name: string, table: Table][] = [
+export const coreTables = declaredTables([
   [
     "settings",
     {
@@ -52,7 +57,7 @@ export const coreTables: [name: string, table: Table][] = [
         ["last_started_at", wholeNumberOrNull],
         [
           "last_finished_at",
-          checked("(lease_token IS NULL) = (lease_expires_at IS NULL)")(
+          checked(sql`(lease_token IS NULL) = (lease_expires_at IS NULL)`)(
             wholeNumberOrNull,
           ),
         ],
@@ -74,6 +79,7 @@ export const coreTables: [name: string, table: Table][] = [
         ["max_attendees", wholeNumber],
         ["thank_you_url", textOrNull],
         ["unit_price", wholeNumberOrNull],
+        ...recurringOfferColumns,
         ["max_quantity", wholeNumberStartingAtOne],
         ["min_quantity", wholeNumberStartingAtOne],
         ["webhook_url", textOrNull],
@@ -235,8 +241,8 @@ export const coreTables: [name: string, table: Table][] = [
       columns: [
         ["id", rowId],
         ["name", textStartingBlank],
-        ["filename", checked("filename <> ''")(text)],
-        ["filename_thumb", checked("filename_thumb <> ''")(text)],
+        ["filename", checked(sql`filename <> ''`)(text)],
+        ["filename_thumb", checked(sql`filename_thumb <> ''`)(text)],
         ["alt_text", textStartingBlank],
       ],
     },
@@ -331,4 +337,4 @@ export const coreTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+]);

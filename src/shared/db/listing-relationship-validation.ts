@@ -1,8 +1,10 @@
-import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
+import { resultRows, type TxScope } from "#db/client.ts";
 import type { DayPriceRow } from "#db/listing-prices.ts";
-import { rawListingsTable } from "#db/listings/table.ts";
-import { modifiersTable } from "#db/modifiers.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { pickedColumns } from "#db/picked-columns.ts";
+import { records } from "#db/record-table.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
 import { requiredMapValue, unique } from "#fp";
 import {
@@ -14,9 +16,8 @@ import {
 } from "#shared/listing-parents-rules.ts";
 import type { DayPrices } from "#types";
 
-type EdgeListingRow = Omit<EdgeListing, "assign_built_site" | "day_prices"> & {
-  assign_built_site: number;
-  bookable_alone: number;
+type EdgeListingRow = Omit<EdgeListing, "dayPrices"> & {
+  bookableAlone: boolean;
 };
 
 type AddOnScopeRow = {
@@ -27,10 +28,10 @@ type AddOnScopeRow = {
 
 type CurrentEdgeListing = EdgeListing & { bookableAlone: boolean };
 
-const listingById = async (
+const listingById = (
   rows: EdgeListingRow[],
   prices: DayPriceRow[],
-): Promise<Map<number, CurrentEdgeListing>> => {
+): Map<number, CurrentEdgeListing> => {
   const dayPrices = new Map<number, DayPrices>();
   for (const row of prices) {
     const listingPrices = dayPrices.get(row.listing_id) ?? {};
@@ -38,44 +39,20 @@ const listingById = async (
     dayPrices.set(row.listing_id, listingPrices);
   }
   return new Map(
-    await Promise.all(
-      rows.map(
-        async ({ assign_built_site, bookable_alone, ...listing }) =>
-          [
-            listing.id,
-            {
-              ...listing,
-              assign_built_site: assign_built_site === 1,
-              bookableAlone: bookable_alone === 1,
-              day_prices: dayPrices.get(listing.id) ?? {},
-              name: await rawListingsTable.readColumn(
-                "name",
-                listing.name,
-                listing.id,
-              ),
-            },
-          ] as const,
-      ),
+    rows.map(
+      (listing) =>
+        [
+          listing.id,
+          { ...listing, dayPrices: dayPrices.get(listing.id) ?? {} },
+        ] as const,
     ),
   );
 };
 
-const addOnScopes = async (
-  rows: AddOnScopeRow[],
-): Promise<Map<number, AddOnScopeRow[]>> =>
-  Map.groupBy(
-    await Promise.all(
-      rows.map(async (row) => ({
-        ...row,
-        name: await modifiersTable.readColumn(
-          "name",
-          row.name,
-          row.modifier_id,
-        ),
-      })),
-    ),
-    (row) => row.modifier_id,
-  );
+/** The add-on name of a scope read, which the client decodes. */
+const ADD_ON_NAME = pickedColumns({
+  name: tableNode(tables.modifiers, "modifier").name,
+});
 
 const relationshipError = (
   edge: ParentChildEdge,
@@ -114,41 +91,40 @@ const relationshipErrorTx = async (
   const listingIds = unique(
     edges.flatMap(({ childId, parentId }) => [childId, parentId]),
   );
-  const placeholders = inPlaceholders(listingIds);
+  const ids = sqlList(listingIds);
   const [listingResult, priceResult, scopeResult] = await tx.batch([
-    {
-      args: listingIds,
-      sql: `SELECT listing.id, listing.name, listing.listing_type,
-                   listing.months_per_unit, listing.customisable_days,
-                   listing.duration_days, listing.bookable_alone,
-                   listing.assign_built_site, listing.min_quantity
-              FROM listings AS listing
-             WHERE listing.id IN (${placeholders})`,
-    },
-    {
-      args: listingIds,
-      sql: `SELECT listingPrice.listing_id, listingPrice.price_id,
+    records.listings
+      .byId(listingIds)
+      .pick(
+        "id",
+        "name",
+        "listingType",
+        "monthsPerUnit",
+        "customisableDays",
+        "durationDays",
+        "bookableAlone",
+        "assignBuiltSite",
+        "minQuantity",
+      ),
+    sql`SELECT listingPrice.listing_id, listingPrice.price_id,
                    listingPrice.unit_price
               FROM listing_prices AS listingPrice
-             WHERE listingPrice.listing_id IN (${placeholders})
+             WHERE listingPrice.listing_id IN (${ids})
                AND listingPrice.price_type = 'day_count'`,
-    },
-    numberedStatement((bind) => {
-      const scopeIds = listingIds.map((id) => bind(id));
-      return `WITH optionalModifier AS (
+    ADD_ON_NAME.decoded(sql`WITH optionalModifier AS (
               SELECT modifier.id, modifier.name, modifier.scope
                 FROM modifiers AS modifier
                WHERE modifier.active = 1 AND modifier.trigger = 'optional'
             )
-            SELECT modifier.id AS modifier_id, modifier.name,
+            SELECT modifier.id AS modifier_id, ${ADD_ON_NAME.list},
                    modifierListing.listing_id
               FROM optionalModifier AS modifier
               JOIN modifier_listings AS modifierListing
                 ON modifierListing.modifier_id = modifier.id
              WHERE modifier.scope = 'listings'
-               AND modifierListing.listing_id IN (${scopeIds.join(", ")})
+               AND modifierListing.listing_id IN (${ids})
             UNION
-            SELECT modifier.id AS modifier_id, modifier.name,
+            SELECT modifier.id AS modifier_id, ${ADD_ON_NAME.list},
                    groupListing.listing_id
               FROM optionalModifier AS modifier
               JOIN modifier_groups AS modifierGroup
@@ -156,14 +132,16 @@ const relationshipErrorTx = async (
               JOIN group_listings AS groupListing
                 ON groupListing.group_id = modifierGroup.group_id
              WHERE modifier.scope = 'groups'
-               AND groupListing.listing_id IN (${scopeIds.join(", ")})`;
-    }),
+               AND groupListing.listing_id IN (${ids})`),
   ]);
-  const listings = await listingById(
+  const listings = listingById(
     resultRows<EdgeListingRow>(listingResult!),
     resultRows<DayPriceRow>(priceResult!),
   );
-  const scopes = await addOnScopes(resultRows<AddOnScopeRow>(scopeResult!));
+  const scopes = Map.groupBy(
+    resultRows<AddOnScopeRow>(scopeResult!),
+    (row) => row.modifier_id,
+  );
   for (const edge of edges) {
     const error = relationshipError(edge, listings, scopes);
     if (error) return error;
@@ -181,20 +159,14 @@ export const requireTouchingRelationshipsTx = async (
   listingId: number,
 ): Promise<void> => {
   const [childResult, parentResult] = await tx.batch([
-    {
-      args: [listingId],
-      sql: `SELECT listingParent.child_listing_id AS id
+    sql`SELECT listingParent.child_listing_id AS id
               FROM listing_parents AS listingParent
-             WHERE listingParent.parent_listing_id = ?
+             WHERE listingParent.parent_listing_id = ${listingId}
              ORDER BY listingParent.child_listing_id`,
-    },
-    {
-      args: [listingId],
-      sql: `SELECT listingParent.parent_listing_id AS id
+    sql`SELECT listingParent.parent_listing_id AS id
               FROM listing_parents AS listingParent
-             WHERE listingParent.child_listing_id = ?
+             WHERE listingParent.child_listing_id = ${listingId}
              ORDER BY listingParent.parent_listing_id`,
-    },
   ]);
   await requireCurrentRelationshipRules(tx, [
     ...resultRows<{ id: number }>(childResult!).map(({ id: childId }) => ({

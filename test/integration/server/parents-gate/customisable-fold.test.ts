@@ -65,7 +65,7 @@ describeWithEnv(
 
       const res = await bookParent(`${pageCustom.slug}+${parent.slug}`, {
         date,
-        day_count: "2",
+        dayCount: "2",
         ...parentField(pageCustom, "1"),
         ...parentField(parent, "1"),
       });
@@ -145,7 +145,7 @@ describeWithEnv(
       });
 
       const html = await postCalculate(parent.slug, {
-        day_count: "2",
+        dayCount: "2",
         ...parentField(parent, "1"),
       });
       // The order owes the single 2-day span (£18 + £25 = £43), not a
@@ -166,7 +166,7 @@ describeWithEnv(
       });
 
       const res = await bookParent(parent.slug, {
-        day_count: "2",
+        dayCount: "2",
         ...parentField(parent, "1"),
       });
       expect(res.status).toBe(302);
@@ -201,7 +201,7 @@ describeWithEnv(
 
       const res = await bookParent(parent.slug, {
         date,
-        day_count: "2",
+        dayCount: "2",
         ...parentField(parent, "1"),
       });
       expectReserved(res);
@@ -218,7 +218,7 @@ describeWithEnv(
 
       const rejected = await bookParent(parent.slug, {
         date,
-        day_count: "1",
+        dayCount: "1",
         ...parentField(parent, "1"),
       });
       await expectRejectedBooking(
@@ -237,7 +237,7 @@ describeWithEnv(
 
       const ok = await bookParent(parent.slug, {
         date,
-        day_count: "3",
+        dayCount: "3",
         ...parentField(parent, "1"),
       });
       expectReserved(ok);

@@ -30,8 +30,8 @@ const attributeWithOptions = (
 ): AttributeWithOptions => ({
   id,
   name,
-  options: [{ attribute_id: id, id: id * 10, sort_order: 0, text: optionText }],
-  sort_order: 0,
+  options: [{ attributeId: id, id: id * 10, sortOrder: 0, text: optionText }],
+  sortOrder: 0,
 });
 
 describe("ticketPage — packages", () => {
@@ -47,7 +47,7 @@ describe("ticketPage — packages", () => {
     }),
     ticketListing({
       id: 2,
-      max_quantity: 10,
+      maxQuantity: 10,
       name: "Chair",
       slug: "chr12",
     }),
@@ -61,16 +61,16 @@ describe("ticketPage — packages", () => {
       baseUrl: "https://tickets.example",
       groupDescription: "Group description",
       groupImage: {
-        image_alt_text: "Group image",
-        image_thumb_url: "group-thumb.webp",
-        image_url: "group.webp",
+        imageAltText: "Group image",
+        imageThumbUrl: "group-thumb.webp",
+        imageUrl: "group.webp",
       },
       groupName: "Group heading",
       listings: [
         ticketListing({
           description: "Listing description",
           id: 1,
-          image_url: "listing.webp",
+          imageUrl: "listing.webp",
           name: "Listing heading",
           slug: "listing",
         }),
@@ -133,20 +133,20 @@ describe("ticketPage — packages", () => {
   test("hides quantity when exactly one open listing allows one ticket", () => {
     const html = ticketPage({
       listings: [
-        ticketListing({ id: 1, max_quantity: 1, name: "Available" }),
+        ticketListing({ id: 1, maxQuantity: 1, name: "Available" }),
         listingB(),
       ],
       slugs: ["available", "sold-out"],
     });
-    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
+    expect(hasInputWithValue(html, "quantity1", "1")).toBe(true);
     assert(!html.includes('class="ticket-listings"'));
   });
 
   test("groups two open one-ticket listings", () => {
     const html = ticketPage({
       listings: [
-        ticketListing({ id: 1, max_quantity: 1, name: "First" }),
-        ticketListing({ id: 2, max_quantity: 1, name: "Second" }),
+        ticketListing({ id: 1, maxQuantity: 1, name: "First" }),
+        ticketListing({ id: 2, maxQuantity: 1, name: "Second" }),
       ],
       slugs: ["first", "second"],
     });
@@ -159,9 +159,9 @@ describe("ticketPage — packages", () => {
   test("shows all sold out message when every listing is sold out", () => {
     const listings = [
       ticketListing({
-        attendee_count: 100,
+        attendeeCount: 100,
         id: 1,
-        max_attendees: 100,
+        maxAttendees: 100,
         name: "Listing A",
         slug: "ab12c",
       }),
@@ -181,14 +181,14 @@ describe("ticketPage — packages", () => {
       slugs: [PKG_SLUG],
     });
     expectIncludesAll(html, [
-      'name="package_quantity_5"',
+      'name="packageQuantity5"',
       "Number of packages",
       "Tent",
       "&times;1",
       "Chair",
       "&times;4",
     ]);
-    assert(!html.includes('name="quantity_1"'));
+    assert(!html.includes('name="quantity1"'));
   });
 
   describeWithEnv(
@@ -228,28 +228,28 @@ describe("ticketPage — packages", () => {
 
   test("limits package day counts to the days its required child supports", () => {
     const parentA = ticketListing({
-      customisable_days: true,
-      day_prices: { 1: 1000, 2: 1800 },
-      duration_days: 2,
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 2,
       id: 1,
-      max_quantity: 10,
+      maxQuantity: 10,
       name: "Stay",
       slug: "stay1",
     });
     const parentB = ticketListing({
-      customisable_days: true,
-      day_prices: { 1: 1200, 2: 2000 },
-      duration_days: 2,
+      customisableDays: true,
+      dayPrices: { 1: 1200, 2: 2000 },
+      durationDays: 2,
       id: 2,
-      max_quantity: 10,
+      maxQuantity: 10,
       name: "Meals",
       slug: "meal1",
     });
     const child = ticketListing({
-      duration_days: 1,
+      durationDays: 1,
       id: 3,
-      listing_type: "daily",
-      max_quantity: 10,
+      listingType: "daily",
+      maxQuantity: 10,
       name: "Required child",
       slug: "child",
     });
@@ -265,11 +265,11 @@ describe("ticketPage — packages", () => {
 
   test("restores the submitted package quantity after a validation error", async () => {
     await withRequestContext(() => {
-      setSavedFormData(new FormParams({ package_quantity_5: "3" }));
+      setSavedFormData(new FormParams({ packageQuantity5: "3" }));
       const listings = [
         ticketListing({
           id: 1,
-          max_quantity: 10,
+          maxQuantity: 10,
           name: "Tent",
           slug: "tent1",
         }),
@@ -297,7 +297,7 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(7, [1, 2], { quantities: new Map([[1, 2]]) })],
       slugs: [PKG_SLUG],
     });
-    expectIncludesAll(html, ['name="package_quantity_7"', '<option value="1"']);
+    expectIncludesAll(html, ['name="packageQuantity7"', '<option value="1"']);
     assert(!html.includes('<option value="2"'));
   });
 
@@ -325,31 +325,31 @@ describe("ticketPage — packages", () => {
       packages: evenSplitPackages(),
       slugs: [PKG_SLUG],
     });
-    assert(!html.includes('name="package_quantity'));
+    assert(!html.includes('name="packageQuantity'));
     assertStringIncludes(html, "Sorry, all listings are sold out.");
   });
 
   test("keeps a standalone parent's child selector when its package is sold out", () => {
     const parent = ticketListing({
-      attendee_count: 0,
+      attendeeCount: 0,
       id: 1,
-      max_attendees: 100,
-      max_quantity: 5,
+      maxAttendees: 100,
+      maxQuantity: 5,
       name: "Tent",
       slug: "tent1",
     });
     const soldOutSibling = ticketListing({
-      attendee_count: 100,
+      attendeeCount: 100,
       id: 2,
-      max_attendees: 100,
+      maxAttendees: 100,
       name: "Chair",
       slug: "chr12",
     });
     const child = ticketListing({
-      attendee_count: 0,
+      attendeeCount: 0,
       id: 3,
-      max_attendees: 100,
-      max_quantity: 5,
+      maxAttendees: 100,
+      maxQuantity: 5,
       name: "Add-on",
       slug: "add01",
     });
@@ -362,7 +362,7 @@ describe("ticketPage — packages", () => {
     });
     expectIncludesAll(html, [
       'class="ticket-package sold-out"',
-      'name="quantity_1"',
+      'name="quantity1"',
       'data-parent-id="1"',
     ]);
   });
@@ -383,7 +383,7 @@ describe("ticketPage — packages", () => {
       packages: evenSplitPackages(),
       slugs: [PKG_SLUG],
     });
-    expectIncludesAll(html, ['name="package_quantity_7"', '<option value="1"']);
+    expectIncludesAll(html, ['name="packageQuantity7"', '<option value="1"']);
     assert(!html.includes('<option value="2"'));
   });
 
@@ -401,7 +401,7 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(5, [1], { hideListings: true })],
       slugs: [PKG_SLUG],
     });
-    expectIncludesAll(html, ['name="package_quantity_5"', "Hidden Bundle"]);
+    expectIncludesAll(html, ['name="packageQuantity5"', "Hidden Bundle"]);
     assert(!html.includes("SecretItem"));
   });
 

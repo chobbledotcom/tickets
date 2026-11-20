@@ -26,14 +26,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   describe("POST /admin/settings/sumup", () => {
     testRequiresAuth("/admin/settings/sumup", {
-      body: { sumup_api_key: "sk_test_1", sumup_merchant_code: "MC1" },
+      body: { sumupApiKey: "sk_test_1", sumupMerchantCode: "MC1" },
       method: "POST",
     });
 
     test("rejects a missing merchant code", async () => {
       const { response } = await adminFormPost("/admin/settings/sumup", {
-        sumup_api_key: "sk_test_1",
-        sumup_merchant_code: "",
+        sumupApiKey: "sk_test_1",
+        sumupMerchantCode: "",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merchant code"), false);
@@ -41,8 +41,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("rejects a missing API key when none is stored", async () => {
       const { response } = await adminFormPost("/admin/settings/sumup", {
-        sumup_api_key: "",
-        sumup_merchant_code: "MC1",
+        sumupApiKey: "",
+        sumupMerchantCode: "MC1",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("required"), false);
@@ -52,8 +52,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       settings.setForTest({ currency: "AUD" });
       try {
         const { response } = await adminFormPost("/admin/settings/sumup", {
-          sumup_api_key: "sk_test_1",
-          sumup_merchant_code: "MC1",
+          sumupApiKey: "sk_test_1",
+          sumupMerchantCode: "MC1",
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -69,8 +69,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("refuses configuration in demo mode", async () => {
       setDemoModeForTest(true);
       const { response } = await adminFormPost("/admin/settings/sumup", {
-        sumup_api_key: "sk_test_1",
-        sumup_merchant_code: "MC1",
+        sumupApiKey: "sk_test_1",
+        sumupMerchantCode: "MC1",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("demo mode"), false);
@@ -78,8 +78,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("stores new credentials and selects SumUp as the provider", async () => {
       const { response } = await adminFormPost("/admin/settings/sumup", {
-        sumup_api_key: "sk_live_new",
-        sumup_merchant_code: "MC_new",
+        sumupApiKey: "sk_live_new",
+        sumupMerchantCode: "MC_new",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("SumUp credentials"));
@@ -92,8 +92,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("keeps the stored key when the field is left masked", async () => {
       await settings.update.sumup.apiKey("sk_test_keep");
       const { response } = await adminFormPost("/admin/settings/sumup", {
-        sumup_api_key: MASK_SENTINEL,
-        sumup_merchant_code: "MC_keep",
+        sumupApiKey: MASK_SENTINEL,
+        sumupMerchantCode: "MC_keep",
       });
       expect(response.status).toBe(302);
       expect(settings.sumup.apiKey).toBe("sk_test_keep");
@@ -115,19 +115,19 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
       assertStringIncludes(
-        inputNamed(html, "sumup_api_key"),
+        inputNamed(html, "sumupApiKey"),
         'autocomplete="off"',
       );
       assertStringIncludes(
-        inputNamed(html, "sumup_merchant_code"),
+        inputNamed(html, "sumupMerchantCode"),
         'autocomplete="off"',
       );
     });
 
     test("shows the configured message and the test button", async () => {
       await adminFormPost("/admin/settings/sumup", {
-        sumup_api_key: "sk_test_configured",
-        sumup_merchant_code: "MC_configured",
+        sumupApiKey: "sk_test_configured",
+        sumupMerchantCode: "MC_configured",
       });
       const response = await adminGet("/admin/settings");
       const html = await response.text();
@@ -174,8 +174,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   test("logs activity when SumUp credentials are configured", async () => {
     await adminFormPost("/admin/settings/sumup", {
-      sumup_api_key: "sk_test_log",
-      sumup_merchant_code: "MC_log",
+      sumupApiKey: "sk_test_log",
+      sumupMerchantCode: "MC_log",
     });
 
     const logs = await getAllActivityLog();

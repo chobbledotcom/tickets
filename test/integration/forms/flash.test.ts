@@ -131,7 +131,7 @@ describe("CsrfForm", () => {
   test("renders POST form with action and CSRF token", () => {
     const html = String(CsrfForm({ action: "/submit" }));
     expectIncludesAll(html, ['action="/submit"', 'method="POST"']);
-    expect(hasInputWithValue(html, "csrf_token", getCurrentCsrfToken())).toBe(
+    expect(hasInputWithValue(html, "csrfToken", getCurrentCsrfToken())).toBe(
       true,
     );
   });

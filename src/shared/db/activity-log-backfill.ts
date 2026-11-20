@@ -12,7 +12,10 @@ import { decrypt, ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { executeBatch, queryAll, update } from "#db/client.ts";
+import { executeBatch, queryAll } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { ACTIVITY_LOG_BACKFILL_BATCH } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
 
@@ -33,22 +36,17 @@ export const backfillActivityLogBatch = async (
   publicKey: string,
 ): Promise<number> => {
   const rows = await queryAll<LegacyRow>(
-    "SELECT id, message FROM activity_log WHERE message LIKE ? ORDER BY id LIMIT ?",
-    [`${ENCRYPTION_PREFIX}%`, ACTIVITY_LOG_BACKFILL_BATCH],
+    sql`SELECT id, message FROM activity_log WHERE message LIKE ${`${ENCRYPTION_PREFIX}%`} ORDER BY id LIMIT ${ACTIVITY_LOG_BACKFILL_BATCH}`,
   );
   if (rows.length === 0) return 0;
   const updates = await Promise.all(
     rows.map(async (row) =>
-      update(
-        "activity_log",
-        {
-          message: await encryptWithOwnerKey(
-            await decrypt(row.message),
-            publicKey,
-          ),
-        },
-        { id: row.id },
-      ),
+      update(tables.activity_log, {
+        message: await encryptWithOwnerKey(
+          await decrypt(row.message),
+          publicKey,
+        ),
+      }).where({ id: row.id }),
     ),
   );
   await executeBatch(updates);

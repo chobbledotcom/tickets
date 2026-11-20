@@ -121,7 +121,7 @@ export const peopleOfferedAtGroupDoor = offeredAt(groupDoorPageHtml);
 /** Turn the group's own "check in every listing when scanning" box on,
  * through the very edit form the group's page renders. The page's other
  * ticks ride along untouched, the way a browser sends them. */
-const EVERY_LISTING_BOX = "scan_checks_in_all_listings";
+const EVERY_LISTING_BOX = "scanChecksInAllListings";
 
 type TurnsOnGroupDoor = (
   world: TicketsWorld,

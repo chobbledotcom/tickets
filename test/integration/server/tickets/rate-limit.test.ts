@@ -17,15 +17,21 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 
-/** Ask for `count` distinct made-up codes, each labelled so no two repeat, and
- * insist every one is a plain miss rather than a lockout. */
-const missDistinctCodes = async (
-  label: string,
+/** Ask for one path and insist it answers `status`. */
+const expectStatus = async (path: string, status: number): Promise<void> => {
+  const response = await awaitTestRequest(path);
+  expect(response.status).toBe(status);
+};
+
+/** Ask for `count` paths built by `pathFor`, and insist each answers `status`.
+ *  A run of requests is what moves the miss count the guard keeps. */
+const expectEachStatus = async (
+  pathFor: (index: number) => string,
   count: number,
+  status: number,
 ): Promise<void> => {
   for (let index = 0; index < count; index++) {
-    const response = await awaitTestRequest(`/t/${label}-${index}`);
-    expect(response.status).toBe(404);
+    await expectStatus(pathFor(index), status);
   }
 };
 
@@ -34,52 +40,50 @@ describeWithEnv("ticket view rate limit", { db: true }, () => {
   // count rather than inheriting the one before it.
   const startClean = () => clearTokenAttempts("direct");
 
-  test("locks out after MAX_TOKEN_404S distinct misses", async () => {
-    await startClean();
+  // Any URL that records a miss counts towards the same lockout, so each case
+  // guesses distinct codes on its own kind of request.
+  for (const [what, pathFor, lockedPath] of [
+    [
+      "locks out after MAX_TOKEN_404S distinct misses",
+      (index: number) => `/t/bad-token-${index}`,
+      "/t/any-token",
+    ],
+    [
+      "counts misses on the QR image towards the same lockout",
+      (index: number) => `/t/bad-svg-${index}/svg`,
+      "/t/some-token/svg",
+    ],
+  ] as const) {
+    test(what, async () => {
+      await startClean();
 
-    await missDistinctCodes("bad-token", MAX_TOKEN_404S);
+      await expectEachStatus(pathFor, MAX_TOKEN_404S, 404);
 
-    const locked = await awaitTestRequest("/t/any-token");
-    expect(locked.status).toBe(429);
-  });
-
-  test("counts misses on the QR image towards the same lockout", async () => {
-    await startClean();
-
-    for (let index = 0; index < MAX_TOKEN_404S; index++) {
-      const response = await awaitTestRequest(`/t/bad-svg-${index}/svg`);
-      expect(response.status).toBe(404);
-    }
-
-    const locked = await awaitTestRequest("/t/some-token/svg");
-    expect(locked.status).toBe(429);
-  });
+      await expectStatus(lockedPath, 429);
+    });
+  }
 
   test("never locks out on repeated tries of one wrong code", async () => {
     // Somebody following a stale link hits the same wrong code over and over;
     // only DISTINCT codes look like guessing.
     await startClean();
 
-    for (let index = 0; index < MAX_TOKEN_404S * 3; index++) {
-      const response = await awaitTestRequest("/t/same-invalid-token");
-      expect(response.status).toBe(404);
-    }
+    await expectEachStatus(
+      () => "/t/same-invalid-token",
+      MAX_TOKEN_404S * 3,
+      404,
+    );
 
-    const stillAllowed = await awaitTestRequest("/t/other-invalid");
-    expect(stillAllowed.status).toBe(404);
+    await expectStatus("/t/other-invalid", 404);
   });
 
   test("never counts a ticket that was found", async () => {
     await startClean();
     const { token } = await createTestAttendeeWithToken("Hal", "hal@test.com");
 
-    for (let index = 0; index < MAX_TOKEN_404S * 2; index++) {
-      const response = await awaitTestRequest(`/t/${token}`);
-      expect(response.status).toBe(200);
-    }
+    await expectEachStatus(() => `/t/${token}`, MAX_TOKEN_404S * 2, 200);
 
-    const stillOk = await awaitTestRequest(`/t/${token}`);
-    expect(stillOk.status).toBe(200);
+    await expectStatus(`/t/${token}`, 200);
   });
 
   test("clears earlier misses once a ticket is found", async () => {
@@ -89,14 +93,20 @@ describeWithEnv("ticket view rate limit", { db: true }, () => {
     await startClean();
     const { token } = await createTestAttendeeWithToken("Ivy", "ivy@test.com");
 
-    await missDistinctCodes("fatfinger", MAX_TOKEN_404S - 1);
+    await expectEachStatus(
+      (index) => `/t/fatfinger-${index}`,
+      MAX_TOKEN_404S - 1,
+      404,
+    );
 
-    const good = await awaitTestRequest(`/t/${token}`);
-    expect(good.status).toBe(200);
+    await expectStatus(`/t/${token}`, 200);
 
-    await missDistinctCodes("after-reset", MAX_TOKEN_404S - 1);
+    await expectEachStatus(
+      (index) => `/t/after-reset-${index}`,
+      MAX_TOKEN_404S - 1,
+      404,
+    );
 
-    const notLocked = await awaitTestRequest("/t/probe");
-    expect(notLocked.status).toBe(404);
+    await expectStatus("/t/probe", 404);
   });
 });

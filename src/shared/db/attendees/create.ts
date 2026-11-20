@@ -12,8 +12,8 @@ import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
 import {
-  ATTENDEE_BY_TOKEN_SQL,
   type AttendeeCreationWork,
+  attendeeByToken,
   type BatchTail,
   type BookingBatchPlan,
   bookingBatchCondition,
@@ -30,10 +30,11 @@ import {
 } from "#db/attendees/notification-flags.ts";
 import { annotateOrderParents } from "#db/attendees/order-parents.ts";
 import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
-import { insert, type SqlStatement } from "#db/client.ts";
 import { orderActivityStatements } from "#db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
-import type { NumberedSql } from "#db/numbered-statement.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { addDays } from "#shared/dates.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
@@ -50,15 +51,15 @@ export const buildAttendeeInsert = (
   order: AttendeeOrderFields,
   piiPaymentSessionId = enc.piiPaymentSessionId,
 ): SqlStatement =>
-  insert("attendees", {
+  insertInto(tables.attendees, {
     created: enc.created,
-    email_pending: order.emailPending ?? PENDING_NOTIFICATION.none,
+    emailPending: order.emailPending ?? PENDING_NOTIFICATION.none,
     kind: order.kind ?? ATTENDEE_KIND,
-    pii_blob: enc.encryptedPiiBlob,
-    pii_payment_session_id: piiPaymentSessionId,
-    status_id: order.statusId,
-    ticket_token_index: enc.ticketTokenIndex,
-    webhooks_pending: order.webhooksPending ?? PENDING_NOTIFICATION.none,
+    piiBlob: enc.encryptedPiiBlob,
+    piiPaymentSessionId,
+    statusId: order.statusId,
+    ticketTokenIndex: enc.ticketTokenIndex,
+    webhooksPending: order.webhooksPending ?? PENDING_NOTIFICATION.none,
   });
 
 const contactInfoFromInput = (input: AttendeeInput): ContactInfo => ({
@@ -107,7 +108,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
 
 const prepareAttendeeWrite = async (
   input: AttendeeInput,
-  extraCondition?: NumberedSql,
+  extraCondition?: SqlStatement,
   piiPaymentSessionId?: string,
 ): Promise<
   | { ok: true; prepared: PreparedWrite }
@@ -148,7 +149,7 @@ const prepareAttendeeWrite = async (
   const bookingStatements = bookings.map((booking) => {
     const statement = buildCapacityCheckedInsert(
       booking,
-      (bind) => ATTENDEE_BY_TOKEN_SQL.replace("?", bind(enc.ticketTokenIndex)),
+      attendeeByToken(enc.ticketTokenIndex),
       allowOverbook,
       extraCondition,
     );
@@ -223,7 +224,7 @@ const finishAttendeeWrite = (
 };
 
 type CreateStrategy<R extends CreateAttendeeResult | "sold-out"> = {
-  condition?: NumberedSql;
+  condition?: SqlStatement;
   noBooking: () => R | Promise<R>;
   piiPaymentSessionId?: string | undefined;
   write: (prepared: PreparedWrite) => Promise<WriteOutcome | null>;

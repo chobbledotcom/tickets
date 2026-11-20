@@ -55,7 +55,7 @@ describe("ConfirmPage", () => {
 
     expectIncludesAll(html, [
       'action="/admin/people/1/refund"',
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       'placeholder="Alice Example"',
       "Send refund",
       "Money will be returned.",
@@ -69,7 +69,7 @@ describe("ConfirmPage", () => {
 
     expectIncludesAll(html, ["A refund is already moving", "Payment details"]);
     assert(!html.includes("<form"));
-    assert(!html.includes('name="confirm_identifier"'));
+    assert(!html.includes('name="confirmIdentifier"'));
     assert(!html.includes("Send refund"));
     assert(!html.includes("Money will be returned."));
   });

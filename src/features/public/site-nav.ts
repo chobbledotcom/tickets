@@ -41,8 +41,8 @@ const leafIds = (
   type: SitePageItemType,
 ): number[] =>
   pipe(
-    filter((i: SitePageItem) => i.item_type === type),
-    map((i: SitePageItem) => i.item_id),
+    filter((i: SitePageItem) => i.itemType === type),
+    map((i: SitePageItem) => i.itemId),
     unique,
   )([...items]);
 
@@ -56,7 +56,7 @@ const resolveTargets = async (
     getListingsWithCountsByIds(listingIds),
     // No group leaf renders, no group row is read: the all-groups read exists
     // only to answer the group leaves' liveness.
-    groupIds.length > 0 ? groups.cache.getAll() : Promise.resolve([]),
+    groupIds.length > 0 ? groups.getAll() : Promise.resolve([]),
   ]);
   const referenced = compact(referencedRows);
   const referencedGroups = allGroups.filter((group) =>
@@ -130,7 +130,7 @@ export const publicNavModel = async (
   if (current === null) return buildNavModel(forest, new Map(), current);
   const chainPages = new Set(navChainPageIds(forest, current));
   const renderedLeaves = items.filter(
-    (item) => item.item_type !== "page" && chainPages.has(item.page_id),
+    (item) => item.itemType !== "page" && chainPages.has(item.pageId),
   );
   return buildNavModel(forest, await resolveTargets(renderedLeaves), current);
 };

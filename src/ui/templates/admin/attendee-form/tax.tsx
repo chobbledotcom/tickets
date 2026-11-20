@@ -27,7 +27,7 @@ export const TaxSaveFields = ({
   preview: TaxSavePreview;
 }): JSX.Element => (
   <>
-    <input name="tax_preview" type="hidden" value={preview.token} />
+    <input name="taxPreview" type="hidden" value={preview.token} />
     <p>
       {t(
         preview.changed

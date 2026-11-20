@@ -8,12 +8,14 @@ import type {
 } from "#db/question-types.ts";
 import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { WebhookAttendee } from "#shared/webhook.ts";
 import { generateTestListingName } from "#test-utils/internal.ts";
+import { blankMetadata } from "#test-utils/session-metadata.ts";
 import type {
   Attendee,
   Group,
@@ -24,54 +26,49 @@ import type {
 
 export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   active: true,
-  assign_built_site: false,
-  attachment_name: "",
-  attachment_url: "",
-  bookable_alone: false,
-  bookable_days: [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ],
-  can_pay_more: false,
-  closes_at: null,
+  assignBuiltSite: false,
+  attachmentName: "",
+  attachmentUrl: "",
+  bookableAlone: false,
+  bookableDays: [...VALID_DAY_NAMES],
+  canPayMore: false,
+  closesAt: null,
   created: "2024-01-01T00:00:00Z",
-  customisable_days: false,
+  customisableDays: false,
   date: "",
-  day_prices: {},
+  dayPrices: {},
   description: "",
-  duration_days: 1,
+  durationDays: 1,
   fields: "email",
   hidden: false,
   id: 1,
-  image_alt_text: "",
-  image_thumb_url: "",
-  image_url: "",
-  initial_site_months: 0,
-  listing_type: "standard",
+  imageAltText: "",
+  imageThumbUrl: "",
+  imageUrl: "",
+  initialSiteMonths: 0,
+  listingType: "standard",
   location: "",
-  max_attendees: 100,
-  max_price: 0,
-  max_quantity: 1,
-  maximum_days_after: 0,
-  min_quantity: 1,
-  minimum_days_before: 0,
-  months_per_unit: 0,
+  maxAttendees: 100,
+  maximumDaysAfter: 0,
+  maxPrice: 0,
+  maxQuantity: 1,
+  minimumDaysBefore: 0,
+  minQuantity: 1,
+  monthsPerUnit: 0,
   name: "Test Listing",
-  non_transferable: false,
-  purchase_only: false,
+  nonTransferable: false,
+  purchaseOnly: false,
+  recurringInterval: "",
+  recurringPrice: 0,
   slug: "ab12c",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
-  slug_index: "test-listing-index" as BlindIndex,
-  thank_you_url: "https://example.com/thanks",
-  unit_price: 0,
-  use_defaults: false,
-  uses_logistics: false,
-  webhook_url: "",
+  slugIndex: "test-listing-index" as BlindIndex,
+  thankYouUrl: "https://example.com/thanks",
+  ticketsCount: 0,
+  unitPrice: 0,
+  useDefaults: false,
+  usesLogistics: false,
+  webhookUrl: "",
   ...overrides,
 });
 
@@ -79,11 +76,11 @@ export const testListingWithCount = (
   overrides: Partial<ListingWithCount> = {},
 ): ListingWithCount => ({
   ...testListing(overrides),
-  attendee_count: 0,
+  attendeeCount: 0,
   cost: 0,
   income: 0,
   profit: 0,
-  tickets_count: 0,
+  ticketsCount: 0,
   ...overrides,
 });
 
@@ -101,8 +98,13 @@ export const bookingRow = (
   parent_listing_id: 0,
   price_paid: 0,
   quantity: 1,
+  recurring_interval: "",
+  recurring_price: 0,
+  recurring_tax: 0,
   refunded: 0,
   start_at: null,
+  subscription_id: "",
+  subscription_status: "",
   ...overrides,
 });
 
@@ -159,41 +161,41 @@ export const testTokenEntry = (
  * the whole order, with zeroed usage aggregates. Override any field. */
 export const testModifier = (overrides: Partial<Modifier> = {}): Modifier => ({
   active: true,
-  calc_kind: "percent",
-  calc_value: 10,
+  calcKind: "percent",
+  calcValue: 10,
   code: "",
-  code_index: null,
+  codeIndex: null,
   direction: "discount",
   id: 1,
-  max_per_order: null,
-  min_subtotal: 0,
-  min_visits: 0,
+  maxPerOrder: null,
+  minSubtotal: 0,
+  minVisits: 0,
   name: "Early bird",
   scope: "all",
   stock: null,
-  total_revenue: 0,
-  total_uses: 0,
+  totalRevenue: 0,
+  totalUses: 0,
   trigger: "automatic",
-  usage_count: 0,
+  usageCount: 0,
   ...overrides,
 });
 
 /** Build a radio question fixture with answer options. Each `[id, text]` pair
- * becomes an active answer whose sort_order follows the array order. */
+ * becomes an active answer whose sort order follows the array order. */
 export const testRadioQuestion = (
   id: number,
   text: string,
   answers: [number, string][],
 ): QuestionWithAnswers => ({
-  answers: answers.map(([answerId, answerText], sort_order) => ({
+  answers: answers.map(([answerId, answerText], sortOrder) => ({
     active: true,
     id: answerId,
-    question_id: id,
-    sort_order,
+    questionId: id,
+    sortOrder,
     text: answerText,
   })),
-  assign_all: false,
-  display_type: "radio",
+  assignAll: false,
+  displayType: "radio",
   id,
   text,
 });
@@ -201,17 +203,17 @@ export const testRadioQuestion = (
 export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   description: "",
   hidden: false,
-  hide_package_listings: false,
+  hidePackageListings: false,
   id: 1,
-  is_package: false,
-  max_attendees: 0,
+  isPackage: false,
+  maxAttendees: 0,
   name: "Test Group",
-  scan_checks_in_all_listings: false,
-  show_hidden_listings: true,
+  scanChecksInAllListings: false,
+  showHiddenListings: true,
   slug: "test-group",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
-  slug_index: "test-group-index" as BlindIndex,
-  terms_and_conditions: "",
+  slugIndex: "test-group-index" as BlindIndex,
+  termsAndConditions: "",
   ...overrides,
 });
 
@@ -220,23 +222,23 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
 export const testAnswer = (overrides: Partial<Answer> = {}): Answer => ({
   active: true,
   id: 10,
-  question_id: 1,
-  sort_order: 0,
+  questionId: 1,
+  sortOrder: 0,
   text: "A",
   ...overrides,
 });
 
-/** Factory for a {@link QuestionWithAnswers}: `display_type` defaults to
+/** Factory for a {@link QuestionWithAnswers}: `displayType` defaults to
  *  `"radio"` with no answers, so a radio/dropdown/free-text question is built by
- *  overriding `display_type` and passing `answers`. The returned type keeps
- *  `display_type` as the literal {@link QuestionDisplayType}, so callers need no
+ *  overriding `displayType` and passing `answers`. The returned type keeps
+ *  `displayType` as the literal {@link QuestionDisplayType}, so callers need no
  *  `… as const`. */
 export const testQuestion = (
   overrides: Partial<QuestionWithAnswers> = {},
 ): QuestionWithAnswers => ({
   answers: [],
-  assign_all: false,
-  display_type: "radio",
+  assignAll: false,
+  displayType: "radio",
   id: 1,
   text: "Question?",
   ...overrides,
@@ -273,7 +275,7 @@ export const testBuiltSite = (
  * `{ groupIds }`. Membership is written via setListingGroups by the factory. */
 export type TestListingOverrides = Partial<
   Omit<ListingInput, "slug" | "slugIndex" | "groupIds">
-> & { groupId?: number; groupIds?: number[] };
+> & { groupId?: number; groupIds?: number[] | undefined };
 
 /** Resolve the group-id list a test override describes: explicit `groupIds`
  * wins; otherwise a positive `groupId` becomes a single-group list; `groupId: 0`
@@ -299,34 +301,29 @@ export const testListingInput = (
   };
 };
 
+/** The smallest form the create and edit pages accept: every box the page
+ *  draws carries a value, and the count and price boxes carry the declared
+ *  column defaults. */
+/* jscpd:ignore-start -- static data, not code */
 export const baseListingForm: Record<string, string> = {
-  max_attendees: "100",
-  max_quantity: "1",
+  durationDays: "1",
+  maxAttendees: "100",
+  maximumDaysAfter: "90",
+  maxPrice: "100.00",
+  maxQuantity: "1",
+  minimumDaysBefore: "1",
+  minQuantity: "1",
   name: "My Listing",
-  thank_you_url: "https://example.com",
+  thankYouUrl: "https://example.com",
+  unitPrice: "0",
 };
+/* jscpd:ignore-end */
 
 export const webhookMeta = (
   metadata: Partial<SessionMetadata> & { name: string },
 ): SessionMetadata => ({
+  ...blankMetadata,
   _origin: "localhost",
-  address: "",
-  allocations: "",
-  answer_ids: "",
-  balance_attendee_id: "",
-  date: "",
-  day_count: "",
-  email: "",
-  items: "",
-  modifiers: "",
-  phone: "",
-  price_proof: "",
-  reservation_amount: "",
-  site_token_index: "",
-  special_instructions: "",
-  tax_policy: "",
-  text_answer_ids: "",
-  thank_you_url: "",
   ...metadata,
 });
 
@@ -401,25 +398,25 @@ export const makeTestListing = (
   overrides: Partial<EmailListing> = {},
 ): EmailListing => ({
   active: true,
-  assign_built_site: false,
-  attendee_count: 10,
-  can_pay_more: false,
-  customisable_days: false,
+  assignBuiltSite: false,
+  attendeeCount: 10,
+  canPayMore: false,
+  customisableDays: false,
   date: "",
-  day_prices: {},
-  duration_days: 1,
+  dayPrices: {},
+  durationDays: 1,
   hidden: false,
   id: 1,
-  initial_site_months: 0,
-  listing_type: "standard",
+  initialSiteMonths: 0,
+  listingType: "standard",
   location: "",
-  max_attendees: 100,
-  months_per_unit: 0,
+  maxAttendees: 100,
+  monthsPerUnit: 0,
   name: "Test Listing",
-  purchase_only: false,
+  purchaseOnly: false,
   slug: "test-listing",
-  unit_price: 0,
-  webhook_url: "",
+  unitPrice: 0,
+  webhookUrl: "",
   ...overrides,
 });
 
@@ -456,8 +453,8 @@ export const makeTestEntry = (
  *  factories and the questions template tests so the answer array lives in
  *  one place. */
 export const smallLargeAnswers = [
-  testAnswer({ id: 10, sort_order: 0, text: "Small" }),
-  testAnswer({ id: 11, sort_order: 1, text: "Large" }),
+  testAnswer({ id: 10, sortOrder: 0, text: "Small" }),
+  testAnswer({ id: 11, sortOrder: 1, text: "Large" }),
 ];
 
 /** The canonical "Size?" question answer-data fixture used by both the

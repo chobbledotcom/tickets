@@ -4,7 +4,7 @@ import type { Answer, Question } from "#db/question-types.ts";
 import { getAttendeeAnswersByQuestion } from "#db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -22,7 +22,7 @@ type DirectBooking = {
   special_instructions?: string;
 };
 
-/** Extract merge_version from the merge preview HTML page. */
+/** Extract mergeVersion from the merge preview HTML page. */
 export const getMergeVersion = async (
   targetId: number,
   sourceToken: string,
@@ -34,7 +34,7 @@ export const getMergeVersion = async (
   );
   const html = await page.text();
   return requireValue(
-    extractInputValue(html, "merge_version"),
+    extractInputValue(html, "mergeVersion"),
     "Merge preview did not admit a merge form",
   );
 };
@@ -108,14 +108,14 @@ export const mergePairWithQuestion = async (
   target: Attendee;
 }> => {
   const { listing1, listing2, target, source, sourceToken } = await mergePair();
-  const q = await questionsTable.insert({
+  const q = await records.questions.insert({
     displayType: "radio",
     text: questionText,
   });
   const answers: Answer[] = [];
   for (const [index, text] of answerTexts.entries()) {
     answers.push(
-      await answersTable.insert({
+      await records.answers.insert({
         questionId: q.id,
         sortOrder: index,
         text,
@@ -164,7 +164,7 @@ export const submitMerge = async (
   const mergeVersion = await getMergeVersion(targetId, sourceToken);
   const { response } = await adminFormPost(
     `/admin/attendees/${targetId}/merge`,
-    { merge_version: mergeVersion, source_token: sourceToken, ...extra },
+    { mergeVersion, sourceToken, ...extra },
   );
   return { mergeVersion, response };
 };
@@ -211,8 +211,8 @@ export const expectAnswerConflictMerged = async (
     target: [a1.id],
   });
   const { response } = await submitMerge(target.id, sourceToken, {
-    [`answer_${q.id}`]: choice,
-    pii_name: nameChoice,
+    [`answer${q.id}`]: choice,
+    piiName: nameChoice,
   });
   expect(response.status).toBe(302);
   const expected =
@@ -231,7 +231,7 @@ export const submitBookingDecision = async (
     sameListing: true,
   });
   const { response } = await submitMerge(target.id, sourceToken, {
-    [`booking_${listing1.id}:null:0:0`]: bookingChoice,
+    [`booking${listing1.id}:null:0:0`]: bookingChoice,
   });
   return { listing1, response, target };
 };

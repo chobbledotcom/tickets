@@ -69,20 +69,20 @@ describe("test-utils — listing & attendee factories", () => {
       const listing = await createTestListing({
         thankYouUrl: "https://custom.example.com/done",
       });
-      expect(listing.thank_you_url).toBe("https://custom.example.com/done");
-      expect(listing.slug).toBeTruthy();
+      expect(listing.thankYouUrl).toBe("https://custom.example.com/done");
+      expect(listing.slug).toMatch(/^[0-9a-h]{5}$/);
     });
 
     test("creates an listing with default settings", async () => {
       const listing = await createTestListing();
       expect(listing.id).toBeGreaterThan(0);
-      expect(listing.max_attendees).toBe(100);
+      expect(listing.maxAttendees).toBe(100);
       expect(listing.active).toBe(true);
     });
 
     test("creates an listing with maxPrice", async () => {
       const listing = await createTestListing({ maxPrice: 5000 });
-      expect(listing.max_price).toBe(5000);
+      expect(listing.maxPrice).toBe(5000);
     });
   });
 
@@ -99,10 +99,10 @@ describe("test-utils — listing & attendee factories", () => {
         unitPrice: 1500,
         webhookUrl: "https://hook.example.com",
       });
-      expect(updated.max_attendees).toBe(200);
-      expect(updated.unit_price).toBe(1500);
-      expect(updated.webhook_url).toBe("https://hook.example.com");
-      expect(updated.thank_you_url).toBe("https://thanks.example.com");
+      expect(updated.maxAttendees).toBe(200);
+      expect(updated.unitPrice).toBe(1500);
+      expect(updated.webhookUrl).toBe("https://hook.example.com");
+      expect(updated.thankYouUrl).toBe("https://thanks.example.com");
     });
 
     test("throws when listing does not exist", async () => {
@@ -118,8 +118,8 @@ describe("test-utils — listing & attendee factories", () => {
       const updated = await updateTestListing(listing.id, {
         maxAttendees: 50,
       });
-      expect(updated.max_attendees).toBe(50);
-      expect(updated.thank_you_url).toBe("https://original.example.com");
+      expect(updated.maxAttendees).toBe(50);
+      expect(updated.thankYouUrl).toBe("https://original.example.com");
     });
 
     test("clears fields when set to zero/empty", async () => {
@@ -131,20 +131,20 @@ describe("test-utils — listing & attendee factories", () => {
         unitPrice: 0,
         webhookUrl: "",
       });
-      expect(updated.unit_price).toBe(0);
-      expect(updated.webhook_url).toBe("");
+      expect(updated.unitPrice).toBe(0);
+      expect(updated.webhookUrl).toBe("");
     });
 
     test("updates max_price when explicitly set", async () => {
       const listing = await createTestListing();
       const updated = await updateTestListing(listing.id, { maxPrice: 7500 });
-      expect(updated.max_price).toBe(7500);
+      expect(updated.maxPrice).toBe(7500);
     });
 
     test("preserves existing max_price when not specified in update", async () => {
       const listing = await createTestListing({ maxPrice: 3000 });
       const updated = await updateTestListing(listing.id, { maxAttendees: 50 });
-      expect(updated.max_price).toBe(3000);
+      expect(updated.maxPrice).toBe(3000);
     });
   });
 
@@ -237,8 +237,8 @@ describe("test-utils — listing & attendee factories", () => {
       );
       expect(attendee.id).toBeGreaterThan(0);
       expect(attendee.listing_id).toBe(listing.id);
-      expect(token).toBeTruthy();
-      expect(typeof token).toBe("string");
+      expect(token).toBe(attendee.ticket_token);
+      expect(token).toMatch(/^\S+$/);
     });
 
     test("throws error when capacity is exceeded", async () => {

@@ -23,13 +23,11 @@ import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import { transportFactsOf } from "#payment/transport-error.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { countedText, orderLabel } from "#shared/count-text.ts";
+import type { CredentialCheck } from "#shared/credential-check.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import {
-  type CredentialCheck,
-  createWithClient,
-} from "#shared/payment-helpers.ts";
+import { createWithClient } from "#shared/payment-helpers.ts";
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";

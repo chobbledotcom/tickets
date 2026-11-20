@@ -112,8 +112,8 @@ describeWithEnv(
       // is the terminal outcome. If a change finalizes it, a replay would wrongly
       // hand the customer a ticket — so pin both fields.
       const record = await getProcessedPayment("cs_unfinalized");
-      expect(record?.attendee_id).toBeNull();
-      expect(record?.failure_data).not.toBe("");
+      expect(record?.attendeeId).toBeNull();
+      expect(record?.failureData).not.toBe("");
     });
 
     test("a redelivery of a stored-refunded booking replays the refund — no re-create, no re-refund, no ticket", async () => {
@@ -154,7 +154,7 @@ describeWithEnv(
           // attendee insert), so its replay returns the ticket. The store-refund path
           // is the deliberate exception above; keep the two from drifting together.
           const record = await getProcessedPayment("cs_finalized");
-          expect(record?.attendee_id).toBe(attendee!.id);
+          expect(record?.attendeeId).toBe(attendee!.id);
         },
       );
     });
@@ -211,8 +211,8 @@ describeWithEnv(
           expect(refund.calls.length).toBe(1);
           // Recorded as the session's terminal outcome (not finalized → no ticket).
           const record = await getProcessedPayment("cs_missing_listing");
-          expect(record?.attendee_id).toBeNull();
-          expect(record?.failure_data).not.toBe("");
+          expect(record?.attendeeId).toBeNull();
+          expect(record?.failureData).not.toBe("");
         },
       );
     });
@@ -353,7 +353,7 @@ describeWithEnv(
           expect(attendee?.quantity).toBe(0);
           expect(await getNoteRows("attendee", [attendee!.id])).toHaveLength(1);
           const record = await getProcessedPayment("cs_refund_retry");
-          expect(record?.failure_data).not.toBe("");
+          expect(record?.failureData).not.toBe("");
         },
       );
     });

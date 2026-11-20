@@ -131,15 +131,15 @@ const liftUpdateFlag = async (io: ScopedIo): Promise<void> => {
 };
 
 /** Fetch the site's read-only page. A non-200 answer makes
- * `fetchUpdatePageBody` raise an `UpdatePageCheckError` that names the URL.
- * The wait retries a 503 answer, the migration page, and ends on any other
- * status. */
+ * `fetchUpdatePageBody` raise an `UpdatePageCheckError` that names the
+ * status. The wait retries a 503 answer, the migration page, and ends on any
+ * other status. */
 const fetchReadOnlyPage = async (site: {
   fetchText: FetchText;
   siteUrl: string;
 }): Promise<string> => {
   const url = `${siteBaseUrl(site.siteUrl)}/read-only`;
-  return await fetchUpdatePageBody(site.fetchText, url, ` for ${url}`);
+  return await fetchUpdatePageBody(site.fetchText, url);
 };
 
 export const runUpdateMode = async (
@@ -162,7 +162,7 @@ export const runUpdateMode = async (
   // flag write, not become a https://null page request.
   if (siteUrl.trim() === "" || siteUrl.trim() === "null") {
     io.log(
-      `The deploy passed no site URL for script ${scriptId}, so the update-mode wait has no page to check. Give the deploy the site's URL and re-run it.`,
+      "The deploy passed no site URL, so the update-mode wait has no page to check. Give the deploy the site's URL and re-run it.",
     );
     return 1;
   }
@@ -174,7 +174,7 @@ export const runUpdateMode = async (
   };
 
   if (command === "begin") {
-    io.log(`Setting ${UPDATE_IN_PROGRESS_VAR} on script ${scriptId}..`);
+    io.log(`Setting ${UPDATE_IN_PROGRESS_VAR}..`);
     await upsertUpdateSecret(scopedIo, UPDATE_FLAG_VALUE);
     // The schedule checks at 10, 30, and 60 seconds and stays quiet
     // between them. A run-out reverts the flag, so the site accepts
@@ -188,7 +188,7 @@ export const runUpdateMode = async (
   // Only the build this deploy published may answer: an active page the old
   // build still serves must not lift the flag before the new build serves.
   await waitForUpdatePage(waitOptionsFrom(scopedIo, false, buildTag));
-  io.log(`Removing ${UPDATE_IN_PROGRESS_VAR} from script ${scriptId}..`);
+  io.log(`Removing ${UPDATE_IN_PROGRESS_VAR}..`);
   await liftUpdateFlag(scopedIo);
   return 0;
 };

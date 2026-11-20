@@ -102,7 +102,7 @@ export const handleCartBySlugs: BySlugsHandler<
   if (items === null) return null;
   const soloChildIds = new Set(
     items.flatMap((item) =>
-      item.kind === "listing" && item.listing.bookable_alone
+      item.kind === "listing" && item.listing.bookableAlone
         ? [item.listing.id]
         : [],
     ),

@@ -5,7 +5,7 @@ import { testListingWithCount } from "#test-utils/factories.ts";
 
 describe("bookingDateFields", () => {
   test("standard non-customisable booking spans a single dateless day", () => {
-    const listing = testListingWithCount({ listing_type: "standard" });
+    const listing = testListingWithCount({ listingType: "standard" });
     expect(bookingDateFields(listing, null, 3)).toEqual({
       date: null,
       durationDays: 1,
@@ -14,8 +14,8 @@ describe("bookingDateFields", () => {
 
   test("daily non-customisable booking uses the listing's fixed duration", () => {
     const listing = testListingWithCount({
-      duration_days: 4,
-      listing_type: "daily",
+      durationDays: 4,
+      listingType: "daily",
     });
     expect(bookingDateFields(listing, "2026-07-01", 2)).toEqual({
       date: "2026-07-01",
@@ -25,10 +25,10 @@ describe("bookingDateFields", () => {
 
   test("customisable daily booking spans the chosen day count", () => {
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 1000, 3: 2500 },
-      duration_days: 5,
-      listing_type: "daily",
+      customisableDays: true,
+      dayPrices: { 1: 1000, 3: 2500 },
+      durationDays: 5,
+      listingType: "daily",
     });
     expect(bookingDateFields(listing, "2026-07-01", 3)).toEqual({
       date: "2026-07-01",
@@ -38,10 +38,10 @@ describe("bookingDateFields", () => {
 
   test("customisable standard booking carries the day count but no date", () => {
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 2: 1800 },
-      duration_days: 3,
-      listing_type: "standard",
+      customisableDays: true,
+      dayPrices: { 2: 1800 },
+      durationDays: 3,
+      listingType: "standard",
     });
     expect(bookingDateFields(listing, null, 2)).toEqual({
       date: null,
@@ -54,10 +54,10 @@ describe("bookingDateFields", () => {
     // day count; the default must mean one day (not the listing's maximum),
     // so a row never silently books the whole configurable span.
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 1000, 3: 2500 },
-      duration_days: 5,
-      listing_type: "daily",
+      customisableDays: true,
+      dayPrices: { 1: 1000, 3: 2500 },
+      durationDays: 5,
+      listingType: "daily",
     });
     expect(bookingDateFields(listing, "2026-07-01")).toEqual({
       date: "2026-07-01",
@@ -69,10 +69,10 @@ describe("bookingDateFields", () => {
     // The clamp's Math.max(1, …) turns 0 into the same one-day span the
     // default day count produces.
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 1000 },
-      duration_days: 5,
-      listing_type: "daily",
+      customisableDays: true,
+      dayPrices: { 1: 1000 },
+      durationDays: 5,
+      listingType: "daily",
     });
     expect(bookingDateFields(listing, "2026-07-01", 0)).toEqual({
       date: "2026-07-01",
@@ -82,10 +82,10 @@ describe("bookingDateFields", () => {
 
   test("rejects a non-finite day count", () => {
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 1000 },
-      duration_days: 5,
-      listing_type: "daily",
+      customisableDays: true,
+      dayPrices: { 1: 1000 },
+      durationDays: 5,
+      listingType: "daily",
     });
     expect(() => bookingDateFields(listing, "2026-07-01", Number.NaN)).toThrow(
       "Invalid booking duration: NaN",

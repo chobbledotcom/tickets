@@ -126,45 +126,34 @@ export type BenchmarkCatalogueIds = {
 };
 
 /** Add the public catalogue whose group count makes query scaling visible.
- * Dynamic imports: nothing may read the environment before main sets it. */
+ * The database step loads on first use: nothing may read the environment
+ * before main sets it. */
 export const seedBenchmarkCatalogue =
   async (): Promise<BenchmarkCatalogueIds> => {
-    const { groups, setListingGroups } = await import("#db/groups.ts");
-    const { listingsTable } = await import("#db/listings/records.ts");
-    const { hmacHash } = await import("#crypto/hashing.ts");
-
+    const { addGroupWithListing } = await import("./catalogue.ts");
     const groupIds = new Map<number, number>();
     const listingIds = new Map<number, number>();
-    const addGroupWithListing = async (
+    const addNumbered = async (
       number: number,
       isPackage: boolean,
     ): Promise<void> => {
       const kind = isPackage ? "package" : "group";
-      const slug = `benchmark-${kind}-${number}`;
-      const group = await groups.table.insert({
+      const added = await addGroupWithListing({
+        groupName: benchmarkGroupName(number, isPackage),
+        groupSlug: `benchmark-${kind}-${number}`,
         isPackage,
-        name: benchmarkGroupName(number, isPackage),
-        slug,
-        slugIndex: await hmacHash(slug),
+        listingName: benchmarkListingName(number),
+        listingSlug: `benchmark-listing-${number}`,
       });
-      const listingSlug = `benchmark-listing-${number}`;
-      const listing = await listingsTable.insert({
-        maxAttendees: 100,
-        maxPrice: 0,
-        name: benchmarkListingName(number),
-        slug: listingSlug,
-        slugIndex: await hmacHash(listingSlug),
-      });
-      await setListingGroups(listing.id, [group.id]);
-      groupIds.set(number, group.id);
-      listingIds.set(number, listing.id);
+      groupIds.set(number, added.groupId);
+      listingIds.set(number, added.listingId);
     };
 
     for (let number = 1; number <= BENCHMARK_REGULAR_GROUPS; number++) {
-      await addGroupWithListing(number, false);
+      await addNumbered(number, false);
     }
     for (let number = 1; number <= BENCHMARK_PACKAGE_GROUPS; number++) {
-      await addGroupWithListing(BENCHMARK_REGULAR_GROUPS + number, true);
+      await addNumbered(BENCHMARK_REGULAR_GROUPS + number, true);
     }
     return { groupIds, listingIds };
   };

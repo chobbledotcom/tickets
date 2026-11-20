@@ -8,6 +8,7 @@
  * This module is pure: it decides from the records it is shown.
  */
 
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
 
 /** The attendee actions that can advance durable payment work. */
@@ -140,8 +141,10 @@ export type PaymentLiveWorkField = keyof typeof PAYMENT_ROW_LIFECYCLE;
 export const rowWorkMirrorSql = (
   prefix: "" | "payment.",
   field: PaymentLiveWorkField,
-): string =>
-  `${prefix}protected_state = '${PAYMENT_ROW_LIFECYCLE[field].mirror}'`;
+): SqlStatement =>
+  sql`${sqlName(`${prefix}protected_state`)} = ${sqlLiteral(
+    PAYMENT_ROW_LIFECYCLE[field].mirror,
+  )}`;
 
 /** Every kind of live work, most urgent first. Built once from the table's own
  *  `saidFirst`, so both readers below agree and neither depends on the order

@@ -21,16 +21,21 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       durationDays: number,
       groupId = 0,
     ): Record<string, string> => ({
-      duration_days: String(durationDays),
-      // Membership is carried by the group_ids checkboxes; only send one when the
+      durationDays: String(durationDays),
+      // Membership is carried by the groupIds checkboxes; only send one when the
       // listing is in a group (0 = ungrouped).
-      ...(groupId > 0 ? { group_ids: String(groupId) } : {}),
-      listing_type: "daily",
-      max_attendees: "100",
-      max_quantity: "1",
+      ...(groupId > 0 ? { groupIds: String(groupId) } : {}),
+      listingType: "daily",
+      maxAttendees: "100",
+      maximumDaysAfter: "90",
+      maxPrice: "100.00",
+      maxQuantity: "1",
+      minimumDaysBefore: "1",
+      minQuantity: "1",
       name: listing.name,
       slug: listing.slug,
-      thank_you_url: "https://example.com",
+      thankYouUrl: "https://example.com",
+      unitPrice: "0",
     });
 
     /**
@@ -84,7 +89,7 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       // The full edit form, so the listing keeps its per-day prices.
       await updateTestListing(listing.id, { durationDays: 4 });
 
-      expect((await getListingWithCount(listing.id))?.duration_days).toBe(4);
+      expect((await getListingWithCount(listing.id))?.durationDays).toBe(4);
       // The maximum changed; the booked span did not.
       expect((await rawListingRange(listing.id))!.end_at).toBe(before!.end_at);
       await expectListingActivityLogLacks(listing.id, "duration changed");

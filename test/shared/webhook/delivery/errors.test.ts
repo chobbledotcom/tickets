@@ -5,6 +5,7 @@ import { execute, queryOne } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { PRICE_TYPE_GROUP } from "#db/price-types.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t, withMessageGroups } from "#i18n";
 import { flushPendingWork } from "#shared/pending-work.ts";
 import {
@@ -79,7 +80,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     await withRequestContext(() =>
       logAndNotifyRegistration(
-        [makeEntry({ webhook_url: "https://failed-hook.com" })],
+        [makeEntry({ webhookUrl: "https://failed-hook.com" })],
         { source: "public" },
       ),
     );
@@ -93,7 +94,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
   test("reports an unexpected failure from pending registration work", async () => {
     fetchSpy.reply(() => Promise.reject(new Error("private failure detail")));
     const entries = [
-      makeEntry({ webhook_url: "https://private-webhook.example.com" }),
+      makeEntry({ webhookUrl: "https://private-webhook.example.com" }),
     ];
 
     const logs = await registrationLogs(entries);
@@ -112,7 +113,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     );
 
     const logs = await registrationLogs([
-      makeEntry({ webhook_url: "https://failed-hook.com" }),
+      makeEntry({ webhookUrl: "https://failed-hook.com" }),
     ]);
 
     expectOneError(logs, "E_REGISTRATION_DELIVERY");
@@ -132,10 +133,9 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
   test("rejects an unknown stored email provider before sending", async () => {
     await configureTestEmail();
-    await execute("UPDATE settings SET value = ? WHERE key = ?", [
-      "unknown-provider",
-      "email_provider",
-    ]);
+    await execute(
+      sql`UPDATE settings SET value = ${"unknown-provider"} WHERE key = ${"email_provider"}`,
+    );
     settings.invalidateCache();
     await settings.loadKeys(ALL_SETTINGS_KEYS);
 
@@ -152,9 +152,8 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     // ntfy and Sentry fan-out: the write failure may not replace the
     // delivery error the report exists for.
     await execute(
-      `CREATE TRIGGER reject_activity_log BEFORE INSERT ON activity_log
+      sql`CREATE TRIGGER reject_activity_log BEFORE INSERT ON activity_log
        BEGIN SELECT RAISE(ABORT, 'activity log rejected'); END`,
-      [],
     );
     try {
       const report = await requestErrorLogs(() =>
@@ -166,7 +165,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
         "Registration delivery failure activity write",
       ]);
     } finally {
-      await execute("DROP TRIGGER IF EXISTS reject_activity_log", []);
+      await execute(sql`DROP TRIGGER IF EXISTS reject_activity_log`);
     }
   });
 
@@ -181,16 +180,14 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     // The claim has already run: it zeroed both flags and captured these
     // values, which is the state the boundary's release meets.
     await execute(
-      "UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ?",
-      [attendee.id],
+      sql`UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ${attendee.id}`,
     );
     await execute(
-      `CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
+      sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
        WHEN NEW.email_pending = 2 AND OLD.email_pending = 0
        BEGIN
          SELECT RAISE(ABORT, 'restore rejected');
        END`,
-      [],
     );
     await settings.update.email.provider("unknown-provider");
     try {
@@ -198,7 +195,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
         await logAndNotifyRegistration(
           [
             makeEntry(
-              { webhook_url: "https://hook.example.com/registration" },
+              { webhookUrl: "https://hook.example.com/registration" },
               { email: attendee.email, id: attendee.id },
             ),
           ],
@@ -223,12 +220,12 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       const row = await queryOne<{
         email_pending: number;
         webhooks_pending: number;
-      }>("SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?", [
-        attendee.id,
-      ]);
+      }>(
+        sql`SELECT email_pending, webhooks_pending FROM attendees WHERE id = ${attendee.id}`,
+      );
       expect(row).toEqual({ email_pending: 0, webhooks_pending: 0 });
     } finally {
-      await execute("DROP TRIGGER IF EXISTS reject_flag_restore", []);
+      await execute(sql`DROP TRIGGER IF EXISTS reject_flag_restore`);
       await settings.update.email.provider("resend");
     }
   });
@@ -265,7 +262,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     await withErrorSpy(() =>
       withRequestContext(() =>
         logAndNotifyRegistration(
-          [makeEntry({ webhook_url: "https://failed-hook.com" })],
+          [makeEntry({ webhookUrl: "https://failed-hook.com" })],
           { source: "public" },
         ),
       ),
@@ -287,8 +284,8 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       withRequestContext(() =>
         logAndNotifyRegistration(
           [
-            makeEntry({ id: 1, webhook_url: "https://refused-hook.com" }),
-            makeEntry({ id: 2, webhook_url: "https://failed-hook.com" }),
+            makeEntry({ id: 1, webhookUrl: "https://refused-hook.com" }),
+            makeEntry({ id: 2, webhookUrl: "https://failed-hook.com" }),
           ],
           { source: "public" },
         ),
@@ -314,7 +311,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
     try {
       const logs = await registrationLogs([
-        makeEntry({ webhook_url: "https://failed-hook.com" }),
+        makeEntry({ webhookUrl: "https://failed-hook.com" }),
       ]);
       const sentryCall = fetchSpy.calls.find(({ args }) =>
         String(args[0]).includes("bugs.example.test"),
@@ -360,8 +357,8 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
         : Promise.reject(unexpected),
     );
     const entries = [
-      makeEntry({ id: 1, webhook_url: "https://failed-hook.com" }),
-      makeEntry({ id: 2, webhook_url: "https://slow-hook.com" }),
+      makeEntry({ id: 1, webhookUrl: "https://failed-hook.com" }),
+      makeEntry({ id: 2, webhookUrl: "https://slow-hook.com" }),
     ];
 
     await withErrorSpy(async () => {
@@ -393,7 +390,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
   test("records one activity when webhook and both emails fail", async () => {
     await configureTestEmail({ businessEmail: "admin@example.com" });
     fetchSpy.reply(() => new Response("refused", { status: 503 }));
-    const entries = [makeEntry({ webhook_url: "https://failed-hook.com" })];
+    const entries = [makeEntry({ webhookUrl: "https://failed-hook.com" })];
 
     const logs = await withErrorSpy(async (errorSpy) => {
       await withRequestContext(() =>
@@ -409,7 +406,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
 
   test("reports a failure-activity write error locally", async () => {
     const entries = [
-      makeEntry({ webhook_url: "http://unsafe-webhook.example.com" }),
+      makeEntry({ webhookUrl: "http://unsafe-webhook.example.com" }),
     ];
 
     const logs = await withErrorSpy(async (errorSpy) => {
@@ -439,11 +436,10 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     const listing = await createTestListing();
     await assignListingsToGroup([listing.id], group.id);
     await execute(
-      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
-      [listing.id, PRICE_TYPE_GROUP, String(group.id), 2500],
+      sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (${listing.id}, ${PRICE_TYPE_GROUP}, ${String(group.id)}, ${2500})`,
     );
     const entry = makeEntry(
-      { id: listing.id, webhook_url: "https://hook.example.com" },
+      { id: listing.id, webhookUrl: "https://hook.example.com" },
       { package_group_id: group.id },
     );
 

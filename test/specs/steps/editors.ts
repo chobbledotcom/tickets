@@ -236,7 +236,7 @@ Then(
     // No box for it, and no sight of it either — showing the address as plain
     // text would tell them just as much as a box would.
     const served = editorBrowser(this).currentHtml;
-    assert(!served.includes('name="webhook_url"'));
+    assert(!served.includes('name="webhookUrl"'));
     assert(!served.includes(OWNERS_ADDRESS));
   },
 );
@@ -245,6 +245,15 @@ When(
   "{word} saves {word} with somewhere else to forward bookings to",
   function (this: TicketsWorld, _who: string, name: string): Promise<void> {
     return editorCraftsForwardingTo(this, name, SOMEWHERE_ELSE);
+  },
+);
+
+Then(
+  "{word} is told the form sent a field it does not show",
+  function (this: TicketsWorld, _who: string): void {
+    expect(editorBrowser(this).pageText).toContain(
+      t("fields.validation.unshown_field"),
+    );
   },
 );
 

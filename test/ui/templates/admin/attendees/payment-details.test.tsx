@@ -207,7 +207,7 @@ describe("attendee refund confirmation pages", () => {
     );
     expectIncludesAll(html, [
       'action="/admin/attendees/1/payment-review"',
-      "review_identity",
+      'name="reviewIdentity"',
       "case-88",
       "type their name",
     ]);
@@ -226,6 +226,7 @@ describe("attendee refund confirmation pages", () => {
       OWNER_SESSION,
     );
     expectIncludesAll(html, [
+      '<input name="resendSides" type="hidden" value="email">',
       "Re-send Notification: John Doe",
       'action="/admin/attendees/1/resend-notification"',
       "This will re-send the registration notification for this attendee.",
@@ -235,6 +236,22 @@ describe("attendee refund confirmation pages", () => {
     ]);
     // Re-sending is not a destructive action: no danger styling anywhere.
     assert(!html.includes('class="danger"'));
+  });
+
+  test("the resend-notification page offers the three send choices when a webhook exists", () => {
+    const html = adminResendNotificationPage(
+      { attendee: testAttendee(), hasWebhook: true },
+      OWNER_SESSION,
+    );
+
+    expectIncludesAll(html, [
+      "<p><strong>Choose what to re-send:</strong></p>" +
+        '<label><input checked name="resendSides" type="radio" value="email">The email</label>' +
+        '<label><input name="resendSides" type="radio" value="webhooks">The webhook</label>' +
+        '<label><input name="resendSides" type="radio" value="both">The email and the webhook</label>',
+    ]);
+    // The radio carries the choice, so no hidden field repeats it.
+    assert(!html.includes('type="hidden" value="email"'));
   });
 
   test("the refund-all page warns per the count and the blocker's reason", () => {

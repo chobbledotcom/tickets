@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { emptyRange, occurredAtRange } from "#accounting/range.ts";
-import { clauseArgs, whereSql } from "#db/where-clauses.ts";
+import { whereTail } from "#db/select/expression.ts";
+import { sql } from "#db/sql.ts";
 
 describe("accounting > range", () => {
   describe("occurredAtRange", () => {
@@ -11,38 +12,28 @@ describe("accounting > range", () => {
 
     test("a lower bound alone is an inclusive >= predicate", () => {
       expect(occurredAtRange({ endMs: null, startMs: 100 })).toEqual([
-        { args: [100], clause: "occurred_at >= ?" },
+        sql`transfer.occurred_at >= ${100}`,
       ]);
     });
 
     test("an upper bound alone is an exclusive < predicate", () => {
       expect(occurredAtRange({ endMs: 200, startMs: null })).toEqual([
-        { args: [200], clause: "occurred_at < ?" },
+        sql`transfer.occurred_at < ${200}`,
       ]);
     });
 
     test("both bounds are separate clauses, lower first", () => {
       expect(occurredAtRange({ endMs: 200, startMs: 100 })).toEqual([
-        { args: [100], clause: "occurred_at >= ?" },
-        { args: [200], clause: "occurred_at < ?" },
-      ]);
-    });
-
-    test("qualifies an explicitly named timestamp column", () => {
-      expect(
-        occurredAtRange({ endMs: 200, startMs: 100 }, "transfer.occurred_at"),
-      ).toEqual([
-        { args: [100], clause: "transfer.occurred_at >= ?" },
-        { args: [200], clause: "transfer.occurred_at < ?" },
+        sql`transfer.occurred_at >= ${100}`,
+        sql`transfer.occurred_at < ${200}`,
       ]);
     });
 
     test("builds the query tail with the args in clause order", () => {
       const parts = occurredAtRange({ endMs: 200, startMs: 100 });
-      expect(whereSql(parts)).toBe(
-        " WHERE occurred_at >= ? AND occurred_at < ?",
+      expect(whereTail(parts)).toEqual(
+        sql` WHERE transfer.occurred_at >= ${100} AND transfer.occurred_at < ${200}`,
       );
-      expect(clauseArgs(parts)).toEqual([100, 200]);
     });
   });
 });

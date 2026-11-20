@@ -1,12 +1,12 @@
 import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { TxScope } from "#db/client.ts";
+import { resultsOf, type TxScope } from "#db/client.ts";
 import { insertRefundConfirmation } from "#db/refund-confirmations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const transactionReturning = (results: ResultSet[]): TxScope => ({
-  batch: () => Promise.resolve(results),
+  batch: () => Promise.resolve(resultsOf(results)),
   execute: () => {
     throw new Error("A refund confirmation does not execute single statements");
   },

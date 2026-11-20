@@ -3,7 +3,7 @@
  *
  * Turns the raw create/edit form into a {@link ListingInput}. It wraps the
  * shared listing fields into per-request create/update REST resources, so the
- * dynamic `day_price_*` inputs can be read alongside the validated values.
+ * dynamic `dayPrice<n>` inputs can be read alongside the validated values.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
@@ -14,107 +14,71 @@ import {
   validateListingGroupMembershipsTx,
 } from "#db/groups/membership.ts";
 import { copyPackageMemberOverridesTx } from "#db/groups.ts";
-import { syncListingPrices } from "#db/listing-price-sync.ts";
+import { setImagesForItem } from "#db/images.ts";
 import {
   type AssignPlan,
   moveUndatedBookingsToDayTx,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { range } from "#fp";
+import { t } from "#i18n";
 import { formDataToParams } from "#routes/csrf.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
-import {
-  type ListingInput,
-  listingCatalogFields,
-} from "#shared/catalog-fields/fields.ts";
-import { isBuilderEnabled } from "#shared/config.ts";
-import { toMinorUnits } from "#shared/currency.ts";
-import { normalizeDatetime } from "#shared/dates.ts";
-import { isDemoMode } from "#shared/demo/mode.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
   applyDemoOverrides,
   LISTING_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
+  checkedValues,
+  type ValidationResult,
+} from "#shared/forms/validation.ts";
+import { showUseDefaultsToggle } from "#shared/listing-defaults.ts";
+import {
   generateUniqueListingSlug,
   keepDailyListingDate,
   refuseUndatedListingSwitch,
-  validateListingInput,
 } from "#shared/listings-actions.ts";
-import { defineResource } from "#shared/rest/resource.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
+import { listingRecord } from "#shared/records/listings.ts";
+import {
+  formFieldsInput,
+  shownFieldKeys,
+  unshownFieldOrNull,
+} from "#shared/rest/field-reads.ts";
+import type { WriteVerdict } from "#shared/rest/record.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { commaParts } from "#shared/split.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import {
   getListingEditForm,
   getListingForm,
-  type ListingEditFormValues,
   type ListingFormValues,
+  type ListingFormView,
 } from "#templates/fields/listing.ts";
 import {
-  type AdminSession,
   type DayPrices,
   type ListingType,
   type ListingWithCount,
   parseDayPrices,
 } from "#types";
-import { EDITOR_LOCKED_LISTING_FIELDS } from "./api-listing-body.ts";
 import {
   persistListingJoins,
   prepareListingJoins,
 } from "./api-listing-joins.ts";
 
-/** The stored values an editor's submitted form freezes the locked fields
- *  back to. */
-type EditorFormExisting = { useDefaults: boolean; webhookUrl: string };
-
 type ListingWriteMode = "create" | "update";
 type EmptyBookableDaysPolicy = "defaultAllDays" | "preserveEmpty";
 
-/**
- * Editors must not set a listing's webhook URL. The registration webhook posts
- * full attendee PII to that endpoint, so a crafted URL exfiltrates exactly the
- * data the keyless editor role cannot otherwise read. They must not toggle
- * `use_defaults` either, because that changes the same effective webhook.
- *
- * Both fields are forced to their existing values, so a submitted value is
- * ignored. The editor form hides them too. This is the backstop. The field
- * list is the API's own EDITOR_LOCKED_LISTING_FIELDS, so the surfaces cannot
- * drift. The freeze map is exhaustive over that list, so a new locked field
- * must name its page behaviour to compile.
- */
-const EDITOR_FORM_FREEZE: Record<
-  (typeof EDITOR_LOCKED_LISTING_FIELDS)[number],
-  ((form: FormParams, existing: EditorFormExisting) => void) | null
-> = {
-  // The page form has no active control, so the page parser never reads the
-  // key and there is nothing to freeze.
-  active: null,
-  use_defaults: (form, existing) =>
-    form.set("use_defaults", existing.useDefaults ? "1" : ""),
-  webhook_url: (form, existing) => form.set("webhook_url", existing.webhookUrl),
-};
-
-export const parseListingForm = (
-  session: AdminSession,
-  formData: FormData,
-  existing: EditorFormExisting,
-): FormParams => {
-  const form = formDataToParams(formData);
-  applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-  if (session.adminLevel === "editor") {
-    for (const field of EDITOR_LOCKED_LISTING_FIELDS) {
-      EDITOR_FORM_FREEZE[field]?.(form, existing);
-    }
-  }
-  return form;
-};
-
-const DEFAULT_LISTING_TYPE: ListingType = "standard";
+export const parseListingForm = (formData: FormData): FormParams =>
+  applyDemoOverrides(formDataToParams(formData), LISTING_DEMO_FIELDS);
 
 const EMPTY_BOOKABLE_DAYS_POLICY = {
   create: {
@@ -130,24 +94,20 @@ const EMPTY_BOOKABLE_DAYS_POLICY = {
   Record<ListingType, EmptyBookableDaysPolicy>
 >;
 
-const resolveListingType = (
-  value: ListingFormValues["listing_type"],
-): ListingType => value || DEFAULT_LISTING_TYPE;
-
 const parseBookableDays = (
   value: string,
   listingType: ListingType,
   mode: ListingWriteMode,
-): string[] | undefined => {
+): string[] => {
   const days = commaParts(value);
   if (days.length > 0) return days;
   return EMPTY_BOOKABLE_DAYS_POLICY[mode][listingType] === "preserveEmpty"
     ? days
-    : undefined;
+    : [...VALID_DAY_NAMES];
 };
 
 /**
- * Read the per-day-count price inputs (`day_price_1`, `day_price_2`, …) from
+ * Read the per-day-count price inputs (`dayPrice1`, `dayPrice2`, …) from
  * the raw form into a {@link DayPrices} map. Only days 1..maxDays are read,
  * matching the inputs the form renders. Blank rows are skipped so the count
  * is not offered. {@link parseDayPrices} drops any non-numeric entries.
@@ -161,14 +121,14 @@ const parseDayPricesFromForm = (
     // Optional per-day price: blank ⇒ skip (that day is not offered). A non-blank
     // value that fails to parse is caught by validateDayPricesFromForm before
     // the save, so here a null result is only ever a blank.
-    const price = parseOptionalMinorUnits(form.getString(`day_price_${n}`));
+    const price = parseOptionalMinorUnits(form.getString(`dayPrice${n}`));
     if (price !== null) result[n] = price;
   }
   return parseDayPrices(result);
 };
 
 /**
- * Reject the save when a `day_price_*` field carries a non-blank value that
+ * Reject the save when a `dayPrice<n>` field carries a non-blank value that
  * is not a valid amount for the currency. Examples: `10.005` in GBP, `10.5`
  * in JPY, or `abc`. Without this, {@link parseDayPricesFromForm} silently
  * drops an invalid value. On an update that removes an existing day price
@@ -180,7 +140,7 @@ const parseDayPricesFromForm = (
 const validateDayPricesFromForm = (form: FormParams): string | null => {
   const hasInvalid = [...form.entries()].some(
     ([field, raw]) =>
-      field.startsWith("day_price_") &&
+      /^dayPrice\d+$/.test(field) &&
       raw.trim() !== "" &&
       parseOptionalMinorUnits(raw) === null,
   );
@@ -189,76 +149,114 @@ const validateDayPricesFromForm = (form: FormParams): string | null => {
     : null;
 };
 
-const normalizeOptionalDatetime = (raw: string, field: string): string =>
-  raw ? normalizeDatetime(raw, field) : raw;
+/** A listing form definition, for a create or an edit. */
+type ListingDefinition<Values> = {
+  readonly fields: readonly {
+    readonly name: string;
+    readonly visible?: boolean;
+  }[];
+  readonly validate: (form: FormParams) => ValidationResult<Values>;
+};
 
-const enabledChoice = (enabled: boolean, value: string): boolean =>
-  enabled && value === "1";
+/** The booking duration a checked form carried. The form's own check refuses a
+ *  blank box, so a missing value means the read and the form disagree. */
+export const checkedDurationDays = (values: {
+  durationDays: number | null;
+}): number => {
+  if (typeof values.durationDays === "number") return values.durationDays;
+  throw new Error("The booking duration form box holds no count");
+};
 
-const extractCommonFields = (
-  values: ListingFormValues,
-  form: FormParams,
+/** Read one submitted listing form. A form that sends a field box its page
+ *  did not show is refused. Each shown box is read by its field kind. The
+ *  "use listing defaults" switch sits outside the form definition. */
+const readListingForm = <Values extends ListingFormValues>(
+  definition: ListingDefinition<Values>,
+  view: ListingFormView,
+  submitted: FormParams,
   mode: ListingWriteMode,
-) => {
-  const webhookUrl = isDemoMode() ? "" : values.webhook_url;
-  const durationDays = values.duration_days ?? 1;
-  const listingType = resolveListingType(values.listing_type);
-  // Blank/invalid unit price ⇒ unset (the column defaults to 0 = free). A valid
-  // value is the currency-checked minor-units amount. `unit_price` is always a
-  // string here, so no nullish fallback is needed before parsing.
-  const unitPrice = parseOptionalMinorUnits(values.unit_price) ?? undefined;
-  const bookableDays = parseBookableDays(
-    values.bookable_days,
-    listingType,
-    mode,
+): Result<{
+  input: Omit<ListingInput, "slug" | "slugIndex">;
+  values: Values;
+}> => {
+  const shown = shownFieldKeys(
+    LISTING_FIELDS,
+    definition.fields,
+    showUseDefaultsToggle(view.closed, settings.listingDefaults)
+      ? ["useDefaults"]
+      : [],
   );
-  const closesAt = normalizeOptionalDatetime(values.closes_at, "closes_at");
-  return {
-    ...projectCatalogFields(listingCatalogFields, "form", values),
-    assignBuiltSite: enabledChoice(
-      isBuilderEnabled(),
-      values.assign_built_site,
-    ),
-    bookableDays,
-    closesAt: closesAt === "" ? null : closesAt,
-    date: normalizeOptionalDatetime(values.date, "date"),
-    dayPrices: parseDayPricesFromForm(form, durationDays),
-    groupIds: form.getNumberArray("group_ids"),
-    listingType,
-    maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
-    unitPrice,
-    useDefaults: form.getFlag("use_defaults"),
-    usesLogistics: enabledChoice(
-      settings.features.logistics,
-      values.uses_logistics,
-    ),
-    webhookUrl,
-  };
+  if (
+    unshownFieldOrNull(LISTING_FIELDS, [...submitted.keys()], shown) !== null
+  ) {
+    return errorResult(t("fields.validation.unshown_field"));
+  }
+  const parsed = checkedValues(definition.validate(submitted));
+  if (!parsed.ok) return parsed;
+  const dayError = validateDayPricesFromForm(submitted);
+  if (dayError !== null) return errorResult(dayError);
+  const values = parsed.value;
+  // A group box holds a group id. The read must not drop a value that is not
+  // a group id. A dropped value stores a smaller group set than the form sent.
+  const groupIds = submitted.getPositiveIdArray("groupIds");
+  if (!groupIds.ok) {
+    return errorResult(
+      t("fields.validation.pick_from_list", { label: t("terms.groups") }),
+    );
+  }
+  const fields = formFieldsInput(
+    LISTING_FIELDS,
+    { ...values, useDefaults: submitted.getString("useDefaults") },
+    shown,
+  );
+  return okResult({
+    input: {
+      ...fields,
+      bookableDays: parseBookableDays(
+        values.bookableDays,
+        fields.listingType,
+        mode,
+      ),
+      dayPrices: parseDayPricesFromForm(submitted, checkedDurationDays(values)),
+      groupIds: groupIds.value,
+    },
+    values,
+  });
 };
 
-const extractListingInput = async (
-  values: ListingFormValues,
-  form: FormParams,
-): Promise<ListingInput> => {
+/** Read one submitted listing form as the page view showed it. */
+type ListingFormRead<Input> = (
+  view: ListingFormView,
+  submitted: FormParams,
+) => Promise<Result<Input>>;
+
+/** Read a create form into the listing input, with a fresh slug. */
+const extractListingInput: ListingFormRead<ListingInput> = async (
+  view,
+  submitted,
+) => {
+  const read = readListingForm(getListingForm(view), view, submitted, "create");
+  if (!read.ok) return read;
   const { slug, slugIndex } = await generateUniqueListingSlug();
-  return {
-    ...extractCommonFields(values, form, "create"),
-    slug,
-    slugIndex,
-  };
+  return okResult({ ...read.value.input, slug, slugIndex });
 };
 
-const extractListingUpdateInput = async (
-  values: ListingEditFormValues,
-  form: FormParams,
-): Promise<ListingInput> => {
-  const slug = normalizeSlug(values.slug);
+/** Read an edit form into the listing input, with its submitted slug. */
+const extractListingUpdateInput: ListingFormRead<
+  ListingInput & { date: string }
+> = async (view, submitted) => {
+  const read = readListingForm(
+    getListingEditForm(view),
+    view,
+    submitted,
+    "update",
+  );
+  if (!read.ok) return read;
+  const slug = normalizeSlug(read.value.values.slug);
   const slugIndex = await hmacHash(slug);
-  return {
-    ...extractCommonFields(values, form, "update"),
-    slug,
-    slugIndex,
-  };
+  // The page always shows the date box.
+  const input = read.value.input as ListingInput & { date: string };
+  return okResult({ ...input, slug, slugIndex });
 };
 
 /** The page save's join write, through the same pair the JSON API uses. The
@@ -278,91 +276,166 @@ const writeListingJoins = async (
  * source's package overrides and attribute selections onto the new rows in the
  * SAME transaction. The duplicate then never commits as a live package member
  * at the default price when the override copy fails. */
-const writeCreateListingJoins =
-  (form: FormParams) =>
-  async (tx: TxScope, id: number, input: ListingInput): Promise<void> => {
-    await writeListingJoins(tx, id, input);
-    const sourceId = form.getOptionalInt("duplicated_from");
-    if (sourceId !== null) {
-      await copyPackageMemberOverridesTx(tx, sourceId, id);
-      await listingAttributeOptions.copyLinksTx(tx, sourceId, id);
-      // The override copy can raise the pick count above the fresh-join
-      // default of one the membership check judged. Revalidate it as persisted.
-      requireMembershipValidation(
-        await validateListingGroupMembershipsTx(tx)([id], input.groupIds!),
-      );
-    }
-  };
+/** One listing join write, run inside the row's transaction. */
+type ListingJoinWriter = (
+  tx: TxScope,
+  id: number,
+  input: ListingInput,
+) => Promise<void>;
 
-/**
- * Build a per-request listings create resource whose `toInput` closes over the
- * raw form, so the dynamic `day_price_*` inputs can be read alongside the
- * validated fields. The resource only hands `toInput` the validated values.
- */
-/** The listing validation for a request: reject an invalid day price first
- *  (the dynamic fields the static schema cannot see), then the standard input
- *  validation. Closes over the raw `form` so both create and update share it. */
-const listingValidate =
-  (form: FormParams) =>
-  async (input: ListingInput, id?: number): Promise<string | null> =>
-    validateDayPricesFromForm(form) ?? (await validateListingInput(input, id));
+const writeCreateListingJoins: (
+  form: FormParams,
+  imageIds: readonly number[],
+) => ListingJoinWriter = (form, imageIds) => async (tx, id, input) => {
+  await writeListingJoins(tx, id, input);
+  const sourceId = form.getOptionalInt("duplicatedFrom");
+  if (sourceId !== null) {
+    await copyPackageMemberOverridesTx(tx, sourceId, id);
+    await listingAttributeOptions.copyLinksTx(tx, sourceId, id);
+    // The override copy can raise the pick count above the fresh-join
+    // default of one the membership check judged. Revalidate it as persisted.
+    requireMembershipValidation(
+      await validateListingGroupMembershipsTx(tx)([id], input.groupIds!),
+    );
+  }
+  // The pictures chosen on the new listing form attach in the same write.
+  // Each link lands only while its image still exists.
+  if (imageIds.length > 0) {
+    await setImagesForItem({
+      imageIds,
+      itemId: id,
+      itemType: "listing",
+      transaction: tx,
+    });
+  }
+};
 
-export const buildCreateListingResource = (form: FormParams) =>
-  defineResource({
-    // Group membership rides the write transaction. listing_prices reconciles
-    // post-commit (afterCommit) since the transactional insertStatement path
-    // bypasses the listingsTable wrapper that syncs direct writes.
-    afterCommit: syncListingPrices,
-    afterWrite: writeCreateListingJoins(form),
-    form: getListingForm(),
-    table: listingsTable,
-    toInput: (values: ListingFormValues) => extractListingInput(values, form),
-    validate: listingValidate(form),
-  });
+/** One listing write's answer: the row, or the text that refused it. */
+type ListingWriteResult =
+  | { ok: true; row: ListingWithCount }
+  | { ok: false; error: string };
 
-/** Build a per-request listings update resource (includes the slug field).
+export type ListingCreateResult = ListingWriteResult;
+export type ListingUpdateResult =
+  | ListingWriteResult
+  | { ok: false; notFound: true };
+
+/** One write's success answer, or null for its failure. */
+const writtenResult = <Row>(verdict: WriteVerdict<Row>) =>
+  verdict.kind === "written" ? { ok: true as const, row: verdict.row } : null;
+
+/** One write's refusal answer, or the door's own missing-row answer. */
+const failedResult = <Row, Missing>(
+  verdict: WriteVerdict<Row>,
+  missing: Missing,
+): { error: string; ok: false } | Missing => {
+  if (verdict.kind === "refused") {
+    return { error: verdict.message, ok: false };
+  }
+  return missing;
+};
+
+/** Parse the create form into the record's input. Write it through the
+ * record with the create door's join plan. `imageIds` are the pictures the
+ * physical-product form collected. They link in the same transaction. */
+export const buildCreateListingResource = (
+  form: FormParams,
+  view: ListingFormView,
+  imageIds: readonly number[] = [],
+) => ({
+  create: async (submitted: FormParams): Promise<ListingCreateResult> => {
+    const parsed = await extractListingInput(view, submitted);
+    if (!parsed.ok) return parsed;
+    const input = parsed.value;
+    const verdict = await listingRecord.create(input, {
+      persist: (tx, id) =>
+        writeCreateListingJoins(form, imageIds)(tx, id, input),
+    });
+    return (
+      writtenResult(verdict) ??
+      failedResult(verdict, { error: "Listing not found", ok: false })
+    );
+  },
+});
+
+/** Build a per-request listings update command (includes the slug field).
  * `stored` is the row the save must not clobber: a daily listing's hidden date
  * box submits empty, and that empty date keeps the stored one. `assign` is the
  * confirmed switch move: date every undated booking, then let the save commit
  * the type flip. Without it, a bare switch is refused while undated bookings
  * remain. */
 export const buildUpdateListingResource = (
-  form: FormParams,
   stored: ListingWithCount,
+  view: ListingFormView,
   assign?: AssignPlan,
-) =>
-  defineResource({
-    afterCommit: syncListingPrices,
-    afterWrite:
-      assign === undefined
-        ? writeListingJoins
-        : async (tx, id, input) => {
-            await writeListingJoins(tx, id, input);
-            await moveUndatedBookingsToDayTx(
-              tx,
-              id,
-              stored.name,
-              assign.date,
-              wouldBeStaySpanDays(input),
-            );
-          },
-    // The add-on reachability half of the save refuses inside the row write's
-    // transaction, so two concurrent page-removing saves cannot both commit.
-    // Without a confirmed move, a type switch that leaves undated bookings
-    // behind is refused here too. This is the backstop for a booking that
-    // landed between the form's count and this write.
-    checkTx:
-      assign === undefined
-        ? refuseUndatedListingSwitch
-        : listingSaveOrphanedAddOnTx,
-    form: getListingEditForm(),
-    table: listingsTable,
-    toInput: async (values: ListingEditFormValues) => {
-      const input = await extractListingUpdateInput(values, form);
-      return {
-        ...input,
-        date: keepDailyListingDate(input.date, stored, input.listingType),
-      };
+) => {
+  /** The validated edit input, with the stored daily date kept when the form
+   * sends an empty date box. */
+  const parseInput = async (
+    submitted: FormParams,
+  ): Promise<Result<ListingInput>> => {
+    const parsed = await extractListingUpdateInput(view, submitted);
+    return parsed.ok
+      ? okResult({
+          ...parsed.value,
+          date: keepDailyListingDate(
+            parsed.value.date,
+            stored,
+            parsed.value.listingType,
+          ),
+        })
+      : parsed;
+  };
+
+  return {
+    parseInput,
+    update: async (
+      id: number,
+      submitted: FormParams,
+    ): Promise<ListingUpdateResult> => {
+      if (!(await records.listings.has(id))) {
+        return { notFound: true, ok: false };
+      }
+      const parsed = await parseInput(submitted);
+      if (!parsed.ok) return parsed;
+      const dated = parsed.value;
+      const verdict = await listingRecord.update(id, dated, {
+        // The add-on reachability half of the save refuses inside the row
+        // write's transaction, so two concurrent page-removing saves cannot
+        // both commit. Without a confirmed move, a type switch that leaves
+        // undated bookings behind is refused here too.
+        checkTx:
+          assign === undefined
+            ? (tx, rowId) => refuseUndatedListingSwitch(tx, rowId, dated)
+            : (tx, rowId) => listingSaveOrphanedAddOnTx(tx, rowId, dated),
+        persist: (tx, rowId) =>
+          assign === undefined
+            ? writeListingJoins(tx, rowId, dated)
+            : moveAssignedListing(tx, rowId, dated, stored, assign),
+      });
+      return (
+        writtenResult(verdict) ??
+        failedResult(verdict, { notFound: true, ok: false })
+      );
     },
-    validate: listingValidate(form),
-  });
+  };
+};
+
+/** The update's join write when the operator confirmed a type switch: write
+ *  the edges, then date every undated booking. */
+const moveAssignedListing = async (
+  tx: TxScope,
+  id: number,
+  input: ListingInput,
+  stored: ListingWithCount,
+  assign: AssignPlan,
+): Promise<void> => {
+  await writeListingJoins(tx, id, input);
+  await moveUndatedBookingsToDayTx(
+    tx,
+    id,
+    stored.name,
+    assign.date,
+    wouldBeStaySpanDays(input),
+  );
+};

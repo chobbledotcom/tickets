@@ -47,10 +47,10 @@ describe("listing attribute filter template helpers", () => {
           id: 1,
           name: "A & B",
           options: [
-            { id: 11, sort_order: 1, text: "Easy <Hard>" },
-            { id: 12, sort_order: 2, text: "Hard" },
+            { id: 11, sortOrder: 1, text: "Easy <Hard>" },
+            { id: 12, sortOrder: 2, text: "Hard" },
           ],
-          sort_order: 1,
+          sortOrder: 1,
         },
       ],
       new Map([[1, 12]]),

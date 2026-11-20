@@ -2,128 +2,128 @@
  * Read queries and listing-assignment mutations for custom questions.
  *
  * Question + answer rows are joined and grouped into {@link QuestionWithAnswers}
- * records, decrypting text in parallel. Listing-question membership is written
- * here too; display order always comes from the question's own sort_order.
+ * records. Listing-question membership is written here too. Display order
+ * always comes from the question's own sort_order.
  */
 
-import { queryAll, queryAllPrimary, type SqlStatement } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
 import { linkTableSide } from "#db/link-table.ts";
-import { numberedListStatement } from "#db/numbered-statement.ts";
-import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
-import { readRows, readStatement } from "#db/read.ts";
-import { equals, type WhereClause } from "#db/where-clauses.ts";
-import { filter, map, mapParallel, reduce } from "#fp";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { readRows } from "#db/read.ts";
+import { onReplicaAndPrimary } from "#db/replica-or-primary.ts";
+import {
+  among,
+  and,
+  type Expr,
+  equal,
+  inQuery,
+  literal,
+  notEqual,
+  or,
+  valued,
+} from "#db/select/expression.ts";
+import { from, via } from "#db/select/query.ts";
+import type { NodeOf, Out } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { filter, map, reduce } from "#fp";
 
 /** Direct question-to-listing assignments, viewed from either side. */
 export const questionListings = linkTableSide(
-  "listing_questions",
-  "question_id",
-  "listing_id",
+  tables.listing_questions,
+  "questionId",
+  "listingId",
 );
 export const listingQuestions = linkTableSide(
-  "listing_questions",
-  "listing_id",
-  "question_id",
+  tables.listing_questions,
+  "listingId",
+  "questionId",
 );
 
-/** Flat row from a question ← LEFT JOIN answers query. `q_assign_all` is the
- * stored form (INTEGER 0/1) — {@link decryptQuestion} turns it into a boolean
- * via the column's read transform. */
-type JoinedRow = {
-  q_id: number;
-  q_assign_all: boolean;
-  q_display_type: QuestionWithAnswers["display_type"];
-  q_text: string;
-  a_id: number | null;
-  a_text: string | null;
-  a_question_id: number | null;
-  a_sort_order: number | null;
-  a_active: boolean | null;
-};
+/** Every question with its answers. A question with no answer stays. */
+const questionsWithAnswers = () =>
+  from(tables.questions, {
+    answer: via(tables.answers, "question").optional(),
+  });
 
-/** Shared SELECT columns and JOIN for question + answers */
-const QA_COLS = `question.id AS q_id, question.assign_all AS q_assign_all, question.display_type AS q_display_type, question.text AS q_text,
-       answer.id AS a_id, answer.text AS a_text,
-       answer.question_id AS a_question_id, answer.sort_order AS a_sort_order, answer.active AS a_active`;
-const QA_JOIN =
-  "questions AS question LEFT JOIN answers AS answer ON answer.question_id = question.id";
+type QuestionRead = ReturnType<typeof questionsWithAnswers>;
 
-/** Decrypt a single question and its answers */
-const decryptQuestion = async (
-  id: number,
-  assignAll: boolean,
-  displayType: QuestionWithAnswers["display_type"],
-  rawText: string,
-  rawAnswers: Answer[],
-): Promise<QuestionWithAnswers> => {
-  const [text, assign_all, answers] = await Promise.all([
-    questionsTable.readColumn("text", rawText),
-    questionsTable.readColumn("assign_all", assignAll),
-    mapParallel((a: Answer) => answersTable.fromDb(a))(rawAnswers),
-  ]);
-  return {
-    answers,
-    assign_all,
-    display_type: displayType,
-    id,
-    text,
-  };
-};
+/** A question and one of its answers, as a read holds them. */
+type QuestionNode = NodeOf<QuestionRead>;
+
+/** The order every question list comes back in: the operator's arrangement,
+ *  then each question's answers in theirs. */
+const inQuestionOrder = (question: QuestionNode) => [
+  question.sortOrder,
+  question.id,
+  question.answer.sortOrder,
+];
+
+/** The columns of a joined row. */
+const joinedColumns = (question: QuestionNode) => ({
+  a_active: question.answer.active,
+  a_id: question.answer.id,
+  a_question_id: question.answer.questionId,
+  a_sort_order: question.answer.sortOrder,
+  a_text: question.answer.text,
+  q_assign_all: question.assignAll,
+  q_display_type: question.displayType,
+  q_id: question.id,
+  q_text: question.text,
+});
+
+/** One question and one of its answers. */
+type JoinedRow = Out<ReturnType<typeof joinedColumns>>;
+
+/** The question asks every listing. */
+const asksEveryListing = (question: QuestionNode): Expr<boolean> =>
+  equal(question.assignAll, literal(1));
+
+const joinedRowsOf = (read: QuestionRead) =>
+  read.orderBy(inQuestionOrder).select(joinedColumns);
 
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
- * Decrypts question and answer text in parallel. The first row of each
- * question group carries the question's fields; every row with an answer id
- * contributes an answer (in row order). */
-const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> =>
-  mapParallel(([id, groupRows]: [number, JoinedRow[]]) => {
+ * The first row of each question group carries the question's fields. Every
+ * row with an answer id adds an answer, in row order. */
+const groupJoinedRows = (rows: JoinedRow[]): QuestionWithAnswers[] =>
+  [...Map.groupBy(rows, (row) => row.q_id)].map(([id, groupRows]) => {
     const first = groupRows[0]!;
-    const answers = groupRows
-      .filter((r) => r.a_id !== null)
-      .map((r) => ({
-        active: r.a_active!,
-        id: r.a_id!,
-        question_id: r.a_question_id!,
-        sort_order: r.a_sort_order!,
-        text: r.a_text!,
-      }));
-    return decryptQuestion(
+    return {
+      answers: groupRows.flatMap((row) =>
+        row.a_id === null
+          ? []
+          : [
+              {
+                active: row.a_active!,
+                id: row.a_id,
+                questionId: row.a_question_id!,
+                sortOrder: row.a_sort_order!,
+                text: row.a_text!,
+              },
+            ],
+      ),
+      assignAll: first.q_assign_all,
+      displayType: first.q_display_type,
       id,
-      first.q_assign_all,
-      first.q_display_type,
-      first.q_text,
-      answers,
-    );
-  })([...Map.groupBy(rows, (r) => r.q_id)]);
+      text: first.q_text,
+    };
+  });
 
 /** Keep only questions that have at least one answer */
 const withAnswers = filter(
   (q: QuestionWithAnswers) =>
-    q.display_type === "free_text" || q.answers.length > 0,
+    q.displayType === "free_text" || q.answers.length > 0,
 );
 
-/** The order every question list comes back in: the operator's arrangement,
- * then each question's answers in theirs. */
-const QUESTION_ORDER = "question.sort_order, question.id, answer.sort_order";
+/** Fetch questions with their answers, keeping only the ones the read
+ * selects. */
+const fetchQuestions = (read: QuestionRead = questionsWithAnswers()) =>
+  readRows(joinedRowsOf(read));
 
-/** Fetch questions with their answers, keeping only the ones the clauses
- * select. `from` differs only for the per-listing read, which joins the
- * assignment table to find out which questions a listing asks. */
-const fetchQuestions = (
-  where: WhereClause[],
-  from: string | SqlStatement = QA_JOIN,
-) =>
-  readRows<JoinedRow>({
-    columns: QA_COLS,
-    from,
-    order: QUESTION_ORDER,
-    where,
-  });
-
-/** Get all questions with their answers (sorted by sort_order), decrypted */
+/** Get all questions with their answers, sorted by sort_order. */
 export const getAllQuestionsWithAnswers = async (): Promise<
   QuestionWithAnswers[]
-> => groupJoinedRows(await fetchQuestions([]));
+> => groupJoinedRows(await fetchQuestions());
 
 /** Get questions assigned to a listing, in the global question order.
  * Questions with no answers are excluded (nothing useful to ask). */
@@ -131,21 +131,21 @@ export const getQuestionsForListing = async (
   listingId: number,
 ): Promise<QuestionWithAnswers[]> =>
   withAnswers(
-    await groupJoinedRows(
+    groupJoinedRows(
       await fetchQuestions(
-        [
-          {
-            args: [],
-            clause:
-              "question.assign_all = 1 OR listingQuestion.listing_id IS NOT NULL",
-          },
-        ],
-        {
-          args: [listingId],
-          sql: `questions AS question
-       LEFT JOIN listing_questions AS listingQuestion ON question.id = listingQuestion.question_id AND listingQuestion.listing_id = ?
-       LEFT JOIN answers AS answer ON answer.question_id = question.id`,
-        },
+        questionsWithAnswers()
+          .leftJoin("listingQuestion", tables.listing_questions, (question) =>
+            and(
+              equal(question.listingQuestion.questionId, question.id),
+              equal(question.listingQuestion.listingId, listingId),
+            ),
+          )
+          .where((question) =>
+            or(
+              asksEveryListing(question),
+              notEqual(question.listingQuestion.listingId, null),
+            ),
+          ),
       ),
     ),
   );
@@ -156,12 +156,11 @@ export const getListingQuestionIds = async (
 ): Promise<number[]> =>
   map((r: { question_id: number }) => r.question_id)(
     await queryAll<{ question_id: number }>(
-      `SELECT question.id AS question_id
+      sql`SELECT question.id AS question_id
        FROM questions AS question
-       LEFT JOIN listing_questions AS listingQuestion ON question.id = listingQuestion.question_id AND listingQuestion.listing_id = ?
+       LEFT JOIN listing_questions AS listingQuestion ON question.id = listingQuestion.question_id AND listingQuestion.listing_id = ${listingId}
        WHERE question.assign_all = 1 OR listingQuestion.listing_id IS NOT NULL
        ORDER BY question.sort_order, question.id`,
-      [listingId],
     ),
   );
 
@@ -186,21 +185,35 @@ export const getQuestionsWithListingIds = async (
 }> => {
   if (listingIds.length === 0) return emptyQuestionsWithListingIds();
 
-  const statement = numberedListStatement(
-    listingIds,
-    (ph) =>
-      `SELECT ${QA_COLS},
-            CASE WHEN question.assign_all = 1 THEN NULL ELSE
-              (SELECT GROUP_CONCAT(listingQuestion.listing_id) FROM listing_questions AS listingQuestion
-               WHERE listingQuestion.question_id = question.id AND listingQuestion.listing_id IN (${ph}))
-            END AS listing_ids
-     FROM ${QA_JOIN}
-     WHERE question.assign_all = 1 OR question.id IN (SELECT question_id FROM listing_questions WHERE listing_id IN (${ph}))
-     ORDER BY question.sort_order, question.id, answer.sort_order`,
-  );
-  const rows = await queryAll<JoinedRowWithListings>(
-    statement.sql,
-    statement.args,
+  const assignments = () =>
+    from(tables.listing_questions).where((assigned) =>
+      among(assigned.listingId, listingIds),
+    );
+  const rows = await queryAll(
+    questionsWithAnswers()
+      .where((question) =>
+        or(
+          asksEveryListing(question),
+          inQuery(
+            question.id,
+            assignments().values((assigned) => assigned.questionId),
+          ),
+        ),
+      )
+      .orderBy(inQuestionOrder)
+      .select((question) => {
+        const listings = assignments()
+          .where((assigned) => equal(assigned.questionId, question.id))
+          .scalar((assigned) =>
+            valued<string>(sql`GROUP_CONCAT(${assigned.listingId})`),
+          );
+        return {
+          ...joinedColumns(question),
+          listing_ids: valued<string | null>(
+            sql`CASE WHEN ${asksEveryListing(question)} THEN NULL ELSE ${listings} END`,
+          ),
+        };
+      }),
   );
 
   if (rows.length === 0) return emptyQuestionsWithListingIds();
@@ -215,40 +228,23 @@ export const getQuestionsWithListingIds = async (
     new Map() as QuestionListingMap,
   )(rows);
 
-  const questions = withAnswers(await groupJoinedRows(rows));
+  const questions = withAnswers(groupJoinedRows(rows));
   return { questionListingMap, questions };
 };
 
-/** The joined question rows for one id, on the replica (normal reads) or the
- *  primary (read-your-writes after a write). */
-const questionRows = (id: number, primary: boolean) => {
-  const read = {
-    columns: QA_COLS,
-    from: QA_JOIN,
-    order: QUESTION_ORDER,
-    where: equals("question.id", id),
-  };
-  return primary
-    ? queryAllPrimary<JoinedRow>(readStatement(read))
-    : readRows<JoinedRow>(read);
-};
-
-const questionWithAnswers =
-  (primary: boolean) =>
-  async (id: number): Promise<QuestionWithAnswers | null> => {
-    const rows = await questionRows(id, primary);
-    if (rows.length === 0) return null;
-    // rows is non-empty so groupJoinedRows always returns at least one entry
-    return (await groupJoinedRows(rows))[0]!;
-  };
-
-/** Get question with answers by ID. A replica can serve it. */
-export const getQuestionWithAnswers = questionWithAnswers(false);
-
-/** The same read pinned to the primary. A write sequence that creates a
- *  question and then its first answer cannot miss the row the create just
- *  made. */
-export const getQuestionWithAnswersOnPrimary = questionWithAnswers(true);
+/** Get question with answers by ID. A write sequence creates a question and
+ *  then its first answer. The primary version cannot miss the row that the
+ *  create just made. */
+export const {
+  onPrimary: getQuestionWithAnswersOnPrimary,
+  onReplica: getQuestionWithAnswers,
+} = onReplicaAndPrimary(
+  (id: number) =>
+    joinedRowsOf(
+      questionsWithAnswers().where((question) => equal(question.id, id)),
+    ),
+  (rows): QuestionWithAnswers | null => groupJoinedRows(rows)[0] ?? null,
+);
 
 /** The question a write just made, read from the primary. A write that
  *  committed leaves the row, so a missing row is a broken invariant and throws

@@ -16,10 +16,13 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import { publicPageResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { saleProviderOrNull } from "#shared/config.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
+import { subscriptionOrderError } from "#shared/subscriptions/checkout-rules.ts";
 import {
   qrBookCheckoutErrorPage,
   qrBookErrorPage,
@@ -70,13 +73,13 @@ const canSkipToCheckout = async (
   // A token minted before an owner raised the minimum carries a quantity the
   // listing no longer sells. Never skip to a fixed-price checkout with it —
   // the booking form re-derives the valid choices and lets the buyer pick.
-  if (quantityBelowMin(payload.q, listing.min_quantity)) return false;
+  if (quantityBelowMin(payload.q, listing.minQuantity)) return false;
   // The same staleness runs the other way: the owner can lower the maximum,
   // and an older token then carries a quantity the listing no longer sells.
-  if (payload.q > listing.max_quantity) return false;
+  if (payload.q > listing.maxQuantity) return false;
   // Customisable listings are priced by a chosen day count, so the visitor must
   // pass through the booking form to select it — never skip to a fixed price.
-  if (listing.customisable_days) return false;
+  if (listing.customisableDays) return false;
   return await listingSupportsDirectCheckout(listing);
 };
 
@@ -98,7 +101,7 @@ const buildCheckoutIntent = (
   payload: QrBookPayload,
 ): CheckoutIntent => ({
   address: "",
-  date: capacityDateFor(listing.listing_type, payload.d),
+  date: capacityDateFor(listing.listingType, payload.d),
   email: "",
   items: [checkoutItem(listing, payload.q, payload.v)],
   name: payload.n,
@@ -116,15 +119,22 @@ const skipToCheckout = (
   payload: QrBookPayload,
 ): Promise<Response> => {
   const intent = buildCheckoutIntent(listing, payload);
+  const onError = (msg: string, status: number) =>
+    publicPageResponse(
+      () => qrBookCheckoutErrorPage(listing.slug, msg),
+      status,
+    );
+  const refusal = subscriptionOrderError(
+    saleProviderOrNull(),
+    intent,
+    priceCheckout(intent).total,
+  );
+  if (refusal !== null) return onError(refusal, 400);
   return runCheckoutFlow(
     `qr-book listing=${listing.id}`,
     request,
     intent,
-    (msg, status) =>
-      publicPageResponse(
-        () => qrBookCheckoutErrorPage(listing.slug, msg),
-        status,
-      ),
+    onError,
   );
 };
 
@@ -144,7 +154,7 @@ const dispatchVerified = async (
   listing: ListingWithCount,
 ): Promise<Response> => {
   if (
-    listing.listing_type === "daily" &&
+    listing.listingType === "daily" &&
     !(await isDailyDateBookable(listing, payload.d))
   ) {
     return errorResponse(slug, 400);

@@ -19,6 +19,7 @@ import {
   UpdateSitePageBodySchema,
 } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import { parseApiBody, writeEntityName } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isReservedSlug, wouldCreateCycle } from "#shared/site-pages/core.ts";
@@ -46,25 +47,31 @@ const FIELD_LABELS = {
   meta_title: () => t("fields.meta_title"),
 } as const;
 
+/** The cap of each writable text field, keyed by the JSON field name. */
+const TEXT_LIMITS: Record<keyof typeof FIELD_LABELS, number> = {
+  content: CONTENT_FIELD_LIMITS.content,
+  meta_description: CONTENT_FIELD_LIMITS.metaDescription,
+  meta_title: CONTENT_FIELD_LIMITS.metaTitle,
+};
+
 /** The stored text values the writable text fields keep when the body is
  *  silent, keyed by the JSON field name. */
 const storedText = (
   existing: SitePage | null,
 ): Record<keyof typeof FIELD_LABELS, string> => ({
   content: existing?.content ?? "",
-  meta_description: existing?.meta_description ?? "",
-  meta_title: existing?.meta_title ?? "",
+  meta_description: existing?.metaDescription ?? "",
+  meta_title: existing?.metaTitle ?? "",
 });
 
-/** One writable text field: a value past the field's cap gets the form's own
- *  length refusal. The form reads submitted values trimmed, so the API trims
- *  too. */
+/** One writable text field, cleaned the way the form cleans it. A value past
+ *  the cap of the field gets the length refusal of the form. */
 const cleanedText = (
   value: string,
   key: keyof typeof FIELD_LABELS,
 ): Result<string> => {
-  const text = value.trim();
-  const max = CONTENT_FIELD_LIMITS[key];
+  const text = key === "content" ? markdownSource(value) : value.trim();
+  const max = TEXT_LIMITS[key];
   return text.length > max ? tooLong(FIELD_LABELS[key](), max) : okResult(text);
 };
 
@@ -124,6 +131,8 @@ export const toPageWrite = (
   const stored = storedText(existing);
   const name = writeEntityName(write.name, existing?.name ?? null);
   if (!name.ok) return name;
+  // These routes write through the page module rather than the record, so
+  // they run the page's own name length rule here.
   if (name.value.length > MAX_INPUT_LENGTH) {
     return tooLong(t("site.pages.field.name"), MAX_INPUT_LENGTH);
   }
@@ -193,7 +202,7 @@ const dropCurrentEdgeThen =
     next: (tx: TxScope) => Promise<boolean>,
   ) =>
   async (tx: TxScope): Promise<boolean> => {
-    if (edge) await removePageItem(edge.page_id, "page", pageId, tx);
+    if (edge) await removePageItem(edge.pageId, "page", pageId, tx);
     return next(tx);
   };
 
@@ -210,7 +219,7 @@ export const planParentChange = async (
   raw: unknown,
 ): Promise<Result<(tx: TxScope) => Promise<boolean>>> => {
   const currentEdge = (await getAllPageItems()).find(
-    (item) => item.item_type === "page" && item.item_id === page.id,
+    (item) => item.itemType === "page" && item.itemId === page.id,
   );
   if (raw === null) {
     return okResult(

@@ -16,6 +16,7 @@ import { queryAll, type TxScope } from "#db/client.ts";
 import { syncAttendeeContactTokens } from "#db/contact-tokens.ts";
 import { loadPaymentMoveSnapshot, orRefusal } from "#db/payment-admit-move.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
+import { sql } from "#db/sql.ts";
 import { filter, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
 import { formGuard, formPolicyFor } from "#routes/auth.ts";
@@ -26,6 +27,7 @@ import {
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { prefixedBoxName } from "#shared/forms/prefixed-name.ts";
 import {
   applyAttendeeMerge,
   buildAttendeeMergeDiff,
@@ -83,16 +85,6 @@ const loadMergeSource = async (
   };
 };
 
-/** Load all listing_attendees rows for an attendee */
-const loadAttendeeBookings = (
-  attendeeId: number,
-): Promise<ListingAttendeeRow[]> =>
-  queryAll<ListingAttendeeRow>(
-    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
-     FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id`,
-    [attendeeId],
-  );
-
 /** Collect unique listing IDs from two sets of bookings */
 const collectListingIds = (
   targetBookings: ListingAttendeeRow[],
@@ -122,7 +114,10 @@ const buildMergeDiffFor = async (
   source: MergeSourceLookup,
   attendeeId: number,
 ): Promise<AttendeeMergeDiff> => {
-  const targetBookings = await loadAttendeeBookings(attendeeId);
+  const targetBookings = await queryAll<ListingAttendeeRow>(
+    sql`SELECT ${LISTING_ATTENDEE_ROW_COLS}
+     FROM listing_attendees WHERE attendee_id = ${attendeeId} ORDER BY start_at, listing_id`,
+  );
   const allListingIds = collectListingIds(targetBookings, source.bookings);
   const { questions } = await getQuestionsWithListingIds(allListingIds);
 
@@ -259,7 +254,7 @@ const validateMergePostInput = async (
   | { ok: false; response: Response }
 > => {
   const actionsTab = `/admin/attendees/${attendeeId}/actions`;
-  const sourceToken = form.getString("source_token");
+  const sourceToken = form.getString("sourceToken");
   if (!sourceToken) {
     return {
       ok: false,
@@ -344,20 +339,23 @@ const oneChoiceOf =
 /** Which side a PII field takes. Anything but "source" keeps the target. */
 const toPiiChoice = oneChoiceOf(["source", "target"], "target");
 
-/** One decision per key, read from the form field `prefix` plus the key names. */
+/** One decision per key, read from the form field that `boxName` names. */
 const keyedDecisions =
-  <Choice>(prefix: string, toChoice: (raw: string) => Choice) =>
+  <Choice>(
+    boxName: (key: string) => string,
+    toChoice: (raw: string) => Choice,
+  ) =>
   (form: FormParams, keys: readonly string[]): Record<string, Choice> => {
     const decisions: Record<string, Choice> = {};
     for (const key of keys) {
-      decisions[key] = toChoice(form.getString(`${prefix}${key}`));
+      decisions[key] = toChoice(form.getString(boxName(key)));
     }
     return decisions;
   };
 
 /** Parse PII decisions from form (each field: "source" or "target") */
 const parsePiiDecisions = (form: FormParams, diff: AttendeeMergeDiff) =>
-  keyedDecisions("pii_", toPiiChoice)(
+  keyedDecisions((field: string) => prefixedBoxName("pii", field), toPiiChoice)(
     form,
     diff.piiFields.map((field) => field.field),
   );
@@ -367,7 +365,7 @@ const toAnswerChoice = oneChoiceOf(["source", "clear", "target"], "target");
 
 /** Parse answer decisions from form (only conflicting items) */
 const parseAnswerDecisions = (form: FormParams, diff: AttendeeMergeDiff) =>
-  keyedDecisions("answer_", toAnswerChoice)(
+  keyedDecisions((key) => `answer${key}`, toAnswerChoice)(
     form,
     diff.answerItems
       .filter((item) => item.conflict)
@@ -401,7 +399,7 @@ const conflictDecisions =
   <T>(prefix: string, toChoice: (raw: string) => T | undefined) =>
   (form: FormParams, diff: AttendeeMergeDiff): Record<string, T> =>
     parseConflictDecisions(diff, (key) =>
-      toChoice(form.getString(`${prefix}_${key}`)),
+      toChoice(form.getString(`${prefix}${key}`)),
     );
 
 /** Parse booking decisions from form (only non-moveable items) */
@@ -425,7 +423,7 @@ const parseMergeDecisionForm = (
   bookings: parseBookingDecisions(form, diff),
   money: parseMoneyDecisions(form, diff),
   pii: parsePiiDecisions(form, diff),
-  version: form.getString("merge_version"),
+  version: form.getString("mergeVersion"),
 });
 
 const mergeHandler = createEntityHandler<AttendeeRouteParams, Attendee>(

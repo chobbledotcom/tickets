@@ -3,19 +3,24 @@ import { getDb } from "#db/client.ts";
 import {
   getAllModifiers,
   type ModifierInput,
-  modifiersTable,
   setModifierAnswers,
 } from "#db/modifiers.ts";
+import { newRecordOf, records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql, sqlCommas, sqlName } from "#db/sql.ts";
 
 /** Insert a modifier through the production table, defaulting to a £5 charge. */
 export const insertModifier = (overrides: Partial<ModifierInput> = {}) =>
-  modifiersTable.insert({
-    calcKind: "fixed",
-    calcValue: 5,
-    direction: "charge",
-    name: "Add-on",
-    ...overrides,
-  });
+  records.modifiers.insert(
+    // The defaults name every required column.
+    newRecordOf(tables.modifiers)({
+      calcKind: "fixed",
+      calcValue: 5,
+      direction: "charge",
+      name: "Add-on",
+      ...overrides,
+    }),
+  );
 
 /** Set behavioural columns the base create form doesn't expose (trigger,
  * scope, stock, code_index, active, min_visits, …). */
@@ -24,43 +29,49 @@ export const patchModifier = (
   set: Record<string, string | number>,
 ) => {
   const cols = Object.keys(set);
-  const assignments = cols.map((c) => `${c} = ?`).join(", ");
-  return getDb().execute({
-    args: [...cols.map((c) => set[c]!), id],
-    sql: `UPDATE modifiers SET ${assignments} WHERE id = ?`,
-  });
+  const assignments = sqlCommas(
+    cols.map((c) => sql`${sqlName(c)} = ${set[c]!}`),
+  );
+  return getDb().execute(
+    sql`UPDATE modifiers SET ${assignments} WHERE id = ${id}`,
+  );
 };
 
 /** Link a "listings"-scoped modifier to a listing. */
 export const linkModifierListing = (modifierId: number, listingId: number) =>
-  getDb().execute({
-    args: [modifierId, listingId],
-    sql: "INSERT INTO modifier_listings (modifier_id, listing_id) VALUES (?, ?)",
-  });
+  getDb().execute(
+    sql`INSERT INTO modifier_listings (modifier_id, listing_id) VALUES (${modifierId}, ${listingId})`,
+  );
+
+/** Link a "groups"-scoped modifier to a group. */
+export const linkModifierGroup = (modifierId: number, groupId: number) =>
+  getDb().execute(
+    sql`INSERT INTO modifier_groups (modifier_id, group_id) VALUES (${modifierId}, ${groupId})`,
+  );
+
+/** An active opt-in add-on of one scope, linked to each id through `link`. */
+const optInAddOnScopedTo =
+  (
+    scope: "listings" | "groups",
+    link: (modifierId: number, id: number) => Promise<unknown>,
+  ) =>
+  async (name: string, ids: number[]): Promise<void> => {
+    const modifier = await insertModifier({ name });
+    await patchModifier(modifier.id, { scope, trigger: "optional" });
+    for (const id of ids) await link(modifier.id, id);
+  };
 
 /** Insert an active opt-in add-on scoped to the given listing ids. */
-export const optInAddOnForListings = async (
-  name: string,
-  listingIds: number[],
-): Promise<void> => {
-  const modifier = await insertModifier({ name });
-  await patchModifier(modifier.id, { scope: "listings", trigger: "optional" });
-  for (const listingId of listingIds) {
-    await linkModifierListing(modifier.id, listingId);
-  }
-};
+export const optInAddOnForListings = optInAddOnScopedTo(
+  "listings",
+  linkModifierListing,
+);
 
 /** Insert an active opt-in add-on scoped to the given group ids. */
-export const optInAddOnForGroups = async (
-  name: string,
-  groupIds: number[],
-): Promise<void> => {
-  const modifier = await insertModifier({ name });
-  await patchModifier(modifier.id, { scope: "groups", trigger: "optional" });
-  for (const groupId of groupIds) {
-    await linkModifierGroup(modifier.id, groupId);
-  }
-};
+export const optInAddOnForGroups = optInAddOnScopedTo(
+  "groups",
+  linkModifierGroup,
+);
 
 /** An active, listings-scoped, opt-in modifier with no links yet. Links go
  * on later with `linkModifierListing`. */
@@ -74,19 +85,11 @@ export const activeOptInAddOn = async (name: string) => {
   return modifier;
 };
 
-/** Link a "groups"-scoped modifier to a group. */
-export const linkModifierGroup = (modifierId: number, groupId: number) =>
-  getDb().execute({
-    args: [modifierId, groupId],
-    sql: "INSERT INTO modifier_groups (modifier_id, group_id) VALUES (?, ?)",
-  });
-
 /** Point a question answer at an "answer"-triggered modifier. */
 export const linkModifierAnswer = (modifierId: number, answerId: number) =>
-  getDb().execute({
-    args: [modifierId, answerId],
-    sql: "UPDATE answers SET modifier_id = ? WHERE id = ?",
-  });
+  getDb().execute(
+    sql`UPDATE answers SET modifier_id = ${modifierId} WHERE id = ${answerId}`,
+  );
 
 /** Insert a `modifier_usages` row directly, bypassing the checkout flow —
  *  used by both the modifier-aggregates and server-modifiers test suites to
@@ -97,20 +100,18 @@ export const insertModifierUsage = (
   quantity: number,
   amountApplied: number,
 ): Promise<unknown> =>
-  getDb().execute({
-    args: [modifierId, attendeeId, quantity, amountApplied, "2026-06-17"],
-    sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
-  });
+  getDb().execute(
+    sql`INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (${modifierId}, ${attendeeId}, ${quantity}, ${amountApplied}, ${"2026-06-17"})`,
+  );
 
 /** Sum a `modifier_usages` column across a modifier's recorded rows — safe
  *  for one, many, or no rows (no usage sums to 0). */
 const modifierUsageSum =
   (column: "quantity" | "amount_applied") =>
   async (modifierId: number): Promise<number> => {
-    const { rows } = await getDb().execute({
-      args: [modifierId],
-      sql: `SELECT COALESCE(SUM(modifierUsage.${column}), 0) AS total FROM modifier_usages AS modifierUsage WHERE modifierUsage.modifier_id = ?`,
-    });
+    const { rows } = await getDb().execute(
+      sql`SELECT COALESCE(SUM(modifierUsage.${sqlName(column)}), 0) AS total FROM modifier_usages AS modifierUsage WHERE modifierUsage.modifier_id = ${modifierId}`,
+    );
     return Number(rows[0]!.total);
   };
 
@@ -135,9 +136,9 @@ export const modifierAggregates = async (
 }> => {
   const row = (await getAllModifiers()).find((m) => m.id === modifierId)!;
   return {
-    totalRevenue: row.total_revenue,
-    totalUses: row.total_uses,
-    usageCount: row.usage_count,
+    totalRevenue: row.totalRevenue,
+    totalUses: row.totalUses,
+    usageCount: row.usageCount,
   };
 };
 
@@ -161,16 +162,12 @@ export const setupAnswerTier = async (
   listing: { id: number },
   overrides: Partial<ModifierInput> = {},
 ): Promise<{ answerId: number; modifierId: number; questionId: number }> => {
-  const [{ answersTable, questionsTable }, { listingQuestions }] =
-    await Promise.all([
-      import("#db/questions/tables.ts"),
-      import("#db/questions/queries.ts"),
-    ]);
-  const question = await questionsTable.insert({
+  const { listingQuestions } = await import("#db/questions/queries.ts");
+  const question = await records.questions.insert({
     displayType: "radio",
     text: "T-shirt size?",
   });
-  const answer = await answersTable.insert({
+  const answer = await records.answers.insert({
     questionId: question.id,
     sortOrder: 0,
     text: "Small",

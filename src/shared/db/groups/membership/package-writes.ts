@@ -2,12 +2,7 @@
  *  its members, or assigns listings to it. Each path rechecks
  *  transaction-fresh state through the guards and fences here. */
 
-import {
-  inPlaceholders,
-  resultRows,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import {
   type GroupListingSettings,
   groupListingSettingsError,
@@ -23,18 +18,22 @@ import {
   storedPlanMemberErrorTx,
   submittedMembersCapErrorTx,
 } from "#db/groups/membership.ts";
+import { hasPackageBookingsTx } from "#db/groups/package-display.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { removeGroupPricesStatement } from "#db/listing-prices.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { records } from "#db/record-table.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
 import {
   refusingTheWriteOn,
   TransactionValidationError,
 } from "#db/transaction.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { byId, compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
-import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
+import type { PackageMemberInput } from "#shared/records/group-fields.ts";
 
 /** Rechecks every member after a group becomes a package or hides its members.
  *  A built-site plan can be no group's final member — ordinary or package —
@@ -96,36 +95,21 @@ const requireNotSoldHiddenPackageTx = async (
   }
 };
 
-export type PackageFlags = {
-  hide_package_listings: boolean;
-  is_package: boolean;
-};
-
-type PackageFlagsRow = {
-  hide_package_listings: number;
-  is_package: number;
-};
+export type PackageFlags = Pick<
+  DecodedRowOf<"groups">,
+  "hidePackageListings" | "isPackage"
+>;
 
 /** Reads only the flags that package write guards need. */
 export const readPackageFlagsTxOrNull = async (
   tx: TxScope,
   id: number,
-): Promise<PackageFlags | null> => {
-  const row = resultRows<PackageFlagsRow>(
-    await tx.execute({
-      args: [id],
-      sql: `SELECT groupRow.is_package, groupRow.hide_package_listings
-              FROM groups AS groupRow
-             WHERE groupRow.id = ?`,
-    }),
-  )[0];
-  return row
-    ? {
-        hide_package_listings: row.hide_package_listings === 1,
-        is_package: row.is_package === 1,
-      }
-    : null;
-};
+): Promise<PackageFlags | null> =>
+  resultRows(
+    await tx.execute(
+      records.groups.byId(id).pick("isPackage", "hidePackageListings"),
+    ),
+  )[0] ?? null;
 
 /** Runs both package guards in one call so every group write path applies the
  *  same transaction-local checks: package members stay valid, and a hidden
@@ -140,7 +124,7 @@ const requirePackageGuardsTx = async (
 ): Promise<void> => {
   await requirePackageGroupMembersTx(tx, groupId, judgeStoredQuantities);
   const wasHiddenPackage =
-    flags?.is_package === true && flags.hide_package_listings === true;
+    flags?.isPackage === true && flags.hidePackageListings === true;
   await requireNotSoldHiddenPackageTx(
     tx,
     groupId,
@@ -184,12 +168,14 @@ const groupListingAssignmentStatements = (
   groupId: number,
 ) =>
   listingIds.map((listingId) =>
-    numberedStatement((bind) => {
-      const listing = bind(listingId);
-      return `INSERT OR IGNORE INTO group_listings (group_id, listing_id)
-              SELECT ${bind(groupId)}, ${listing}
-               WHERE EXISTS (SELECT 1 FROM listings WHERE id = ${listing})`;
-    }),
+    insertInto(
+      tables.group_listings,
+      { groupId, listingId: listingId },
+      {
+        or: "IGNORE",
+        when: records.listings.byId(listingId).exists(),
+      },
+    ),
   );
 
 /** A membership write over one group: which listings, and the group they join
@@ -266,10 +252,9 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite(
   async (tx, ids, groupId) => {
     // The removal judges no member rules, so the fresh group check reads the
     // group's existence alone — not the whole member list.
-    const group = await tx.execute({
-      args: [groupId],
-      sql: "SELECT 1 FROM groups WHERE id = ? LIMIT 1",
-    });
+    const group = await tx.execute(
+      sql`SELECT 1 FROM groups WHERE id = ${groupId} LIMIT 1`,
+    );
     if (group.rows.length === 0) return t("error.selected_group_deleted");
     // The listing form refuses an untick that orphans a child-scoped add-on;
     // the group page refuses it here, INSIDE the transaction, so the
@@ -290,12 +275,10 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite(
     const orphanError = await groupLeavingOrphanedAddOnError(leaving, tx);
     if (orphanError) return orphanError;
     await tx.batch([
-      {
-        args: [groupId, ...ids],
-        sql: `DELETE FROM group_listings WHERE group_id = ? AND listing_id IN (${inPlaceholders(
-          ids,
-        )})`,
-      },
+      deleteFrom(tables.group_listings).where({
+        groupId,
+        listingId: ids,
+      }),
       ...compact([removeGroupPricesStatement(ids, [groupId])]),
     ]);
     return null;

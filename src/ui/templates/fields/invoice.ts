@@ -10,7 +10,7 @@ const getInvoiceFields = () =>
     {
       invalidMessage: t("invoices.error.attendee_invalid"),
       label: t("invoices.field.attendee"),
-      name: "attendee_id",
+      name: "attendeeId",
       parse: parsePositiveInt,
       required: true,
       requiredMessage: t("invoices.error.attendee_required"),

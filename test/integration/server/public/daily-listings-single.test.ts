@@ -146,12 +146,12 @@ describeWithEnv(
           mockFormRequest(
             `/ticket/${listing.slug}`,
             {
-              csrf_token: csrfToken,
+              csrfToken,
               date: validDate,
               email: "paid@example.com",
               name: "Paid Daily User",
             },
-            `csrf_token=${csrfToken}`,
+            `csrfToken=${csrfToken}`,
           ),
         );
         expect(response.status).toBe(302);

@@ -9,7 +9,7 @@ import {
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
 import { type ModifierInput, setModifierAnswers } from "#db/modifiers.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
 import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { insertModifier, patchModifier } from "#test-utils/modifiers.ts";
@@ -17,10 +17,13 @@ import { insertModifier, patchModifier } from "#test-utils/modifiers.ts";
 /** Create a question with `count` answers, returning their real ids (answer
  * ids are real rows now that the link is a modifier_id column on answers). */
 export const createAnswers = async (count: number): Promise<number[]> => {
-  const q = await questionsTable.insert({ displayType: "radio", text: "Q?" });
+  const q = await records.questions.insert({
+    displayType: "radio",
+    text: "Q?",
+  });
   const ids: number[] = [];
   for (let i = 0; i < count; i++) {
-    const a = await answersTable.insert({
+    const a = await records.answers.insert({
       questionId: q.id,
       sortOrder: i,
       text: `A${i + 1}`,

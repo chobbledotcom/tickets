@@ -60,7 +60,7 @@ const calculate = async (
   const page = await handleRequest(mockRequest(`/ticket/${slug}`));
   const csrf = extractCsrfToken(await page.text()) ?? "";
   return handleRequest(
-    mockFormRequest(`/calculate/${slug}`, { csrf_token: csrf, ...data }),
+    mockFormRequest(`/calculate/${slug}`, { csrfToken: csrf, ...data }),
   );
 };
 
@@ -101,7 +101,7 @@ describeWithEnv("servicing §16 — public-facing exclusion", { db: true }, () =
       quantity: 3,
     });
     const body = await (
-      await calculate(listing.slug, { [`quantity_${listing.id}`]: "1" })
+      await calculate(listing.slug, { [`quantity${listing.id}`]: "1" })
     ).text();
     assertStringIncludes(body, "Room A");
     assert(!body.includes(HOLD_NAME));

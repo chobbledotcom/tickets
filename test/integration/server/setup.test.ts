@@ -1,10 +1,10 @@
-import type { InStatement } from "@libsql/client";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { invalidateInitDbCache, resetDatabase } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -30,11 +30,7 @@ import {
   withExpectedError,
   withMocks,
 } from "#test-utils/mocks.ts";
-import {
-  recordQueries,
-  statementSql,
-  wrapDbClient,
-} from "#test-utils/record-queries.ts";
+import { recordQueries, wrapDbClient } from "#test-utils/record-queries.ts";
 import { reloginAsAdmin } from "#test-utils/session.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
@@ -54,9 +50,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
     overrides: Record<string, string> = {},
   ): Promise<Response> {
     return submitSetupForm({
-      admin_password: "mypassword123",
-      admin_password_confirm: "mypassword123",
-      admin_username: TEST_ADMIN_USERNAME,
+      adminPassword: "mypassword123",
+      adminPasswordConfirm: "mypassword123",
+      adminUsername: TEST_ADMIN_USERNAME,
       country: "GB",
       ...overrides,
     });
@@ -66,7 +62,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
    *  page, read its CSRF token, then POST the standard valid credentials.
    *  Asserts the GET returns 200, a token is present, and the POST redirects to
    *  /setup/complete. */
-  async function completeSetupViaBrowser(setupUrl: string): Promise<void> {
+  async function expectSetupViaBrowser(setupUrl: string): Promise<void> {
     const getResponse = await handleRequest(
       new Request(setupUrl, {
         headers: { host: "localhost" },
@@ -81,9 +77,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
     const postResponse = await handleRequest(
       mockSetupFormRequest(
         {
-          admin_password: "mypassword123",
-          admin_password_confirm: "mypassword123",
-          admin_username: TEST_ADMIN_USERNAME,
+          adminPassword: "mypassword123",
+          adminPasswordConfirm: "mypassword123",
+          adminUsername: TEST_ADMIN_USERNAME,
           country: "GB",
         },
         csrfToken as string,
@@ -101,7 +97,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
   async function createEmptySettingsTable(): Promise<void> {
     await getDb().execute(
-      "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+      sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
     );
     settings.invalidateCache();
     settings.setup.clearCache();
@@ -135,15 +131,15 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const released = new Promise<void>((resolve) => {
           release = resolve;
         });
-        const holdProbe = async (statement: InStatement) => {
+        const holdProbe = async (statement: SqlStatement) => {
           await released;
           return real.execute(statement);
         };
         const restore = wrapDbClient({
           batch: () => {},
           execute: (statement) =>
-            statementSql(statement).startsWith("SELECT value FROM settings")
-              ? holdProbe(statement as InStatement)
+            statement.sql.startsWith("SELECT value FROM settings")
+              ? holdProbe(statement)
               : null,
         });
         try {
@@ -369,9 +365,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // POST without getting CSRF token first
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            admin_username: TEST_ADMIN_USERNAME,
+            adminPassword: "mypassword123",
+            adminPasswordConfirm: "mypassword123",
+            adminUsername: TEST_ADMIN_USERNAME,
             country: "US",
           }),
         );
@@ -386,11 +382,11 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // Send a wrong token in the form body
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            admin_username: TEST_ADMIN_USERNAME,
+            adminPassword: "mypassword123",
+            adminPasswordConfirm: "mypassword123",
+            adminUsername: TEST_ADMIN_USERNAME,
             country: "US",
-            csrf_token: "wrong-token-in-form",
+            csrfToken: "wrong-token-in-form",
           }),
         );
         await expectFlashRedirect(
@@ -402,8 +398,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ with empty password shows validation error", async () => {
         const response = await submitSetupFormWithDefaults({
-          admin_password: "",
-          admin_password_confirm: "",
+          adminPassword: "",
+          adminPasswordConfirm: "",
         });
         await expectFlashRedirect(
           "/setup/",
@@ -414,7 +410,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ with mismatched passwords shows error", async () => {
         const response = await submitSetupFormWithDefaults({
-          admin_password_confirm: "different",
+          adminPasswordConfirm: "different",
         });
         await expectFlashRedirect(
           "/setup/",
@@ -425,8 +421,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ with short password shows error", async () => {
         const response = await submitSetupFormWithDefaults({
-          admin_password: "short",
-          admin_password_confirm: "short",
+          adminPassword: "short",
+          adminPasswordConfirm: "short",
         });
         await expectFlashRedirect(
           "/setup/",
@@ -448,7 +444,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ without accepting agreement shows error", async () => {
         const response = await submitSetupFormWithDefaults({
-          accept_agreement: "", // Explicitly not accepting
+          acceptAgreement: "", // Explicitly not accepting
         });
         await expectFlashRedirect(
           "/setup/",
@@ -483,9 +479,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
               const response = await handleRequest(
                 mockSetupFormRequest(
                   {
-                    admin_password: "mypassword123",
-                    admin_password_confirm: "mypassword123",
-                    admin_username: TEST_ADMIN_USERNAME,
+                    adminPassword: "mypassword123",
+                    adminPasswordConfirm: "mypassword123",
+                    adminUsername: TEST_ADMIN_USERNAME,
                     country: "GB",
                   },
                   csrfToken as string,
@@ -503,18 +499,18 @@ describeWithEnv("server (setup)", { db: true }, () => {
         expectRedirect(response, /^\/setup$/);
       });
 
-      test("setup form works with full browser flow simulation", async () => {
-        // This test simulates what a real browser does:
-        // 1. GET /setup/ - browser receives the page with CSRF token
-        // 2. User fills form and submits
-        // 3. Browser sends POST with signed CSRF token
-        await completeSetupViaBrowser("http://localhost/setup/");
-      });
-
-      test("setup form works when accessed via /setup (no trailing slash)", async () => {
-        // Same full flow, but reached at /setup with no trailing slash.
-        await completeSetupViaBrowser("http://localhost/setup");
-      });
+      // Both paths finish the same browser flow: page, form, signed POST.
+      for (const [title, path] of [
+        ["setup form works with full browser flow simulation", "/setup/"],
+        [
+          "setup form works when accessed via /setup (no trailing slash)",
+          "/setup",
+        ],
+      ] as const) {
+        test(title, async () => {
+          await expectSetupViaBrowser(`http://localhost${path}`);
+        });
+      }
 
       test("GET /setup/complete redirects to setup when not yet complete", async () => {
         const response = await handleRequest(mockRequest("/setup/complete"));
@@ -531,8 +527,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
       test("POST /setup/ redirects to home", async () => {
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_password: "newpassword123",
-            admin_password_confirm: "newpassword123",
+            adminPassword: "newpassword123",
+            adminPasswordConfirm: "newpassword123",
             country: "FR",
           }),
         );
@@ -561,9 +557,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
       await handleRequest(
         mockSetupFormRequest(
           {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            admin_username: TEST_ADMIN_USERNAME,
+            adminPassword: "mypassword123",
+            adminPasswordConfirm: "mypassword123",
+            adminUsername: TEST_ADMIN_USERNAME,
             country: "US",
           },
           csrfToken as string,

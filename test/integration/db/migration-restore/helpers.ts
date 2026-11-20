@@ -1,23 +1,21 @@
 /**
- * Shared fixture for the migration restore/chain suites.
+ * Shared fixture for the migration restore and chain suites.
  *
  * "Restore from each migration" — for every additive migration, start from a
  * fully-migrated database, drop exactly the objects that migration owns, prove
  * its verify() now fails, then re-run its up() and prove verify() passes again
- * and that pre-existing data survived. The chain suites do the larger version:
- * migrate a populated database from every historical boundary to the current
- * schema through the real `initDb()`.
+ * and that pre-existing data survived. This suite is sharded across the
+ * `restore-*.test.ts` files via the `defineRestoreCasesSuite` factory below
+ * (shard by index modulo shard count), so `deno test --parallel` spreads the
+ * heavy DDL work across workers.
  *
- * Both suites are sharded across several test files via the `defineRestore…` /
- * `defineChain…` factories below (shard by index modulo shard count), so
- * `deno test --parallel` can spread this genuinely heavy DDL work across
- * workers instead of serialising ~2 minutes of it on one. Modulo sharding
- * keeps the shards balanced as migrations are added — each shard gets an even
- * mix of long (old boundary) and short (recent boundary) chains.
+ * The chain test seeds one populated fixture and winds the schema back to the
+ * first historical boundary. It then applies every migration forward and
+ * checks the fixture at each boundary. See `chain.test.ts`.
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import type { Trigger } from "#db/migrations/schema/types.ts";
@@ -26,18 +24,17 @@ import {
   verifyCurrentAppSchema,
 } from "#db/migrations/schema-sync.ts";
 import {
-  initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
   type Migration,
   SCHEMA_HASH,
   type SchemaRequirement,
 } from "#db/migrations.ts";
-import { seedPreDropLedgerColumns } from "#test-utils/db/migration-test-helpers.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 
-const MIGRATIONS = await loadMigrations();
+export const MIGRATIONS = await loadMigrations();
 export const migrationById = (id: string): Migration =>
   MIGRATIONS.find((m) => m.id === id)!;
 
@@ -50,7 +47,7 @@ const POST_CHAIN_MIGRATION_VERIFIER_IDS = [
   "2026-07-05_package_slot_identity",
 ] as const;
 
-const verifyMigratedSchema = async (): Promise<void> => {
+export const verifyMigratedSchema = async (): Promise<void> => {
   await verifyCurrentAppSchema();
   for (const id of POST_CHAIN_MIGRATION_VERIFIER_IDS) {
     await migrationById(id).verify();
@@ -59,16 +56,15 @@ const verifyMigratedSchema = async (): Promise<void> => {
 
 export const tableColumns = async (table: string): Promise<Set<string>> => {
   const result = await getDb().execute(
-    `SELECT name FROM pragma_table_info('${table}')`,
+    sql`SELECT name FROM pragma_table_info(${sqlLiteral(table)})`,
   );
   return new Set(result.rows.map((row) => String(row.name)));
 };
 
 export const triggerExists = async (name: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [name],
-    sql: "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
-  });
+  const result = await getDb().execute(
+    sql`SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ${name}`,
+  );
   return result.rows.length > 0;
 };
 
@@ -78,10 +74,9 @@ const indexesReferencingColumn = async (
   table: string,
   column: string,
 ): Promise<string[]> => {
-  const indexes = await getDb().execute({
-    args: [table],
-    sql: "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
-  });
+  const indexes = await getDb().execute(
+    sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ${table} AND sql IS NOT NULL`,
+  );
   const wanted = column.toLowerCase();
   return indexes.rows
     .filter((row) => schemaSqlIdentifiers(String(row.sql)).has(wanted))
@@ -108,9 +103,11 @@ const dropRequiredColumns = async (
       // idx_listing_attendees_ledger_event_group on ledger_event_group); drop
       // any such index before the column, or SQLite refuses the DROP COLUMN.
       for (const index of await indexesReferencingColumn(table, col)) {
-        await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
+        await getDb().execute(sql`DROP INDEX IF EXISTS ${sqlName(index)}`);
       }
-      await getDb().execute(`ALTER TABLE ${table} DROP COLUMN ${col}`);
+      await getDb().execute(
+        sql`ALTER TABLE ${sqlName(table)} DROP COLUMN ${sqlName(col)}`,
+      );
     }
   }
 };
@@ -130,76 +127,73 @@ export const dropOwnedObjects = async (
     ...droppedTriggers.map(({ name }) => name),
   ]);
   for (const trigger of triggerNames) {
-    await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
+    await getDb().execute(sql`DROP TRIGGER IF EXISTS ${sqlName(trigger)}`);
   }
   for (const index of req.indexes ?? []) {
-    await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
+    await getDb().execute(sql`DROP INDEX IF EXISTS ${sqlName(index)}`);
   }
   await dropRequiredColumns(req.columns);
   for (const table of req.newTables ?? []) {
-    await getDb().execute(`DROP TABLE IF EXISTS ${table}`);
+    await getDb().execute(sql`DROP TABLE IF EXISTS ${sqlName(table)}`);
   }
   return droppedTriggers;
 };
 
+// The name stays plain text so that sentinelListingExists can find the row.
 export const seedSentinelListing = (): Promise<unknown> =>
   getDb().execute(
-    insert("listings", {
-      created: "2024-01-01T00:00:00Z",
-      max_attendees: 10,
-      name: "sentinel-listing",
-    }),
+    sql`INSERT INTO listings (created, max_attendees, name) VALUES ('2024-01-01T00:00:00Z', 10, 'sentinel-listing')`,
   );
 
-export const scalar = async (sql: string): Promise<unknown> => {
-  const result = await getDb().execute(sql);
+export const scalar = async (statement: SqlStatement): Promise<unknown> => {
+  const result = await getDb().execute(statement);
   return result.rows[0]?.value;
 };
 
-const seedPopulatedMigrationFixture = () =>
+export const seedPopulatedMigrationFixture = () =>
   getDb().batch(
     [
-      `INSERT INTO groups (id, slug, slug_index, name, description, max_attendees)
+      sql`INSERT INTO groups (id, slug, slug_index, name, description, max_attendees)
        VALUES (901, 'migration-group', 'group-index', 'Migration Group', 'historic group', 50)`,
-      `INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
+      sql`INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
        VALUES (902, '2024-01-01T00:00:00Z', 25, 'migration-listing', 'migration-listing', 'listing-index', 1200, 4, 'standard', '2024-02-01', 'Town Hall', 1, 1)`,
-      `INSERT INTO attendees (id, created, checked_in, ticket_token_index, pii_blob, status_id, split_logistics_agents, phone_index)
+      sql`INSERT INTO attendees (id, created, checked_in, ticket_token_index, pii_blob, status_id, split_logistics_agents, phone_index)
        VALUES (903, '2024-01-02T00:00:00Z', '', 'ticket-index', '{"name":"Migration Guest"}', 1, 1, 'phone-index')`,
-      `INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
+      sql`INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
        VALUES (904, 902, 903, '2024-02-01T10:00:00Z', '2024-02-01T12:00:00Z', 2, 1, NULL, NULL, '10:00', '12:00', 1, 0)`,
-      `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data)
+      sql`INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data)
        VALUES ('payment-session', 903, '2024-01-02T00:10:00Z', 'ticket-token', '{"code":"card_declined"}')`,
-      `INSERT INTO activity_log (id, created, listing_id, message, attendee_id)
+      sql`INSERT INTO activity_log (id, created, listing_id, message, attendee_id)
        VALUES (905, '2024-01-02T00:15:00Z', 902, 'fixture activity', 903)`,
-      `INSERT INTO sumup_checkouts (reference_index, wrapped_key, metadata, sumup_id, created_at)
+      sql`INSERT INTO sumup_checkouts (reference_index, wrapped_key, metadata, sumup_id, created_at)
        VALUES ('sumup-reference', 'wrapped', '{"attendeeId":903}', 'sumup-id', '2024-01-02T00:20:00Z')`,
-      `INSERT INTO questions (id, text, sort_order, display_type, assign_all)
+      sql`INSERT INTO questions (id, text, sort_order, display_type, assign_all)
        VALUES (906, 'Meal choice?', 7, 'select', 1)`,
-      `INSERT INTO modifiers (id, name, calc_kind, calc_value, direction, active, trigger, code, code_index, scope, stock, max_per_order, min_subtotal, min_visits)
+      sql`INSERT INTO modifiers (id, name, calc_kind, calc_value, direction, active, trigger, code, code_index, scope, stock, max_per_order, min_subtotal, min_visits)
        VALUES (907, 'VIP uplift', 'fixed', 5, 'increase', 1, 'answer', '', NULL, 'listing', 20, 2, 1000, 1)`,
-      `INSERT INTO answers (id, question_id, text, sort_order, modifier_id)
+      sql`INSERT INTO answers (id, question_id, text, sort_order, modifier_id)
        VALUES (908, 906, 'Vegetarian', 3, 907)`,
-      `INSERT INTO listing_questions (id, listing_id, question_id, sort_order)
+      sql`INSERT INTO listing_questions (id, listing_id, question_id, sort_order)
        VALUES (909, 902, 906, 4)`,
-      `INSERT INTO attendee_answers (id, attendee_id, answer_id, question_id)
+      sql`INSERT INTO attendee_answers (id, attendee_id, answer_id, question_id)
        VALUES (910, 903, 908, 906)`,
-      `INSERT INTO modifier_listings (modifier_id, listing_id)
+      sql`INSERT INTO modifier_listings (modifier_id, listing_id)
        VALUES (907, 902)`,
-      `INSERT INTO modifier_groups (modifier_id, group_id)
+      sql`INSERT INTO modifier_groups (modifier_id, group_id)
        VALUES (907, 901)`,
-      `INSERT INTO modifier_usages (id, modifier_id, attendee_id, quantity, amount_applied, created)
+      sql`INSERT INTO modifier_usages (id, modifier_id, attendee_id, quantity, amount_applied, created)
        VALUES (911, 907, 903, 2, 500, '2024-01-02T00:25:00Z')`,
-      `INSERT INTO holidays (id, name, start_date, end_date)
+      sql`INSERT INTO holidays (id, name, start_date, end_date)
        VALUES (912, 'Fixture holiday', '2024-03-01', '2024-03-03')`,
-      `INSERT INTO built_sites (id, site_data, assignable, assigned_attendee_id, assigned_listing_id, created, renewal_token_index, read_only_from)
+      sql`INSERT INTO built_sites (id, site_data, assignable, assigned_attendee_id, assigned_listing_id, created, renewal_token_index, read_only_from)
        VALUES (913, '{"site":"fixture"}', 1, 903, 902, '2024-01-03T00:00:00Z', 'renewal-index', '')`,
-      `INSERT INTO email_templates (id, subject, body)
+      sql`INSERT INTO email_templates (id, subject, body)
        VALUES (914, 'Fixture subject', 'Fixture body')`,
-      `INSERT INTO sms_messages (id, attendee_id, listing_id, provider_id, created)
+      sql`INSERT INTO sms_messages (id, attendee_id, listing_id, provider_id, created)
        VALUES (915, 903, 902, 'provider-message', '2024-01-03T00:05:00Z')`,
-      `INSERT INTO processed_sms_inbound (webhook_id, created)
+      sql`INSERT INTO processed_sms_inbound (webhook_id, created)
        VALUES ('sms-webhook', '2024-01-03T00:06:00Z')`,
-      `INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity)
+      sql`INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity)
        VALUES ('contact-hash', 1, 5, '{}', 1700000000)`,
     ],
     "write",
@@ -208,89 +202,95 @@ const seedPopulatedMigrationFixture = () =>
 const migrationIndex = (id: string): number =>
   MIGRATIONS.findIndex((migration) => migration.id === id);
 
-const assertPopulatedFixtureSurvived = async (
-  baseMigrationId: string,
+/** Assert that a query finds the one fixture row it looks for. */
+const expectFixtureRow = async (statement: SqlStatement): Promise<void> => {
+  expect(await scalar(statement)).toBe(1);
+};
+
+/**
+ * Check the fixture rows at `boundaryId` against a fixture seeded at
+ * `seedBoundaryId`.
+ *
+ * Two kinds of claim wait on a migration:
+ * - a value that a migration computes from other rows is checked from the
+ *   boundary where that migration ran;
+ * - a value that only a migration's column holds is checked from the boundary
+ *   where the column already existed when the fixture was written. A walk from
+ *   an early boundary drops that column, so the value cannot come back.
+ */
+export const assertPopulatedFixtureSurvived = async (
+  seedBoundaryId: string,
+  boundaryId = seedBoundaryId,
 ): Promise<void> => {
-  expect(
-    await scalar(
-      "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1",
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2",
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      "SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'",
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'",
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      "SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'",
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      "SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903",
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      "SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'",
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      "SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906 AND times_selected = 1",
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      "SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908",
-    ),
-  ).toBe(1);
+  /** This boundary is at or after the migration. */
+  const ran = (id: string): boolean =>
+    migrationIndex(boundaryId) >= migrationIndex(id);
+  /** The fixture was written at or after the migration. */
+  const kept = (id: string): boolean =>
+    migrationIndex(seedBoundaryId) >= migrationIndex(id);
 
-  if (
-    migrationIndex(baseMigrationId) >=
-    migrationIndex("2026-06-14_attendee_statuses")
-  ) {
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903",
-      ),
-    ).toBe(1);
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing'`,
+  );
+  if (ran("2026-06-16_listing_aggregates")) {
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND booked_quantity = 2 AND tickets_count = 1`,
+    );
   }
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'`,
+  );
+  if (kept("2026-06-14_attendee_statuses")) {
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903`,
+    );
+  }
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906`,
+  );
+  if (ran("2026-06-19_answer_aggregates")) {
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND times_selected = 1`,
+    );
+  }
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908`,
+  );
 
-  if (
-    migrationIndex(baseMigrationId) >= migrationIndex("2026-06-16_modifiers")
-  ) {
+  if (kept("2026-06-16_modifiers")) {
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903`,
+    );
+  }
+  if (kept("2026-06-17_modifier_aggregates")) {
     // total_revenue is no longer a stored column — a modifier's revenue
     // projects from the transfers ledger as balanceOf(modifier:M). The
     // fixture posts no modifier ledger legs, so only the count aggregates
     // (trigger-maintained) survive here.
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1",
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        "SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903",
-      ),
-    ).toBe(1);
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1`,
+    );
   }
 };
 
 export const sentinelListingExists = async (): Promise<boolean> => {
   const result = await getDb().execute(
-    "SELECT 1 FROM listings WHERE name = 'sentinel-listing'",
+    sql`SELECT 1 FROM listings WHERE name = 'sentinel-listing'`,
   );
   return result.rows.length > 0;
 };
@@ -302,19 +302,13 @@ export const markAppliedThrough = async (lastId: string): Promise<void> => {
   );
   await getDb().batch(
     [
-      { args: [], sql: "DELETE FROM schema_migrations" },
-      ...applied.map((migration) => ({
-        args: [migration.id, migration.description],
-        sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, '2026-01-01T00:00:00.000Z')",
-      })),
-      {
-        args: [LATEST_UPDATE],
-        sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-      },
-      {
-        args: [SCHEMA_HASH],
-        sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-      },
+      sql`DELETE FROM schema_migrations`,
+      ...applied.map(
+        (migration) =>
+          sql`INSERT INTO schema_migrations (id, description, applied_at) VALUES (${migration.id}, ${migration.description}, '2026-01-01T00:00:00.000Z')`,
+      ),
+      sql`UPDATE settings SET value = ${LATEST_UPDATE} WHERE key = 'latest_db_update'`,
+      sql`UPDATE settings SET value = ${SCHEMA_HASH} WHERE key = 'db_schema_hash'`,
     ],
     "write",
   );
@@ -324,8 +318,8 @@ export const markAppliedThrough = async (lastId: string): Promise<void> => {
 export const markSchemaMarkersStale = () =>
   getDb().batch(
     [
-      "UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'",
-      "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      sql`UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'`,
+      sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`,
     ],
     "write",
   );
@@ -342,12 +336,12 @@ export const ownsSchemaObjects = (req: SchemaRequirement): boolean =>
       Object.values(req.columns ?? {}).some((cols) => cols.length > 0),
   );
 
-const columnsRemovedByMigration: Partial<Record<string, string[]>> = {
+const columnsRemovedByMigration: Partial<Record<string, SqlStatement[]>> = {
   "2026-07-05_first_class_images": [
-    "ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''",
+    sql`ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`,
   ],
   "2026-07-18_drop_built_sites_last_pruned": [
-    "ALTER TABLE built_sites ADD COLUMN last_pruned TEXT NOT NULL DEFAULT ''",
+    sql`ALTER TABLE built_sites ADD COLUMN last_pruned TEXT NOT NULL DEFAULT ''`,
   ],
 };
 
@@ -379,7 +373,7 @@ export const additiveMigrations = MIGRATIONS.filter(
     m.requires && !m.requires.absentTables && ownsSchemaObjects(m.requires),
 );
 
-/** The historical upgrade start points the chain suites migrate from. */
+/** The historical upgrade start points the chain test walks through. */
 export const migrationBoundaries = MIGRATIONS.slice(
   MIGRATIONS.findIndex((m) => m.id === "2026-06-14_rename_events_to_listings"),
   -1,
@@ -462,47 +456,6 @@ export const defineRestoreCasesSuite = (
   );
 };
 
-/**
- * Register one shard of the populated-database chain suite: for each boundary
- * in the shard, seed a populated fixture, wind the schema back to that
- * boundary, run the real `initDb()` upgrade, and prove every migration
- * verifies and the fixture survived.
- */
-export const defineChainSuite = (shard: number, shardCount: number): void => {
-  describeWithEnv(
-    `db > migration chain (shard ${shard + 1}/${shardCount})`,
-    { db: true, triggers: true },
-    () => {
-      for (const baseMigration of shardSlice(
-        migrationBoundaries,
-        shard,
-        shardCount,
-      )) {
-        test(`migrates a populated database from ${baseMigration.id} to the current schema`, async () => {
-          await seedPopulatedMigrationFixture();
-          // The fixture is built from the current (post-drop) schema, but the
-          // 2026-06-22_backfill_transfers migration in the chain reads
-          // listing_attendees.refunded and price_paid — present in production until
-          // the later drop_listing_attendee_refunded / drop_listing_attendee_price_paid
-          // migrations recreate the table without them. Restore the columns so the
-          // chain reproduces production; the drop migrations then remove them again,
-          // leaving the verified schema correct.
-          await seedPreDropLedgerColumns();
-
-          const pending = MIGRATIONS.slice(
-            MIGRATIONS.indexOf(baseMigration) + 1,
-          );
-          await restoreSchemaBeforeMigrations(pending);
-
-          await markAppliedThrough(baseMigration.id);
-          await markSchemaMarkersStale();
-
-          await initDb();
-
-          await verifyMigratedSchema();
-          await assertPopulatedFixtureSurvived(baseMigration.id);
-        });
-      }
-    },
-  );
-};
+/** Every migration that ran after `boundaryId` ran. */
+export const migrationsAfter = (boundaryId: string): Migration[] =>
+  MIGRATIONS.slice(migrationIndex(boundaryId) + 1);

@@ -33,8 +33,8 @@ describe("ticket quantity required", () => {
   test("allows submission when any ticket quantity is positive", () => {
     const { form, submit, window } = setupForm(`
       <form>
-        <input name="quantity_1" value="invalid">
-        <select name="quantity_2"><option selected value="2">2</option></select>
+        <input name="quantity1" value="invalid">
+        <select name="quantity2"><option selected value="2">2</option></select>
       </form>
     `);
     const quantity = form.querySelector("select")!;
@@ -49,8 +49,8 @@ describe("ticket quantity required", () => {
   test("allows submission when a package quantity is positive", () => {
     const { form, submit } = setupForm(`
       <form>
-        <select name="quantity_1"><option selected value="0">0</option></select>
-        <select name="package_quantity_2"><option selected value="1">1</option></select>
+        <select name="quantity1"><option selected value="0">0</option></select>
+        <select name="packageQuantity2"><option selected value="1">1</option></select>
       </form>
     `);
 
@@ -62,7 +62,7 @@ describe("ticket quantity required", () => {
 
   test("allows leading-zero quantities accepted by the server", () => {
     const { form, submit } = setupForm(`
-      <form><input name="quantity_1" value="01"></form>
+      <form><input name="quantity1" value="01"></form>
     `);
 
     const event = submit();
@@ -74,8 +74,8 @@ describe("ticket quantity required", () => {
   test("blocks malformed ticket quantities", () => {
     const { form, submit, window } = setupForm(`
       <form>
-        <input name="quantity_1" value="1invalid">
-        <input name="quantity_2" value="9007199254740992">
+        <input name="quantity1" value="1invalid">
+        <input name="quantity2" value="9007199254740992">
       </form>
     `);
     window.HTMLElement.prototype.scrollIntoView = () => {};
@@ -92,9 +92,9 @@ describe("ticket quantity required", () => {
     const { form, submit, window } = setupForm(`
       <form>
         <p>Tickets</p>
-        <input name="quantity_1" value="invalid">
-        <input name="quantity_2" value="-1">
-        <select name="quantity_3"><option selected value="0">0</option></select>
+        <input name="quantity1" value="invalid">
+        <input name="quantity2" value="-1">
+        <select name="quantity3"><option selected value="0">0</option></select>
       </form>
     `);
     let scrollCount = 0;
@@ -117,7 +117,7 @@ describe("ticket quantity required", () => {
 
   test("recreates a removed error after another invalid submission", () => {
     const { form, submit, window } = setupForm(`
-      <form><select name="quantity_1"><option selected value="0">0</option></select></form>
+      <form><select name="quantity1"><option selected value="0">0</option></select></form>
     `);
     const quantity = form.querySelector("select")!;
     window.HTMLElement.prototype.scrollIntoView = () => {};

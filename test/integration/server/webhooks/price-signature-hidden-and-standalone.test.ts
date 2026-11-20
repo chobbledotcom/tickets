@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import {
   expectProcessed,
   expectStoredRefund,
@@ -50,7 +50,7 @@ describeWithEnv(
         unitPrice: 0,
       });
       await listingChildren.setIds(parent.id, [child.id]);
-      await listingsTable.update(child.id, { bookableAlone: false });
+      await updateListing(child.id, { bookableAlone: false });
       const metadata = signMeta(
         webhookMeta({
           allocations: JSON.stringify([
@@ -70,7 +70,7 @@ describeWithEnv(
 
     test("a hidden package booking completes (member name never leaks in the flow)", async () => {
       const { group, listing } = await setupPackage();
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await records.groups.update(group.id, { hidePackageListings: true });
       // A normal hidden-package session: it processes, exercising the path that
       // suppresses member names in any failure message for hidden packages.
       await runWebhook(
@@ -85,7 +85,7 @@ describeWithEnv(
 
     test("a standalone session completes after its listing joins a concealing package", async () => {
       const { group, listing } = await setupPackage();
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await records.groups.update(group.id, { hidePackageListings: true });
       await runWebhook(
         {
           amount_total: 5000,
@@ -110,7 +110,7 @@ describeWithEnv(
       // /ticket/<slug> 404s. The stale-non-standalone-child guard must fail it
       // closed to a stored refund. Isolates that guard from orderEdgeDrifted.
       const { child } = await parentWithBookableAloneChild();
-      await listingsTable.update(child.id, { bookableAlone: false });
+      await updateListing(child.id, { bookableAlone: false });
       await runWebhook(
         {
           amount_total: 1000,

@@ -55,7 +55,7 @@ export const handleSuperuserPost = settingsRoute(
       return errorPage("Superuser is not available", "settings-superuser");
     }
 
-    const choice = form.getString("superuser_choice");
+    const choice = form.getString("superuserChoice");
 
     if (choice !== "self-managed" && choice !== "enable-superuser") {
       return errorPage("Invalid choice", "settings-superuser");

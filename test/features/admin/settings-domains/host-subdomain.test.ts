@@ -112,7 +112,7 @@ describeWithEnv(
       await settings.update.bunnySubdomain("existing.tickets.example.com");
       const response = await handleRequest(
         mockRequestWithHost(PATH, "existing.tickets.example.com", {
-          body: `subdomain=mylisting&csrf_token=${encodeURIComponent(csrfToken)}`,
+          body: `subdomain=mylisting&csrfToken=${encodeURIComponent(csrfToken)}`,
           headers: {
             "content-type": "application/x-www-form-urlencoded",
             cookie: `__Host-session=${token}`,
@@ -146,7 +146,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockFormRequest(
             PATH,
-            { csrf_token: await testCsrfToken(), subdomain: "mylisting" },
+            { csrfToken: await testCsrfToken(), subdomain: "mylisting" },
             cookie,
           ),
         );

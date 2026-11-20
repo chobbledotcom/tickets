@@ -14,8 +14,8 @@ describe("adminQuestionsPage", () => {
 
   const colourQuestion = testQuestion({
     answers: [
-      testAnswer({ id: 10, sort_order: 0, text: "Red" }),
-      testAnswer({ id: 11, sort_order: 1, text: "Blue" }),
+      testAnswer({ id: 10, sortOrder: 0, text: "Red" }),
+      testAnswer({ id: 11, sortOrder: 1, text: "Blue" }),
     ],
     id: 1,
     text: "Favourite colour?",
@@ -56,7 +56,7 @@ describe("adminQuestionsPage", () => {
 
   test("shows All and the total count for assign-all questions", () => {
     const html = adminQuestionsPage(
-      [{ ...colourQuestion, assign_all: true }],
+      [{ ...colourQuestion, assignAll: true }],
       OWNER_SESSION,
       undefined,
       new Map(),
@@ -70,7 +70,7 @@ describe("adminQuestionsPage", () => {
     // must read the 0 default — not 1 — so a drift in that default parameter is
     // caught rather than silently over-reporting the listing count.
     const html = adminQuestionsPage(
-      [{ ...colourQuestion, assign_all: true }],
+      [{ ...colourQuestion, assignAll: true }],
       OWNER_SESSION,
     );
     assertStringIncludes(html, '<td class="col-quantity" title="All">0</td>');
@@ -110,7 +110,7 @@ describe("adminQuestionsPage", () => {
           text: "First Q",
         }),
         testQuestion({
-          answers: [testAnswer({ id: 20, question_id: 2, text: "B" })],
+          answers: [testAnswer({ id: 20, questionId: 2, text: "B" })],
           id: 2,
           text: "Second Q",
         }),

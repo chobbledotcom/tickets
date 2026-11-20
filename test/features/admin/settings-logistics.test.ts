@@ -6,12 +6,14 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { records } from "#db/record-table.ts";
 import { agentUsers } from "#db/user-agents.ts";
-import { getAllUsers } from "#db/users.ts";
+import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createAgentAssignedToFirstUser } from "#test-utils/db-helpers/logistics-agent-users.ts";
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
+import { racedBy } from "#test-utils/record-queries.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("settings-logistics", { db: true }, () => {
@@ -39,19 +41,12 @@ describeWithEnv("settings-logistics", { db: true }, () => {
       "/admin/logistics",
       "Logistics agent updated",
     )(response);
-    expect((await logisticsAgents.table.read.one({ id }))!.name).toBe(
-      "Renamed",
-    );
+    expect((await records.logistics_agents.find(id))!.name).toBe("Renamed");
   });
 
   test("the edit afterWrite persists assigned users", async () => {
-    const id = await createLogisticsAgent("Assigned Van");
-    const userId = (await getAllUsers())[0]!.id;
-
-    const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
-      name: "Assigned Van",
-      user_ids: String(userId),
-    });
+    const { id, response, userId } =
+      await createAgentAssignedToFirstUser("Assigned Van");
 
     await expectFlashRedirect(
       "/admin/logistics",
@@ -65,7 +60,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
 
     const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
       name: "Unknown Id Van",
-      user_ids: "99999",
+      userIds: "99999",
     });
     await expectFlashRedirect(
       "/admin/logistics",
@@ -76,24 +71,29 @@ describeWithEnv("settings-logistics", { db: true }, () => {
   });
 
   test("the edit form pre-checks assigned users", async () => {
-    const id = await createLogisticsAgent("Pre-check Van");
-    const userId = (await getAllUsers())[0]!.id;
-    await adminFormPost(`/admin/logistics/${id}/edit`, {
-      name: "Pre-check Van",
-      user_ids: String(userId),
-    });
+    const { id, userId } =
+      await createAgentAssignedToFirstUser("Pre-check Van");
 
     const html = await (await adminGet(`/admin/logistics/${id}`)).text();
 
     expect(html).toMatch(new RegExp(`checked[^>]*value="${userId}"`));
   });
 
-  test("editing a missing agent returns 404", async () => {
-    const { response } = await adminFormPost("/admin/logistics/99999/edit", {
+  test("an edit of a missing agent, or of one deleted mid-edit, answers 404 and logs nothing", async () => {
+    const id = await createLogisticsAgent("Racing Van");
+    const missing = await adminFormPost("/admin/logistics/99999/edit", {
       name: "Ghost",
     });
+    const raced = await racedBy(
+      () => records.logistics_agents.delete(id),
+      () => adminFormPost(`/admin/logistics/${id}/edit`, { name: "Renamed" }),
+    );
 
-    expect(response.status).toBe(404);
+    expect([
+      missing.response.status,
+      raced.response.status,
+      await activityMessages(),
+    ]).toEqual([404, 404, ["Logistics agent 'Racing Van' created"]]);
   });
 
   test("deletes an agent and clears its references", async () => {
@@ -104,27 +104,23 @@ describeWithEnv("settings-logistics", { db: true }, () => {
     assertStringIncludes(html, `/admin/logistics/${id}/delete`);
 
     const { response } = await adminFormPost(`/admin/logistics/${id}/delete`, {
-      confirm_identifier: "Delete Me",
+      confirmIdentifier: "Delete Me",
     });
 
     await expectFlashRedirect(
       "/admin/logistics",
       "Logistics agent deleted",
     )(response);
-    expect(await logisticsAgents.table.read.one({ id })).toBeNull();
+    expect(await records.logistics_agents.find(id)).toBeNull();
   });
 
   test("deleting an agent clears its user assignments", async () => {
-    const id = await createLogisticsAgent("Clear Users Agent");
-    const userId = (await getAllUsers())[0]!.id;
-    await adminFormPost(`/admin/logistics/${id}/edit`, {
-      name: "Clear Users Agent",
-      user_ids: String(userId),
-    });
+    const { id, userId } =
+      await createAgentAssignedToFirstUser("Clear Users Agent");
     expect(await agentUsers.getIds(id)).toEqual([userId]);
 
     await adminFormPost(`/admin/logistics/${id}/delete`, {
-      confirm_identifier: "Clear Users Agent",
+      confirmIdentifier: "Clear Users Agent",
     });
 
     expect(await agentUsers.getIds(id)).toEqual([]);

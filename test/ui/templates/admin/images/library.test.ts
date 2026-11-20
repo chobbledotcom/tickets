@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getAllImages } from "#db/images.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -72,10 +73,17 @@ describeWithEnv(
         ].map((match) => Number(match[1]));
         expect(shown).toEqual(libraryOrder.map((image) => image.id));
 
-        // The editor's image dropdown offers the same order.
+        // The editor's image dialog offers the same order, with each
+        // image's thumbnail URL for the dialog's grid and its full URL for
+        // the rich editor's rendering.
         const options = await (await adminGet("/admin/images/options")).json();
         expect(options).toEqual({
-          images: libraryOrder.map(({ id, name }) => ({ id, name })),
+          images: libraryOrder.map(({ id, name, filename, filenameThumb }) => ({
+            full: `/image/${filename}`,
+            id,
+            name,
+            thumb: `/image/${filenameThumb}`,
+          })),
         });
       });
 
@@ -154,7 +162,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockMultipartRequest(
             "/admin/images",
-            { alt_text: "", csrf_token: await testCsrfToken(), name: "" },
+            { altText: "", csrfToken: await testCsrfToken(), name: "" },
             await testCookie(),
           ),
         );
@@ -172,8 +180,8 @@ describeWithEnv(
           mockMultipartRequest(
             "/admin/images",
             {
-              alt_text: "Missing file alt",
-              csrf_token: await testCsrfToken(),
+              altText: "Missing file alt",
+              csrfToken: await testCsrfToken(),
               name: "Missing file",
             },
             await testCookie(),
@@ -215,7 +223,7 @@ describeWithEnv(
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
-        await getDb().execute("DROP TABLE images");
+        await getDb().execute(sql`DROP TABLE images`);
         await withBunnyStorageStub(
           () => new Response(null, { status: 201 }),
           async () => {
@@ -256,9 +264,9 @@ describeWithEnv(
 
         const [image] = await getAllImages();
         expect(image?.name).toBe("New library image");
-        expect(image?.alt_text).toBe("Alt New library image");
+        expect(image?.altText).toBe("Alt New library image");
         expect(image?.filename).toMatch(/\.webp$/);
-        expect(image?.filename_thumb).toMatch(/\.webp$/);
+        expect(image?.filenameThumb).toMatch(/\.webp$/);
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );
@@ -266,8 +274,8 @@ describeWithEnv(
       });
     });
 
-    describe("GET /admin/images/options (editor dropdown list)", () => {
-      test("lists every image as id and name in name order", async () => {
+    describe("GET /admin/images/options (editor image dialog list)", () => {
+      test("lists every image as id, name, thumb, and full address in name order", async () => {
         await makeImage("Zebra");
         await makeImage("Alpha");
         const response = await adminGet("/admin/images/options");
@@ -278,8 +286,18 @@ describeWithEnv(
         const body = await response.json();
         expect(body).toEqual({
           images: [
-            { id: await idOf("Alpha"), name: "Alpha" },
-            { id: await idOf("Zebra"), name: "Zebra" },
+            {
+              full: "/image/alpha.webp",
+              id: await idOf("Alpha"),
+              name: "Alpha",
+              thumb: "/image/alpha-thumb.webp",
+            },
+            {
+              full: "/image/zebra.webp",
+              id: await idOf("Zebra"),
+              name: "Zebra",
+              thumb: "/image/zebra-thumb.webp",
+            },
           ],
         });
       });
@@ -291,7 +309,7 @@ describeWithEnv(
 
       test("serves an empty list when storage is disabled", async () => {
         await makeImage("Hero");
-        const response = await withStorageDisabled(async () =>
+        const response = await withStorageDisabled(() =>
           adminGet("/admin/images/options"),
         );
         expect(response.status).toBe(200);

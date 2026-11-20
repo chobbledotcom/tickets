@@ -1,7 +1,11 @@
 import { buildBookingTree } from "#booking/build-tree.ts";
 import type { FoldBase, FoldChildrenResult } from "#booking/fold-tree.ts";
 import { buildOrderLines, nodeQuantitiesFor } from "#booking/order-lines.ts";
-import type { BookingTree } from "#booking/tree.ts";
+import {
+  type BookingTree,
+  childPriceFieldName,
+  childQuantityFieldName,
+} from "#booking/tree.ts";
 import { apiError } from "#routes/api/cors.ts";
 import {
   bookingSuccessResponse,
@@ -28,14 +32,15 @@ import type { TicketCtx } from "#routes/public/types.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { isPaymentsEnabled } from "#shared/config.ts";
+import { isPaymentsEnabled, saleProviderOrNull } from "#shared/config.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import {
   type CheckoutIntent,
   type CheckoutItem,
-  getActivePaymentProvider,
+  createActiveCheckout,
 } from "#shared/payments.ts";
+import { subscriptionOrderError } from "#shared/subscriptions/checkout-rules.ts";
 import { parseOrNull } from "#shared/validation/parse.ts";
 import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
 import {
@@ -52,8 +57,8 @@ export const parseApiChildSelections = (
   schema: typeof ChildrenSchema | typeof PackageChildrenSchema = ChildrenSchema,
 ): ApiChildSelection[] | null => parseOrNull(schema, body.children);
 
-/** Translate one parent's resolved child selections into the `child_qty_*` /
- * `child_price_*` fields the shared fold reads on `form`. Each submitted slug
+/** Translate one parent's resolved child selections into the `childQty*` /
+ * `childPrice*` fields the shared fold reads on `form`. Each submitted slug
  * resolves against the parent's actual children (repeated slugs sum). A slug
  * that is not a child of this parent earns a 400 naming it. Repeated entries
  * for one child that disagree on the pay-more `customPrice` also earn a 400.
@@ -75,7 +80,7 @@ export const applyChildSelectionsToForm = (
     ]),
   );
   const qtyByChild = new Map<number, number>();
-  // The fold stores ONE `child_price_*` per child for its whole quantity. Two
+  // The fold stores ONE `childPrice*` per child for its whole quantity. Two
   // entries for one child cannot both be honoured when their `customPrice`
   // values differ (or one sets a price and another leaves it default). A
   // plain `form.set` lets the last entry's price win and books every unit at
@@ -104,13 +109,13 @@ export const applyChildSelectionsToForm = (
     );
     if (selection.customPrice !== undefined) {
       form.set(
-        `child_price_${parentId}_${childId}`,
+        childPriceFieldName(parentId, childId),
         String(selection.customPrice),
       );
     }
   }
   for (const [childId, qty] of qtyByChild) {
-    form.set(`child_qty_${parentId}_${childId}`, String(qty));
+    form.set(childQuantityFieldName(parentId, childId), String(qty));
   }
   return null;
 };
@@ -239,6 +244,8 @@ const completeFoldedBooking = async (
   const intent = foldedIntent(input);
   const order = priceCheckout(intent);
   const total = order.total;
+  const refusal = subscriptionOrderError(saleProviderOrNull(), intent, total);
+  if (refusal) return checkoutFailedResponse(refusal);
   if (isPaymentsEnabled() && total > 0) {
     // Reject a folded order whose parent or any child already exhausted
     // capacity before creating a checkout session. The web paid path runs the same
@@ -251,9 +258,7 @@ const completeFoldedBooking = async (
       fold.dayCount,
     );
     if (!available) return soldOutResponse();
-    const provider = (await getActivePaymentProvider())!;
-    const baseUrl = getBaseUrl(request);
-    const result = await provider.createCheckoutSession(intent, baseUrl);
+    const result = await createActiveCheckout(intent, getBaseUrl(request));
     if (!result) return checkoutFailedResponse();
     return "error" in result
       ? checkoutFailedResponse(result.error)
@@ -307,7 +312,7 @@ export const processParentApiBooking = async (
   // The API has no day-count input. A customisable parent (priced by a chosen
   // span its children inherit) therefore cannot be booked here, like a
   // customisable standalone listing.
-  if (listing.customisable_days) {
+  if (listing.customisableDays) {
     return apiError("This listing must be booked through the website.");
   }
   const selections = parseApiChildSelections(body);
@@ -374,7 +379,7 @@ export const processParentApiBooking = async (
       items,
       // The fold always starts from this single parent, so its configured
       // thank-you URL is the one a folded order otherwise drops.
-      parentThankYouUrl: listing.thank_you_url,
+      parentThankYouUrl: listing.thankYouUrl,
     },
   );
 };

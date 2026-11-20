@@ -200,6 +200,16 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Feature-complete by default**: Build the whole feature. Stop short only when
   finishing it adds more branches or more special cases than the honest shape
   needs.
+- **Keep a pull request under 1,000 changed `src/` lines**: A pull request
+  changes fewer than 1,000 lines in `src/`, unless the owner asks for more.
+  Count the added and deleted lines that `git diff <base>...HEAD -- src`
+  reports. Split a larger change into stacked pull requests (see
+  [Stacked Pull Requests](#stacked-pull-requests)).
+- **Keep the admin guide up to date**: When a change adds or changes a feature
+  that an operator uses, update `/admin/guide` in the same pull request. The
+  guide is data in `src/ui/templates/admin/guide/`. Add or edit the section the
+  operator reads, and write its words in
+  [Simple Language](#simple-language--how-we-talk-to-users).
 - **Unify systems — the answer is yes**: When two systems do almost the same
   job, find the single abstraction that does both.
 - **Copy the shared shape, not the nearest one**: When a helper already does
@@ -211,6 +221,12 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   through a local wrapper. `src/features/admin/built-site-form.ts`,
   `src/features/admin/images.ts` and `src/ui/templates/fields/modifier.ts` are
   the shapes to copy.
+- **Adopt a new pattern everywhere it fits**: When you write a helper or a
+  pattern that improves on the current way, apply it to every other site it
+  fits in the same change. One shape for one job keeps the codebase standard.
+  If a site does not fit, say why in the pull request. A clone that this
+  migration reshapes is not a reason to leave a site behind. Record the
+  baseline change and say so in the pull request.
 - **No alias exports**: Never export a name that only renames an imported
   method. Expose the underlying helper and let callers use it. A thin wrapper
   that adds a default, a transformation, or a guard is fine.
@@ -326,6 +342,10 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Use types where they remove noise**: Replace repeated inline shapes with a
   named type when that clarifies a boundary. Do not add a second vocabulary for
   one concept.
+- **Commit when the feature is done**: Make one commit for one feature or fix.
+  Do not commit after each step of a plan. Run the light gates on the finished
+  change, then commit it. Commit a work-in-progress checkpoint only when you
+  pause or hand off (see "Never lose work").
 - **Never lose work — commit WIP even if broken**: Commit and push work in
   progress before you pause, hand off, or end a turn with a dirty tree. Mark a
   known-broken checkpoint in the commit message.
@@ -340,6 +360,11 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   hand the decision to a human.
 - **Finish by rewriting the PR name and description**: Make the finished PR name
   and describe what was actually built, in plain words.
+- **Run the narrow tests first**: Run `deno task test:files` on the test files
+  the change touches, and repeat that run after each fix. Do not run the full
+  suite again to confirm a targeted run. Run the full suite once, on the final
+  head, through `job-submit`. When a change breaks a test outside the files you
+  ran, add that file to the next targeted run.
 - **Final check**: Several agents share one machine. Do not run the full
   precommit or the full coverage run locally. Run the tests for the files you
   changed with `deno task test:files`, then run these gates:
@@ -439,6 +464,24 @@ instead.
 `deno task check:copy` enforces the mechanical rules. The judgement is yours on
 every copy change.
 
+A catalog key must have a reader. `test/scripts/i18n-coverage.test.ts` fails on
+a key that no source file references. When you delete the code that reads a
+key, delete the key in the same change. `scripts/check-i18n/unused.ts` says
+what counts as a reference.
+
+A record page names its six labels from its resource key. `pageLabels` in
+`src/ui/templates/admin/resource-pages.tsx` builds them from one noun and five
+keys:
+
+- `<resource>.add.heading` and `<resource>.add.title`: the create page.
+- `<resource>.add.submit`: the create button.
+- `<resource>.delete.heading`: the delete page heading and browser title.
+- `<resource>.delete.submit`: the delete button.
+- `terms.<resource>`: the list page title.
+
+Add the noun to `src/locales/en/nouns.json` and the five keys. The helper
+supplies all six labels, so a new record page needs no key list.
+
 ## Simplified Technical English — How We Write Documentation
 
 Technical text follows ASD-STE100 Simplified Technical English. It covers
@@ -506,10 +549,17 @@ for why.
 
 ## Code Duplication
 
-`deno task cpd` runs jscpd, and every scan fails on a clone that its committed
-baseline does not carry. The strict scans ignore names, literals, and
-annotations, so a renamed copy is a clone. The baselines only shrink. A flagged
-pair is one merge:
+`deno task cpd` runs jscpd, and every scan fails when it reports more
+duplicated places than its count. The scan configs and the counts file live in
+`cfg/`, and `cfg/cpd-counts.json` holds one count for each scan. A count only
+falls. The strict scans ignore names, literals, and annotations, so a renamed
+copy is a clone. A tool or a platform that must read its config from the
+repository root keeps the file there, as `biome.json`, `deno.json`,
+`devenv.nix`, `fly.toml` and `render.yaml` do. Biome refuses a second root
+configuration in a subdirectory, and the platforms look for their file at the
+root.
+
+A flagged pair is one merge:
 
 - Write the helper, or give the shared tail its parameter. Two functions that
   differ only in a value, a path, a field name, a message, or a callback are one
@@ -519,30 +569,40 @@ pair is one merge:
 - After a dedup, search for the other places that now fold into the new helper.
 - The one honest exception is a shared signature with nothing behind it: no
   shared call at all. Give that signature a named type instead.
-- The renamed scan holds accepted matches in `.jscpd.renamed-baseline.json`. Add
-  a pair only after you try the curry, with `deno task cpd:renamed --update`.
-- The strict scans hold the clones that existed when they started to count
-  renamed copies, in `.jscpd.baseline.json`, `.jscpd.test-baseline.json`,
-  `.jscpd.helpers-baseline.json`, and `.jscpd.support-baseline.json`. After a
-  merge, remove the fixed clones with
-  `deno run -A scripts/cpd.ts --config <config> --baseline <baseline> --update`.
-  Never add a clone to these baselines.
-- A branch must not raise a baseline. The ratchet in `deno task cpd` fails on
-  a clone that the merge base on `origin/main` does not hold, and on a count
-  above the base's, so precommit and CI catch both. It reads every
-  `.jscpd.*baseline.json` in the repository root, and fails on a scan task
-  that names another path, so a new scan's baseline is compared too. Run it on
-  its own with `deno task check:jscpd-baselines`.
-- After each scan, `deno task cpd` names the worst duplication: the code in the
-  most places, then the code with the most tokens. Merge that one first.
-- Import and re-export statements are a sanctioned repeat. The
+- The renamed scan counts its accepted matches under `renamed`. A new pair
+  raises the count, and `deno task cpd:renamed --update` refuses it. Merge the
+  pair instead. The command writes only a lower count.
+- The counts for `main`, `test`, `helpers` and `support` hold the cloned code
+  that existed when the strict scans started to count renamed copies. After a
+  merge, remove the fixed clones with `deno task cpd:update`.
+- A count is the number of duplicated places that one scan reports. A place
+  counts once, however many clone pairs link it. A line that moves, a blank
+  line, a file rename, and a new partner for a recorded place keep the count.
+  `scripts/jscpd/counts.ts` reads the file and counts the places in the scan
+  report. `deno task cpd:update` writes each count, and `deno task cpd` checks
+  each scan against it. An update fails on a rise.
+- A branch must not raise a count. The ratchet in `deno task cpd` compares two
+  integers for each scan with the merge base on `origin/main`, so precommit and
+  CI catch a rise. It fails on a scan task that names another counts file, and
+  on a scan name that the file does not hold. Run it on its own with
+  `deno task check:cpd-counts`.
+- A merge that removes a clone lowers the count. A merge that changes no
+  duplicated place leaves the count alone, so a rewrite does not touch the
+  record.
+- A failing scan prints its place total, the committed count, and the worst
+  duplication. The worst duplication is the code in the most places, then the
+  code with the most tokens. Merge that one first.
+- Import and re-export statements are a sanctioned repeat. This includes a
+  destructured dynamic import, `const { name } = await import("…");`. The
   `ignorePattern` list in each config skips them, so do not add ignore markers
-  around imports.
-- A declared list of strings is the other sanctioned repeat. The strict scans
-  ignore literals, so two long word lists match. Wrap the whole declaration in
-  `/* jscpd:ignore-start -- a list of strings, not code */` and
-  `/* jscpd:ignore-end */`. Wrap only a declaration that holds nothing but
-  strings. Never wrap code, SQL text, or a list inside a call.
+  around imports. The scans of the tests and of their helpers skip no dynamic
+  import: each one names its own module, so two of them rarely match.
+- A declaration of static data is the other sanctioned repeat: a list of
+  strings, or an object hash whose values are literals. The strict scans
+  ignore literals, so two such declarations match. Wrap the whole declaration
+  in `/* jscpd:ignore-start -- static data, not code */` and
+  `/* jscpd:ignore-end */`. Wrap only a declaration that holds static data.
+  Never wrap code, SQL text, or a declaration inside a call.
 
 `docs/test-duplication.md` measures the remaining steps. Read its counts as work
 to do.
@@ -555,8 +615,27 @@ to do.
   with a `WHERE`/`LIMIT`.
 - Full-row reads are the exceptions: an entity cache that also backs
   single-record reads (`getAllListings`), full-table backup and restore, and
-  `table.read.one` / `read.many` in `table-reader.ts`. Outside these, a caller
+  the one-row reads and writes in `record-table.ts`. Outside these, a caller
   that needs many columns lists them explicitly.
+
+### The `sql` Tag
+
+Write all SQL in a `sql` template from `#db/sql.ts`. The runners refuse a
+plain string.
+
+- A value in a slot is a bound argument. It never enters the SQL text.
+- A statement in a slot brings its own values with it.
+- Use `sqlName` and `sqlNames` for a table name or a column name.
+- Use `sqlLiteral` for a constant that the SQL text must hold: schema text,
+  trigger text, and a constant that a partial index names.
+- Use `sqlList` for the values of an `IN (...)`, and `sqlRows` for VALUES rows.
+- Bind an id as text when the SQL compares it with a TEXT column. libsql binds
+  a JavaScript number as a float, and `CAST(5.0 AS TEXT)` gives `'5.0'`.
+- Do not write a slot inside a quoted SQL literal. The tag refuses it.
+- `sqlFromDump` is for backup restore only.
+
+The SQL tag check in `test/integration/code-quality.test.ts` fails on SQL text
+or a placeholder outside a `sql` template in `src/`.
 
 ### Transactions and Batches
 
@@ -768,13 +847,20 @@ must finish in about ten minutes. When a run needs longer, stop it, and rely on
 the direct tests around the method you changed. A small edit owes those tests,
 not a mutation run, and a review that asks for more gets that answer.
 
+Decide whether to run it from the risk, not from habit. Run a targeted mutation
+test when the change adds a rule with branches, boundaries, or money moves, and
+the tests around it can miss a wrong operator. Skip the run when the change
+touches only prose, copy, a type, a rename, a config value, or a line that a
+direct test already pins. A mutation run is slow and holds a shared machine.
+
 Survivors on a file you touch are yours to fix, even on lines you did not
 change. Write the assertion that kills the mutant, or record it in
 `scripts/mutation/equivalent-mutants/` with a proof that no input can
 distinguish it.
 
-`deno task precommit:mutation` is the branch gate. Run it before you merge a
-branch that changes `src/` files.
+`deno task precommit:mutation` is the branch gate. Run it once, on the final
+head, before you merge a branch that changes `src/` files. Rerun it only when a
+later commit changes `src/` files.
 
 The runner stops a test batch that outlives the baseline by two orders of
 magnitude. The limit is 100 times the measured baseline, with a floor of 60

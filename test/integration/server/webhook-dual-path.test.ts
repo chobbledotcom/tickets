@@ -3,6 +3,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -96,9 +99,8 @@ const expectPathRows = async (
     package_group_id: number;
     quantity: number;
   }>(
-    `SELECT package_group_id, quantity FROM listing_attendees
-      WHERE listing_id = ? ORDER BY package_group_id ASC`,
-    [listingId],
+    sql`SELECT package_group_id, quantity FROM listing_attendees
+      WHERE listing_id = ${listingId} ORDER BY package_group_id ASC`,
   );
   expect(
     rows.map((row) => [Number(row.package_group_id), row.quantity]),
@@ -175,8 +177,7 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
       "stale@example.com",
       "Stale Buyer",
     );
-    const { groups } = await import("#db/groups.ts");
-    await groups.table.update(group.id, { hidePackageListings: true });
+    await records.groups.update(group.id, { hidePackageListings: true });
 
     try {
       await assertJson(
@@ -236,9 +237,8 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
         package_group_id: number;
         quantity: number;
       }>(
-        `SELECT listing_id, package_group_id, quantity FROM listing_attendees
-          WHERE listing_id IN (?, ?) ORDER BY listing_id ASC`,
-        [listing.id, doomed.id],
+        sql`SELECT listing_id, package_group_id, quantity FROM listing_attendees
+          WHERE listing_id IN (${listing.id}, ${doomed.id}) ORDER BY listing_id ASC`,
       );
       expect(
         rows.map((row) => [
@@ -309,9 +309,8 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
         parent_listing_id: number;
         quantity: number;
       }>(
-        `SELECT parent_listing_id, quantity FROM listing_attendees
-          WHERE listing_id = ? ORDER BY parent_listing_id ASC`,
-        [addon.id],
+        sql`SELECT parent_listing_id, quantity FROM listing_attendees
+          WHERE listing_id = ${addon.id} ORDER BY parent_listing_id ASC`,
       );
       expect(
         rows.map((row) => [Number(row.parent_listing_id), row.quantity]),
@@ -373,8 +372,7 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
     // itself" mid-payment: those standalone units now lead to a 404 page, so
     // the order must be saved-and-refunded — the package allocation must not
     // exempt the line's surplus from the stale check.
-    const { listingsTable } = await import("#db/listings/records.ts");
-    await listingsTable.update(addon.id, { bookableAlone: false });
+    await updateListing(addon.id, { bookableAlone: false });
 
     try {
       await expectSavedAndRefunded();

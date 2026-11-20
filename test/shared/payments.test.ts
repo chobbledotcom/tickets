@@ -15,8 +15,8 @@ import { setupStripe } from "#test-utils/settings.ts";
 describe("checkoutItem terms", () => {
   test("carries the plan's initial term for an assigned-site listing", () => {
     const plan = testListing({
-      assign_built_site: true,
-      initial_site_months: 3,
+      assignBuiltSite: true,
+      initialSiteMonths: 3,
       name: "(3 Months)",
       slug: "p3m",
     });
@@ -51,12 +51,38 @@ describe("checkoutItem terms", () => {
     });
   });
 
+  test("carries a listing's recurring price and frequency", () => {
+    const club = testListing({
+      name: "Club",
+      recurringInterval: "month",
+      recurringPrice: 500,
+      slug: "club",
+    });
+    expect(checkoutItem(club, 2, 1000)).toEqual({
+      listingId: club.id,
+      name: "Club",
+      quantity: 2,
+      recurring: { interval: "month", price: 500 },
+      slug: "club",
+      unitPrice: 1000,
+    });
+  });
+
+  test("sells no subscription without both a recurring price and a frequency", () => {
+    const noFrequency = testListing({ recurringPrice: 500 });
+    const noPrice = testListing({ recurringInterval: "week" });
+    expect([
+      Object.hasOwn(checkoutItem(noFrequency, 1, 1000), "recurring"),
+      Object.hasOwn(checkoutItem(noPrice, 1, 1000), "recurring"),
+    ]).toEqual([false, false]);
+  });
+
   test("prices a renewal purchase by the tier's months per unit", () => {
     const tier = testListing({
       hidden: true,
-      months_per_unit: 2,
+      monthsPerUnit: 2,
       name: "Renew",
-      purchase_only: true,
+      purchaseOnly: true,
       slug: "renew",
     });
     expect(checkoutItem(tier, 4, 800, { renewal: true })).toEqual({
@@ -72,9 +98,9 @@ describe("checkoutItem terms", () => {
   test("keeps a tier-priced listing on tickets outside a renewal", () => {
     const tier = testListing({
       hidden: true,
-      months_per_unit: 2,
+      monthsPerUnit: 2,
       name: "Renew",
-      purchase_only: true,
+      purchaseOnly: true,
       slug: "renew",
     });
     expect(Object.hasOwn(checkoutItem(tier, 1, 500), "purchaseUnit")).toBe(
@@ -84,8 +110,8 @@ describe("checkoutItem terms", () => {
 
   test("throws when the stated initial months are zero", () => {
     const listing = testListing({
-      assign_built_site: true,
-      initial_site_months: 0,
+      assignBuiltSite: true,
+      initialSiteMonths: 0,
       name: "Zero",
       slug: "zero",
     });
@@ -96,7 +122,7 @@ describe("checkoutItem terms", () => {
 
   test("throws when the initial months are unstated", () => {
     const listing = testListing({
-      assign_built_site: true,
+      assignBuiltSite: true,
       name: "Unstated",
       slug: "unst",
     });

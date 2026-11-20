@@ -2,12 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
-import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { configureAppleWallet } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Make a request through the full handler pipeline */
@@ -89,7 +90,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
         200,
         (body) => {
           expect(body.serialNumbers).toEqual(["my-serial"]);
-          expect(body.lastUpdated).toBeDefined();
+          expect(body.lastUpdated).toMatch(/^\d+$/);
         },
       );
     });
@@ -150,7 +151,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
 
       const bytes = new Uint8Array(await response.arrayBuffer());
       const files = unzipSync(bytes);
-      expect(files["pass.json"]).toBeDefined();
+      expect(Object.keys(files)).toContain("pass.json");
 
       const passJson = JSON.parse(
         new TextDecoder().decode(files["pass.json"]!),
@@ -216,10 +217,9 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       // The standalone row isn't part of the package — clear its package id so
       // the token genuinely mixes a standalone and a package booking.
       const { getDb } = await import("#db/client.ts");
-      await getDb().execute({
-        args: [standalone.id],
-        sql: "UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ${standalone.id}`,
+      );
       const token = result.attendees[0]!.ticket_token;
 
       const response = await walletRequest(

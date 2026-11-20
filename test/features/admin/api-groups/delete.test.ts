@@ -7,6 +7,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
@@ -28,8 +29,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertApiDeleteOk(`/api/admin/groups/${group.id}`, "To Delete");
 
-      const all = await groups.cache.getAll();
-      expect(all.find((g) => g.id === group.id)).toBeUndefined();
+      const all = await groups.getAll();
+      expect(all.map((g) => g.id)).not.toContain(group.id);
     });
 
     test("resets listings to ungrouped on delete", async () => {
@@ -67,8 +68,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         },
       );
 
-      const row = await groups.table.read.one({ id: group.id });
-      expect(row).toBeDefined();
+      const row = await records.groups.find(group.id);
+      expect(row?.id).toBe(group.id);
     });
 
     test("returns 404 for non-existent group", async () => {
@@ -125,8 +126,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         );
         expect(response.status).toBe(403);
 
-        const all = await groups.cache.getAll();
-        expect(all.find((g) => g.id === group.id)).toBeDefined();
+        const all = await groups.getAll();
+        expect(all.map((g) => g.id)).toContain(group.id);
       }
     });
 
@@ -141,8 +142,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
       expect(response.status).toBe(200);
 
-      const all = await groups.cache.getAll();
-      expect(all.find((g) => g.id === group.id)).toBeUndefined();
+      const all = await groups.getAll();
+      expect(all.map((g) => g.id)).not.toContain(group.id);
     });
   });
 });

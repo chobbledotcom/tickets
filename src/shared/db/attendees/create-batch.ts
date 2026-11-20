@@ -4,10 +4,10 @@ import type {
   EncryptedAttendeeData,
   ListingBooking,
 } from "#db/attendee-types.ts";
+import { attendeeIdOfToken } from "#db/attendees/reads.ts";
 import {
   executeBatchWithResults,
   resultRows,
-  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
@@ -16,9 +16,12 @@ import {
   type ModifierUsage,
   usageInsert,
 } from "#db/modifier-usage.ts";
-import { boundSlots, type NumberedSql } from "#db/numbered-statement.ts";
 import { batchFinalizeStatements } from "#db/payment-finalize.ts";
 import { notNullGuardFailureAt } from "#db/query.ts";
+import { type Expr, valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlJoin, sqlList } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -58,17 +61,11 @@ export type BookingBatchPlan = {
   };
 };
 
-/** The newly inserted attendee is always found by its unique stable token. */
-export const ATTENDEE_BY_TOKEN_SQL =
-  "(SELECT id FROM attendees WHERE ticket_token_index = ?)";
-
 /** Abort the batch if the immediately preceding guarded booking did not insert
  * exactly one row. The deliberate NOT NULL failure rolls back every write. */
-const bookingWriteGuard = (): SqlStatement => ({
-  args: [1],
-  sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-        SELECT NULL, NULL, 1 WHERE changes() != ?`,
-});
+const bookingWriteGuard =
+  (): SqlStatement => sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+        SELECT NULL, NULL, 1 WHERE changes() != ${1}`;
 
 const isBookingWriteGuardFailure = notNullGuardFailureAt(
   "listing_attendees.listing_id",
@@ -77,10 +74,9 @@ const isBookingWriteGuardFailure = notNullGuardFailureAt(
 const guardedBookings = (statements: SqlStatement[]): SqlStatement[] =>
   statements.flatMap((statement) => [statement, bookingWriteGuard()]);
 
-const attendeeIdStatement = (tokenIndex: string): SqlStatement => ({
-  args: [tokenIndex],
-  sql: "SELECT id FROM attendees WHERE ticket_token_index = ?",
-});
+/** The id of the newly inserted attendee, as a value inside a statement. */
+export const attendeeByToken = (tokenIndex: string): Expr<number> =>
+  valued(sql`(${attendeeIdOfToken(tokenIndex)})`);
 
 const runAtomicBatch = async (
   prepared: PreparedWrite,
@@ -92,7 +88,7 @@ const runAtomicBatch = async (
       ...guardedBookings(prepared.bookingStatements),
       ...trailing,
       ...prepared.activityStatements,
-      attendeeIdStatement(prepared.enc.ticketTokenIndex),
+      attendeeIdOfToken(prepared.enc.ticketTokenIndex),
     ]);
     const rows = resultRows<{ id: number }>(results[results.length - 1]!);
     return { insertId: Number(rows[0]!.id) };
@@ -118,7 +114,7 @@ export const writeWithCreationWork = (
       }
     }
     const attendeeRows = resultRows<{ id: number }>(
-      await tx.execute(attendeeIdStatement(prepared.enc.ticketTokenIndex)),
+      await tx.execute(attendeeIdOfToken(prepared.enc.ticketTokenIndex)),
     );
     const attendeeId = Number(attendeeRows[0]!.id);
     await creationWork(tx, attendeeId);
@@ -137,25 +133,21 @@ export const writeAsBatch = (
 ): Promise<WriteOutcome | null> =>
   runAtomicBatch(prepared, tail?.(prepared.enc.ticketTokenIndex));
 
-const noExistingLedgerCondition = (legs: TransferInput[]): NumberedSql => {
-  if (legs.length === 0) return () => "1 = 1";
+const noExistingLedgerCondition = (legs: TransferInput[]): SqlStatement => {
+  if (legs.length === 0) return sql`1 = 1`;
   const references = legs.map((leg) => leg.reference);
-  return (bind) => {
-    const eventGroup = bind(legs[0]!.eventGroup);
-    const referenceSlots = boundSlots(bind, references);
-    return `NOT EXISTS (SELECT 1 FROM transfers WHERE event_group = ${eventGroup})
-          AND NOT EXISTS (SELECT 1 FROM transfers WHERE reference IN (${referenceSlots}))`;
-  };
+  return sql`NOT EXISTS (SELECT 1 FROM transfers WHERE event_group = ${legs[0]!.eventGroup})
+          AND NOT EXISTS (SELECT 1 FROM transfers WHERE reference IN (${sqlList(references)}))`;
 };
 
-export const bookingBatchCondition = (plan: BookingBatchPlan): NumberedSql => {
-  const conditions = [
-    allModifiersInStockCondition(plan.usages),
-    noExistingLedgerCondition(plan.legs),
-  ];
-  return (bind) =>
-    conditions.map((condition) => `(${condition(bind)})`).join(" AND ");
-};
+export const bookingBatchCondition = (plan: BookingBatchPlan): SqlStatement =>
+  sqlJoin(
+    [
+      allModifiersInStockCondition(plan.usages),
+      noExistingLedgerCondition(plan.legs),
+    ].map((condition) => sql`(${condition})`),
+    sql` AND `,
+  );
 
 /** Create the attendee, all bookings, modifiers, ledger, tail statements,
  * contact activity, and optional payment finalization in one transaction. */
@@ -166,45 +158,35 @@ export const writeAsLedgerBatch = async (
 ): Promise<WriteOutcome | null> => {
   assertPostable(plan.legs);
   const tokenIndex = prepared.enc.ticketTokenIndex;
-  const always = { args: [], sql: "1 = 1" };
+  const always = sql`1 = 1`;
+  const attendeeId = attendeeByToken(tokenIndex);
   const recordedAt = nowIso();
   const usages = plan.usages.map((usage) =>
-    usageInsert(usage, ATTENDEE_BY_TOKEN_SQL, [tokenIndex], always),
+    usageInsert(usage, attendeeId, always),
   );
   const legs = plan.legs.map((leg) =>
-    bookingLegBatchInsert(
-      leg,
-      recordedAt,
-      ATTENDEE_BY_TOKEN_SQL,
-      tokenIndex,
-      always,
-    ),
+    bookingLegBatchInsert(leg, recordedAt, attendeeId, always),
   );
   // Only a booking that posted legs carries the order's link. A fully-free
   // order's money projects to 0, so its rows read back with an empty group.
   const eventGroup: SqlStatement[] =
     plan.legs.length > 0
       ? [
-          {
-            args: [plan.bookingGroup, tokenIndex],
-            sql: `UPDATE listing_attendees SET ledger_event_group = ?
-          WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}
-          AND ledger_event_group = ''`,
-          },
+          update(tables.listing_attendees, {
+            ledgerEventGroup: plan.bookingGroup,
+          }).where({ attendeeId, ledgerEventGroup: "" }),
         ]
       : [];
   const assessment = await initialTaxAssessmentStatement(
     plan.bookingGroup,
     plan.taxAssessment,
     plan.legs[0]?.occurredAt ?? recordedAt,
-    ATTENDEE_BY_TOKEN_SQL,
-    [tokenIndex],
+    attendeeId,
   );
   const finalize = plan.finalize
     ? await batchFinalizeStatements(
         plan.finalize.sessionId,
-        ATTENDEE_BY_TOKEN_SQL,
-        tokenIndex,
+        attendeeId,
         plan.finalize.paymentReference,
         prepared.enc.ticketToken,
       )

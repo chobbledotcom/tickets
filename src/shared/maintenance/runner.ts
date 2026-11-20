@@ -1,5 +1,6 @@
 import { settings } from "#db/settings.ts";
 import { unique } from "#fp";
+import { withDeferredErrorReports } from "#shared/logger.ts";
 import {
   getSubrequestRemaining,
   getSubrequestUsage,
@@ -85,27 +86,31 @@ const runClaimedTask = async (
   let needsFollowUp = false;
   let checkpoint = claim.checkpoint;
   try {
-    await withSubrequestAllowance(
-      {
-        database: task.maxDatabaseCalls,
-        external: task.maxExternalCalls,
-        total: taskCalls(task),
-      },
-      () =>
-        task.run({
-          budget: { remaining: getSubrequestRemaining },
-          checkpoint: claim.checkpoint,
-          completeTask: () => {
-            completed = true;
-          },
-          deadline,
-          requestFollowUp: () => {
-            needsFollowUp = true;
-          },
-          setCheckpoint: (nextCheckpoint) => {
-            checkpoint = nextCheckpoint;
-          },
-        }),
+    // The allowance covers the calls that the task declares. An error report
+    // is not one of them, so each report waits until the allowance ends.
+    await withDeferredErrorReports(async () =>
+      withSubrequestAllowance(
+        {
+          database: task.maxDatabaseCalls,
+          external: task.maxExternalCalls,
+          total: taskCalls(task),
+        },
+        () =>
+          task.run({
+            budget: { remaining: getSubrequestRemaining },
+            checkpoint: claim.checkpoint,
+            completeTask: () => {
+              completed = true;
+            },
+            deadline,
+            requestFollowUp: () => {
+              needsFollowUp = true;
+            },
+            setCheckpoint: (nextCheckpoint) => {
+              checkpoint = nextCheckpoint;
+            },
+          }),
+      ),
     );
     if (completed && needsFollowUp) {
       throw new Error(`${task.name} cannot complete and request a follow-up`);

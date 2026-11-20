@@ -36,6 +36,19 @@ describeWithEnv(
   "servicing §22 - cost recording and listing profit",
   { db: true },
   () => {
+    /** The listing's money after its costs: gross income, the revenue balance,
+     *  the cost total, and the profit left once costs are subtracted. */
+    const expectListingMoney = async (
+      listingId: number,
+      money: { cost: number; income: number; net: number; profit: number },
+    ): Promise<void> => {
+      const breakdown = await listingMoneyTotals(emptyRange, [listingId]);
+      expect(breakdown.recognisedIncome).toBe(money.income);
+      expect(breakdown.netBalance).toBe(money.net);
+      expect(await listingCostOf(listingId)).toBe(money.cost);
+      expect(await listingProfitOf(listingId)).toBe(money.profit);
+    };
+
     test("creating a servicing event posts no sale, payment, or fee legs (never a sale)", async () => {
       const { listing } = await createServicingHold();
       const kinds = (await allTransfers()).map((transfer) => transfer.kind);
@@ -69,7 +82,12 @@ describeWithEnv(
       const { id } = await createServicingHold({ listing: { name: "L" } });
       await expectCostAfterRecording(id, listing.id, 9000, 9000);
       expect(await accountBalance(revenueAccount(listing.id))).toBe(20000);
-      expect(await listingProfitOf(listing.id)).toBe(11000);
+      await expectListingMoney(listing.id, {
+        cost: 9000,
+        income: 20000,
+        net: 20000,
+        profit: 11000,
+      });
     });
 
     test("listing row profit stays gross after a refund", async () => {
@@ -93,12 +111,13 @@ describeWithEnv(
       );
       invalidateListingsCache();
       const row = await getListingWithCount(listing.id);
-      const breakdown = await listingMoneyTotals(emptyRange, [listing.id]);
 
-      expect(breakdown.recognisedIncome).toBe(20000);
-      expect(breakdown.netBalance).toBe(0);
-      expect(await listingCostOf(listing.id)).toBe(9000);
-      expect(await listingProfitOf(listing.id)).toBe(11000);
+      await expectListingMoney(listing.id, {
+        cost: 9000,
+        income: 20000,
+        net: 0,
+        profit: 11000,
+      });
       expect(row?.profit).toBe(11000);
     });
 
@@ -123,7 +142,7 @@ describeWithEnv(
       await adminFormPost(`/admin/servicing/${id}`, {
         amount: "90.00",
         memo: "Boiler part",
-        target_listing_id: String(listing.id),
+        targetListingId: String(listing.id),
       });
       const legs = await transfersOfKind(KIND.serviceCost);
       expect(legs.length).toBe(1);

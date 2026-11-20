@@ -7,13 +7,15 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { deleteListing } from "#db/listings/delete.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectProcessed,
   expectReplayOutcome,
   expectStoredRefund,
   expectStoredRefundRecord,
+  packageMetadata,
   runWebhook,
   setupPackage,
   setupWithListing,
@@ -29,20 +31,18 @@ import { setupStripe } from "#test-utils/settings.ts";
 
 const pruneLegacyReplayRow = async (sessionId: string) => {
   await execute(
-    `UPDATE attendees
+    sql`UPDATE attendees
         SET pii_payment_session_id = NULL
       WHERE id = (
         SELECT attendee_id
           FROM processed_payments
-         WHERE payment_session_id = ?
+         WHERE payment_session_id = ${sessionId}
       )`,
-    [sessionId],
   );
   await execute(
-    `UPDATE processed_payments
-        SET processed_at = ?, payment_reference = ''
-      WHERE payment_session_id = ?`,
-    ["2000-01-01T00:00:00.000Z", sessionId],
+    sql`UPDATE processed_payments
+        SET processed_at = ${"2000-01-01T00:00:00.000Z"}, payment_reference = ''
+      WHERE payment_session_id = ${sessionId}`,
   );
   await runDatabasePruning();
   expect(await getProcessedPayment(sessionId)).toBe(null);
@@ -114,7 +114,7 @@ describeWithEnv(
       const legsAfter = await transfersByAccount(attendeeAccount(original!.id));
       expect(legsAfter.length).toBe(legsBefore.length);
       expect(legsAfter.some((leg) => leg.kind === "refund_cash")).toBe(false);
-      expect((await getProcessedPayment(session.id))!.attendee_id).toBe(
+      expect((await getProcessedPayment(session.id))!.attendeeId).toBe(
         original!.id,
       );
     });
@@ -133,7 +133,7 @@ describeWithEnv(
       // The listing price is edited after the booking — exactly the mid-checkout
       // change that makes a late replay re-price differently. Without the ledger
       // preflight this hit paidPricingRefund and refunded the live ticket (P1).
-      await listingsTable.update(listing.id, { unitPrice: 1500 });
+      await updateListing(listing.id, { unitPrice: 1500 });
 
       await expectReplayOutcome(session, { processed: true, refundCalls: 0 });
       // The original booking is recovered — no refund, no duplicate.
@@ -283,16 +283,7 @@ describeWithEnv(
       const { group, listing } = await setupPackage();
       // A package line carries its edge (k:"p", r=group id); the walk rebuilds the
       // package tree, finds the member's nodeKey resolves, and books it.
-      const metadata = signMeta(
-        webhookMeta({
-          email: "buyer@example.com",
-          items: JSON.stringify([
-            { e: listing.id, k: "p", p: 1500, q: 1, r: group.id },
-          ]),
-          name: "Buyer",
-        }),
-        1500,
-      );
+      const metadata = packageMetadata(group.id, listing.id, 1500);
       await runWebhook(
         { amount_total: 1500, id: "cs_pkg_edge_ok", metadata },
         () => expectProcessed(listing.id),

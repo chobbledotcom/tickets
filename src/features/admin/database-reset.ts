@@ -35,12 +35,12 @@ export const demoResetForm = defineForm({
     {
       autocomplete: "off" as const,
       label: "Confirmation phrase",
-      name: "confirm_phrase",
+      name: "confirmPhrase",
       type: "text" as const,
     },
   ] as const,
   validate: (values) =>
-    values.confirm_phrase !== RESET_DATABASE_PHRASE
+    values.confirmPhrase !== RESET_DATABASE_PHRASE
       ? RESET_PHRASE_MISMATCH_ERROR
       : null,
 });

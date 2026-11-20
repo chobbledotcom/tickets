@@ -1,10 +1,17 @@
 import type { FormParams } from "#shared/form-data.ts";
 import { getDatetimeValue } from "#shared/forms/datetime-value.ts";
 import type { Field } from "#shared/forms/field.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import { parseDateString } from "#shared/validation/date-string.ts";
 
 export const DATETIME_PARTIAL_ERROR =
   "Please enter a date when providing a time, or leave both blank";
+
+/** Read one Markdown box from submitted form data. The indentation of the
+ *  first line stays, because four spaces start a code block. The blank lines
+ *  before the text and the white space after it go. */
+export const readSubmittedMarkdown = (form: FormParams, name: string): string =>
+  markdownSource(form.get(name) ?? "");
 
 /** Read one field from submitted form data using the field's input shape.
  *  A date-typed field is cleaned at this boundary: trimmed and validated as
@@ -25,5 +32,7 @@ export const readSubmittedFieldValue = (
     // through raw, so the field's own validate hook reports its message.
     return parseDateString(raw) ?? raw;
   }
+  // Markdown reads indentation, so the box keeps it.
+  if (field.markdown) return readSubmittedMarkdown(form, field.name);
   return form.getString(field.name);
 };

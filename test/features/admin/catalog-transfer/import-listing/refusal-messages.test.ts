@@ -18,17 +18,12 @@ describeWithEnv("catalog import refusal messages", { db: true }, () => {
   const importAndReadFlash = async (payload: unknown): Promise<string> => {
     const { cookie, csrfToken } = await loginAsAdmin();
     const response = await handleRequest(
-      mockMultipartRequest(
-        "/admin/catalog/import",
-        { csrf_token: csrfToken },
-        cookie,
-        {
-          contentType: "application/json",
-          data: new TextEncoder().encode(JSON.stringify(payload)),
-          fieldName: "catalog_file",
-          name: "catalog.json",
-        },
-      ),
+      mockMultipartRequest("/admin/catalog/import", { csrfToken }, cookie, {
+        contentType: "application/json",
+        data: new TextEncoder().encode(JSON.stringify(payload)),
+        fieldName: "catalogFile",
+        name: "catalog.json",
+      }),
     );
 
     expect(response.status).toBe(302);

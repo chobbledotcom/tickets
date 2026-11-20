@@ -12,6 +12,7 @@
  */
 
 import { ICONS_PATH } from "#shared/asset-paths.ts";
+import { csrfTokenFor } from "#src/ui/client/dom.ts";
 
 /** Lazily-built shared dialog, reused by every editor on the page. */
 type PreviewDialog = {
@@ -52,12 +53,6 @@ const createDialog = (): PreviewDialog => {
   };
 };
 
-/** Find the CSRF token for the form a textarea belongs to. */
-const csrfTokenFor = (textarea: HTMLTextAreaElement): string =>
-  textarea
-    .closest("form")
-    ?.querySelector<HTMLInputElement>('input[name="csrf_token"]')?.value ?? "";
-
 /**
  * The character counter (added earlier by initCharCounters) sits immediately
  * after the textarea. Returns it so it can be moved into the footer, opposite
@@ -87,7 +82,7 @@ export const initMarkdownPreview = (): void => {
       const res = await fetch("/admin/markdown-preview", {
         body: new URLSearchParams({
           content: textarea.value,
-          csrf_token: csrfTokenFor(textarea),
+          csrfToken: csrfTokenFor(textarea),
         }).toString(),
         headers: { "content-type": "application/x-www-form-urlencoded" },
         method: "POST",

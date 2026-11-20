@@ -87,7 +87,7 @@ const handleScannerGet: IdRouteHandler = listingWithCountHandler(
 )(async (listing, session) => {
   // A "No check-in" listing has no door: the doors list hides it, and a
   // guessed URL meets the same answer as an unknown listing.
-  if (listing.purchase_only) return notFoundResponse();
+  if (listing.purchaseOnly) return notFoundResponse();
   const privateKey = await requireRequestPrivateKey();
   const attendees = await decryptAttendees(
     await getAttendeesRaw(listing.id),
@@ -149,7 +149,7 @@ const loadDoors = async (): Promise<{
     getAllGroupNames(),
   ]);
   const listingDoors = [...listings]
-    .filter(([, listing]) => !listing.purchase_only)
+    .filter(([, listing]) => !listing.purchaseOnly)
     .map(
       ([id, listing]): ScannerDoor => ({
         name: listing.name,

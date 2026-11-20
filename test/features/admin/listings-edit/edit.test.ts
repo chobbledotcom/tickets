@@ -6,11 +6,14 @@
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeUpdate } from "#db/client.ts";
+import { execute } from "#db/client.ts";
 import {
   getListingWithCount,
   getStoredListingWithCount,
 } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
+import { settings } from "#db/settings.ts";
+import { update } from "#db/write.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
@@ -51,21 +54,21 @@ const editAs = async (
   return await handleRequest(
     mockMultipartRequest(
       `/admin/listing/${id}/edit`,
-      { ...values, csrf_token: await testCsrfToken() },
+      { ...values, csrfToken: await testCsrfToken() },
       cookie,
     ),
   );
 };
 
 describeWithEnv("what an editor may not change", { db: true }, () => {
-  test("leaves the stored webhook URL alone", async () => {
+  test("is refused when the form sends a webhook URL, and the stored one stays", async () => {
     const listing = await createTestListing({
       name: "Locked Webhook",
       webhookUrl: "https://owner.example.com/hook",
     });
     const { cookie } = await createTestEditorSession();
 
-    await editAs(
+    const response = await editAs(
       cookie,
       listing.id,
       buildUpdateListingForm(
@@ -74,27 +77,30 @@ describeWithEnv("what an editor may not change", { db: true }, () => {
       ),
     );
 
-    expect((await getStoredListingWithCount(listing.id))!.webhook_url).toBe(
-      "https://owner.example.com/hook",
-    );
+    expect([
+      response.status,
+      (await getStoredListingWithCount(listing.id))!.webhookUrl,
+    ]).toEqual([400, "https://owner.example.com/hook"]);
   });
 
-  test("leaves the stored defaults flag alone", async () => {
+  test("is refused when the form sends the defaults flag, and the stored one stays", async () => {
+    await settings.update.listingDefaults({ hidden: true });
     const listing = await createTestListing({
       name: "Locked Defaults",
       useDefaults: true,
     });
     const { cookie } = await createTestEditorSession();
 
-    await editAs(
+    const response = await editAs(
       cookie,
       listing.id,
       buildUpdateListingForm({ useDefaults: false }, listing),
     );
 
-    expect((await getStoredListingWithCount(listing.id))!.use_defaults).toBe(
-      true,
-    );
+    expect([
+      response.status,
+      (await getStoredListingWithCount(listing.id))!.useDefaults,
+    ]).toEqual([400, true]);
   });
 
   test("cannot correct the ticket count a staff member can", async () => {
@@ -102,20 +108,20 @@ describeWithEnv("what an editor may not change", { db: true }, () => {
     const { cookie } = await createTestEditorSession();
 
     await editAs(cookie, listing.id, {
-      ...buildUpdateListingForm({}, listing),
-      booked_quantity: "7",
-      tickets_count: "7",
+      ...buildUpdateListingForm({}, listing, "editor"),
+      bookedQuantity: "7",
+      ticketsCount: "7",
     });
 
-    expect((await getListingWithCount(listing.id))!.tickets_count).toBe(0);
+    expect((await getListingWithCount(listing.id))!.ticketsCount).toBe(0);
 
     await adminMultipartPost(`/admin/listing/${listing.id}/edit`, {
       ...buildUpdateListingForm({}, listing),
-      booked_quantity: "7",
-      tickets_count: "7",
+      bookedQuantity: "7",
+      ticketsCount: "7",
     });
 
-    expect((await getListingWithCount(listing.id))!.tickets_count).toBe(7);
+    expect((await getListingWithCount(listing.id))!.ticketsCount).toBe(7);
   });
 });
 
@@ -171,7 +177,7 @@ describeWithEnv("what a saved edit says afterwards", { db: true }, () => {
       `/admin/listing/${rescuer.id}/edit`,
       {
         ...buildUpdateListingForm({}, rescuer),
-        group_ids: "",
+        groupIds: "",
       },
     );
 
@@ -265,13 +271,15 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     });
     await bookAttendee(stretched, { date: "2026-09-01", quantity: 6 });
     await bookAttendee(neighbour, { date: "2026-09-02", quantity: 6 });
-    await executeUpdate("groups", { max_attendees: 10 }, { id: group.id });
+    await execute(
+      update(tables.groups, { maxAttendees: 10 }).where({ id: group.id }),
+    );
 
     const { response } = await adminMultipartPost(
       `/admin/listing/${stretched.id}/edit`,
       {
         ...buildUpdateListingForm({ durationDays: 3 }, stretched),
-        group_ids: String(group.id),
+        groupIds: String(group.id),
       },
     );
 

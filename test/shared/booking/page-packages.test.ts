@@ -17,11 +17,11 @@ describe("buildPagePackage", () => {
     const built = buildPagePackage(
       testGroup({
         description: "All the fun",
-        hide_package_listings: true,
+        hidePackageListings: true,
         id: 7,
         name: "Party Bundle",
         slug: "party",
-        terms_and_conditions: "No mud",
+        termsAndConditions: "No mud",
       }),
       [1, 2],
       {

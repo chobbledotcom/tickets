@@ -49,11 +49,11 @@ describeWithEnv(
         const input = inputTagWithValue(
           form[0],
           provider,
-          "existing_payment_provider",
+          "existingPaymentProvider",
         );
         assertStringIncludes(input, "required");
       }
-      expect(hasCheckedInput(html, "payment_provider", "none")).toBe(true);
+      expect(hasCheckedInput(html, "paymentProvider", "none")).toBe(true);
     });
   },
 );

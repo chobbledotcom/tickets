@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
 import { queryAll, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   createMergePair,
   runMerge,
@@ -22,8 +23,7 @@ describeWithEnv("attendee merge cleanup", { db: true }, () => {
     expect(result.success).toBe(true);
     expect(
       await queryAll<{ attendee_id: number }>(
-        "SELECT attendee_id FROM checkout_stages WHERE attendee_id IN (?, ?)",
-        [target.id, source.id],
+        sql`SELECT attendee_id FROM checkout_stages WHERE attendee_id IN (${target.id}, ${source.id})`,
       ),
     ).toEqual([]);
   });
@@ -38,14 +38,14 @@ describeWithEnv("attendee merge cleanup", { db: true }, () => {
     expect(result.success).toBe(true);
     expect(
       await queryAll<{ attendee_id: number }>(
-        `SELECT attendee_id
+        sql`SELECT attendee_id
            FROM refund_confirmations AS confirmation
           ORDER BY confirmation.attendee_id`,
       ),
     ).toEqual([{ attendee_id: target.id }]);
     expect(
       await queryAll<{ confirmation_identity: string }>(
-        `SELECT confirmation_identity
+        sql`SELECT confirmation_identity
            FROM refund_confirmation_references AS reference
           ORDER BY confirmation_identity`,
       ),
@@ -74,8 +74,7 @@ describeWithEnv("attendee merge cleanup", { db: true }, () => {
     expect(result.success).toBe(true);
     expect(
       await queryOne<{ assigned_attendee_id: number | null }>(
-        "SELECT assigned_attendee_id FROM built_sites WHERE id = ?",
-        [site.id],
+        sql`SELECT assigned_attendee_id FROM built_sites WHERE id = ${site.id}`,
       ),
     ).toEqual({ assigned_attendee_id: target.id });
   });

@@ -11,12 +11,13 @@ import {
   loadSelectedPaymentReferenceRows,
   MAX_REFUND_REFERENCES_PER_ATTENDEE,
   type PaymentReferenceRow,
-  querySelectedPaymentReferenceRows,
 } from "#db/payment-reference-rows.ts";
 import {
   loadIndexedPaymentReference,
   matchingPaymentReferenceIndexes,
 } from "#db/payment-reference-store.ts";
+import { rowsForIds } from "#db/rows-for-ids.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import type {
@@ -123,18 +124,16 @@ type ReferenceProgressByKey = Map<string, ReferenceProgress>;
 
 const queryProcessedReferences = <Row>(
   attendeeIds: readonly number[],
-  select: string,
-  suffix = "",
+  select: SqlStatement,
 ): Promise<Row[]> =>
-  querySelectedPaymentReferenceRows<Row>(
+  rowsForIds<Row>(
     attendeeIds,
     (idSlots) =>
-      `SELECT ${select}
+      sql`SELECT ${select}
            FROM processed_payments
           WHERE attendee_id IN (${idSlots})
             AND payment_reference != ''
-            AND payment_reference_index != ''
-          ${suffix}`,
+            AND payment_reference_index != ''`,
   );
 
 const attendeeIdsOf = (
@@ -148,7 +147,7 @@ export const attendeeIdsWithIndexedPaymentReferences = async (
   attendeeIdSet(
     await queryProcessedReferences<PaymentReferenceAttendeeRow>(
       attendeeIds,
-      "DISTINCT attendee_id",
+      sql`DISTINCT attendee_id`,
     ),
   );
 
@@ -259,36 +258,41 @@ export const getRefundPaymentReferences = async <
       index,
     );
   }
+  /** The complete refund set or old-history refusal of one attendee. */
+  const referenceSetOf = async (
+    attendee: Owner,
+  ): Promise<RefundPaymentReferenceSet> => {
+    if (oversizedAttendeeIds.has(attendee.id)) {
+      return { kind: "too_many_references" };
+    }
+    if (incompleteAttendeeIds.has(attendee.id)) {
+      return { kind: "legacy_unindexed" };
+    }
+    const references = await asRefundReferences(
+      requiredMapValue(
+        byAttendee,
+        attendee.id,
+        `Refund references for attendee ${attendee.id} were not loaded`,
+      ),
+    );
+    if (
+      attendee.currentPaymentId !== "" &&
+      !references.some(
+        (reference) => reference.reference === attendee.currentPaymentId,
+      )
+    ) {
+      return { kind: "legacy_unindexed" };
+    }
+    if (!providersAreKnown(references)) {
+      return { kind: "provider_unknown" };
+    }
+    return { kind: "complete", references };
+  };
   return new Map(
     await Promise.all(
       attendees.map(
-        async (attendee): Promise<[number, RefundPaymentReferenceSet]> => {
-          if (oversizedAttendeeIds.has(attendee.id)) {
-            return [attendee.id, { kind: "too_many_references" }];
-          }
-          if (incompleteAttendeeIds.has(attendee.id)) {
-            return [attendee.id, { kind: "legacy_unindexed" }];
-          }
-          const references = await asRefundReferences(
-            requiredMapValue(
-              byAttendee,
-              attendee.id,
-              `Refund references for attendee ${attendee.id} were not loaded`,
-            ),
-          );
-          if (
-            attendee.currentPaymentId !== "" &&
-            !references.some(
-              (reference) => reference.reference === attendee.currentPaymentId,
-            )
-          ) {
-            return [attendee.id, { kind: "legacy_unindexed" }];
-          }
-          if (!providersAreKnown(references)) {
-            return [attendee.id, { kind: "provider_unknown" }];
-          }
-          return [attendee.id, { kind: "complete", references }];
-        },
+        async (attendee) =>
+          [attendee.id, await referenceSetOf(attendee)] as const,
       ),
     ),
   );

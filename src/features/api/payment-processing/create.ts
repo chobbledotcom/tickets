@@ -44,6 +44,7 @@ import type {
   ModifierSpec,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { withSubscriptionPlan } from "#shared/subscriptions/booking-plan.ts";
 import type { ListingWithCount } from "#types";
 
 /** The listing id + package path every booking row we build from a signed
@@ -80,11 +81,11 @@ export const sessionSuccess = (
  * still a success replay because the attendee already exists. */
 export const alreadyProcessedResult = async (
   listingId: number,
-  existing: ProcessedPayment & { attendee_id: number },
+  existing: ProcessedPayment & { attendeeId: number },
 ): Promise<PaymentResult> => {
-  const decrypted = await decryptSessionTokens(existing.ticket_tokens);
+  const decrypted = await decryptSessionTokens(existing.ticketTokens);
   return sessionSuccess(
-    existing.attendee_id,
+    existing.attendeeId,
     listingId,
     decrypted ? decrypted.split("+") : [],
   );
@@ -211,13 +212,21 @@ export const createAttendeeForSession = async (
     const listingById = new Map(
       validatedItems.map(({ listing }) => [listing.id, listing]),
     );
-    const bookings = bookingsForOrder(
-      {
-        allocations: intent.allocations,
-        date: intent.date,
-        dayCount: intent.dayCount,
-      },
-      checkoutBookingLines(pricingIntent.items, listingById, paidByIntentItem),
+    const bookings = withSubscriptionPlan(
+      bookingsForOrder(
+        {
+          allocations: intent.allocations,
+          date: intent.date,
+          dayCount: intent.dayCount,
+        },
+        checkoutBookingLines(
+          pricingIntent.items,
+          listingById,
+          paidByIntentItem,
+        ),
+      ),
+      session.subscription,
+      pricedOrder.tax.policy,
     );
     const remainingBalance =
       intent.reservationAmount === undefined

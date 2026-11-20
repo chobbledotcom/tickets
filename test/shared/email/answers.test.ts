@@ -7,7 +7,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { questionListings } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
 import {
   eachAnswerOnce,
   entryAnswerLines,
@@ -35,11 +35,11 @@ const seedChoiceQuestion = async (
   assignedTo: number[],
   text = "Any allergies?",
 ): Promise<SeededQuestion> => {
-  const question = await questionsTable.insert({
+  const question = await records.questions.insert({
     displayType: "radio",
     text,
   });
-  const chosen = await answersTable.insert({
+  const chosen = await records.answers.insert({
     questionId: question.id,
     sortOrder: 0,
     text: "Shellfish",
@@ -142,12 +142,11 @@ describe("order answer lines from staged question data", () => {
     opts: { assignAll?: boolean; displayType?: "radio" | "free_text" } = {},
   ) => ({
     answers: answers.map((a) =>
-      testAnswer({ id: a.id, question_id: id, text: a.text }),
+      testAnswer({ id: a.id, questionId: id, text: a.text }),
     ),
-    assign_all: opts.assignAll ?? false,
-    display_type: opts.displayType ?? "radio",
+    assignAll: opts.assignAll ?? false,
+    displayType: opts.displayType ?? "radio",
     id,
-    sort_order: id,
     text,
   });
 

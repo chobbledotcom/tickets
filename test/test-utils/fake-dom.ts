@@ -1,7 +1,7 @@
 /** Minimal fake DOM for the booking-page client scripts.
  *
  * The client enhancement modules query a small, fixed vocabulary of selectors
- * (`[name^="quantity_"]`, `[name^="child_qty_<parentId>_"]`,
+ * (`[name^="quantity"]`, `[name^="childQty<parentId>_"]`,
  * `fieldset.child-selector[data-parent-id]`, `.custom-question[data-listing-ids]`,
  * control-type lists inside a question, …). Rather than pull in a full DOM, this
  * builds plain element objects and a `document` whose query methods interpret
@@ -221,12 +221,12 @@ const collect = (roots: FakeElement[]): FakeElement[] => {
 
 /** Booking-form element-spec builders shared by the client-script tests. */
 export const quantitySpec = (id: string, value: string): ElementSpec => ({
-  name: `quantity_${id}`,
+  name: `quantity${id}`,
   tag: "select",
   value,
 });
 
-/** One package's `name="package_quantity_<groupId>"` count selector (a page can
+/** One package's `name="packageQuantity<groupId>"` count selector (a page can
  * sell several bundles), carrying its members in `data-package-members` as
  * space-separated `<listingId>:<fixedQty>` pairs (e.g. "7:2 8:1") so the
  * active-listing set picks up every member once the package is chosen (even
@@ -238,18 +238,18 @@ export const packageSelectorSpec = (
   groupId = "3",
 ): ElementSpec => ({
   data: { packageMembers: members.join(" ") },
-  name: `package_quantity_${groupId}`,
+  name: `packageQuantity${groupId}`,
   tag: "select",
   value,
 });
 
-/** An auto-hidden parent quantity (`<input type="hidden" name="quantity_<id>"
+/** An auto-hidden parent quantity (`<input type="hidden" name="quantity<id>"
  * value="1">`), the shape a single-parent sole-child page renders when the
  * quantity selector is suppressed (`hideQuantity`). Defaults to "1", matching the
  * server template, so a test can assert it is restored after a compatible
  * selection returns. */
 export const hiddenQuantitySpec = (id: string, value = "1"): ElementSpec => ({
-  name: `quantity_${id}`,
+  name: `quantity${id}`,
   tag: "input",
   type: "hidden",
   value,
@@ -295,7 +295,7 @@ const compatData = (
   ...(compat.spans && { childSpans: compat.spans.join(",") }),
 });
 
-/** A per-child quantity select (`child_qty_<parentId>_<childId>`), the per-unit
+/** A per-child quantity select (`childQty<parentId>_<childId>`), the per-unit
  * selection control that replaced the old radio. `value` is the chosen quantity
  * (default "0"); a disabled control models a sold-out child.
  *
@@ -312,13 +312,13 @@ export const childQtySpec = (
 ): ElementSpec => ({
   data: compat ? compatData(childId, compat) : undefined,
   disabled,
-  name: `child_qty_${parentId}_${childId}`,
+  name: `childQty${parentId}_${childId}`,
   tag: "select",
   value,
 });
 
 /** A sole auto-selected child's informational marker (`renderSoleChildOption`):
- * a `data-sole-parent`/`data-sole-child` element with NO `child_qty_*` control,
+ * a `data-sole-parent`/`data-sole-child` element with NO `childQty*` control,
  * so the active-listing set must pick it up from the parent being in the cart
  * alone. `compat` adds the same `data-child-dates` / `data-child-spans`
  * the server now emits on the marker so the compatibility script can flag the
@@ -345,9 +345,9 @@ export const dateSpec = (value = ""): ElementSpec => ({
   value,
 });
 
-/** The page-level `name="day_count"` span selector. */
+/** The page-level `name="dayCount"` span selector. */
 export const dayCountSpec = (value = ""): ElementSpec => ({
-  name: "day_count",
+  name: "dayCount",
   tag: "select",
   value,
 });
@@ -362,7 +362,7 @@ export const childPriceSpec = (
   parentId: string,
   childId: string,
 ): ElementSpec => ({
-  name: `child_price_${parentId}_${childId}`,
+  name: `childPrice${parentId}_${childId}`,
   required: false,
   tag: "input",
   type: "text",

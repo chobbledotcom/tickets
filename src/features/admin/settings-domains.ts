@@ -73,7 +73,7 @@ const runBunnyDomainTask = <T extends { ok: true }>(
     taskName,
     formId,
     errorPage,
-    form.getOptionalInt("settings_version"),
+    form.getOptionalInt("settingsVersion"),
     async () => orErrorPage(await call(), errorPage, formId, onOk),
   );
 
@@ -82,7 +82,7 @@ export const handleCustomDomainPost = advancedSettingsRoute(
   withSettingsFields("settings-custom-domain", async (form, errorPage) => {
     const cdnError = requireBunnyCdn(errorPage, "settings-custom-domain");
     if (cdnError) return cdnError;
-    const raw = form.getString("custom_domain").toLowerCase();
+    const raw = form.getString("customDomain").toLowerCase();
 
     if (raw !== "" && !DOMAIN_PATTERN.test(raw)) {
       return errorPage(
@@ -95,7 +95,7 @@ export const handleCustomDomainPost = advancedSettingsRoute(
       "custom-domain",
       "settings-custom-domain",
       errorPage,
-      form.getOptionalInt("settings_version"),
+      form.getOptionalInt("settingsVersion"),
       async () => {
         if (raw === "") {
           await settings.update.customDomain("");

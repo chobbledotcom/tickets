@@ -150,7 +150,7 @@ describeWithEnv("ticket context branches", { db: true }, () => {
 
     await foldSelectedChildren(
       parentCtx,
-      new FormParams({ [`child_qty_${parent.id}_${child.id}`]: "1" }),
+      new FormParams({ [`childQty${parent.id}_${child.id}`]: "1" }),
       foldBase(parent.id, 1),
     );
     expect(holidayRows.calls).toHaveLength(1);

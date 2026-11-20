@@ -14,6 +14,7 @@ import {
 } from "#db/activity-log.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -23,8 +24,7 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 /** Raw (still-encrypted) stored message for an activity-log row. */
 const rawMessage = async (id: number): Promise<string> =>
   (await queryOne<{ message: string }>(
-    "SELECT message FROM activity_log WHERE id = ?",
-    [id],
+    sql`SELECT message FROM activity_log WHERE id = ${id}`,
   ))!.message;
 
 describeWithEnv("db > activity log", { db: true }, () => {
@@ -44,7 +44,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
 
     expect(entry.id).toBe(1);
     expect(entry.message).toBe("Test action");
-    expect(entry.listing_id).toBeNull();
+    expect(entry.listingId).toBeNull();
     expect(entry.created).toMatch(
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
     );
@@ -60,7 +60,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
       listing.id,
     );
 
-    expect(entry.listing_id).toBe(listing.id);
+    expect(entry.listingId).toBe(listing.id);
     expect(entry.message).toBe("Created listing 'Test Listing'");
   });
 
@@ -101,8 +101,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     // A row written before the owner-key switch (env-key format). Such rows
     // decrypt with the env key, so they still render with no session in scope.
     await execute(
-      "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
-      [await encrypt("legacy entry"), nowIso()],
+      sql`INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (${await encrypt("legacy entry")}, ${nowIso()}, NULL, NULL)`,
     );
 
     const entries = await getAllActivityLog();
@@ -118,7 +117,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     const entries = await withTestSession(() => getAttendeeActivityLog(0));
     expect(entries).toHaveLength(1);
     expect(entries[0]!.message).toBe("Balance paid");
-    expect(entries[0]!.attendee_id).toBe(0);
+    expect(entries[0]!.attendeeId).toBe(0);
   });
 
   test("getListingActivityLog returns entries for specific listing", async () => {
@@ -233,7 +232,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(result).not.toBeNull();
     expect(result?.listing.id).toBe(listing.id);
     expect(result?.listing.name).toBe("Batch Test Listing");
-    expect(result?.listing.attendee_count).toBe(0);
+    expect(result?.listing.attendeeCount).toBe(0);
     // REST API logs listing creation + our 2 = 3
     expect(result?.entries.length).toBe(3);
     expect(result?.entries[0]?.message).toBe("Second action");

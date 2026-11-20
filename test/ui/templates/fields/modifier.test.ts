@@ -40,7 +40,7 @@ describe("modifier fields", () => {
           defaultValue: "fixed",
           invalidMessage: "Invalid modifier type",
           label: "Type",
-          name: "calc_kind",
+          name: "calcKind",
           options: [
             { label: "Fixed amount", value: "fixed" },
             { label: "Percentage", value: "percent" },
@@ -63,7 +63,7 @@ describe("modifier fields", () => {
           hint: "Fixed: an amount in your currency. Percentage: e.g. 10 for 10%. Multiplier: e.g. 1.5. Direction is ignored for multipliers (the factor sets it).",
           inputmode: "decimal",
           label: "Value",
-          name: "calc_value",
+          name: "calcValue",
           required: true,
           type: "text",
         },
@@ -105,14 +105,14 @@ describe("modifier fields", () => {
           hint: "Only apply when the order subtotal is at least this amount (in your currency). Leave blank for no minimum.",
           inputmode: "decimal",
           label: "Minimum order (optional)",
-          name: "min_subtotal",
+          name: "minSubtotal",
           type: "text",
         },
         {
           hint: "Only apply to a returning customer with at least this many previous bookings. 0 (or blank) applies to everyone; 1 means seen at least once before.",
           label: "Minimum previous bookings (optional)",
           min: 0,
-          name: "min_visits",
+          name: "minVisits",
           type: "number",
         },
         {
@@ -126,7 +126,7 @@ describe("modifier fields", () => {
           hint: "Question-answer modifiers only: the most times this charge can apply within one booking. Set 1 to charge a delivery fee once per booking. Leave blank to charge for every ticket. Ignored for other triggers.",
           label: "Max times per order (optional)",
           min: 1,
-          name: "max_per_order",
+          name: "maxPerOrder",
           type: "number",
         },
         {
@@ -141,29 +141,29 @@ describe("modifier fields", () => {
 
   test("rejects a number followed by junk", async () => {
     await withMessageGroups(["modifiers"], () => {
-      expect(validateWith("calc_value", "150abc")).toBe("Enter a valid number");
+      expect(validateWith("calcValue", "150abc")).toBe("Enter a valid number");
     });
   });
 
   test("rejects JavaScript-only number syntax", async () => {
     await withMessageGroups(["modifiers"], () => {
-      expect(validateWith("calc_value", "0x10")).toBe("Enter a valid number");
-      expect(validateWith("calc_value", "1e2")).toBe("Enter a valid number");
+      expect(validateWith("calcValue", "0x10")).toBe("Enter a valid number");
+      expect(validateWith("calcValue", "1e2")).toBe("Enter a valid number");
     });
   });
 
   test("parses a valid percentage", async () => {
     await withMessageGroups(["modifiers"], () => {
-      expect(parseWith("calc_value", "150")).toBe(150);
+      expect(parseWith("calcValue", "150")).toBe(150);
     });
   });
 
   test("parses and validates the optional minimum order", async () => {
     await withMessageGroups(["modifiers"], () => {
-      expect(parseWith("min_subtotal", "")).toBe(0);
-      expect(parseWith("min_subtotal", "5")).toBe(5);
-      expect(validateWith("min_subtotal", "5")).toBeNull();
-      expect(validateWith("min_subtotal", "not-money")).toBe(
+      expect(parseWith("minSubtotal", "")).toBe(0);
+      expect(parseWith("minSubtotal", "5")).toBe(5);
+      expect(validateWith("minSubtotal", "5")).toBeNull();
+      expect(validateWith("minSubtotal", "not-money")).toBe(
         "Minimum order must be a valid amount for your currency",
       );
     });
@@ -171,8 +171,8 @@ describe("modifier fields", () => {
 
   test("parses the optional previous-booking count", async () => {
     await withMessageGroups(["modifiers"], () => {
-      expect(parseWith("min_visits", "")).toBe(0);
-      expect(parseWith("min_visits", "3")).toBe(3);
+      expect(parseWith("minVisits", "")).toBe(0);
+      expect(parseWith("minVisits", "3")).toBe(3);
     });
   });
 });

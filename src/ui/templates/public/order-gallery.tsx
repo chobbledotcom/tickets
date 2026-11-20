@@ -5,7 +5,6 @@ import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { formatCurrency } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { packageOptionKey } from "#shared/order/options.ts";
 import {
@@ -15,7 +14,11 @@ import {
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
-import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
+import {
+  CARD_GRID_CLASS,
+  cardInner,
+  cardPriceHtml,
+} from "#templates/components/card.tsx";
 import type { GroupWithMembers } from "#types";
 import { listingAttributesHtml } from "./listing-attributes.ts";
 import {
@@ -132,12 +135,7 @@ const renderOrderCard =
     const imageHtml = renderListingImage(listing, "card-image", {
       thumb: true,
     });
-    const priceHtml =
-      listing.unit_price > 0
-        ? `<span class="card-price">${
-            listing.can_pay_more ? t("availability.from_prefix") : ""
-          }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
-        : "";
+    const priceHtml = cardPriceHtml(listing);
     const attributesHtml = listingAttributesHtml(
       attributesByListing,
       listing.id,

@@ -48,7 +48,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
   describe("POST /admin/settings/email", () => {
     testRequiresAuth("/admin/settings/email", {
       body: {
-        email_provider: "resend",
+        emailProvider: "resend",
       },
       method: "POST",
     });
@@ -57,7 +57,7 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
       // The form offers a list of the providers the site supports, so a value
       // outside it is one only a crafted send can carry.
       const { response } = await adminFormPost("/admin/settings/email", {
-        email_provider: "invalid-provider",
+        emailProvider: "invalid-provider",
       });
 
       expectRedirectWithFlash(
@@ -99,8 +99,8 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     // is why the story does not claim this journey.
     const { response } = await adminFormPost("/admin/settings/email", {
       email_api_key: "re_test_123",
-      email_from_address: "not-an-email",
-      email_provider: "resend",
+      emailFromAddress: "not-an-email",
+      emailProvider: "resend",
     });
 
     expectRedirectWithFlash(

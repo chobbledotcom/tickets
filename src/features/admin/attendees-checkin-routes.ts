@@ -63,9 +63,9 @@ export const handleAttendeeCheckinGet = (
 /** Where a roster action lands the operator: the threaded return_url, or the
  * Attendees tab preserving the check-in filter. */
 const rosterLanding = (form: FormParams, listingId: number): string => {
-  const returnUrl = form.getString("return_url");
+  const returnUrl = form.getString("returnUrl");
   if (returnUrl !== "") return returnUrl;
-  const filterValue = form.getString("return_filter");
+  const filterValue = form.getString("returnFilter");
   const filterQs =
     filterValue === "in" || filterValue === "out"
       ? `?filter=${filterValue}`
@@ -85,7 +85,7 @@ export const handleAttendeeCheckin = attendeeBookingFormAction(
     const noLineRedirect = await redirectIfNoActiveBookingLine(
       attendeeId,
       listingId,
-      form.getString("return_url") || `/admin/listing/${listingId}`,
+      form.getString("returnUrl") || `/admin/listing/${listingId}`,
       t("admin.checkin.no_quantity_line"),
     );
     if (noLineRedirect) return noLineRedirect;
@@ -94,7 +94,7 @@ export const handleAttendeeCheckin = attendeeBookingFormAction(
     // The direction is the form's one choice between opposite writes, so
     // only the exact true/false the forms post counts. Anything else is a
     // damaged form, not a silent admission.
-    const direction = form.getString("check_in");
+    const direction = form.getString("checkIn");
     if (direction !== "true" && direction !== "false") {
       return redirect(target, t("admin.checkin.invalid_direction"), false, {
         form,

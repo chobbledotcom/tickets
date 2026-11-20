@@ -19,13 +19,13 @@ import {
 describeAdminSettings(() => {
   describe("POST /admin/settings/site-footer", () => {
     testRequiresAuth("/admin/settings/site-footer", {
-      body: { site_footer: "Thanks for visiting." },
+      body: { siteFooter: "Thanks for visiting." },
       method: "POST",
     });
 
     test("saves the site footer", async () => {
       const { response } = await adminFormPost("/admin/settings/site-footer", {
-        site_footer: "Thank you for supporting our event!",
+        siteFooter: "Thank you for supporting our event!",
       });
 
       expect(response.status).toBe(302);
@@ -36,11 +36,11 @@ describeAdminSettings(() => {
 
     test("rejects a footer exceeding max length without saving it", async () => {
       await adminFormPost("/admin/settings/site-footer", {
-        site_footer: "Some footer text",
+        siteFooter: "Some footer text",
       });
 
       const { response } = await adminFormPost("/admin/settings/site-footer", {
-        site_footer: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+        siteFooter: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
 
       expect(response.status).toBe(302);
@@ -56,7 +56,7 @@ describeAdminSettings(() => {
     test("accepts a footer at exactly max length", async () => {
       const atLimit = "x".repeat(MAX_TEXTAREA_LENGTH);
       const { response } = await adminFormPost("/admin/settings/site-footer", {
-        site_footer: atLimit,
+        siteFooter: atLimit,
       });
 
       expect(response.status).toBe(302);
@@ -67,11 +67,11 @@ describeAdminSettings(() => {
 
     test("clears the footer when empty", async () => {
       await adminFormPost("/admin/settings/site-footer", {
-        site_footer: "Some footer text",
+        siteFooter: "Some footer text",
       });
 
       const { response } = await adminFormPost("/admin/settings/site-footer", {
-        site_footer: "",
+        siteFooter: "",
       });
 
       expect(response.status).toBe(302);
@@ -83,7 +83,7 @@ describeAdminSettings(() => {
     test("replaces a saved footer with sample text in demo mode", async () => {
       setDemoModeForTest(true);
       const { response } = await adminFormPost("/admin/settings/site-footer", {
-        site_footer: "Call Dana on 555-0139",
+        siteFooter: "Call Dana on 555-0139",
       });
 
       expect(response.status).toBe(302);

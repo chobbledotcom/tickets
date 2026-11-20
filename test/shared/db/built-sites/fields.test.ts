@@ -2,13 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   builtSiteBlobColumns,
-  builtSiteFormMappings,
-  builtSiteInputKeyMap,
   builtSitePlainColumns,
-  builtSitePlainSchema,
-  emptyBuiltSiteFormInput,
-  mapPlainFields,
-  plainSiteInput,
+  plainColumnValues,
 } from "#db/built-sites/fields.ts";
 
 const plainFields = {
@@ -21,8 +16,8 @@ const plainFields = {
   updates: "beta",
 } as const;
 
-test("maps every plain site field to table input", () => {
-  expect(plainSiteInput(plainFields)).toEqual({
+test("maps every plain site field to its column", () => {
+  expect(plainColumnValues(plainFields)).toEqual({
     assignable: 1,
     assignedAttendeeId: 42,
     assignedListingId: 7,
@@ -31,20 +26,11 @@ test("maps every plain site field to table input", () => {
     siteDataRevision: 3,
     updates: "beta",
   });
-  expect(mapPlainFields(plainFields, "dbKey")).toEqual({
-    assignable: 1,
-    assigned_attendee_id: 42,
-    assigned_listing_id: 7,
-    read_only_from: "2027-01-01T00:00:00Z",
-    renewal_token_index: "renewal-index",
-    site_data_revision: 3,
-    updates: "beta",
-  });
 });
 
 test("maps false and null plain values without dropping them", () => {
   expect(
-    plainSiteInput({
+    plainColumnValues({
       assignable: false,
       assignedAttendeeId: null,
       assignedListingId: null,
@@ -57,7 +43,7 @@ test("maps false and null plain values without dropping them", () => {
     renewalTokenIndex: null,
   });
   expect(
-    plainSiteInput({
+    plainColumnValues({
       assignedAttendeeId: 0,
       readOnlyFrom: "",
       renewalTokenIndex: "",
@@ -69,47 +55,21 @@ test("maps false and null plain values without dropping them", () => {
   });
 });
 
-test("defines exact form names and defaults", () => {
-  expect(builtSiteInputKeyMap).toEqual({
-    assignable: "assignable",
-    db_provider: "dbProvider",
-    db_token: "dbToken",
-    db_url: "dbUrl",
-    hosting_id: "hostingId",
-    hosting_provider: "hostingProvider",
-    name: "name",
-    site_url: "siteUrl",
-    updates: "updates",
-  });
-  expect(emptyBuiltSiteFormInput()).toEqual({
-    assignable: false,
-    dbProvider: "bunny",
-    dbToken: "",
-    dbUrl: "",
-    hostingId: "",
-    hostingProvider: "bunny",
-    name: "",
-    siteUrl: "",
-    updates: "release",
-  });
-  expect(builtSiteFormMappings).toHaveLength(9);
-});
-
 test("converts plain database values back to site fields", () => {
   const row = {
     assignable: 1,
-    assigned_attendee_id: 42,
-    assigned_listing_id: 7,
-    database_key_rotation_started: 1,
-    read_only_from: "date",
-    renewal_token_index: "index",
-    site_data_revision: 3,
+    assignedAttendeeId: 42,
+    assignedListingId: 7,
+    databaseKeyRotationStarted: 1,
+    readOnlyFrom: "date",
+    renewalTokenIndex: "index",
+    siteDataRevision: 3,
     updates: "alpha",
   } as const;
   const fields = Object.fromEntries(
     builtSitePlainColumns.map((column) => [
       column.siteKey,
-      column.fromRow(row[column.dbKey] as never),
+      column.fromRow(row[column.siteKey] as never),
     ]),
   );
   expect(fields).toEqual({
@@ -125,73 +85,47 @@ test("converts plain database values back to site fields", () => {
   expect(builtSitePlainColumns[0].fromRow(0)).toBe(false);
 });
 
-test("defines exact plain defaults and blob mappings", () => {
-  expect({
-    assignedAttendeeId: builtSitePlainSchema.assigned_attendee_id.default?.(),
-    assignedListingId: builtSitePlainSchema.assigned_listing_id.default?.(),
-    readOnlyFrom: builtSitePlainSchema.read_only_from.default?.(),
-    renewalTokenIndex: builtSitePlainSchema.renewal_token_index.default?.(),
-    siteDataRevision: builtSitePlainSchema.site_data_revision.default?.(),
-    updates: builtSitePlainSchema.updates.default?.(),
-  }).toEqual({
-    assignedAttendeeId: null,
-    assignedListingId: null,
-    readOnlyFrom: "",
-    renewalTokenIndex: null,
-    siteDataRevision: 0,
-    updates: "release",
-  });
-  // A site that predates the two-step rotation has none waiting.
-  expect(builtSitePlainSchema.database_key_rotation_started.default?.()).toBe(
-    0,
-  );
+test("defines exact blob mappings", () => {
   expect(builtSiteBlobColumns).toEqual([
     {
       blobKey: "n",
       defaultValue: "",
-      formDbKey: "name",
       required: true,
       siteKey: "name",
     },
     {
       blobKey: "u",
       defaultValue: "",
-      formDbKey: "site_url",
       required: true,
       siteKey: "siteUrl",
     },
     {
       blobKey: "d",
       defaultValue: "",
-      formDbKey: "db_url",
       required: false,
       siteKey: "dbUrl",
     },
     {
       blobKey: "t",
       defaultValue: "",
-      formDbKey: "db_token",
       required: false,
       siteKey: "dbToken",
     },
     {
       blobKey: "s",
       defaultValue: "",
-      formDbKey: "hosting_id",
       required: false,
       siteKey: "hostingId",
     },
     {
       blobKey: "hp",
       defaultValue: "bunny",
-      formDbKey: "hosting_provider",
       required: false,
       siteKey: "hostingProvider",
     },
     {
       blobKey: "dp",
       defaultValue: "bunny",
-      formDbKey: "db_provider",
       required: false,
       siteKey: "dbProvider",
     },

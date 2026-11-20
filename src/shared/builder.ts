@@ -8,7 +8,8 @@
 
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
-import { builtSitesCrudTable } from "#db/built-sites.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { t, withMessageGroups } from "#i18n";
 import {
   dryRunOrFetchText,
@@ -147,7 +148,7 @@ export const testDbConnection = async (
   dbToken: string,
 ): Promise<Outcome> => {
   const result = await withSiteDb({ dbToken, dbUrl }, (client) =>
-    client.execute("SELECT 1"),
+    client.execute(sql`SELECT 1`),
   );
   return result.ok ? { ok: true } : errorResult(result.error);
 };
@@ -287,7 +288,7 @@ const buildSiteOnProvider = async (
     ok: false;
   }): Promise<BuildSiteResult> => {
     try {
-      await builtSitesCrudTable.deleteById(retainedId);
+      await records.built_sites.delete(retainedId);
     } catch (deleteError) {
       return {
         error: `${failed.error}; the retained record could not be deleted: ${errorMessage(deleteError)}`,

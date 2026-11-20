@@ -8,6 +8,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { fieldName } from "#shared/column-names.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import { entityToFieldValues } from "#shared/forms/values.ts";
@@ -55,8 +56,7 @@ const editForms: readonly (readonly [string, readonly Field[]])[] = [
   ["group edit", getGroupForm().fields],
   [
     "listing edit",
-    getListingEditForm({ builder: true, logistics: true, storage: true })
-      .fields,
+    getListingEditForm({ closed: new Map(), storage: true }).fields,
   ],
   ["modifier edit", getModifierForm().fields],
 ];
@@ -70,7 +70,7 @@ describe("an edit form keeps a stored yes/no", () => {
       expect(controls.length).toBeGreaterThan(0);
       for (const field of controls) {
         for (const stored of [true, false]) {
-          const row = { [field.name]: stored };
+          const row = { [fieldName(field.name)]: stored };
           const values = entityToFieldValues(row, [field], {});
           const drawn = drawnAsYes(field, renderFields([field], values));
           const kept = `${formName} form, ${field.name} stored ${stored}`;

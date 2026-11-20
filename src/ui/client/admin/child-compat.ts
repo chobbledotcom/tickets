@@ -30,10 +30,10 @@ const controlValue = (name: string): string => {
 /** The `name="date"` control's value, or "" when absent. */
 const selectedDate = (): string => controlValue("date");
 
-/** The `name="day_count"` value, or "" when absent/unchosen. Compared as a string
+/** The `name="dayCount"` value, or "" when absent/unchosen. Compared as a string
  * against the `data-child-spans` tokens, so no numeric parse is needed (the
  * selector only ever emits "" or an integer span). */
-const selectedSpan = (): string => controlValue("day_count");
+const selectedSpan = (): string => controlValue("dayCount");
 
 /** Split a (present) comma-separated `data-child-*` attribute into its tokens. */
 const tokens = (raw: string): string[] => raw.split(",");
@@ -53,7 +53,7 @@ const parseChildDatesByDayCount = (raw: string): Map<string, string[]> => {
 };
 
 /** The serveable dates that apply for the current span selection: the
- * entry for the chosen `day_count`, or — when no span is chosen (fixed-duration
+ * entry for the chosen `dayCount`, or — when no span is chosen (fixed-duration
  * parent, or not picked yet) and there is exactly ONE span entry — that single
  * entry. Returns null when no span is chosen and multiple spans exist, leaving the
  * date constraint un-applied until the buyer picks a day-count. */
@@ -109,7 +109,7 @@ const applyCompat = (
 ): void => setControlDisabled(control, !compatible);
 
 /** The sole auto-selected child's informational marker, or null when the parent
- * uses multi-child `child_qty_*` controls instead. */
+ * uses multi-child `childQty*` controls instead. */
 const soleMarker = (parentId: string): HTMLElement | null =>
   soleChildId(parentId) === null
     ? null
@@ -130,7 +130,7 @@ const applySoleCompat = (
   const compatible = isCompatible(marker, date, span);
   marker.toggleAttribute("data-sole-incompatible", !compatible);
   const quantity = document.querySelector<HTMLSelectElement | HTMLInputElement>(
-    `[name="quantity_${parentId}"]`,
+    `[name="quantity${parentId}"]`,
   );
   if (quantity === null) return;
   setControlDisabled(quantity, !compatible);
@@ -165,6 +165,6 @@ const updateParent = (parentId: string): void => {
  * compat state. */
 export const initChildCompat = (): void =>
   initParentSelectors(
-    (update) => onChangeOf('[name="date"], [name="day_count"]', update),
+    (update) => onChangeOf('[name="date"], [name="dayCount"]', update),
     updateParent,
   );

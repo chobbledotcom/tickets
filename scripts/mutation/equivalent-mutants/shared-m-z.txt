@@ -10,7 +10,7 @@ src/shared/update.ts::downloadReleaseAsset~1gjm973  export {}; // dry-run site b
 
 # payment-success.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
 # string|undefined; for "" both ?? "" and || "" yield "".
-src/features/api/payment-success.ts::singleListingThankYou~0cl1whb  ?? → || audited:1pu8a2r # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/payment-success.ts::singleListingThankYou~1scz17p ??→||  audited:1fhn955   # string|"" fallback; "" ?? "" = "" || "" = ""
 
 # payment-success.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
 # both ?? "" and || "" yield "".
@@ -47,7 +47,7 @@ src/shared/webhook/delivery.ts::queueRegistrationSends~18zsvut  ?? → || audite
 # array is truthy, so the ?? and || fallbacks agree — only undefined/null fall
 # through, and both operators treat those the same.
 src/features/api/public-listing.ts::mapParentChildren.children~1owkdwg  ?? → || audited:0wdxjj6 # Map.get → array|undefined; an array is always truthy
-src/features/api/public-listing.ts::buildChildPublicListings~1tkmqom  ?? → || audited:0wdxjj6 # mapParentChildren → array|null; only null falls through either operator
+src/features/api/public-listing.ts::buildChildPublicListings~1eo8erl ??→||  audited:0q2grmj   # mapParentChildren → array|null; only null falls through either operator
 
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → || audited:0dtnttp # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
@@ -184,14 +184,14 @@ src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → 2 audited:17s6jj1 # slice
 src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → -1 audited:17s6jj1 # slice(1,1) empties h; same isDomainHostname fallback as above
 src/shared/url-safety.ts::isIpLiteral~1l2lep3  : → ": mutated" audited:17s6jj1 # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
 src/shared/url-safety.ts::isIpLiteral~1d8tf9e  true → false audited:17s6jj1 # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
-src/ui/templates/admin/images.tsx::imageValue.alt_text~17v2zve  ?? → || audited:0bs4xwa # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx::imageValue.altText~1s6oq8f ??→||  audited:1cashdd   # altText ?? "" vs || "": identical for every string — "" falls through to "" either way
 src/ui/templates/admin/images.tsx::imageValue.name~0pg0nzi  ?? → || audited:0bs4xwa # name ?? "" vs || "": identical for every string — "" falls through to "" either way
 src/ui/templates/admin/images.tsx::imageColumns~0lssgxj  thumbnail → "" audited:0bs4xwa # renderTable reads a column key only for its columnKeys lookup, its hiddenKeys lookup, and a saved filter. The images library page and the item image pickers pass none of these, and the guide reference table covers the listing and attendee tables only, so this key reaches no output
 src/ui/templates/admin/images.tsx::imageColumns~1gvyre8  name → "" audited:0bs4xwa # same as the thumbnail key above — the images table supplies no columnKeys, no hiddenKeys, and no filter
-src/ui/templates/admin/images.tsx::imageColumns~1t8w3ff  alt_text → "" audited:0bs4xwa # same as the thumbnail key above — the images table supplies no columnKeys, no hiddenKeys, and no filter
+src/ui/templates/admin/images.tsx::imageColumns~11ld3ik alt_text→""  audited:1cashdd   # same as the thumbnail key above — the images table supplies no columnKeys, no hiddenKeys, and no filter
 src/ui/templates/admin/images.tsx::adminImageEditPage~0yyu6ex  0 → 1 audited:0bs4xwa # the edit page renders one thumbnail, and LAZY_THUMBNAIL_FROM is 9, so every position below 9 gives the same eager tag
-src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated" audited:1f06tx7 # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
-src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated" audited:1f06tx7 # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
+src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated" audited:1nojjql # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
+src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated" audited:1nojjql # itemId destructure default: parsePositiveInt refuses both "" and "mutated", so the id guard drops the target either way
 
 # Attendee merge service (attendee-merge.ts) — `?? → ||` between
 # `targetAnswers.get(qid)` (a `{answerId, answerText}` object or undefined) and
@@ -271,7 +271,7 @@ src/shared/rebrand.ts::stepProse.end~17odbj7  1 → 0 audited:0dvk6sd # `open + 
 
 # Payment plumbing (main #2020): an ignored success flag, non-empty provider
 # strings, a sort tie-break, and validation messages nothing reads.
-src/shared/stripe-provider.ts::toValidatedSession.paymentReference~17zvm8m  ?? → || audited:187dpw5 # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
+src/shared/stripe-provider.ts::sessionCharge.paymentReference~0ge5o6c  ?? → || audited:0bbdej8 # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
 src/shared/validation/money.ts::PositiveMoneySchema~0jfm1h7  false → true audited:0hcedvj # a leading "-" only admits values <= 0, which v.minValue(1) rejects either way
 src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → "" audited:0isam1l # message text of the currency regex; validation outcome is identical
 src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → "" audited:16vnpf8 # message text of the resource-id regex; validation outcome is identical
@@ -371,7 +371,6 @@ src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → || audited:
 
 # sumup/money.ts: Array.find gives back a refund read object or nothing.
 src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → || audited:0k8nuca # find returns a refund read object or undefined, and every object is truthy
-src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → || audited:0ohr026 # runValidation turns a falsey validation answer into null, so validationError is an ErrorResult or null and never the empty string
 
 src/shared/booking/signed-metadata.ts::bookedPathGroupIds~0zn56vl  ?? → || audited:0bada57 # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
 src/shared/booking/signed-metadata.ts::bookedOutsideParent~0e9f075  ?? → || audited:0bada57 # byChild sums validated quantities of at least 1, so every present value is truthy
@@ -408,6 +407,42 @@ src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  1 → 0 audited:1
 # every writer there rejects an empty name, so the ?? never sees "".
 src/shared/order-line-items.ts::orderLineItems.name~0am8pen  ??→|| audited:04chtsp # a package display name comes from the groups table, where every writer rejects an empty name
 
-# crud-api.ts: a resource declares its children and custom routes as an object
-# or leaves them out.
-src/shared/rest/crud-api.ts::declaredRecords~1k64ef7  ?? → || audited:17gpx11 # records: an object or undefined — an object is always truthy
+src/shared/records/images.ts::uploadImageFiles.filename~1k7olk9  image filename→"" audited:05jtm1l # the label reaches only the error for an empty name; uploadImageTargets names every file with generateWebpFilename, a UUID plus .webp, so the name is never empty
+src/shared/records/images.ts::uploadImageFiles.filenameThumb~1phf0ix  image thumbnail filename→"" audited:05jtm1l # the label reaches only the error for an empty name; uploadImageTargets names every file with generateWebpFilename, a UUID plus .webp, so the name is never empty
+src/shared/records/images.ts::imageRule.metadata~0s6dubv  ??→|| audited:05jtm1l # input.altText is a string or undefined; its one falsy string is "", which both operators send to ""
+src/shared/records/images.ts::updateInTransaction.missing~10n891b  ??→|| audited:05jtm1l # input.items is an array, null, or undefined; an array is never falsy, so ?? and || pick the same value
+src/shared/rest/field-reads.ts::CREATE_VALUES.switch~0d33tyd  ??→|| audited:19mfqpa # a switch default is true, false, or absent, and false and absent both read as false under ?? and ||
+src/shared/rest/field-values.ts::KIND_VALUES.count~16n3kul  ??→|| audited:0ht3h5z # a count minimum is a number or absent, and the only falsy number, 0, falls back to 0 either way
+src/shared/rest/field-values.ts::apiRefusal~1dtjlxu ??→||  audited:1xitzr6   # every special refusal is a non-empty message, so ?? and || pick the same side
+src/shared/rest/record.ts::buildRecord.rule~0wug6os  ??→|| audited:12mmqi8 # spec.rule is a function or undefined; a function is never falsy, so ?? and || pick the same value
+src/shared/rest/record-pages.ts::resolvePagePaths.skipped~133lhn6  ??→|| audited:0ikjm5v # config.skip is an array or undefined; an array is never falsy, so ?? and || pick the same value
+src/shared/rest/record-pages.ts::recordPages~12ka3fc  ??→|| audited:0ikjm5v # record.saveLanding is an AdminDestinationId or undefined; every destination id is a non-empty string, so it is never falsy
+src/shared/rest/record-pages.ts::recordPages.editVerdict~199e4ug  ??→|| audited:0ikjm5v # config.updateSavePath is a function or undefined; a function is never falsy, so ?? and || pick the same value
+src/shared/rest/record-pages.ts::recordPages.confirmedDelete.onConfirm~17rcqfd  ??→|| audited:0ikjm5v # failure is a Response or null; a Response object is never falsy, and null gives undefined under both
+src/shared/rest/record-pages.ts::recordPages.confirmedDelete.render~1jop8vb  ??→|| audited:0ikjm5v # config.renderDelete is a function or undefined; a function is never falsy, so ?? and || pick the same value
+
+# record-api.ts: a resource declares its children and custom routes as an object
+# or leaves them out. Every config default it reads is an array, an object, or a
+# function, so no operand is falsy-but-present.
+src/shared/rest/record-api.ts::declaredRecords~1k64ef7  ??→|| audited:05jupxa # records is an object or undefined; an object is never falsy, so ?? and || pick the same value
+src/shared/rest/record-api.ts::recordApi.stripKeys~0dyd9rx  ??→|| audited:05jupxa # config.stripKeys is an array or undefined; an array is never falsy, and an empty array strips nothing either way
+src/shared/rest/record-api.ts::recordApi.routes~102ig5u  ??→|| audited:05jupxa # config.overrides is an object or undefined; an object is never falsy, so ?? and || pick the same value
+src/shared/rest/record-api.ts::recordApi.%60GET%20%2fapi%2fadmin%2f$%7bname%7d%60~1o2oy72  ??→|| audited:05jupxa # routes.list is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60GET%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~0a388jo  ??→|| audited:05jupxa # routes.get is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60POST%20%2fapi%2fadmin%2f$%7bname%7d%60~09o99ta  ??→|| audited:05jupxa # routes.create is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60PUT%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~0tnvf8c  ??→|| audited:05jupxa # routes.update is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60DELETE%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~1xjrlr0  ??→|| audited:05jupxa # routes.delete is a route handler function or undefined; a function is never falsy
+
+# svg-ticket.ts: an empty match group and a missing one both become "".
+src/shared/svg-ticket.ts::extractSvgContent~1wmrkda  ??→|| audited:135uwno # innerMatch[1] is a string or undefined, and both fall back to ""
+
+# svg-ticket.ts: the QR section starts empty two lines above and nothing else
+# adds to it, so the first write reads the same with = and +=.
+src/shared/svg-ticket.ts::generateSvgTicket.qrSection~1lgmz55  =→+= audited:135uwno # qrSection is "" at this write, so += adds nothing
+
+# field-specs.ts: the two lookups of the access rule.
+src/shared/rest/field-specs.ts::closedReasonOrNull~1mg5p9w  ??→|| audited:02d9nni # find returns a lock name or undefined, and every lock name is a non-empty string
+src/shared/rest/field-specs.ts::closedFieldErrorOrNull~015lckf  Missing closed field→"" audited:02d9nni # the key comes from closed.has on the same map one line above, so the lookup never throws and no caller reads the message
+
+# validation/string.ts: the brand label exists only in the type system.
+src/shared/validation/string.ts::NonEmptyStringSchema~19qgdi8  NonEmptyString→"" audited:177e60r # valibot stores the brand label on the schema and no validation reads it, so no input behaves differently

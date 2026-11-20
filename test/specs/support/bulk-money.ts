@@ -7,6 +7,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
@@ -87,12 +88,11 @@ const firstAttendeeId = (world: TicketsWorld): number => {
 /** Reproduce an old PII-only deposit followed by one modern balance payment. */
 export const leaveOnlyLaterIndexedPayment: ActOnTheStory = async (world) => {
   const attendeeId = firstAttendeeId(world);
-  await execute("DELETE FROM processed_payments WHERE attendee_id = ?", [
-    attendeeId,
-  ]);
   await execute(
-    "UPDATE attendees SET pii_payment_session_id = NULL WHERE id = ?",
-    [attendeeId],
+    sql`DELETE FROM processed_payments WHERE attendee_id = ${attendeeId}`,
+  );
+  await execute(
+    sql`UPDATE attendees SET pii_payment_session_id = NULL WHERE id = ${attendeeId}`,
   );
   await finalizeProcessedPayment(
     `later-balance-${attendeeId}`,

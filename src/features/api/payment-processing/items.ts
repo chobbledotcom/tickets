@@ -68,14 +68,14 @@ const validateListingForPayment = (
   // The payment route loads this group for every request.
   const belowMinimum = belowMinError(
     quantity,
-    listing.min_quantity,
+    listing.minQuantity,
     name
       ? t("payment.failure.below_minimum_named", {
-          min_quantity: listing.min_quantity,
+          min_quantity: listing.minQuantity,
           name,
         })
       : t("payment.failure.below_minimum", {
-          min_quantity: listing.min_quantity,
+          min_quantity: listing.minQuantity,
         }),
   );
   if (belowMinimum) {
@@ -192,15 +192,15 @@ const aboveMaximumRefusal = (
         `Listing ${listing.id} missing`,
       )
     : summedQuantity;
-  if (judgedQuantity <= listing.max_quantity) return null;
+  if (judgedQuantity <= listing.maxQuantity) return null;
   return {
     error: name
       ? t("payment.failure.above_maximum_named", {
-          max_quantity: listing.max_quantity,
+          max_quantity: listing.maxQuantity,
           name,
         })
       : t("payment.failure.above_maximum", {
-          max_quantity: listing.max_quantity,
+          max_quantity: listing.maxQuantity,
         }),
     status: 410,
   };
@@ -214,7 +214,7 @@ const foldedDailyChildIds = (
 ): Set<number> =>
   new Set(
     [...foldedChildIds].filter(
-      (id) => listingsById.get(id)?.listing_type === "daily",
+      (id) => listingsById.get(id)?.listingType === "daily",
     ),
   );
 
@@ -236,7 +236,7 @@ const hasStaleChildSurplus = (
       intent.items.flatMap((item) => {
         const listing = snapshot.listingsById.get(item.e);
         return listing &&
-          !listing.bookable_alone &&
+          !listing.bookableAlone &&
           (snapshot.parentsByChildId.get(item.e)?.length ?? 0) > 0
           ? [item.e]
           : [];

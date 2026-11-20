@@ -9,70 +9,23 @@
  * Keys inherit admin_level from their parent user.
  */
 
-import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { wrapKeyWithToken } from "#crypto/keys.ts";
-import type { BlindIndex, WrappedKey } from "#crypto/sealed.ts";
-import { execute, executeUpdate } from "#db/client.ts";
-import { idAndCreatedSchema } from "#db/common-schema.ts";
-import { defineIdTable } from "#db/define-id-table.ts";
-import { col } from "#db/table.ts";
-import { readerFor } from "#db/table-reader.ts";
+import { execute } from "#db/client.ts";
+import { executeChangedRow } from "#db/guarded-writes.ts";
+import { readOneRow, readRows } from "#db/read.ts";
+import { records } from "#db/record-table.ts";
+import { from } from "#db/select/query.ts";
+import type { Matching, Node } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
+import { deleteFrom, update } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 import { getTouchOverride } from "#shared/test-overrides.ts";
 import type { ApiKey } from "#types";
 
-/** A row with its `name` decrypted for display — the table's read shape. */
-type ApiKeyRow = {
-  id: number;
-  user_id: number;
-  key_index: BlindIndex;
-  wrapped_data_key: WrappedKey;
-  name: string;
-  created: string;
-  last_used: string;
-};
-
-/** Fields a caller supplies to create a key: `name` is plaintext (the table
- * encrypts it), and `created`/`last_used` fall back to their column defaults. */
-type ApiKeyInput = {
-  userId: number;
-  keyIndex: BlindIndex;
-  wrappedDataKey: WrappedKey;
-  name: string;
-};
-
-/** Declarative api_keys table — `name` is encrypted at rest (decrypted on read),
- * every other column is stored as-is. The single source of the column set and
- * the encrypt/decrypt policy for this table. */
-const apiKeysTable = defineIdTable<ApiKeyRow, ApiKeyInput>("api_keys", {
-  ...idAndCreatedSchema(nowIso),
-  key_index: col.simple<BlindIndex>(),
-  last_used: col.withDefault(() => ""),
-  name: col.encrypted(encrypt, decrypt),
-  user_id: col.simple<number>(),
-  wrapped_data_key: col.simple<WrappedKey>(),
-});
-
-/** Every read of this table goes through one reader, so a column name is
- * checked against the table rather than spelled out as SQL. */
-const apiKeys = readerFor(apiKeysTable);
-
-/** What the auth path reads: everything but the name, which it never shows.
- * The one encrypted column is neither fetched nor decrypted on a request that
- * only needs to know whose key this is. */
-const apiKeyAuthColumns = apiKeys.pick([
-  "id",
-  "user_id",
-  "key_index",
-  "wrapped_data_key",
-  "created",
-  "last_used",
-]);
-
-const apiKeyListColumns = apiKeys.pick(["id", "name", "created", "last_used"]);
-
-const apiKeyNameColumns = apiKeys.pick(["id", "name"]);
+/** The keys that `where` keeps. */
+const apiKeys = (where: Matching<Node<"api_keys">>) =>
+  from(tables.api_keys).where(where);
 
 /**
  * Create a new API key for a user.
@@ -88,11 +41,12 @@ export const createApiKey = async (
   const apiKey = generateToken();
   const keyIndex = await hmacHash(apiKey);
   const wrappedDataKey = await wrapKeyWithToken(dataKey, apiKey);
-  const row = await apiKeysTable.insert({
-    keyIndex,
+  const row = await records.api_keys.insert({
+    created: nowIso(),
+    keyIndex: keyIndex,
     name,
-    userId,
-    wrappedDataKey,
+    userId: userId,
+    wrappedDataKey: wrappedDataKey,
   });
   return { apiKey, id: row.id };
 };
@@ -105,39 +59,45 @@ export const createApiKey = async (
 export const getApiKeyByToken = async (
   token: string,
 ): Promise<Omit<ApiKey, "name"> | null> =>
-  apiKeyAuthColumns.one({ key_index: await hmacHash(token) });
+  readOneRow(
+    // The auth path never shows the name, so it is neither read nor decrypted.
+    apiKeys({ keyIndex: await hmacHash(token) })
+      .limit(1)
+      .pick(
+        "id",
+        "userId",
+        "keyIndex",
+        "wrappedDataKey",
+        "created",
+        "lastUsed",
+      ),
+  );
 
 /**
  * List all API keys for a user (decrypts names for display).
  */
-export const getApiKeysForUser = async (
+export const getApiKeysForUser = (
   userId: number,
 ): Promise<
   Array<{ id: number; name: string; created: string; lastUsed: string }>
-> => {
-  const decrypted = await apiKeyListColumns.many(
-    { user_id: userId },
-    { order: "id ASC" },
+> =>
+  readRows(
+    apiKeys({ userId })
+      .sortedBy("id")
+      .pick("id", "name", "created", "lastUsed"),
   );
-  return decrypted.map((row) => ({
-    created: row.created,
-    id: row.id,
-    lastUsed: row.last_used,
-    name: row.name,
-  }));
-};
+
+/** The key's display facts: its id and its decrypted name. */
+export type ApiKeyName = { id: number; name: string };
 
 /**
- * Get a single API key by ID and user, with decrypted name.
+ * Find one API key by ID and user, with its decrypted name, or null.
  */
-export const getApiKeyForUser = async (
+export const findApiKeyForUser = async (
   id: number,
   userId: number,
-): Promise<{ id: number; name: string }> => {
-  const decrypted = await apiKeyNameColumns.one({ id, user_id: userId });
-  if (!decrypted) throw new Error(`API key ${id} not found for user ${userId}`);
-  return { id: decrypted.id, name: decrypted.name };
-};
+): Promise<ApiKeyName | null> =>
+  readOneRow(apiKeys({ id, userId: userId }).limit(1).pick("id", "name"));
 
 /**
  * Delete an API key by ID (must belong to the given user).
@@ -145,13 +105,8 @@ export const getApiKeyForUser = async (
 export const deleteApiKey = async (
   id: number,
   userId: number,
-): Promise<boolean> => {
-  const result = await execute(
-    "DELETE FROM api_keys WHERE id = ? AND user_id = ?",
-    [id, userId],
-  );
-  return result.rowsAffected > 0;
-};
+): Promise<boolean> =>
+  executeChangedRow(deleteFrom(tables.api_keys).where({ id, userId }));
 
 /**
  * Update last_used timestamp for an API key.
@@ -160,5 +115,5 @@ export const deleteApiKey = async (
 export const touchApiKeyLastUsed = async (id: number): Promise<void> => {
   const override = getTouchOverride();
   if (override) throw override;
-  await executeUpdate("api_keys", { last_used: nowIso() }, { id });
+  await execute(update(tables.api_keys, { lastUsed: nowIso() }).where({ id }));
 };

@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { escapeIcs } from "#routes/feeds.ts";
 import { escapeXml } from "#shared/xml.ts";
@@ -153,10 +154,9 @@ describeWithEnv("calendar feed contracts", { db: true }, () => {
       "No quantity person",
       "ghost@example.com",
     );
-    await getDb().execute({
-      args: [ghost.id, listing.id],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${ghost.id} AND listing_id = ${listing.id}`,
+    );
 
     const response = await handleRequest(
       requestAsApiKey("/caldav/events.ics", apiKey),

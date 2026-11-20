@@ -18,18 +18,18 @@ export const navPage = (id: number, sortOrder = 0): SitePageNavRow => ({
   id,
   name: `Page ${id}`,
   slug: `page-${id}`,
-  sort_order: sortOrder,
+  sortOrder: sortOrder,
 });
 
 /** One "this page contains that thing" link. */
 export const navEdge = (
   pageId: number,
-  type: SitePageItem["item_type"],
+  type: SitePageItem["itemType"],
   itemId: number,
   sortOrder = 0,
 ): SitePageItem => ({
-  item_id: itemId,
-  item_type: type,
-  page_id: pageId,
-  sort_order: sortOrder,
+  itemId: itemId,
+  itemType: type,
+  pageId: pageId,
+  sortOrder: sortOrder,
 });

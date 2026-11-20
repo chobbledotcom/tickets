@@ -3,23 +3,21 @@
  * already have, `valueColumn` is the ids you want. Declare one per direction
  * the module uses.
  *
- * Table and column names are internal constants, never user input.
- *
  * When both columns name the same kind of record, declare the two sides
  * together with {@link selfLinkTableSides}, which answers both directions from
  * one read.
  */
 
 import {
-  deleteByField,
+  execute,
   executeBatch,
-  inPlaceholders,
   queryAll,
   resultRows,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
-import { numberedListStatement } from "#db/numbered-statement.ts";
+import type { TableHandle, TableName } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlList, sqlName, sqlRows } from "#db/sql.ts";
+import { type ColumnName, columnSql, deleteFrom, rowsWith } from "#db/write.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
@@ -67,8 +65,12 @@ const oneDirectionReader = (
     keys: number[],
   ): Promise<Map<number, number[]>> => {
     if (keys.length === 0) return new Map();
-    const { sql, args } = byKeysStatement(table, keyColumn, valueColumn, keys);
-    return rowsToIdsByKeys(keys, await queryAll<LinkRow>(sql, args));
+    return rowsToIdsByKeys(
+      keys,
+      await queryAll<LinkRow>(
+        byKeysStatement(table, keyColumn, valueColumn, keys),
+      ),
+    );
   };
 
   // Rendering a page asks the same side for overlapping key sets several
@@ -82,6 +84,22 @@ const oneDirectionReader = (
 /** Rows of one link table, as the two id columns this module works in. */
 type LinkRow = { key_id: number; value_id: number };
 
+/** A link table's rows as the two id columns this module works in, kept by
+ * `condition`, ordered by key then value. */
+const linkRowsStatement = (
+  table: string,
+  keyColumn: string,
+  valueColumn: string,
+  condition: SqlStatement,
+): SqlStatement => {
+  const key = columnSql(keyColumn);
+  const value = columnSql(valueColumn);
+  return sql`SELECT ${key} AS key_id, ${value} AS value_id
+          FROM ${sqlName(table)}
+         WHERE ${condition}
+         ORDER BY ${key}, ${value}`;
+};
+
 /** One side's by-key read as a single statement: the one query both readers
  * run, so the bare per-request reader and the transaction reader cannot
  * drift. */
@@ -90,13 +108,13 @@ const byKeysStatement = (
   keyColumn: string,
   valueColumn: string,
   keyIds: readonly number[],
-): SqlStatement => ({
-  args: [...keyIds],
-  sql: `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
-          FROM ${table}
-         WHERE ${keyColumn} IN (${inPlaceholders(keyIds)})
-         ORDER BY ${keyColumn}, ${valueColumn}`,
-});
+): SqlStatement =>
+  linkRowsStatement(
+    table,
+    keyColumn,
+    valueColumn,
+    sql`${columnSql(keyColumn)} IN (${sqlList(keyIds)})`,
+  );
 
 /** Bucket link rows under their key. Every requested key comes back, including
  * keys with no rows, which stay empty lists. */
@@ -126,28 +144,43 @@ type ReadIdsByKeys = (
   tx?: TxScope,
 ) => Promise<LinkedIdsByKey>;
 
+/** A build over a link table, its key column, and its value column. */
+type OverLinkTable<Built, Extra extends unknown[] = []> = <
+  Name extends TableName,
+>(
+  handle: TableHandle<Name>,
+  keyColumn: ColumnName<Name>,
+  valueColumn: ColumnName<Name>,
+  ...extra: Extra
+) => Built;
+
 /** Build the helpers for one direction through a link table. */
-export const linkTableSide = (
-  table: string,
-  keyColumn: string,
-  valueColumn: string,
-  readIdsByKeys: ReadIdsByKeys = oneDirectionReader(
-    table,
-    keyColumn,
-    valueColumn,
-  ),
-): LinkTableSide => {
+export const linkTableSide: OverLinkTable<
+  LinkTableSide,
+  [readIdsByKeys?: ReadIdsByKeys]
+> = (
+  handle,
+  keyColumn,
+  valueColumn,
+  readIdsByKeys = oneDirectionReader(handle.name, keyColumn, valueColumn),
+) => {
+  const table = handle.name;
+  const linkTable = sqlName(table);
+  const key = columnSql(keyColumn);
+  const value = columnSql(valueColumn);
+
+  const clearStatement = (keyId: number): SqlStatement =>
+    deleteFrom(handle).where(rowsWith(handle, keyColumn, keyId));
+
   // One multi-row INSERT regardless of id count, so a replace is always two
   // statements and a transactional caller stays clear of the round-trip guard.
   const insertStatement = (
     keyId: number,
     ids: readonly number[],
-  ): SqlStatement => ({
-    args: ids.flatMap((id) => [keyId, id]),
-    sql: `INSERT INTO ${table} (${keyColumn}, ${valueColumn}) VALUES ${ids
-      .map(() => "(?, ?)")
-      .join(", ")}`,
-  });
+  ): SqlStatement =>
+    sql`INSERT INTO ${linkTable} (${key}, ${value}) VALUES ${sqlRows(
+      ids.map((id) => [keyId, id]),
+    )}`;
 
   // Every link table carries a unique (key, value) index, so repeated ids in a
   // submitted list must collapse to one row each before inserting.
@@ -159,19 +192,20 @@ export const linkTableSide = (
   ): SqlStatement[] => {
     const deduped = dedupe(ids);
     return [
-      { args: [keyId], sql: `DELETE FROM ${table} WHERE ${keyColumn} = ?` },
+      clearStatement(keyId),
       ...(deduped.length > 0 ? [insertStatement(keyId, deduped)] : []),
     ];
   };
 
   const linkSide: LinkTableSide = {
-    clear: (keyId) => deleteByField(table, keyColumn, keyId),
+    clear: async (keyId) => {
+      await execute(clearStatement(keyId));
+    },
     copyLinksTx: async (tx, sourceKeyId, newKeyId) => {
-      await tx.execute({
-        args: [newKeyId, sourceKeyId],
-        sql: `INSERT INTO ${table} (${keyColumn}, ${valueColumn})
-              SELECT ?, ${valueColumn} FROM ${table} WHERE ${keyColumn} = ?`,
-      });
+      await tx.execute(
+        sql`INSERT INTO ${linkTable} (${key}, ${value})
+              SELECT ${newKeyId}, ${value} FROM ${linkTable} WHERE ${key} = ${sourceKeyId}`,
+      );
     },
     getIds: async (keyId, tx?) =>
       requiredMapValue(
@@ -225,29 +259,25 @@ const emptyBothDirections = (
  * the same records costs one round trip rather than two. Rows come back ordered
  * by key then value, which leaves every list here ascending.
  */
-export const selfLinkTableSides = (
-  table: string,
-  keyColumn: string,
-  valueColumn: string,
-): SelfLinkTableSides => {
+export const selfLinkTableSides: OverLinkTable<SelfLinkTableSides> = (
+  handle,
+  keyColumn,
+  valueColumn,
+) => {
+  const table = handle.name;
   const fetchBothDirections = async (
     ids: number[],
   ): Promise<Map<number, BothDirections>> => {
     const linksById = emptyBothDirections(ids);
     if (ids.length === 0) return linksById;
-    // Both directions read the same ids, so the list is bound once and its
-    // slots appear under both columns.
-    const { sql, args } = numberedListStatement(
-      ids,
-      (idSlots) =>
-        `${keyColumn} IN (${idSlots}) OR ${valueColumn} IN (${idSlots})`,
-    );
+    const boundIds = sqlList(ids);
     const rows = await queryAll<LinkRow>(
-      `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
-         FROM ${table}
-        WHERE ${sql}
-        ORDER BY ${keyColumn}, ${valueColumn}`,
-      args,
+      linkRowsStatement(
+        table,
+        keyColumn,
+        valueColumn,
+        sql`${columnSql(keyColumn)} IN (${boundIds}) OR ${columnSql(valueColumn)} IN (${boundIds})`,
+      ),
     );
     for (const { key_id, value_id } of rows) {
       // A row matched on either column, so only one of its two records has to
@@ -273,13 +303,13 @@ export const selfLinkTableSides = (
 
   return {
     pointedAtBy: linkTableSide(
-      table,
+      handle,
       valueColumn,
       keyColumn,
       directionReader("pointedAtBy"),
     ),
     pointsAt: linkTableSide(
-      table,
+      handle,
       keyColumn,
       valueColumn,
       directionReader("pointsAt"),

@@ -21,7 +21,7 @@ const advancedPanelHtml = (
   extra: Parameters<typeof editPanelHtml>[1] = {},
 ): string =>
   editPanelHtml(
-    testListingWithCount({ thank_you_url: "", webhook_url: "", ...overrides }),
+    testListingWithCount({ thankYouUrl: "", webhookUrl: "", ...overrides }),
     extra,
   );
 
@@ -39,7 +39,7 @@ describe("adminListingEditPage group select", () => {
         session: OWNER_SESSION,
       }),
     );
-    expectIncludesAll(html, ['name="group_ids"', 'value="2"', "checked"]);
+    expectIncludesAll(html, ['name="groupIds"', 'value="2"', "checked"]);
   });
 
   test("does not link to the JSON export (that now lives on the Actions tab)", () => {
@@ -58,8 +58,8 @@ describe("adminListingEditPage duration warning", () => {
 
   test("includes duration warning + confirmation gate with current duration", () => {
     const listing = testListingWithCount({
-      duration_days: 3,
-      listing_type: "daily",
+      durationDays: 3,
+      listingType: "daily",
     });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
@@ -77,7 +77,7 @@ describe("adminListingEditPage duration warning", () => {
       'id="listing-edit-submit"',
     ]);
     // The duration input the script reads is pre-filled with the stored value.
-    expect(html).toMatch(/name="duration_days"[^>]*value="3"/);
+    expect(html).toMatch(/name="durationDays"[^>]*value="3"/);
   });
 });
 
@@ -86,30 +86,30 @@ describe("adminListingEditPage day prices", () => {
 
   test("renders priced day-count inputs and checks the customisable toggle", () => {
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 1000, 2: 1800 },
-      duration_days: 2,
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 2,
     });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     // One input per day up to the maximum duration, pre-filled from day_prices.
     expectIncludesAll(html, [
-      'name="day_price_1"',
+      'name="dayPrice1"',
       'value="10.00"',
-      'name="day_price_2"',
+      'name="dayPrice2"',
       'value="18.00"',
       // The customisable-days checkbox is rendered checked for such a listing.
-      'name="customisable_days"',
+      'name="customisableDays"',
       "Day Prices (customisable days)",
     ]);
   });
 
   test("renders a single blank day-price row on the new-listing form", () => {
     const html = adminListingNewPage([], OWNER_SESSION);
-    assertStringIncludes(html, 'name="day_price_1"');
+    assertStringIncludes(html, 'name="dayPrice1"');
     // The maximum defaults to 1 day for a new listing, so only one row shows.
-    assert(!html.includes('name="day_price_2"'));
+    assert(!html.includes('name="dayPrice2"'));
   });
 });
 
@@ -123,14 +123,14 @@ describe("adminListingEditPage form sections", () => {
     listing: ReturnType<typeof testListingWithCount>;
   } => {
     const listing = testListingWithCount({
-      attendee_count: 7,
-      tickets_count: 3,
+      attendeeCount: 7,
+      ticketsCount: 3,
     });
     const html = String(
       ListingEditPanel({
         aggregateRecalculation: {
-          booked_quantity: { current: 7, recalculated: 4 },
-          tickets_count: { current: 3, recalculated: 3 },
+          bookedQuantity: { current: 7, recalculated: 4 },
+          ticketsCount: { current: 3, recalculated: 3 },
         },
         groups: [],
         listing,
@@ -157,15 +157,15 @@ describe("adminListingEditPage form sections", () => {
 
   test("renders the day-prices block immediately after the customisable-days checkbox", () => {
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 1000 },
-      duration_days: 1,
+      customisableDays: true,
+      dayPrices: { 1: 1000 },
+      durationDays: 1,
     });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
-    const customisableIdx = html.indexOf('name="customisable_days"');
-    const dayPriceIdx = html.indexOf('name="day_price_1"');
+    const customisableIdx = html.indexOf('name="customisableDays"');
+    const dayPriceIdx = html.indexOf('name="dayPrice1"');
     const contactFieldsIdx = html.indexOf('name="fields"');
     // The prices follow the checkbox, and both sit before the later Options
     // section — i.e. no longer dumped at the bottom of the form.
@@ -181,15 +181,15 @@ describe("adminListingEditPage form sections", () => {
     );
     const advancedIdx = html.indexOf("<summary>Advanced settings</summary>");
     expect(advancedIdx).toBeGreaterThan(-1);
-    expect(advancedIdx).toBeLessThan(html.indexOf('name="webhook_url"'));
-    expect(advancedIdx).toBeLessThan(html.indexOf('name="thank_you_url"'));
+    expect(advancedIdx).toBeLessThan(html.indexOf('name="webhookUrl"'));
+    expect(advancedIdx).toBeLessThan(html.indexOf('name="thankYouUrl"'));
     expect(advancedIdx).toBeLessThan(html.indexOf('name="slug"'));
   });
 
   test("renders editable running totals with a recalculation link", () => {
     const listing = testListingWithCount({
-      attendee_count: 7,
-      tickets_count: 3,
+      attendeeCount: 7,
+      ticketsCount: 3,
     });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
@@ -197,9 +197,9 @@ describe("adminListingEditPage form sections", () => {
     expectIncludesAll(html, [
       "<legend>Running totals</legend>",
       "Accuracy is not guaranteed",
-      'name="booked_quantity"',
+      'name="bookedQuantity"',
       'value="7"',
-      'name="tickets_count"',
+      'name="ticketsCount"',
       'value="3"',
     ]);
     // Income is not a count override in the running-totals form — that form keeps
@@ -270,14 +270,14 @@ describe("adminListingEditPage Advanced section auto-open", () => {
 
   test("opens when a thank-you URL is set", () => {
     const html = advancedPanelHtml({
-      thank_you_url: "https://example.com/thanks",
+      thankYouUrl: "https://example.com/thanks",
     });
     assertStringIncludes(html, ADVANCED_OPEN);
   });
 
   test("opens when a webhook URL is set", () => {
     const html = advancedPanelHtml({
-      webhook_url: "https://hooks.example.com/notify",
+      webhookUrl: "https://hooks.example.com/notify",
     });
     assertStringIncludes(html, ADVANCED_OPEN);
   });
@@ -294,7 +294,7 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
   test("opens when a renewal tier (months per unit) is set", () => {
     withBuilder(() => {
       assertStringIncludes(
-        advancedPanelHtml({ months_per_unit: 3 }),
+        advancedPanelHtml({ monthsPerUnit: 3 }),
         ADVANCED_OPEN,
       );
     });
@@ -303,7 +303,7 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
   test("opens when initial site months is set", () => {
     withBuilder(() => {
       assertStringIncludes(
-        advancedPanelHtml({ initial_site_months: 6, months_per_unit: 0 }),
+        advancedPanelHtml({ initialSiteMonths: 6, monthsPerUnit: 0 }),
         ADVANCED_OPEN,
       );
     });
@@ -313,9 +313,9 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
     withBuilder(() => {
       assertStringIncludes(
         advancedPanelHtml({
-          assign_built_site: true,
-          initial_site_months: 0,
-          months_per_unit: 0,
+          assignBuiltSite: true,
+          initialSiteMonths: 0,
+          monthsPerUnit: 0,
         }),
         ADVANCED_OPEN,
       );
@@ -325,9 +325,9 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
   test("stays collapsed when no advanced field is set even with the builder enabled", () => {
     withBuilder(() => {
       const html = advancedPanelHtml({
-        assign_built_site: false,
-        initial_site_months: 0,
-        months_per_unit: 0,
+        assignBuiltSite: false,
+        initialSiteMonths: 0,
+        monthsPerUnit: 0,
       });
       assertStringIncludes(html, '<details class="listing-advanced">');
       assert(!html.includes(ADVANCED_OPEN));

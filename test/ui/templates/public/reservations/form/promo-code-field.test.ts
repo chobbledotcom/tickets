@@ -20,16 +20,16 @@ describe("the promo-code field", () => {
 
   test("omits the field when promo codes are disabled", () => {
     const html = singleListingPageHtml();
-    assert(!html.includes('name="promo_code"'));
+    assert(!html.includes('name="promoCode"'));
   });
 
   test("restores the submitted promo code", async () => {
     await withRequestContext(() => {
-      setSavedFormData(new FormParams({ promo_code: "SAVE20" }));
+      setSavedFormData(new FormParams({ promoCode: "SAVE20" }));
       const html = singleListingPageHtml({ promoCodesEnabled: true });
       expectIncludesAll(html, [
         '<div class="promo-code"><label>Promo code',
-        'name="promo_code" placeholder="Optional" type="text" value="SAVE20"',
+        'name="promoCode" placeholder="Optional" type="text" value="SAVE20"',
       ]);
     });
   });
@@ -41,20 +41,20 @@ describe("the promo-code field", () => {
     });
     assertStringIncludes(
       html,
-      'name="promo_code" placeholder="Optional" type="text" value="summer25"',
+      'name="promoCode" placeholder="Optional" type="text" value="summer25"',
     );
   });
 
   test("restores the submitted promo code before the ?promo= prefill", async () => {
     await withRequestContext(() => {
-      setSavedFormData(new FormParams({ promo_code: "TYPED99" }));
+      setSavedFormData(new FormParams({ promoCode: "TYPED99" }));
       const html = singleListingPageHtml({
         prefill: { listings: new Map(), promo: "summer25" },
         promoCodesEnabled: true,
       });
       assertStringIncludes(
         html,
-        'name="promo_code" placeholder="Optional" type="text" value="TYPED99"',
+        'name="promoCode" placeholder="Optional" type="text" value="TYPED99"',
       );
       assert(!html.includes('value="summer25"'));
     });
@@ -64,14 +64,14 @@ describe("the promo-code field", () => {
     // A buyer who deleted the code and failed validation submitted an empty
     // field: that choice wins, so the URL code must not come back.
     await withRequestContext(() => {
-      setSavedFormData(new FormParams({ promo_code: "" }));
+      setSavedFormData(new FormParams({ promoCode: "" }));
       const html = singleListingPageHtml({
         prefill: { listings: new Map(), promo: "summer25" },
         promoCodesEnabled: true,
       });
       assertStringIncludes(
         html,
-        'name="promo_code" placeholder="Optional" type="text" value=""',
+        'name="promoCode" placeholder="Optional" type="text" value=""',
       );
       assert(!html.includes('value="summer25"'));
     });
@@ -81,7 +81,7 @@ describe("the promo-code field", () => {
     const html = singleListingPageHtml({ promoCodesEnabled: true });
     assertStringIncludes(
       html,
-      'name="promo_code" placeholder="Optional" type="text" value=""',
+      'name="promoCode" placeholder="Optional" type="text" value=""',
     );
   });
 });

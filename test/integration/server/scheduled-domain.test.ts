@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleScheduledRequest } from "#routes/scheduled.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
@@ -27,7 +28,7 @@ describeWithEnv(
       // outside the context is lost. Dropping the settings table makes
       // initDb fail before any domain load, the window a mid-handler seed
       // never covers.
-      await executeWithoutCacheInvalidation("DROP TABLE settings", []);
+      await executeWithoutCacheInvalidation(sql`DROP TABLE settings`);
       const response = await handleScheduledRequest(
         new Request("https://scheduled-host.example/scheduled", {
           headers: scheduledAuthorization("test-scheduled-key"),

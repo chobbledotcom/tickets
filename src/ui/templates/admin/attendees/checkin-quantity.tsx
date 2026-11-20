@@ -36,8 +36,8 @@ const CountForm = ({
   submitLabel,
 }: CountFormProps): JSX.Element => (
   <CsrfForm action={action} class="stack">
-    <input name="check_in" type="hidden" value={checkIn ? "true" : "false"} />
-    <input name="return_filter" type="hidden" value={filter} />
+    <input name="checkIn" type="hidden" value={checkIn ? "true" : "false"} />
+    <input name="returnFilter" type="hidden" value={filter} />
     <ReturnUrlField returnUrl={returnUrl} />
     <label for={countId}>{t(labelKey)}</label>
     <select id={countId} name="quantity">

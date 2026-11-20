@@ -5,7 +5,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { assertPublicHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite, withSetting } from "#test-utils/settings.ts";
 
@@ -35,7 +35,7 @@ describeWithEnv(
           'class="card-grid"',
           `<a class="card" href="/ticket/${listing.slug}">`,
           'class="card-image"',
-          image.filename_thumb,
+          image.filenameThumb,
           `alt="Alt Gallery Poster"`,
           `<span class="card-price">${formatCurrency(3000)}</span>`,
         ]);
@@ -46,15 +46,7 @@ describeWithEnv(
 
     test("a sold-out listing keeps its card but loses the link", async () => {
       await enablePublicSite();
-      const listing = await createTestListing({
-        maxAttendees: 1,
-        name: "Gallery Full",
-      });
-      await bookAttendee(listing, {
-        email: "a@test.com",
-        name: "Attendee",
-        quantity: 1,
-      });
+      const listing = await fillSoleCapacityListing(1000, "Gallery Full");
       await withSetting({ catalog_gallery_enabled: true }, async () => {
         const html = await assertPublicHtml("/listings", "Gallery Full");
         assertStringIncludes(html, '<div class="card">');

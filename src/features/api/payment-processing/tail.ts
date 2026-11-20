@@ -27,12 +27,16 @@ import {
   dropCheckoutAnswersStatement,
   readCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import { bookedAnswersTail } from "#db/questions/attendee-answers/at-booking.ts";
 import {
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
 } from "#db/questions/attendee-answers/save.ts";
+import { literal } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 import {
   type BookingIntent,
@@ -117,7 +121,7 @@ const owesEmailSend = (listings: readonly ListingWithCount[]): boolean => {
 /** Whether any booked listing has a registration webhook, so a webhook send is
  * owed. */
 const owesWebhookSend = (listings: readonly ListingWithCount[]): boolean => {
-  const urls = listings.map((listing) => listing.webhook_url);
+  const urls = listings.map((listing) => listing.webhookUrl);
   return urls.some((url) => url !== "");
 };
 
@@ -126,14 +130,13 @@ const owesWebhookSend = (listings: readonly ListingWithCount[]): boolean => {
  * rather than bound as an argument. */
 const flagStatement =
   (
-    column: "email_pending" | "webhooks_pending",
+    column: "emailPending" | "webhooksPending",
     value: PendingNotificationFlag,
   ): ((tokenIndex: string) => SqlStatement) =>
-  (tokenIndex) => ({
-    args: [tokenIndex],
-    sql: `UPDATE attendees SET ${column} = ${value}
-          WHERE ticket_token_index = ?`,
-  });
+  (tokenIndex) =>
+    update(tables.attendees, { [column]: literal(value) }).where({
+      ticketTokenIndex: tokenIndex,
+    });
 
 export type PaidBookingTail = {
   /** The buyer's typed free-text answers, read from the staged row for the
@@ -218,10 +221,10 @@ export const paidBookingTail = async ({
   ]);
 
   const emailPending = owesEmailSend(listings)
-    ? flagStatement("email_pending", PENDING_NOTIFICATION.online)
+    ? flagStatement("emailPending", PENDING_NOTIFICATION.online)
     : null;
   const webhooksPending = owesWebhookSend(listings)
-    ? flagStatement("webhooks_pending", PENDING_NOTIFICATION.online)
+    ? flagStatement("webhooksPending", PENDING_NOTIFICATION.online)
     : null;
 
   return {

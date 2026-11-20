@@ -26,7 +26,7 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element =>
     secretFields: [
       {
         labelKey: "settings.advanced.google_service_key",
-        name: "google_wallet_service_account_key",
+        name: "googleWalletServiceAccountKey",
         placeholder: "-----BEGIN PRIVATE KEY-----",
       },
     ],
@@ -34,14 +34,14 @@ export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element =>
     textFields: [
       {
         labelKey: "settings.advanced.google_issuer_id",
-        name: "google_wallet_issuer_id",
+        name: "googleWalletIssuerId",
         placeholder: "3388000000012345678",
         type: "text",
         value: s.googleWalletIssuerId,
       },
       {
         labelKey: "settings.advanced.google_service_email",
-        name: "google_wallet_service_account_email",
+        name: "googleWalletServiceAccountEmail",
         placeholder: "wallet@project.iam.gserviceaccount.com",
         type: "email",
         value: s.googleWalletServiceAccountEmail,

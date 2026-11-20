@@ -49,7 +49,7 @@ describeWithEnv("db > groups > package member caps", { db: true }, () => {
     await run();
 
     expect(await getGroupPackagePrices(group.id)).toEqual([
-      expect.objectContaining({ package_price: 0, quantity: 2 }),
+      expect.objectContaining({ packagePrice: 0, quantity: 2 }),
     ]);
   });
 

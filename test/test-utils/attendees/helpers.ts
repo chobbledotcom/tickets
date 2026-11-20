@@ -3,7 +3,8 @@ import type { Answer, Question } from "#db/question-types.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   expectFlash,
@@ -110,7 +111,7 @@ export const submitDeleteIncomplete = async (
   handleRequest(
     mockFormRequest(
       `/admin/listing/${listingId}/attendee/${attendeeId}/delete-incomplete`,
-      { csrf_token: csrfToken },
+      { csrfToken },
       cookie,
     ),
   );
@@ -162,16 +163,16 @@ export const setupListingWithQuestion = async (
     "John Doe",
     "john@example.com",
   );
-  const q = await questionsTable.insert({
+  const q = await records.questions.insert({
     displayType: "radio",
     text: questionText,
   });
-  const a1 = await answersTable.insert({
+  const a1 = await records.answers.insert({
     questionId: q.id,
     sortOrder: 0,
     text: a1Text,
   });
-  const a2 = await answersTable.insert({
+  const a2 = await records.answers.insert({
     questionId: q.id,
     sortOrder: 1,
     text: a2Text,
@@ -209,7 +210,7 @@ export const submitQuestionAnswer = async (
 ): Promise<number[]> => {
   const response = await submitAttendeeEdit(attendeeId, {
     email: "john@example.com",
-    extra: { [`question_${questionId}`]: String(answerId) },
+    extra: { [`question${questionId}`]: String(answerId) },
     name: "John Doe",
   });
   expect(response.status).toBe(302);
@@ -229,9 +230,8 @@ export const dualPackageRows = async (
     package_group_id: number;
     quantity: number;
   }>(
-    `SELECT package_group_id, quantity FROM listing_attendees
-          WHERE attendee_id = ? ORDER BY package_group_id ASC`,
-    [attendeeId],
+    sql`SELECT package_group_id, quantity FROM listing_attendees
+          WHERE attendee_id = ${attendeeId} ORDER BY package_group_id ASC`,
   );
   return rows.map((row) => [Number(row.package_group_id), row.quantity]);
 };
@@ -269,7 +269,7 @@ export const submitAddAttendee = async (
   handleRequest(
     mockFormRequest(
       `/admin/listing/${listingId}/attendee`,
-      { csrf_token: csrfToken, ...fields },
+      { csrfToken, ...fields },
       cookie,
     ),
   );
@@ -297,8 +297,7 @@ export const emptyBookingLine = async (
 ): Promise<void> => {
   const { execute } = await import("#shared/db/client.ts");
   await execute(
-    "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ? AND attendee_id = ?",
-    [listingId, attendeeId],
+    sql`UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ${listingId} AND attendee_id = ${attendeeId}`,
   );
 };
 
@@ -310,7 +309,7 @@ export const adminCheckinPost = (
   extra: Record<string, string> = {},
 ) =>
   adminFormPost(`/admin/listing/${listingId}/attendee/${attendeeId}/checkin`, {
-    check_in: "true",
+    checkIn: "true",
     quantity: "1",
     ...extra,
   });

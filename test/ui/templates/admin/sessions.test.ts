@@ -10,12 +10,12 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import type { Session } from "#types";
 
 const mkSession = (token: string): Session => ({
-  csrf_token: "csrf",
+  csrfToken: "csrf",
   expires: Date.now() + 86400000,
   // Hand-crafted stored token hash — test fixture cast.
   token: token as TokenHash,
-  user_id: 1,
-  wrapped_data_key: null,
+  userId: 1,
+  wrappedDataKey: null,
 });
 
 describe("adminSessionsPage", () => {
@@ -24,20 +24,20 @@ describe("adminSessionsPage", () => {
   test("renders session rows", () => {
     const sessions = [
       {
-        csrf_token: "csrf1",
+        csrfToken: "csrf1",
         expires: Date.now() + 86400000,
         // Hand-crafted stored token hash — test fixture cast.
         token: "abcdefghijklmnop" as TokenHash,
-        user_id: 1,
-        wrapped_data_key: null,
+        userId: 1,
+        wrappedDataKey: null,
       },
       {
-        csrf_token: "csrf2",
+        csrfToken: "csrf2",
         expires: Date.now() + 86400000,
         // Hand-crafted stored token hash — test fixture cast.
         token: "qrstuvwxyz123456" as TokenHash,
-        user_id: 2,
-        wrapped_data_key: null,
+        userId: 2,
+        wrappedDataKey: null,
       },
     ];
     const html = adminSessionsPage(

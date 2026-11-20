@@ -122,15 +122,11 @@ const legMarkForm = (
   String(
     <CsrfForm action="/admin/deliveries/mark" class="delivery-mark inline">
       <input
-        name="attendee_id"
+        name="attendeeId"
         type="hidden"
         value={String(booking.attendeeId)}
       />
-      <input
-        name="listing_id"
-        type="hidden"
-        value={String(booking.listingId)}
-      />
+      <input name="listingId" type="hidden" value={String(booking.listingId)} />
       <input name="kind" type="hidden" value={leg.kind} />
       <input name="date" type="hidden" value={leg.date} />
       <input name="done" type="hidden" value={leg.done ? "0" : "1"} />

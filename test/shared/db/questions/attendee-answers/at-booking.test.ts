@@ -14,7 +14,8 @@ import {
 } from "#db/questions/attendee-answers/save.ts";
 import { deleteQuestion } from "#db/questions/delete.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import {
   addAnswer,
   createAttendee,
@@ -38,7 +39,7 @@ const seedBooking = async () => {
       [listing.id],
     );
     for (const statement of tail(attendee.ticket_token_index)) {
-      await execute(statement.sql, statement.args);
+      await execute(statement);
     }
   };
   const edit = (answers: AttendeeAnswerSet) =>
@@ -48,9 +49,8 @@ const seedBooking = async () => {
 
 const recordRows = (attendeeId: number) =>
   queryAll<{ question_id: number; answer_id: number | null }>(
-    `SELECT question_id, answer_id FROM answers_at_booking
-     WHERE attendee_id = ? ORDER BY question_id`,
-    [attendeeId],
+    sql`SELECT question_id, answer_id FROM answers_at_booking
+     WHERE attendee_id = ${attendeeId} ORDER BY question_id`,
   );
 
 const bookedAnswers = (attendeeId: number) =>
@@ -212,11 +212,11 @@ describeWithEnv("db > attendee answers > at booking", { db: true }, () => {
   test("keeps the wording at booking when the operator edits it", async () => {
     const { attendee, book, size, small } = await seedBooking();
     await book({ answerIds: [small.id] });
-    await questionsTable.update(size.id, {
+    await records.questions.update(size.id, {
       displayType: "radio",
       text: "Shirt size?",
     });
-    await answersTable.update(small.id, { text: "S" });
+    await records.answers.update(small.id, { text: "S" });
 
     expect((await bookedAnswers(attendee.id))[0]).toMatchObject({
       answer: "S",
@@ -250,9 +250,9 @@ describeWithEnv("db > attendee answers > at booking", { db: true }, () => {
     const { attendee, small } = await seedSmallChangedToLarge();
     expect((await bookedAnswers(attendee.id))[0]?.changesPrice).toBe(false);
 
-    await execute("UPDATE answers SET modifier_id = 1 WHERE id = ?", [
-      small.id,
-    ]);
+    await execute(
+      sql`UPDATE answers SET modifier_id = 1 WHERE id = ${small.id}`,
+    );
     expect((await bookedAnswers(attendee.id))[0]?.changesPrice).toBe(true);
   });
 

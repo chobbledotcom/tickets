@@ -28,8 +28,8 @@ type AddressLookupFormData = {
 
 /** Read the submitted provider choice and its (masked) API key from the form. */
 const extractAddressLookupForm = (form: FormParams): AddressLookupFormData => ({
-  apiKey: processSecretField(form, "address_lookup_api_key"),
-  provider: form.getString("address_lookup_provider"),
+  apiKey: processSecretField(form, "addressLookupApiKey"),
+  provider: form.getString("addressLookupProvider"),
 });
 
 /** Does this submission leave no API key stored? */

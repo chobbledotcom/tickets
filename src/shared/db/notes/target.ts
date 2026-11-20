@@ -36,6 +36,6 @@ export const attendeeNotes = noteTargets.of("attendee");
 
 /** Group notes by which record they are about — for a batch about one kind of
  *  record, where the id alone tells them apart. Input order is kept per group. */
-export const groupNotesByTargetId = <Note extends { entity_id: number }>(
+export const groupNotesByTargetId = <Note extends { entityId: number }>(
   notes: Note[],
-): Map<number, Note[]> => Map.groupBy(notes, (note) => note.entity_id);
+): Map<number, Note[]> => Map.groupBy(notes, (note) => note.entityId);

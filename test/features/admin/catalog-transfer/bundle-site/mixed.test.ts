@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
 import {
@@ -59,8 +60,8 @@ describeWithEnv("bundle references to stored rows", { db: true }, () => {
     const packId = await storedGroupIdOf("Stored Pack");
     const joinerId = await storedListingIdOf("Joiner");
     const members = await getGroupPackagePrices(packId);
-    expect(members.find((row) => row.listing_id === joinerId)).toMatchObject({
-      package_price: 700,
+    expect(members.find((row) => row.listingId === joinerId)).toMatchObject({
+      packagePrice: 700,
     });
     // The stored parent edge landed.
     const addOnId = await storedListingIdOf("Add-on");
@@ -110,7 +111,7 @@ describeWithEnv("bundle references to stored rows", { db: true }, () => {
   test("accepts an add-on whose stored parent sits in a visible package", async () => {
     await createGroupWithListings("Shown Pack", ["Stored Parent"]);
     const packId = await storedGroupIdOf("Shown Pack");
-    await execute("UPDATE groups SET is_package = 1 WHERE id = ?", [packId]);
+    await execute(sql`UPDATE groups SET is_package = 1 WHERE id = ${packId}`);
     const bundle = mixedBundle();
     bundle.listings[0]!.groups = [
       { group: "Shown Pack", packagePrice: 700, quantity: 1 },
@@ -151,8 +152,7 @@ describeWithEnv("bundle references to stored rows", { db: true }, () => {
     await createGroupWithListings("Hiding Pack", ["Stored Parent"]);
     const packId = await storedGroupIdOf("Hiding Pack");
     await execute(
-      "UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ?",
-      [packId],
+      sql`UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ${packId}`,
     );
     const bundle = mixedBundle();
     bundle.listings[0]!.groups = [];

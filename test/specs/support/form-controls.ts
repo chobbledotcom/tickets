@@ -94,6 +94,6 @@ export const takeDownFromActions = async (
 ): Promise<string> => {
   await browser.clickLink(t("entity.tab.actions"));
   await browser.clickLink(labelled.deleteLink);
-  await fillInAndSend(browser, { confirm_identifier: typed }, labelled.submit);
+  await fillInAndSend(browser, { confirmIdentifier: typed }, labelled.submit);
   return browser.pageText;
 };

@@ -1,14 +1,29 @@
-import { settings } from "#db/settings.ts";
+import type { settings } from "#db/settings.ts";
+import { sort } from "#fp";
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
-import { inferTemplate, LISTING_TEMPLATES } from "#shared/listing-templates.ts";
+import type { ChosenImage } from "#shared/images/picker.ts";
+import { listingImagesEnabled } from "#shared/listing-image-field.ts";
+import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
+import {
+  inferTemplate,
+  LISTING_TEMPLATES,
+  type ListingTemplate,
+  type TemplateId,
+  type TemplateRequirement,
+} from "#shared/listing-templates.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import {
+  Icon,
+  type PickerIconName,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import type { ChildProps } from "#templates/components/child-props.ts";
+import { ProseIntro } from "#templates/components/prose-intro.tsx";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 import {
   advancedSectionHasValues,
@@ -78,51 +93,144 @@ const createListingPageFromForm = (
     title,
   });
 
-export const adminListingPickerPage = (session: AdminSession): string =>
-  renderAdminPage(
+/** One picker card. A disabled card renders as a non-link div — the feature
+ *  it needs is off, so the operator learns it exists but cannot open it. */
+type PickerCard = {
+  description: string;
+  disabled?: boolean;
+  href: string;
+  icon: PickerIconName;
+  label: string;
+};
+
+/** Each card's icon, keyed by the template it stands for. The custom card
+ *  has no template, so it carries its own. */
+const PICKER_ICONS: Record<TemplateId, PickerIconName> = {
+  "day-pass": "calendar-days",
+  donation: "heart",
+  "hireable-item": "key-round",
+  "one-off-event": "party-popper",
+  "online-digital": "ticket",
+  "physical-product": "package",
+  subscription: "repeat",
+  "weekly-event": "calendar-check",
+};
+
+/** The storefront-first order an ecommerce operator reads: what they sell,
+ *  then how it is booked. LISTING_TEMPLATES order pins inference precedence
+ *  instead. The custom card comes last. */
+const PICKER_ORDER: readonly TemplateId[] = [
+  "physical-product",
+  "online-digital",
+  "one-off-event",
+  "weekly-event",
+  "day-pass",
+  "hireable-item",
+  "subscription",
+  "donation",
+];
+
+const byPickerPlace = sort<ListingTemplate>(
+  (a, b) => PICKER_ORDER.indexOf(a.id) - PICKER_ORDER.indexOf(b.id),
+);
+
+/** What a disabled card says in place of its description. */
+const REQUIREMENT_HINTS: Record<TemplateRequirement, string> = {
+  logistics: "listings_table.template_requires_logistics",
+  subscriptions: "listings_table.template_requires_subscriptions",
+};
+
+const pickerCard = (
+  href: string,
+  labelKey: string,
+  descriptionKey: string,
+  icon: PickerIconName,
+  disabled = false,
+): PickerCard => ({
+  description: t(descriptionKey),
+  disabled,
+  href,
+  icon,
+  label: t(labelKey),
+});
+
+const listingTypeCard = (card: PickerCard): Child => {
+  const classes = ["icon-card", card.disabled ? "icon-card--disabled" : ""]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <a
+      aria-disabled={card.disabled || undefined}
+      class={classes}
+      href={card.disabled ? undefined : card.href}
+    >
+      <span class="icon-card-icon">
+        <Icon name={card.icon} />
+      </span>
+      <span class="icon-card-body">
+        <strong>{card.label}</strong>
+        <span>{card.description}</span>
+      </span>
+    </a>
+  );
+};
+
+/** A card for a template whose feature is off stays in the picker, disabled,
+ *  so the operator learns it exists and what to turn on. */
+const templateCard = (tmpl: ListingTemplate): PickerCard => {
+  const unmet = unmetRequirementOrNull(tmpl);
+  return pickerCard(
+    `/admin/listing/new?template=${tmpl.id}`,
+    tmpl.label,
+    unmet === null ? tmpl.description : REQUIREMENT_HINTS[unmet],
+    PICKER_ICONS[tmpl.id],
+    unmet !== null,
+  );
+};
+
+export const adminListingPickerPage = (session: AdminSession): string => {
+  const cards: PickerCard[] = [
+    ...byPickerPlace([...LISTING_TEMPLATES]).map(templateCard),
+    pickerCard(
+      "/admin/listing/new?template=custom",
+      "listings_table.listing_type_picker_custom",
+      "listings_table.listing_type_picker_custom_description",
+      "sliders-horizontal",
+    ),
+  ];
+  return renderAdminPage(
     "/admin/listing/new",
     session,
     t("listings_table.add_listing"),
     <>
-      <div class="prose">
-        <h1>{t("listings_table.listing_type_picker_heading")}</h1>
-        <p>{t("listings_table.listing_type_picker_subheading")}</p>
-      </div>
-      <div class="listing-type-picker">
-        {LISTING_TEMPLATES.filter(
-          (tmpl) => !tmpl.requiresLogistics || settings.features.logistics,
-        ).map((tmpl) => (
-          <a
-            class="listing-type-card"
-            href={`/admin/listing/new?template=${tmpl.id}`}
-          >
-            <strong>{t(tmpl.label)}</strong>
-            <span>{t(tmpl.description)}</span>
-          </a>
-        ))}
-        {LISTING_TEMPLATES.some(
-          (tmpl) => tmpl.requiresLogistics && !settings.features.logistics,
-        ) && (
-          <div class="listing-type-card listing-type-card--disabled">
-            <strong>{t("listings_table.template_hireable_item")}</strong>
-            <span>{t("listings_table.template_requires_logistics")}</span>
-          </div>
-        )}
-        <a class="listing-type-card" href="/admin/listing/new?template=custom">
-          <strong>{t("listings_table.listing_type_picker_custom")}</strong>
-          <span>
-            {t("listings_table.listing_type_picker_custom_description")}
-          </span>
-        </a>
-        <a class="listing-type-card" href="/admin/catalog/import">
-          <strong>{t("catalog_transfer.import_button")}</strong>
-          <span>
-            {t("listings_table.listing_type_picker_import_description")}
-          </span>
-        </a>
+      <ProseIntro
+        heading={t("listings_table.listing_type_picker_heading")}
+        headingTag="h1"
+        intro={
+          <>
+            {t("listings_table.listing_type_picker_subheading")}{" "}
+            {t("listings_table.listing_type_picker_import_prefix")}{" "}
+            <a href="/admin/catalog/import">
+              {t("listings_table.listing_type_picker_import_link")}
+            </a>
+          </>
+        }
+      />
+      <div class="icon-card-grid">
+        {cards.map((card) => listingTypeCard(card))}
       </div>
     </>,
   );
+};
+
+/** The physical product and custom templates collect pictures while the
+ * listing is still new. The chosen images travel with the create and attach
+ * in the same write. */
+const newPageImages = (
+  templateId: string | null | undefined,
+  images: readonly ChosenImage[] | undefined,
+): readonly ChosenImage[] | undefined =>
+  listingImagesEnabled(templateId) ? (images ?? []) : undefined;
 
 export const adminListingNewPage = (
   groups: Group[],
@@ -130,6 +238,7 @@ export const adminListingNewPage = (
   opts?: {
     customiseOpen?: boolean;
     error?: string;
+    images?: readonly ChosenImage[];
     templateId?: string | null;
     values?: FieldValues;
     selectedGroupIds?: number[];
@@ -139,6 +248,7 @@ export const adminListingNewPage = (
     error,
     templateId,
     customiseOpen = false,
+    images: submittedImages,
     values: submitted,
     selectedGroupIds = [],
   } = opts ?? {};
@@ -152,13 +262,14 @@ export const adminListingNewPage = (
     !!template,
   );
   const useDefaultsChecked = submitted
-    ? submitted.use_defaults === "1"
+    ? submitted.useDefaults === "1"
     : form.showUseDefaults && !template;
   const newValues = submitted
     ? submitted
     : template
       ? seeds
       : { ...seeds, ...defaultsToFieldValues(form.defaults) };
+  const images = newPageImages(templateId, submittedImages);
   return createListingPageFromForm(
     form,
     session,
@@ -168,13 +279,13 @@ export const adminListingNewPage = (
       <h1>{t("listings_table.add_listing")}</h1>
       <Flash error={error} />
       {templateId && (
-        <input name="template_id" type="hidden" value={templateId} />
+        <input name="templateId" type="hidden" value={templateId} />
       )}
-      {!!submitted?.duplicated_from && (
+      {!!submitted?.duplicatedFrom && (
         <input
-          name="duplicated_from"
+          name="duplicatedFrom"
           type="hidden"
-          value={String(submitted.duplicated_from)}
+          value={String(submitted.duplicatedFrom)}
         />
       )}
       <CreateListingFormBody>
@@ -182,6 +293,7 @@ export const adminListingNewPage = (
           advancedOpen: !!error,
           customiseOpen,
           durationWarning: "",
+          ...(images === undefined ? {} : { images }),
           useDefaultsChecked,
           values: newValues,
         })}
@@ -215,14 +327,14 @@ export const adminDuplicateListingPage = (
       name: listing.name,
     }),
     <>
-      <input name="duplicated_from" type="hidden" value={String(listing.id)} />
+      <input name="duplicatedFrom" type="hidden" value={String(listing.id)} />
       <CreateListingFormBody>
         {form.formSections({
           advancedOpen: advancedSectionHasValues(listing, builderEnabled),
           customiseOpen: false,
           dayPricesListing: listing,
           durationWarning: "",
-          useDefaultsChecked: listing.use_defaults,
+          useDefaultsChecked: listing.useDefaults,
           values,
         })}
       </CreateListingFormBody>

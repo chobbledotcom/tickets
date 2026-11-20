@@ -13,12 +13,14 @@ import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ExclusivePair } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { statusRecord } from "#shared/records/statuses.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { recordEditPanel } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
-  defineAdminResourcePages,
+  defineRecordPages,
+  pageLabels,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
@@ -37,11 +39,11 @@ const LIST_PATH = adminPattern("statuses");
 /** Render one row's flag badges. */
 const statusBadges = (s: AttendeeStatus): JSX.Element => (
   <>
-    {s.is_public_default && <Badge>{t("statuses.badge_public_default")}</Badge>}
-    {s.is_paid_default && <Badge>{t("statuses.badge_paid")}</Badge>}
-    {s.is_reservation && (
+    {s.isPublicDefault && <Badge>{t("statuses.badge_public_default")}</Badge>}
+    {s.isPaidDefault && <Badge>{t("statuses.badge_paid")}</Badge>}
+    {s.isReservation && (
       <Badge>
-        {t("statuses.badge_reservation", { amount: s.reservation_amount })}
+        {t("statuses.badge_reservation", { amount: s.reservationAmount })}
       </Badge>
     )}
   </>
@@ -103,25 +105,25 @@ const renderStatusFields = (
     </label>
     <fieldset class="checkboxes">
       {checkbox(
-        "is_reservation",
+        "isReservation",
         t("statuses.form_reservation_checkbox"),
-        values?.has("is_reservation") ?? status?.is_reservation ?? false,
+        values?.has("isReservation") ?? status?.isReservation ?? false,
         {
-          other: "is_paid_default",
+          other: "isPaidDefault",
           why: t("statuses.error_paid_default_reservation"),
         },
       )}
       {checkbox(
-        "is_public_default",
+        "isPublicDefault",
         t("statuses.form_public_default_checkbox"),
-        values?.has("is_public_default") ?? status?.is_public_default ?? false,
+        values?.has("isPublicDefault") ?? status?.isPublicDefault ?? false,
       )}
       {checkbox(
-        "is_paid_default",
+        "isPaidDefault",
         t("statuses.form_paid_default_checkbox"),
-        values?.has("is_paid_default") ?? status?.is_paid_default ?? false,
+        values?.has("isPaidDefault") ?? status?.isPaidDefault ?? false,
         {
-          other: "is_reservation",
+          other: "isReservation",
           why: t("statuses.error_paid_default_reservation"),
         },
       )}
@@ -129,10 +131,10 @@ const renderStatusFields = (
     <label>
       {t("statuses.form_reservation_amount_label")}
       <input
-        name="reservation_amount"
+        name="reservationAmount"
         type="text"
         value={
-          values?.get("reservation_amount") ?? status?.reservation_amount ?? "0"
+          values?.get("reservationAmount") ?? status?.reservationAmount ?? "0"
         }
       />
       <small>
@@ -143,14 +145,9 @@ const renderStatusFields = (
   </>
 );
 
-/** The labels the two delete pages share — the bespoke reassign page and the
- *  stock one the CRUD factory is built with. One vocabulary, both readers. */
-const DELETE_PAGE_LABELS = {
-  danger: false,
-  heading: t("statuses.delete_title"),
-  label: t("common.name"),
-  title: t("statuses.delete_title"),
-} as const;
+/** The status page labels. The stock status pages and the retire page both read
+ *  them, so one vocabulary names both. */
+const STATUS_LABELS = pageLabels("statuses");
 
 /** What the delete page offers beneath the heading: the reassign choice for a
  *  status attendees hold (the count and the statuses they can move to), the
@@ -166,7 +163,7 @@ export type StatusRetire =
  *  attendees hold this status — the count, a warning, and a required picker
  *  of the statuses they can move to, or the prerequisite the save would
  *  refuse on, above a confirmation the save still refuses if submitted. The
- *  picker posts `reassign_status_id`, which the delete command reads inside
+ *  picker posts `reassignStatusId`, which the delete command reads inside
  *  its transaction. */
 export const retireStatusDeletePage = (
   status: AttendeeStatus,
@@ -179,22 +176,25 @@ export const retireStatusDeletePage = (
   return ConfirmPage({
     action: `/admin/settings/statuses/${status.id}/delete`,
     active: LIST_PATH,
-    buttonText: t("statuses.delete_button"),
+    buttonText: STATUS_LABELS.deleteButton,
     confirm: {
       args: { name: status.name },
       key: "statuses.delete_confirm",
     },
+    danger: false,
     error,
-    ...DELETE_PAGE_LABELS,
+    heading: STATUS_LABELS.deleteTitle,
+    label: t("common.name"),
     name: status.name,
     session,
+    title: STATUS_LABELS.deleteTitle,
     ...(choice !== undefined
       ? {
           children: (
             <label>
               {t("statuses.delete_reassign_label")}
               <SelectField
-                name="reassign_status_id"
+                name="reassignStatusId"
                 options={[
                   { label: t("statuses.delete_reassign_prompt"), value: "" },
                   ...idOptions(choice.others, (other) => other.name),
@@ -235,22 +235,14 @@ const deleteChildren = (status: AttendeeStatus): JSX.Element => (
   <p>{t("statuses.delete_confirm", { name: status.name })}</p>
 );
 
-export const statusPages = defineAdminResourcePages<AttendeeStatus>({
-  active: LIST_PATH,
-  basePath: LIST_PATH,
+export const statusPages = defineRecordPages(statusRecord, {
   delete: {
     children: deleteChildren,
-    ...DELETE_PAGE_LABELS,
+    danger: false,
+    label: t("common.name"),
     name: (status) => status.name,
   },
-  labels: {
-    addHeading: t("statuses.form_title_add"),
-    addSubmit: t("statuses.form_create_button"),
-    addTitle: t("statuses.form_title_add"),
-    deleteButton: t("statuses.delete_button"),
-    deleteTitle: t("statuses.delete_title"),
-    listTitle: t("statuses.attendee_statuses_page_title"),
-  },
+  labels: STATUS_LABELS,
   list: {
     actions: (
       <ActionButton href={adminPattern("statusNew")} icon="plus">

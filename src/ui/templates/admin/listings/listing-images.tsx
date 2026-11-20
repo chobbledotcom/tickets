@@ -1,0 +1,63 @@
+import { t } from "#i18n";
+import type { ChosenImage } from "#shared/images/picker.ts";
+import { Icon } from "#templates/components/actions.tsx";
+
+/** The Images field on a new physical-product or custom listing. Each chosen
+ *  picture travels as a repeated `imageIds` input. The admin bundle's listing
+ *  images control fills them from the shared image picker. The hidden inputs
+ *  carry the name and thumbnail for the browser's chosen list. The server
+ *  renders the same pictures so the form still shows them before the bundle
+ *  runs. */
+export const ListingImagesField = ({
+  selected,
+}: {
+  selected: readonly ChosenImage[];
+}): JSX.Element => (
+  <div
+    class="listing-images"
+    data-image-picker-heading={t("listings_table.choose_images")}
+    data-image-remove-label={t("listings_table.remove_image_label", {
+      name: "{name}",
+    })}
+    data-image-remove-text={t("listings_table.remove_image")}
+    data-listing-images
+  >
+    <p class="muted">{t("listings_table.images_hint")}</p>
+    <div data-listing-images-inputs>
+      {selected.map((image) => (
+        <input
+          data-image-name={image.name}
+          data-image-thumb={image.thumb}
+          name="imageIds"
+          type="hidden"
+          value={String(image.id)}
+        />
+      ))}
+    </div>
+    <p class="muted" data-listing-images-empty hidden={selected.length > 0}>
+      {t("listings_table.images_none")}
+    </p>
+    <ul class="listing-images-selected" data-listing-images-selected>
+      {selected.map((image) => (
+        <li class="listing-images-item">
+          {image.thumb === "" ? null : (
+            <img alt="" loading="lazy" src={image.thumb} />
+          )}
+          <button
+            aria-label={t("listings_table.remove_image_label", {
+              name: image.name,
+            })}
+            class="listing-images-remove"
+            type="button"
+          >
+            {t("listings_table.remove_image")}
+          </button>
+        </li>
+      ))}
+    </ul>
+    <button class="btn" data-listing-images-trigger type="button">
+      <Icon name="plus" />
+      <span>{t("listings_table.choose_images")}</span>
+    </button>
+  </div>
+);

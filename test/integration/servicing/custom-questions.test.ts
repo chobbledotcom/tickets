@@ -16,12 +16,11 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
-import {
-  getQuestionsWithListingIds,
-  questionListings,
-} from "#db/questions/queries.ts";
+import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import {
   createServicingHold,
   updateServicingEvent,
@@ -31,29 +30,20 @@ import {
 const attachQuestion = async (
   listingId: number,
 ): Promise<{ questionId: number; answerId: number }> => {
-  const { answersTable, questionsTable } = await import(
-    "#db/questions/tables.ts"
-  );
-  const question = await questionsTable.insert({
-    assignAll: false,
-    displayType: "radio",
+  const {
+    answers: [answer],
+    question,
+  } = await seedQuestion({
+    answers: ["Vaillant"],
+    listingIds: [listingId],
     text: "Boiler model?",
   });
-  const answer = await answersTable.insert({
-    questionId: question.id,
-    sortOrder: 0,
-    text: "Vaillant",
-  });
-  await questionListings.setIds(question.id, [listingId]);
-  const questionId = question.id;
-  const answerId = answer.id;
-  return { answerId, questionId };
+  return { answerId: answer.id, questionId: question.id };
 };
 
 const answersFor = (attendeeId: number) =>
   queryAll<{ question_id: number; answer_id: number }>(
-    "SELECT question_id, answer_id FROM attendee_answers WHERE attendee_id = ?",
-    [attendeeId],
+    sql`SELECT question_id, answer_id FROM attendee_answers WHERE attendee_id = ${attendeeId}`,
   );
 
 /** Listing "L" with a "Boiler model?" question and a servicing hold that already

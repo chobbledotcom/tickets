@@ -27,8 +27,8 @@ When(
     await fillInAndSend(
       browser,
       {
-        attendees_per_listing: String(perListing),
-        listing_count: String(listings),
+        attendeesPerListing: String(perListing),
+        listingCount: String(listings),
       },
       t("admin.seeds.submit"),
     );

@@ -12,7 +12,7 @@ import {
 export const builderForm = defineForm({
   fields: [
     {
-      ...builtSiteBox("site_name", "name", "text" as const),
+      ...builtSiteBox("siteName", "name", "text" as const),
       maxlength: MAX_INPUT_LENGTH,
       minlength: 1,
       required: true,
@@ -32,11 +32,11 @@ export const builderForm = defineForm({
       ],
     }),
     {
-      ...builtSiteBox("db_url", "db_url", "url" as const),
+      ...builtSiteBox("dbUrl", "db_url", "url" as const),
       hint: t("fields.built_site.auto_provision_hint"),
     },
     {
-      ...builtSiteBox("db_token", "db_token", "password" as const),
+      ...builtSiteBox("dbToken", "db_token", "password" as const),
       hint: t("fields.built_site.auto_provision_hint"),
       // A libsql auth token is a pasted machine credential, like the wallet
       // PEM keys: a real one runs past the single-line cap.

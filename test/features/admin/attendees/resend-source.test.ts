@@ -10,6 +10,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -23,10 +24,10 @@ import { adminFormPost } from "#test-utils/session.ts";
 const resend = async (attendeeId: number, name: string) => {
   await markNotificationSendsOwed(attendeeId);
   return adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
-    confirm_identifier: name,
+    confirmIdentifier: name,
     // These tests exercise the webhook body, so the press chooses the
     // webhook side.
-    resend_sides: "webhooks",
+    resendSides: "webhooks",
   });
 };
 
@@ -117,7 +118,7 @@ describeWithEnv("the booking source a re-send reports", { db: true }, () => {
       listing: { name: "Historyless", webhookUrl: WEBHOOK_URL },
       name: "No History",
     });
-    await execute("DELETE FROM contact_preferences");
+    await execute(sql`DELETE FROM contact_preferences`);
     const before = fetch.calls.length;
 
     await resend(attendee.id, "No History");

@@ -20,7 +20,6 @@ import {
   getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,
-  groups,
   setGroupListingsActive,
 } from "#db/groups.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
@@ -32,12 +31,11 @@ import {
 } from "#db/listing-prices.ts";
 import {
   getStoredListingsWithCountsByIds,
-  listingsTable,
+  newListingValues,
 } from "#db/listings/records.ts";
-import {
-  catalogNameLengthError,
-  isNameTakenAnywhere,
-} from "#db/name-registry.ts";
+import { isNameTakenAnywhere } from "#db/name-registry.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import { groupFormPost } from "#routes/admin/group-form-post.ts";
@@ -52,12 +50,13 @@ import {
   computeDayOffset,
   shiftUtcIsoByDays,
 } from "#shared/bulk-replace.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { xCount } from "#shared/count-text.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { matchKey } from "#shared/keys.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
+import { nameLengthError } from "#shared/name-limit.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import {
@@ -193,7 +192,7 @@ const firstDuplicateNameError = async (
     // The length rule is re-checked for the same reason as the uniqueness
     // rule: the batch insert bypasses the validators the form and API run.
     // One over-long clone name breaks Square checkouts like any other.
-    const lengthError = catalogNameLengthError(name);
+    const lengthError = nameLengthError(name);
     if (lengthError) return lengthError;
     const key = matchKey(name);
     if (seen.has(key)) {
@@ -211,15 +210,15 @@ const handleDuplicateGroupPost = groupFormPost(
   "/admin/groups/:id/duplicate",
   async (group, form) => {
     const formUrl = adminPath("groupDuplicate", { id: group.id });
-    const newName = form.getString("new_name").trim();
+    const newName = form.getString("newName").trim();
     if (!newName) {
       return errorRedirect(formUrl, t("group_actions.new_name_required"));
     }
 
-    const nameFind = form.getString("name_find");
-    const nameReplace = form.getString("name_replace");
-    const dateFind = form.getString("date_find");
-    const dateReplace = form.getString("date_replace");
+    const nameFind = form.getString("nameFind");
+    const nameReplace = form.getString("nameReplace");
+    const dateFind = form.getString("dateFind");
+    const dateReplace = form.getString("dateReplace");
     const dayOffset = computeDayOffset(dateFind, dateReplace);
 
     const listings = await getListingsByGroupId(group.id);
@@ -243,7 +242,7 @@ const handleDuplicateGroupPost = groupFormPost(
         );
         return {
           input: await buildDuplicateListingInput(stored, {
-            closesAt: shiftUtcIsoByDays(stored.closes_at ?? "", dayOffset),
+            closesAt: shiftUtcIsoByDays(stored.closesAt ?? "", dayOffset),
             date: shiftUtcIsoByDays(stored.date, dayOffset),
             name: applyNameReplacement(stored.name, nameFind, nameReplace),
           }),
@@ -270,7 +269,7 @@ const handleDuplicateGroupPost = groupFormPost(
 
     const memberBySource = new Map(
       (await getGroupPackagePrices(group.id)).map((row) => [
-        row.listing_id,
+        row.listingId,
         row,
       ]),
     );
@@ -283,20 +282,22 @@ const handleDuplicateGroupPost = groupFormPost(
     // clone by the slug_index each was just inserted with, so no per-row id
     // read is needed. Parent/child edges are remapped after the batch commits,
     // since they read the new clone rows.
-    const groupInsert = await groups.table.insertStatement!({
+    const groupInsert = await records.groups.insertStatement({
       description: group.description,
       hidden: group.hidden,
-      hidePackageListings: group.hide_package_listings,
-      isPackage: group.is_package,
-      maxAttendees: group.max_attendees,
+      hidePackageListings: group.hidePackageListings,
+      isPackage: group.isPackage,
+      maxAttendees: group.maxAttendees,
       name: newName,
-      showHiddenListings: group.show_hidden_listings,
+      showHiddenListings: group.showHiddenListings,
       slug,
       slugIndex,
-      termsAndConditions: group.terms_and_conditions,
+      termsAndConditions: group.termsAndConditions,
     });
     const cloneInserts = await Promise.all(
-      cloneInputs.map(({ input }) => listingsTable.insertStatement!(input)),
+      cloneInputs.map(({ input }) =>
+        records.listings.insertStatement(newListingValues(input)),
+      ),
     );
     const membershipInserts = cloneInputs.map(({ sourceId, input }) => {
       // Every clone was just read as a member of the source group, so it always
@@ -323,11 +324,10 @@ const handleDuplicateGroupPost = groupFormPost(
     );
     const newGroupId = duplicated.id;
     const idBySlugIndex = new Map(
-      (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
+      (await getListingsByGroupId(newGroupId)).map((l) => [l.slugIndex, l.id]),
     );
-    // The clones above went through insertStatement in the batch, and this
-    // bypasses the listingsTable wrapper. Sync their `base` price rows
-    // explicitly, or a priced clone has no matching base row until it is edited.
+    // The batch wrote the clones, not createListing. Sync their `base` price
+    // rows here, or a priced clone has no base row until an edit.
     await syncListingPricesForIds([...idBySlugIndex.values()]);
     const idMap = new Map(
       cloneInputs.map(({ sourceId, input }) => [
@@ -370,7 +370,7 @@ const handleDuplicateGroupPost = groupFormPost(
             sourceId,
             `Cloned listing ${sourceId} missing`,
           ),
-          price: row.package_price,
+          price: row.packagePrice,
         })),
       ),
       ...groupDayPriceStatements(
@@ -386,18 +386,16 @@ const handleDuplicateGroupPost = groupFormPost(
       ),
     ]);
     await executeBatch(
-      cloneInputs.map(({ sourceId }) => ({
-        args: [
-          requiredMapValue(
-            idMap,
-            sourceId,
-            `Cloned listing ${sourceId} missing`,
-          ),
+      cloneInputs.map(
+        ({
           sourceId,
-        ],
-        sql: `INSERT INTO listing_attribute_options (listing_id, option_id)
-            SELECT ?, option_id FROM listing_attribute_options WHERE listing_id = ?`,
-      })),
+        }) => sql`INSERT INTO listing_attribute_options (listing_id, option_id)
+            SELECT ${requiredMapValue(
+              idMap,
+              sourceId,
+              `Cloned listing ${sourceId} missing`,
+            )}, option_id FROM listing_attribute_options WHERE listing_id = ${sourceId}`,
+      ),
     );
 
     // A cloned parent whose remapped edge set fails re-validation is left gateless

@@ -5,6 +5,7 @@ import {
   registerListingTemplateHooks,
   renderListingDetail,
 } from "#test/ui/templates/admin/listings/helpers.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
@@ -25,9 +26,9 @@ describe("listing details table copy rows", () => {
 
   test("a priced listing shows its price and pay-more range", () => {
     const rows = detailRows({
-      can_pay_more: true,
-      max_price: 2000,
-      unit_price: 1500,
+      canPayMore: true,
+      maxPrice: 2000,
+      unitPrice: 1500,
     });
     expectIncludesAll(rows, [
       "<th>Ticket Price</th>",
@@ -38,30 +39,30 @@ describe("listing details table copy rows", () => {
 
   test("pay-more without headroom names the enabled state", () => {
     const rows = detailRows({
-      can_pay_more: true,
-      max_price: 1000,
-      unit_price: 1000,
+      canPayMore: true,
+      maxPrice: 1000,
+      unitPrice: 1000,
     });
     expectIncludesAll(rows, ["£10", "pay more enabled"]);
   });
 
   test("a free listing without pay-more says Free, with no suffix", () => {
-    const rows = detailRows({ can_pay_more: false, unit_price: 0 });
+    const rows = detailRows({ canPayMore: false, unitPrice: 0 });
     assertStringIncludes(rows, "<td>Free</td>");
     assert(!rows.includes("pay more"));
   });
 
   test("one minor unit is a price, not Free", () => {
-    const rows = detailRows({ unit_price: 1 });
+    const rows = detailRows({ unitPrice: 1 });
     assert(!rows.includes("<td>Free</td>"));
   });
 
   test("a customisable-days listing prices each offered day count", () => {
     const rows = detailRows({
-      customisable_days: true,
-      day_prices: { 1: 1000, 3: 2500 },
-      duration_days: 4,
-      listing_type: "daily",
+      customisableDays: true,
+      dayPrices: { 1: 1000, 3: 2500 },
+      durationDays: 4,
+      listingType: "daily",
     });
     // The chooser sentence and the price list share one space.
     expectIncludesAll(rows, [
@@ -72,29 +73,29 @@ describe("listing details table copy rows", () => {
 
   test("one offered day count still prices it", () => {
     const rows = detailRows({
-      customisable_days: true,
-      day_prices: { 1: 1200 },
-      listing_type: "daily",
+      customisableDays: true,
+      dayPrices: { 1: 1200 },
+      listingType: "daily",
     });
     assertStringIncludes(rows, "<span>1 day: £12</span>");
   });
 
   test("customisable days with no day prices says so", () => {
     const rows = detailRows({
-      customisable_days: true,
-      day_prices: {},
-      listing_type: "daily",
+      customisableDays: true,
+      dayPrices: {},
+      listingType: "daily",
     });
     assertStringIncludes(rows, "No day prices set");
   });
 
   test("a daily listing's schedule rows name the window and duration", () => {
     const rows = detailRows({
-      bookable_days: ["Monday", "Tuesday"],
-      duration_days: 3,
-      listing_type: "daily",
-      maximum_days_after: 10,
-      minimum_days_before: 2,
+      bookableDays: ["Monday", "Tuesday"],
+      durationDays: 3,
+      listingType: "daily",
+      maximumDaysAfter: 10,
+      minimumDaysBefore: 2,
     });
     expectIncludesAll(rows, [
       "<th>Listing Type</th><td>Daily</td>",
@@ -109,9 +110,9 @@ describe("listing details table copy rows", () => {
 
   test("an unlimited booking window says unlimited", () => {
     const rows = detailRows({
-      listing_type: "daily",
-      maximum_days_after: 0,
-      minimum_days_before: 0,
+      listingType: "daily",
+      maximumDaysAfter: 0,
+      minimumDaysBefore: 0,
     });
     assertStringIncludes(rows, "0 to unlimited days from today");
   });
@@ -119,8 +120,8 @@ describe("listing details table copy rows", () => {
   test("renewal, non-transferable, and hidden rows render their facts", () => {
     const rows = detailRows({
       hidden: true,
-      months_per_unit: 1,
-      non_transferable: true,
+      monthsPerUnit: 1,
+      nonTransferable: true,
     });
     expectIncludesAll(rows, [
       "<th>Renewal</th>",
@@ -146,9 +147,11 @@ describe("listing details table copy rows", () => {
       suppressedChild,
       "offered as a child of another listing",
     );
-    assert(!suppressedChild.includes('id="embed-toggle-12"'));
-    assert(!suppressedChild.includes('id="embed-script-12"'));
-    assert(!suppressedChild.includes('id="embed-iframe-12"'));
+    expectExcludesAll(suppressedChild, [
+      'id="embed-toggle-12"',
+      'id="embed-script-12"',
+      'id="embed-iframe-12"',
+    ]);
   });
 
   test("an inactive listing names its switched-off page instead of the links", () => {
@@ -159,9 +162,11 @@ describe("listing details table copy rows", () => {
       publicPage: "inactive",
     });
     assertStringIncludes(inactive, "This listing is inactive");
-    assert(!inactive.includes('id="embed-toggle-12"'));
-    assert(!inactive.includes('id="embed-script-12"'));
-    assert(!inactive.includes('id="embed-iframe-12"'));
+    expectExcludesAll(inactive, [
+      'id="embed-toggle-12"',
+      'id="embed-script-12"',
+      'id="embed-iframe-12"',
+    ]);
   });
 
   test("the public url row toggles the embed inputs beside the link", () => {
@@ -177,8 +182,8 @@ describe("listing details table copy rows", () => {
   test("thank-you and webhook urls become copyable rows when present", () => {
     const rows = detailRows({
       location: "The Old Mill",
-      thank_you_url: "https://example.com/thanks",
-      webhook_url: "https://example.com/hook",
+      thankYouUrl: "https://example.com/thanks",
+      webhookUrl: "https://example.com/hook",
     });
     expectIncludesAll(rows, [
       "<th>Location</th><td>The Old Mill</td>",
@@ -193,12 +198,14 @@ describe("listing details table copy rows", () => {
   });
 
   test("omitted thank-you and webhook urls leave no empty rows", () => {
-    const rows = detailRows({ date: "", thank_you_url: "", webhook_url: "" });
-    assert(!rows.includes("Thank You URL"));
-    assert(!rows.includes("Webhook URL"));
+    const rows = detailRows({ date: "", thankYouUrl: "", webhookUrl: "" });
     // With no date and no location, neither conditional row renders.
-    assert(!rows.includes("<th>Listing Date</th>"));
-    assert(!rows.includes("<th>Location</th>"));
+    expectExcludesAll(rows, [
+      "Thank You URL",
+      "Webhook URL",
+      "<th>Listing Date</th>",
+      "<th>Location</th>",
+    ]);
   });
 
   test("the header row spans both columns with the listing name", () => {

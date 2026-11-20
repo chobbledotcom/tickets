@@ -8,11 +8,11 @@
 import type {
   Client,
   InStatement,
-  InValue,
   ResultSet,
   Transaction,
   TransactionMode,
 } from "@libsql/client";
+import { decodeResult, decodeResults } from "#db/codecs/decode.ts";
 import { createDatabaseClient } from "#db/database-client.ts";
 import { classifyDatabaseError, DATABASE_RETRY } from "#db/errors.ts";
 import {
@@ -27,7 +27,15 @@ import {
   enforceTransactionRoundTripGuard,
   trackSql,
 } from "#db/query-log.ts";
+import {
+  type Read,
+  type RowsStatement,
+  type SqlStatement,
+  sql,
+  sqlName,
+} from "#db/sql.ts";
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
+import type { StatementClient } from "#db/statement-client.ts";
 import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
 import { lazyRef } from "#fp";
 import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
@@ -140,8 +148,11 @@ type AroundExecute = Parameters<typeof wrapExecute>[1];
 const executeWithRoundTrip =
   (around: AroundExecute) =>
   (target: Pick<Client, "execute">, operation: string) =>
-    wrapExecute(target, (statement, execute) =>
-      around(statement, () => databaseRoundTrip(operation, execute)),
+    wrapExecute(target, async (statement, execute) =>
+      decodeResult(
+        statement,
+        await around(statement, () => databaseRoundTrip(operation, execute)),
+      ),
     );
 
 /** Count and retry a bare client statement. Transaction statements use only the
@@ -162,18 +173,29 @@ const TRANSACTION_OPERATION: Record<TransactionOperation, string> = {
   rollback: "transaction rollback",
 };
 
+/** A transaction whose reads decode their rows. */
+const decodingTransaction = (transaction: Transaction): Transaction =>
+  proxyMembers(transaction, {
+    batch: async (statements: InStatement[]) =>
+      decodeResults(statements, await transaction.batch(statements)),
+    execute: async (statement: InStatement) =>
+      decodeResult(statement, await transaction.execute(statement)),
+  });
+
 const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
-  wrapTransactionOperations(transaction, (operation, run) =>
-    // Rollback is mandatory cleanup: an interactive transaction left open (its
-    // rollback blocked) poisons the shared write connection for the rest of the
-    // request. It is counted like any other subrequest — so the running total
-    // stays accurate for later calls — but never blocked, so it always runs even
-    // once the budget is spent.
-    databaseRoundTrip(
-      TRANSACTION_OPERATION[operation],
-      run,
-      operation !== "rollback",
-    ),
+  wrapTransactionOperations(
+    decodingTransaction(transaction),
+    (operation, run) =>
+      // Rollback is mandatory cleanup: an interactive transaction left open (its
+      // rollback blocked) poisons the shared write connection for the rest of the
+      // request. It is counted like any other subrequest — so the running total
+      // stays accurate for later calls — but never blocked, so it always runs even
+      // once the budget is spent.
+      databaseRoundTrip(
+        TRANSACTION_OPERATION[operation],
+        run,
+        operation !== "rollback",
+      ),
   );
 
 const guardedClients = new WeakMap<Client, Client>();
@@ -184,8 +206,11 @@ const withRoundTripGuard = (client: Client): Client => {
   if (existing) return existing;
   const guarded = proxyMembers(client, {
     [GUARDED_CLIENT]: true,
-    batch: (statements: InStatement[], mode?: TransactionMode) =>
-      databaseRoundTrip("batch", () => client.batch(statements, mode)),
+    batch: async (statements: InStatement[], mode?: TransactionMode) =>
+      decodeResults(
+        statements,
+        await databaseRoundTrip("batch", () => client.batch(statements, mode)),
+      ),
     execute: executeWithTransientRetry(client, "statement"),
     executeMultiple: (sql: string): Promise<void> =>
       databaseRoundTrip("script", () => client.executeMultiple(sql)),
@@ -208,15 +233,42 @@ const [dbGetter, dbSetter] = lazyRef(createDbClient);
 /**
  * Get or create database client
  */
-export const getDb = (): Client => withRoundTripGuard(dbGetter());
+export const getDb = (): StatementClient => withRoundTripGuard(dbGetter());
+
+/** Run schema statements as one script in one round trip. A script keeps each
+ * compound trigger body whole. Schema text takes no bound arguments. */
+export const executeScript = async (
+  statements: readonly SqlStatement[],
+): Promise<void> => {
+  const bound = statements.find((statement) => statement.args.length > 0);
+  if (bound) {
+    throw new Error(`A script statement cannot bind values: ${bound.sql}`);
+  }
+  const script = `${statements.map((statement) => statement.sql).join(";\n")};`;
+  await withRoundTripGuard(dbGetter()).executeMultiple(script);
+};
 
 /**
  * Set database client (for testing)
  */
-export const setDb = (client: Client | null): void => dbSetter(client);
+export const setDb = (client: Client | StatementClient | null): void =>
+  // A StatementClient is a libsql client behind a narrower type.
+  dbSetter(client as Client | null);
+
+declare const RESULT_ROWS: unique symbol;
+
+/** A result whose rows have the type that its statement names. */
+export type RowsResult<Row> = ResultSet & { readonly [RESULT_ROWS]?: Row };
+
+/** Run one statement. A statement that names its rows gives a result of
+ *  those rows, so a caller cannot name another row type for them. */
+export type RunStatement = {
+  <Row>(statement: RowsStatement<Row>): Promise<RowsResult<Row>>;
+  (statement: SqlStatement): Promise<ResultSet>;
+};
 
 /** Cast libsql ResultSet rows to a typed array (single centralized assertion) */
-export const resultRows = <T>(result: ResultSet): T[] => result.rows as T[];
+export const resultRows = <T>(result: RowsResult<T>): T[] => result.rows as T[];
 
 /** Raised when a write can't get through because the database stays locked after
  *  the retries below — too busy. The request layer turns this into a friendly
@@ -283,19 +335,11 @@ const retryOnTransientDatabaseError = <T>(
     throw error;
   });
 
-/** A single-statement runner: takes the SQL and its optional bound args and
- * resolves to `T`. Shared by the tracked-execute and public execute helpers. */
-type StatementRunner<T> = (sql: string, args?: InValue[]) => Promise<T>;
+/** A single-statement runner: takes one statement and resolves to `T`. */
+type StatementRunner<T> = (statement: SqlStatement) => Promise<T>;
 
-const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
-  trackSql(sql, () =>
-    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
-  );
-
-/** A SQL statement and its optional bound args — the shared parameters of the
- * single-statement query and write helpers below. */
-type SqlArgs = [sql: string, args?: InValue[]];
-type SqlWithArgs = [sql: string, args: InValue[]];
+const executeTrackedStatement: StatementRunner<ResultSet> = (statement) =>
+  trackSql(statement.sql, () => getDb().execute(statement));
 
 /**
  * Run a single statement: track it for the query log / N+1 guard, then fire any
@@ -303,18 +347,17 @@ type SqlWithArgs = [sql: string, args: InValue[]];
  * through here (queryOne/queryAll wrap it), so cache invalidation is driven by
  * the write itself rather than by each call site remembering to invalidate.
  */
-export const execute: StatementRunner<ResultSet> = async (sql, args) => {
-  const result = await executeTrackedStatement(sql, args);
-  invalidateForSql(sql);
+export const execute: RunStatement = async (statement: SqlStatement) => {
+  const result = await executeTrackedStatement(statement);
+  invalidateForSql(statement.sql);
   return result;
 };
 
 /** A single statement with no table-scoped invalidation, for a caller keeping its
  *  own cache state through a write. Query tracking still happens. Every other
  *  write wants {@link execute}. */
-export const executeWithoutCacheInvalidation = (
-  ...[sql, args]: SqlArgs
-): Promise<ResultSet> => executeTrackedStatement(sql, args);
+export const executeWithoutCacheInvalidation: StatementRunner<ResultSet> =
+  executeTrackedStatement;
 
 /** The first row of a result set, or null when it returned none. */
 const firstRowOrNull = <T>(result: ResultSet): T | null => {
@@ -325,165 +368,76 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
 /**
  * {@link queryAll} for a caller that must read its own writes. The same rows,
  * pinned to the primary, because a replica can lag behind the write and miss
- * them. See {@link queryBatchPrimary}. It takes the statement whole, which is
- * the shape a batch runs, so a caller that holds one hands it over as it is.
+ * them. See {@link queryBatchPrimary}.
  */
-export const queryAllPrimary = async <T>(
-  statement: SqlStatement,
-): Promise<T[]> => {
+export const queryAllPrimary = async <T>(statement: Read<T>): Promise<T[]> => {
   const [result] = await queryBatchPrimary([statement]);
   return resultRows<T>(result!);
 };
 
 /** Query all rows as a typed array. A read whose cache refill requires
  *  read-your-writes goes to the primary instead. */
-export const queryAll = async <T>(...[sql, args]: SqlArgs): Promise<T[]> =>
+export const queryAll = async <T>(statement: Read<T>): Promise<T[]> =>
   mustReadFromPrimary() && primaryReadMode() !== "read"
-    ? queryAllPrimary<T>({ args: args ?? [], sql })
-    : resultRows<T>(await execute(sql, args));
+    ? queryAllPrimary<T>(statement)
+    : resultRows<T>(await execute(statement));
+
+/** A read of the first row, or of null when the query returns none. */
+type OneRow = <T>(statement: Read<T>) => Promise<T | null>;
+
+const firstRowOn =
+  (readAll: typeof queryAll): OneRow =>
+  async (statement) =>
+    (await readAll(statement))[0] ?? null;
 
 /** Query one row, or null when the query returns none. */
-export const queryOne = async <T>(...[sql, args]: SqlArgs): Promise<T | null> =>
-  (await queryAll<T>(sql, args))[0] ?? null;
+export const queryOne = firstRowOn(queryAll);
 
-const requireQueryRow = async <T>(
-  row: Promise<T | null>,
-  sql: string,
-  label: string,
-): Promise<T> => {
-  const found = await row;
-  if (found === null) {
-    throw new Error(`${label} query returned no rows: ${sql}`);
-  }
-  return found;
-};
+/** A read of one required row. It names the query when no row exists. */
+const requiredOn =
+  (one: OneRow, label: string) =>
+  async <T>(statement: Read<T>): Promise<T> => {
+    const found = await one<T>(statement);
+    if (found === null) {
+      throw new Error(`${label} query returned no rows: ${statement.sql}`);
+    }
+    return found;
+  };
 
 /** Query one required row and name the failed query when none exists. */
-export const requireOne = <T>(...[sql, args]: SqlArgs): Promise<T> =>
-  requireQueryRow(queryOne<T>(sql, args), sql, "Required");
+export const requireOne = requiredOn(queryOne, "Required");
 
 /** Query an optional row on the primary — the singular of
- *  {@link queryAllPrimary}, as {@link queryOne} is of {@link queryAll}. `args`
- *  is required here: every read-back keys on the row the write just made. */
-export const queryOnePrimary = async <T>(
-  sql: string,
-  args: InValue[],
-): Promise<T | null> => (await queryAllPrimary<T>({ args, sql }))[0] ?? null;
+ *  {@link queryAllPrimary}, as {@link queryOne} is of {@link queryAll}. */
+export const queryOnePrimary = firstRowOn(queryAllPrimary);
 
 /** Query one required row from the primary. */
-export const requireOnePrimary = <T>(...[sql, args]: SqlWithArgs): Promise<T> =>
-  requireQueryRow(queryOnePrimary<T>(sql, args), sql, "Required primary");
+export const requireOnePrimary = requiredOn(
+  queryOnePrimary,
+  "Required primary",
+);
 
-/** True when the query returns a row. `sql` should be an existence probe such as
+/** True when the query returns a row. The statement should be an existence probe such as
  *  `SELECT 1 ... LIMIT 1`; which columns it selects is ignored. */
-export const rowExists = async (
-  sql: string,
-  args: InValue[],
-): Promise<boolean> => (await queryOne<unknown>(sql, args)) !== null;
-
-/**
- * Build an existence check for "one leading id, matched against a list of ids".
- * The checker binds `leadingId` to the first `?` and expands `ids` into the
- * `IN (...)` that `buildSql` embeds through the placeholder string it is handed.
- * Empty `ids` runs an empty `IN ()`, which matches nothing.
- */
-export const rowExistsForIdList =
-  (buildSql: (idsPlaceholders: string) => string) =>
-  (leadingId: number, ids: number[]): Promise<boolean> =>
-    rowExists(buildSql(inPlaceholders(ids)), [leadingId, ...ids]);
+export const rowExists = async (statement: SqlStatement): Promise<boolean> =>
+  (await queryOne<unknown>(statement)) !== null;
 
 /** Run a query whose single selected column is aliased `id` and return the ids. */
 export const queryIdColumn = async (
-  sql: string,
-  args?: InValue[],
+  statement: SqlStatement,
 ): Promise<number[]> => {
-  const rows = await queryAll<{ id: number }>(sql, args);
+  const rows = await queryAll<{ id: number }>(statement);
   return rows.map((r) => r.id);
 };
 
-/** Count all rows in a table. `table` must be a trusted constant, not input. */
+/** Count all rows in a table. */
 export const countRows = async (table: string): Promise<number> => {
   // COUNT(*) always returns exactly one row, so the result is never null.
   const row = await requireOne<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM ${table}`,
-    [],
+    sql`SELECT COUNT(*) AS n FROM ${sqlName(table)}`,
   );
-  return row!.n;
+  return row.n;
 };
-
-/** One delete-rows-matching-a-field target: which table, matched on which
- * field, for which value. */
-export type DeleteByFieldTarget = {
-  table: string;
-  field: string;
-  value: InValue;
-};
-
-/** Build the DELETE statement for one {@link DeleteByFieldTarget} — for batches
- * that mix these deletes with other statements. */
-export const deleteByFieldStatement = ({
-  table,
-  field,
-  value,
-}: DeleteByFieldTarget): { sql: string; args: InValue[] } => ({
-  args: [value],
-  sql: `DELETE FROM ${table} WHERE ${field} = ?`,
-});
-
-/** Delete rows matching a field value */
-export const deleteByField = async (
-  table: string,
-  field: string,
-  value: InValue,
-): Promise<void> => {
-  const { args, sql } = deleteByFieldStatement({ field, table, value });
-  await execute(sql, args);
-};
-
-/** Delete rows from multiple tables in a single batch transaction */
-export const deleteByFieldBatch = (
-  deletes: DeleteByFieldTarget[],
-): Promise<void> => executeBatch(deletes.map(deleteByFieldStatement));
-
-/**
- * Delete one row and the rows that point at it, children first, in one batch.
- * Each child names the column that holds the parent's id.
- */
-export const deleteWithChildren =
-  (
-    table: string,
-    children: readonly { field: string; table: string }[],
-  ): ((id: number) => Promise<void>) =>
-  (id) =>
-    deleteByFieldBatch([
-      ...children.map((child) => ({ ...child, value: id })),
-      { field: "id", table, value: id },
-    ]);
-
-/**
- * Reset selected aggregate columns from trusted SQL expressions. Each
- * expression must use the entity id as its only placeholder.
- */
-export const resetAggregates = async <T extends string>(
-  table: string,
-  entityId: InValue,
-  fields: readonly T[],
-  resetSql: Record<T, string>,
-): Promise<void> => {
-  if (fields.length === 0) return;
-  const sql = `UPDATE ${table} SET ${fields
-    .map((field) => resetSql[field])
-    .join(", ")} WHERE id = ?`;
-  await execute(sql, fields.map(() => entityId).concat(entityId));
-};
-
-/**
- * A single SQL statement plus its bound arguments — the object form libsql's
- * batch API accepts. This is the one shared shape for a `{ sql, args }` pair;
- * callers that build statements to hand to {@link executeBatch} and friends
- * import this rather than re-declaring the same object type locally.
- */
-export type SqlStatement = { sql: string; args: InValue[] };
 
 /**
  * Execute a batch with optional query logging, then invalidate caches for every
@@ -521,22 +475,35 @@ export const executeBatchWithoutCacheInvalidation = async (
   await runBatch(statements, "write", false, false);
 };
 
+/** The result of each statement of a batch, in its place. */
+export type ResultsOf<Statements extends readonly SqlStatement[]> = {
+  -readonly [Index in keyof Statements]: Statements[Index] extends RowsStatement<
+    infer Row
+  >
+    ? RowsResult<Row>
+    : ResultSet;
+};
+
 /** Runs several statements as one batch and answers each in turn: the shape
  *  {@link queryBatch} and {@link executeBatchWithResults} have, and the one
  *  {@link TxScope}'s `batch` fits. A caller that reads either from the client
  *  or through an open transaction takes one of these instead of naming both. */
-export type BatchExecutor = (
-  statements: SqlStatement[],
-) => Promise<ResultSet[]>;
+export type BatchExecutor = <const Statements extends readonly SqlStatement[]>(
+  statements: Statements,
+) => Promise<ResultsOf<Statements>>;
 
+/** The results of a batch under the types of its statements. libsql answers
+ *  each statement in its place. */
+export const resultsOf = <Statements extends readonly SqlStatement[]>(
+  results: ResultSet[],
+): ResultsOf<Statements> => results as ResultsOf<Statements>;
 /** What makes a read batch safe to retry: a write smuggled into one is rejected
  *  loudly here, so every statement really is a side-effect-free SELECT. */
-const requireReadStatements = (statements: readonly InStatement[]): void => {
-  for (const stmt of statements) {
-    const sql = sqlOf(stmt);
-    if (!isReadSql(sql)) {
+const requireReadStatements = (statements: readonly SqlStatement[]): void => {
+  for (const statement of statements) {
+    if (!isReadSql(statement.sql)) {
       throw new Error(
-        `Read-only batch executors accept only SELECT statements: ${sql}`,
+        `Read-only batch executors accept only SELECT statements: ${statement.sql}`,
       );
     }
   }
@@ -556,11 +523,13 @@ const batchFor =
     // The async body turns a smuggled write into a rejected promise, not a
     // synchronous throw.
     if (isRead) requireReadStatements(statements);
-    return runBatch(
-      statements,
-      typeof mode === "function" ? mode() : mode,
-      true,
-      isRead,
+    return resultsOf(
+      await runBatch(
+        [...statements],
+        typeof mode === "function" ? mode() : mode,
+        true,
+        isRead,
+      ),
     );
   };
 
@@ -595,8 +564,8 @@ export const executeBatch = async (
  *  callback: run statements singly or as one batch; commit/rollback are managed
  *  for you. */
 export type TxScope = {
-  batch: (statements: InStatement[]) => Promise<ResultSet[]>;
-  execute: (stmt: InStatement) => Promise<ResultSet>;
+  batch: BatchExecutor;
+  execute: RunStatement;
 };
 
 /** Reads narrow pre-update state through an open write transaction. */
@@ -622,21 +591,20 @@ const runWriteTransactionOnce = async <T>(
   const writtenSql: string[] = [];
   let statementCount = 0;
   const scope: TxScope = {
-    batch: (statements) => {
-      const sqls = statements.map(sqlOf);
+    batch: async (statements) => {
+      const sqls = statements.map((statement) => statement.sql);
       writtenSql.push(...sqls);
       statementCount += 1;
       enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
-      return trackedTxBatch(tx)(statements);
+      return resultsOf(await trackedTxBatch(tx)([...statements]));
     },
-    execute: (stmt) => {
-      const sql = sqlOf(stmt);
-      writtenSql.push(sql);
+    execute: (statement: SqlStatement) => {
+      writtenSql.push(statement.sql);
       // Holding the write lock across many sequential round-trips is the
       // "Transaction timed-out" shape; chatty writes belong in a batch.
       statementCount += 1;
-      enforceTransactionRoundTripGuard(statementCount, sql);
-      return trackedTxExecute(tx)(stmt);
+      enforceTransactionRoundTripGuard(statementCount, statement.sql);
+      return trackedTxExecute(tx)(statement);
     },
   };
   try {
@@ -737,13 +705,13 @@ export const withReadSnapshot: TransactionRunner = (work) =>
       const tx = await getDb().transaction("read");
       // The SELECT-only runners the snapshot hands its work: each refuses a
       // non-SELECT before it reaches `tx`.
-      const batch = (statements: InStatement[]): Promise<ResultSet[]> => {
+      const batch: BatchExecutor = async (statements) => {
         requireReadStatements(statements);
-        return trackedTxBatch(tx)(statements);
+        return resultsOf(await trackedTxBatch(tx)([...statements]));
       };
-      const execute = (stmt: InStatement): Promise<ResultSet> => {
-        requireReadStatements([stmt]);
-        return trackedTxExecute(tx)(stmt);
+      const execute = (statement: SqlStatement): Promise<ResultSet> => {
+        requireReadStatements([statement]);
+        return trackedTxExecute(tx)(statement);
       };
       try {
         return await work({ batch, execute });
@@ -760,10 +728,12 @@ export const withReadSnapshot: TransactionRunner = (work) =>
  * write that returns no row means nothing was written — fail there, loudly.
  */
 export const executeReturningRow = async <T>(
-  ...[sql, args]: SqlWithArgs
+  statement: SqlStatement,
 ): Promise<T> => {
-  const row = firstRowOrNull<T>(await execute(sql, args));
-  if (row === null) throw new Error(`Write returned no row: ${sql}`);
+  const row = firstRowOrNull<T>(await execute(statement));
+  if (row === null) {
+    throw new Error(`Write returned no row: ${statement.sql}`);
+  }
   return row;
 };
 
@@ -784,132 +754,4 @@ export const insertedRowId = (
       id,
     )})`,
   );
-};
-
-/**
- * Write one row `statement` in a fresh write transaction and run `persist` (the
- * coupled join-table writes) on the same `tx`, so the row and its side writes
- * commit or roll back together. On update, the optional `readState` step runs
- * before the statement — it reads the state that reaches `persist` and may
- * refuse the write by throwing; creates skip it. Returns the row id.
- */
-export const writeRowInTransaction = <State = never>(
-  statement: InStatement,
-  existingId: number | null,
-  persist: (tx: TxScope, id: number, state: State | null) => Promise<void>,
-  readState?: TransactionStateReader<State>,
-): Promise<number> =>
-  withTransaction(async (tx) => {
-    const state =
-      existingId !== null && readState ? await readState(tx, existingId) : null;
-    const res = await tx.execute(statement);
-    const id = existingId ?? insertedRowId(res);
-    await persist(tx, id, state);
-    return id;
-  });
-
-/** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */
-export const inPlaceholders = (values: readonly unknown[]): string =>
-  values.map(() => "?").join(", ");
-
-/** Sentinel for raw SQL expressions in insert() values */
-const RAW_SQL = Symbol("raw-sql");
-type RawSql = { [RAW_SQL]: string };
-
-/** Embed a raw SQL expression (e.g. `last_insert_rowid()`) */
-export const rawSql = (expr: string): RawSql => ({ [RAW_SQL]: expr }) as RawSql;
-
-/**
- * Rewrite a built INSERT as `INSERT OR IGNORE`, dropping a row whose unique key
- * is already stored instead of raising a constraint error. This is the once-only
- * latch resumable flows lean on: a replayed write re-derives the same key and
- * lands nowhere. It silences every conflict on the statement, so use it only
- * where the unique key IS the idempotency rule.
- */
-export const orIgnore = (statement: SqlStatement): SqlStatement => ({
-  args: [...statement.args],
-  sql: statement.sql.replace(/^INSERT INTO/, "INSERT OR IGNORE INTO"),
-});
-
-/**
- * Build an INSERT statement from a table name and column-to-value record. A
- * {@link rawSql} value goes into the SQL as written rather than as a bound
- * placeholder, which is how a column takes an expression such as
- * `last_insert_rowid()`.
- *
- * Pass `returningColumns` when the caller needs a value back from the written
- * row, such as a generated key read with {@link insertedRowId}.
- */
-export const insert = (
-  table: string,
-  values: Record<string, InValue | RawSql>,
-  returningColumns?: string,
-): { sql: string; args: InValue[] } => {
-  const columns: string[] = [];
-  const placeholders: string[] = [];
-  const args: InValue[] = [];
-
-  for (const [col, val] of Object.entries(values)) {
-    columns.push(col);
-    if (val !== null && typeof val === "object" && RAW_SQL in val) {
-      placeholders.push(val[RAW_SQL]);
-    } else {
-      placeholders.push("?");
-      args.push(val as InValue);
-    }
-  }
-
-  const returning = returningColumns ? ` RETURNING ${returningColumns}` : "";
-  return {
-    args,
-    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders.join(
-      ", ",
-    )})${returning}`,
-  };
-};
-
-/** One `column = <?|raw>` fragment per entry, collecting plain values into
- * `args` — the shared clause shape of {@link update}'s SET and WHERE parts. */
-const equalityClauses = (
-  values: Record<string, InValue | RawSql>,
-  args: InValue[],
-): string[] =>
-  Object.entries(values).map(([col, val]) => {
-    if (val !== null && typeof val === "object" && RAW_SQL in val) {
-      return `${col} = ${val[RAW_SQL]}`;
-    }
-    args.push(val as InValue);
-    return `${col} = ?`;
-  });
-
-/**
- * Build an UPDATE statement, the WHERE record ANDed as equality checks. SET
- * values may be {@link rawSql} expressions, such as a counter increment. A write
- * needing a richer guard — `IS NULL`, an inequality, a subquery — keeps its own
- * SQL rather than bending this one.
- */
-export const update = (
-  table: string,
-  set: Record<string, InValue | RawSql>,
-  where: Record<string, InValue>,
-): SqlStatement => {
-  const args: InValue[] = [];
-  const setClauses = equalityClauses(set, args);
-  const whereClauses = equalityClauses(where, args);
-  return {
-    args,
-    sql: `UPDATE ${table} SET ${setClauses.join(", ")} WHERE ${whereClauses.join(
-      " AND ",
-    )}`,
-  };
-};
-
-/** Build the {@link update} statement and run it in one call — the executing
- * form for the single-statement call sites (batch and transactional callers
- * use {@link update} itself). */
-export const executeUpdate = (
-  ...parts: Parameters<typeof update>
-): Promise<ResultSet> => {
-  const stmt = update(...parts);
-  return execute(stmt.sql, stmt.args);
 };

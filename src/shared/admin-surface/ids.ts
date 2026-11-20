@@ -20,6 +20,16 @@ type WritesOf<Area> = Area extends { readonly write: infer Group }
 
 export type AdminAreaId = keyof Areas;
 
+/** An area that `recordArea` declares: the home of one admin record. */
+export type RecordAreaId = {
+  [Area in keyof Areas]: Areas[Area] extends { readonly record: unknown }
+    ? Area
+    : never;
+}[keyof Areas];
+
+/** The route ids the record of one record area reads, as literal types. */
+export type RecordAreaIds<Area extends RecordAreaId> = Areas[Area]["record"];
+
 export type AdminDestinationId = {
   [Area in keyof Areas]:
     | keyof ViewsOf<Areas[Area]>
@@ -82,3 +92,14 @@ export type AdminPathParams<Id extends AdminDestinationId> = Record<
   RouteParamNames<AdminPatternFor<Id> & string>,
   string | number
 >;
+
+/** The list path and the record page path one record area declares, as
+ * literal types. A route table binds the record's routes under them. */
+export type RecordAreaPatterns<Area extends RecordAreaId> = {
+  readonly detail: AdminPatternFor<
+    RecordAreaIds<Area>["detail"] & AdminDestinationId
+  >;
+  readonly list: AdminPatternFor<
+    RecordAreaIds<Area>["list"] & AdminDestinationId
+  >;
+};

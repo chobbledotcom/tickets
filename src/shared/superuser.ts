@@ -106,7 +106,7 @@ const getSuperuserAccount = async (
   const generation = getCacheGeneration();
   const user = await getUserByUsername(username);
   const account: SuperuserAccount = {
-    activated: user !== null && user.wrapped_data_key !== null,
+    activated: user !== null && user.wrappedDataKey !== null,
     userExists: user !== null,
   };
   if (generation === getCacheGeneration()) {

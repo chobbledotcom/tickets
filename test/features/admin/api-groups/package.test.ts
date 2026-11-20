@@ -148,9 +148,9 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
     const rows = await getGroupPackagePrices(group.id);
     expect(rows).toEqual([
       {
-        group_id: group.id,
-        listing_id: listing.id,
-        package_price: 2500,
+        groupId: group.id,
+        listingId: listing.id,
+        packagePrice: 2500,
         quantity: 3,
       },
     ]);
@@ -203,9 +203,9 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
     const rows = await getGroupPackagePrices(group.id);
     expect(rows).toEqual([
       {
-        group_id: group.id,
-        listing_id: listing.id,
-        package_price: 100,
+        groupId: group.id,
+        listingId: listing.id,
+        packagePrice: 100,
         quantity: 2,
       },
     ]);
@@ -309,7 +309,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       apiRequest(`/api/admin/groups/${group.id}`),
       200,
       (body) => {
-        expect(body.group.package_members).toBeUndefined();
+        expect(Object.keys(body.group)).not.toContain("package_members");
       },
     );
   });
@@ -323,7 +323,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       method: "PUT",
     });
     const prices = await getGroupPackagePrices(group.id);
-    expect(prices[0]!.package_price).toBe(800);
+    expect(prices[0]!.packagePrice).toBe(800);
   });
 
   test("PUT is_package:false clears overrides", async () => {
@@ -334,7 +334,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       method: "PUT",
     });
     const prices = await getGroupPackagePrices(group.id);
-    expect(prices[0]!.package_price).toBeNull();
+    expect(prices[0]!.packagePrice).toBeNull();
   });
 
   test("PUT rejects a malformed package_members entry without wiping overrides", async () => {
@@ -354,7 +354,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
     );
     // The existing override survives the rejected request.
     const prices = await getGroupPackagePrices(group.id);
-    expect(prices[0]!.package_price).toBe(600);
+    expect(prices[0]!.packagePrice).toBe(600);
   });
 
   test("PUT rejects is_package on an incompatible group", async () => {
@@ -386,7 +386,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
         expect(body.error).toBe(t("error.sold_hidden_package"));
       },
     );
-    const refreshed = await groups.cache.getAll();
-    expect(refreshed.find((g) => g.id === group.id)?.is_package).toBe(true);
+    const refreshed = await groups.getAll();
+    expect(refreshed.find((g) => g.id === group.id)?.isPackage).toBe(true);
   });
 });

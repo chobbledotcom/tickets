@@ -6,14 +6,17 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll, withTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import { removeListingsFromGroup } from "#db/groups/membership/package-writes.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { groupOverrideRows } from "#test-utils/db-helpers/group-prices.ts";
 import {
+  createGroupWithListings,
   createTestGroup,
   listingGroupIdsOf,
 } from "#test-utils/db-helpers/groups.ts";
@@ -23,27 +26,32 @@ import {
   groupScopedAddOn,
 } from "#test-utils/listing-parents/helpers.ts";
 
-/** The flat price override rows one group's membership put on a listing. */
-const groupOverrideRows = (listingId: number, groupId: number) =>
-  queryAll<{ unit_price: number }>(
-    "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
-    [listingId, String(groupId)],
-  );
+/** Remove every member from the group, then require each one lost its
+ *  membership. */
+const expectAllRemoved = async (
+  members: { id: number }[],
+  groupId: number,
+): Promise<void> => {
+  expect(
+    await removeListingsFromGroup(
+      members.map((member) => member.id),
+      groupId,
+    ),
+  ).toBeNull();
+
+  for (const member of members) {
+    expect(await listingGroupIdsOf(member.id)).toEqual([]);
+  }
+};
 
 describeWithEnv("db > groups > membership removal writes", { db: true }, () => {
   test("removing several listings at once removes only this group's memberships", async () => {
-    const group = await createTestGroup({ name: "Night" });
-    const one = await createTestListing({ name: "One" });
-    const two = await createTestListing({ name: "Two" });
-    await setListingGroups(one.id, [group.id]);
-    await setListingGroups(two.id, [group.id]);
+    const { group, listings } = await createGroupWithListings("Night", [
+      "One",
+      "Two",
+    ]);
 
-    expect(
-      await removeListingsFromGroup([one.id, two.id], group.id),
-    ).toBeNull();
-
-    expect(await listingGroupIdsOf(one.id)).toEqual([]);
-    expect(await listingGroupIdsOf(two.id)).toEqual([]);
+    await expectAllRemoved(listings, group.id);
   });
 
   test("removes ten members in one post without tripping the round-trip guard", async () => {
@@ -56,16 +64,7 @@ describeWithEnv("db > groups > membership removal writes", { db: true }, () => {
       members.map((listing) => setListingGroups(listing.id, [group.id])),
     );
 
-    expect(
-      await removeListingsFromGroup(
-        members.map((listing) => listing.id),
-        group.id,
-      ),
-    ).toBeNull();
-
-    for (const listing of members) {
-      expect(await listingGroupIdsOf(listing.id)).toEqual([]);
-    }
+    await expectAllRemoved(members, group.id);
   });
 
   test("a member of several groups keeps every other membership and override", async () => {
@@ -190,10 +189,9 @@ describeWithEnv("db > groups > membership removal writes", { db: true }, () => {
       // The first operator's removal, still uncommitted: the guard runs inside
       // the write transaction, so it must read these membership rows through
       // it — a stale committed read would pass and orphan the add-on.
-      await tx.execute({
-        args: [group.id, secondPage.id],
-        sql: "DELETE FROM group_listings WHERE group_id = ? AND listing_id = ?",
-      });
+      await tx.execute(
+        sql`DELETE FROM group_listings WHERE group_id = ${group.id} AND listing_id = ${secondPage.id}`,
+      );
       expect(
         await groupLeavingOrphanedAddOnError(new Map([[rescuer.id, []]]), tx),
       ).toBe(t("modifiers.err_child_only_addon", { name: "Group extra" }));

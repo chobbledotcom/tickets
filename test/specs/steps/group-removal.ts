@@ -59,7 +59,7 @@ const removeFormOn = (html: string, path: string): string => {
  * served page so a listing the page stopped offering cannot be picked. */
 const removeBoxValue = (form: string, listingName: string): string => {
   const boxes = regexCollect(
-    /<input\b[^>]*name="listing_ids"[^>]*>/gi,
+    /<input\b[^>]*name="listingIds"[^>]*>/gi,
     form,
     (match) => match[0],
   );
@@ -90,7 +90,7 @@ const openRemovalPage = async (
   const value = removeBoxValue(removeFormOn(html, path), listingName);
   const browser = await visiting(
     await adminBrowser(world),
-    `${path}/remove-listings?listing_ids=${value}`,
+    `${path}/remove-listings?listingIds=${value}`,
   );
   return rememberBrowser(world, ORGANISER, browser);
 };
@@ -103,7 +103,7 @@ const sendRemovalForm = async (
 ): Promise<void> => {
   await fillInAndSend(
     browser,
-    { confirm_identifier: typed },
+    { confirmIdentifier: typed },
     t("groups.remove.submit"),
   );
   keepsWhatTheOrganiserSaw(world, browser);

@@ -47,9 +47,9 @@ When(
   async function (this: TicketsWorld, hampers: number): Promise<void> {
     await orderJourney(this, {
       form: (c) => ({
-        [`package_quantity_${c.group("Deluxe Kit").id}`]: "1",
-        [`quantity_${c.listing("Cabin").id}`]: "1",
-        [`quantity_${c.listing("Hamper").id}`]: String(hampers),
+        [`packageQuantity${c.group("Deluxe Kit").id}`]: "1",
+        [`quantity${c.listing("Cabin").id}`]: "1",
+        [`quantity${c.listing("Hamper").id}`]: String(hampers),
       }),
       paid: true,
       rows: (c) => [
@@ -106,8 +106,8 @@ Given(
     });
     await orderJourney(this, {
       form: (c) => ({
-        [`package_quantity_${c.group("Duo Kit").id}`]: "1",
-        [`quantity_${c.listing("Drum").id}`]: "2",
+        [`packageQuantity${c.group("Duo Kit").id}`]: "1",
+        [`quantity${c.listing("Drum").id}`]: "2",
       }),
       // Both ways it was ordered, before the organiser takes one away.
       rows: (c) => [
@@ -127,7 +127,7 @@ When(
     await openEditorFromRoster(browser, drum, BUYER);
     const onItsOwn = attendeeLineIndex(browser.currentHtml, drum, 0);
     expect(onItsOwn).not.toBeNull();
-    await browser.submitForm({ [`qty_${onItsOwn}`]: "0" }, "Save Attendee");
+    await browser.submitForm({ [`qty${onItsOwn}`]: "0" }, "Save Attendee");
     expect(browser.containsText(`Updated ${BUYER}`)).toBe(true);
   },
 );
@@ -176,7 +176,7 @@ When(
   "a customer pays for one Weekend in one order",
   async function (this: TicketsWorld): Promise<void> {
     await orderJourney(this, {
-      form: (c) => ({ [`package_quantity_${c.group("Weekend").id}`]: "1" }),
+      form: (c) => ({ [`packageQuantity${c.group("Weekend").id}`]: "1" }),
       paid: true,
       rows: (c) => [
         [c.listing("Breakfast").id, c.group("Weekend").id, 0, 1, ""],

@@ -33,7 +33,7 @@ describe("ticketPage listing date and location", () => {
     );
   test("shows date on public ticket page when listing has date", async () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       date: "2026-06-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
@@ -44,14 +44,14 @@ describe("ticketPage listing date and location", () => {
   });
 
   test("does not show date on public ticket page when date is empty", async () => {
-    const listing = testListingWithCount({ attendee_count: 0, date: "" });
+    const listing = testListingWithCount({ attendeeCount: 0, date: "" });
     const html = await renderTicket(listing);
     assert(!html.includes("<strong>Date:</strong>"));
   });
 
   test("shows location on public ticket page when listing has location", async () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       location: "Village Hall",
     });
     const html = await renderTicket(listing);
@@ -59,14 +59,14 @@ describe("ticketPage listing date and location", () => {
   });
 
   test("does not show location on public ticket page when location is empty", async () => {
-    const listing = testListingWithCount({ attendee_count: 0, location: "" });
+    const listing = testListingWithCount({ attendeeCount: 0, location: "" });
     const html = await renderTicket(listing);
     assert(!html.includes("<strong>Location:</strong>"));
   });
 
   test("hides date and location in iframe mode", async () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       date: "2026-06-15T14:00:00.000Z",
       location: "Village Hall",
     });
@@ -77,7 +77,7 @@ describe("ticketPage listing date and location", () => {
 
   test("shows past listing badge for listing with date in the past", async () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       date: "2020-01-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
@@ -86,7 +86,7 @@ describe("ticketPage listing date and location", () => {
 
   test("does not show past listing badge for future listing", async () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       date: "2099-06-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
@@ -94,7 +94,7 @@ describe("ticketPage listing date and location", () => {
   });
 
   test("does not show past listing badge when date is empty", async () => {
-    const listing = testListingWithCount({ attendee_count: 0, date: "" });
+    const listing = testListingWithCount({ attendeeCount: 0, date: "" });
     const html = await renderTicket(listing);
     assert(!html.includes("badge-alert"));
   });
@@ -102,7 +102,7 @@ describe("ticketPage listing date and location", () => {
   test("past listing badge shows singular day for 1 day ago", async () => {
     const yesterday = addDays(testDate(todayInTz(settings.timezone)), -1);
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       date: `${yesterday}T12:00:00.000Z`,
     });
     const html = await renderTicket(listing);
@@ -113,7 +113,7 @@ describe("ticketPage listing date and location", () => {
   test("past listing badge shows plural days for multiple days ago", async () => {
     const threeDaysAgo = addDays(testDate(todayInTz(settings.timezone)), -3);
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       date: `${threeDaysAgo}T12:00:00.000Z`,
     });
     const html = await renderTicket(listing);
@@ -224,7 +224,7 @@ describe("ticketViewPage package grouping", () => {
       {
         entry: testTokenEntry({
           attendee: { package_group_id: 1, quantity: 1 },
-          listing: { name: "Pass", purchase_only: true },
+          listing: { name: "Pass", purchaseOnly: true },
         }),
         token,
       },
@@ -243,7 +243,7 @@ describe("ticketViewPage package grouping", () => {
           attendee: { package_group_id: 1, quantity: 1 },
           listing: {
             name: "Secret Pass",
-            non_transferable: true,
+            nonTransferable: true,
           },
         }),
         token,
@@ -269,8 +269,8 @@ describe("ticketViewPage package grouping", () => {
           attendee: { package_group_id: 1, quantity: 1 },
           listing: {
             name: "Pass",
-            non_transferable: true,
-            purchase_only: true,
+            nonTransferable: true,
+            purchaseOnly: true,
           },
         }),
         token,

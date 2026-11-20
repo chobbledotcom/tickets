@@ -94,7 +94,7 @@ const snapshotHasStaleChild = async (
       intent.items.flatMap((item) => {
         const listing = snapshot.listingsById.get(item.e);
         return listing &&
-          !listing.bookable_alone &&
+          !listing.bookableAlone &&
           (snapshot.parentsByChildId.get(item.e)?.length ?? 0) > 0
           ? [item.e]
           : [];

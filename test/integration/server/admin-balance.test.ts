@@ -1,10 +1,11 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectHtml,
   expectHtmlResponse,
@@ -18,6 +19,7 @@ import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
 const settle = (id = "settle-session") => ({
@@ -57,7 +59,7 @@ const reservedAttendee = async () => {
     name: "Gala Ticket",
     thankYouUrl: "https://example.com",
   });
-  const reservation = await attendeeStatuses.table.insert({
+  const reservation = await records.attendee_statuses.insert({
     isReservation: true,
     name: "Reserved",
     reservationAmount: "10%",
@@ -116,9 +118,9 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     });
   });
 
-  test("returns 404 for a missing attendee", async () => {
-    const response = await adminGet("/admin/attendees/9999/ledger");
-    expect(response.status).toBe(404);
+  testStatus(404, {
+    "returns 404 for a missing attendee": () =>
+      adminGet("/admin/attendees/9999/ledger"),
   });
 
   test("shows a fully-paid state once the balance is settled", async () => {
@@ -174,10 +176,9 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     // panel must not offer a dead-end link and must say why.
     await setupStripe();
     const attendeeId = await reservedAttendee();
-    await getDb().execute({
-      args: [attendeeId],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendeeId}`,
+    );
     await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
       contains: [
         "Collect this balance directly",
@@ -196,7 +197,7 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
-    const confirmed = await attendeeStatuses.table.insert({
+    const confirmed = await records.attendee_statuses.insert({
       isReservation: false,
       name: "Confirmed",
       reservationAmount: "0",

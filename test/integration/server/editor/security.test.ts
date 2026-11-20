@@ -39,29 +39,34 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
         webhookUrl: "https://own.example/hook",
       });
       // Live, the listing resolves to the inherited default…
-      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
+      expect((await getListingWithCount(listing.id))!.webhookUrl).toBe(
         "https://default.example/hook",
       );
 
-      // …but an editor saving an edit must neither set their crafted URL nor
-      // freeze the inherited default into the row.
+      // …but an editor's crafted URL is refused, and an editor's own save must
+      // not freeze the inherited default into the row.
       const { cookie } = await createTestEditorSession();
-      const editorResp = await postMultipartAs(
+      const editorForm = {
+        ...buildCreateListingForm(testListingInput(), "editor"),
+        slug: listing.slug,
+      };
+      const crafted = await postMultipartAs(
         `/admin/listing/${listing.id}/edit`,
         cookie,
-        {
-          ...buildCreateListingForm(testListingInput()),
-          slug: listing.slug,
-          webhook_url: "https://attacker.example/steal",
-        },
+        { ...editorForm, webhookUrl: "https://attacker.example/steal" },
       );
-      expect(editorResp.status).toBe(302);
+      const saved = await postMultipartAs(
+        `/admin/listing/${listing.id}/edit`,
+        cookie,
+        editorForm,
+      );
+      expect([crafted.status, saved.status]).toEqual([400, 302]);
 
       // Clearing the default reveals the listing's preserved own webhook —
       // proving the editor's save materialised neither the default nor the
       // crafted URL.
       await settings.update.listingDefaults({});
-      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
+      expect((await getListingWithCount(listing.id))!.webhookUrl).toBe(
         "https://own.example/hook",
       );
     });
@@ -83,11 +88,14 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
       const resp = await postMultipartAs(
         `/admin/listing/${listing.id}/edit`,
         cookie,
-        { ...buildCreateListingForm(testListingInput()), slug: listing.slug },
+        {
+          ...buildCreateListingForm(testListingInput(), "editor"),
+          slug: listing.slug,
+        },
       );
       expect(resp.status).toBe(302);
       // The flag is preserved, so the listing keeps inheriting.
-      expect((await getListingWithCount(listing.id))!.use_defaults).toBe(true);
+      expect((await getListingWithCount(listing.id))!.useDefaults).toBe(true);
 
       // The owner submitting the same body DOES turn it off — proving the lock
       // is what blocks the editor, not an unrelated validation failure.
@@ -96,7 +104,7 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
         ...buildCreateListingForm(testListingInput()),
         slug: listing.slug,
       });
-      expect((await getListingWithCount(listing.id))!.use_defaults).toBe(false);
+      expect((await getListingWithCount(listing.id))!.useDefaults).toBe(false);
     });
 
     test("editor listing create lands on the listing so flashes are shown", async () => {
@@ -104,7 +112,7 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
       const resp = await postMultipartAs(
         "/admin/listing",
         cookie,
-        buildCreateListingForm(testListingInput()),
+        buildCreateListingForm(testListingInput(), "editor"),
       );
       expect(resp.status).toBe(302);
       // Not the dashboard (/admin) or bare /admin/listings, which render no
@@ -185,7 +193,7 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
       });
       const response = await handleRequest(
         mockFormRequest("/admin/login", {
-          csrf_token: await signCsrfToken(),
+          csrfToken: await signCsrfToken(),
           password: "editorlogin123",
           username: "loginEditor",
         }),
@@ -208,9 +216,9 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
       expect(user).not.toBeNull();
       expect(await decryptAdminLevel(user!)).toBe("editor");
       // No handoff and no data key — the editor will activate keyless.
-      expect(user!.invite_wrapped_data_key).toBeNull();
-      expect(user!.wrapped_data_key).toBeNull();
-      expect(user!.invite_code_hash).not.toBeNull();
+      expect(user!.inviteWrappedDataKey).toBeNull();
+      expect(user!.wrappedDataKey).toBeNull();
+      expect(user!.inviteCodeHash).not.toBeNull();
     });
 
     test("an editor activates keyless via /join and then reads as Active", async () => {
@@ -226,9 +234,9 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
 
       const joinPost = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
-          csrf_token: await signCsrfToken(),
+          csrfToken: await signCsrfToken(),
           password: "joinpass12345",
-          password_confirm: "joinpass12345",
+          passwordConfirm: "joinpass12345",
         }),
       );
       expect(joinPost.status).toBe(302);
@@ -240,8 +248,8 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
       invalidateUsersCache();
       const user = await getUserByUsername("joinEditor");
       // Activated: password set, still no data key.
-      expect(user!.password_hash).not.toBe("");
-      expect(user!.wrapped_data_key).toBeNull();
+      expect(user!.passwordHash).not.toBe("");
+      expect(user!.wrappedDataKey).toBeNull();
       // The invite is consumed (single-use) — its code no longer resolves.
       expect(await getUserByInviteCode(inviteCode)).toBeNull();
 

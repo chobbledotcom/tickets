@@ -10,7 +10,7 @@ import {
   submitMultiTicketForm,
 } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv(
@@ -19,14 +19,10 @@ describeWithEnv(
   () => {
     describe("routes/public.ts (ticket CSRF)", () => {
       test("ticket POST rejects invalid CSRF token", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Csrf 1",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Csrf 2",
-        });
+        const [listing1, listing2] = await createListingPair(
+          { maxAttendees: 50, name: "Multi Csrf 1" },
+          { maxAttendees: 50, name: "Multi Csrf 2" },
+        );
 
         // POST without getting CSRF token first
         await expectMissingCsrfRejected(
@@ -43,18 +39,20 @@ describeWithEnv(
       test("shows payment not configured error for ticket when no provider", async () => {
         await setupStripe();
 
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Multi Noprov 1",
-          unitPrice: 500,
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Multi Noprov 2",
-          unitPrice: 1000,
-        });
+        const [listing1, listing2] = await createListingPair(
+          {
+            maxAttendees: 50,
+            maxQuantity: 5,
+            name: "Multi Noprov 1",
+            unitPrice: 500,
+          },
+          {
+            maxAttendees: 50,
+            maxQuantity: 5,
+            name: "Multi Noprov 2",
+            unitPrice: 1000,
+          },
+        );
 
         // Now clear the provider to simulate no provider
         const { settings: s } = await import("#db/settings.ts");
@@ -73,14 +71,10 @@ describeWithEnv(
 
     describe("POST ticket capacity check via atomic create", () => {
       test("shows error for free ticket when atomic create fails", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Free Atomic 1",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Free Atomic 2",
-        });
+        const [listing1, listing2] = await createListingPair(
+          { maxAttendees: 50, name: "Multi Free Atomic 1" },
+          { maxAttendees: 50, name: "Multi Free Atomic 2" },
+        );
 
         // Mock attendeesApi to fail (capacity exceeded). A free order with a ledger
         // order uses createBookingAtomic; fail both so the path is covered either way.
@@ -112,16 +106,10 @@ describeWithEnv(
 
     describe("routes/public.ts (ticket quantity field missing from form)", () => {
       test("defaults to 0 when quantity field is absent from ticket form", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Multi Nofield 1",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Multi Nofield 2",
-        });
+        const [listing1, listing2] = await createListingPair(
+          { maxAttendees: 50, maxQuantity: 5, name: "Multi Nofield 1" },
+          { maxAttendees: 50, maxQuantity: 5, name: "Multi Nofield 2" },
+        );
 
         // Submit form with quantity for listing2 only; listing1 has no quantity field at all
         const response = await submitMultiTicketForm(
@@ -129,7 +117,7 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing2.id}`]: "1",
           },
         );
         expectReservedRedirectWithTokens(response);
@@ -148,18 +136,20 @@ describeWithEnv(
       test("shows payment not configured error when provider returns null for ticket", async () => {
         await setupStripe();
 
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Multi Noprov Miss 1",
-          unitPrice: 500,
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Multi Noprov Miss 2",
-          unitPrice: 1000,
-        });
+        const [listing1, listing2] = await createListingPair(
+          {
+            maxAttendees: 50,
+            maxQuantity: 5,
+            name: "Multi Noprov Miss 1",
+            unitPrice: 500,
+          },
+          {
+            maxAttendees: 50,
+            maxQuantity: 5,
+            name: "Multi Noprov Miss 2",
+            unitPrice: 1000,
+          },
+        );
 
         // Mock paymentsApi.getConfiguredProvider to return null so getActivePaymentProvider
         // returns null, while isPaymentsEnabled still returns true from the DB

@@ -61,7 +61,7 @@ describeWithEnv(
           id: 9,
           name: "Widget",
           slug: "wdgt1",
-          unit_price: 500,
+          unitPrice: 500,
         });
         expect(buildStandalone(listing, 2)).toEqual([
           {
@@ -80,7 +80,7 @@ describeWithEnv(
           id: 7,
           name: "Member",
           slug: "mmbr7",
-          unit_price: 500,
+          unitPrice: 500,
         });
         const tree = buildBookingTree({
           listings: [buildTicketListing(listing, false, undefined)],

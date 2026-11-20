@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch } from "#db/client.ts";
-import {
-  appendImageToItem,
-  getImageById,
-  getImagesForItem,
-} from "#db/images.ts";
+import { appendImageToItem, getImagesForItem } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -16,7 +13,6 @@ import {
   removePageItem,
   sitePageItemOrder,
 } from "#db/site-page-items.ts";
-import { getSitePageById } from "#db/site-pages.ts";
 
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
@@ -32,8 +28,8 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       await addPageItem(p.id, "group", 200);
       const items = await getItemsForPage(p.id);
       expect(items).toEqual([
-        { item_id: 100, item_type: "listing", page_id: p.id, sort_order: 0 },
-        { item_id: 200, item_type: "group", page_id: p.id, sort_order: 1 },
+        { itemId: 100, itemType: "listing", pageId: p.id, sortOrder: 0 },
+        { itemId: 200, itemType: "group", pageId: p.id, sortOrder: 1 },
       ]);
     });
 
@@ -53,14 +49,14 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       expect(await addPageItem(parentB.id, "page", child.id)).toBe(false);
       // Only the first parent's edge exists.
       const edges = (await getAllPageItems()).filter(
-        (e) => e.item_type === "page" && e.item_id === child.id,
+        (e) => e.itemType === "page" && e.itemId === child.id,
       );
       expect(edges).toEqual([
         {
-          item_id: child.id,
-          item_type: "page",
-          page_id: parentA.id,
-          sort_order: 0,
+          itemId: child.id,
+          itemType: "page",
+          pageId: parentA.id,
+          sortOrder: 0,
         },
       ]);
     });
@@ -94,7 +90,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       await addPageItem(p.id, "listing", 1);
       await addPageItem(p.id, "group", 1); // same numeric id, different type
       await removePageItem(p.id, "listing", 1);
-      expect((await getItemsForPage(p.id)).map((i) => i.item_type)).toEqual([
+      expect((await getItemsForPage(p.id)).map((i) => i.itemType)).toEqual([
         "group",
       ]);
     });
@@ -112,11 +108,11 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       });
       const items = await getItemsForPage(p.id);
       expect(items).toEqual([
-        { item_id: 5, item_type: "group", page_id: p.id, sort_order: 0 },
-        { item_id: 5, item_type: "listing", page_id: p.id, sort_order: 1 },
+        { itemId: 5, itemType: "group", pageId: p.id, sortOrder: 0 },
+        { itemId: 5, itemType: "listing", pageId: p.id, sortOrder: 1 },
       ]);
       // page_id is part of the match: the other page's row is untouched.
-      expect((await getItemsForPage(q.id))[0]?.sort_order).toBe(0);
+      expect((await getItemsForPage(q.id))[0]?.sortOrder).toBe(0);
     });
 
     test("sitePageItemOrder is a no-op when an item is missing", async () => {
@@ -127,7 +123,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
         scope: p.id,
         second: ["group", 999],
       });
-      expect((await getItemsForPage(p.id))[0]?.sort_order).toBe(0);
+      expect((await getItemsForPage(p.id))[0]?.sortOrder).toBe(0);
     });
   });
 
@@ -141,12 +137,12 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       await deleteSitePageWithEdges(child.id);
       invalidatePageItemsCache();
 
-      expect(await getSitePageById(child.id)).toBeNull();
+      expect(await records.site_pages.find(child.id)).toBeNull();
       const edges = await getAllPageItems();
       // No edge references the deleted child (as parent OR as page item).
-      expect(edges.some((e) => e.page_id === child.id)).toBe(false);
+      expect(edges.some((e) => e.pageId === child.id)).toBe(false);
       expect(
-        edges.some((e) => e.item_type === "page" && e.item_id === child.id),
+        edges.some((e) => e.itemType === "page" && e.itemId === child.id),
       ).toBe(false);
     });
 
@@ -160,7 +156,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
 
       // The link is gone, but the image itself stays in the library.
       expect(await getImagesForItem("page", page.id)).toEqual([]);
-      expect(await getImageById(image.id)).not.toBeNull();
+      expect(await records.images.find(image.id)).not.toBeNull();
     });
 
     test("a page-item write clears the request-scoped edge cache", async () => {
@@ -184,7 +180,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       invalidatePageItemsCache();
       const edges = await getAllPageItems();
       expect(
-        edges.some((e) => e.item_type === "listing" && e.item_id === 50),
+        edges.some((e) => e.itemType === "listing" && e.itemId === 50),
       ).toBe(false);
     });
   });

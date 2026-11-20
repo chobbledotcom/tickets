@@ -2,13 +2,15 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#db/processed-payments.ts";
+import { tables } from "#db/select/tables.ts";
+import { insertInto } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -48,10 +50,10 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       );
 
       const result = await getProcessedPayment("cs_processed_123");
-      expect(result?.payment_session_id).toBe("cs_processed_123");
-      expect(result?.attendee_id).toBe(ctx.attendeeId);
-      assert(!result!.payment_reference.includes("pi_cs_processed_123"));
-      expect(result?.processed_at).toMatch(
+      expect(result?.paymentSessionId).toBe("cs_processed_123");
+      expect(result?.attendeeId).toBe(ctx.attendeeId);
+      assert(!result!.paymentReference.includes("pi_cs_processed_123"));
+      expect(result?.processedAt).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
       );
     });
@@ -60,8 +62,8 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       await reserveSession("cs_reserved_123");
 
       const result = await getProcessedPayment("cs_reserved_123");
-      expect(result?.payment_session_id).toBe("cs_reserved_123");
-      expect(result?.attendee_id).toBeNull();
+      expect(result?.paymentSessionId).toBe("cs_reserved_123");
+      expect(result?.attendeeId).toBeNull();
     });
   });
 
@@ -76,7 +78,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const second = await reserveSession("cs_duplicate_reserve");
       expect(second.reserved).toBe(false);
       if (!second.reserved) {
-        expect(second.existing.attendee_id).toBeNull();
+        expect(second.existing.attendeeId).toBeNull();
       }
     });
 
@@ -92,7 +94,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const result = await reserveSession("cs_finalized");
       expect(result.reserved).toBe(false);
       if (!result.reserved) {
-        expect(result.existing.attendee_id).toBe(ctx.attendeeId);
+        expect(result.existing.attendeeId).toBe(ctx.attendeeId);
       }
     });
 
@@ -102,10 +104,10 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         Date.now() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
       await getDb().execute(
-        insert("processed_payments", {
-          attendee_id: null,
-          payment_session_id: "cs_stale_recovery",
-          processed_at: staleTime,
+        insertInto(tables.processed_payments, {
+          attendeeId: null,
+          paymentSessionId: "cs_stale_recovery",
+          processedAt: staleTime,
         }),
       );
 
@@ -115,8 +117,8 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
       // Old stale record is gone, new one exists
       const record = await getProcessedPayment("cs_stale_recovery");
-      expect(record?.attendee_id).toBeNull();
-      expect(new Date(record!.processed_at).getTime()).toBeGreaterThan(
+      expect(record?.attendeeId).toBeNull();
+      expect(new Date(record!.processedAt).getTime()).toBeGreaterThan(
         Date.now() - 5000,
       );
     });
@@ -137,10 +139,10 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         Date.now() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
       await getDb().execute(
-        insert("processed_payments", {
-          attendee_id: null,
-          payment_session_id: sessionId,
-          processed_at: staleTime,
+        insertInto(tables.processed_payments, {
+          attendeeId: null,
+          paymentSessionId: sessionId,
+          processedAt: staleTime,
         }),
       );
       const callerCount = 4;
@@ -180,10 +182,10 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       expect(results.filter((result) => result.reserved)).toHaveLength(1);
       const losers = results.filter((result) => !result.reserved);
       expect(losers).toHaveLength(callerCount - 1);
-      expect(losers.map((result) => result.existing.processed_at)).toEqual(
-        Array(callerCount - 1).fill(stored.processed_at),
+      expect(losers.map((result) => result.existing.processedAt)).toEqual(
+        Array(callerCount - 1).fill(stored.processedAt),
       );
-      expect(stored.processed_at).not.toBe(staleTime);
+      expect(stored.processedAt).not.toBe(staleTime);
       expect(batch.calls).toHaveLength(callerCount);
     });
   });
@@ -199,7 +201,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       );
 
       const record = await getProcessedPayment("cs_to_finalize");
-      expect(record?.attendee_id).toBe(ctx.attendeeId);
+      expect(record?.attendeeId).toBe(ctx.attendeeId);
     });
 
     test("stores ticket tokens encrypted when provided", async () => {
@@ -212,8 +214,8 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       );
 
       const record = await getProcessedPayment("cs_with_tokens");
-      expect(record?.ticket_tokens).toMatch(/^enc:1:/);
-      expect(await decryptSessionTokens(record!.ticket_tokens)).toBe("tok_abc");
+      expect(record?.ticketTokens).toMatch(/^enc:1:/);
+      expect(await decryptSessionTokens(record!.ticketTokens)).toBe("tok_abc");
     });
   });
 
@@ -229,8 +231,8 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       await clearSessionTokens("cs_clear_test");
 
       const record = await getProcessedPayment("cs_clear_test");
-      expect(record?.ticket_tokens).toBe("");
-      expect(record?.attendee_id).toBe(ctx.attendeeId);
+      expect(record?.ticketTokens).toBe("");
+      expect(record?.attendeeId).toBe(ctx.attendeeId);
     });
 
     test("is a no-op when tokens are already empty", async () => {
@@ -244,8 +246,8 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       await clearSessionTokens("cs_clear_noop");
 
       const record = await getProcessedPayment("cs_clear_noop");
-      expect(record?.ticket_tokens).toBe("");
-      expect(record?.attendee_id).toBe(ctx.attendeeId);
+      expect(record?.ticketTokens).toBe("");
+      expect(record?.attendeeId).toBe(ctx.attendeeId);
     });
   });
 

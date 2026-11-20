@@ -21,11 +21,12 @@ import {
   isNoQuantityLine,
 } from "#routes/admin/attendee-form-model.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { boxNameOfKind } from "#shared/forms/prefixed-name.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import type { Attendee, LogisticsAgent } from "#types";
 
 /** Checkbox field: when "1", each logistics listing carries its own agents. */
-export const SPLIT_AGENTS_FIELD = "split_logistics_agents";
+export const SPLIT_AGENTS_FIELD = "splitLogisticsAgents";
 
 /** The Logistics tab's form id — its save flash targets (and scrolls to) it. */
 export const ATTENDEE_LOGISTICS_FORM_ID = "attendee-logistics-form";
@@ -71,29 +72,19 @@ export type AttendeeLogisticsTabData = {
   others: OtherAttendeeLine[];
 };
 
-/** Suffix for the per-listing (split) field, or "" for the single shared field. */
-const suffix = (listingId?: number): string =>
-  listingId === undefined ? "" : `_${listingId}`;
-
-/** The form field for one logistics control, named per control and listing. */
-const logisticsField =
-  (name: string) =>
-  (listingId?: number): string =>
-    `${name}${suffix(listingId)}`;
-
 /** Start-agent select field name. With a listing id it is the split
  * (per-listing) field. Without one, the single field applies to every
  * listing. */
-export const startAgentField = logisticsField("logistics_start");
+export const startAgentField = boxNameOfKind("logisticsStart");
 
 /** End-agent select field name (see {@link startAgentField}). */
-export const endAgentField = logisticsField("logistics_end");
+export const endAgentField = boxNameOfKind("logisticsEnd");
 
 /** Start-time field name. */
-export const startTimeField = logisticsField("logistics_start_time");
+export const startTimeField = boxNameOfKind("logisticsStartTime");
 
 /** End-time field name. */
-export const endTimeField = logisticsField("logistics_end_time");
+export const endTimeField = boxNameOfKind("logisticsEndTime");
 
 /** A logistics listing the attendee books, with its current assignment. */
 export type LogisticsLine = {
@@ -125,7 +116,7 @@ const deliveredBookedLines = (lines: AttendeeFormLine[]): AttendeeFormLine[] =>
       (line) =>
         !isNoQuantityLine(line) &&
         (isBookedLine(line) || Boolean(line.existingBooking)) &&
-        Boolean(line.listing?.uses_logistics),
+        Boolean(line.listing?.usesLogistics),
     ),
   );
 
@@ -145,12 +136,12 @@ export const parseLogisticsPlan = (
   const perListing = new Map<number, LogisticsAssignment>();
   for (const line of deliveredBookedLines(lines)) {
     const id = line.listingId;
-    const key = split ? id : undefined;
+    const ids = split ? [id] : [];
     perListing.set(id, {
-      endAgentId: valid(form.getString(endAgentField(key))),
-      endTime: form.getString(endTimeField(key)),
-      startAgentId: valid(form.getString(startAgentField(key))),
-      startTime: form.getString(startTimeField(key)),
+      endAgentId: valid(form.getString(endAgentField(...ids))),
+      endTime: form.getString(endTimeField(...ids)),
+      startAgentId: valid(form.getString(startAgentField(...ids))),
+      startTime: form.getString(startTimeField(...ids)),
     });
   }
   return { perListing, split };

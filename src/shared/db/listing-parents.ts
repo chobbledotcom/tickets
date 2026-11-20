@@ -12,11 +12,12 @@
  */
 
 import { queryIdColumn, resultRows, type TxScope } from "#db/client.ts";
-import { idListStatement } from "#db/id-list-statement.ts";
 import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import {
   firstProblem,
@@ -41,9 +42,9 @@ import type { ListingWithCount } from "#types";
  * so one read answers "who are my children" and "whose child am I" together —
  * the discovery, feed, and listing-save paths ask for both. */
 const listingEdges = selfLinkTableSides(
-  "listing_parents",
-  "parent_listing_id",
-  "child_listing_id",
+  tables.listing_parents,
+  "parentListingId",
+  "childListingId",
 );
 
 /** A parent's chooseable children, keyed by parent id (relationship only):
@@ -113,23 +114,19 @@ export const listingIdsWithLinks = (
  * set for empty input (no query). An optional transaction reads the same rows
  * through it, so a would-be reachability guard inside a write transaction sees
  * that transaction's own earlier writes. */
-const nonStandaloneChildStatement = idListStatement(
-  (ids) => `SELECT DISTINCT listingParent.child_listing_id AS id
-          FROM listing_parents AS listingParent
-          JOIN listings AS listing ON listing.id = listingParent.child_listing_id
-         WHERE listingParent.child_listing_id IN (${ids})
-           AND listing.bookable_alone = 0`,
-);
-
 export const getNonStandaloneChildIds = async (
   ids: readonly number[],
   tx?: TxScope,
 ): Promise<Set<number>> => {
   if (ids.length === 0) return new Set();
-  const statement = nonStandaloneChildStatement(ids);
+  const statement = sql`SELECT DISTINCT listingParent.child_listing_id AS id
+          FROM listing_parents AS listingParent
+          JOIN listings AS listing ON listing.id = listingParent.child_listing_id
+         WHERE listingParent.child_listing_id IN (${sqlList(ids)})
+           AND listing.bookable_alone = 0`;
   const idRows =
     tx === undefined
-      ? await queryIdColumn(statement.sql, statement.args)
+      ? await queryIdColumn(statement)
       : resultRows<{ id: number }>(await tx.execute(statement)).map(
           (row) => row.id,
         );
@@ -199,16 +196,23 @@ export const hydrateListingLinks = async (
   };
 };
 
+/** The child ids by parent and the parent ids by child of these listings, as
+ *  named maps, so a caller cannot swap them. The two sides share one read. */
+export const linkIdsOf = async (keyIds: readonly number[]) => {
+  const [childIdsByParent, parentIdsByChild] = await Promise.all([
+    listingChildren.getIdsByKeys(keyIds),
+    listingParents.getIdsByKeys(keyIds),
+  ]);
+  return { childIdsByParent, parentIdsByChild };
+};
+
 /** Load both directions and return named maps, so a caller cannot swap parent
  * and child results. The two sides share one read (see `selfLinkTableSides`),
  * so this costs one round trip for the edges plus one for the linked rows. */
 export const loadParentAndChildLinks = async (
   keyIds: readonly number[],
 ): Promise<ParentAndChildLinkMaps> => {
-  const [childIdsByParent, parentIdsByChild] = await Promise.all([
-    listingChildren.getIdsByKeys(keyIds),
-    listingParents.getIdsByKeys(keyIds),
-  ]);
+  const { childIdsByParent, parentIdsByChild } = await linkIdsOf(keyIds);
   const byId = await listingsByIdFor([childIdsByParent, parentIdsByChild]);
   return {
     childIdsByParent,

@@ -1,5 +1,12 @@
 import { enabledFeaturesAreValidSql } from "#db/admin-feature-sql.ts";
 import {
+  type SqlStatement,
+  sql,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
+import {
   type AdminFeatureKey,
   parseEnabledFeatures,
   serializeEnabledFeatures,
@@ -13,95 +20,76 @@ type FeatureWriteSourceBase = {
   feature: AdminFeatureKey;
   name: string;
   table: string;
-  when?: string;
+  when?: SqlStatement;
 };
 
 type FeatureWriteSource = FeatureWriteSourceBase &
   ({ event: "INSERT" } | { columns: readonly string[]; event: "UPDATE" });
 
-const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
+/** Any saved row of `table` puts `feature` in use: a new row, or an edit of
+ * one of `columns`. */
+const recordSources = (
+  feature: AdminFeatureKey,
+  table: string,
+  columns: readonly string[],
+): FeatureWriteSource[] => [
   {
     event: "INSERT",
-    feature: "attributes",
-    name: "trg_admin_feature_attributes_insert",
-    table: "attributes",
+    feature,
+    name: `trg_admin_feature_${table}_insert`,
+    table,
   },
   {
-    columns: ["name", "sort_order"],
+    columns,
     event: "UPDATE",
-    feature: "attributes",
-    name: "trg_admin_feature_attributes_update",
-    table: "attributes",
+    feature,
+    name: `trg_admin_feature_${table}_update`,
+    table,
   },
-  {
-    event: "INSERT",
-    feature: "questions",
-    name: "trg_admin_feature_questions_insert",
-    table: "questions",
-  },
-  {
-    columns: ["text", "sort_order", "display_type", "assign_all"],
-    event: "UPDATE",
-    feature: "questions",
-    name: "trg_admin_feature_questions_update",
-    table: "questions",
-  },
-  {
-    event: "INSERT",
-    feature: "modifiers",
-    name: "trg_admin_feature_modifiers_insert",
-    table: "modifiers",
-  },
-  {
-    columns: [
-      "name",
-      "calc_kind",
-      "calc_value",
-      "direction",
-      "active",
-      "trigger",
-      "code",
-      "code_index",
-      "scope",
-      "stock",
-      "max_per_order",
-      "min_subtotal",
-      "min_visits",
-    ],
-    event: "UPDATE",
-    feature: "modifiers",
-    name: "trg_admin_feature_modifiers_update",
-    table: "modifiers",
-  },
-  {
-    event: "INSERT",
-    feature: "logistics",
-    name: "trg_admin_feature_logistics_agents_insert",
-    table: "logistics_agents",
-  },
-  {
-    columns: ["name"],
-    event: "UPDATE",
-    feature: "logistics",
-    name: "trg_admin_feature_logistics_agents_update",
-    table: "logistics_agents",
-  },
-  {
-    columns: ["uses_logistics"],
-    event: "INSERT",
-    feature: "logistics",
-    name: "trg_admin_feature_logistics_listings_insert",
+];
+
+/** A listing saved with `column` set puts `feature` in use, on create and on
+ * edit. */
+const listingColumnSources = (
+  feature: AdminFeatureKey,
+  column: string,
+  inUse: SqlStatement,
+): FeatureWriteSource[] =>
+  (["INSERT", "UPDATE"] as const).map((event) => ({
+    columns: [column],
+    event,
+    feature,
+    name: `trg_admin_feature_${feature}_listings_${event.toLowerCase()}`,
     table: "listings",
-    when: "NEW.uses_logistics = 1",
-  },
-  {
-    columns: ["uses_logistics"],
-    event: "UPDATE",
-    feature: "logistics",
-    name: "trg_admin_feature_logistics_listings_update",
-    table: "listings",
-    when: "NEW.uses_logistics = 1",
-  },
+    when: sql`NEW.${sqlName(column)} ${inUse}`,
+  }));
+
+/** The sources that the 2026-07-15 migration made triggers for. */
+const FIRST_SOURCES: FeatureWriteSource[] = [
+  ...recordSources("attributes", "attributes", ["name", "sort_order"]),
+  ...recordSources("questions", "questions", [
+    "text",
+    "sort_order",
+    "display_type",
+    "assign_all",
+  ]),
+  ...recordSources("modifiers", "modifiers", [
+    "name",
+    "calc_kind",
+    "calc_value",
+    "direction",
+    "active",
+    "trigger",
+    "code",
+    "code_index",
+    "scope",
+    "stock",
+    "max_per_order",
+    "min_subtotal",
+    "min_visits",
+  ]),
+  ...recordSources("logistics", "logistics_agents", ["name"]),
+  ...listingColumnSources("logistics", "uses_logistics", sql`= 1`),
   {
     event: "INSERT",
     feature: "apiKeys",
@@ -114,7 +102,7 @@ const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
     feature: "servicing",
     name: "trg_admin_feature_servicing_insert",
     table: "attendees",
-    when: "NEW.kind = 'servicing'",
+    when: sql`NEW.kind = 'servicing'`,
   },
   {
     columns: ["kind", "pii_blob"],
@@ -122,37 +110,47 @@ const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
     feature: "servicing",
     name: "trg_admin_feature_servicing_update",
     table: "attendees",
-    when: "NEW.kind = 'servicing'",
+    when: sql`NEW.kind = 'servicing'`,
   },
 ];
+
+/** These read listing columns that the 2026-11-10 migration adds, so that
+ * migration owns their triggers. */
+const SUBSCRIPTION_SOURCES = listingColumnSources(
+  "subscriptions",
+  "recurring_price",
+  sql`> 0`,
+);
+
+const FEATURE_WRITE_SOURCES = [...FIRST_SOURCES, ...SUBSCRIPTION_SOURCES];
 
 const initialFeaturesFor = (feature: AdminFeatureKey): string =>
   serializeEnabledFeatures(
     setFeatureEnabled(parseEnabledFeatures(""), feature, true),
   );
 
-const triggerEvent = (source: FeatureWriteSource): string =>
+const triggerEvent = (source: FeatureWriteSource): SqlStatement =>
   source.event === "UPDATE"
-    ? `AFTER UPDATE OF ${source.columns.join(", ")}`
-    : "AFTER INSERT";
+    ? sql`AFTER UPDATE OF ${sqlNames(source.columns)}`
+    : sql`AFTER INSERT`;
 
 const featureWriteTrigger = (source: FeatureWriteSource): Trigger => ({
   name: source.name,
-  sql: `CREATE TRIGGER IF NOT EXISTS ${source.name}
-${triggerEvent(source)} ON ${source.table}
-FOR EACH ROW${source.when ? `\nWHEN ${source.when}` : ""}
+  sql: sql`CREATE TRIGGER IF NOT EXISTS ${sqlName(source.name)}
+${triggerEvent(source)} ON ${sqlName(source.table)}
+FOR EACH ROW${source.when ? sql`\nWHEN ${source.when}` : sql``}
 BEGIN
   SELECT CASE WHEN EXISTS (
     SELECT 1 FROM settings
-    WHERE key = '${CONFIG_KEYS.ENABLED_FEATURES}'
-      AND NOT (${enabledFeaturesAreValidSql("value")})
+    WHERE key = ${sqlLiteral(CONFIG_KEYS.ENABLED_FEATURES)}
+      AND NOT (${enabledFeaturesAreValidSql(sql`value`)})
   ) THEN RAISE(ABORT, 'enabled feature setting is invalid') END;
   INSERT INTO settings (key, value)
-  VALUES ('${CONFIG_KEYS.ENABLED_FEATURES}', '${initialFeaturesFor(source.feature)}')
+  VALUES (${sqlLiteral(CONFIG_KEYS.ENABLED_FEATURES)}, ${sqlLiteral(initialFeaturesFor(source.feature))})
   ON CONFLICT(key) DO UPDATE SET
-    value = json_set(value, '$.${source.feature}', json('true'));
+    value = json_set(value, ${sqlLiteral(`$.${source.feature}`)}, json('true'));
   INSERT INTO settings (key, value)
-  VALUES ('${CONFIG_KEYS.SETTINGS_VERSION}', '1')
+  VALUES (${sqlLiteral(CONFIG_KEYS.SETTINGS_VERSION)}, '1')
   ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1;
 END`,
   table: source.table,
@@ -165,6 +163,9 @@ END`,
 export const ADMIN_FEATURE_TRIGGERS =
   FEATURE_WRITE_SOURCES.map(featureWriteTrigger);
 
-export const ADMIN_FEATURE_TRIGGER_NAMES = ADMIN_FEATURE_TRIGGERS.map(
-  ({ name }) => name,
-);
+const namesOf = (sources: FeatureWriteSource[]): string[] =>
+  sources.map(({ name }) => name);
+
+export const FIRST_FEATURE_TRIGGER_NAMES = namesOf(FIRST_SOURCES);
+
+export const SUBSCRIPTION_TRIGGER_NAMES = namesOf(SUBSCRIPTION_SOURCES);

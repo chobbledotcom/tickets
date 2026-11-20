@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { invalidateUsersCache } from "#db/users.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertPublicHtml, expectIncludesAll } from "#test-utils/assertions.ts";
@@ -47,15 +48,15 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("setup page", () => {
     test("setup includes admin_username field", async () => {
       const { getDb: getDbFn } = await import("#db/client.ts");
-      await getDbFn().execute("DELETE FROM settings");
-      await getDbFn().execute("DELETE FROM users");
+      await getDbFn().execute(sql`DELETE FROM settings`);
+      await getDbFn().execute(sql`DELETE FROM users`);
       const { settings: s } = await import("#db/settings.ts");
       s.setup.clearCache();
       s.invalidateCache();
       invalidateUsersCache();
 
-      const html = await assertPublicHtml("/setup/", "admin_username");
-      const input = html.match(/<input[^>]*name="admin_username"[^>]*>/)?.[0];
+      const html = await assertPublicHtml("/setup/", "adminUsername");
+      const input = html.match(/<input[^>]*name="adminUsername"[^>]*>/)?.[0];
       assert(input, "the setup page renders the admin_username input");
       // The browser must refuse an invalid username before anything is sent.
       expectIncludesAll(input, [
@@ -70,7 +71,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("users template rendering", () => {
     test("shows Invited status for user without password", async () => {
       await adminFormPost("/admin/users", {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "invited-only",
       });
 
@@ -81,17 +82,16 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("shows Invite Expired status for expired invite", async () => {
       await adminFormPost("/admin/users", {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "expired-display",
       });
 
       const expiredExpiry = await encrypt(
         new Date(Date.now() - 1000).toISOString(),
       );
-      await getDb().execute({
-        args: [expiredExpiry],
-        sql: "UPDATE users SET invite_expiry = ? WHERE id = 2",
-      });
+      await getDb().execute(
+        sql`UPDATE users SET invite_expiry = ${expiredExpiry} WHERE id = 2`,
+      );
       invalidateUsersCache();
 
       const response = await adminGet("/admin/users");
@@ -136,7 +136,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("audit logging", () => {
     test("logs activity when user is invited", async () => {
       await adminFormPost("/admin/users", {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "auditinvite",
       });
 
@@ -150,12 +150,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("logs activity when user is deleted", async () => {
       await adminFormPost("/admin/users", {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "auditdelete",
       });
 
       await adminFormPost("/admin/users/2/delete", {
-        confirm_identifier: "auditdelete",
+        confirmIdentifier: "auditdelete",
       });
 
       const logs = await getAllActivityLog();

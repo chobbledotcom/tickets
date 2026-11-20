@@ -1,11 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getAllModifiers } from "#db/modifiers.ts";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
 import { MAX_PERCENT_CHARGE } from "#shared/price-modifier.ts";
+import { modifierRecord } from "#shared/records/modifiers.ts";
 import {
-  expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
   followRedirectWithFlash,
@@ -23,7 +24,13 @@ import {
   storedFeatureEnabled,
   withFeatureWriteFailure,
 } from "#test-utils/settings.ts";
-import { createData, lastModifier } from "./helpers.ts";
+import {
+  createAcceptanceTests,
+  createData,
+  createRefusalTests,
+  expectCreated,
+  lastModifier,
+} from "./helpers.ts";
 
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
   describe("GET /admin/modifiers", () => {
@@ -62,19 +69,11 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
   describe("POST /admin/modifiers", () => {
     test("creates a percentage discount modifier", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData(),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers",
-        "Modifier created",
-        true,
-      )(response);
+      await expectCreated(createData());
       const modifier = await lastModifier();
       expect(modifier.name).toBe("Early bird");
-      expect(modifier.calc_kind).toBe("percent");
-      expect(modifier.calc_value).toBe(10);
+      expect(modifier.calcKind).toBe("percent");
+      expect(modifier.calcValue).toBe(10);
       expect(modifier.direction).toBe("discount");
       expect(await storedFeatureEnabled("modifiers")).toBe(true);
     });
@@ -89,11 +88,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(await getAllModifiers()).toEqual([]);
     });
 
-    test("creates an active modifier when the toggle is checked", async () => {
-      await adminFormPost("/admin/modifiers", createData());
-      expect((await lastModifier()).active).toBe(true);
-    });
-
     test("creates an inactive modifier when the toggle is cleared", async () => {
       const data = createData();
       // Omitting `active` mirrors an unchecked checkbox.
@@ -102,246 +96,175 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect((await lastModifier()).active).toBe(false);
     });
 
-    test("creates a fixed charge modifier", async () => {
-      await adminFormPost(
-        "/admin/modifiers",
-        createData({
-          calc_kind: "fixed",
-          calc_value: "5",
+    createAcceptanceTests([
+      [
+        "creates an active modifier when the toggle is checked",
+        {},
+        { active: true },
+      ],
+      [
+        "creates a fixed charge modifier",
+        {
+          calcKind: "fixed",
+          calcValue: "5",
           direction: "charge",
           name: "Booking surcharge",
-        }),
-      );
-      const modifier = await lastModifier();
-      expect(modifier.calc_kind).toBe("fixed");
-      expect(modifier.calc_value).toBe(5);
-      expect(modifier.direction).toBe("charge");
-    });
+        },
+        { calcKind: "fixed", calcValue: 5, direction: "charge" },
+      ],
+      [
+        "accepts a fixed amount at the currency's precision",
+        { calcKind: "fixed", calcValue: "5.50" },
+        { calcValue: 5.5 },
+      ],
+    ]);
 
-    test("accepts a fixed amount at the currency's precision", async () => {
-      await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_kind: "fixed", calc_value: "5.50" }),
-      );
-      expect((await lastModifier()).calc_value).toBe(5.5);
-    });
+    createAcceptanceTests([
+      [
+        "stores the minimum order in minor units",
+        { minSubtotal: "50" },
+        { minSubtotal: toMinorUnits(50) },
+      ],
+      ["defaults the minimum order to zero when blank", {}, { minSubtotal: 0 }],
+    ]);
 
-    test("rejects a fixed amount with too many decimals for the currency", async () => {
-      // A fixed amount is a currency value (major units, converted at resolve).
-      // 10.005 has 3 decimals — invalid in GBP (2) — so it's rejected rather
-      // than silently rounded when the modifier is applied. A percentage or
-      // multiplier keeps its precision, so this only guards the fixed kind.
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_kind: "fixed", calc_value: "10.005" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Amount has more decimal places than your currency allows",
-        false,
-      )(response);
-    });
-
-    test("stores the minimum order in minor units", async () => {
-      await adminFormPost(
-        "/admin/modifiers",
-        createData({ min_subtotal: "50" }),
-      );
-      expect((await lastModifier()).min_subtotal).toBe(toMinorUnits(50));
-    });
-
-    test("defaults the minimum order to zero when blank", async () => {
-      await adminFormPost("/admin/modifiers", createData());
-      expect((await lastModifier()).min_subtotal).toBe(0);
-    });
-
-    test("rejects a negative minimum order", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ min_subtotal: "-5" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Minimum order must be a valid amount for your currency",
-        false,
-      )(response);
-    });
-
-    test("rejects a minimum order with too many decimals for the currency", async () => {
-      // 10.005 has 3 decimals — invalid in GBP (2). Without validation this
-      // would be rounded by toMinorUnits at save; instead it's rejected.
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ min_subtotal: "10.005" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Minimum order must be a valid amount for your currency",
-        false,
-      )(response);
-    });
-
-    test("stores a stock limit", async () => {
-      await adminFormPost("/admin/modifiers", createData({ stock: "5" }));
-      expect((await lastModifier()).stock).toBe(5);
-    });
-
-    test("defaults stock to unlimited (null) when blank", async () => {
-      await adminFormPost("/admin/modifiers", createData());
-      expect((await lastModifier()).stock).toBeNull();
-    });
-
-    test("stores the max times per order on a question-answer modifier", async () => {
-      await adminFormPost(
-        "/admin/modifiers",
-        createData({
-          calc_kind: "fixed",
-          calc_value: "10",
+    createAcceptanceTests([
+      ["stores a stock limit", { stock: "5" }, { stock: 5 }],
+      ["defaults stock to unlimited (null) when blank", {}, { stock: null }],
+      [
+        "stores the max times per order on a question-answer modifier",
+        {
+          calcKind: "fixed",
+          calcValue: "10",
           direction: "charge",
-          max_per_order: "2",
+          maxPerOrder: "2",
           name: "Zone 2 delivery",
           trigger: "answer",
-        }),
-      );
-      expect((await lastModifier()).max_per_order).toBe(2);
-    });
+        },
+        { maxPerOrder: 2 },
+      ],
+    ]);
 
-    test("drops the max times per order for other triggers", async () => {
-      await adminFormPost(
-        "/admin/modifiers",
-        createData({ max_per_order: "1" }),
-      );
-      expect((await lastModifier()).max_per_order).toBeNull();
-    });
+    createAcceptanceTests([
+      [
+        "drops the max times per order for other triggers",
+        { maxPerOrder: "1" },
+        { maxPerOrder: null },
+      ],
+      [
+        "accepts the max times per order at its declared minimum",
+        { maxPerOrder: "1", trigger: "answer" },
+        { maxPerOrder: 1 },
+      ],
+    ]);
 
-    test("rejects a max times per order below 1", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ max_per_order: "0", trigger: "answer" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
+    createRefusalTests([
+      [
+        "rejects a fixed amount with too many decimals for the currency",
+        { calcKind: "fixed", calcValue: "10.005" },
+        "Amount has more decimal places than your currency allows",
+      ],
+      [
+        "rejects a negative minimum order",
+        { minSubtotal: "-5" },
+        "Minimum order must be a valid amount for your currency",
+      ],
+      [
+        "rejects a minimum order with too many decimals for the currency",
+        { minSubtotal: "10.005" },
+        "Minimum order must be a valid amount for your currency",
+      ],
+    ]);
+
+    createRefusalTests([
+      [
+        "rejects a max times per order below 1",
+        { maxPerOrder: "0", trigger: "answer" },
         "Max times per order (optional) must be 1 or greater",
-        false,
-      )(response);
-    });
-
-    test("accepts the max times per order at its declared minimum", async () => {
-      await adminFormPost(
-        "/admin/modifiers",
-        createData({ max_per_order: "1", trigger: "answer" }),
-      );
-      expect((await lastModifier()).max_per_order).toBe(1);
-    });
-
-    test("rejects a fractional max times per order", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ max_per_order: "1.5", trigger: "answer" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
+      ],
+      [
+        "rejects a fractional max times per order",
+        { maxPerOrder: "1.5", trigger: "answer" },
         "Max times per order (optional) must be a whole number",
-        false,
-      )(response);
-    });
+      ],
+    ]);
 
-    test("rejects a non-numeric value", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_value: "abc" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
+    createRefusalTests([
+      [
+        "rejects a non-numeric value",
+        { calcValue: "abc" },
         "Enter a valid number",
-        false,
-      )(response);
-    });
-
-    test("rejects a percentage above 100", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_value: "150" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
+      ],
+      [
+        "rejects a percentage above 100",
+        { calcValue: "150" },
         "Percentage must be greater than 0 and at most 100",
-        false,
-      )(response);
-    });
+      ],
+      [
+        "rejects a percentage charge with trailing junk",
+        { calcValue: "150abc", direction: "charge" },
+        "Enter a valid number",
+      ],
+    ]);
+
+    createRefusalTests([
+      [
+        "rejects a percentage charge above the safe limit",
+        { calcValue: String(MAX_PERCENT_CHARGE + 1), direction: "charge" },
+        "Percentage must be greater than 0 and at most 10,000",
+      ],
+      [
+        "rejects a zero percentage discount",
+        { calcValue: "0" },
+        "Percentage must be greater than 0 and at most 100",
+      ],
+    ]);
+
+    createRefusalTests([
+      [
+        "rejects a zero percentage charge",
+        { calcValue: "0", direction: "charge" },
+        "Percentage must be greater than 0",
+      ],
+      [
+        "rejects a non-positive multiplier",
+        { calcKind: "multiply", calcValue: "0" },
+        "Multiplier must be greater than 0",
+      ],
+      [
+        "rejects a non-positive fixed amount",
+        { calcKind: "fixed", calcValue: "0" },
+        "Amount must be greater than 0",
+      ],
+    ]);
+
+    createRefusalTests([
+      [
+        "rejects an unknown modifier type",
+        { calcKind: "bogus" },
+        "Invalid modifier type",
+      ],
+      [
+        "rejects an unknown direction",
+        { direction: "sideways" },
+        "Invalid direction",
+      ],
+    ]);
 
     test("creates a percentage charge above 100", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_value: "150", direction: "charge" }),
+      await expectCreated(
+        createData({ calcValue: "150", direction: "charge" }),
       );
-      await expectFlashRedirect(
-        "/admin/modifiers",
-        "Modifier created",
-        true,
-      )(response);
       const modifier = await lastModifier();
-      expect(modifier.calc_value).toBe(150);
-      expect(modifier.direction).toBe("charge");
-    });
-
-    test("rejects a percentage charge with trailing junk", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_value: "150abc", direction: "charge" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Enter a valid number",
-        false,
-      )(response);
-    });
-
-    test("rejects a percentage charge above the safe limit", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({
-          calc_value: String(MAX_PERCENT_CHARGE + 1),
-          direction: "charge",
-        }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Percentage must be greater than 0 and at most 10,000",
-        false,
-      )(response);
-    });
-
-    test("rejects a zero percentage discount", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_value: "0" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Percentage must be greater than 0 and at most 100",
-        false,
-      )(response);
-    });
-
-    test("rejects a zero percentage charge", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_value: "0", direction: "charge" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Percentage must be greater than 0",
-        false,
-      )(response);
+      expect([modifier.calcValue, modifier.direction]).toEqual([150, "charge"]);
     });
 
     test("re-renders the create form with the validation error", async () => {
       const { cookie, response } = await adminFormPost(
         "/admin/modifiers",
         createData({
-          calc_kind: "fixed",
-          calc_value: "0",
+          calcKind: "fixed",
+          calcValue: "0",
           direction: "charge",
         }),
       );
@@ -352,53 +275,59 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       await expectHtmlResponse(page, 200, "Amount must be greater than 0");
     });
+  });
 
-    test("rejects a non-positive multiplier", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_kind: "multiply", calc_value: "0" }),
+  describe("POST /admin/modifiers/:id/edit", () => {
+    /** Seed one modifier and answer the edit payload that names it. */
+    const seedEdit = async (name: string) => {
+      await adminFormPost("/admin/modifiers", createData({ name }));
+      const { id } = await lastModifier();
+      return {
+        edit: createData({
+          calcKind: "fixed",
+          calcValue: "5",
+          direction: "charge",
+          name: `${name} renamed`,
+          scope: "listings",
+          trigger: "automatic",
+        }),
+        id,
+      };
+    };
+
+    test("answers 404 when the row vanished before the save commits", async () => {
+      const { edit, id } = await seedEdit("Vanishing");
+      using _update = stub(modifierRecord, "update", () =>
+        Promise.resolve({ kind: "not-found" as const }),
       );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Multiplier must be greater than 0",
-        false,
-      )(response);
+
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${id}/edit`,
+        edit,
+      );
+
+      expectStatus(404)(response);
     });
 
-    test("rejects a non-positive fixed amount", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_kind: "fixed", calc_value: "0" }),
+    test("re-renders the edit page with the record's refusal", async () => {
+      const { edit, id } = await seedEdit("Refused");
+      using _update = stub(modifierRecord, "update", () =>
+        Promise.resolve({
+          kind: "refused" as const,
+          message: "The stored modifier refused this save",
+        }),
       );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Amount must be greater than 0",
-        false,
-      )(response);
-    });
 
-    test("rejects an unknown modifier type", async () => {
       const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ calc_kind: "bogus" }),
+        `/admin/modifiers/${id}/edit`,
+        edit,
       );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Invalid modifier type",
-        false,
-      )(response);
-    });
 
-    test("rejects an unknown direction", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ direction: "sideways" }),
+      await expectHtmlResponse(
+        response,
+        400,
+        "The stored modifier refused this save",
       );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
-        "Invalid direction",
-        false,
-      )(response);
     });
   });
 });

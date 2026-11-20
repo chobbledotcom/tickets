@@ -125,9 +125,9 @@ describe("payment provider registry", () => {
           ]),
         ),
       ).toEqual({
-        square: "square_access_token",
-        stripe: "stripe_secret_key",
-        sumup: "sumup_api_key",
+        square: "squareAccessToken",
+        stripe: "stripeSecretKey",
+        sumup: "sumupApiKey",
       });
     });
 
@@ -194,7 +194,7 @@ describe("payment provider registry", () => {
       for (const id of PAYMENT_PROVIDER_IDS) {
         const webhook = providerWebhook(id);
         if (webhook === null) continue;
-        expect(messages[webhook.domainChangeFixKey]).toBeTruthy();
+        expect(messages[webhook.domainChangeFixKey]).toMatch(/\S/);
       }
     });
   });

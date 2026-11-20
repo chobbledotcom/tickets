@@ -5,10 +5,11 @@ import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { getDb } from "#db/client.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
+import type { TransferInput } from "#shared/ledger/types.ts";
 import { bookingKey, itemBookingKey } from "#shared/merge/attendee-merge.ts";
 import type { AttendeeMergeDiffBookingItem } from "#shared/merge/attendee-merge-types.ts";
+import { expectSoleRow } from "#test-utils/assertions/sole-row.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -45,6 +46,54 @@ const diffAfterSourceChoice = async (
 const soleAnswerItem = (diff: Awaited<ReturnType<typeof diffForQuestion>>) => {
   expect(diff.answerItems.length).toBe(1);
   return diff.answerItems[0]!;
+};
+
+/** Post `legs` from the source attendee to the listing's revenue account as
+ *  one event group, then stamp that group on the source's booking row so the
+ *  diff projects the booking's money from the ledger. */
+const postSourceLegs = async (
+  listingId: number,
+  sourceId: number,
+  eventGroup: string,
+  legs: readonly Pick<TransferInput, "amount" | "kind" | "reference">[],
+): Promise<void> => {
+  const attendee = attendeeAccount(sourceId);
+  const revenue = revenueAccount(listingId);
+  await postTransfers(
+    legs.map((leg) => ({
+      ...leg,
+      destination: revenue,
+      eventGroup,
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      source: attendee,
+    })),
+  );
+  await getDb().execute(
+    sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${sourceId} AND listing_id = ${listingId}`,
+  );
+};
+
+/** Post `legs` on the source's own booking, build the diff, and assert the
+ *  lone booking item's conflict class and both sale amounts. */
+const expectSourceLegsDiff = async (args: {
+  conflictClass: AttendeeMergeDiffBookingItem["conflictClass"];
+  eventGroup: string;
+  legs: readonly Pick<TransferInput, "amount" | "kind" | "reference">[];
+  /** Put both attendees on the source's listing, so the booking conflicts. */
+  sameListing?: boolean;
+  sourceSaleAmount: number;
+  targetSaleAmount: number;
+}): Promise<void> => {
+  const { listing2, source, target } = await createMergePair(
+    args.sameListing === undefined ? {} : { sameListing: args.sameListing },
+  );
+  await postSourceLegs(listing2.id, source.id, args.eventGroup, args.legs);
+  const diff = await buildMergeDiff({ source, target });
+  expectSoleRow(diff.bookingItems, {
+    conflictClass: args.conflictClass,
+    sourceSaleAmount: args.sourceSaleAmount,
+    targetSaleAmount: args.targetSaleAmount,
+  });
 };
 
 describeWithEnv("attendee merge service", { db: true }, () => {
@@ -161,10 +210,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildMergeDiff({ source, target });
 
-      // Source has 1 booking that conflicts with target's on the same listing.
-      expect(diff.bookingItems.length).toBe(1);
-      // Both on same listing with same start_at (null) — duplicate
-      expect(diff.bookingItems[0]!.conflictClass).toBe("duplicate");
+      // Source has 1 booking that conflicts with target's on the same listing,
+      // with the same start_at (null) — duplicate.
+      expectSoleRow(diff.bookingItems, { conflictClass: "duplicate" });
     });
 
     test("classifies as moveable when target has no booking at the source's key", async () => {
@@ -175,12 +223,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildMergeDiff({ source, target });
 
-      expect(diff.bookingItems.length).toBe(1);
-      // Source is on a listing the target doesn't have, so it can move.
-      expect(diff.bookingItems[0]!.conflictClass).toBe("moveable");
-      // A moveable booking's diff carries no sale amount (the booking moves
-      // with its own money; only conflicts surface the at-stake amount).
-      expect(diff.bookingItems[0]!.sourceSaleAmount).toBe(0);
+      // Source is on a listing the target doesn't have, so it can move. A
+      // moveable booking's diff carries no sale amount (the booking moves with
+      // its own money; only conflicts surface the at-stake amount).
+      expectSoleRow(diff.bookingItems, {
+        conflictClass: "moveable",
+        sourceSaleAmount: 0,
+      });
     });
 
     test("includes version hash in diff", async () => {
@@ -240,47 +289,23 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // `1`). A single phantom covers all four `&& → ||` mutants because its
       // source/dest both match the filter — every mutant that turns one
       // `&&` into `||` lets it through.
-      const { listing, source, target } = await createMergePair({
-        sameListing: true,
-      });
-      const eventGroup = "evt-phantom-leg";
-      const attendee = attendeeAccount(source.id);
-      const revenue = revenueAccount(listing.id);
-      await postTransfers([
-        {
-          amount: 5000,
-          destination: revenue,
-          eventGroup,
-          kind: KIND.sale,
-          occurredAt: "2026-06-21T00:00:00.000Z",
-          reference: "phantom-sale",
-          source: attendee,
-        },
-        {
-          amount: 1234,
-          destination: revenue,
-          eventGroup,
-          kind: KIND.payment,
-          occurredAt: "2026-06-21T00:00:00.000Z",
-          reference: "phantom-non-sale",
-          source: attendee,
-        },
-      ]);
-      await getDb().execute({
-        args: [eventGroup, source.id, listing.id],
-        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
-      });
-
-      const diff = await buildMergeDiff({ source, target });
-
       // classifyBooking compares tb.price_paid vs sb.price_paid (both
       // ledger-fed), so posting the source's sale leg shifts source's
       // projected price_paid to 5000 while the target's stays 0 — that makes
       // the conflict class `conflicting_metadata`. Either conflict class
       // routes the booking through `bookingSaleAmount` (the moveable branch
       // skips it), so the kill is independent of which one fires.
-      expect(diff.bookingItems[0]!.conflictClass).toBe("conflicting_metadata");
-      expect(diff.bookingItems[0]!.sourceSaleAmount).toBe(5000);
+      await expectSourceLegsDiff({
+        conflictClass: "conflicting_metadata",
+        eventGroup: "evt-phantom-leg",
+        legs: [
+          { amount: 5000, kind: KIND.sale, reference: "phantom-sale" },
+          { amount: 1234, kind: KIND.payment, reference: "phantom-non-sale" },
+        ],
+        sameListing: true,
+        sourceSaleAmount: 5000,
+        targetSaleAmount: 0,
+      });
     });
 
     test("a moveable booking's sale amounts stay 0 even when the source has a posted sale", async () => {
@@ -292,31 +317,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // the moveable booking through `bookingSaleAmount` instead), post a
       // real sale leg onto a MOVEABLE source booking's event group: the diff
       // must STILL report 0 for both amounts.
-      const { listing2, source, target } = await createMergePair();
-      const eventGroup = "evt-moveable-sale";
-      const attendee = attendeeAccount(source.id);
-      const revenue = revenueAccount(listing2.id);
-      await postTransfers([
-        {
-          amount: 5000,
-          destination: revenue,
-          eventGroup,
-          kind: KIND.sale,
-          occurredAt: "2026-06-21T00:00:00.000Z",
-          reference: "moveable-sale",
-          source: attendee,
-        },
-      ]);
-      await getDb().execute({
-        args: [eventGroup, source.id, listing2.id],
-        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+      await expectSourceLegsDiff({
+        conflictClass: "moveable",
+        eventGroup: "evt-moveable-sale",
+        legs: [{ amount: 5000, kind: KIND.sale, reference: "moveable-sale" }],
+        sourceSaleAmount: 0,
+        targetSaleAmount: 0,
       });
-
-      const diff = await buildMergeDiff({ source, target });
-
-      expect(diff.bookingItems[0]!.conflictClass).toBe("moveable");
-      expect(diff.bookingItems[0]!.sourceSaleAmount).toBe(0);
-      expect(diff.bookingItems[0]!.targetSaleAmount).toBe(0);
     });
   });
 
@@ -345,16 +352,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     const { listing, source, target } = await createMergePair({
       sameListing: true,
     });
-    const q = await questionsTable.insert({
-      displayType: "radio",
-      text: "Hidden Q",
-    });
-    const a1 = await answersTable.insert({
-      questionId: q.id,
-      sortOrder: 0,
-      text: "Yes",
-    });
-    await listingQuestions.setIds(listing.id, [q.id]);
+    const {
+      answers: [a1],
+      question: q,
+    } = await createQuestionWithAnswers(listing.id, "Hidden Q", ["Yes"]);
     await saveChoice(source.id, a1.id);
 
     // Pass no questions — question text won't be found.

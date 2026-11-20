@@ -6,10 +6,24 @@
  * (`.card`, `.card-image`, `.card-body`, `.card-name`) lives once.
  */
 
+import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
+import { formatCurrency } from "#shared/currency.ts";
 
 /** The grid both card collections sit in (`.card-grid` in the stylesheet). */
 export const CARD_GRID_CLASS = "card-grid";
+
+/** The price line for a card: the amount, with the "from" prefix when the
+ *  listing lets buyers pay more. Empty when the listing has no price. */
+export const cardPriceHtml = (listing: {
+  unitPrice: number;
+  canPayMore: boolean;
+}): string =>
+  listing.unitPrice > 0
+    ? `<span class="card-price">${
+        listing.canPayMore ? t("availability.from_prefix") : ""
+      }${escapeHtml(formatCurrency(listing.unitPrice))}</span>`
+    : "";
 
 export const cardInner = (parts: {
   imageHtml: string;

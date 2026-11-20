@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -18,7 +19,11 @@ import {
 } from "#test-utils/attendees/merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createMultiBookingAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
+import { createNamedListingPair } from "#test-utils/db-helpers/listing-pair-named.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -52,10 +57,10 @@ const expectMoneyDecisionMerge = async (
   const { response } = await adminFormPost(
     `/admin/attendees/${target.id}/merge`,
     {
-      merge_version: mergeVersion,
-      source_token: source.ticket_token,
-      [`booking_${bookingKey}`]: "skip_source",
-      [`money_${bookingKey}`]: money,
+      mergeVersion,
+      sourceToken: source.ticket_token,
+      [`booking${bookingKey}`]: "skip_source",
+      [`money${bookingKey}`]: money,
     },
   );
   expectFlash(response, expectedFlash, true);
@@ -69,7 +74,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/merge", () => {
     testRequiresAuth("/admin/attendees/1/merge", {
       body: {
-        source_token: "some-token",
+        sourceToken: "some-token",
       },
       method: "POST",
       setup: async () => {
@@ -84,12 +89,12 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
     test("returns 404 for non-existent target attendee", async () => {
       const { response } = await adminFormPost("/admin/attendees/999/merge", {
-        source_token: "some-token",
+        sourceToken: "some-token",
       });
       expect(response.status).toBe(404);
     });
 
-    test("rejects missing source_token", async () => {
+    test("rejects missing sourceToken", async () => {
       const { attendee } = await setupListingAndDirectAttendee({
         listing: { maxAttendees: 10 },
       });
@@ -107,7 +112,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/merge`,
-        { source_token: "nonexistent-token" },
+        { sourceToken: "nonexistent-token" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, "Ticket token not found", false);
@@ -119,7 +124,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/merge`,
-        { source_token: token },
+        { sourceToken: token },
       );
       expect(response.status).toBe(302);
       expectFlash(response, "Cannot merge an attendee with themselves", false);
@@ -159,9 +164,9 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       // Merge the source into the target, keeping the source's email.
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       await adminFormPost(`/admin/attendees/${target.id}/merge`, {
-        merge_version: mergeVersion,
-        pii_email: "source",
-        source_token: sourceToken,
+        mergeVersion,
+        piiEmail: "source",
+        sourceToken,
       });
 
       // The target now carries the shared email, so the sibling lists it; the
@@ -172,14 +177,10 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("merges source listings into target and deletes source", async () => {
-      const listing1 = await createTestListing({
-        maxAttendees: 10,
-        name: "Listing One",
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "Listing Two",
-      });
+      const [listing1, listing2] = await createNamedListingPair(
+        ["Listing One", "Listing Two"],
+        { maxAttendees: 10 },
+      );
 
       const { attendee: target } = await createTestAttendeeDirect(
         listing1.id,
@@ -221,8 +222,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Target should now have both listing links
       const targetListingLinks = await queryAll<{ listing_id: number }>(
-        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
-        [target.id],
+        sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${target.id}`,
       );
       const listingIds = targetListingLinks.map((r) => r.listing_id).sort();
       expect(listingIds).toEqual([listing1.id, listing2.id].sort());
@@ -258,13 +258,13 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          merge_version: mergeVersion,
-          pii_address: "source",
-          pii_email: "source",
-          pii_name: "source",
-          pii_phone: "source",
-          pii_special_instructions: "source",
-          source_token: sourceToken,
+          mergeVersion,
+          piiAddress: "source",
+          piiEmail: "source",
+          piiName: "source",
+          piiPhone: "source",
+          piiSpecialInstructions: "source",
+          sourceToken,
         },
       );
       expect(response.status).toBe(302);
@@ -289,7 +289,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Booking conflict: same listing, same start_at (null) — choose keep_target
       const { response } = await submitMerge(target.id, sourceToken, {
-        [`booking_${listing1.id}:null:0:0`]: "keep_target",
+        [`booking${listing1.id}:null:0:0`]: "keep_target",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
@@ -299,65 +299,51 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Target still has exactly one link to the listing (conflict was skipped)
       const links = await queryAll<{ listing_id: number }>(
-        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
-        [target.id],
+        sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${target.id}`,
       );
       expect(links.length).toBe(1);
       expect(links[0]!.listing_id).toBe(listing1.id);
     });
 
-    test("POST merge credits a discarded paid conflict's money", async () => {
-      await expectMoneyDecisionMerge(
+    for (const [name, money, paymentId, flash, log] of [
+      [
+        "POST merge credits a discarded paid conflict's money",
         "credit",
         "pi_merge_credit",
         "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) credited",
         "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) kept as credit",
-      );
-    });
-
-    test("POST merge writes off a discarded paid conflict's money", async () => {
-      await expectMoneyDecisionMerge(
+      ],
+      [
+        "POST merge writes off a discarded paid conflict's money",
         "writeoff",
         "pi_merge_writeoff",
         "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) written off",
         "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) written off",
-      );
-    });
+      ],
+    ] as const) {
+      test(name, async () => {
+        await expectMoneyDecisionMerge(money, paymentId, flash, log);
+      });
+    }
 
     test('POST merge joins multiple validation errors with "; "', async () => {
-      const listing1 = await createTestListing({
+      const [listing1, listing2] = await createNamedListingPair(["L1", "L2"], {
         maxAttendees: 10,
-        name: "L1",
         unitPrice: 500,
       });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "L2",
-        unitPrice: 500,
-      });
-      const { attendeesApi } = await import("#db/attendees/api.ts");
-      const targetResult = await attendeesApi.createAttendeeAtomic({
-        bookings: [
-          { listingId: listing1.id, quantity: 1 },
-          { listingId: listing2.id, quantity: 1 },
-        ],
-        email: "jane@example.com",
-        name: "Jane Doe",
-      });
-      const target = (
-        targetResult as Extract<typeof targetResult, { success: true }>
-      ).attendees[0]!;
-      const sourceResult = await attendeesApi.createAttendeeAtomic({
-        bookings: [
+      const target = await createMultiBookingAttendee(
+        "Jane Doe",
+        "jane@example.com",
+        [{ listingId: listing1.id }, { listingId: listing2.id }],
+      );
+      const source = await createMultiBookingAttendee(
+        "John Smith",
+        "john@example.com",
+        [
           { listingId: listing1.id, quantity: 3 },
           { listingId: listing2.id, quantity: 3 },
         ],
-        email: "john@example.com",
-        name: "John Smith",
-      });
-      const source = (
-        sourceResult as Extract<typeof sourceResult, { success: true }>
-      ).attendees[0]!;
+      );
       const { postListingSale } = await import("#test-utils/ledger.ts");
       await postListingSale({
         attendeeId: source.id,
@@ -376,7 +362,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
-        { merge_version: mergeVersion, source_token: source.ticket_token },
+        { mergeVersion, sourceToken: source.ticket_token },
       );
       expect(response.status).toBe(302);
       expectFlash(

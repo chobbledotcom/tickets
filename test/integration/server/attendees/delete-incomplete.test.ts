@@ -125,7 +125,7 @@ describeWithEnv(
         // The delete releases the booking by default, so the reserved spot is
         // freed (booked count returns to zero).
         const counted = await getListingWithCount(listing.id);
-        expect(counted?.attendee_count).toBe(0);
+        expect(counted?.attendeeCount).toBe(0);
       });
 
       test("refuses to delete complete attendee via delete-incomplete", async () => {

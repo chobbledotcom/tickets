@@ -12,7 +12,9 @@ import { WORLD, WRITEOFF } from "#accounting/accounts.ts";
 import { eventGroup, legReference } from "#accounting/refs.ts";
 import { selectById } from "#accounting/rows.ts";
 import { postTransfers } from "#accounting/store.ts";
-import { execute, executeUpdate, queryBatch } from "#db/client.ts";
+import { execute, queryBatch } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
+import { deleteFrom, update } from "#db/write.ts";
 import type {
   AccountRef,
   Transfer,
@@ -254,10 +256,11 @@ export const updateManualLedgerEntry = async (
   assertManualLedgerTransfer(transfer);
   const next: TransferInput = { ...transfer, amount, occurredAt };
   assertValidTransfer(next, "invalid transfer update");
-  await executeUpdate(
-    "transfers",
-    { amount, occurred_at: instantToEpochMs(occurredAt) },
-    { id: transfer.id },
+  await execute(
+    update(tables.transfers, {
+      amount,
+      occurredAt: instantToEpochMs(occurredAt),
+    }).where({ id: transfer.id }),
   );
 };
 
@@ -267,5 +270,5 @@ export const deleteManualLedgerEntry = async (
   transfer: Transfer,
 ): Promise<void> => {
   assertManualLedgerTransfer(transfer);
-  await execute("DELETE FROM transfers WHERE id = ?", [transfer.id]);
+  await execute(deleteFrom(tables.transfers).where({ id: transfer.id }));
 };

@@ -186,7 +186,7 @@ describe("CheckboxesFieldset", () => {
   test("renders the none message when there are no options", () => {
     const html = String(
       CheckboxesFieldset({
-        fieldName: "listing_ids",
+        fieldName: "listingIds",
         noneMessage: "Nothing to pick",
         options: [],
         selected: [],
@@ -198,7 +198,7 @@ describe("CheckboxesFieldset", () => {
   test("checks exactly the selected options", () => {
     const html = String(
       CheckboxesFieldset({
-        fieldName: "listing_ids",
+        fieldName: "listingIds",
         noneMessage: "Nothing to pick",
         options: [
           { id: 1, name: "First" },
@@ -209,8 +209,8 @@ describe("CheckboxesFieldset", () => {
     );
     expectIncludesAll(html, [
       '<fieldset class="checkboxes">',
-      '<input name="listing_ids" type="checkbox" value="1"> First',
-      '<input checked name="listing_ids" type="checkbox" value="2"> Second',
+      '<input name="listingIds" type="checkbox" value="1"> First',
+      '<input checked name="listingIds" type="checkbox" value="2"> Second',
     ]);
   });
 });

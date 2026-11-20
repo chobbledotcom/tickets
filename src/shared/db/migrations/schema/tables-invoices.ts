@@ -1,11 +1,12 @@
 /** The invoice table: one frozen rendered invoice per row. */
 
+import { sql } from "#db/sql.ts";
 import { INVOICE_STATUSES } from "#shared/invoices/status.ts";
 import { attendeeIdColumn } from "./columns.ts";
 import { checked, defaulted, oneOf, rowId, text } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import { declaredTables } from "./types.ts";
 
-export const invoiceTables: [name: string, table: Table][] = [
+export const invoiceTables = declaredTables([
   [
     // An invoice belongs to one attendee. The body is the rendered Liquid
     // output, frozen when an operator creates the invoice. It is sealed under
@@ -22,9 +23,9 @@ export const invoiceTables: [name: string, table: Table][] = [
         // free number, and the database keeps it unique.
         ["id", rowId],
         attendeeIdColumn,
-        ["body", checked("body GLOB 'enc:1:?*'")(text)],
+        ["body", checked(sql`body GLOB 'enc:1:?*'`)(text)],
         ["status", oneOf("status", INVOICE_STATUSES)(defaulted(text, "new"))],
-        ["share_token", checked("share_token GLOB 'hyb:1:?*'")(text)],
+        ["share_token", checked(sql`share_token GLOB 'hyb:1:?*'`)(text)],
         ["share_token_index", text],
         ["created", text],
       ],
@@ -45,9 +46,9 @@ export const invoiceTables: [name: string, table: Table][] = [
           columns: ["attendee_id"],
           name: "idx_invoices_open_attendee",
           unique: true,
-          where: "status = 'new'",
+          where: sql`status = 'new'`,
         },
       ],
     },
   ],
-];
+]);

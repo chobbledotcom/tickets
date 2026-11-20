@@ -176,7 +176,7 @@ export const classifyForDiscovery = async (
       Math.max(
         0,
         ...evaluationsFor(parent).map((evaluation) => evaluation.combined),
-      ) >= parent.min_quantity;
+      ) >= parent.minQuantity;
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
   return { addOnChildIds, childIds, nonStandaloneChildIds, soldOutParentIds };

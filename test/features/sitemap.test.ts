@@ -11,9 +11,10 @@ import { executeWithoutCacheInvalidation } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import {
   invalidateListingsCache,
-  listingsTable,
+  updateListing,
 } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { handleSitemapXml } from "#routes/sitemap.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -34,7 +35,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
     // A site before setup has no settings table, so the feature cannot be
     // on. The document answers 404 instead of an error, like robots.txt.
     await enablePublicSite();
-    await executeWithoutCacheInvalidation("DROP TABLE settings", []);
+    await executeWithoutCacheInvalidation(sql`DROP TABLE settings`);
     const response = await handleRequest(mockRequest("/sitemap.xml"));
     expect(response.status).toBe(404);
   });
@@ -218,7 +219,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       // The edit form refuses an unroutable slug, so the listing write goes
       // to the stored row: the malleable-data case the filter exists for.
       const rejected = await createTestListing({ name: "Ampersand Deal" });
-      await listingsTable.update(rejected.id, {
+      await updateListing(rejected.id, {
         ...testListingInput({ name: "Ampersand Deal" }),
         slug: "plans&pricing",
         slugIndex: await hmacHash("plans&pricing"),

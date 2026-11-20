@@ -58,10 +58,10 @@ export const ownerSendsInviteForm: InvitesSomebody = async (
   who,
   role,
 ) => {
-  const browser = await openAdminPage(world, "/admin/user/new");
+  const browser = await openAdminPage(world, "/admin/users/new");
   await fillInAndSend(
     browser,
-    { admin_level: role, username: who },
+    { adminLevel: role, username: who },
     t("users.invite.submit"),
   );
   return browser.pageText;
@@ -111,7 +111,7 @@ export const howManyMaySignIn = async (): Promise<number> =>
 export const acceptStaffInvite = (invite: string): Promise<TestBrowser> =>
   newcomerSends(
     invite,
-    { password: STAFF_PASSWORD, password_confirm: STAFF_PASSWORD },
+    { password: STAFF_PASSWORD, passwordConfirm: STAFF_PASSWORD },
     t("join.set_password.submit"),
   );
 

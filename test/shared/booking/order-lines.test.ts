@@ -19,13 +19,13 @@ const dualPathTree = () =>
         id: 1,
         name: "Bouncy Castle",
         slug: "bounc",
-        unit_price: 500,
+        unitPrice: 500,
       }),
       resolved({
         id: 2,
         name: "Face Painting",
         slug: "facep",
-        unit_price: 300,
+        unitPrice: 300,
       }),
     ],
     packages: [
@@ -184,7 +184,7 @@ describe("buildOrderLines", () => {
       id: 11,
       name: "Wristband",
       slug: "wrist",
-      unit_price: 250,
+      unitPrice: 250,
     });
     expect(
       plainOrderLinePairs(
@@ -221,11 +221,11 @@ describe("buildOrderLines", () => {
     const tree = buildBookingTree({
       listings: [
         resolved({
-          can_pay_more: true,
+          canPayMore: true,
           id: 2,
-          max_price: 100000,
+          maxPrice: 100000,
           slug: "facep",
-          unit_price: 300,
+          unitPrice: 300,
         }),
       ],
       slugs: ["facep"],
@@ -245,8 +245,8 @@ describe("buildOrderLines", () => {
     const tree = buildBookingTree({
       listings: [
         resolved({
-          customisable_days: true,
-          day_prices: { 2: 600 },
+          customisableDays: true,
+          dayPrices: { 2: 600 },
           id: 1,
           slug: "bounc",
         }),
@@ -310,7 +310,7 @@ describe("buildOrderLines", () => {
       id: 9,
       name: "Addon",
       slug: "addon",
-      unit_price: 250,
+      unitPrice: 250,
     });
     const tree = buildBookingTree({
       childrenByParentId: new Map([[1, [child]]]),

@@ -38,6 +38,10 @@ import {
   getPaymentProviderForExistingPayments,
   type WebhookEvent,
 } from "#shared/payments.ts";
+import {
+  recordSubscriptionDelivery,
+  type SubscriptionDelivery,
+} from "#shared/subscriptions/webhook.ts";
 
 const getPaymentProviderOrLog = async (
   code: ErrorCodeType,
@@ -123,6 +127,27 @@ const PLAIN_RESPONSES: Record<
   unreadable: () => plainResponse("Payment verification failed", 503),
   unrecognised: () => webhookAckResponse(),
   unverifiable: () => webhookAckResponse(),
+};
+
+/** The answer a subscription delivery gets. Only a refused Stripe read is
+ * retried: every other outcome leaves nothing owing. */
+const SUBSCRIPTION_RESPONSES: Record<
+  Exclude<SubscriptionDelivery["kind"], "not_a_subscription">,
+  () => Response
+> = {
+  no_live_row: () => webhookAckResponse(),
+  recorded: () => webhookAckResponse({ processed: true }),
+  retry: () => plainResponse("Subscription could not be read", 503),
+};
+
+/** What each subscription answer is called in the debug log. */
+const SUBSCRIPTION_NOTES: Record<
+  Exclude<SubscriptionDelivery["kind"], "not_a_subscription">,
+  string
+> = {
+  no_live_row: "Ignoring a delivery for a subscription with no live row",
+  recorded: "Stored what Stripe reported for a subscription",
+  retry: "Refusing a subscription delivery retryably",
 };
 
 /** Turn what a callback amounted to into the answer the provider gets.
@@ -256,6 +281,14 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   const auth = await authenticateWebhook(request, payload, payloadBytes);
   if (auth instanceof Response) return auth;
   const { provider, listing } = auth;
+
+  // A subscription delivery records what Stripe reports now. Its read is the
+  // only thing that can leave work owing, so only a refused read is retried.
+  const delivery = await recordSubscriptionDelivery(listing);
+  if (delivery.kind !== "not_a_subscription") {
+    logDebug("Webhook", SUBSCRIPTION_NOTES[delivery.kind]);
+    return SUBSCRIPTION_RESPONSES[delivery.kind]();
+  }
 
   // Only handle checkout completed listings
   if (listing.type !== provider.checkoutCompletedEventType) {
