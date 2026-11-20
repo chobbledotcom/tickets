@@ -329,6 +329,7 @@ describeWithEnv(
         // bundler tree-shakes the whole module away with it). A marker must be
         // a literal the module keeps: a value it builds per call survives only
         // as the fixed part of its template.
+        /* jscpd:ignore-start -- static data, not code */
         const moduleMarkers = [
           "[data-select-on-click]",
           "data-nav-select",
@@ -356,6 +357,7 @@ describeWithEnv(
           "duration-warning-confirm",
           "Please select at least one ticket",
         ];
+        /* jscpd:ignore-end */
         const response = await handleRequest(mockRequest("/admin.js"));
         const js = await response.text();
         for (const marker of moduleMarkers) {
