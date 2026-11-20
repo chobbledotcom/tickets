@@ -1,6 +1,7 @@
 import { t } from "#i18n";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { ChosenImage } from "#shared/images/picker.ts";
-import { Icon } from "#templates/components/actions.tsx";
+import { Icon, SaveChangesButton } from "#templates/components/actions.tsx";
 
 /** The Images field on a new physical-product or custom listing. Each chosen
  *  picture travels as a repeated `imageIds` input. The admin bundle's listing
@@ -9,8 +10,10 @@ import { Icon } from "#templates/components/actions.tsx";
  *  renders the same pictures so the form still shows them before the bundle
  *  runs. */
 export const ListingImagesField = ({
+  saveChanges = false,
   selected,
 }: {
+  saveChanges?: boolean;
   selected: readonly ChosenImage[];
 }): JSX.Element => (
   <div
@@ -55,9 +58,31 @@ export const ListingImagesField = ({
         </li>
       ))}
     </ul>
-    <button class="btn" data-listing-images-trigger type="button">
-      <Icon name="plus" />
-      <span>{t("listings_table.choose_images")}</span>
-    </button>
+    <div class="listing-images-actions">
+      <button class="btn" data-listing-images-trigger type="button">
+        <Icon name="plus" />
+        <span>{t("listings_table.choose_images")}</span>
+      </button>
+      {saveChanges && (
+        <span class="listing-images-save">{SaveChangesButton()}</span>
+      )}
+    </div>
   </div>
 );
+
+/** The Images tab on a saved listing: the same field the create form shows,
+ *  with the Save that writes the chosen links. */
+/* jscpd:ignore-start -- the minimum CSRF wrapper; the save must sit in the
+ * field's action row, which the shared SaveForm cannot place. */
+export const ListingImagesPanel = ({
+  action,
+  selected,
+}: {
+  action: string;
+  selected: readonly ChosenImage[];
+}): JSX.Element => (
+  <CsrfForm action={action}>
+    <ListingImagesField saveChanges selected={selected} />
+  </CsrfForm>
+);
+/* jscpd:ignore-end */
