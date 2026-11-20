@@ -49,10 +49,16 @@ describe("screenshot browser options", () => {
   });
 
   test("launches Chromium without the shell's library path", () => {
-    const env = browserLaunchOptions(true).env;
+    const shellPath = Deno.env.get("LD_LIBRARY_PATH");
+    Deno.env.set("LD_LIBRARY_PATH", "/shell/lib");
+    try {
+      const { LD_LIBRARY_PATH: _shellPath, ...expected } = Deno.env.toObject();
 
-    expect(env?.LD_LIBRARY_PATH).toBeUndefined();
-    expect(env?.PATH).toBe(Deno.env.get("PATH"));
+      expect(browserLaunchOptions(true).env).toEqual(expected);
+    } finally {
+      if (shellPath === undefined) Deno.env.delete("LD_LIBRARY_PATH");
+      else Deno.env.set("LD_LIBRARY_PATH", shellPath);
+    }
   });
 
   test("bounds a contract page with strict action and navigation timeouts", () => {
@@ -69,10 +75,7 @@ describe("screenshot browser options", () => {
   });
 
   test("launches Chromium with screenshot-mode headless and CDP fix", async () => {
-    const options = await launchOptions();
-
-    expect(options.env?.LD_LIBRARY_PATH).toBeUndefined();
-    expect(withoutEnvironment(options)).toEqual({
+    expect(withoutEnvironment(await launchOptions())).toEqual({
       args: ["--disable-features=CDPScreenshotNewSurface"],
       executablePath: "/path/to/chromium",
       headless: true,
@@ -84,7 +87,6 @@ describe("screenshot browser options", () => {
       ignoreDefaultArgs: ["--hide-scrollbars"],
     });
 
-    expect(options.env?.LD_LIBRARY_PATH).toBeUndefined();
     expect(withoutEnvironment(options)).toEqual({
       args: ["--disable-features=CDPScreenshotNewSurface"],
       executablePath: "/path/to/chromium",
