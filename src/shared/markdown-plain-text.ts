@@ -7,6 +7,7 @@
 
 import { assert } from "@std/assert";
 import { Lexer, type Token, type Tokens } from "marked";
+import { childTokens, isTableToken, tableCells } from "#shared/markdown.ts";
 
 /** Token types that add no words to a preview. */
 const SILENT_TYPES: ReadonlySet<string> = new Set([
@@ -27,9 +28,6 @@ const joinText = (tokens: readonly Token[], separator: string): string =>
 const isList = (token: Token): token is Tokens.List =>
   token.type === "list" && "items" in token;
 
-const isTable = (token: Token): token is Tokens.Table =>
-  token.type === "table" && "header" in token && "rows" in token;
-
 /** The words of one table cell: the cell's own inline tokens. */
 const cellText = (cell: Tokens.TableCell): string => joinText(cell.tokens, "");
 
@@ -37,11 +35,10 @@ const tokenText = (token: Token): string => {
   if (SILENT_TYPES.has(token.type)) return "";
   if (token.type === "br") return " ";
   if (isList(token)) return joinText(token.items, " ");
-  if (isTable(token)) {
-    return [...token.header, ...token.rows.flat()].map(cellText).join(" ");
-  }
-  if ("tokens" in token && Array.isArray(token.tokens)) {
-    return joinText(token.tokens, BLOCK_TYPES.has(token.type) ? " " : "");
+  if (isTableToken(token)) return tableCells(token).map(cellText).join(" ");
+  const children = childTokens(token);
+  if (children.length > 0) {
+    return joinText(children, BLOCK_TYPES.has(token.type) ? " " : "");
   }
   // Every other token is a leaf that carries its words in `text`. A miss
   // means marked added a token type that this module does not know.
