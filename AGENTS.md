@@ -860,12 +860,13 @@ distinguish it.
 head, before you merge a branch that changes `src/` files. Rerun it only when a
 later commit changes `src/` files.
 
-The runner stops a test batch that outlives the baseline by two orders of
-magnitude. The limit is 100 times the measured baseline, with a floor of 60
-seconds. The limit never drops below the baseline. Otherwise half the run
-deadline caps it. A batch past the limit is a frozen loop, not a verdict: the
-run stops, names the mutant and the limit, and scores nothing. No mutant is
-judged by a clock. A clock can only stop a run that a loop freeze already broke.
+The runner times each test file on its own. A file quicker than 2 seconds
+shares one run with the other quick files, and a slower file gets its own run.
+Each mutant runs the quickest run first and stops at the first failure. The
+limit for each run is three times its baseline time, plus 10 seconds. A run past
+the limit is a frozen loop, not a verdict: the run stops, names the mutant and
+the limit, and scores nothing. No mutant is judged by a clock. A clock can only stop
+a run that a loop freeze already broke.
 
 ### Fast Tests
 

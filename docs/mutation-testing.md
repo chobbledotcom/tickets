@@ -72,6 +72,19 @@ a selected source nor lives in an integration folder or `specs/`. The gate
 demands a 100% kill rate, so the cost stays bounded to the source files you
 actually changed.
 
+## Test plan
+
+The baseline runs every selected test file on its own and times it. A file
+quicker than 2 seconds shares one run with the other quick files. A slower file
+gets a run of its own. Each mutant runs the quickest run first and stops at the
+first failure (`--fail-fast`), so a quick test that catches the bug saves every
+slower run. The order changes only how soon a failing test turns up, never the
+verdict.
+
+The baseline also runs each shared group on the unmutated code. A test that
+fails anyway kills every mutant and proves nothing, so the run stops before the
+sweep starts.
+
 ## Static gates
 
 Before it runs the mapped tests, the runner puts every mutant through two cheap
@@ -85,16 +98,14 @@ killed only when a gate rejects it or a test fails, and survives otherwise. A
 slow type-check or a long queue wait can never be mistaken for a mutant being
 caught. Two clocks exist, and neither one scores a mutant.
 
-The first clock limits each test batch. The runner measures the baseline
-(unmutated) test run, then allows every later batch 100 times that duration,
-with a floor of 60 seconds. The limit never drops below the baseline. Otherwise
-half the run deadline caps it. A batch past the limit is a frozen loop, not a
-verdict: the runner stops, names the mutant, the batch, and the limit, and
-scores nothing. A loop whose step a mutant neutralises is the usual cause, so
-the fix is to bound that loop (see `src/shared/dates.ts`).
+The first clock limits each planned run. The limit for each run is three times
+its baseline time, plus 10 seconds. A run past the limit is a frozen loop, not a
+verdict: the runner stops, names the mutant, the run, and the limit, and scores
+nothing. A loop whose step a mutant neutralises is the usual cause, so the fix
+is to bound that loop (see `src/shared/dates.ts`).
 
 The second clock is `--deadline`, a whole-run guard (default one hour) for a run
-that no per-batch limit stopped: when it fires the run fails with no score and
+that no planned-run limit stopped: when it fires the run fails with no score and
 no summary, printing only how far it got and where to look. It fires the same
 way during the baseline, where nothing is tested yet — a run the guard
 stopped is a failure to report, never an operator's interrupt. Keep the Biome
@@ -110,10 +121,10 @@ does not type-check), or any operator change that violates a parameter/return
 type. Each gate is only trusted after the runner confirms the _unmutated_ target
 passes it (the baseline probe): a standalone `deno task mutation` does not run
 `lint:ci`/`typecheck` first, so if the target is not already clean the run
-aborts loudly rather than scoring a bogus 100%. This means a mutant recorded in
-`equivalent-mutants/` must be one that survives _both_ gates _and_ the tests. A
-mutation that produces a type error never reaches the ignore-list, because the
-type-check gate kills it first.
+aborts loudly rather than scoring a bogus 100%. The equivalent-mutant audit
+checks a recorded entry against both gates and the tests. A mutation that
+produces a type error never reaches the ignore-list, because the type-check gate
+kills it first.
 
 ## Known-equivalent survivors
 
@@ -128,9 +139,9 @@ moment a person last re-derived the written proof. Every run re-hashes the
 files it mutates. An entry whose stamp no longer matches is **unconfirmed**: it
 suppresses nothing, its mutant runs like any other, and the run fails with a
 problem naming it until someone re-derives the proof against the current file
-and stamps the line again, or deletes the entry and writes the test. A run
-whose mutant died says so. A run whose mutant survived reports a real
-survivor.
+and stamps the line again, or deletes the entry and writes the test. A confirmed
+entry is skipped before the static gates and the tests: its proof says no input
+can tell it from the original. The audit with `--tests` is what disproves one.
 
 Use `deno task mutation:audit-equivalents` to check the whole equivalent list
 with lint and type-check only. The audit skips unconfirmed entries (it never
