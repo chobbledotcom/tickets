@@ -63,8 +63,6 @@ const lineAnswer = (listingId: number, questionId: number, text: string) => ({
   text,
 });
 
-const readLineAnswers = readStoredLineAnswers;
-
 const listingLevelQuestion = async () =>
   (await seedListingLevelQuestion()).question;
 
@@ -84,7 +82,7 @@ const savedOnTwoDiscos = async (
   return {
     ...ids,
     attendeeId: attendee.id,
-    read: () => readLineAnswers(attendee.id),
+    read: () => readStoredLineAnswers(attendee.id),
     rows: await storedRows(attendee.id),
   };
 };
@@ -183,7 +181,7 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
     });
     const rows = await storedRows(attendee.id);
     expect(new Set(rows.map((row) => row.booking_row_id)).size).toBe(2);
-    expect(await readLineAnswers(attendee.id)).toEqual([
+    expect(await readStoredLineAnswers(attendee.id)).toEqual([
       lineAnswer(child.id, pupil.id, "Kit"),
     ]);
   });
@@ -209,7 +207,7 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
     )) {
       await execute(statement);
     }
-    expect(await readLineAnswers(attendee.id)).toEqual([
+    expect(await readStoredLineAnswers(attendee.id)).toEqual([
       lineAnswer(disco.id, pupil.id, "Ava"),
     ]);
     expect(await getBookedAnswers(attendee.id, getTestPrivateKey)).toEqual([]);
