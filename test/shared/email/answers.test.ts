@@ -141,6 +141,7 @@ describe("order answer lines from staged question data", () => {
     answers: { id: number; text: string }[],
     opts: { assignAll?: boolean; displayType?: "radio" | "free_text" } = {},
   ) => ({
+    answerLevel: "booking",
     answers: answers.map((a) =>
       testAnswer({ id: a.id, questionId: id, text: a.text }),
     ),
@@ -187,6 +188,7 @@ describe("order answer lines from staged question data", () => {
       [makeEntry({ id: 999 }, { id: 7 })],
       ctx([
         question(11, "Club member?", [{ id: 31, text: "Yes" }], {
+          answerLevel: "booking",
           assignAll: true,
         }),
       ]),

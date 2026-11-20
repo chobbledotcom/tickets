@@ -8,6 +8,7 @@ const freeText = (
   id: number,
   text = `Question ${id}`,
 ): QuestionWithAnswers => ({
+  answerLevel: "booking",
   answers: [],
   assignAll: false,
   displayType: "free_text",
@@ -16,6 +17,7 @@ const freeText = (
 });
 
 const radio = (id: number): QuestionWithAnswers => ({
+  answerLevel: "booking",
   answers: [
     {
       active: true,
@@ -111,6 +113,7 @@ describe("parseQuestionAnswers free-text handling", () => {
 
 describe("parseQuestionAnswers deactivated answers", () => {
   const withInactive = (id: number): QuestionWithAnswers => ({
+    answerLevel: "booking",
     answers: [
       { active: true, id: 10, questionId: id, sortOrder: 0, text: "Active" },
       {
@@ -128,6 +131,7 @@ describe("parseQuestionAnswers deactivated answers", () => {
   });
 
   const allInactive = (id: number): QuestionWithAnswers => ({
+    answerLevel: "booking",
     answers: [
       {
         active: false,

@@ -152,6 +152,7 @@ describe("ticketPage — fields & form", () => {
     ];
     const questions = [
       {
+        answerLevel: "booking",
         answers: [
           {
             active: true,

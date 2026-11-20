@@ -19,6 +19,18 @@ export type QuestionDisplayType = v.InferOutput<
 
 export const isQuestionDisplayType = guardFor(QuestionDisplayTypeSchema);
 
+/** How often a free-text question asks. `booking` asks once for the order.
+ *  `listing` asks once for each booked listing. A choice question always asks
+ *  once for the order, because its answer can change the price. */
+export const QUESTION_ANSWER_LEVELS = ["booking", "listing"] as const;
+export const QuestionAnswerLevelSchema = v.picklist(QUESTION_ANSWER_LEVELS);
+export type QuestionAnswerLevel = v.InferOutput<
+  typeof QuestionAnswerLevelSchema
+>;
+
+export const questionAnswerLevelError =
+  "Ask once per must be booking or listing";
+
 export const questionDisplayTypeError =
   "Display as must be radio buttons, a select box, or free text";
 
@@ -29,9 +41,18 @@ export const requireQuestionDisplayType = (
   throw new Error(questionDisplayTypeError);
 };
 
+export const isQuestionAnswerLevel = guardFor(QuestionAnswerLevelSchema);
+
+export const requireQuestionAnswerLevel = (
+  value: string,
+): QuestionAnswerLevel => {
+  if (isQuestionAnswerLevel(value)) return value;
+  throw new Error(questionAnswerLevelError);
+};
+
 export type Question = Pick<
   DecodedRowOf<"questions">,
-  "assignAll" | "displayType" | "id" | "text"
+  "answerLevel" | "assignAll" | "displayType" | "id" | "text"
 >;
 
 /** An answer option for a question. The public booking form hides an answer

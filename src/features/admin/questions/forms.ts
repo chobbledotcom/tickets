@@ -4,7 +4,9 @@
  */
 
 import {
+  QUESTION_ANSWER_LEVELS,
   QUESTION_DISPLAY_TYPES,
+  questionAnswerLevelError,
   questionDisplayTypeError,
 } from "#db/question-types.ts";
 import { defineForm, defineTextForm } from "#shared/forms/definition.ts";
@@ -37,6 +39,22 @@ export const questionTextForm = defineForm({
               : value === "select"
                 ? "Select box"
                 : "Free text",
+          value,
+        })),
+      ),
+      required: true,
+      type: "select",
+    },
+    {
+      hintHtml:
+        "Only a free-text question can ask once for each listing. You cannot change this after you add the question.",
+      invalidMessage: questionAnswerLevelError,
+      label: "Ask",
+      name: "answerLevel",
+      options: requireChoiceOptions(
+        "Ask",
+        QUESTION_ANSWER_LEVELS.map((value) => ({
+          label: value === "booking" ? "One per booking" : "One per listing",
           value,
         })),
       ),

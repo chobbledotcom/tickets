@@ -187,6 +187,7 @@ export const testRadioQuestion = (
   text: string,
   answers: [number, string][],
 ): QuestionWithAnswers => ({
+  answerLevel: "booking",
   answers: answers.map(([answerId, answerText], sortOrder) => ({
     active: true,
     id: answerId,
@@ -236,6 +237,7 @@ export const testAnswer = (overrides: Partial<Answer> = {}): Answer => ({
 export const testQuestion = (
   overrides: Partial<QuestionWithAnswers> = {},
 ): QuestionWithAnswers => ({
+  answerLevel: "booking",
   answers: [],
   assignAll: false,
   displayType: "radio",

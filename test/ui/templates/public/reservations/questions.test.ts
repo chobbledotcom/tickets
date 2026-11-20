@@ -60,6 +60,7 @@ describe("renderQuestions", () => {
   test("omits a choice question whose answers are all deactivated", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answerLevel: "booking",
         answers: [
           { active: false, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
         ],
@@ -76,6 +77,7 @@ describe("renderQuestions", () => {
   test("omits deactivated answers from the public form", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answerLevel: "booking",
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
           {
@@ -117,6 +119,7 @@ describe("renderQuestions", () => {
   test("renders a free-text input when configured", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answerLevel: "booking",
         answers: [],
         assignAll: false,
         displayType: "free_text" as const,
@@ -144,6 +147,7 @@ describe("renderQuestions", () => {
       setSavedFormData(new FormParams({ question1: "Ada Lovelace" }));
       return renderQuestions([
         {
+          answerLevel: "booking",
           answers: [],
           assignAll: false,
           displayType: "free_text" as const,
@@ -175,6 +179,7 @@ describe("renderQuestions", () => {
   test("escapes HTML in question and answer text", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answerLevel: "booking",
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "S&M" },
         ],
@@ -208,6 +213,7 @@ describe("renderQuestions", () => {
   test("omits data-listing-ids when no map provided", () => {
     const questions: QuestionWithAnswers[] = [
       {
+        answerLevel: "booking",
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "A1" },
         ],
@@ -226,6 +232,7 @@ describe("renderQuestions", () => {
   test("wraps simple question text in a label for free-text questions", () => {
     const html = renderQuestions([
       {
+        answerLevel: "booking",
         answers: [],
         assignAll: false,
         displayType: "free_text" as const,
@@ -241,6 +248,7 @@ describe("renderQuestions", () => {
   test("renders complex markdown as a prose div for free-text questions", () => {
     const html = renderQuestions([
       {
+        answerLevel: "booking",
         answers: [],
         assignAll: false,
         displayType: "free_text" as const,
@@ -268,6 +276,7 @@ describe("renderQuestions", () => {
   test("renders complex markdown as a prose div for select questions", () => {
     const html = renderQuestions([
       {
+        answerLevel: "booking",
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
         ],
@@ -296,6 +305,7 @@ describe("renderQuestions", () => {
   test("renders complex markdown as a prose div for radio questions", () => {
     const html = renderQuestions([
       {
+        answerLevel: "booking",
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
         ],

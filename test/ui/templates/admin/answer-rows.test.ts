@@ -16,6 +16,7 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const questions: QuestionWithAnswers[] = [
   {
+    answerLevel: "booking",
     answers: [
       { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Small" },
       { active: true, id: 11, questionId: 1, sortOrder: 1, text: "Large" },
@@ -26,6 +27,7 @@ const questions: QuestionWithAnswers[] = [
     text: "Shirt size?",
   },
   {
+    answerLevel: "booking",
     answers: [
       { active: true, id: 20, questionId: 2, sortOrder: 0, text: "Vegan" },
     ],
@@ -35,6 +37,7 @@ const questions: QuestionWithAnswers[] = [
     text: "Meal?",
   },
   {
+    answerLevel: "booking",
     answers: [],
     assignAll: false,
     displayType: "free_text",

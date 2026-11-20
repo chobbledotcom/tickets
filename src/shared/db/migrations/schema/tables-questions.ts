@@ -3,7 +3,10 @@
 import { UPDATE_TIERS } from "#db/built-sites/types.ts";
 import { NOTE_ENTITIES } from "#db/notes/target.ts";
 import { SYSTEM_NOTE_TYPES } from "#db/notes/types.ts";
-import { QUESTION_DISPLAY_TYPES } from "#db/question-types.ts";
+import {
+  QUESTION_ANSWER_LEVELS,
+  QUESTION_DISPLAY_TYPES,
+} from "#db/question-types.ts";
 import { sql } from "#db/sql.ts";
 import { attendeeIdColumn, sortOrderColumn } from "./columns.ts";
 import {
@@ -39,6 +42,15 @@ export const questionTables = declaredTables([
           )(defaulted(text, "radio")),
         ],
         ["assign_all", wholeNumberStartingAtZero],
+        // How often a free-text question asks: once for the booking, or once
+        // for each booked listing. Fixed after create.
+        [
+          "answer_level",
+          oneOf(
+            "answer_level",
+            QUESTION_ANSWER_LEVELS,
+          )(defaulted(text, "booking")),
+        ],
       ],
     },
   ],
@@ -243,11 +255,18 @@ export const questionTables = declaredTables([
         ["answer_id", wholeNumberOrNull],
         ["question_id", wholeNumberOrNull],
         ["string_id", wholeNumberOrNull],
+        // The booked listing a per-listing answer belongs to. NULL for an
+        // answer to the whole booking, which is every row before this column.
+        ["listing_attendee_id", wholeNumberOrNull],
       ],
       indexes: [
         {
           columns: ["attendee_id"],
           name: "idx_attendee_answers_attendee_id",
+        },
+        {
+          columns: ["listing_attendee_id"],
+          name: "idx_attendee_answers_listing_attendee_id",
         },
         { columns: ["answer_id"], name: "idx_attendee_answers_answer_id" },
         { columns: ["question_id"], name: "idx_attendee_answers_question_id" },
@@ -257,10 +276,19 @@ export const questionTables = declaredTables([
           name: "idx_attendee_answers_unique",
           unique: true,
         },
+        // One answer to a question for the whole booking, and one answer
+        // to it for each booked listing.
         {
           columns: ["attendee_id", "question_id"],
           name: "idx_attendee_string_answers_unique",
           unique: true,
+          where: sql`listing_attendee_id IS NULL`,
+        },
+        {
+          columns: ["attendee_id", "question_id", "listing_attendee_id"],
+          name: "idx_attendee_listing_answers_unique",
+          unique: true,
+          where: sql`listing_attendee_id IS NOT NULL`,
         },
       ],
     },

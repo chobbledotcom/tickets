@@ -20,6 +20,7 @@ import {
 /** Example question response: the question and its answers in display order,
  *  each answer with its stored selection total. */
 const ADMIN_API_EXAMPLE_QUESTION = {
+  answer_level: "booking",
   answers: [
     {
       active: true,
@@ -45,6 +46,7 @@ const ADMIN_API_EXAMPLE_QUESTION = {
 };
 
 const ADMIN_API_QUESTION_CREATE_BODY = {
+  answer_level: "booking",
   assign_all: false,
   display_type: "radio",
   text: "What is your T-shirt size?",

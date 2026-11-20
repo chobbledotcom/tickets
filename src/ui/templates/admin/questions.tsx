@@ -36,6 +36,7 @@ import { reorderableListPage } from "#templates/components/reorder-list.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
 import type { AdminSession } from "#types";
+import { answerLevelLabel } from "./answer-level.ts";
 import {
   type ListingPanelProps,
   listingChoicePanel,
@@ -99,6 +100,11 @@ export const adminQuestionsPage = (
         ),
         header: t("questions.question_column"),
         key: "question",
+      },
+      {
+        cell: (question) => answerLevelLabel(question.answerLevel),
+        header: t("questions.answer_level_column"),
+        key: "answer-level",
       },
       {
         cell: (question) => question.answers.length,

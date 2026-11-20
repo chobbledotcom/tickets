@@ -13,6 +13,7 @@ import { describeRecord } from "#test-utils/record-labels.ts";
 const LIMIT = 10_240;
 
 const stored = (displayType: QuestionDisplayType): Question => ({
+  answerLevel: "booking",
   assignAll: false,
   displayType: displayType,
   id: 1,

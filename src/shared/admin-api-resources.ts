@@ -12,7 +12,9 @@
 import * as v from "valibot";
 
 import {
+  QuestionAnswerLevelSchema,
   QuestionDisplayTypeSchema,
+  questionAnswerLevelError,
   questionDisplayTypeError,
 } from "#db/question-types.ts";
 import {
@@ -83,10 +85,11 @@ export const AttributeRowSchema = v.looseObject({
 export type AdminApiAttribute = v.InferOutput<typeof AttributeRowSchema>;
 
 /** One question as the admin API answers with it: the decrypted text, the
- *  display type, the assign-all switch, and its answers in display order. Each
+ *  display type, the answer level, the assign-all switch, and its answers in display order. Each
  *  answer carries its selection total. A question's display name is its text,
  *  so the row carries no separate name. */
 export const QuestionRowSchema = v.looseObject({
+  answer_level: QuestionAnswerLevelSchema,
   answers: v.array(AnswerRowSchema),
   assign_all: v.boolean(),
   display_type: QuestionDisplayTypeSchema,
@@ -204,10 +207,21 @@ const attributeBodies = apiBodyPair(apiFieldsOf(ATTRIBUTE_FIELDS));
 export const OptionBodySchema = v.object({ text: v.string() });
 export type AdminApiOptionBody = v.InferOutput<typeof OptionBodySchema>;
 
+/** The answer level is optional on both views. A create without it asks once
+ *  for the booking. An update that names a different level is refused by the
+ *  question rule, because the level is fixed after create. */
+const optionalAnswerLevel = (() => {
+  const level = v.optional(
+    v.picklist(QuestionAnswerLevelSchema.options, questionAnswerLevelError),
+  );
+  return { create: level, update: level };
+})();
+
 /** The body a question create carries: the text and the display type are
  *  required, the same two fields the question form requires. The assign-all
  *  switch is optional and defaults to off. */
 const questionBodies = apiBodyPair({
+  answer_level: optionalAnswerLevel,
   assign_all: switchField("assign_all"),
   display_type: picklistField(
     "display_type",

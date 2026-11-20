@@ -43,6 +43,7 @@ Given(
       rememberListing(this, name, listing);
     }
     const question = await records.questions.insert({
+      answerLevel: "booking",
       assignAll: true,
       displayType: "free_text",
       text: ACCESS_QUESTION,

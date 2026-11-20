@@ -9,6 +9,7 @@ import { getAllListings } from "#db/listings/records.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
 import {
   type QuestionWithAnswers,
+  requireQuestionAnswerLevel,
   requireQuestionDisplayType,
 } from "#db/question-types.ts";
 import {
@@ -81,7 +82,8 @@ const pages = recordPages(questionRecord, {
   identifier: (question) => questionTextFlat(question.text),
   renderDelete: adminQuestionDeletePage,
   renderList,
-  toInput: ({ displayType, text }) => ({
+  toInput: ({ answerLevel, displayType, text }) => ({
+    answerLevel: requireQuestionAnswerLevel(answerLevel),
     displayType: requireQuestionDisplayType(displayType),
     text,
   }),

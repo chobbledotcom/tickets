@@ -30,6 +30,7 @@ describe("EditQuestions", () => {
     render(
       [
         {
+          answerLevel: "booking",
           answers: [
             {
               active: true,
@@ -84,6 +85,7 @@ describe("EditQuestions", () => {
     const html = render(
       [
         {
+          answerLevel: "booking",
           answers: [
             {
               active: true,
@@ -109,6 +111,7 @@ describe("EditQuestions", () => {
     const html = render(
       [
         {
+          answerLevel: "booking",
           answers: [
             {
               active: true,
@@ -146,6 +149,7 @@ describe("EditQuestions", () => {
     const html = render(
       [
         {
+          answerLevel: "booking",
           answers: [],
           assignAll: false,
           displayType: "free_text",
@@ -167,6 +171,7 @@ describe("EditQuestions", () => {
   test("renders an empty text input when no free-text answer is saved", () => {
     const html = render([
       {
+        answerLevel: "booking",
         answers: [],
         assignAll: false,
         displayType: "free_text",
@@ -182,6 +187,7 @@ describe("EditQuestions", () => {
     const html = render(
       [
         {
+          answerLevel: "booking",
           answers: [],
           assignAll: false,
           displayType: "free_text",
@@ -204,6 +210,7 @@ describe("EditQuestions", () => {
     const html = render(
       [
         {
+          answerLevel: "booking",
           answers: [
             {
               active: true,
@@ -234,6 +241,7 @@ describe("EditQuestions", () => {
     const html = render(
       [
         {
+          answerLevel: "booking",
           answers: [
             {
               active: true,
@@ -262,6 +270,7 @@ describe("EditQuestions", () => {
 
   test("shows the answer at booking under a changed question only", () => {
     const question = (id: number): QuestionWithAnswers => ({
+      answerLevel: "booking",
       answers: [],
       assignAll: false,
       displayType: "free_text",

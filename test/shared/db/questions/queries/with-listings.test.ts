@@ -62,6 +62,7 @@ describeWithEnv("custom questions", { db: true }, () => {
 
     test("omits mapping for assign-all questions", async () => {
       const q = await createQuestionWithAnswers("Universal Q", ["Yes"], {
+        answerLevel: "booking",
         assignAll: true,
       });
       const listing = await createTestListing();
