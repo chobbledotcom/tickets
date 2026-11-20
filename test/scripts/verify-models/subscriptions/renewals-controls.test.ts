@@ -137,6 +137,12 @@ const examples: readonly Example[] = [
     table: "ReadFacts",
     where: { kind: "currency", owner: "site_currency" },
   },
+  {
+    expected: null,
+    name: "missing-renewal-scenario",
+    table: "ScenarioFacts",
+    where: { scenario: "normal" },
+  },
 ];
 
 for (const example of examples) {

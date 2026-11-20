@@ -25,6 +25,17 @@ export type ModelCheck = CheckInput &
 /** The checker command. */
 export const CHECKER = "apalache-mc";
 
+/** Each producer needs its own garbage collector flag. */
+export const prepareArgs = (module: string, work: string): string[] => [
+  "run",
+  "--v8-flags=--expose-gc",
+  "-A",
+  "scripts/verify-models.ts",
+  "--prepare",
+  module,
+  work,
+];
+
 /** The checker arguments that decide a verdict. */
 export const checkArgs = (check: ModelCheck): string[] => {
   const phase = CHECK_PHASES[check.phase];

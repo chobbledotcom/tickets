@@ -127,16 +127,23 @@ SafeOwner(o) ==
        ELSE IF o.invoicesRead THEN "cancelled"
        ELSE "behind"
   /\ (o.answer = "cancelled" => o.after \in EndedStatuses)
+  \* An owner cancel reads the final invoices. A subscription in its first
+  \* period has none, so a valid cancel can move no money.
+  /\ o.finalInvoices \in {0, 2}
   /\ o.firstInvoice # o.secondInvoice /\ o.firstGroup # o.secondGroup
   /\ o.cash = o.firstCash + o.secondCash
   /\ o.legs = o.firstLegs + o.secondLegs
   /\ ((o.threw \/ ~o.invoicesRead \/ ~o.identityCurrent) =>
        (o.after = o.before /\ o.cash = 0 /\ o.legs = 0))
   /\ ((o.invoicesRead /\ o.identityCurrent /\ ~o.threw) =>
-       (o.firstCash = 600 /\ o.secondCash = 600 /\
-        o.firstLegs = 2 /\ o.secondLegs = 2))
+       IF o.finalInvoices = 2
+       THEN (o.firstCash = 600 /\ o.secondCash = 600 /\
+             o.firstLegs = 2 /\ o.secondLegs = 2)
+       ELSE (o.firstCash = 0 /\ o.secondCash = 0 /\
+             o.firstLegs = 0 /\ o.secondLegs = 0))
   /\ ((o.before \in LiveStatuses /\ o.after \in EndedStatuses) =>
-       (o.invoicesRead /\ o.cash = 1200 /\ o.legs = 4))
+       (o.invoicesRead /\ o.cash = 600 * o.finalInvoices /\
+        o.legs = 2 * o.finalInvoices))
   /\ ((o.before \in EndedStatuses) => o.after \in EndedStatuses)
 
 \* An ended observation can replace any live word. A live observation can

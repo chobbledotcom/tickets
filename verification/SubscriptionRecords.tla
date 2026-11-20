@@ -135,6 +135,8 @@ OperationLaw(fact) ==
   /\ fact.accepted = Permitted(fact)
   /\ fact.expectedAccepted = Permitted(fact)
   /\ fact.validationUnchanged
+  \* The selected overlap starts with an admitted preview, not a second live refusal.
+  /\ fact.deletePreview = IF fact.operation = "delete-race" THEN "available" ELSE ""
   /\ fact.operation \in MergeOperations =>
        /\ fact.validationAccepted = (Permitted(fact) \/ fact.operation = "merge-fault")
        /\ fact.applyRan = fact.validationAccepted

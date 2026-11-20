@@ -183,8 +183,8 @@ separate suitable check. Lease expiry does not cancel a request in flight.
 
 ## Execute checks within machine resources
 
-The runner prepares the facts of each model in a separate process.
-Thus the producers of two models can run at the same time.
+The runner prepares the facts of each model in a separate process with
+`--expose-gc`. Thus the producers of two models can run at the same time.
 Inside one model, the producers run in registry order and never overlap.
 Some producers replace shared database state.
 Each proof phase and each negative control has a separate work directory.
@@ -194,9 +194,21 @@ No check shares a work directory with another check.
 
 The runner sets the number of Apalache processes from the machine.
 The number is half the cores, with 6 GiB of free memory for each process.
-The number is never less than two.
+One worker is permitted when either budget has only one place.
+The runner fails before it starts a producer if less than 6 GiB is free.
 When one process completes, the next queued check starts.
 Each completed check reports its duration.
+
+Each producer has a 15-minute limit. Each checker command has a 30-minute
+limit. The checker version command has a one-minute limit.
+At the limit, the runner sends a stop signal. It allows five seconds for exit,
+then sends a forced stop signal and allows five more seconds for exit.
+A timeout is a failure, even if the output contains a counterexample.
+The error retains the command output and names the work directory.
+The required `checks` job has the same 120-minute limit as the nightly job.
+The uncached suite takes about 46 minutes with two workers. The job limit
+allows a memory-limited machine to run it with one worker and leaves time
+for setup and the other static checks.
 
 The runner records each pass in `.verify-models-passes/`.
 The name of a record is a hash of the checker name and version, the command,

@@ -21,7 +21,8 @@ const minorUnits = (value: bigint): number =>
   v.parse(MinorUnitsSchema, Number(value));
 const sum = (amounts: readonly number[]): bigint =>
   amounts.reduce((total, amount) => total + BigInt(amount), 0n);
-/** The nearest whole minor unit of a share. Half units round up. */
+/** The nearest whole minor unit of a non-negative share. Half units round up.
+ * Callers supply non-negative safe integers and a positive denominator. */
 export const roundedRatio = (
   amount: number,
   numerator: number,

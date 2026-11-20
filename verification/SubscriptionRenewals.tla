@@ -52,6 +52,9 @@ VARIABLES
 
 Statuses == LiveStatuses \cup EndedStatuses \cup {""}
 ScenarioNames == {item.scenario : item \in ScenarioFacts}
+\* Attempts are declared before calls run. Their scenarios must all have a
+\* start state; otherwise an operation can exist but never take InspectPass.
+ExpectedScenarioNames == {item.scenario : item \in ExpectedAttempts}
 CurrencyCases == {"site_currency", "foreign_currency", "mixed_currency"}
 ArithmeticCases == {"planned", "half_up", "tax_only", "zero", "below_one",
   "below_plan", "above_plan", "excess", "no_tax", "below_half", "large"}
@@ -123,14 +126,19 @@ LegsAfter(row) ==
 \* Equal row counts and one invoice fact for each expected invoice leave
 \* exactly one fact for each.
 Coverage ==
-  /\ ScenarioFacts # {}
-  /\ \A item \in ScenarioFacts : item.steps \in {1, 2}
+  /\ ScenarioNames = ExpectedScenarioNames /\ ScenarioNames # {}
+  /\ Cardinality(ScenarioFacts) = Cardinality(ExpectedScenarioNames)
+  /\ \A item \in ScenarioFacts :
+       /\ item.steps \in {1, 2}
+       /\ item.steps = Cardinality({attempt \in ExpectedAttempts :
+            attempt.scenario = item.scenario})
   /\ \A expected \in ExpectedAttempts :
        Cardinality({op \in OperationFacts :
          op.attempt = expected.attempt /\ op.scenario = expected.scenario}) = 1
   /\ \A op \in OperationFacts :
-       \E expected \in ExpectedAttempts :
-         op.attempt = expected.attempt /\ op.scenario = expected.scenario
+       /\ op.scenario \in ScenarioNames
+       /\ \E expected \in ExpectedAttempts :
+            op.attempt = expected.attempt /\ op.scenario = expected.scenario
   /\ \A item \in ScenarioFacts : \A index \in {0, 1} : index < item.steps =>
        Cardinality({op \in OperationFacts :
          op.scenario = item.scenario /\ op.index = index}) = 1

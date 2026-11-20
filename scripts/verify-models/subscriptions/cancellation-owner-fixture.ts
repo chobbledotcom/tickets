@@ -48,6 +48,7 @@ export type OwnerCase = {
   cancelRefused?: boolean;
   readRefused?: boolean;
   invoiceRefused?: boolean;
+  noRenewals?: boolean;
   refusal?: ProviderRead<never>;
   ledgerFault?: boolean;
   change?: "status" | "attendee" | "listing" | "subscription" | "id";
@@ -124,6 +125,7 @@ export const prepareOwnerSnapshot = async (
 export type OwnerProbe = CancellationProbe & {
   observed: string;
   invoicesRead: boolean;
+  finalInvoices: number;
 };
 
 /** Restore every replaced boundary even when the real SQL write refuses. */
@@ -136,6 +138,7 @@ export const withOwnerProvider: CancellationProvider<
     ({ reason: "rejected_request", status: "invalid" } as const);
   const probe: OwnerProbe = {
     ...cancellationProbe(),
+    finalInvoices: 0,
     invoicesRead: false,
     observed: "unread",
   };
@@ -165,13 +168,14 @@ export const withOwnerProvider: CancellationProvider<
   const readPaidInvoices: typeof stripeApi.readPaidInvoices = (id) => {
     observeCancellationRead(probe, "invoice", id, OWNER_START.id);
     probe.invoicesRead = !sample.invoiceRefused;
+    const invoices = sample.noRenewals
+      ? []
+      : [paidInvoice("in_final_a"), paidInvoice("in_final_b")];
+    if (!sample.invoiceRefused) probe.finalInvoices = invoices.length;
     return Promise.resolve(
       sample.invoiceRefused
         ? refusal
-        : {
-            resource: [paidInvoice("in_final_a"), paidInvoice("in_final_b")],
-            status: "found" as const,
-          },
+        : { resource: invoices, status: "found" as const },
     );
   };
   // Faults change the forwarded request before the observing provider boundary.
@@ -237,6 +241,13 @@ export const invokeOwnerCancellation = async (
   sample: OwnerCase,
   fault: CancellationFault,
 ): Promise<OwnerAttemptResult> => {
+  if (
+    fault === "zero-renewal-identity-bypass" &&
+    sample.scenario === "owner-no-renewals-replaced-subscription"
+  )
+    await execute(sql`CREATE TRIGGER model_cancel_skip_identity
+      BEFORE INSERT ON listing_attendees WHEN NEW.listing_id IS NULL
+      BEGIN SELECT RAISE(IGNORE); END`);
   const wrongCommand =
     fault === "wrong-cancellation-identity" &&
     sample.scenario === "owner-final";

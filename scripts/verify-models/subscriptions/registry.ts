@@ -144,6 +144,7 @@ const RENEWAL_CONTROLS = {
   "missing-renewal-arithmetic": "initial",
   "missing-renewal-attempt": "initial",
   "missing-renewal-currency": "initial",
+  "missing-renewal-scenario": "initial",
   "partial-renewal-status-commit": "reduced",
   "replaced-booking-accepted": "reduced",
   "rewritten-joined-plan": "reduced",
@@ -197,6 +198,7 @@ const CANCELLATION_CONTROLS = {
   "owner fallback read sent to another subscription": "step",
   "owner invoice read sent to another subscription": "step",
   "refund before confirmed external end": "step",
+  "zero-renewal cancellation bypasses booking identity": "step",
 } as const;
 /* jscpd:ignore-end */
 
@@ -226,6 +228,7 @@ const CANCELLATION_CONTEXT = [
 
 /* jscpd:ignore-start -- a list of strings, not code */
 const RECORD_CONTROLS = {
+  "delete-race-without-admitted-preview": "reduced",
   "duplicate-projected-booking": "step",
   "lost-live-plan-delete": "reduced",
   "lost-live-plan-merge": "reduced",

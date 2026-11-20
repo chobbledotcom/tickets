@@ -3,6 +3,7 @@
  * A write that copies a row copies them all, or the plan is lost.
  */
 
+import type { RowOf } from "#db/select/tables.ts";
 import type {
   RecurringInterval,
   SubscriptionPlan,
@@ -10,11 +11,15 @@ import type {
 } from "./plan.ts";
 
 /** The stored columns a booking row keeps for one plan. */
-type StoredPlanColumns = {
+type StoredPlanColumns = Pick<
+  RowOf<"listing_attendees">,
+  | "recurringInterval"
+  | "recurringPrice"
+  | "recurringTax"
+  | "subscriptionId"
+  | "subscriptionStatus"
+> & {
   recurringInterval: RecurringInterval;
-  recurringPrice: number;
-  recurringTax: number;
-  subscriptionId: string;
   subscriptionStatus: SubscriptionStatus;
 };
 

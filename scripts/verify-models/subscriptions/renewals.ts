@@ -184,6 +184,12 @@ const FAULTS: Faults = {
       { caseId: "site_currency" },
     ],
     ["missing-provider-read", "initial", "reads", siteCurrencyRead],
+    [
+      "missing-renewal-scenario",
+      "initial",
+      "scenarios",
+      { scenario: "normal" },
+    ],
   ],
   reads: {
     arithmetic: STEP_STATE,

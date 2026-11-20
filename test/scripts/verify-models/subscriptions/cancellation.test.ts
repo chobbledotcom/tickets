@@ -209,6 +209,30 @@ describe("SubscriptionCancellation production evidence", () => {
     }
   });
 
+  it("records an empty invoice list and refuses replaced identities without money", () => {
+    expect(owner("owner-no-renewals")).toMatchObject({
+      after: "canceled",
+      answer: "cancelled",
+      cash: 0,
+      finalInvoices: 0,
+      invoicesRead: true,
+      legs: 0,
+      threw: false,
+    });
+    for (const field of ["attendee", "listing", "subscription", "id"]) {
+      expect(owner(`owner-no-renewals-replaced-${field}`)).toMatchObject({
+        after: "active",
+        answer: "threw",
+        cash: 0,
+        finalInvoices: 0,
+        identityCurrent: false,
+        invoicesRead: true,
+        legs: 0,
+        threw: true,
+      });
+    }
+  });
+
   it("resumes actual rejected and placeholder orchestration with one refund", () => {
     expect(
       clean()

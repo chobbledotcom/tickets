@@ -8,10 +8,6 @@ import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { getSubscribedRowOrNull, type LiveRow } from "#db/subscriptions.ts";
 
 import type { ProviderRead } from "#payment/provider-read.ts";
-import {
-  denoEnvironment,
-  setEnvironmentValue,
-} from "#scripts/environment-values.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { StripePaidInvoice } from "#shared/stripe/schemas.ts";
@@ -253,17 +249,10 @@ export const observePass = async (
       Promise.resolve(readAnswer(pass.read, invoices)),
     ),
   );
-  const previousExpectedError = Deno.env.get("TEST_EXPECT_ERROR");
-  if (pass.read !== "found") Deno.env.set("TEST_EXPECT_ERROR", "1");
   try {
     outcome = await recordOutcome(write);
   } finally {
     if (pass.fault) await execute(sql`DROP TRIGGER model_renewal_fault`);
-    setEnvironmentValue(
-      denoEnvironment,
-      "TEST_EXPECT_ERROR",
-      previousExpectedError,
-    );
   }
   const after = await currentRowOrNull(row.id);
   const afterLegs = await readLegs();

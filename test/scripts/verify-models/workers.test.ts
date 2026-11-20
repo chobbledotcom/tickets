@@ -22,13 +22,21 @@ describe("model check worker count", () => {
     ).toEqual([3, 16, 5, 4, 3]);
   });
 
-  test("never falls below two workers", () => {
+  test("uses one worker when either budget has only one place", () => {
     expect(
       counts([
         [2, 64 * GIB],
-        [32, 4 * GIB],
-        [1, 0],
+        [32, 6 * GIB],
+        [1, 12 * GIB - 1],
       ]),
-    ).toEqual([2, 2, 2]);
+    ).toEqual([1, 1, 1]);
+  });
+
+  test("refuses to run without one full memory place", () => {
+    for (const available of [0, 4 * GIB, 6 * GIB - 1]) {
+      expect(() => workerCount(32, available)).toThrow(
+        "Model checks require at least 6 GiB of free memory.",
+      );
+    }
   });
 });

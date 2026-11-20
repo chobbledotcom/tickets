@@ -195,6 +195,7 @@ export const readRecordOutcome = async (
   input: RecordScenario,
   before: RecordBefore,
   stage: RecordStageOutcome,
+  deletePreview = "",
 ): Promise<RecordFacts["operations"][number]> => {
   const rows = await queryAll<StoredBooking>(
     sql`SELECT id, attendee_id AS attendeeId, listing_id AS listingId,
@@ -216,6 +217,7 @@ export const readRecordOutcome = async (
     ...expected,
     ...observedPlan(observed),
     attempt: 1,
+    deletePreview,
     listingRefused: before.listingRefused,
     liveRead: before.liveRead,
     moneyCorrect: JSON.stringify(afterMoney) === JSON.stringify(expectedMoney),

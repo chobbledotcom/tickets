@@ -3,16 +3,18 @@ import { join } from "node:path";
 import { checkVerification } from "#scripts/check-tla/run.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { makeScratchDir } from "#scripts/scratch.ts";
-import type { CheckerResult } from "#scripts/verify-models/check.ts";
 import {
   CHECKER,
   checkArgs,
   plannedChecks,
+  prepareArgs,
   prepareModel,
 } from "#scripts/verify-models/jobs.ts";
 import { forgetOldPasses, passStore } from "#scripts/verify-models/passes.ts";
 import { VERIFICATION_MODULES } from "#scripts/verify-models/registry.ts";
 import {
+  COMMAND_TIMEOUT_MS,
+  outputOf,
   runChecks,
   runPool,
   secondsSince,
@@ -20,24 +22,6 @@ import {
 import { workerCount } from "#scripts/verify-models/workers.ts";
 
 const sources = join(projectRoot, "verification");
-const decoder = new TextDecoder();
-
-const outputOf = async (
-  command: string,
-  args: string[],
-  cwd: string,
-): Promise<CheckerResult> => {
-  const result = await new Deno.Command(command, {
-    args,
-    cwd,
-    stderr: "piped",
-    stdout: "piped",
-  }).output();
-  return {
-    output: `${decoder.decode(result.stdout)}${decoder.decode(result.stderr)}`,
-    success: result.success,
-  };
-};
 
 /** Each model gets a process of its own, so the producers of two models can
  *  hold their databases at the same time. */
@@ -47,8 +31,9 @@ const prepareInProcess =
     const started = performance.now();
     const result = await outputOf(
       Deno.execPath(),
-      ["run", "-A", "scripts/verify-models.ts", "--prepare", module, work],
+      prepareArgs(module, work),
       projectRoot,
+      COMMAND_TIMEOUT_MS.prepare,
     );
     if (!result.success) {
       throw new Error(`The ${module} producer failed.\n${result.output}`);
@@ -72,14 +57,25 @@ const checkAll = async (): Promise<void> => {
     workers,
     prepareInProcess(work),
   );
-  const version = await outputOf(CHECKER, ["version"], work);
+  const version = await outputOf(
+    CHECKER,
+    ["version"],
+    work,
+    COMMAND_TIMEOUT_MS.version,
+  );
   if (!version.success) {
     throw new Error(`The checker gave no version.\n${version.output}`);
   }
   const passDirectory = join(projectRoot, ".verify-models-passes");
   await runChecks(
     checks,
-    (check) => outputOf(CHECKER, checkArgs(check), check.directory),
+    (check) =>
+      outputOf(
+        CHECKER,
+        checkArgs(check),
+        check.directory,
+        COMMAND_TIMEOUT_MS.check,
+      ),
     workers,
     await passStore(passDirectory, `${CHECKER} ${version.output.trim()}`),
   );

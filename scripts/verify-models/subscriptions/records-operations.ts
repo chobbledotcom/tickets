@@ -248,18 +248,15 @@ const merge = async (input: RecordScenario, keys: Keys) => {
 
 /** A stale admitted preview must not bypass the deletion writer's live guard. */
 const prepareDeleteRace = async (input: RecordScenario) => {
-  if (input.operation !== "delete-race") return;
+  if (input.operation !== "delete-race") return "";
   await executeBatch([
     sql`UPDATE listing_attendees SET subscription_status = 'canceled' WHERE id = 1`,
   ]);
   const preview = await loadPaymentMoveSnapshot([1]);
-  assert(
-    preview.admission.delete.kind === "available",
-    "Race preview must permit deletion",
-  );
   await executeBatch([
     sql`UPDATE listing_attendees SET subscription_status = 'active' WHERE id = 1`,
   ]);
+  return preview.admission.delete.kind;
 };
 
 const edit = async (input: RecordScenario) => {
@@ -318,10 +315,10 @@ export const runRecordScenario = async (
   const keys = suppliedKeys ?? (await generateKeyPair());
   return withSubscriptionDb(async () => {
     const protectedAttendee = await seed(input, keys);
-    await prepareDeleteRace(input);
+    const deletePreview = await prepareDeleteRace(input);
     const before = await readRecordBefore(protectedAttendee);
     const stage = await executeOperation(input, keys);
     if (beforeExtract) await beforeExtract();
-    return readRecordOutcome(input, before, stage);
+    return readRecordOutcome(input, before, stage, deletePreview);
   });
 };

@@ -160,6 +160,34 @@ describe("SubscriptionLifecycle production evidence", () => {
     }
   });
 
+  it("records every paid renewal when a successful check keeps the row live", () => {
+    const live = new Set([
+      "active",
+      "trialing",
+      "past_due",
+      "unpaid",
+      "paused",
+      "incomplete",
+    ]);
+    const checked = clean().moves.filter(
+      (fact) =>
+        fact.command === "check" &&
+        fact.reply === "answers" &&
+        live.has(fact.stored) &&
+        live.has(fact.provider) &&
+        fact.paid === 1 &&
+        fact.recorded === 0,
+    );
+    expect(checked).toHaveLength(36);
+    for (const fact of checked)
+      expect(fact).toMatchObject({
+        invoiceReads: 1,
+        outcome: "returned",
+        recordedAfter: 1,
+        storedAfter: fact.provider,
+      });
+  });
+
   for (const [title, scenario, expected] of MOVE_CASES) {
     it(title, () => {
       expect(move(scenario)).toMatchObject(JSON.parse(expected));

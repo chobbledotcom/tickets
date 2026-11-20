@@ -1,9 +1,54 @@
+import { stopProcess } from "#scripts/process.ts";
 import {
   CHECK_PHASES,
   type CheckerResult,
   requireCounterexample,
 } from "#scripts/verify-models/check.ts";
 import type { ModelCheck } from "#scripts/verify-models/jobs.ts";
+
+/** The uncached suite takes about 46 minutes with two workers. */
+export const COMMAND_TIMEOUT_MS = {
+  check: 30 * 60_000,
+  prepare: 15 * 60_000,
+  version: 60_000,
+} as const;
+
+/** Stop a stalled child, retain both streams, and never return a timed-out
+ *  verdict as evidence for a negative control. */
+export const outputOf = async (
+  command: string,
+  args: string[],
+  cwd: string,
+  timeoutMs: number,
+): Promise<CheckerResult> => {
+  const child = new Deno.Command(command, {
+    args,
+    cwd,
+    stderr: "piped",
+    stdout: "piped",
+  }).spawn();
+  const output = child.output();
+  let stopping: Promise<void> | undefined;
+  const deadline = Promise.withResolvers<Deno.CommandOutput>();
+  const timer = setTimeout(() => {
+    stopping = stopProcess(child, 5_000);
+    stopping.then(() => output).then(deadline.resolve, deadline.reject);
+  }, timeoutMs);
+  try {
+    const result = await Promise.race([output, deadline.promise]);
+    await stopping;
+    const decoder = new TextDecoder();
+    const text = `${decoder.decode(result.stdout)}${decoder.decode(result.stderr)}`;
+    if (stopping !== undefined) {
+      throw new Error(
+        `${command} timed out after ${timeoutMs / 1000} seconds. Read ${cwd}.\n${text}`,
+      );
+    }
+    return { output: text, success: result.success };
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 type CheckRunner = (check: ModelCheck) => Promise<CheckerResult>;
 

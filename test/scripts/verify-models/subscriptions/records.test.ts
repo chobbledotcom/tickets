@@ -128,6 +128,18 @@ describe("subscription record production facts", () => {
     }
   });
 
+  test("retains the admitted delete preview and the live writer refusal", async () => {
+    const fact = await runRecordScenario(scenario("delete-race"));
+    expect(fact).toMatchObject({
+      accepted: false,
+      deletePreview: "available",
+      liveRead: true,
+      moneyUnchanged: true,
+      present: true,
+      recordsUnchanged: true,
+    });
+  });
+
   test("keeps exact plan columns on edits and real merge copies", async () => {
     for (const operation of [
       "edit-preserve",
@@ -320,6 +332,7 @@ describe("subscription record production facts", () => {
       ...preservedPlanControls.map(([name]) => name),
       "partial-refusal",
       "partial-refusal-money",
+      "delete-race-without-admitted-preview",
       "misattributed-projected-booking",
       "omitted-quantity-zero-booking",
       "missing-required-record-domain",
@@ -364,6 +377,16 @@ describe("subscription record production facts", () => {
           expect(
             operations.find((fact) => fact.scenario === "delete:active:0"),
           ).toMatchObject({ accepted: false, moneyUnchanged: false });
+          break;
+        case "delete-race-without-admitted-preview":
+          expect(
+            operations.find((fact) => fact.operation === "delete-race"),
+          ).toMatchObject({
+            accepted: false,
+            deletePreview: "refused",
+            liveRead: true,
+            recordsUnchanged: true,
+          });
           break;
         case "omitted-quantity-zero-booking":
           expect(projected.filter((fact) => fact.booking === 1)).toEqual([]);

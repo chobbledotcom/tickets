@@ -4,7 +4,7 @@ import { assert } from "@std/assert";
 import { pick } from "@std/collections";
 import { stub } from "@std/testing/mock";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
-import { execute, executeBatch, queryAllPrimary } from "#db/client.ts";
+import { execute, executeBatch } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { getSubscribedRows, type SubscribedRow } from "#db/subscriptions.ts";
@@ -26,6 +26,17 @@ import { recordPlanObservation } from "./records-facts.ts";
 import type { RenewalCase, RenewalPass } from "./renewal-cases.ts";
 import type { RenewalFacts } from "./renewal-facts.ts";
 import { observePass } from "./renewal-observations.ts";
+
+/** The stored rows of one provider subscription, and the one the join needs. */
+const subscribedRowOf = async (
+  subscriptionId: string,
+  absent: string,
+): Promise<{ row: SubscribedRow; rows: SubscribedRow[] }> => {
+  const rows = (await getSubscribedRows()).filter(
+    (row) => row.subscriptionId === subscriptionId,
+  );
+  return { row: requireValue(rows[0], absent), rows };
+};
 
 /** The retry outcomes that the failed-checkout join reads from each attempt. */
 const ATTEMPT_FIELDS = [
@@ -104,10 +115,10 @@ export const observeJourney = async (facts: RenewalFacts): Promise<void> => {
     phase: string,
     cancelReturned = false,
   ): Promise<SubscribedRow> => {
-    const rows = (await getSubscribedRows()).filter(
-      (row) => row.subscriptionId === observed.start.id,
+    const { row, rows } = await subscribedRowOf(
+      observed.start.id,
+      "The joined subscription row is absent",
     );
-    const row = requireValue(rows[0], "The joined subscription row is absent");
     const joined: RenewalFacts["journeys"][number] = {
       ...storedRowFacts(row),
       ...observedPlanFacts(observed.start),
@@ -229,18 +240,8 @@ export const failedJourneyFacts = async (): Promise<
     await checkoutPublicKey(),
     "none",
     async (attempt) => {
-      const rows = await queryAllPrimary<SubscribedRow>(
-        sql`SELECT booking.id, booking.attendee_id AS attendeeId,
-              booking.listing_id AS listingId, booking.quantity,
-              booking.recurring_price AS recurringPrice,
-              booking.recurring_tax AS recurringTax,
-              booking.recurring_interval AS recurringInterval,
-              booking.subscription_id AS subscriptionId,
-              booking.subscription_status AS subscriptionStatus
-         FROM listing_attendees AS booking WHERE booking.subscription_id = ${observed.start.id}`,
-      );
-      const row = requireValue(
-        rows[0],
+      const { row, rows } = await subscribedRowOf(
+        observed.start.id,
         "The failed join lost its retained plan",
       );
       assert(rows.length === 1, "The failed join has duplicate retained plans");

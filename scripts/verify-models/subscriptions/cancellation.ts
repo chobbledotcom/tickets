@@ -31,8 +31,14 @@ export const cancellationFacts = async (
 
 /** These input identities are separate from returned rows. Missing cases fail
  * initial safety, rather than disappear from the transition relation. */
+/* jscpd:ignore-start -- a list of strings, not code */
 const ownerScenarios = [
   "owner-final",
+  "owner-no-renewals",
+  "owner-no-renewals-replaced-attendee",
+  "owner-no-renewals-replaced-listing",
+  "owner-no-renewals-replaced-subscription",
+  "owner-no-renewals-replaced-id",
   "owner-read-ended",
   "owner-both-refused",
   "owner-invoice-refused",
@@ -69,6 +75,7 @@ const checkoutScenarios = [
   ...SubscriptionStatusSchema.options.map((status) => `failed-start-${status}`),
   ...SubscriptionStatusSchema.options.map((status) => `failed-end-${status}`),
 ];
+/* jscpd:ignore-end */
 const recordSets = recordSetsFor(CANCELLATION_TABLES);
 
 const moduleFor = (facts: CancellationFacts): string =>
@@ -85,6 +92,10 @@ const boundaryControls = [
   ["local end without final returned money", "local-end-without-money"],
   ["cancelled answer on a live row", "cancelled-answer-on-live-row"],
   ["ended status overwritten by a stale live write", "stale-overwrite"],
+  [
+    "zero-renewal cancellation bypasses booking identity",
+    "zero-renewal-identity-bypass",
+  ],
   ["cancellation sent to another subscription", "wrong-cancellation-identity"],
   [
     "owner fallback read sent to another subscription",

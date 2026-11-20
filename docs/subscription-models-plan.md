@@ -6,9 +6,11 @@ This plan follows [the pull request workflow](pr-workflow.md) and the
 
 ## Current-system value
 
-The model check pull request checks the safety of the four subscription layers before release.
-It adds executable evidence for checkout, renewals, cancellation, and retained records.
-It changes no product behaviour, provider configuration, or production schema.
+The model check pull request checks the safety of the five subscription layers before release.
+It adds executable evidence for checkout, renewals, cancellation, retained records, and lifecycle.
+It corrects renewal VAT at half-unit boundaries with exact integer arithmetic.
+It rejects stale subscription writes even when no paid renewal exists.
+Provider configuration and the production schema remain unchanged.
 
 The branch is `subscription-tla-models`. Its base is `main`.
 The four lower pull requests keep their existing order and scope.
@@ -179,7 +181,9 @@ The lifecycle producer runs the owner cancel below its route. The route needs th
 
 Expected files are five TLA modules, their producers, focused fixture or schema helpers, direct tests, and five flat registry entries.
 Keep each file near 400 lines and below the enforced 500-line limit.
-Production behaviour, schema, environment keys, and provider call budgets remain unchanged.
+Renewal VAT uses exact integer arithmetic.
+Every subscription status write checks the original booking identity.
+The schema, environment keys, and provider call budgets remain unchanged.
 Producers use isolated synthetic databases and local provider fixtures only.
 No new generic verification framework, compatibility export, or baseline increase is in scope.
 No production purity declaration or effect root changes are planned.

@@ -46,6 +46,9 @@ defaults:
 jobs:
   checks:
     runs-on: ubicloud-standard-4
+    # The uncached model suite takes about 46 minutes with two workers.
+    # A memory-limited runner can use one worker, so allow two hours.
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository

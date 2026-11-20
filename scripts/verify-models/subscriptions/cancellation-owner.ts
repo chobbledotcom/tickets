@@ -79,6 +79,7 @@ const ownerReadback = async (
     before: before.subscriptionStatus,
     bookingId: after.id,
     cash: payment.cash,
+    finalInvoices: probe.finalInvoices,
     firstCash: first.cash,
     firstGroup: first.group,
     firstInvoice: first.invoice,
@@ -104,11 +105,30 @@ const ownerReadback = async (
   };
 };
 
+const replacementChanges = [
+  "attendee",
+  "listing",
+  "subscription",
+  "id",
+] as const;
+
+/** The same replaced fences, with and without paid renewal invoices. */
+const replacementCases = (noRenewals: boolean): OwnerCase[] =>
+  replacementChanges.map((change) => ({
+    change,
+    ...(noRenewals ? { noRenewals: true } : {}),
+    scenario: noRenewals
+      ? `owner-no-renewals-replaced-${change}`
+      : `owner-replaced-${change}`,
+  }));
+
 export const ownerFacts = async (
   fault: CancellationFault,
 ): Promise<CancellationFacts["owners"]> => {
   const cases: OwnerCase[] = [
     { scenario: "owner-final" },
+    { noRenewals: true, scenario: "owner-no-renewals" },
+    ...replacementCases(true),
     { cancelRefused: true, scenario: "owner-read-ended" },
     ...cancellationRefusalCases("owner-both", {
       cancelRefused: true,
@@ -117,9 +137,7 @@ export const ownerFacts = async (
     ...cancellationRefusalCases("owner-invoice", { invoiceRefused: true }),
     { ledgerFault: true, scenario: "owner-ledger-fault" },
     { change: "status", scenario: "owner-stale-status", status: "trialing" },
-    ...(["attendee", "listing", "subscription", "id"] as const).map(
-      (change) => ({ change, scenario: `owner-replaced-${change}` }),
-    ),
+    ...replacementCases(false),
     ...statuses.map((status) => ({
       scenario: `owner-observed-${status}`,
       status,

@@ -41,6 +41,7 @@ export const RECORD_TABLES = {
       attempt: "Int",
       attendee: "Int",
       booking: "Int",
+      deletePreview: "Str",
       expectedAccepted: "Bool",
       expectedAttendee: "Int",
       expectedBooking: "Int",

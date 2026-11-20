@@ -78,6 +78,13 @@ const FAULTS: Faults = {
       "",
       refusedDelete,
     ],
+    [
+      "delete-race-without-admitted-preview",
+      "operations",
+      "deletePreview",
+      "refused",
+      { scenario: "delete-race:active:0" },
+    ],
   ],
   missing: [
     [

@@ -5,10 +5,6 @@ import { eventGroup } from "#accounting/refs.ts";
 import { execute, queryOnePrimary } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { getSubscribedRowOrNull } from "#db/subscriptions.ts";
-import {
-  denoEnvironment,
-  setEnvironmentValue,
-} from "#scripts/environment-values.ts";
 import { maintenanceStartupCalls } from "#shared/maintenance/definition.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -236,17 +232,11 @@ export const lifecycleMoves = (
   cases: readonly LifecycleCase[],
 ): Promise<Move[]> =>
   withSubscriptionDb(async () => {
-    const expectedError = Deno.env.get("TEST_EXPECT_ERROR");
-    Deno.env.set("TEST_EXPECT_ERROR", "1");
-    try {
-      const worlds = new Map<string, World>();
-      return await withLifecycleProvider(worlds, async () => {
-        const moves: Move[] = [];
-        for (const [index, sample] of cases.entries())
-          moves.push(await observeCase(worlds, sample, index + 1));
-        return moves;
-      });
-    } finally {
-      setEnvironmentValue(denoEnvironment, "TEST_EXPECT_ERROR", expectedError);
-    }
+    const worlds = new Map<string, World>();
+    return await withLifecycleProvider(worlds, async () => {
+      const moves: Move[] = [];
+      for (const [index, sample] of cases.entries())
+        moves.push(await observeCase(worlds, sample, index + 1));
+      return moves;
+    });
   });

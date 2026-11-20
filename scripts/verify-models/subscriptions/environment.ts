@@ -18,6 +18,7 @@ import type {
   SubscriptionPlan,
   SubscriptionStart,
 } from "#shared/subscriptions/plan.ts";
+import { subscriptionPlanColumns } from "#shared/subscriptions/stored-plan-columns.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
 import { maybeReclaimLeakedFds } from "#test-utils/reclaim-fds.ts";
 
@@ -83,7 +84,7 @@ export type BookingSeed = {
 
 /** Several rows can share the same fixture attendee or listing. */
 export const seedBooking = async (seed: BookingSeed): Promise<void> => {
-  const plan = seed.plan;
+  const plan = subscriptionPlanColumns(seed.plan);
   await executeBatch([
     sql`INSERT OR IGNORE INTO attendees (id, created) VALUES (${seed.attendeeId}, ${MODEL_TIME})`,
     sql`INSERT OR IGNORE INTO listings (id, created, max_attendees, name)
@@ -91,7 +92,7 @@ export const seedBooking = async (seed: BookingSeed): Promise<void> => {
     sql`INSERT INTO listing_attendees
               (id, attendee_id, listing_id, quantity, recurring_price,
                recurring_tax, recurring_interval, subscription_id, subscription_status)
-            VALUES (${seed.id}, ${seed.attendeeId}, ${seed.listingId}, ${seed.quantity}, ${plan?.amount ?? 0}, ${plan?.tax ?? 0}, ${plan?.interval ?? ""}, ${plan?.id ?? ""}, ${plan?.status ?? ""})`,
+            VALUES (${seed.id}, ${seed.attendeeId}, ${seed.listingId}, ${seed.quantity}, ${plan?.recurringPrice ?? 0}, ${plan?.recurringTax ?? 0}, ${plan?.recurringInterval ?? ""}, ${plan?.subscriptionId ?? ""}, ${plan?.subscriptionStatus ?? ""})`,
   ]);
 };
 

@@ -65,6 +65,7 @@ export const CANCELLATION_TABLES = {
       bookingId: "Int",
       cancels: "Int",
       cash: "Int",
+      finalInvoices: "Int",
       firstCash: "Int",
       firstGroup: "Str",
       firstInvoice: "Str",
@@ -115,6 +116,7 @@ export type CancellationFault =
   | "local-end-without-money"
   | "cancelled-answer-on-live-row"
   | "stale-overwrite"
+  | "zero-renewal-identity-bypass"
   | "wrong-cancellation-identity"
   | "wrong-owner-subscription-read"
   | "wrong-owner-invoice-read"

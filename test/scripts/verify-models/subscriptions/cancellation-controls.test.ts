@@ -52,6 +52,13 @@ const STEP_CASES: readonly (readonly [
     '{"after":"active","answer":"cancelled","cash":1200,"invoicesRead":true,"threw":false}',
   ],
   [
+    "exposes a bypassed identity guard without paid renewals",
+    "zero-renewal cancellation bypasses booking identity",
+    "Owners",
+    '{"scenario":"owner-no-renewals-replaced-subscription"}',
+    '{"after":"canceled","answer":"cancelled","before":"active","cash":0,"finalInvoices":0,"identityCurrent":false,"invoicesRead":true,"legs":0,"threw":false}',
+  ],
+  [
     "registers the identity control on the actual cancellation request",
     "cancellation sent to another subscription",
     "Owners",
