@@ -248,6 +248,16 @@ const ADMIN_API_ATTENDEE_CREATE_BODY = {
   status: "Confirmed",
 };
 
+/** The body an attendee update carries: every field is optional, and a field
+ * the body leaves out keeps its stored value. Payments and adjustments are the
+ * complete lists, so the example repeats the create's payment and adds one. */
+const ADMIN_API_ATTENDEE_UPDATE_BODY = {
+  adjustments: [{ amount: 250, description: "Delivery" }],
+  payments: [{ amount: 9000 }, { amount: 1500 }],
+  phone: "+1 555 0199",
+  status: "Paid",
+};
+
 /** Example attendee booking row, exactly as the attendees endpoint answers
  * with it: the decrypted roster row minus the sealed PII blob and its blind
  * index. A standard listing holds no booking date, so both span fields are
@@ -384,6 +394,14 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
       method: "POST",
       path: "/api/admin/attendees",
       request: json(ADMIN_API_ATTENDEE_CREATE_BODY),
+      response: json({ attendee: attendeeExample(access) }),
+    },
+    {
+      description:
+        "Update a booking. Every field is optional, and a field the body leaves out keeps its stored value. lines is the complete set of booking lines, and a stored line that no line names is removed. payments and adjustments are the complete lists, in the create's shape: a receipt that is already stored adds nothing, and a receipt already stored as different money is refused. A line change moves no money. The ticketToken and created fields name the booking, so an update refuses both.",
+      method: "PUT",
+      path: "/api/admin/attendees/:attendeeId",
+      request: json(ADMIN_API_ATTENDEE_UPDATE_BODY),
       response: json({ attendee: attendeeExample(access) }),
     },
     ...shown(ADMIN_API_RESOURCES.questions, QUESTION_ENDPOINTS),

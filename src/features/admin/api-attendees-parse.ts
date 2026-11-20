@@ -114,7 +114,7 @@ const optionalContactField = (
 };
 
 /** The contact block's refusal, or the validated contact fields. */
-const parseContact = (body: Record<string, unknown>): Result<ContactInfo> => {
+export const parseContact = (body: Record<string, unknown>): Result<ContactInfo> => {
   const name = body.name;
   if (typeof name !== "string" || name === "") {
     return errorResult("name is required");
@@ -230,7 +230,7 @@ const parseCreated = (raw: unknown): Result<string | undefined> => {
  * the body names none, the attendee takes the public default, the same
  * coercion the manual-add form makes. A site with no public default is a
  * broken setup and fails loudly, never a silent status-less booking. */
-const resolveStatusId = (
+export const resolveStatusId = (
   name: string | undefined,
   statuses: AttendeeStatus[],
 ): Result<number> => {
@@ -363,7 +363,7 @@ const parseAnswer = (
  * means none. The questions are validated against the ones the booked lines
  * ask, so every answer lands on a question the answers-at-booking snapshot
  * records. */
-const parseAnswers = async (
+export const parseAnswers = async (
   raw: unknown,
   listingIds: number[],
 ): Promise<Result<ApiAnswer[]>> => {
@@ -402,6 +402,32 @@ const parseLines = async (linesRaw: unknown[]): Promise<Result<ApiLine[]>> => {
   return okResult(lines);
 };
 
+/** The raw lines of a body, or the refusal for a `lines` value that is not a
+ *  non-empty array. */
+export const readLinesArray = (linesRaw: unknown): Result<unknown[]> => {
+  if (!Array.isArray(linesRaw)) return errorResult("lines must be an array");
+  return linesRaw.length === 0
+    ? errorResult("Add at least one booking line")
+    : okResult(linesRaw);
+};
+
+/** The validated lines of a body whose `lines` is a non-empty array. Two
+ *  lines that book the same slot are refused. */
+export const parseCheckedLines = async (
+  linesRaw: unknown[],
+): Promise<Result<ApiLine[]>> => {
+  const linesResult = await parseLines(linesRaw);
+  if (!linesResult.ok) return linesResult;
+  return hasDuplicateBookingSlot(
+    linesResult.value.map((line) => ({
+      date: line.date,
+      listingId: line.listing.id,
+    })),
+  )
+    ? errorResult("Two lines book the same slot")
+    : linesResult;
+};
+
 /** Parse and validate a create body. A body with no lines, an unknown listing,
  *  or an unknown status is refused before anything is written. */
 export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
@@ -410,10 +436,8 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
 
   const linesRaw = body.lines;
   if (linesRaw === undefined) return errorResult("lines is required");
-  if (!Array.isArray(linesRaw)) return errorResult("lines must be an array");
-  if (linesRaw.length === 0) {
-    return errorResult("Add at least one booking line");
-  }
+  const linesArray = readLinesArray(linesRaw);
+  if (!linesArray.ok) return linesArray;
   const statusAndToken = await parseStatusAndToken(body);
   if (!statusAndToken.ok) return statusAndToken;
   const created = parseCreated(body.created);
@@ -423,16 +447,9 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   const adjustments = parseAdjustments(body.adjustments);
   if (!adjustments.ok) return adjustments;
 
-  const linesResult = await parseLines(linesRaw);
+  const linesResult = await parseCheckedLines(linesArray.value);
   if (!linesResult.ok) return linesResult;
   const lines = linesResult.value;
-  if (
-    hasDuplicateBookingSlot(
-      lines.map((line) => ({ date: line.date, listingId: line.listing.id })),
-    )
-  ) {
-    return errorResult("Two lines book the same slot");
-  }
   const answers = await parseAnswers(body.answers, lineListingIds(lines));
   if (!answers.ok) return answers;
 
