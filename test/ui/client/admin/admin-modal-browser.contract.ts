@@ -49,8 +49,18 @@ const openAdminPage = async (
   await page.getByRole("button", { name: PREVIEW_BUTTON }).first().waitFor();
 };
 
-/** Opens the preview for one field and waits for its window to settle. A
- * window rises in when it opens, and its box is off until the rise ends. */
+/** Waits for the window's animations to end. A window rises in when it opens,
+ * and it fades when it dims or brightens. Its box and filter are off until
+ * then. */
+const settled = async (dialog: Locator): Promise<void> => {
+  await dialog.evaluate(async (element) => {
+    await Promise.all(
+      element.getAnimations().map((animation) => animation.finished),
+    );
+  });
+};
+
+/** Opens the preview for one field and waits for its window to settle. */
 const openPreview = async (
   page: Page,
   index: number,
@@ -59,9 +69,7 @@ const openPreview = async (
   await page.getByRole("button", { name: PREVIEW_BUTTON }).nth(index).click();
   const dialog = page.locator(`dialog[data-modal-key="${key}"]`);
   await dialog.waitFor();
-  await dialog.evaluate(async (element) => {
-    await Promise.all(element.getAnimations().map((rise) => rise.finished));
-  });
+  await settled(dialog);
   return dialog;
 };
 
@@ -225,6 +233,7 @@ describeWithBrowser(
           windows: [TERMS_KEY],
         });
         await waitForPageDimOpacity(page, "1");
+        await settled(first);
         expect(
           await first.evaluate((dialog) => getComputedStyle(dialog).filter),
         ).toBe("none");
