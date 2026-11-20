@@ -14,14 +14,16 @@ type SavedAssessment = { bookingGroup: string; state: TaxState };
 export const addedTaxByOrder = (
   stored: readonly SavedAssessment[],
 ): Map<string, number> => {
-  const latest = new Map(stored.map((record) => [record.bookingGroup, record]));
   const added = new Map<string, number>();
-  for (const [order, { state }] of latest) {
+  for (const { bookingGroup, state } of stored) {
     if (
       state.kind === "active" &&
       state.assessment.policy.mode === "add_to_total"
-    )
-      added.set(order, state.assessment.taxAmount);
+    ) {
+      added.set(bookingGroup, state.assessment.taxAmount);
+    } else {
+      added.delete(bookingGroup);
+    }
   }
   return added;
 };

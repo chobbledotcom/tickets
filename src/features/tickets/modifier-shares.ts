@@ -53,45 +53,55 @@ const splitOrder = (
   return shares;
 };
 
+/** Run `split` on each order's cards and gather what it gives for every card. */
+const splitByOrder = <Share>(
+  entries: readonly TokenEntry[],
+  split: (
+    orderEntries: readonly TokenEntry[],
+    order: string,
+  ) => Map<TokenEntry, Share>,
+): Map<TokenEntry, Share> => {
+  const byOrder = groupToMap(
+    (entry: TokenEntry) => entry.ledgerEventGroup,
+    (entry: TokenEntry) => entry,
+  )(entries);
+  const shares = new Map<TokenEntry, Share>();
+  for (const [order, orderEntries] of byOrder) {
+    for (const [entry, share] of split(orderEntries, order))
+      shares.set(entry, share);
+  }
+  return shares;
+};
+
 /** The modifier lines each booking card shows. An order with no modifier legs
  *  has no entry in `modifiersByOrder`, so its cards show none. */
 export const splitModifiersAcrossCards = (
   entries: readonly TokenEntry[],
   modifiersByOrder: ReadonlyMap<string, readonly ModifierLine[]>,
-): Map<TokenEntry, ModifierLine[]> => {
-  const byOrder = groupToMap(
-    (entry: TokenEntry) => entry.ledgerEventGroup,
-    (entry: TokenEntry) => entry,
-  )(entries);
-  const shares = new Map<TokenEntry, ModifierLine[]>();
-  for (const [order, orderEntries] of byOrder) {
-    const orderShares = splitOrder(
-      orderEntries,
-      modifiersByOrder.get(order) ?? [],
-    );
-    for (const [entry, lines] of orderShares) shares.set(entry, lines);
+): Map<TokenEntry, ModifierLine[]> =>
+  splitByOrder(entries, (orderEntries, order) =>
+    splitOrder(orderEntries, modifiersByOrder.get(order) ?? []),
+  );
+
+/** Split one order's tax across its cards. A card with no share is absent. */
+const splitOrderTax = (
+  entries: readonly TokenEntry[],
+  tax: number,
+): Map<TokenEntry, number> => {
+  const shares = new Map<TokenEntry, number>();
+  for (const [index, part] of allocateAcrossOrder(entries, tax).entries()) {
+    if (part > 0) shares.set(entries[index]!, part);
   }
   return shares;
 };
 
 /** The tax each booking card shows: its share of the tax that its order adds
  *  to the total. It follows the same weights as the modifier split, so the
- *  shares add up to the order's tax. A card with no share is absent. */
+ *  shares add up to the order's tax. */
 export const splitTaxAcrossCards = (
   entries: readonly TokenEntry[],
   taxByOrder: ReadonlyMap<string, number>,
-): Map<TokenEntry, number> => {
-  const byOrder = groupToMap(
-    (entry: TokenEntry) => entry.ledgerEventGroup,
-    (entry: TokenEntry) => entry,
-  )(entries);
-  const shares = new Map<TokenEntry, number>();
-  for (const [order, orderEntries] of byOrder) {
-    const tax = taxByOrder.get(order) ?? 0;
-    const parts = allocateAcrossOrder(orderEntries, tax);
-    for (const [index, entry] of orderEntries.entries()) {
-      if (parts[index]! > 0) shares.set(entry, parts[index]!);
-    }
-  }
-  return shares;
-};
+): Map<TokenEntry, number> =>
+  splitByOrder(entries, (orderEntries, order) =>
+    splitOrderTax(orderEntries, taxByOrder.get(order) ?? 0),
+  );
