@@ -31,6 +31,7 @@ describeWithEnv("Admin API booking tax", { db: true }, () => {
     expect(await accountBalance(account("tax", "vat"))).toBe(200);
   });
 
+  let listingCount = 0;
   /** A booking on a fresh listing under one tax setting, with the adjustments. */
   const bookWithAdjustments = async (
     policy: TaxPolicy,
@@ -40,7 +41,7 @@ describeWithEnv("Admin API booking tax", { db: true }, () => {
     await settings.update.tax(policy);
     const listing = await createTestListing({
       maxAttendees: 10,
-      name: "Taxed adjustment fair",
+      name: `Taxed adjustment fair ${++listingCount}`,
       unitPrice,
     });
     return createBooking(listing.id, { adjustments });
