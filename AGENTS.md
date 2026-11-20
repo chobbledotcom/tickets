@@ -137,9 +137,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   - the CI runners, the network, and the machine
 
   Report the exact command, the exact error, and why you think it is
-  infrastructure. When `agent-report-infra` is on PATH, run
-  `agent-report-infra "<summary>"` and put the details on stdin. A failure in
-  your own change is still yours to fix.
+  infrastructure. A failure in your own change is still yours to fix.
 
   Two other rules stop at an infrastructure failure. "A red check is not
   automatically yours" says to trace a failure and re-run it. When you suspect

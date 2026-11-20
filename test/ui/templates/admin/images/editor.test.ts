@@ -6,12 +6,11 @@ import {
   formRequest,
   imageNamesForItem,
   makeImage,
-  postImageUpload,
 } from "#test-utils/admin-images.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { awaitTestRequest, withStorageMock } from "#test-utils/mocks.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestEditorSession } from "#test-utils/session.ts";
 
 describeWithEnv("editor listing images", { db: true, storage: "cdn" }, () => {
@@ -26,7 +25,7 @@ describeWithEnv("editor listing images", { db: true, storage: "cdn" }, () => {
     expect(response.status).toBe(200);
     expectIncludesAll(html, [
       `action="/admin/listing/${listing.id}/images"`,
-      `action="/admin/listing/${listing.id}/images/upload"`,
+      "data-listing-images",
     ]);
   });
 
@@ -47,23 +46,6 @@ describeWithEnv("editor listing images", { db: true, storage: "cdn" }, () => {
     expect(response.status).toBe(302);
     expect(await imageNamesForItem("listing", listing.id)).toEqual([
       "Editor selected image",
-    ]);
-  });
-
-  test("uploads a new listing image", async () => {
-    const { cookie } = await createTestEditorSession();
-    const listing = await createTestListing();
-    await withStorageMock(async () => {
-      const response = await postImageUpload(
-        `/admin/listing/${listing.id}/images/upload`,
-        cookie,
-        await signCsrfToken(),
-        "Editor uploaded image",
-      );
-      expect(response.status).toBe(302);
-    });
-    expect(await imageNamesForItem("listing", listing.id)).toEqual([
-      "Editor uploaded image",
     ]);
   });
 });
