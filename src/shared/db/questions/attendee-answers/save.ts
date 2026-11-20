@@ -26,10 +26,9 @@ import { requiredMapValue } from "#fp";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];
-  /** The answers to the questions that ask once for each booked listing. Each
-   * one is filed against the attendee's booking row for its listing. */
-  lineTextAnswerIds?: LineTextAnswerId[];
-  lineTextAnswers?: LineTextAnswer[];
+  /** The answers to questions that ask once for each booked listing. Each is
+   * filed against the attendee's booking row for its listing. */
+  lineAnswers?: (LineTextAnswer | LineTextAnswerId)[];
   textAnswerIds?: TextAnswerId[];
   textAnswers?: TextAnswer[];
 };
@@ -69,8 +68,7 @@ const dedupeByQuestionAndListing = <
 ];
 
 type NormalizedAnswerSet = AttendeeAnswerSet & {
-  lineTextAnswerIds: LineTextAnswerId[];
-  lineTextAnswers: LineTextAnswer[];
+  lineAnswers: (LineTextAnswer | LineTextAnswerId)[];
   textAnswerIds: TextAnswerId[];
   textAnswers: TextAnswer[];
 };
@@ -165,24 +163,21 @@ const lineAnswerStatements = (
   ref: AttendeeRef,
   textIndexByText: Map<string, string>,
 ): SqlStatement[] => {
-  const rows = [...normalized].flatMap(([attendeeId, set]) => [
-    ...set.lineTextAnswerIds.map((answer) => ({
+  const rows = [...normalized].flatMap(([attendeeId, set]) =>
+    set.lineAnswers.map((answer) => ({
       attendeeId,
       listingId: answer.listingId,
       questionId: answer.questionId,
-      value: answer.stringId,
+      value:
+        "text" in answer
+          ? requiredMapValue(
+              textIndexByText,
+              answer.text,
+              `Text answer for question ${answer.questionId} missing`,
+            )
+          : answer.stringId,
     })),
-    ...set.lineTextAnswers.map((answer) => ({
-      attendeeId,
-      listingId: answer.listingId,
-      questionId: answer.questionId,
-      value: requiredMapValue(
-        textIndexByText,
-        answer.text,
-        `Text answer for question ${answer.questionId} missing`,
-      ),
-    })),
-  ]);
+  );
   const statements: SqlStatement[] = [];
   pushAnswerRows(statements, ref, {
     afterValues: sql`INSERT INTO attendee_answers
@@ -323,11 +318,8 @@ export const prepareAttendeeAnswerSave = async (
         id,
         {
           ...answerSet,
-          lineTextAnswerIds: dedupeByQuestionAndListing(
-            arrayOrEmpty(answerSet.lineTextAnswerIds),
-          ),
-          lineTextAnswers: dedupeByQuestionAndListing(
-            arrayOrEmpty(answerSet.lineTextAnswers),
+          lineAnswers: dedupeByQuestionAndListing(
+            arrayOrEmpty(answerSet.lineAnswers),
           ),
           textAnswerIds: dedupeByQuestion(
             arrayOrEmpty(answerSet.textAnswerIds),
@@ -339,7 +331,9 @@ export const prepareAttendeeAnswerSave = async (
   );
   const preparedStringRows = await prepareStringRows(
     [...normalized.values()].flatMap((set) =>
-      [...set.textAnswers, ...set.lineTextAnswers].map((a) => a.text),
+      [...set.textAnswers, ...set.lineAnswers].flatMap((a) =>
+        "text" in a ? [a.text] : [],
+      ),
     ),
   );
   return { normalized, preparedStringRows };
@@ -405,13 +399,6 @@ export type AttendeeListingEntry = {
   listing: { id: number };
 };
 
-/** The answers to questions that ask once for each booked listing, keyed by
- * `String(listingId)`: the typed text, or the string ids of a checkout. */
-export type LineAnswerMaps = {
-  textAnswers?: Record<string, TextAnswer[]>;
-  textRefs?: Record<string, TextAnswerId[]>;
-};
-
 /** Names the listing that owns each of these answers. */
 const withListing = <T extends { questionId: number }>(
   listingId: number,
@@ -422,8 +409,7 @@ const withListing = <T extends { questionId: number }>(
 /** One listing's answers, as they join its attendee's set. */
 type ListingAnswers = {
   answerIds: number[];
-  lineRefs: LineTextAnswerId[];
-  lineTexts: LineTextAnswer[];
+  lines: (LineTextAnswer | LineTextAnswerId)[];
   textAnswers: TextAnswer[];
   textRefs: TextAnswerId[];
 };
@@ -447,16 +433,10 @@ const addListingAnswers = (
       ...added.textRefs,
     ]);
   }
-  if (added.lineTexts.length > 0) {
-    existing.lineTextAnswers = [
-      ...arrayOrEmpty(existing.lineTextAnswers),
-      ...added.lineTexts,
-    ];
-  }
-  if (added.lineRefs.length > 0) {
-    existing.lineTextAnswerIds = [
-      ...arrayOrEmpty(existing.lineTextAnswerIds),
-      ...added.lineRefs,
+  if (added.lines.length > 0) {
+    existing.lineAnswers = [
+      ...arrayOrEmpty(existing.lineAnswers),
+      ...added.lines,
     ];
   }
 };
@@ -477,15 +457,14 @@ export const groupListingAnswerSets = (
   listingAnswerIds: Record<string, number[]>,
   listingTextAnswers: Record<string, TextAnswer[]> = {},
   listingTextRefs: Record<string, TextAnswerId[]> = {},
-  lineAnswers: LineAnswerMaps = {},
+  lineAnswers: Record<string, (TextAnswer | TextAnswerId)[]> = {},
 ): Map<number, AttendeeAnswerSet> => {
   const answersByAttendee = new Map<number, AttendeeAnswerSet>();
   for (const { attendee, listing } of entries) {
     const key = String(listing.id);
     const added: ListingAnswers = {
       answerIds: arrayOrEmpty(listingAnswerIds[key]),
-      lineRefs: withListing(listing.id, lineAnswers.textRefs?.[key]),
-      lineTexts: withListing(listing.id, lineAnswers.textAnswers?.[key]),
+      lines: withListing(listing.id, lineAnswers[key]),
       textAnswers: arrayOrEmpty(listingTextAnswers[key]),
       textRefs: arrayOrEmpty(listingTextRefs[key]),
     };

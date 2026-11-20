@@ -14,7 +14,6 @@ import * as v from "valibot";
 import {
   QuestionAnswerLevelSchema,
   QuestionDisplayTypeSchema,
-  questionAnswerLevelError,
   questionDisplayTypeError,
 } from "#db/question-types.ts";
 import {
@@ -207,21 +206,10 @@ const attributeBodies = apiBodyPair(apiFieldsOf(ATTRIBUTE_FIELDS));
 export const OptionBodySchema = v.object({ text: v.string() });
 export type AdminApiOptionBody = v.InferOutput<typeof OptionBodySchema>;
 
-/** The answer level is optional on both views. A create without it asks once
- *  for the booking. An update that names a different level is refused by the
- *  question rule, because the level is fixed after create. */
-const optionalAnswerLevel = (() => {
-  const level = v.optional(
-    v.picklist(QuestionAnswerLevelSchema.options, questionAnswerLevelError),
-  );
-  return { create: level, update: level };
-})();
-
 /** The body a question create carries: the text and the display type are
  *  required, the same two fields the question form requires. The assign-all
  *  switch is optional and defaults to off. */
 const questionBodies = apiBodyPair({
-  answer_level: optionalAnswerLevel,
   assign_all: switchField("assign_all"),
   display_type: picklistField(
     "display_type",

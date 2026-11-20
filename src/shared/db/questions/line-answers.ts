@@ -1,8 +1,4 @@
-/**
- * Questions that ask once for each booked listing. A free-text question with
- * the `listing` answer level shows one field under each booked listing it
- * asks, and keeps one answer for each of them.
- */
+/** Questions that ask once for each booked listing. */
 
 import type {
   LineTextAnswer,
@@ -27,8 +23,7 @@ export const lineAnswerFieldName = (
   listingId: number,
 ): string => `question${questionId}_listing${listingId}`;
 
-/** The booked listings a question asks: every one when the question has no
- * listing list, or the ones on its list. */
+/** The booked listings a question asks: all, or the ones on its list. */
 export const linesAskedBy = (
   lines: readonly AnswerLine[],
   askedListingIds: readonly number[] | undefined,
@@ -46,8 +41,7 @@ type LineAnswerRead =
   | { ok: true; answer: LineTextAnswer }
   | { ok: false; error: string };
 
-/** Read one question's answer for one listing. It must be there, and it must
- * fit the answer limit. */
+/** Read one question's answer for one listing: present, and within the limit. */
 const readLineAnswer = (
   form: URLSearchParams,
   question: QuestionWithAnswers,
@@ -80,9 +74,8 @@ const answersOwed = (
     })),
   );
 
-/** Read the answer to each listing-level question for each booked listing it
- * asks. Every one of them must have an answer. The first missing or too long
- * answer stops the booking. */
+/** Read every answer the listing-level questions owe. The first missing or too
+ * long answer stops the booking. */
 export const parseLineTextAnswers = (
   form: URLSearchParams,
   questions: readonly QuestionWithAnswers[],

@@ -123,7 +123,7 @@ export const createFreeReservation = async ({
               listingAnswers.answerIds,
               listingAnswers.textAnswers,
               {},
-              { textAnswers: listingAnswers.lineTextAnswers },
+              listingAnswers.lineTextAnswers,
             ),
           ),
           finalBookings.map((booking) => booking.listingId),

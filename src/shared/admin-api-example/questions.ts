@@ -46,7 +46,6 @@ const ADMIN_API_EXAMPLE_QUESTION = {
 };
 
 const ADMIN_API_QUESTION_CREATE_BODY = {
-  answer_level: "booking",
   assign_all: false,
   display_type: "radio",
   text: "What is your T-shirt size?",

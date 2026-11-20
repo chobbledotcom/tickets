@@ -76,3 +76,16 @@ export const freeTextQuestionsOn = async <
   }
   return questions as { -readonly [Index in keyof Texts]: Question };
 };
+
+/** A free-text question that asks once for each listing a buyer books, asked
+ *  on each listing given. */
+export const seedListingLevelQuestion = (
+  listingIds: readonly number[] = [],
+  text = "Pupil name",
+) =>
+  seedQuestion({
+    answerLevel: "listing",
+    displayType: "free_text",
+    listingIds,
+    text,
+  });

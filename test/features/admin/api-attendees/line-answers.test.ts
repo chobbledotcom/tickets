@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { createQuestion } from "#test/shared/db/questions/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 
 describeWithEnv(
   "Admin API - POST /api/admin/attendees answers to a listing-level question",
@@ -16,11 +15,7 @@ describeWithEnv(
         maxAttendees: 10,
         name: "Disco Fair",
       });
-      const pupil = await createQuestion("Pupil name", {
-        answerLevel: "listing",
-        displayType: "free_text",
-      });
-      await listingQuestions.setIds(listing.id, [pupil.id]);
+      const { question: pupil } = await seedListingLevelQuestion([listing.id]);
 
       await assertJson(
         createBooking(listing.id, {

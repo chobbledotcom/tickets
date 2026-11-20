@@ -61,7 +61,6 @@ const createQuestionInput = (
   body: AdminApiCreateQuestionBody,
 ): Result<QuestionInput> =>
   okResult({
-    answerLevel: body.answer_level,
     assignAll: body.assign_all ?? false,
     displayType: body.display_type,
     text: body.text,
@@ -76,7 +75,6 @@ const updateQuestionInput = (
   const text = markdownSource(body.text ?? existing.text);
   if (text === "") return errorResult("text cannot be empty");
   return okResult({
-    answerLevel: body.answer_level,
     assignAll: body.assign_all ?? existing.assignAll,
     displayType: body.display_type ?? existing.displayType,
     text,

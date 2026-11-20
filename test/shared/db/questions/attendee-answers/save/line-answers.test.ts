@@ -8,6 +8,7 @@ import {
 } from "#db/questions/attendee-answers/at-booking.ts";
 import { getAttendeeLineAnswers } from "#db/questions/attendee-answers/reads.ts";
 import {
+  type AttendeeAnswerSet,
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
   saveAttendeeAnswers,
@@ -23,19 +24,17 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import type { Attendee } from "#types";
 
-type StoredRow = {
-  attendee_id: number;
-  listing_attendee_id: number | null;
-  listing_id: number | null;
-  question_id: number;
-  string_id: number;
-};
-
 const storedRows = (attendeeId: number) =>
-  queryAll<StoredRow>(
-    sql`SELECT given.attendee_id, given.listing_attendee_id, line.listing_id,
+  queryAll<{
+    listing_attendee_id: number | null;
+    listing_id: number | null;
+    question_id: number;
+    string_id: number;
+  }>(
+    sql`SELECT given.listing_attendee_id, line.listing_id,
             given.question_id, given.string_id
        FROM attendee_answers AS given
        LEFT JOIN listing_attendees AS line ON line.id = given.listing_attendee_id
@@ -43,22 +42,52 @@ const storedRows = (attendeeId: number) =>
       ORDER BY line.listing_id, given.question_id`,
   );
 
-const usedCounts = () =>
-  queryAll<{ used_count: number }>(
-    sql`SELECT used_count FROM strings ORDER BY id`,
-  );
+const usedCounts = async (): Promise<number[]> =>
+  (
+    await queryAll<{ used_count: number }>(
+      sql`SELECT used_count FROM strings ORDER BY id`,
+    )
+  ).map((row) => row.used_count);
 
-/** Two listings, one attendee booked on both, and a question that asks once
- * for each booked listing. */
-const seedTwoDiscos = async () => {
+/** Save the given answers for one attendee. */
+const saveFor = (
+  attendeeId: number,
+  answers: Omit<AttendeeAnswerSet, "answerIds">,
+) =>
+  saveAttendeeAnswers(new Map([[attendeeId, { answerIds: [], ...answers }]]));
+
+/** One listing's own answer to a question. */
+const lineAnswer = (listingId: number, questionId: number, text: string) => ({
+  listingId,
+  questionId,
+  text,
+});
+
+const readLineAnswers = (attendeeId: number) =>
+  getAttendeeLineAnswers(attendeeId, getTestPrivateKey);
+
+const listingLevelQuestion = async () =>
+  (await seedListingLevelQuestion()).question;
+
+type SavedAnswers = Omit<AttendeeAnswerSet, "answerIds">;
+
+/** Two discos booked by one attendee, with the answers `answers` names saved,
+ * and what the database then holds. */
+const savedOnTwoDiscos = async (
+  answers: (ids: { a: number; b: number; q: number }) => SavedAnswers,
+) => {
   const discoA = await createTestListing({ name: "Disco A" });
   const discoB = await createTestListing({ name: "Disco B" });
   const attendee = await bookTestAttendee([discoA.id, discoB.id], "Parent");
-  const pupil = await createQuestion("Pupil name", {
-    answerLevel: "listing",
-    displayType: "free_text",
-  });
-  return { attendee, discoA, discoB, pupil };
+  const pupil = await listingLevelQuestion();
+  const ids = { a: discoA.id, b: discoB.id, q: pupil.id };
+  await saveFor(attendee.id, answers(ids));
+  return {
+    ...ids,
+    attendeeId: attendee.id,
+    read: () => readLineAnswers(attendee.id),
+    rows: await storedRows(attendee.id),
+  };
 };
 
 /** The child booked under a parent, and again through a package. */
@@ -81,215 +110,109 @@ const bookWithTwoPaths = async (
 
 describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
   test("files each listing's answer against that listing's booking row", async () => {
-    const { attendee, discoA, discoB, pupil } = await seedTwoDiscos();
-    await saveAttendeeAnswers(
-      new Map([
-        [
-          attendee.id,
-          {
-            answerIds: [],
-            lineTextAnswers: [
-              { listingId: discoA.id, questionId: pupil.id, text: "Ava" },
-              { listingId: discoB.id, questionId: pupil.id, text: "Ben" },
-            ],
-          },
-        ],
-      ]),
-    );
-    const rows = await storedRows(attendee.id);
-    expect(rows.map((row) => row.listing_id)).toEqual([discoA.id, discoB.id]);
-    expect(rows.every((row) => row.listing_attendee_id !== null)).toBe(true);
-    expect(new Set(rows.map((row) => row.string_id)).size).toBe(2);
-    expect(
-      await getAttendeeLineAnswers(attendee.id, getTestPrivateKey),
-    ).toEqual([
-      { listingId: discoA.id, questionId: pupil.id, text: "Ava" },
-      { listingId: discoB.id, questionId: pupil.id, text: "Ben" },
+    const saved = await savedOnTwoDiscos(({ a, b, q }) => ({
+      lineAnswers: [lineAnswer(a, q, "Ava"), lineAnswer(b, q, "Ben")],
+    }));
+    expect(saved.rows.map((row) => row.listing_id)).toEqual([saved.a, saved.b]);
+    expect(await saved.read()).toEqual([
+      lineAnswer(saved.a, saved.q, "Ava"),
+      lineAnswer(saved.b, saved.q, "Ben"),
     ]);
   });
 
-  test("keeps two listings' answers when both children share a name", async () => {
-    const { attendee, discoA, discoB, pupil } = await seedTwoDiscos();
-    await saveAttendeeAnswers(
-      new Map([
-        [
-          attendee.id,
-          {
-            answerIds: [],
-            lineTextAnswers: [
-              { listingId: discoA.id, questionId: pupil.id, text: "Sam" },
-              { listingId: discoB.id, questionId: pupil.id, text: "Sam" },
-            ],
-          },
-        ],
-      ]),
-    );
-    const rows = await storedRows(attendee.id);
-    expect(rows).toHaveLength(2);
-    expect(new Set(rows.map((row) => row.string_id)).size).toBe(1);
-    expect(await usedCounts()).toEqual([{ used_count: 2 }]);
+  test("keeps both listings' answers when two children share a name", async () => {
+    const saved = await savedOnTwoDiscos(({ a, b, q }) => ({
+      lineAnswers: [lineAnswer(a, q, "Sam"), lineAnswer(b, q, "Sam")],
+    }));
+    expect(new Set(saved.rows.map((row) => row.string_id)).size).toBe(1);
+    expect(saved.rows).toHaveLength(2);
+    expect(await usedCounts()).toEqual([2]);
   });
 
   test("keeps the last answer when one listing repeats a question", async () => {
-    const { attendee, discoA, pupil } = await seedTwoDiscos();
-    await saveAttendeeAnswers(
-      new Map([
-        [
-          attendee.id,
-          {
-            answerIds: [],
-            lineTextAnswers: [
-              { listingId: discoA.id, questionId: pupil.id, text: "First" },
-              { listingId: discoA.id, questionId: pupil.id, text: "Last" },
-            ],
-          },
-        ],
-      ]),
-    );
-    expect(
-      await getAttendeeLineAnswers(attendee.id, getTestPrivateKey),
-    ).toEqual([{ listingId: discoA.id, questionId: pupil.id, text: "Last" }]);
-  });
-
-  test("a booking-level save leaves the listing answers alone", async () => {
-    const { attendee, discoA, pupil } = await seedTwoDiscos();
-    const note = await createQuestion("Note", { displayType: "free_text" });
-    await saveAttendeeAnswers(
-      new Map([
-        [
-          attendee.id,
-          {
-            answerIds: [],
-            lineTextAnswers: [
-              { listingId: discoA.id, questionId: pupil.id, text: "Ava" },
-            ],
-            textAnswers: [{ questionId: note.id, text: "First note" }],
-          },
-        ],
-      ]),
-    );
-    await saveAttendeeAnswers(
-      new Map([
-        [
-          attendee.id,
-          {
-            answerIds: [],
-            textAnswers: [{ questionId: note.id, text: "New" }],
-          },
-        ],
-      ]),
-    );
-    const rows = await storedRows(attendee.id);
-    expect(rows.map((row) => [row.question_id, row.listing_id])).toEqual([
-      [note.id, null],
-      [pupil.id, discoA.id],
-    ]);
+    const saved = await savedOnTwoDiscos(({ a, q }) => ({
+      lineAnswers: [lineAnswer(a, q, "First"), lineAnswer(a, q, "Last")],
+    }));
+    expect(await saved.read()).toEqual([lineAnswer(saved.a, saved.q, "Last")]);
   });
 
   test("files nothing for a listing the attendee did not book", async () => {
-    const { attendee, pupil } = await seedTwoDiscos();
     const other = await createTestListing({ name: "Disco C" });
-    await saveAttendeeAnswers(
-      new Map([
-        [
-          attendee.id,
-          {
-            answerIds: [],
-            lineTextAnswers: [
-              { listingId: other.id, questionId: pupil.id, text: "Cy" },
-            ],
-          },
-        ],
-      ]),
-    );
-    expect(await storedRows(attendee.id)).toEqual([]);
+    const saved = await savedOnTwoDiscos(({ q }) => ({
+      lineAnswers: [lineAnswer(other.id, q, "Cy")],
+    }));
+    expect(saved.rows).toEqual([]);
   });
 
-  test("files an answer against the booking row of the same listing under each path", async () => {
-    const parent = await createTestListing({ name: "Parent" });
-    const child = await createTestListing({ name: "Child" });
-    const attendee = await bookWithTwoPaths(parent.id, child.id);
-    const pupil = await createQuestion("Pupil name", {
-      answerLevel: "listing",
-      displayType: "free_text",
+  test("a booking-level save leaves the listing answers alone", async () => {
+    const note = await createQuestion("Note", { displayType: "free_text" });
+    const saved = await savedOnTwoDiscos(({ a, q }) => ({
+      lineAnswers: [lineAnswer(a, q, "Ava")],
+      textAnswers: [{ questionId: note.id, text: "First note" }],
+    }));
+    await saveFor(saved.attendeeId, {
+      textAnswers: [{ questionId: note.id, text: "New" }],
     });
-    await saveAttendeeAnswers(
-      new Map([
-        [
-          attendee.id,
-          {
-            answerIds: [],
-            lineTextAnswers: [
-              { listingId: child.id, questionId: pupil.id, text: "Kit" },
-            ],
-          },
-        ],
-      ]),
-    );
-    const rows = await storedRows(attendee.id);
-    expect(rows).toHaveLength(2);
-    expect(new Set(rows.map((row) => row.listing_attendee_id)).size).toBe(2);
-    expect(
-      await getAttendeeLineAnswers(attendee.id, getTestPrivateKey),
-    ).toEqual([{ listingId: child.id, questionId: pupil.id, text: "Kit" }]);
+    const rows = await storedRows(saved.attendeeId);
+    expect(rows.map((row) => [row.question_id, row.listing_id])).toEqual([
+      [note.id, null],
+      [saved.q, saved.a],
+    ]);
   });
 
   test("takes the answers with the booking row", async () => {
-    const { attendee, discoA, discoB, pupil } = await seedTwoDiscos();
-    await saveAttendeeAnswers(
-      new Map([
-        [
-          attendee.id,
-          {
-            answerIds: [],
-            lineTextAnswers: [
-              { listingId: discoA.id, questionId: pupil.id, text: "Ava" },
-              { listingId: discoB.id, questionId: pupil.id, text: "Ben" },
-            ],
-          },
-        ],
-      ]),
-    );
+    const saved = await savedOnTwoDiscos(({ a, b, q }) => ({
+      lineAnswers: [lineAnswer(a, q, "Ava"), lineAnswer(b, q, "Ben")],
+    }));
     await execute(
       deleteFrom(tables.listing_attendees).where({
-        attendeeId: attendee.id,
-        listingId: discoA.id,
+        attendeeId: saved.attendeeId,
+        listingId: saved.a,
       }),
     );
-    expect(
-      await getAttendeeLineAnswers(attendee.id, getTestPrivateKey),
-    ).toEqual([{ listingId: discoB.id, questionId: pupil.id, text: "Ben" }]);
-    expect(await usedCounts()).toEqual([{ used_count: 0 }, { used_count: 1 }]);
+    expect(await saved.read()).toEqual([lineAnswer(saved.b, saved.q, "Ben")]);
+    expect(await usedCounts()).toEqual([0, 1]);
+  });
+
+  test("files an answer against each booking row of the listing, under every path", async () => {
+    const parent = await createTestListing({ name: "Parent" });
+    const child = await createTestListing({ name: "Child" });
+    const attendee = await bookWithTwoPaths(parent.id, child.id);
+    const pupil = await listingLevelQuestion();
+    await saveFor(attendee.id, {
+      lineAnswers: [lineAnswer(child.id, pupil.id, "Kit")],
+    });
+    const rows = await storedRows(attendee.id);
+    expect(new Set(rows.map((row) => row.listing_attendee_id)).size).toBe(2);
+    expect(await readLineAnswers(attendee.id)).toEqual([
+      lineAnswer(child.id, pupil.id, "Kit"),
+    ]);
   });
 
   test("a booking's answers ride its create batch and stay out of the booking record", async () => {
-    const discoA = await createTestListing({ name: "Disco A" });
-    const pupil = await createQuestion("Pupil name", {
-      answerLevel: "listing",
-      displayType: "free_text",
-    });
-    const attendee = await createAttendee(discoA.id);
+    const disco = await createTestListing({ name: "Disco A" });
+    const pupil = await listingLevelQuestion();
+    const attendee = await createAttendee(disco.id);
+    const byListing = {
+      [String(disco.id)]: [{ questionId: pupil.id, text: "Ava" }],
+    };
     const prepared = await prepareAttendeeAnswerSave(
       groupListingAnswerSets(
-        [{ attendee: { id: 0 }, listing: { id: discoA.id } }],
+        [{ attendee: { id: 0 }, listing: { id: disco.id } }],
         {},
         {},
         {},
-        {
-          textAnswers: {
-            [String(discoA.id)]: [{ questionId: pupil.id, text: "Ava" }],
-          },
-        },
+        byListing,
       ),
     );
-    for (const statement of bookedAnswersTail(prepared, [discoA.id])(
+    for (const statement of bookedAnswersTail(prepared, [disco.id])(
       attendee.ticket_token_index,
     )) {
       await execute(statement);
     }
-    expect(
-      await getAttendeeLineAnswers(attendee.id, getTestPrivateKey),
-    ).toEqual([{ listingId: discoA.id, questionId: pupil.id, text: "Ava" }]);
+    expect(await readLineAnswers(attendee.id)).toEqual([
+      lineAnswer(disco.id, pupil.id, "Ava"),
+    ]);
     expect(await getBookedAnswers(attendee.id, getTestPrivateKey)).toEqual([]);
   });
 });

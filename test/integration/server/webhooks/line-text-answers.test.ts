@@ -5,7 +5,7 @@ import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
-import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
+import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
@@ -23,12 +23,10 @@ describeWithEnv(
         maxQuantity: 5,
         unitPrice: 500,
       });
-      const { question } = await seedQuestion({
-        answerLevel: "listing",
-        displayType: "free_text",
-        listingIds: [listing1.id, listing2.id],
-        text: "Pupil name",
-      });
+      const { question } = await seedListingLevelQuestion([
+        listing1.id,
+        listing2.id,
+      ]);
       const stringIds = await getOrCreateStringIds(["Ava", "Ben"]);
 
       await expectWebhookProcessed(

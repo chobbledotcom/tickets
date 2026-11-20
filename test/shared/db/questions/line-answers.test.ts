@@ -55,18 +55,23 @@ describe("linesAskedBy", () => {
   });
 });
 
+/** Parse the answers to the pupil-name question for the given booked
+ * listings. */
+const parseFor = (
+  entries: Record<string, string>,
+  lines = [discoA],
+  questionListingMap?: ReadonlyMap<number, number[]>,
+  questions = [pupilName],
+) => parseLineTextAnswers(form(entries), questions, lines, questionListingMap);
+
 describe("parseLineTextAnswers", () => {
   test("reads one answer for each booked listing", () => {
-    const result = parseLineTextAnswers(
-      form({
-        question4_listing10: "  Ava  ",
-        question4_listing20: "Ben",
-      }),
-      [pupilName],
-      [discoA, discoB],
-      undefined,
-    );
-    expect(result).toEqual({
+    expect(
+      parseFor({ question4_listing10: "  Ava  ", question4_listing20: "Ben" }, [
+        discoA,
+        discoB,
+      ]),
+    ).toEqual({
       lineTextAnswers: [
         { listingId: 10, questionId: 4, text: "Ava" },
         { listingId: 20, questionId: 4, text: "Ben" },
@@ -76,91 +81,60 @@ describe("parseLineTextAnswers", () => {
   });
 
   test("owes no answer for a listing the question is not assigned to", () => {
-    const result = parseLineTextAnswers(
-      form({ question4_listing20: "Ben" }),
-      [pupilName],
-      [discoA, discoB],
-      new Map([[4, [20]]]),
-    );
-    expect(result).toEqual({
+    expect(
+      parseFor(
+        { question4_listing20: "Ben" },
+        [discoA, discoB],
+        new Map([[4, [20]]]),
+      ),
+    ).toEqual({
       lineTextAnswers: [{ listingId: 20, questionId: 4, text: "Ben" }],
       ok: true,
     });
   });
 
   test("refuses a missing answer and names the question and the listing", () => {
-    const result = parseLineTextAnswers(
-      form({ question4_listing10: "Ava" }),
-      [pupilName],
-      [discoA, discoB],
-      undefined,
-    );
-    expect(result).toEqual({
+    expect(parseFor({ question4_listing10: "Ava" }, [discoA, discoB])).toEqual({
       error: "Please answer: Pupil name (Disco B)",
       ok: false,
     });
   });
 
   test("refuses a blank answer", () => {
-    const result = parseLineTextAnswers(
-      form({ question4_listing10: "   " }),
-      [pupilName],
-      [discoA],
-      undefined,
-    );
-    expect(result).toEqual({
+    expect(parseFor({ question4_listing10: "   " })).toEqual({
       error: "Please answer: Pupil name (Disco A)",
       ok: false,
     });
   });
 
-  test("refuses an answer over the length limit", () => {
-    const result = parseLineTextAnswers(
-      form({ question4_listing10: "x".repeat(MAX_TEXTAREA_LENGTH + 1) }),
-      [pupilName],
-      [discoA],
-      undefined,
-    );
-    expect(result).toEqual({
-      error: "Answer is too long: Pupil name (Disco A)",
-      ok: false,
-    });
-  });
-
-  test("accepts an answer at the length limit", () => {
-    const text = "x".repeat(MAX_TEXTAREA_LENGTH);
-    const result = parseLineTextAnswers(
-      form({ question4_listing10: text }),
-      [pupilName],
-      [discoA],
-      undefined,
-    );
-    expect(result).toEqual({
-      lineTextAnswers: [{ listingId: 10, questionId: 4, text }],
-      ok: true,
-    });
+  test("refuses an answer over the length limit and accepts one at the limit", () => {
+    const limit = "x".repeat(MAX_TEXTAREA_LENGTH);
+    expect([
+      parseFor({ question4_listing10: `${limit}x` }),
+      parseFor({ question4_listing10: limit }),
+    ]).toEqual([
+      { error: "Answer is too long: Pupil name (Disco A)", ok: false },
+      {
+        lineTextAnswers: [{ listingId: 10, questionId: 4, text: limit }],
+        ok: true,
+      },
+    ]);
   });
 
   test("ignores a field for a listing that is not booked", () => {
-    const result = parseLineTextAnswers(
-      form({ question4_listing10: "Ava", question4_listing20: "Ben" }),
-      [pupilName],
-      [discoA],
-      undefined,
-    );
-    expect(result).toEqual({
+    expect(
+      parseFor({ question4_listing10: "Ava", question4_listing20: "Ben" }),
+    ).toEqual({
       lineTextAnswers: [{ listingId: 10, questionId: 4, text: "Ava" }],
       ok: true,
     });
   });
 
   test("skips a question that asks once for the booking", () => {
-    const result = parseLineTextAnswers(
-      form({}),
-      [{ ...pupilName, answerLevel: "booking" }],
-      [discoA],
-      undefined,
-    );
-    expect(result).toEqual({ lineTextAnswers: [], ok: true });
+    expect(
+      parseFor({}, [discoA], undefined, [
+        { ...pupilName, answerLevel: "booking" },
+      ]),
+    ).toEqual({ lineTextAnswers: [], ok: true });
   });
 });

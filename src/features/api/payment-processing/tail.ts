@@ -223,7 +223,7 @@ export const paidBookingTail = async ({
       intent.listingAnswerIds ?? {},
       {},
       textRefsByListing,
-      { textRefs: lineRefsByListing },
+      lineRefsByListing,
     ),
   );
 

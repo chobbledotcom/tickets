@@ -37,10 +37,9 @@ export const pageAnswerLines = (
   );
 };
 
-/** One question's fields, one for each listing it asks. The fieldset and each
- * field carry their listing ids, so the visibility script shows a field only
- * while its listing is in the order. A field is never `required` here: the
- * script adds that for a listing in the order, and the server holds the rule. */
+/** One question's fields, one for each listing it asks. The listing ids let the
+ * visibility script show a field only while its listing is in the order. The
+ * script adds `required`, and the server holds the rule. */
 export const renderLineQuestion = (
   question: QuestionWithAnswers,
   lines: readonly AnswerLine[],

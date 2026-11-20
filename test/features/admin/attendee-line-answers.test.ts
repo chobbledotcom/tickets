@@ -6,7 +6,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
+import {
+  seedListingLevelQuestion,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -18,12 +21,10 @@ describeWithEnv(
         { name: "Disco A" },
         { name: "Disco B" },
       );
-      const { question } = await seedQuestion({
-        answerLevel: "listing",
-        displayType: "free_text",
-        listingIds: [discoA.id, discoB.id],
-        text: "Pupil name",
-      });
+      const { question } = await seedListingLevelQuestion([
+        discoA.id,
+        discoB.id,
+      ]);
       const attendee = await bookTestAttendee([discoA.id, discoB.id], "Parent");
       await saveAttendeeAnswers(
         new Map([
@@ -31,7 +32,7 @@ describeWithEnv(
             attendee.id,
             {
               answerIds: [],
-              lineTextAnswers: [
+              lineAnswers: [
                 { listingId: discoA.id, questionId: question.id, text: "Ava" },
                 { listingId: discoB.id, questionId: question.id, text: "Ben" },
               ],
@@ -66,12 +67,7 @@ describeWithEnv(
 
     test("the edit form offers no field for a question that asks once for each listing", async () => {
       const listing = await createTestListing({ name: "Disco A" });
-      const { question: pupil } = await seedQuestion({
-        answerLevel: "listing",
-        displayType: "free_text",
-        listingIds: [listing.id],
-        text: "Pupil name",
-      });
+      const { question: pupil } = await seedListingLevelQuestion([listing.id]);
       const { question: note } = await seedQuestion({
         displayType: "free_text",
         listingIds: [listing.id],

@@ -204,7 +204,7 @@
     },
     {
       "path": [{ "name": "ListingAnswerRefs" }],
-      "fields": ["listingAnswerIds", "listingTextAnswerIds"]
+      "fields": ["listingAnswerIds"]
     },
     {
       "path": [{ "name": "TextAnswerRef" }],
