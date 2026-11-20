@@ -14,7 +14,6 @@ const state = {
   businessEmail: "ops@example.com",
   calendarFeedsEnabled: false,
   calendarFeedsGroupBy: "attendees",
-  catalogGalleryEnabled: true,
   customCss: "body { color: red; }",
   embedHosts: "example.com",
   expectedTax: '{"mode":"none"}',
