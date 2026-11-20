@@ -2,48 +2,17 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { closeAdminModal } from "#src/ui/client/admin/modal.ts";
 import {
-  cleanup,
+  cleanupModals,
   dialogsIn,
-  dragPage,
-  fire,
-  movePointer,
   open,
   page,
   placed,
-  pressTitleBar,
-  releasePointer,
   SETTINGS,
   setSize,
-} from "#test-utils/admin-modal-dom.ts";
-import { closeDialogs } from "#test-utils/happy-dom.ts";
+} from "#test-utils/modal-dom.ts";
 
 describe("the admin modal size", () => {
-  afterEach(async () => {
-    closeDialogs(document, "dialog.admin-modal");
-    await cleanup();
-  });
-
-  test("keeps a window on the screen after the viewport changes", () => {
-    const ready = dragPage();
-    const { dialog, window } = ready;
-    pressTitleBar(ready);
-    setSize(window, 200, 100);
-
-    Object.defineProperty(window, "innerWidth", {
-      configurable: true,
-      value: 400,
-    });
-    Object.defineProperty(window, "innerHeight", {
-      configurable: true,
-      value: 300,
-    });
-    fire(window, window, "resize");
-
-    movePointer(ready, 5000, 5000);
-    expect(placed(dialog)).toEqual({ left: 200, top: 200 });
-    releasePointer(ready);
-    fire(window, window, "resize");
-  });
+  afterEach(cleanupModals);
 
   test("keeps the window on screen after its content grows and disconnects on close", () => {
     const window = page();

@@ -2,8 +2,9 @@
 /// <reference lib="dom.iterable" />
 /**
  * The server-rendered image picker template, as the browser uses it. Both
- * the markdown editor and the new-listing form clone the same dialog. This
- * module owns the clone, the grid notes, and the upload POST.
+ * the markdown editor and the new-listing form clone the same picker and show
+ * it in the shared admin modal. This module owns the clone, the window, the
+ * grid notes, and the upload POST.
  */
 
 import {
@@ -12,8 +13,15 @@ import {
   type ImageChoice,
   type ImageOption,
   LAZY_THUMBNAIL_FROM,
+  PICKER_TITLE_COPY,
   type PickerNote,
 } from "#shared/images/picker.ts";
+import { requireValue } from "#shared/required-value.ts";
+import {
+  isAdminModalOpen,
+  type ModalHooks,
+  openAdminModal,
+} from "#src/ui/client/admin/modal.ts";
 import {
   cloneContent,
   createButton,
@@ -24,16 +32,25 @@ import {
 /** The grid's states, as `data-state` names them. */
 type GridState = "loading" | "ready";
 
-/** The dialog's parts that both consumers drive. */
-export interface PickerDialogParts {
-  dialog: HTMLDialogElement;
+/** The picker's parts that both consumers drive. */
+export interface PickerParts {
+  /** The picker's markup, which the window shows. It stays in the page's
+   *  memory while the window is closed. */
+  content: HTMLElement;
   form: HTMLFormElement;
   grid: HTMLElement;
+  /** The name of this picker's window. */
+  key: string;
   name: HTMLInputElement;
   submit: HTMLButtonElement;
   /** The template the grid's notes come from. */
   template: HTMLTemplateElement;
+  /** The words the window's title bar shows by default. */
+  title: string;
 }
+
+/** Counts the pickers, so that each one has its own window name. */
+const pickerCount = { value: 0 };
 
 /** The page's picker template. Null on a page without image storage. */
 export const pickerTemplateOrNull = (): HTMLTemplateElement | null =>
@@ -89,44 +106,51 @@ export const imageOptionNodes = (
     ? [noteFrom(template, "empty")]
     : options.map((option, index) => buttonFor(option, index));
 
-/** Clones the template's dialog into `mount` and names its parts. */
-export const clonePickerDialog = (
-  template: HTMLTemplateElement,
-  mount: HTMLElement,
-): PickerDialogParts => {
-  const dialog = cloneContent(
-    requiredChild<HTMLDialogElement>(template.content, "dialog"),
+/** Clones the template's picker and names its parts. The picker is not on
+ *  the page until `showPicker` opens its window. */
+export const clonePicker = (template: HTMLTemplateElement): PickerParts => {
+  const content = cloneContent(
+    requiredChild<HTMLElement>(template.content, ".md-image-picker"),
   );
-  mount.append(dialog);
-  const form = requiredChild<HTMLFormElement>(dialog, "form");
+  const form = requiredChild<HTMLFormElement>(content, "form");
+  pickerCount.value += 1;
   return {
-    dialog,
+    content,
     form,
-    grid: requiredChild<HTMLElement>(dialog, ".md-image-grid"),
+    grid: requiredChild<HTMLElement>(content, ".md-image-grid"),
+    key: `image-picker:${pickerCount.value}`,
     name: requiredChild<HTMLInputElement>(form, 'input[name="name"]'),
     submit: requiredChild<HTMLButtonElement>(form, 'button[type="submit"]'),
     template,
+    title: requireValue(
+      requiredChild(template.content, `[data-copy="${PICKER_TITLE_COPY}"]`)
+        .textContent,
+      "picker title",
+    ),
   };
 };
 
-/** The dialog's close paths return the caller to its own control.
- * A backdrop click or the native Escape path closes the dialog. */
-export const wireDialogClose = (
-  dialog: HTMLDialogElement,
+/** The window's close paths return the caller to its own control through
+ *  `onClose`. The window stays open while an upload runs. */
+const pickerHooks = (parts: PickerParts, onClose: () => void): ModalHooks => ({
+  canClose: () => parts.content.dataset.uploading !== "true",
+  onClose,
+});
+
+/** Opens the picker's window, or raises it when it is open. Answers true when
+ *  this call opened it, so that the caller loads the grid only then. */
+export const showPicker = (
+  parts: PickerParts,
   onClose: () => void,
-): void => {
-  requiredChild(dialog, ".md-preview-close").addEventListener("click", () => {
-    if (dialog.dataset.uploading !== "true") dialog.close();
-  });
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog && dialog.dataset.uploading !== "true") {
-      dialog.close();
-    }
-  });
-  dialog.addEventListener("cancel", (event) => {
-    if (dialog.dataset.uploading === "true") event.preventDefault();
-  });
-  dialog.addEventListener("close", onClose);
+  title: string = parts.title,
+): boolean => {
+  const wasOpen = isAdminModalOpen(parts.key);
+  openAdminModal(
+    { collapsedTitle: title, key: parts.key, title },
+    parts.content,
+    pickerHooks(parts, onClose),
+  );
+  return !wasOpen;
 };
 
 /** Adds one form field to the multipart body. A chosen file travels as a
@@ -186,18 +210,16 @@ const uploadedIdOrNull = async (
 };
 
 /** Wire the upload form that both pickers show. A submit stays on the page,
- *  because the dialog nests inside the page's own form. */
+ *  so that the browser's own POST does not leave the unsaved page. */
 export const wireUploadForm = (
-  parts: PickerDialogParts,
+  parts: PickerParts,
   onUploaded: (choice: ImageChoice) => void | Promise<void>,
 ): void => {
   parts.form.addEventListener("submit", (event) => {
-    // Without this stop the submit bubbles up and submits the page too.
-    event.stopPropagation();
     event.preventDefault();
     if (parts.submit.disabled) return;
     parts.submit.disabled = true;
-    parts.dialog.dataset.uploading = "true";
+    parts.content.dataset.uploading = "true";
     void (async () => {
       try {
         const name = parts.name.value;
@@ -216,7 +238,7 @@ export const wireUploadForm = (
         await onUploaded({ id: result.id, name });
       } finally {
         parts.submit.disabled = false;
-        delete parts.dialog.dataset.uploading;
+        delete parts.content.dataset.uploading;
       }
     })();
   });

@@ -30,12 +30,6 @@
   border: 2px solid #c3e6cb;
 }
 
-@mixin pinned-top-right {
-  position: absolute;
-  top: var(--space-s);
-  right: var(--space-s);
-}
-
 @mixin wrap-row {
   display: flex;
   flex-wrap: wrap;

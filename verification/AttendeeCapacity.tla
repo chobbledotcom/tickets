@@ -1,7 +1,7 @@
 ----------------------------- MODULE AttendeeCapacity -----------------------------
 \* This module describes rules for an edit to one attendee's ticket.
 \* EXTENDS imports integer arithmetic and the generated example records below.
-EXTENDS Integers, AttendeeCapacityData
+EXTENDS Apalache, Integers, AttendeeCapacityData
 
 \* A listing is an item that a visitor can book, such as a workshop.
 \* An attendee record holds the ticket details. It can hold several places.
@@ -117,10 +117,10 @@ Safety ==
 \* Init is an empty abstract snapshot, not a seed read. It has no accepted
 \* batch yet. Individual scenario seeds can already contain attendee rows.
 Init ==
-  /\ committed = FALSE
-  /\ slot1Total = 0
-  /\ slot2Total = 0
-  /\ lineCount = 0
+  /\ committed := FALSE
+  /\ slot1Total := 0
+  /\ slot2Total := 0
+  /\ lineCount := 0
 
 \* \E selects any batch fact without a source-state guard. An accepted fact
 \* replaces the snapshot with its observed totals and row count. A refused
@@ -129,10 +129,10 @@ Init ==
 \* Unchanged state on refusal is an abstract rule, not observed SQL rollback.
 BatchStep ==
   \E fact \in BatchFacts :
-    /\ committed' = IF fact.commits THEN TRUE ELSE committed
-    /\ slot1Total' = IF fact.commits THEN fact.slot1AfterTotal ELSE slot1Total
-    /\ slot2Total' = IF fact.commits THEN fact.slot2AfterTotal ELSE slot2Total
-    /\ lineCount' = IF fact.commits THEN fact.lineCountAfter ELSE lineCount
+    /\ committed' := IF fact.commits THEN TRUE ELSE committed
+    /\ slot1Total' := IF fact.commits THEN fact.slot1AfterTotal ELSE slot1Total
+    /\ slot2Total' := IF fact.commits THEN fact.slot2AfterTotal ELSE slot2Total
+    /\ lineCount' := IF fact.commits THEN fact.lineCountAfter ELSE lineCount
 
 \* \/ means "or". Next describes all permitted alternatives, not their order.
 \* UNCHANGED permits a step with no effect. No rule requires an edit to occur.

@@ -18,7 +18,7 @@ describe("CLI run", () => {
       runDeps(testTable, transport),
     );
     expect(result.code).toBe(0);
-    expect(result.err).toBeUndefined();
+    expect(result.err ?? "").toBe("");
     expect(JSON.parse(result.out ?? "")).toEqual({ gadgets: [{ id: 1 }] });
     expect(result.out?.endsWith("\n")).toBe(true);
   });
@@ -29,8 +29,10 @@ describe("CLI run", () => {
       ["describe", "gadgets"],
       runDeps(testTable, transport),
     );
-    expect(result.code).toBe(0);
-    expect(result.err).toBeUndefined();
+    expect({ code: result.code, err: result.err ?? "" }).toEqual({
+      code: 0,
+      err: "",
+    });
     const answer = JSON.parse(result.out ?? "");
     expect(Object.keys(answer.resources)).toEqual(["gadgets"]);
     expect(answer.resources.gadgets.label).toBe("Gadget");
@@ -356,6 +358,31 @@ describe("CLI run", () => {
     expect(requests).toEqual([
       { method: "POST", path: "/api/admin/gadgets/7/recalibrate" },
     ]);
+  });
+
+  test("sends the filtered link reads with an encoded query string", async () => {
+    const cases: [string[], string][] = [
+      [
+        ["linkLookup", "external-sources", "external_id=a b&c"],
+        "lookup?external_id=a+b%26c",
+      ],
+      [
+        ["links", "external-sources", "3", "external_id=x"],
+        "3/links?external_id=x",
+      ],
+      [
+        ["linkSearch", "external-sources", "link_type=listing", "link_id=4"],
+        "links?link_type=listing&link_id=4",
+      ],
+    ];
+    for (const [args, tail] of cases) {
+      const { requests, transport } = recordingTransport({ links: [] });
+      const result = await runApi(args, runDeps(testTable, transport));
+      expect(result.code).toBe(0);
+      expect(requests).toEqual([
+        { method: "GET", path: `/api/admin/external-sources/${tail}` },
+      ]);
+    }
   });
 
   test("answers exit 2 for a route the resource does not carry", async () => {

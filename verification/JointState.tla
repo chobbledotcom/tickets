@@ -1,5 +1,5 @@
 ----------------------------- MODULE JointState -----------------------------
-EXTENDS Integers, ModelRules, JointStateData
+EXTENDS Apalache, Integers, ModelRules, JointStateData
 
 \* This module defines one mathematical model. EXTENDS imports integer rules,
 \* shared checks and generated facts. == defines a name, not an assignment.
@@ -133,20 +133,20 @@ Safety ==
 \* Safety state against Safety again. This is the abstract induction check.
 \* It does not establish every possible concrete record or database write.
 Init ==
-  /\ rowState = RowStart
-  /\ authorityState = "absent"
-  /\ referencePresent = FALSE
-  /\ allSendsArmed = TRUE
-  /\ allRequestsPreserved = TRUE
-  /\ allReplaysSafe = TRUE
-  /\ onlyMoneySends = TRUE
-  /\ rowDeleted = FALSE
+  /\ rowState := RowStart
+  /\ authorityState := "absent"
+  /\ referencePresent := FALSE
+  /\ allSendsArmed := TRUE
+  /\ allRequestsPreserved := TRUE
+  /\ allReplaysSafe := TRUE
+  /\ onlyMoneySends := TRUE
+  /\ rowDeleted := FALSE
 
 \* Abstract reference admission changes only its presence. The action has no
 \* absence guard, so repeat attachment is harmless. Uniqueness is assumed,
 \* not established through an index write in this machine.
 AttachReference ==
-  /\ referencePresent' = TRUE
+  /\ referencePresent' := TRUE
   /\ UNCHANGED <<rowState, authorityState, allSendsArmed, allRequestsPreserved,
                  allReplaysSafe, onlyMoneySends, rowDeleted>>
 
@@ -156,7 +156,7 @@ RowStep ==
   \E move \in RowMoves :
     /\ move.sourceState = rowState
     /\ (move.targetState \in ClaimedRows => referencePresent)
-    /\ rowState' = move.targetState
+    /\ rowState' := move.targetState
     /\ UNCHANGED <<authorityState, referencePresent, allSendsArmed,
                    allRequestsPreserved, allReplaysSafe,
                    onlyMoneySends, rowDeleted>>
@@ -171,11 +171,11 @@ AuthStep ==
   \E move \in AuthMoves :
     /\ move.sourceState = authorityState
     /\ referencePresent
-    /\ authorityState' = move.targetState
-    /\ allSendsArmed' = ChecksStillPass(allSendsArmed, move.armed)
-    /\ allRequestsPreserved' = ChecksStillPass(allRequestsPreserved, move.requestKept)
-    /\ allReplaysSafe' = ChecksStillPass(allReplaysSafe, ReplaySafe(move))
-    /\ onlyMoneySends' = ChecksStillPass(onlyMoneySends, OnlyMoneySends(move))
+    /\ authorityState' := move.targetState
+    /\ allSendsArmed' := ChecksStillPass(allSendsArmed, move.armed)
+    /\ allRequestsPreserved' := ChecksStillPass(allRequestsPreserved, move.requestKept)
+    /\ allReplaysSafe' := ChecksStillPass(allReplaysSafe, ReplaySafe(move))
+    /\ onlyMoneySends' := ChecksStillPass(onlyMoneySends, OnlyMoneySends(move))
     /\ UNCHANGED <<rowState, referencePresent, rowDeleted>>
 
 \* Delete only once and only at a lifecycle-approved authority label.
@@ -184,7 +184,7 @@ AuthStep ==
 Delete ==
   /\ ~rowDeleted
   /\ Prunable(authorityState)
-  /\ rowDeleted' = TRUE
+  /\ rowDeleted' := TRUE
   /\ UNCHANGED <<rowState, authorityState, referencePresent, allSendsArmed,
                  allRequestsPreserved, allReplaysSafe,
                  onlyMoneySends>>

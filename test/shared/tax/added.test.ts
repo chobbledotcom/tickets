@@ -1,0 +1,68 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { addedTaxByOrder } from "#shared/tax/added.ts";
+import { assessTax } from "#shared/tax/assessment.ts";
+import type { TaxState } from "#shared/tax/transitions.ts";
+import type { TaxPolicy } from "#shared/tax/types.ts";
+
+const basis = { lines: [{ gross: 1000, listingId: 1 }], modifiers: [] };
+
+const saved = (
+  bookingGroup: string,
+  policy: TaxPolicy,
+  revision: number,
+  kind: TaxState["kind"] = "active",
+) => ({
+  bookingGroup,
+  state: { assessment: assessTax(basis, policy), kind, revision },
+});
+
+const addTax = { mode: "add_to_total", rateBasisPoints: 2000 } as const;
+const included = {
+  mode: "calculate_from_total",
+  rateBasisPoints: 2000,
+} as const;
+
+describe("addedTaxByOrder", () => {
+  type Case = [
+    name: string,
+    records: ReturnType<typeof saved>[],
+    expected: [string, number][],
+  ];
+  const cases: Case[] = [
+    [
+      "holds the tax that an active tax-added order adds",
+      [saved("order-a", addTax, 0)],
+      [["order-a", 200]],
+    ],
+    [
+      "leaves out an order whose prices already hold their tax",
+      [saved("order-a", included, 0)],
+      [],
+    ],
+    [
+      "leaves out an order with no tax",
+      [saved("order-a", { mode: "none" }, 0)],
+      [],
+    ],
+    [
+      "leaves out a refunded order",
+      [saved("order-a", addTax, 1, "refunded")],
+      [],
+    ],
+    [
+      "reads the latest saved assessment of each order",
+      [
+        saved("order-a", addTax, 0),
+        saved("order-a", included, 1),
+        saved("order-b", addTax, 0),
+      ],
+      [["order-b", 200]],
+    ],
+  ];
+  for (const [name, records, expected] of cases) {
+    test(name, () => {
+      expect(addedTaxByOrder(records)).toEqual(new Map(expected));
+    });
+  }
+});

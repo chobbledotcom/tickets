@@ -1,5 +1,5 @@
 ------------------------- MODULE BookingReplay -------------------------
-EXTENDS Integers, ModelRules, BookingReplayData
+EXTENDS Apalache, Integers, ModelRules, BookingReplayData
 
 \* This module names one mathematical model. EXTENDS imports integer rules,
 \* shared checks and generated facts. A name followed by == defines a rule.
@@ -81,10 +81,10 @@ Safety ==
 
 \* Start before the first delivery, with no durable legs or temporary row.
 Init ==
-  /\ ledger = "unrecorded"
-  /\ row = "none"
-  /\ bookings = 0
-  /\ noRefundAfterHonoured = TRUE
+  /\ ledger := "unrecorded"
+  /\ row := "none"
+  /\ bookings := 0
+  /\ noRefundAfterHonoured := TRUE
 
 \* Select a supplied fact whose two source labels match the current state.
 \* \E means that at least one fact supplies the step. These are checker
@@ -97,10 +97,10 @@ DeliveryStep ==
   \E fact \in DeliveryFacts :
     /\ fact.ledgerBefore = ledger
     /\ fact.rowBefore = row
-    /\ ledger' = fact.ledgerAfter
-    /\ row' = fact.rowAfter
-    /\ bookings' = bookings + IF fact.books THEN 1 ELSE 0
-    /\ noRefundAfterHonoured' =
+    /\ ledger' := fact.ledgerAfter
+    /\ row' := fact.rowAfter
+    /\ bookings' := bookings + IF fact.books THEN 1 ELSE 0
+    /\ noRefundAfterHonoured' :=
          ChecksStillPass(noRefundAfterHonoured, ~RefundsWhenHonoured(fact))
 
 \* Expose the gap after reserveSession but before its outcome. Only an
@@ -110,7 +110,7 @@ DeliveryStep ==
 ReserveStep ==
   /\ ledger = "unrecorded"
   /\ row = "none"
-  /\ row' = "reserved"
+  /\ row' := "reserved"
   /\ UNCHANGED <<ledger, bookings, noRefundAfterHonoured>>
 
 \* Only the unresolved reservation can take this abstract success path.
@@ -121,16 +121,16 @@ ReserveStep ==
 SettleReserved ==
   /\ ledger = "unrecorded"
   /\ row = "reserved"
-  /\ ledger' = "booked"
-  /\ row' = "finalized"
-  /\ bookings' = bookings + 1
-  /\ noRefundAfterHonoured' = noRefundAfterHonoured
+  /\ ledger' := "booked"
+  /\ row' := "finalized"
+  /\ bookings' := bookings + 1
+  /\ UNCHANGED noRefundAfterHonoured
 
 \* Cleanup can remove a reserved row, but not a finalised row. No clock or
 \* lease owner appears here. Durable legs and both verdict values stay fixed.
 StaleCleanup ==
   /\ row = "reserved"
-  /\ row' = "none"
+  /\ row' := "none"
   /\ UNCHANGED <<ledger, bookings, noRefundAfterHonoured>>
 
 \* Abstract retention or operator deletion can remove a finalised row.
@@ -138,7 +138,7 @@ StaleCleanup ==
 \* This is a permitted disturbance, not evidence of a production retention job.
 DeleteRow ==
   /\ row = "finalized"
-  /\ row' = "none"
+  /\ row' := "none"
   /\ UNCHANGED <<ledger, bookings, noRefundAfterHonoured>>
 
 \* Next defines allowed actions, unlike Safety, which describes one state.

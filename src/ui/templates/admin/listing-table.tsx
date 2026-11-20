@@ -15,6 +15,7 @@ import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
+import { markdownToPlainText } from "#shared/markdown-plain-text.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import {
   configurableTableLayouts,
@@ -64,7 +65,7 @@ const editorName: ListingRenderer = {
 
 const description: ListingRenderer = {
   ...listingColumnText("description"),
-  cell: (e) => e.description,
+  cell: (e) => markdownToPlainText(e.description),
   className: "cell-description",
 };
 

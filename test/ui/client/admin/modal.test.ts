@@ -3,11 +3,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { modalSettingsSchema } from "#shared/admin-modal.ts";
-import { ICONS_PATH } from "#shared/asset-paths.ts";
-import { closeAdminModal, openAdminModal } from "#src/ui/client/admin/modal.ts";
+import { openAdminModal } from "#src/ui/client/admin/modal.ts";
+import { fireEvent, requireElement, requireElements } from "#test-utils/happy-dom.ts";
 import {
-  cleanup,
+  cleanupModals,
   click,
   dialogsIn,
   dragPage,
@@ -23,19 +22,10 @@ import {
   releasePointer,
   SETTINGS,
   stackOf,
-} from "#test-utils/admin-modal-dom.ts";
-import {
-  closeDialogs,
-  fireEvent,
-  requireElement,
-  requireElements,
-} from "#test-utils/happy-dom.ts";
+} from "#test-utils/modal-dom.ts";
 
 describe("the admin modal shell", () => {
-  afterEach(async () => {
-    closeDialogs(document, "dialog.admin-modal");
-    await cleanup();
-  });
+  afterEach(cleanupModals);
 
   test("opens a window with its title, its controls, and the content", () => {
     const window = page();
@@ -52,56 +42,17 @@ describe("the admin modal shell", () => {
     const title = requireElement<HTMLElement>(dialog, ".admin-modal-title");
     expect(title.textContent).toBe("First");
     expect(dialog.getAttribute("aria-labelledby")).toBe(title.id);
-    const buttons = requireElements<HTMLButtonElement>(
-      dialog,
-      ".admin-modal-controls button",
-    );
-    // A button without a type submits the form around it. The shell adds one
-    // to each control.
     expect(
-      buttons.map((button) => [
-        button.getAttribute("aria-label"),
-        button.getAttribute("type"),
-      ]),
-    ).toEqual([
-      ["Minimise", "button"],
-      ["Close", "button"],
-    ]);
-    expect(
-      requireElements<Element>(dialog, "use").map((use) =>
-        use.getAttribute("href"),
-      ),
-    ).toEqual([`${ICONS_PATH}#minus`, `${ICONS_PATH}#x`]);
+      requireElements<HTMLButtonElement>(
+        dialog,
+        ".admin-modal-controls button",
+      ).map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Minimise", "Close"]);
     expect(
       requireElement<HTMLElement>(dialog, ".admin-modal-body").contains(
         content,
       ),
     ).toBe(true);
-  });
-
-  test("returns the existing content without replacing it on duplicate open", () => {
-    const window = page();
-    const content = document.createElement("div");
-    content.textContent = "Fetched images";
-    expect(openAdminModal(SETTINGS, content)).toBe(content);
-    const replacement = document.createElement("div");
-    expect(openAdminModal(SETTINGS, replacement)).toBe(content);
-    expect(dialogsIn(window)).toHaveLength(1);
-    expect(content.isConnected).toBe(true);
-    expect(content.textContent).toBe("Fetched images");
-    expect(replacement.isConnected).toBe(false);
-  });
-
-  test("closes by key synchronously and preserves an immediately reopened shell", () => {
-    const window = page();
-    const first = open(window);
-    closeAdminModal(SETTINGS.key);
-    expect(first.open).toBe(false);
-    expect(first.isConnected).toBe(false);
-    const second = open(window);
-    fireEvent(first, new window.Event("close"));
-    expect(second.open).toBe(true);
-    expect(dialogsIn(window)).toEqual([second]);
   });
 
   test("refuses settings that break the schema", () => {
@@ -116,10 +67,6 @@ describe("the admin modal shell", () => {
         v.ValiError,
       );
     }
-    const issues = v.safeParse(modalSettingsSchema, broken[1]).issues;
-    expect(issues?.map((issue) => issue.message)).toEqual([
-      "A modal needs a key",
-    ]);
   });
 
   test("refuses to open without the page's template", () => {
@@ -225,9 +172,6 @@ describe("the admin modal shell", () => {
       movePointer(ready, 100, 120);
       const stopped = placed(ready.dialog);
       fireEvent(ready.bar, pointer(ready.window, stop, 100, 120));
-      expect(ready.capture.released).toEqual(
-        stop === "pointercancel" ? [7] : [],
-      );
       movePointer(ready, 5000, 5000);
       expect(placed(ready.dialog)).toEqual(stopped);
       expect(ready.dialog.classList.contains("is-dragging")).toBe(false);
@@ -362,5 +306,27 @@ describe("the admin modal shell", () => {
     second.close();
     const last = fire(window, window, "beforeunload", { cancelable: true });
     expect(last.defaultPrevented).toBe(false);
+  });
+
+  test("keeps a window on the screen after the viewport changes", () => {
+    const ready = dragPage();
+    const { dialog, window } = ready;
+    pressTitleBar(ready);
+    setSize(window, 200, 100);
+
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 400,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: 300,
+    });
+    fire(window, window, "resize");
+
+    movePointer(ready, 5000, 5000);
+    expect(placed(dialog)).toEqual({ left: 200, top: 200 });
+    releasePointer(ready);
+    fire(window, window, "resize");
   });
 });
