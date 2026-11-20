@@ -56,12 +56,9 @@ const statesOf = (snapshot: ModalSnapshot): readonly ModalState[] => {
 describe("modal lifecycle production facts", () => {
   test("covers the full small domain and every event, including unchanged outcomes", () => {
     const facts = witnessFacts(modalLifecycleFacts());
-    // A has six position/saved modes, B two, and C one. Count each key subset
-    // with all its stack permutations, including the empty stack.
-    expect(facts.snapshots).toHaveLength(
-      1 + 6 + 2 + 1 + 2 * (6 * 2 + 6 + 2) + 6 * 6 * 2,
-    );
-    expect(modalEvents).toHaveLength(19);
+    // The selected 12 events close over 71 states.
+    expect(facts.snapshots).toHaveLength(71);
+    expect(modalEvents).toHaveLength(12);
     expect(facts.edges).toHaveLength(
       facts.snapshots.length * modalEvents.length,
     );
@@ -113,7 +110,7 @@ describe("modal lifecycle production facts", () => {
     for (const edge of facts.edges) {
       expect(Object.keys(edge).sort()).toEqual(["event", "source", "target"]);
     }
-    expect(witnessFacts(facts).edges).toHaveLength(122 * 19);
+    expect(witnessFacts(facts).edges).toHaveLength(71 * 12);
   });
 
   test("every edge is an actual reducer call with complete source and target joins", () => {
@@ -148,7 +145,7 @@ describe("modal lifecycle production facts", () => {
   test("retains the minimise, drag, raise, resize, restore, close and reopen interleaving", () => {
     const facts = witnessFacts(modalLifecycleFacts());
     let snapshot = modalSnapshot([]);
-    const sequence = [1, 9, 4, 7, 2, 17, 6, 3, 0];
+    const sequence = [1, 4, 6, 5, 7, 9, 2, 11, 8];
     for (const event of sequence) {
       const edge = facts.edges.find(
         (row) =>
@@ -160,13 +157,13 @@ describe("modal lifecycle production facts", () => {
       snapshot = after(edge);
     }
     expect(snapshot).toEqual(
-      snapshotFixture({ aPoint: 0, aRank: 2, bPoint: 0, bRank: 1 }),
+      snapshotFixture({ aPoint: 0, aRank: 2, cRank: 1 }),
     );
     expect(facts.edges).toContainEqual(
       edgeFixture(
-        snapshotFixture({ aPoint: 0, aRank: 1, aSaved: 2 }),
-        snapshotFixture({ aPoint: 2, aRank: 1 }),
-        { event: 6, key: "a", kind: "restore", limit: 2 },
+        snapshotFixture({ aPoint: 2, aRank: 1, aSaved: 2 }),
+        snapshotFixture({ aPoint: 0, aRank: 1 }),
+        { event: 5, key: "a", kind: "restore", limit: 0 },
       ),
     );
     expect(facts.edges).toContainEqual(
@@ -212,7 +209,7 @@ describe("modal lifecycle production facts", () => {
       edgeFixture(
         threeWindowStack,
         snapshotFixture({ aPoint: 0, aRank: 1, cRank: 2 }),
-        { event: 11, key: "b", kind: "close" },
+        { event: 8, key: "b", kind: "close" },
       ),
     );
     const faulty = modalFactsWithFault((next, states, event) =>

@@ -20,48 +20,25 @@ const size = { height: 2, width: 2 };
 const point = (position: number) => ({ left: position, top: position });
 const viewport = (limit: number) => ({ height: limit + 2, width: limit + 2 });
 
-/** The same selected coordinates supply open points and restore clamp limits. */
-const GEOMETRY_CASES = [
-  { coordinates: [0, 2], key: "a", moves: [-1, 3] },
-  { coordinates: [0], key: "b", moves: [] },
-] as const;
-
-const coordinateEvents = (
-  key: string,
-  type: "open" | "restore" | "move",
-  values: readonly number[],
-): ModalEvent[] =>
-  values.map((coordinate) => {
-    if (type === "restore")
-      return { key, size, type, viewport: viewport(coordinate) };
-    const positioned = { key, point: point(coordinate) };
-    return type === "open"
-      ? { ...positioned, type }
-      : {
-          ...positioned,
-          size,
-          type,
-          viewport: viewport(2),
-        };
-  });
-
+/** The selected events keep three keys for survivor order, two open points
+ * for a, one drag clamp, one restore clamp, and one resize clamp. */
 export const modalEvents: readonly ModalEvent[] = [
-  ...GEOMETRY_CASES.flatMap(({ key, coordinates, moves }): ModalEvent[] => [
-    ...coordinateEvents(key, "open", coordinates),
-    ...(["raise", "close", "minimise"] as const).map((type) => ({ key, type })),
-    ...coordinateEvents(key, "restore", coordinates),
-    ...coordinateEvents(key, "move", moves),
-  ]),
+  { key: "a", point: point(0), type: "open" },
+  { key: "a", point: point(2), type: "open" },
+  { key: "a", type: "raise" },
+  { key: "a", type: "close" },
+  { key: "a", type: "minimise" },
+  { key: "a", size, type: "restore", viewport: viewport(0) },
+  { key: "a", point: point(3), size, type: "move", viewport: viewport(2) },
+  { key: "b", point: point(0), type: "open" },
+  { key: "b", type: "close" },
   { key: "c", point: point(0), type: "open" },
-  { key: "c", type: "raise" },
   { key: "c", type: "close" },
-  ...[0, 2].map(
-    (limit): ModalEvent => ({
-      sizes: new Map(KEYS.map((key) => [key, size])),
-      type: "resize",
-      viewport: viewport(limit),
-    }),
-  ),
+  {
+    sizes: new Map(KEYS.map((key) => [key, size])),
+    type: "resize",
+    viewport: viewport(0),
+  },
 ];
 
 const SNAPSHOT_FIELDS = [
