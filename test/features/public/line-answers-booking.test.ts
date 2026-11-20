@@ -2,20 +2,26 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAttendeeLineAnswers } from "#db/questions/attendee-answers/reads.ts";
-import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
+import {
+  expectCheckoutRedirect,
+  expectFlash,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
+import { stubCheckout } from "#test-utils/checkout.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { testPageHtml } from "#test-utils/mocks.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 /** Two free discos that a parent can book together, and a question that asks
  * for a pupil name once for each disco. */
-const seedDiscos = async () => {
+const seedDiscos = async (unitPrice = 0) => {
   const [discoA, discoB] = await createListingPair({
     maxQuantity: 5,
-    unitPrice: 0,
+    unitPrice,
   });
   const { question } = await seedListingLevelQuestion([discoA.id, discoB.id]);
   const slugs = `${discoA.slug}+${discoB.slug}`;
@@ -99,6 +105,32 @@ describeWithEnv(
       expect(await lineAnswersOf(discoA.id)).toEqual([
         { listingId: discoA.id, questionId: question.id, text: "Ava" },
       ]);
+    });
+
+    test("a paid order carries each listing's name in the checkout, apart from the booking-level answers", async () => {
+      await setupStripe();
+      const seed = await seedDiscos(500);
+      const { checkout, getCaptured } = stubCheckout();
+      try {
+        const response = await submitOrder(seed, [2, 2], {
+          [seed.fieldA]: "Ava",
+          [seed.fieldB]: "Ben",
+        });
+        expectCheckoutRedirect(response);
+      } finally {
+        checkout.restore();
+      }
+      const intent = getCaptured();
+      const { discoA, discoB, question } = seed;
+      expect(intent).not.toHaveProperty("listingTextAnswerIds");
+      const refs = intent?.lineTextAnswerIds ?? {};
+      expect(Object.keys(refs).sort()).toEqual(
+        [String(discoA.id), String(discoB.id)].sort(),
+      );
+      expect(refs[String(discoA.id)]?.map((ref) => ref.q)).toEqual([
+        question.id,
+      ]);
+      expect(refs[String(discoA.id)]).not.toEqual(refs[String(discoB.id)]);
     });
   },
 );
