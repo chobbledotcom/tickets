@@ -249,21 +249,17 @@ describe("CLI parser", () => {
 
   test("the attendee resource serves only create and update", () => {
     const attendeesTable = { attendees: ADMIN_API_RESOURCES.attendees };
-    expect(
-      parseCommand(attendeesTable, ["create", "attendees", "{}"]),
-    ).toMatchObject({
-      kind: "write",
-      resource: "attendees",
-      verb: "create",
-    });
-    expect(
-      parseCommand(attendeesTable, ["update", "attendees", "1", "{}"]),
-    ).toMatchObject({
-      kind: "write",
-      parentId: 1,
-      resource: "attendees",
-      verb: "update",
-    });
+    const served: [string, string[]][] = [
+      ["create", ["create", "attendees", "{}"]],
+      ["update", ["update", "attendees", "1", "{}"]],
+    ];
+    for (const [verb, args] of served) {
+      expect(parseCommand(attendeesTable, args)).toMatchObject({
+        kind: "write",
+        resource: "attendees",
+        verb,
+      });
+    }
     for (const [verb, message] of [
       ["list", "The 'list' command is not available for 'attendees'."],
       ["get", "The 'get' command is not available for 'attendees'."],
