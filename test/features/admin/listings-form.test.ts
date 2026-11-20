@@ -5,25 +5,38 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
+import { getImagesForItem } from "#db/images.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import {
   getListingWithCount,
   getStoredListingWithCount,
 } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
-import { buildUpdateListingResource } from "#routes/admin/listings-form.ts";
+import {
+  buildCreateListingResource,
+  buildUpdateListingResource,
+  checkedDurationDays,
+} from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { listingRecord } from "#shared/records/listings.ts";
 import { listingFormView } from "#templates/fields/listing.ts";
+import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
   createTestAttributeWithOptions,
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  bookableStartDates,
+  createTestListing,
+  dailySwitchForm,
+  listingWithOneBooking,
+} from "#test-utils/db-helpers/listings.ts";
+import { testFormParams } from "#test-utils/form-values.ts";
 import { testEachRefusal } from "#test-utils/refusal-table.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 
@@ -239,6 +252,46 @@ describeWithEnv("listings form", { db: true }, () => {
         ok: false,
       });
     });
+
+    test("the use-defaults tick is refused until the site holds defaults", async () => {
+      expect(await tryCreateListing({ useDefaults: "1" })).toEqual({
+        error: t("fields.validation.unshown_field"),
+        ok: false,
+      });
+      await settings.update.listingDefaults({ hidden: true });
+      const ticked = await createListing({ useDefaults: "1" });
+      const plain = await createListing({ name: "Own values" });
+      expect([ticked.useDefaults, plain.useDefaults]).toEqual([true, false]);
+    });
+
+    test("the checked duration is the form's count, never a blank", () => {
+      expect(checkedDurationDays({ durationDays: 3 })).toBe(3);
+      expect(() => checkedDurationDays({ durationDays: null })).toThrow(
+        "The booking duration form box holds no count",
+      );
+    });
+
+    test("one picture chosen on the form links to the new listing", async () => {
+      const image = await makeImage("Chosen");
+      const form = listingForm();
+      const view = listingFormView("owner");
+      const result = await buildCreateListingResource(form, view, [
+        image.id,
+      ]).create(form);
+      if (!result.ok) throw new Error(result.error);
+      const linked = await getImagesForItem("listing", result.row.id);
+      expect(linked.map((one) => one.id)).toEqual([image.id]);
+    });
+
+    test("answers a missing row when the write loses the new listing", async () => {
+      using _create = stub(listingRecord, "create", () =>
+        Promise.resolve({ kind: "not-found" as const }),
+      );
+      expect(await tryCreateListing()).toEqual({
+        error: "Listing not found",
+        ok: false,
+      });
+    });
   });
 
   describe("update", () => {
@@ -386,6 +439,57 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(row?.quantity).toBe(3);
       const reread = await getListingWithCount(created.id);
       expect(reread!.maxQuantity).toBe(3);
+    });
+
+    describe("a switch to daily over an undated booking", () => {
+      /** Save the switch form, with or without the confirmed move. */
+      const saveSwitch = async (confirmed: boolean, groupIds: string[]) => {
+        const stored = await listingWithOneBooking(
+          { maxAttendees: 2, name: "Hall" },
+          { quantity: 1 },
+        );
+        const [date] = await bookableStartDates(stored.id);
+        const assign = confirmed ? { count: 1, date: date! } : undefined;
+        const form = testFormParams(dailySwitchForm(stored, { groupIds }));
+        const view = listingFormView("owner");
+        return {
+          date: date!,
+          id: stored.id,
+          result: await buildUpdateListingResource(stored, view, assign).update(
+            stored.id,
+            form,
+          ),
+        };
+      };
+
+      test("a bare switch is refused with the guard's message", async () => {
+        const { result } = await saveSwitch(false, []);
+
+        expect(result).toEqual({
+          error: t("listings_table.switch_daily_undated_guard", { count: 1 }),
+          ok: false,
+        });
+      });
+
+      test("a confirmed switch dates the booking and writes the groups", async () => {
+        const group = await createTestGroup({ name: "Switch group" });
+        const { date, id, result } = await saveSwitch(true, [
+          String(group.id),
+        ]);
+
+        expect(result).toMatchObject({
+          ok: true,
+          row: { listingType: "daily" },
+        });
+        const links = await getDb().execute(
+          sql`SELECT groupListing.group_id FROM group_listings AS groupListing WHERE groupListing.listing_id = ${id}`,
+        );
+        expect(links.rows.map((r) => r.group_id)).toEqual([group.id]);
+        const booked = await getDb().execute(
+          sql`SELECT listingAttendee.start_at FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = ${id}`,
+        );
+        expect(String(booked.rows[0]!.start_at)).toContain(date);
+      });
     });
   });
 });

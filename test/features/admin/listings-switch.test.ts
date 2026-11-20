@@ -179,6 +179,39 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     ).toEqual(expected);
   });
 
+  test("wouldBeStartDates offers the days a submitted zero notice opens", async () => {
+    // Today and the next days stay offered. The stored five-day notice would
+    // hide them, so a submitted zero must win over it on every weekday.
+    const stored = await createTestListing({
+      bookableDays: allDays,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 5,
+    });
+    const submitted = {
+      bookableDays: allDays,
+      customisableDays: false,
+      durationDays: 1,
+      maximumDaysAfter: 10,
+      minimumDaysBefore: 0,
+    };
+    const offered = await wouldBeStartDates(
+      stored,
+      await storedInputFor(stored.id, submitted),
+    );
+    const withStoredNotice = getBookableStartDates(
+      { ...stored, ...submitted, minimumDaysBefore: 5 },
+      await holidays.getAll(),
+    );
+    expect(offered).toEqual(
+      getBookableStartDates(
+        { ...stored, ...submitted },
+        await holidays.getAll(),
+      ),
+    );
+    expect(offered.length).toBeGreaterThan(withStoredNotice.length);
+  });
+
   test("the probe judges each offered date with the production per-day cap SQL", async () => {
     const listing = await listingWithOneBooking(
       { maxAttendees: 2 },
@@ -353,6 +386,9 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     expect(html).toContain('name="assignUndatedTo"');
     expect(html).toContain(
       `checked name="groupIds" type="checkbox" value="${group.id}"`,
+    );
+    expect(html).toContain(
+      `<a aria-current="page" class="active" href="/admin/listing/${listing.id}/edit">Edit</a>`,
     );
   });
 
