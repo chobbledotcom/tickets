@@ -21,6 +21,7 @@ export const textFormattingSection: GuideSection = {
     faq("what_formatting_can_i_use"),
     faq("how_does_the_visual_editor_work"),
     faq("insert_image_in_text"),
+    faq("preview_text_in_a_window"),
   ],
   id: "text-formatting",
   titleKey: "text_formatting",

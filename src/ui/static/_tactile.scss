@@ -96,16 +96,3 @@
     border-color var(--motion-fast) var(--motion-ease),
     box-shadow var(--motion-fast) var(--motion-ease);
 }
-
-/* The page dims behind a popup at the speed the popup rises. */
-@keyframes backdrop-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  :where(dialog)::backdrop {
-    animation: backdrop-in 0.25s ease-out;
-  }
-}

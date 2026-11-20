@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { TlaRecord } from "#scripts/verify-models/data.ts";
 import { classifyBookingLedger } from "#shared/session-ledger.ts";
 import { members, records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
@@ -9,14 +10,12 @@ const { data: bookingReplayModelData, controls } =
 const duplicateBookingData = controls[0].data;
 const deletedRowRefundData = controls[1]!.data;
 
-type Fact = ReturnType<typeof records>[number];
-
 /** The delivery facts the clean module and one corrupted module both emit,
  * plus the facts whose `field` the corruption changed. */
 const flippedFacts = async (
   corruptedData: () => Promise<string>,
   field: "books" | "refunds",
-): Promise<{ changed: { after: Fact; before: Fact }[] }> => {
+): Promise<{ changed: { after: TlaRecord; before: TlaRecord }[] }> => {
   const honest = records(await bookingReplayModelData(), "DeliveryFacts");
   const corrupted = records(await corruptedData(), "DeliveryFacts");
   expect(corrupted).toHaveLength(honest.length);

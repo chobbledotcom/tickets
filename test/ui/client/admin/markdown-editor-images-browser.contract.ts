@@ -293,7 +293,7 @@ describeWithBrowser(
         // button is picked by its own name.
         await page.getByRole("button", { name: "Preview" }).click();
 
-        const shown = page.locator(".md-preview-dialog .md-preview-content");
+        const shown = page.locator("dialog.admin-modal .md-preview-content");
         await shown.locator("img").waitFor();
         expect(await shown.locator("img").getAttribute("src")).toBe(
           "/image/harbour.webp",
@@ -439,11 +439,10 @@ describeWithBrowser(
 
         const dialog = section.locator(DIALOG);
         await dialog.waitFor();
-        await dialog
-          .locator(OPTION)
-          .getByText("Harbour", { exact: true })
-          .waitFor();
+        const options = dialog.locator(OPTION);
+        await options.getByText("Harbour", { exact: true }).waitFor();
         expect(await dialog.getAttribute("open")).not.toBeNull();
+        expect(await options.allTextContents()).toEqual(["Harbour"]);
       });
     });
   },

@@ -15,6 +15,7 @@ import {
   type PickerNote,
 } from "#shared/images/picker.ts";
 import {
+  cloneContent,
   createButton,
   createThumbnail,
   requiredChild,
@@ -43,10 +44,7 @@ export const noteFrom = (
   template: HTMLTemplateElement,
   note: PickerNote,
 ): Node =>
-  document.importNode(
-    requiredChild(template.content, `[data-note="${note}"]`),
-    true,
-  );
+  cloneContent(requiredChild(template.content, `[data-note="${note}"]`));
 
 /** Puts the grid in a state and shows that state's content. */
 export const fillGrid = (
@@ -96,9 +94,8 @@ export const clonePickerDialog = (
   template: HTMLTemplateElement,
   mount: HTMLElement,
 ): PickerDialogParts => {
-  const dialog = document.importNode(
+  const dialog = cloneContent(
     requiredChild<HTMLDialogElement>(template.content, "dialog"),
-    true,
   );
   mount.append(dialog);
   const form = requiredChild<HTMLFormElement>(dialog, "form");
@@ -112,9 +109,8 @@ export const clonePickerDialog = (
   };
 };
 
-/** The dialog's close paths, so every close returns the caller to its own
- *  control. Clicking the backdrop closes, as the preview dialog does. Escape
- *  closes through the native cancel path. */
+/** The dialog's close paths return the caller to its own control.
+ * A backdrop click or the native Escape path closes the dialog. */
 export const wireDialogClose = (
   dialog: HTMLDialogElement,
   onClose: () => void,

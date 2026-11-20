@@ -4,6 +4,7 @@ import { chunk, unique } from "#fp";
 type TlaAtom = string | boolean | number;
 
 export type TlaRecord = Readonly<Record<string, TlaAtom>>;
+export type TlaCollection = "Set" | "Seq";
 export type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool" | "Int">>;
 type FieldValues = { Bool: boolean; Int: number; Str: string };
 export type TlaFact<Schema extends TlaRecordSchema> = {
@@ -149,28 +150,49 @@ export const tlaStringSet = (name: string, values: readonly string[]): string =>
     ),
   ].join("\n");
 
+/** The type alias and one named definition for each record row. */
+const namedRecordDefinitions = (
+  name: string,
+  alias: string,
+  fields: string,
+  rows: readonly string[],
+): { definitions: string[]; names: string[] } => {
+  const names = rows.map((_, index) => `${name}Record${index}`);
+  return {
+    definitions: [
+      `\\* @typeAlias: ${alias} = { ${fields} };`,
+      ...rows.map(
+        (row, index) => `\\* @type: $${alias};\n${names[index]} == ${row}`,
+      ),
+    ],
+    names,
+  };
+};
+
 /** One field declaration supplies both the fact type and the checker type. */
 export const tlaRecords = <const Schema extends TlaRecordSchema>(
   name: string,
   schema: Schema,
   values: readonly TlaFact<Schema>[],
+  collection: TlaCollection = "Set",
 ): string => {
   const fields = Object.entries(schema)
     .map(([field, type]) => `${field}: ${type}`)
     .join(", ");
   const alias = `${name.charAt(0).toLowerCase()}${name.slice(1)}Fact`;
-  const rows = unique(
-    values.map((value, index) => record(value, `${name}[${index}]`)),
+  const rendered = values.map((value, index) =>
+    record(value, `${name}[${index}]`),
   );
-  const names = rows.map((_, index) => `${name}Record${index}`);
-  const definitions = rows.map(
-    (row, index) => `\\* @type: $${alias};\n${names[index]} == ${row}`,
-  );
+  const rows = collection === "Seq" ? rendered : unique(rendered);
+  const named = namedRecordDefinitions(name, alias, fields, rows);
   return [
-    `\\* @typeAlias: ${alias} = { ${fields} };`,
-    ...definitions,
-    ...pagedSet(name, `$${alias}`, names),
-    ...indexedDefinitions(name, `$${alias}`, names),
+    ...named.definitions,
+    collection === "Seq"
+      ? `\\* @type: Seq($${alias});\n${name} == <<${named.names.join(", ")}>>`
+      : [
+          ...pagedSet(name, `$${alias}`, named.names),
+          ...indexedDefinitions(name, `$${alias}`, named.names),
+        ].join("\n"),
   ].join("\n");
 };
 

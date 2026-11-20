@@ -1,3 +1,4 @@
+import type { TlaCollection } from "#scripts/verify-models/data.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 const setBody = (data: string, name: string): string => {
@@ -6,6 +7,13 @@ const setBody = (data: string, name: string): string => {
     `Missing checker set ${name}`,
   );
   return requireValue(match[1], `Missing checker set body ${name}`);
+};
+const sequenceBody = (data: string, name: string): string => {
+  const match = requireValue(
+    data.match(new RegExp(`^${name} == <<(.*)>>$`, "m")),
+    `Missing checker sequence ${name}`,
+  );
+  return requireValue(match[1], `Missing checker sequence body ${name}`);
 };
 export const members = (data: string, name: string): string[] =>
   JSON.parse(`[${setBody(data, name)}]`);
@@ -62,10 +70,16 @@ const partNames = (data: string, name: string): string[] => {
   return whole === "{}" ? [] : whole.split(" \\cup ");
 };
 
-export const records = (data: string, name: string): DecodedRecord[] =>
-  partNames(data, name).flatMap((part) =>
-    decodeRecords(recordBodies(data, setBody(data, part))),
-  );
+export const records = (
+  data: string,
+  name: string,
+  collection: TlaCollection = "Set",
+): DecodedRecord[] =>
+  collection === "Seq"
+    ? decodeRecords(recordBodies(data, sequenceBody(data, name)))
+    : partNames(data, name).flatMap((part) =>
+        decodeRecords(recordBodies(data, setBody(data, part))),
+      );
 
 /** The row text of each page. A named operator holds one page, and the page
  *  list names those operators in order. */

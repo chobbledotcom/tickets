@@ -44,6 +44,20 @@ describe("TLA integer facts", () => {
     expect(records(data, "Amounts")).toEqual(expected);
   });
 
+  test("preserves sequence order and duplicate rows but keeps set identity", () => {
+    const first = { amount: 3, held: false, label: "first" };
+    const second = { amount: 1, held: true, label: "second" };
+    const rows = [second, first, second];
+    for (const collection of ["Set", "Seq"] as const) {
+      const data = tlaModule("AmountsData", [
+        tlaRecords("Amounts", amountFields, rows, collection),
+      ]);
+      expect(records(data, "Amounts", collection)).toEqual(
+        collection === "Set" ? [second, first] : rows,
+      );
+    }
+  });
+
   test("preserves empty sets, distinct identities and escaped field values", () => {
     const first = {
       amount: 1,

@@ -3,6 +3,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { TlaRecord } from "#scripts/verify-models/data.ts";
 import { members, records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
 
@@ -16,10 +17,7 @@ const doubleRecordData = controls[3]!.data;
 const OUTCOMES = ["recorded", "review", "unrecorded"];
 
 /** A group's state carried by each reversal fact, in one record. */
-const group = (
-  name: string,
-  overrides: Record<string, string | boolean> = {},
-): Record<string, string | boolean> => ({
+const group = (name: string, overrides: TlaRecord = {}): TlaRecord => ({
   group: name,
   hasOperatorMoney: false,
   hasProviderPayment: true,
@@ -30,7 +28,7 @@ const group = (
   ...overrides,
 });
 
-const reversalOf = (data: string): ReturnType<typeof records> =>
+const reversalOf = (data: string): TlaRecord[] =>
   records(data, "ReversalFacts");
 
 describe("refund reversal checker data", () => {
@@ -118,7 +116,7 @@ describe("refund reversal checker data", () => {
       round: "first",
     });
     // Every (round, reference) pair the fixtures feed appears exactly once.
-    const pairs = (facts: ReturnType<typeof records>): string[] =>
+    const pairs = (facts: TlaRecord[]): string[] =>
       facts.map((fact) => `${fact.round} ${fact.reference}`).sort();
     expect(pairs(references)).toEqual(
       pairs(records(data, "ExpectedReferences")),
