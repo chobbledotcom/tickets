@@ -7,9 +7,10 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import type { Stub } from "@std/testing/mock";
 import type { Window } from "happy-dom";
+import type { ChosenImage } from "#shared/images/picker.ts";
 import { initListingImages } from "#src/ui/client/admin/listing-images.ts";
+import { ListingImagesField } from "#templates/admin/listings/listing-images.tsx";
 import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
 import { requireElement } from "#test-utils/happy-dom.ts";
 import {
@@ -18,39 +19,31 @@ import {
   PICKER_TEMPLATE,
 } from "#test-utils/markdown-editor-dom.ts";
 import {
+  fetchStubHolder,
   flush,
   json,
   optionByName,
   redirected,
+  restoreHeldStub,
   submitUpload,
   twoImageList,
   untilReady,
 } from "#test-utils/markdown-image-dialog.ts";
 
 afterEach(cleanup);
-afterEach(() => {
-  fetchHolder.stub?.restore();
-  fetchHolder.stub = undefined;
+afterEach(restoreHeldStub);
+
+const sectionHtml = (stored: readonly ChosenImage[] = []): string =>
+  `<form action="/admin/listing" method="post">${String(
+    ListingImagesField({ selected: stored }),
+  )}</form>`;
+
+/** One stored picture as a rejected create renders it. */
+const storedImage = (id: number, name: string, thumb: string): ChosenImage => ({
+  id,
+  name,
+  thumb,
 });
-
-/** The stub outlives the test body's scope so the hook can restore it. */
-const fetchHolder: { stub: Stub | undefined } = { stub: undefined };
-
-const sectionHtml = (stored = ""): string => `
-  <form action="/admin/listing" method="post">
-    <fieldset data-image-picker-heading="Choose images" data-listing-images>
-      <div data-listing-images-inputs>${stored}</div>
-      <p data-listing-images-empty ${stored === "" ? "" : "hidden"}>
-        No pictures chosen yet.
-      </p>
-      <ul data-listing-images-selected></ul>
-      <button type="button" data-listing-images-trigger>Choose images</button>
-    </fieldset>
-  </form>`;
-
-const storedInput = (id: number, name: string, thumb: string): string =>
-  `<input type="hidden" name="imageIds" value="${id}" ` +
-  `data-image-name="${name}" data-image-thumb="${thumb}">`;
 
 /** The one element the selector names in this window. */
 const part = <T extends Element>(window: Window, selector: string): T =>
@@ -58,13 +51,13 @@ const part = <T extends Element>(window: Window, selector: string): T =>
 
 const mounted = async (
   replies: [FetchReply, ...FetchReply[]],
-  stored = "",
+  stored: readonly ChosenImage[] = [],
 ): Promise<{
   dialog: HTMLDialogElement;
   grid: HTMLElement;
   window: Window;
 }> => {
-  fetchHolder.stub = stubFetch(...replies);
+  fetchStubHolder.stub = stubFetch(...replies);
   const window = installDom(PICKER_TEMPLATE + sectionHtml(stored));
   initListingImages();
   part<HTMLButtonElement>(window, "[data-listing-images-trigger]").click();
@@ -96,6 +89,16 @@ const chose = (window: Window, name: string): void => {
   optionByName(window, name).click();
 };
 
+/** The chosen ids and remove labels, in order. */
+const expectSelection = (
+  window: Window,
+  ids: string[],
+  labels: string[],
+): void => {
+  expect(imageIdValues(window)).toEqual(ids);
+  expect(removeLabels(window)).toEqual(labels);
+};
+
 /** Confirms the dialog's marked pictures into the form. */
 const confirmSelection = (window: Window): void => {
   requireElement<HTMLButtonElement>(
@@ -112,11 +115,22 @@ const uploadToStaleLibrary = (): [FetchReply, FetchReply, FetchReply] => [
   twoImageList(),
 ];
 
+/** Upload Harbour through the dialog, then confirm the marked pictures. */
+const uploadHarbourAndConfirm = async (
+  replies: [FetchReply, FetchReply, FetchReply],
+): Promise<Window> => {
+  const { dialog, window } = await mounted(replies);
+  await submitUpload(dialog, "Harbour");
+  await flush();
+  confirmSelection(window);
+  return window;
+};
+
 describe("the listing images field", () => {
   test("renders the pictures a refused create carried", () => {
     const window = installDom(
       PICKER_TEMPLATE +
-        sectionHtml(storedInput(4, "Seed", "/image/seed-thumb.webp")),
+        sectionHtml([storedImage(4, "Seed", "/image/seed-thumb.webp")]),
     );
     initListingImages();
 
@@ -128,25 +142,41 @@ describe("the listing images field", () => {
     expect(item.querySelector("img")?.getAttribute("src")).toBe(
       "/image/seed-thumb.webp",
     );
-    expect(removeLabels(window)).toEqual(["Remove Seed"]);
+    expectSelection(window, ["4"], ["Remove Seed"]);
+  });
+
+  test("refuses a stored picture whose id is not a positive number", () => {
+    installDom(
+      PICKER_TEMPLATE +
+        sectionHtml([storedImage(4, "Seed", "/image/seed-thumb.webp")]).replace(
+          'value="4"',
+          'value="abc"',
+        ),
+    );
+
+    expect(() => initListingImages()).toThrow("invalid stored image id: abc");
   });
 
   test("keeps a stored picture without a thumbnail by its remove control", () => {
     const window = installDom(
-      PICKER_TEMPLATE + sectionHtml(storedInput(5, "No Thumb", "")),
+      PICKER_TEMPLATE + sectionHtml([storedImage(5, "No Thumb", "")]),
     );
     initListingImages();
 
     expect(
       window.document.querySelector(".listing-images-item img"),
     ).toBeNull();
-    expect(removeLabels(window)).toEqual(["Remove No Thumb"]);
+    expectSelection(window, ["5"], ["Remove No Thumb"]);
   });
 
   test("adds the marked pictures in the order they were marked", async () => {
     const { dialog, window } = await mounted([twoImageList()]);
 
+    const pressed = (): (string | null)[] =>
+      attributesOf(window, ".md-image-option", "aria-pressed");
+    expect(pressed()).toEqual(["false", "false"]);
     chose(window, "Zebra");
+    expect(pressed()).toEqual(["false", "true"]);
     chose(window, "Alpha");
     // Marking a chosen picture again clears it; marking it once more adds it
     // back at the end of the order.
@@ -230,19 +260,63 @@ describe("the listing images field", () => {
   });
 
   test("keeps an uploaded picture the refreshed library has not listed", async () => {
-    const { dialog, window } = await mounted(uploadToStaleLibrary());
+    const window = await uploadHarbourAndConfirm(uploadToStaleLibrary());
 
-    await submitUpload(dialog, "Harbour");
-    await flush();
+    expectSelection(window, ["12"], ["Remove Harbour"]);
+  });
 
-    confirmSelection(window);
+  test("keeps an uploaded picture when the refreshed library fails", async () => {
+    const window = await uploadHarbourAndConfirm([
+      twoImageList(),
+      redirected("/admin/images/12/edit"),
+      new Response("down", { status: 500 }),
+    ]);
 
-    expect(imageIdValues(window)).toEqual(["12"]);
-    expect(removeLabels(window)).toEqual(["Remove Harbour"]);
+    expectSelection(window, ["12"], ["Remove Harbour"]);
+  });
+
+  test("keeps the stored selection when the dialog closes without confirming", async () => {
+    const { dialog, window } = await mounted(
+      [twoImageList()],
+      [storedImage(2, "Alpha", "/image/alpha-thumb.webp")],
+    );
+
+    expect(optionByName(window, "Alpha").getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    optionByName(window, "Alpha").click();
+    expect(optionByName(window, "Alpha").getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+    requireElement<HTMLButtonElement>(dialog, ".md-preview-close").click();
+    expect(dialog.open).toBe(false);
+    expect(imageIdValues(window)).toEqual(["2"]);
+
+    part<HTMLButtonElement>(window, "[data-listing-images-trigger]").click();
+    await untilReady(part<HTMLElement>(window, ".md-image-grid"));
+    expect(optionByName(window, "Alpha").getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+  });
+
+  test("shows the load note and retries after the library fails", async () => {
+    const { dialog, grid, window } = await mounted([
+      new Response("down", { status: 500 }),
+      twoImageList(),
+    ]);
+
+    expect(grid.textContent).toBe(
+      "The image library could not load. Please try again.",
+    );
+    dialog.close();
+
+    part<HTMLButtonElement>(window, "[data-listing-images-trigger]").click();
+    await untilReady(grid);
+    expect(optionByName(window, "Alpha").textContent).toBe("Alpha");
   });
 
   test("shows the upload note when the upload fails", async () => {
-    const { dialog, grid } = await mounted([
+    const { dialog, grid, window } = await mounted([
       twoImageList(),
       new Response("refused", { status: 500 }),
     ]);
@@ -253,6 +327,7 @@ describe("the listing images field", () => {
     expect(grid.textContent).toContain(
       "The image could not be uploaded. Please try again.",
     );
+    expect(optionByName(window, "Alpha").textContent).toBe("Alpha");
   });
 
   test("leaves a section without the picker template inert", () => {

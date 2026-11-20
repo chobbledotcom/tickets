@@ -1,8 +1,8 @@
 /**
- * The image upload fields, and the markdown editor's image picker that
- * renders them. The images area renders the same fields. The admin shell
- * renders the picker once on each admin page as an inert `<template>`. The
- * editor clones it for each rich editor and adds the behaviour. The notes
+ * The image upload fields, and the image picker template that renders them.
+ * The images area renders the same fields. The admin shell renders the picker
+ * once on each admin page as an inert `<template>`. The markdown editor and
+ * the new-listing Images field clone it and add the behaviour. The notes
  * after the dialog are the copy that the picker's grid shows in place of
  * thumbnails.
  */
@@ -113,6 +113,7 @@ export const ImagePickerTemplate = (): JSX.Element => (
     </dialog>
     <PickerNotes
       empty={t("images.empty")}
+      loadFailed={t("images.picker.load_failed")}
       loading={t("images.picker.loading")}
       uploadFailed={t("images.picker.upload_failed")}
     />

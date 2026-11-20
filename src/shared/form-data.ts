@@ -2,7 +2,7 @@
  * Utilities for reading values from form data (URLSearchParams).
  */
 
-import type { Result } from "#shared/result.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   parseNonNegativeInt,
   parsePositiveInt as parsePositiveIntId,
@@ -43,6 +43,22 @@ export class FormParams extends URLSearchParams {
     return this.getAll(key)
       .map(parsePositiveIntId)
       .filter((n) => n !== null);
+  }
+
+  /** All repeated values, each a strict positive decimal id, or the first
+   *  value that is not one. A blank value names no id, so it stays out. An
+   *  empty box clears the set. Any other value that is not an id is refused,
+   *  not dropped. A crafted or stale form cannot quietly shrink the set a
+   *  write stores. */
+  getPositiveIdArray(key: string): Result<number[], string> {
+    const ids: number[] = [];
+    for (const value of this.getAll(key)) {
+      if (value.trim() === "") continue;
+      const id = parsePositiveIntId(value);
+      if (id === null) return errorResult(value);
+      ids.push(id);
+    }
+    return okResult(ids);
   }
 
   /** Validate a repeated field and return selected values in declared order. */

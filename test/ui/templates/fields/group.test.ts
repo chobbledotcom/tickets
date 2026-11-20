@@ -1,6 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { getGroupCreateForm, getGroupForm } from "#templates/fields/group.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
@@ -47,9 +48,30 @@ describe("group fields", () => {
       type: "text",
     });
     expect(form.fields[2]).toMatchObject({
+      defaultValue: "0",
       name: "maxAttendees",
+      required: true,
       type: "number",
     });
+  });
+
+  test("refuses a blank max attendees box instead of reading it as 0", () => {
+    const form = getGroupCreateForm();
+    const blank = new FormParams({
+      description: "",
+      maxAttendees: "",
+      name: "Example group",
+    });
+    expect(form.validate(blank)).toEqual({
+      error: "Max attendees is required",
+      valid: false,
+    });
+    const zero = new FormParams({
+      description: "",
+      maxAttendees: "0",
+      name: "Example group",
+    });
+    expect(form.validate(zero).valid).toBe(true);
   });
 
   test("the package checkboxes each offer exactly one tick worth 1", () => {

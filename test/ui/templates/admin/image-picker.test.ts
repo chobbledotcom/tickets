@@ -51,7 +51,7 @@ describe("the image picker template", () => {
     expect(textarea?.[1]).toBe("");
   });
 
-  test("the upload form carries the images area's fields", () => {
+  test("the picker's upload form carries its own fields", () => {
     const fields = inputsOf(String(ImagePickerTemplate())).map(
       ({ name, required, type }) => ({ name, required, type }),
     );
@@ -87,6 +87,7 @@ describe("the image picker template", () => {
     expect(notes).toEqual([
       ["empty", "No images yet."],
       ["loading", "Loading…"],
+      ["loadFailed", "The image library could not load. Please try again."],
       ["uploadFailed", "The image could not be uploaded. Please try again."],
     ]);
   });

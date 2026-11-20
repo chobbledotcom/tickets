@@ -9,7 +9,7 @@ import {
 } from "#db/questions/queries.ts";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import type { AssignPageContext } from "#routes/admin/listings-switch.ts";
-import { imageOptionsOf } from "#shared/images/picker.ts";
+import { imageChoicesOf } from "#shared/images/picker.ts";
 import { ListingAttributesPanel } from "#templates/admin/attributes.tsx";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
@@ -67,7 +67,7 @@ export const loadListingImagesPanel: ListingPanelLoader = async ({
   const selected = await getImagesForItem("listing", listing.id);
   return ListingImagesPanel({
     action: `/admin/listing/${listing.id}/images`,
-    selected: imageOptionsOf(selected),
+    selected: imageChoicesOf(selected),
   });
 };
 

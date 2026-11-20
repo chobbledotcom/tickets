@@ -97,4 +97,9 @@ describe("subscription plan", () => {
     expect(renewalTax({ price: 600, tax: 100 }, 303)).toBe(51);
     expect(renewalTax({ price: 600, tax: 0 }, 900)).toBe(0);
   });
+
+  test("keeps a VAT share below a half-unit boundary", () => {
+    const plan = { price: 200_000_003, tax: 100_000_001 };
+    expect(renewalTax(plan, plan.price + 1)).toBe(plan.tax);
+  });
 });

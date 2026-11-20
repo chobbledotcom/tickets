@@ -10,6 +10,8 @@ import * as v from "valibot";
 import {
   IMAGE_PICKER_ID,
   ImageOptionsReplySchema,
+  imageChoicesOf,
+  imageOptionsOf,
   LAZY_THUMBNAIL_FROM,
   PICKER_NOTES,
 } from "#shared/images/picker.ts";
@@ -19,6 +21,27 @@ const ALPHA = {
   id: 2,
   name: "Alpha",
   thumb: "/image/alpha-thumb.webp",
+};
+
+const STORED_ALPHA = {
+  filename: "alpha.webp",
+  filenameThumb: "alpha-thumb.webp",
+  id: 2,
+  name: "Alpha",
+};
+
+const BETA = {
+  full: "/image/beta.webp",
+  id: 1,
+  name: "Beta",
+  thumb: "/image/beta-thumb.webp",
+};
+
+const STORED_BETA = {
+  filename: "beta.webp",
+  filenameThumb: "beta-thumb.webp",
+  id: 1,
+  name: "Beta",
 };
 
 describe("the image picker contract", () => {
@@ -45,6 +68,17 @@ describe("the image picker contract", () => {
         v.is(ImageOptionsReplySchema, { images: [image] }),
       ),
     ).toEqual([]);
+  });
+
+  test("builds the choice a list keeps from stored image facts", () => {
+    expect(imageChoicesOf([STORED_BETA, STORED_ALPHA])).toEqual([
+      { id: 1, name: "Beta", thumb: "/image/beta-thumb.webp" },
+      { id: 2, name: "Alpha", thumb: "/image/alpha-thumb.webp" },
+    ]);
+  });
+
+  test("builds the option the picker offers with the full picture", () => {
+    expect(imageOptionsOf([STORED_BETA, STORED_ALPHA])).toEqual([BETA, ALPHA]);
   });
 
   test("names the template with an id that a selector can reach", () => {

@@ -14,6 +14,8 @@ export const createData = (
   calcValue: "10",
   direction: "discount",
   name: "Early bird",
+  scope: "all",
+  trigger: "automatic",
   ...overrides,
 });
 

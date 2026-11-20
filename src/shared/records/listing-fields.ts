@@ -28,7 +28,7 @@ export const LISTING_FIELDS = [
   { key: "customisableDays", kind: "switch" },
   { key: "date", kind: "datetime" },
   { key: "dayPrices", kind: "dayPrices" },
-  { key: "description", kind: "privateText" },
+  { key: "description", kind: "privateText", markdown: true },
   { default: 1, key: "durationDays", kind: "durationDays" },
   { default: "email", key: "fields", kind: "contactFields" },
   { key: "hidden", kind: "switch" },

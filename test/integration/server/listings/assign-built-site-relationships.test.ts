@@ -48,6 +48,7 @@ describeWithEnv(
         assignBuiltSite: "1",
         groupIds: String(group.id),
         initialSiteMonths: "1",
+        monthsPerUnit: "0",
         name: "Create Form Plan",
       });
 

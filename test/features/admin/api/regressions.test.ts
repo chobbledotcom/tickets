@@ -15,6 +15,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { expectListingCreated, postListing } from "#test-utils/listing-api.ts";
 import {
   groupRescuedChildAddOn,
+  putListingChildren,
   rescuingPageSetup,
 } from "#test-utils/listing-parents/helpers.ts";
 import { postChildren } from "#test-utils/parents.ts";
@@ -125,16 +126,11 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
     );
   });
 
-  test("accepts listing ID 1 as a positive integer", async () => {
+  test("accepts a stored listing id as a child", async () => {
     const listing = await createTestListing({ name: "Positive Child IDs" });
+    const child = await createTestListing({ name: "Positive Child" });
 
-    await assertJson(
-      apiRequest(`/api/admin/listings/${listing.id}`, {
-        body: { child_listing_ids: [1] },
-        method: "PUT",
-      }),
-      200,
-    );
+    await assertJson(putListingChildren(listing.id, [child.id]), 200);
   });
 
   test("can join a hidden package while clearing children", async () => {

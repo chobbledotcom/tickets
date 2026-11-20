@@ -25,26 +25,12 @@ import {
   sqlList,
   sqlName,
 } from "#db/sql.ts";
-import { insertInto, type NewValues } from "#db/write.ts";
+import { insertInto } from "#db/write.ts";
 import { identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
+import { subscriptionPlanColumns } from "#shared/subscriptions/stored-plan-columns.ts";
 import { dateToStartEnd } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
-
-/** The plan columns a subscription row writes. An ordinary row writes none
- * and keeps the column defaults. */
-const subscriptionPlanColumns = (
-  plan: ListingBooking["subscription"],
-): Partial<NewValues<"listing_attendees">> =>
-  plan === undefined
-    ? {}
-    : {
-        recurringInterval: plan.interval,
-        recurringPrice: plan.amount,
-        recurringTax: plan.tax,
-        subscriptionId: plan.id,
-        subscriptionStatus: plan.status,
-      };
 
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
  * zero-quantity booking carries no capacity or active condition: it demands
@@ -86,7 +72,7 @@ export const buildCapacityCheckedInsert = (
       parentListingId,
       quantity,
       startAt,
-      ...subscriptionPlanColumns(booking.subscription),
+      ...(subscriptionPlanColumns(booking.subscription) ?? {}),
     },
     conditions.every((condition) => condition === true)
       ? {}

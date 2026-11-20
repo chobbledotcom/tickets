@@ -174,9 +174,31 @@ export const inferTemplate = (
 
 /** The new-listing forms that collect pictures before the listing exists.
  *  The custom form shows every option, so it collects pictures too. */
+const IMAGE_TEMPLATES: Record<TemplateId | "custom", boolean> = {
+  custom: true,
+  "day-pass": false,
+  donation: false,
+  "hireable-item": false,
+  "one-off-event": false,
+  "online-digital": false,
+  "physical-product": true,
+  subscription: false,
+  "weekly-event": false,
+};
+
+/** Whether a template id names a form that collects pictures. */
+const isImageTemplate = (
+  templateId: string,
+): templateId is TemplateId | "custom" =>
+  Object.hasOwn(IMAGE_TEMPLATES, templateId);
+
 export const newListingCollectsImages = (
   templateId: string | null | undefined,
-): boolean => templateId === "physical-product" || templateId === "custom";
+): boolean =>
+  templateId !== null &&
+  templateId !== undefined &&
+  isImageTemplate(templateId) &&
+  IMAGE_TEMPLATES[templateId];
 
 /**
  * Both halves of the condition are needed. The template choice alone would

@@ -46,6 +46,9 @@ defaults:
 jobs:
   checks:
     runs-on: ubicloud-standard-4
+    # The uncached model suite takes about 46 minutes with two workers.
+    # A memory-limited runner can use one worker, so allow two hours.
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -69,9 +72,9 @@ jobs:
       - name: Typecheck
         run: deno task typecheck
 
-      # The cpd step runs the jscpd baseline ratchet, and the coverage
-      # exclusion ratchet below diffs its list. Both read the merge base on
-      # origin/main, so the checkout needs that one ref.
+      # The cpd step runs the cpd counts ratchet, and the coverage exclusion
+      # ratchet below diffs its list. Both read the merge base on origin/main,
+      # so the checkout needs that one ref.
       - name: Fetch main for the merge-base ratchets
         run: git fetch origin main
 
@@ -153,6 +156,15 @@ jobs:
       - name: Check TLA model standards
         run: deno task check:tla
 
+      # A pass names its inputs, so a restored pass is safe.
+      - name: Restore the model passes
+        uses: actions/cache@v4.3.0
+        with:
+          path: .verify-models-passes
+          key: verify-models-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            verify-models-${{ runner.os }}-
+
       # Only the models profile carries Apalache and Java.
       - name: Check machine safety models
         shell: devenv --profile models shell bash -- -e {0}
@@ -163,10 +175,10 @@ jobs:
 
   test:
     runs-on: ubicloud-standard-8
-    # A healthy full suite with coverage finishes in about seven minutes. A
-    # wedged test can hold a runner for hours with no failure text (issue
-    # #2225), so the job gives up loudly instead.
-    timeout-minutes: 10
+    # A healthy full suite with coverage finishes in five to ten minutes: the
+    # speed of the runner changes. A wedged test can hold a runner for hours
+    # with no failure text (issue #2225), so the job gives up loudly instead.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository

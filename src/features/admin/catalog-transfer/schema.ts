@@ -36,25 +36,18 @@ const NameRefSchema = v.pipe(v.string(), v.trim(), v.nonEmpty());
  */
 const ListingFieldsSchema = transferSchema(LISTING_FIELDS);
 
-/** Drop day-price keys beyond the listing's own duration: the form only reads
- * `day_price_1..durationDays`. A stored or blob entry above that (for
- * example, duration 2 with a "5" price) is inert. It must not activate if the
- * duration is later raised. Filtered (not rejected) to mirror the form, which
- * just ignores the extra inputs. */
-const filterDayPricesToDuration = (
-  data: v.InferOutput<typeof ListingFieldsSchema>,
-): v.InferOutput<typeof ListingFieldsSchema> => {
-  if (!data.dayPrices) return data;
-  const max = data.durationDays ?? 1;
-  const dayPrices = Object.fromEntries(
-    Object.entries(data.dayPrices).filter(([days]) => Number(days) <= max),
-  );
-  return { ...data, dayPrices };
-};
-
+/** Refuse a day price above the day count the listing offers. The form reads
+ * `dayPrices 1..durationDays`, so a price above that is dead weight. It must
+ * not import, because a later raise of the duration makes it active. */
 export const ListingDataSchema = v.pipe(
   ListingFieldsSchema,
-  v.transform(filterDayPricesToDuration),
+  v.check(
+    (data) =>
+      Object.keys(data.dayPrices ?? {}).every(
+        (days) => Number(days) <= (data.durationDays ?? 1),
+      ),
+    "dayPrices holds a price for a day the listing does not last. Remove that day price or raise durationDays.",
+  ),
 );
 export type ListingData = v.InferOutput<typeof ListingDataSchema>;
 

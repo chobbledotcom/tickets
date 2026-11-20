@@ -158,6 +158,15 @@ type ListingDefinition<Values> = {
   readonly validate: (form: FormParams) => ValidationResult<Values>;
 };
 
+/** The booking duration a checked form carried. The form's own check refuses a
+ *  blank box, so a missing value means the read and the form disagree. */
+export const checkedDurationDays = (values: {
+  durationDays: number | null;
+}): number => {
+  if (typeof values.durationDays === "number") return values.durationDays;
+  throw new Error("The booking duration form box holds no count");
+};
+
 /** Read one submitted listing form. A form that sends a field box its page
  *  did not show is refused. Each shown box is read by its field kind. The
  *  "use listing defaults" switch sits outside the form definition. */
@@ -187,6 +196,14 @@ const readListingForm = <Values extends ListingFormValues>(
   const dayError = validateDayPricesFromForm(submitted);
   if (dayError !== null) return errorResult(dayError);
   const values = parsed.value;
+  // A group box holds a group id. The read must not drop a value that is not
+  // a group id. A dropped value stores a smaller group set than the form sent.
+  const groupIds = submitted.getPositiveIdArray("groupIds");
+  if (!groupIds.ok) {
+    return errorResult(
+      t("fields.validation.pick_from_list", { label: t("terms.groups") }),
+    );
+  }
   const fields = formFieldsInput(
     LISTING_FIELDS,
     { ...values, useDefaults: submitted.getString("useDefaults") },
@@ -200,8 +217,8 @@ const readListingForm = <Values extends ListingFormValues>(
         fields.listingType,
         mode,
       ),
-      dayPrices: parseDayPricesFromForm(submitted, values.durationDays ?? 1),
-      groupIds: submitted.getNumberArray("groupIds"),
+      dayPrices: parseDayPricesFromForm(submitted, checkedDurationDays(values)),
+      groupIds: groupIds.value,
     },
     values,
   });
@@ -281,14 +298,16 @@ const writeCreateListingJoins: (
       await validateListingGroupMembershipsTx(tx)([id], input.groupIds!),
     );
   }
-  // The pictures chosen on the new listing form attach in the same write,
-  // so a create never commits without the pictures its form showed.
-  await setImagesForItem({
-    imageIds,
-    itemId: id,
-    itemType: "listing",
-    transaction: tx,
-  });
+  // The pictures chosen on the new listing form attach in the same write.
+  // Each link lands only while its image still exists.
+  if (imageIds.length > 0) {
+    await setImagesForItem({
+      imageIds,
+      itemId: id,
+      itemType: "listing",
+      transaction: tx,
+    });
+  }
 };
 
 /** One listing write's answer: the row, or the text that refused it. */

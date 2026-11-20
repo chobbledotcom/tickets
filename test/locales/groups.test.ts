@@ -22,6 +22,11 @@ describe("the message groups", () => {
     expect(ADMIN_SHELL_MESSAGE_GROUPS).toContain("images");
   });
 
+  test("the admin shell carries the modal shell's copy", () => {
+    // Every admin page renders the shared modal shell and the preview window.
+    expect(ADMIN_SHELL_MESSAGE_GROUPS).toContain("modal");
+  });
+
   test("a public route adds its own copy after the public shell's", () => {
     expect(publicMessageGroups("tickets", "order")).toEqual([
       ...PUBLIC_SHELL_MESSAGE_GROUPS,
