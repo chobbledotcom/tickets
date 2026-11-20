@@ -11,6 +11,7 @@ import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { AttendeeAnswerSet } from "#db/questions/attendee-answers/save.ts";
 import { sum, sumOf } from "#fp";
 import { t } from "#i18n";
+import { saveAttendeeEdit } from "#routes/admin/attendee-edit-save.ts";
 import {
   ATTENDEE_FORM_ID,
   type ParsedAttendeeForm,
@@ -19,7 +20,6 @@ import {
   toDesiredLines,
   toLedgerOrder,
 } from "#routes/admin/attendee-form-model.ts";
-import { saveAttendeeEdit } from "#routes/admin/attendee-edit-save.ts";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
 import { attendeeTaxSavedMessage } from "#routes/admin/attendee-tax.ts";
 import {

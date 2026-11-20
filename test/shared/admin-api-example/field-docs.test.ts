@@ -277,13 +277,14 @@ describe("documented request fields", () => {
     ]);
   });
 
-  test("every documented write with a body names its fields, except the two the server reads by hand", () => {
+  test("every documented write with a body names its fields, except the attendee writes and the fixed pages, which the server reads by hand", () => {
     const withoutFields = writesWithBody()
       .filter((endpoint) => endpoint.fields === undefined)
       .map((endpoint) => `${endpoint.method} ${endpoint.path}`);
 
     expect(withoutFields).toEqual([
       "POST /api/admin/attendees",
+      "PUT /api/admin/attendees/:attendeeId",
       "PUT /api/admin/site-pages/home",
       "PUT /api/admin/site-pages/contact",
       "PUT /api/admin/site-pages/terms",

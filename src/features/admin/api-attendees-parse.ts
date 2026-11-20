@@ -114,7 +114,9 @@ const optionalContactField = (
 };
 
 /** The contact block's refusal, or the validated contact fields. */
-export const parseContact = (body: Record<string, unknown>): Result<ContactInfo> => {
+export const parseContact = (
+  body: Record<string, unknown>,
+): Result<ContactInfo> => {
   const name = body.name;
   if (typeof name !== "string" || name === "") {
     return errorResult("name is required");

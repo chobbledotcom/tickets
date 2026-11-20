@@ -26,7 +26,7 @@ import { isTaxAssessmentConflict } from "#shared/tax/store.ts";
 import type { Attendee, ContactInfo } from "#types";
 
 /** One attendee edit, fully parsed. */
-export type AttendeeEdit = {
+type AttendeeEdit = {
   /** The activity line to log once the save lands. */
   activity: string;
   /** The answers to store, or null to leave the stored answers alone. */
@@ -48,7 +48,7 @@ export type AttendeeEdit = {
 /** Why an edit was not saved. Nothing is written in any of these cases. */
 export type AttendeeEditFailure = AttendeeUpdateFailureReason | "tax_changed";
 
-export type AttendeeEditOutcome =
+type AttendeeEditOutcome =
   | { ok: true }
   | { ok: false; reason: AttendeeEditFailure };
 

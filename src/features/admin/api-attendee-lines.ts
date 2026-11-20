@@ -33,14 +33,18 @@ const keptLine = ({ booking, key }: ExistingLine): DesiredListingLine => ({
   quantity: booking.quantity,
 });
 
-/** The lines of an update that names no `lines`: every stored row, unchanged. */
+/** The lines of an update with no `lines`: every stored row, unchanged. */
 export const keptLines = (existing: ExistingLine[]): DesiredListingLine[] =>
   existing.map(keptLine);
 
 /** True when the stored row books the line's listing on the line's day. */
-const sameSlot = (line: ApiLine, row: ExistingLine): boolean =>
-  row.booking.listing_id === line.listing.id &&
-  row.booking.start_at === dateToStartEnd(line.date, line.durationDays).startAt;
+const sameSlot = (line: ApiLine, row: ExistingLine): boolean => {
+  const { startAt } = dateToStartEnd(line.date, line.durationDays);
+  return (
+    row.booking.listing_id === line.listing.id &&
+    row.booking.start_at === startAt
+  );
+};
 
 /** One desired line: the matched row's identity, or a new row. */
 const desiredLine = (

@@ -165,7 +165,7 @@ const adjustmentLeg = async (
  * in the caller's list. The create shares the booking's group. An update
  * gives each receipt its own group, so the booking's stored group never
  * changes. */
-export type ReceiptGroupFor = (
+type ReceiptGroupFor = (
   kind: "adjustment" | "payment",
   index: number,
 ) => Promise<string>;
