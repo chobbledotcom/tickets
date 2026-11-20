@@ -360,9 +360,9 @@ describe("the listing images field", () => {
     part<HTMLButtonElement>(window, "[data-listing-images-trigger]").click();
     await flush();
 
-    expect(
-      window.document.querySelectorAll("dialog.admin-modal"),
-    ).toHaveLength(1);
+    expect(window.document.querySelectorAll("dialog.admin-modal")).toHaveLength(
+      1,
+    );
     expect(dialog.open).toBe(true);
     expect(optionByName(window, "Zebra").getAttribute("aria-pressed")).toBe(
       "true",

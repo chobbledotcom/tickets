@@ -191,8 +191,8 @@ describeWithBrowser(
           expect(await page.locator(MODAL).count()).toBe(2);
           await page.waitForFunction(
             () =>
-              getComputedStyle(document.documentElement, "::before")
-                .opacity === "0",
+              getComputedStyle(document.documentElement, "::before").opacity ===
+              "0",
           );
 
           // A window takes the focus back: it is bright, and the page is dim
@@ -204,8 +204,8 @@ describeWithBrowser(
           });
           await page.waitForFunction(
             () =>
-              getComputedStyle(document.documentElement, "::before")
-                .opacity === "1",
+              getComputedStyle(document.documentElement, "::before").opacity ===
+              "1",
           );
           expect(
             await first.evaluate((dialog) => getComputedStyle(dialog).filter),
