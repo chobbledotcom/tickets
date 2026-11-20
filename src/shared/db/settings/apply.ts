@@ -24,6 +24,7 @@ import {
   setSnapshotField,
 } from "#db/settings/snapshot.ts";
 import { DEFAULT_COUNTRY, getCountry } from "#shared/countries.ts";
+import { listingModeOf } from "#shared/listing-mode.ts";
 import {
   DEFAULT_ORPHAN_RETENTION,
   isOrphanRetentionValue,
@@ -90,6 +91,9 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   [CONFIG_KEYS.CALENDAR_FEEDS_GROUP_BY]: (raw) => {
     data.calendar_feeds_group_by =
       raw === "listings" ? "listings" : "attendees";
+  },
+  [CONFIG_KEYS.LISTING_MODE]: (raw) => {
+    data.listing_mode = listingModeOf(raw);
   },
   [CONFIG_KEYS.CONTACT_FORM_ENABLED]: boolApply("contact_form_enabled"),
   [CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS]: boolApply("custom_css_bunny_fonts"),

@@ -102,6 +102,7 @@ const PATHS = {
   settingsHeaderImageDelete: "/admin/settings/header-image/delete",
   settingsHostSubdomain: "/admin/settings/host-subdomain",
   settingsListingColumnOrder: "/admin/settings/listing-column-order",
+  settingsListingMode: "/admin/settings/listing-mode",
   settingsLogisticsRunSheet: "/admin/settings/logistics-run-sheet",
   settingsPaymentProvider: "/admin/settings/payment-provider",
   settingsPaymentProviderRecovery: "/admin/settings/payment-provider-recovery",

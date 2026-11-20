@@ -30,6 +30,7 @@ export const advancedDefaultState: AdvancedSettingsPageState = {
   hostEmailLabel: "",
   hostGoogleWalletLabel: "",
   listingColumnOrder: "",
+  listingMode: "text",
   logisticsEnabled: false,
   logisticsRunSheetBody: "",
   logisticsRunSheetHeading: "",

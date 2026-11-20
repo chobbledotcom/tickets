@@ -277,8 +277,8 @@ const galleryDetailHtml = (listing: TicketListing["listing"]): string =>
   listingPriceHtml(listing) +
   cardDetailLinesHtml(listing, (content) => `<span>${content}</span>`);
 
-/** Render one listing as a product-gallery card — the shop-index look the
- *  listings page uses when most of them carry a picture. The shared media
+/** Render one listing as a product-gallery card — the shop-index look image
+ *  mode gives the listings page. The shared media
  *  card (image, name, detail lines) reuses the order gallery's and news
  *  list's `.card` layout. A bookable listing's whole card is the Book/Buy
  *  link, while every non-bookable state keeps the card but swaps the link
@@ -330,8 +330,8 @@ const renderGroupCard = (group: Group, soldOut: boolean): string => {
 
 /**
  * Homepage with listings - lists all active upcoming listings with booking links.
- * When most visible listings carry a picture, the cards render as a
- * product-card gallery instead of the classic prose cards.
+ * With `galleryView` on (image listing mode), the cards render as a
+ * product-card gallery instead of the classic text cards.
  */
 export const homepagePage = (
   listings: TicketListing[],

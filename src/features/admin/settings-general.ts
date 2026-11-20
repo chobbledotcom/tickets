@@ -30,6 +30,7 @@ import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
+import type { ListingMode } from "#shared/listing-mode.ts";
 import {
   PAYMENT_PROVIDERS,
   providerCurrencyBlock,
@@ -235,6 +236,18 @@ export const handleExternalOrderPost = settingsToggleFor(
 );
 
 /* jscpd:ignore-end */
+
+/** Handle POST /admin/settings/listing-mode - owner only. The form carries
+ *  one radio group, so the handler reads and validates it directly. */
+export const handleListingModePost = settingsHandler({
+  advanced: true,
+  extract: (form) => form.getString("listingMode"),
+  formId: "settings-listing-mode",
+  log: (v) => `Listing mode set to ${v}`,
+  save: (v) => settings.update.listingMode(v as ListingMode),
+  validate: (v) =>
+    v !== "text" && v !== "image" ? t("error.invalid_listing_mode") : null,
+});
 
 /** Handle POST /admin/settings/calendar-feeds - owner only */
 export const handleCalendarFeedsPost = settingsHandler({
