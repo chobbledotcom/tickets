@@ -155,6 +155,15 @@ const pushAnswerRows = <Row extends { attendeeId: number }>(
   );
 };
 
+/** The rows of every attendee's answer set, each tagged with its attendee. */
+const attendeeRows = <Row extends object>(
+  normalized: Map<number, NormalizedAnswerSet>,
+  rowsOf: (set: NormalizedAnswerSet) => Row[],
+) =>
+  [...normalized].flatMap(([attendeeId, set]) =>
+    rowsOf(set).map((row) => ({ attendeeId, ...row })),
+  );
+
 /** The string id of a stored answer, or the lookup that finds the id of a
  * prepared answer by its blind index. */
 const stringIdOf = (value: number | string): SqlSlot =>
@@ -170,9 +179,8 @@ const lineAnswerStatements = (
   ref: AttendeeRef,
   textIndexByText: Map<string, string>,
 ): SqlStatement[] => {
-  const rows = [...normalized].flatMap(([attendeeId, set]) =>
+  const rows = attendeeRows(normalized, (set) =>
     set.lineAnswers.map((answer) => ({
-      attendeeId,
       listingId: answer.listingId,
       questionId: answer.questionId,
       value:
@@ -223,12 +231,8 @@ const answerSaveStatements = (
   if (preparedStringRows.length > 0) {
     statements.push(...internWriteStatements(preparedStringRows));
   }
-  const choiceRows = [...normalized].flatMap(([attendeeId, set]) =>
-    set.answerIds.map((answerId, position) => ({
-      answerId,
-      attendeeId,
-      position,
-    })),
+  const choiceRows = attendeeRows(normalized, (set) =>
+    set.answerIds.map((answerId, position) => ({ answerId, position })),
   );
   pushAnswerRows(statements, ref, {
     // Last answer per question wins: the row numbers rank each question's
@@ -276,9 +280,7 @@ const answerSaveStatements = (
       value,
     }));
   };
-  const textRows = [...normalized].flatMap(([attendeeId, set]) =>
-    textRowsByQuestion(set).map((row) => ({ attendeeId, ...row })),
-  );
+  const textRows = attendeeRows(normalized, textRowsByQuestion);
   pushAnswerRows(statements, ref, {
     // The questions join drops a question deleted between checkout and
     // finalize instead of inserting an orphan row.
