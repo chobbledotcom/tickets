@@ -5,7 +5,7 @@
 \* and saves its expanded position. Restore must use that saved position, not
 \* a later drag position. Example: minimise a at pixel 2, drag it to pixel 0,
 \* then restore it. It must return to 2 when the viewport has enough space.
-EXTENDS Integers, FiniteSets, Sequences, ModalLifecycleData, ModelRules
+EXTENDS Apalache, Integers, FiniteSets, Sequences, ModalLifecycleData, ModelRules
 
 \* scripts/verify-models/modal-lifecycle.ts calls transitionModals from
 \* src/ui/client/admin/modal-state.ts for every event at every discovered state.
@@ -61,7 +61,8 @@ VARIABLES
   \* @type: Bool;
   safe
 
-\* == defines an expression, not an assignment. /\ joins conditions with 'and'.
+\* == defines an expression. In an action, := assigns a next value.
+\* /\ joins conditions with 'and'.
 \* A set lists permitted values. \in means membership. \A checks every member.
 \* @type: Set(Str);
 Keys == {"a", "b", "c"}
@@ -218,18 +219,19 @@ Safety ==
 \* Start with no windows, before the first open. Initial safety checks every
 \* domain fact, including rows that this initial id does not select.
 \* @type: Bool;
-Init == /\ windows = 0 /\ safe = TRUE
+Init == /\ windows := 0 /\ safe := TRUE
 
 \* \E permits any selected input event, not merely the first. The matrix holds
 \* that event's actual reducer result at the current source state. A prime
-\* denotes the value after a step. An unsafe result still changes the state
-\* and records failure. No safety guard removes it. No-op cells remain steps.
+\* denotes the value after a step. := marks each assignment. An unsafe result
+\* still changes the state and records failure. No safety guard removes it.
+\* No-op cells remain steps.
 \* @type: Bool;
 Transition ==
   \E input \in Events :
     LET target == Targets[windows + 1][input.event + 1]
-    IN /\ windows' = target
-       /\ safe' = ChecksStillPass(safe, LegalTransition(windows, target, input))
+    IN /\ windows' := target
+       /\ safe' := ChecksStillPass(safe, LegalTransition(windows, target, input))
 
 \* \/ offers alternatives. Any enabled event may occur after any other event.
 \* UNCHANGED allows a step with no event and no progress requirement.
