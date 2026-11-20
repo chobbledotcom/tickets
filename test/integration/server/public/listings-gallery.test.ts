@@ -59,7 +59,7 @@ describeWithEnv(
       });
     });
 
-    test("a dated daily listing keeps the date on its gallery link", async () => {
+    test("image mode keeps the date filter and the unavailable grid", async () => {
       await enablePublicSite();
       const daily = await createDailyTestListing({
         maxAttendees: 100,
@@ -67,18 +67,6 @@ describeWithEnv(
         name: "Gallery Daily",
       });
       await attachImage(daily.id, "Gallery Daily Poster");
-
-      await withSetting({ listing_mode: "image" }, async () => {
-        const html = await assertPublicHtml(
-          "/listings?date=2026-12-31",
-          "Gallery Daily",
-        );
-        assert(html.includes(`href="/ticket/${daily.slug}?date=2026-12-31"`));
-      });
-    });
-
-    test("a closed listing lands in the unavailable gallery grid", async () => {
-      await enablePublicSite();
       const closed = await createTestListing({
         closesAt: pastCloseTime(),
         maxAttendees: 100,
@@ -87,11 +75,17 @@ describeWithEnv(
       await attachImage(closed.id, "Gallery Closed Poster");
 
       await withSetting({ listing_mode: "image" }, async () => {
-        const html = await assertPublicHtml(
+        const dated = await assertPublicHtml(
+          "/listings?date=2026-12-31",
+          "Gallery Daily",
+        );
+        assert(dated.includes(`href="/ticket/${daily.slug}?date=2026-12-31"`));
+
+        const closedHtml = await assertPublicHtml(
           "/listings?date=2026-06-16",
           "Gallery Closed",
         );
-        expectIncludesAll(html, ['class="card-grid"', "Unavailable"]);
+        expectIncludesAll(closedHtml, ['class="card-grid"', "Unavailable"]);
       });
     });
   },
