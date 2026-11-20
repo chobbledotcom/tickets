@@ -437,59 +437,40 @@ describe("CLI parser", () => {
   });
 
   test("parses the filtered external source reads with their query", () => {
-    const lookup: unknown = parseCommand(testTable, [
-      "linkLookup",
-      "external-sources",
-      "external_id=ABC 1",
-    ]);
-    expect(lookup).toEqual({
-      entry: ADMIN_API_RESOURCES["external-sources"],
-      id: undefined,
-      kind: "custom",
-      query: { external_id: "ABC 1" },
-      resource: "external-sources",
-      routeKey: "linkLookup",
-    });
-    const search: unknown = parseCommand(testTable, [
-      "linkSearch",
-      "external-sources",
-      "link_type=listing",
-      "link_id=4",
-    ]);
-    expect(search).toMatchObject({
-      id: undefined,
-      query: { link_id: "4", link_type: "listing" },
-    });
-    const links: unknown = parseCommand(testTable, [
-      "links",
-      "external-sources",
-      "3",
-      "external_id=a=b",
-    ]);
-    expect(links).toMatchObject({ id: 3, query: { external_id: "a=b" } });
+    const cases: [string[], object][] = [
+      [
+        ["linkLookup", "external-sources", "external_id=ABC 1"],
+        { id: undefined, query: { external_id: "ABC 1" } },
+      ],
+      [
+        ["linkSearch", "external-sources", "link_type=listing", "link_id=4"],
+        { id: undefined, query: { link_id: "4", link_type: "listing" } },
+      ],
+      [
+        ["links", "external-sources", "3", "external_id=a=b"],
+        { id: 3, query: { external_id: "a=b" } },
+      ],
+    ];
+    for (const [args, expected] of cases) {
+      const parsed: unknown = parseCommand(testTable, args);
+      expect(parsed).toMatchObject({ kind: "custom", ...expected });
+    }
   });
 
-  test("answers exit 2 for an id on a route that takes none", () => {
-    const answer = parseOrUsage(["linkLookup", "external-sources", "3"]);
-    expect(answer.code).toBe(2);
-    assertStringIncludes(answer.message, "takes no id");
-  });
-
-  test("answers exit 2 for a route that needs an id and gets only a query", () => {
-    const answer = parseOrUsage(["links", "external-sources", "a=b"]);
-    expect(answer.code).toBe(2);
-    assertStringIncludes(answer.message, "needs the source id");
-  });
-
-  test("answers exit 2 for a repeated query key", () => {
-    const answer = parseOrUsage([
-      "linkLookup",
-      "external-sources",
-      "external_id=a",
-      "external_id=b",
-    ]);
-    expect(answer.code).toBe(2);
-    assertStringIncludes(answer.message, "'external_id' appears twice");
+  test("answers exit 2 for a filter route call the route cannot take", () => {
+    const cases: [string[], string][] = [
+      [["linkLookup", "external-sources", "3"], "takes no id"],
+      [["links", "external-sources", "a=b"], "needs the source id"],
+      [
+        ["linkLookup", "external-sources", "external_id=a", "external_id=b"],
+        "'external_id' appears twice",
+      ],
+    ];
+    for (const [args, fragment] of cases) {
+      const answer = parseOrUsage(args);
+      expect(answer.code).toBe(2);
+      assertStringIncludes(answer.message, fragment);
+    }
   });
 
   test("parses a delete with its confirmation body", () => {

@@ -153,11 +153,12 @@ describe("admin api client", () => {
     expect(answer).toEqual({ status: "inactive" });
   });
 
-  test("a custom route without an id param sends its query string", async () => {
+  test("a custom route sends its query string and refuses a wrong id", async () => {
+    const sources = ADMIN_API_RESOURCES["external-sources"];
     const found = stubTransport({ links: [] });
     await adminApiCustomRoute(
       found.transport,
-      ADMIN_API_RESOURCES["external-sources"],
+      sources,
       "linkLookup",
       undefined,
       { external_id: "a b&c" },
@@ -168,22 +169,24 @@ describe("admin api client", () => {
         path: "/api/admin/external-sources/lookup?external_id=a+b%26c",
       },
     ]);
-  });
-
-  test("a custom route refuses an id that does not match its subpath", async () => {
-    const message = (id: number | undefined, key: string) =>
-      adminApiCustomRoute(
-        stubTransport({}).transport,
-        ADMIN_API_RESOURCES["external-sources"],
-        key,
-        id,
-      ).catch((error: unknown) => (error as Error).message);
-    expect(await message(3, "linkLookup")).toBe(
+    const refusals = await Promise.all(
+      [
+        ["linkLookup", 3],
+        ["links", undefined],
+      ].map(([key, id]) =>
+        adminApiCustomRoute(
+          found.transport,
+          sources,
+          key as string,
+          id as number | undefined,
+        ).catch((error: unknown) => (error as Error).message),
+      ),
+    );
+    expect(refusals).toEqual([
       "admin api external-sources linkLookup custom route takes no id",
-    );
-    expect(await message(undefined, "links")).toBe(
       "admin api external-sources links custom route needs id",
-    );
+    ]);
+    expect(found.calls).toHaveLength(1);
   });
 
   test("an unknown custom route throws instead of building a path", async () => {
