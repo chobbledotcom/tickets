@@ -1,5 +1,5 @@
 ---------------------------- MODULE NotificationFlagLease ----------------------------
-EXTENDS Integers, ModelRules, NotificationFlagLeaseData
+EXTENDS Apalache, Integers, ModelRules, NotificationFlagLeaseData
 
 \* This module describes one attendee's unpaid work, not unpaid money. An
 \* attendee is the customer record that holds a buyer's booked places. A
@@ -151,15 +151,15 @@ Safety ==
 \* different colours expose a restore that returns a fixed wrong colour.
 \* Real flags need not have this particular mixture of origins.
 Init ==
-  /\ storedEmail = 2
-  /\ storedWebhooks = 1
-  /\ emailLeased = FALSE
-  /\ webhooksLeased = FALSE
-  /\ emailCaptured = 0
-  /\ webhooksCaptured = 0
-  /\ emailHolder = "none"
-  /\ webhooksHolder = "none"
-  /\ allFactsSafe = TRUE
+  /\ storedEmail := 2
+  /\ storedWebhooks := 1
+  /\ emailLeased := FALSE
+  /\ webhooksLeased := FALSE
+  /\ emailCaptured := 0
+  /\ webhooksCaptured := 0
+  /\ emailHolder := "none"
+  /\ webhooksHolder := "none"
+  /\ allFactsSafe := TRUE
 
 \* A claim fact must match both stored flags. A prime names the next value.
 \* The step zeroes both flags and captures each positive side for that worker.
@@ -169,17 +169,17 @@ ClaimStep ==
   \E fact \in ClaimFacts :
     /\ storedEmail = fact.beforeEmail
     /\ storedWebhooks = fact.beforeWebhooks
-    /\ storedEmail' = 0
-    /\ storedWebhooks' = 0
-    /\ emailLeased' = IF fact.claimsEmail THEN TRUE ELSE emailLeased
-    /\ emailCaptured' = IF fact.claimsEmail THEN fact.beforeEmail ELSE emailCaptured
-    /\ webhooksLeased' = IF fact.claimsWebhooks THEN TRUE ELSE webhooksLeased
-    /\ webhooksCaptured' =
+    /\ storedEmail' := 0
+    /\ storedWebhooks' := 0
+    /\ emailLeased' := IF fact.claimsEmail THEN TRUE ELSE emailLeased
+    /\ emailCaptured' := IF fact.claimsEmail THEN fact.beforeEmail ELSE emailCaptured
+    /\ webhooksLeased' := IF fact.claimsWebhooks THEN TRUE ELSE webhooksLeased
+    /\ webhooksCaptured' :=
          IF fact.claimsWebhooks THEN fact.beforeWebhooks ELSE webhooksCaptured
-    /\ emailHolder' = IF fact.claimsEmail THEN fact.worker ELSE emailHolder
-    /\ webhooksHolder' =
+    /\ emailHolder' := IF fact.claimsEmail THEN fact.worker ELSE emailHolder
+    /\ webhooksHolder' :=
          IF fact.claimsWebhooks THEN fact.worker ELSE webhooksHolder
-    /\ allFactsSafe' = ChecksStillPass(allFactsSafe, ClaimValueCaptured(fact))
+    /\ allFactsSafe' := ChecksStillPass(allFactsSafe, ClaimValueCaptured(fact))
 
 \* A restore needs at least one named side with a live lease. It writes that
 \* side's fact colour and clears its lease, capture and holder. Unnamed sides
@@ -189,28 +189,28 @@ RestoreStep ==
   \E fact \in RestoreFacts :
     /\ ((fact.returnsEmail /\ emailLeased) \/
         (fact.returnsWebhooks /\ webhooksLeased))
-    /\ storedEmail' =
+    /\ storedEmail' :=
          IF fact.returnsEmail /\ emailLeased THEN fact.emailValue
          ELSE storedEmail
-    /\ storedWebhooks' =
+    /\ storedWebhooks' :=
          IF fact.returnsWebhooks /\ webhooksLeased THEN fact.webhooksValue
          ELSE storedWebhooks
-    /\ emailLeased' =
+    /\ emailLeased' :=
          IF fact.returnsEmail /\ emailLeased THEN FALSE ELSE emailLeased
-    /\ webhooksLeased' =
+    /\ webhooksLeased' :=
          IF fact.returnsWebhooks /\ webhooksLeased THEN FALSE
          ELSE webhooksLeased
-    /\ emailCaptured' =
+    /\ emailCaptured' :=
          IF fact.returnsEmail /\ emailLeased THEN 0 ELSE emailCaptured
-    /\ webhooksCaptured' =
+    /\ webhooksCaptured' :=
          IF fact.returnsWebhooks /\ webhooksLeased THEN 0
          ELSE webhooksCaptured
-    /\ emailHolder' =
+    /\ emailHolder' :=
          IF fact.returnsEmail /\ emailLeased THEN "none" ELSE emailHolder
-    /\ webhooksHolder' =
+    /\ webhooksHolder' :=
          IF fact.returnsWebhooks /\ webhooksLeased THEN "none"
          ELSE webhooksHolder
-    /\ allFactsSafe' = ChecksStillPass(allFactsSafe, RestoreWritesCaptured(fact))
+    /\ allFactsSafe' := ChecksStillPass(allFactsSafe, RestoreWritesCaptured(fact))
 
 \* A clear needs a positive flag or a live lease on its named side. It zeroes
 \* that side and removes its lease memory. The other side stays as it was.
@@ -219,16 +219,16 @@ ClearStep ==
   \E fact \in ClearFacts :
     /\ (fact.side = "email" => storedEmail > 0 \/ emailLeased)
     /\ (fact.side = "webhooks" => storedWebhooks > 0 \/ webhooksLeased)
-    /\ storedEmail' = IF fact.side = "email" THEN 0 ELSE storedEmail
-    /\ storedWebhooks' = IF fact.side = "webhooks" THEN 0 ELSE storedWebhooks
-    /\ emailLeased' = IF fact.side = "email" THEN FALSE ELSE emailLeased
-    /\ webhooksLeased' = IF fact.side = "webhooks" THEN FALSE ELSE webhooksLeased
-    /\ emailCaptured' = IF fact.side = "email" THEN 0 ELSE emailCaptured
-    /\ webhooksCaptured' = IF fact.side = "webhooks" THEN 0 ELSE webhooksCaptured
-    /\ emailHolder' = IF fact.side = "email" THEN "none" ELSE emailHolder
-    /\ webhooksHolder' =
+    /\ storedEmail' := IF fact.side = "email" THEN 0 ELSE storedEmail
+    /\ storedWebhooks' := IF fact.side = "webhooks" THEN 0 ELSE storedWebhooks
+    /\ emailLeased' := IF fact.side = "email" THEN FALSE ELSE emailLeased
+    /\ webhooksLeased' := IF fact.side = "webhooks" THEN FALSE ELSE webhooksLeased
+    /\ emailCaptured' := IF fact.side = "email" THEN 0 ELSE emailCaptured
+    /\ webhooksCaptured' := IF fact.side = "webhooks" THEN 0 ELSE webhooksCaptured
+    /\ emailHolder' := IF fact.side = "email" THEN "none" ELSE emailHolder
+    /\ webhooksHolder' :=
          IF fact.side = "webhooks" THEN "none" ELSE webhooksHolder
-    /\ allFactsSafe' = allFactsSafe
+    /\ UNCHANGED allFactsSafe
 
 \* Next defines the permitted state changes, not a delivery schedule.
 \* UNCHANGED permits a step with no value change. No rule requires eventual

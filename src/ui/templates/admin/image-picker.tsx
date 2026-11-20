@@ -2,9 +2,10 @@
  * The image upload fields, and the image picker template that renders them.
  * The images area renders the same fields. The admin shell renders the picker
  * once on each admin page as an inert `<template>`. The markdown editor and
- * the new-listing Images field clone it and add the behaviour. The notes
- * after the dialog are the copy that the picker's grid shows in place of
- * thumbnails.
+ * the new-listing Images field clone it and show it in the shared admin modal.
+ * The modal supplies the title bar and the close control. The title is the
+ * words that bar shows. The notes after the picker are the copy that its grid
+ * shows in place of thumbnails.
  */
 
 import { t } from "#i18n";
@@ -16,9 +17,9 @@ import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
 import {
   IMAGE_PICKER_ID,
   PICKER_NOTES,
+  PICKER_TITLE_COPY,
   type PickerNote,
 } from "#shared/images/picker.ts";
-import { Icon } from "#templates/components/actions.tsx";
 
 /** The name and alt text that every image form edits. */
 const imageFieldsFor = (altTextType: "text" | "textarea"): Field[] => [
@@ -84,15 +85,8 @@ const EmptyUploadFields = (): JSX.Element => (
 
 export const ImagePickerTemplate = (): JSX.Element => (
   <template id={IMAGE_PICKER_ID}>
-    <dialog class="md-image-dialog">
-      <button
-        aria-label={t("images.picker.close")}
-        class="md-preview-close"
-        type="button"
-      >
-        <Icon name="x" />
-      </button>
-      <h2>{t("images.picker.heading")}</h2>
+    <span data-copy={PICKER_TITLE_COPY}>{t("images.picker.heading")}</span>
+    <div class="md-image-picker">
       <div class="md-image-columns">
         <CsrfForm
           action="/admin/images"
@@ -110,7 +104,7 @@ export const ImagePickerTemplate = (): JSX.Element => (
           </button>
         </div>
       </div>
-    </dialog>
+    </div>
     <PickerNotes
       empty={t("images.empty")}
       loadFailed={t("images.picker.load_failed")}

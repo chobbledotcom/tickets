@@ -16,11 +16,10 @@ import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { listingWithImages, makeImage } from "#test-utils/admin-images.ts";
 import { describeWithBrowser } from "#test-utils/browser-contract.ts";
+import { DIALOG, OPTION } from "#test-utils/markdown-image-contract.ts";
 
 await ensureMessageGroups(MESSAGE_GROUPS);
 
-const DIALOG = ".md-image-dialog";
-const OPTION = ".md-image-option";
 const REMOVE = ".listing-images-remove";
 const TRIGGER = "[data-listing-images-trigger]";
 

@@ -5,7 +5,7 @@
 \* The bad outcomes are an unsupported order, a wrong first payment reference,
 \* or a plan stored on another row. For example, buying two club places and one
 \* ordinary ticket must put the club plan on the club row, not the extra ticket.
-EXTENDS Integers, FiniteSets, ModelRules, SubscriptionCheckoutData
+EXTENDS Apalache, Integers, FiniteSets, ModelRules, SubscriptionCheckoutData
 
 \* scripts/verify-models/subscriptions/checkout.ts supplies these facts.
 \* checkout-admission.ts calls subscriptionOrderError and subscriptionCheckoutError.
@@ -158,11 +158,11 @@ PlanLaw(f) ==
 \* starts from any safe state, not only this initial state. Each Next step
 \* must retain the same laws.
 Init ==
-  /\ checksPassed = Coverage
-  /\ selected = "none"
-  /\ selectionKind = "none"
-  /\ selectionIndex = 0
-  /\ attempt = 0
+  /\ checksPassed := Coverage
+  /\ selected := "none"
+  /\ selectionKind := "none"
+  /\ selectionIndex := 0
+  /\ attempt := 0
 Safety == TypeOK /\ checksPassed
 
 \* Integer choice permits every fact, not only the first. Paged lookup avoids
@@ -172,24 +172,24 @@ Safety == TypeOK /\ checksPassed
 AdmissionStep ==
   \E index \in AdmissionFactsIndices :
     LET f == AdmissionFactsAt(index) IN
-    /\ selectionKind' = "admission" /\ selectionIndex' = index
-    /\ checksPassed' = ChecksStillPass(checksPassed, AdmissionLaw(f))
-    /\ selected' = f.scenario
-    /\ attempt' = f.attempt
+    /\ selectionKind' := "admission" /\ selectionIndex' := index
+    /\ checksPassed' := ChecksStillPass(checksPassed, AdmissionLaw(f))
+    /\ selected' := f.scenario
+    /\ attempt' := f.attempt
 RequestStep ==
   \E index \in RequestFactsIndices :
     LET f == RequestFactsAt(index) IN
-    /\ selectionKind' = "request" /\ selectionIndex' = index
-    /\ checksPassed' = ChecksStillPass(checksPassed, RequestLaw(f))
-    /\ selected' = f.scenario
-    /\ attempt' = f.attempt
+    /\ selectionKind' := "request" /\ selectionIndex' := index
+    /\ checksPassed' := ChecksStillPass(checksPassed, RequestLaw(f))
+    /\ selected' := f.scenario
+    /\ attempt' := f.attempt
 PlanStep ==
   \E index \in PlanFactsIndices :
     LET f == PlanFactsAt(index) IN
-    /\ selectionKind' = "plan" /\ selectionIndex' = index
-    /\ checksPassed' = ChecksStillPass(checksPassed, PlanLaw(f))
-    /\ selected' = f.identity
-    /\ attempt' = f.attempt
+    /\ selectionKind' := "plan" /\ selectionIndex' := index
+    /\ checksPassed' := ChecksStillPass(checksPassed, PlanLaw(f))
+    /\ selected' := f.identity
+    /\ attempt' := f.attempt
 
 \* Next permits each observed event or a step with no change. It asserts
 \* safety, not eventual provider completion. Examples are independent seeds,

@@ -1,5 +1,6 @@
 import * as v from "valibot";
-import type { Table } from "#cli/commands.ts";
+import { parseCommand, type Table } from "#cli/commands.ts";
+import { CliError, EXIT_CODES } from "#cli/errors.ts";
 import type { RunDeps } from "#cli/run.ts";
 import type { AdminApiRequest } from "#shared/admin-api-client.ts";
 import {
@@ -69,3 +70,16 @@ export const runDeps = (
   transport,
   ...overrides,
 });
+
+/** Parse one command, or answer the usage error's exit code and message. */
+export const parseOrUsage = (
+  args: string[],
+): { code: number; message: string } => {
+  try {
+    parseCommand(testTable, args);
+    throw new Error(`expected a usage error for ${args.join(" ")}`);
+  } catch (error) {
+    if (!(error instanceof CliError)) throw error;
+    return { code: EXIT_CODES[error.kind], message: error.message };
+  }
+};

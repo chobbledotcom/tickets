@@ -3,10 +3,11 @@
 /**
  * The image picker for the markdown editor toolbar. The server renders the
  * picker's markup on each admin page with image storage, as a `<template>`.
- * Each editor clones it, fills the grid from the image library, uploads new
- * images, and inserts the short-form reference (`![Alt](img#id)`) at the
- * caret. The server translates img#id to the real image URL at render time,
- * so the editor stores the stable short form.
+ * Each editor clones it and shows it in the shared admin modal. The picker
+ * fills its grid from the image library and uploads new images. It inserts the
+ * short-form reference (`![Alt](img#id)`) at the caret. The server translates
+ * img#id to the real image URL at render time, so the editor stores the stable
+ * short form.
  */
 
 import { schema } from "prosemirror-markdown";
@@ -21,20 +22,24 @@ import {
 } from "#src/ui/client/admin/markdown-editor-image-view.ts";
 import { createToolbarButton } from "#src/ui/client/admin/markdown-editor-toolbar.ts";
 import {
-  clonePickerDialog,
+  closeAdminModal,
+  isAdminModalOpen,
+} from "#src/ui/client/admin/modal.ts";
+import {
+  clonePicker,
   fillGrid,
   imageOptionNodes,
   noteFrom,
   optionButton,
-  type PickerDialogParts,
+  type PickerParts,
   pickerTemplateOrNull,
-  wireDialogClose,
+  showPicker,
   wireUploadForm,
 } from "./image-picker-template.ts";
 
-/** One editor's picker: the cloned dialog's parts and the library its grid
+/** One editor's picker: the cloned picker's parts and the library its grid
  *  shows. */
-interface Picker extends PickerDialogParts {
+interface Picker extends PickerParts {
   editor: () => EditorView;
   library: ImageLibrary;
 }
@@ -53,10 +58,10 @@ const insertImageRef = (view: EditorView, choice: ImageChoice): void => {
   );
 };
 
-/** The dialog's close gives the caret back to the editor. */
+/** The window's close gives the caret back to the editor. */
 const chooseImage = (picker: Picker, choice: ImageChoice): void => {
   if (!picker.editor().isDestroyed) insertImageRef(picker.editor(), choice);
-  picker.dialog.close();
+  closeAdminModal(picker.key);
 };
 
 /** The page renders the picker only with image storage, so a library that
@@ -65,33 +70,26 @@ const openPicker = async (picker: Picker): Promise<void> => {
   // A destroyed editor's view cannot dispatch, and the teardown leaves the
   // button mounted: the control stays inert.
   if (picker.editor().isDestroyed) return;
+  // The page stays usable behind the window, so the button can press again.
+  // A second press raises the window and keeps what it shows.
+  if (!showPicker(picker, () => picker.editor().focus())) return;
   fillGrid(picker.grid, "loading", [noteFrom(picker.template, "loading")]);
-  picker.dialog.showModal();
   const options = await picker.library.load().catch(() => null);
-  if (options === null) {
-    if (picker.dialog.open) {
-      fillGrid(picker.grid, "ready", [noteFrom(picker.template, "loadFailed")]);
-    }
-    return;
-  }
-  // A dialog closed before the answer stays as it is.
-  if (picker.dialog.open) {
-    fillGrid(
-      picker.grid,
-      "ready",
-      imageOptionNodes(picker.template, options, (option, index) =>
-        optionButton(option, index, () => chooseImage(picker, option)),
-      ),
-    );
-  }
+  // A window closed before the answer stays as it is.
+  if (!isAdminModalOpen(picker.key)) return;
+  fillGrid(
+    picker.grid,
+    "ready",
+    options === null
+      ? [noteFrom(picker.template, "loadFailed")]
+      : imageOptionNodes(picker.template, options, (option, index) =>
+          optionButton(option, index, () => chooseImage(picker, option)),
+        ),
+  );
 };
 
 const wirePicker = (picker: Picker, button: HTMLButtonElement): void => {
-  const { dialog } = picker;
-  wireDialogClose(dialog, () => picker.editor().focus());
   wireUploadForm(picker, (choice) => chooseImage(picker, choice));
-  // While the modal dialog is open its backdrop swallows clicks, so the
-  // button only ever opens.
   button.addEventListener("click", () => void openPicker(picker));
 };
 
@@ -102,13 +100,10 @@ export interface ImageToolbarItem {
   plugin: Plugin;
 }
 
-/** Build the toolbar's image control: the button and its modal dialog. The
- *  dialog lives inside the editor's mount, so it dies with the editor and
- *  survives the plugin-view recreations the rich/raw toggle's state rebuild
- *  causes. */
-export const createImageToolbarItem = (
-  mount: HTMLElement,
-): ImageToolbarItem => {
+/** Build the toolbar's image control: the button and its picker. The picker's
+ *  window belongs to the page, so the plugin-view recreations that the
+ *  rich/raw toggle's state rebuild causes leave it open. */
+export const createImageToolbarItem = (): ImageToolbarItem => {
   const button = createToolbarButton(
     "md-toolbar-button md-toolbar-image",
     "Image",
@@ -125,7 +120,7 @@ export const createImageToolbarItem = (
   button.hidden = template === null;
   if (template !== null) {
     const picker: Picker = {
-      ...clonePickerDialog(template, mount),
+      ...clonePicker(template),
       editor: () => view,
       library,
     };

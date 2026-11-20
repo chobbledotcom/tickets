@@ -1,5 +1,5 @@
 ------------------------- MODULE SubscriptionRenewals -------------------------
-EXTENDS Integers, FiniteSets, ModelRules, SubscriptionRules, SubscriptionRenewalsData
+EXTENDS Apalache, Integers, FiniteSets, ModelRules, SubscriptionRules, SubscriptionRenewalsData
 
 \* A booking row connects one attendee, the stored customer, to one listing,
 \* the ticket offer. Its frozen plan states the recurring amount and VAT.
@@ -327,11 +327,11 @@ Safety == TypeOK /\ checksHold
 Init ==
   /\ \E index \in ScenarioFactsIndices :
        LET item == ScenarioFactsAt(index) IN
-       /\ scenario = item.scenario /\ storedStatus = item.initialStatus
-  /\ passIndex = 0 /\ checksHold = (Coverage /\ JoinCoverage)
-  /\ arithmeticChecked = FALSE
-  /\ joinsChecked = FALSE
-  /\ readsChecked = FALSE
+       /\ scenario := item.scenario /\ storedStatus := item.initialStatus
+  /\ passIndex := 0 /\ checksHold := (Coverage /\ JoinCoverage)
+  /\ arithmeticChecked := FALSE
+  /\ joinsChecked := FALSE
+  /\ readsChecked := FALSE
 
 \* Integer choice permits any observed attempt through bounded-width pages.
 \* The status before a pass must match the abstract committed status. Each
@@ -343,36 +343,36 @@ InspectPass ==
     LET op == OperationFactsAt(index) IN
     /\ op.scenario = scenario /\ op.index = passIndex
     /\ op.beforeStatus = storedStatus
-    /\ passIndex' = passIndex + 1
-    /\ storedStatus' = op.afterStatus
-    /\ checksHold' = ChecksStillPass(checksHold, AttemptSafe(op))
+    /\ passIndex' := passIndex + 1
+    /\ storedStatus' := op.afterStatus
+    /\ checksHold' := ChecksStillPass(checksHold, AttemptSafe(op))
     /\ UNCHANGED <<scenario, arithmeticChecked, joinsChecked, readsChecked>>
 
 \* Arithmetic and currency faults remain visible even when later passes pass.
 InspectArithmetic ==
   /\ ~arithmeticChecked
-  /\ checksHold' = ChecksStillPass(checksHold,
+  /\ checksHold' := ChecksStillPass(checksHold,
        /\ \A fact \in ArithmeticFacts :
             /\ fact.price > 0 /\ fact.tax >= 0 /\ fact.tax <= fact.price
             /\ fact.amount >= 0
             /\ fact.observedTax = TaxShare(fact.amount, fact.price, fact.tax)
        /\ \A fact \in CurrencyFacts : (fact.status = "found") = fact.allMatch)
-  /\ arithmeticChecked' = TRUE
+  /\ arithmeticChecked' := TRUE
   /\ UNCHANGED <<scenario, passIndex, storedStatus, joinsChecked, readsChecked>>
 
 \* A failed component join remains visible after every later successful event.
 InspectJoins ==
   /\ ~joinsChecked
-  /\ checksHold' = ChecksStillPass(checksHold, JourneyLaw /\ FailedJoinLaw)
-  /\ joinsChecked' = TRUE
+  /\ checksHold' := ChecksStillPass(checksHold, JourneyLaw /\ FailedJoinLaw)
+  /\ joinsChecked' := TRUE
   /\ UNCHANGED <<scenario, passIndex, storedStatus, arithmeticChecked, readsChecked>>
 
 \* Every captured argument must name the subscription that owns its evidence.
 InspectReads ==
   /\ ~readsChecked
-  /\ checksHold' = ChecksStillPass(checksHold,
+  /\ checksHold' := ChecksStillPass(checksHold,
        \A read \in ReadFacts : ReadIdentitySafe(read))
-  /\ readsChecked' = TRUE
+  /\ readsChecked' := TRUE
   /\ UNCHANGED <<scenario, passIndex, storedStatus, arithmeticChecked, joinsChecked>>
 
 \* The alternatives describe event order, not instructions that always run.

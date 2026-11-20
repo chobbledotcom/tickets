@@ -28,7 +28,6 @@
   "images.new.heading": "Add Image",
   "images.new.submit": "Create image",
   "images.picker.add": "Add images",
-  "images.picker.close": "Close image picker",
   "images.picker.heading": "Choose an image",
   "images.picker.loading": "Loading…",
   "images.picker.load_failed": "The image library could not load. Please try again.",

@@ -1,10 +1,11 @@
 ---------------------------- MODULE ModelRules ----------------------------
+EXTENDS Apalache
 \* A model describes possible application states and the events between them.
 \* A state is the set of current variable values, not necessarily a stored row.
 \* A rule states a condition that those values or an event must satisfy.
 \* This module holds shared rules, not an independent application lifecycle.
 \* Callers import these definitions with EXTENDS ModelRules.
-\* Name == expression defines a rule. It does not assign a variable.
+\* Name == expression defines a rule. In an action, := assigns a next value.
 \* Type comments tell Apalache the expected input and result types.
 \* Bool is TRUE or FALSE. Str is text. Set(Str) is a set of text values.
 \*
@@ -47,13 +48,15 @@ ChecksStillPass(previousChecksPassed, currentCheckPassed) ==
 \* An edge is one attempted change from a source state to a target state.
 \* targetState is its observed result label, even if that result breaks a rule.
 \* safe is the caller's remembered result. verdict is this attempt's result.
-\* A prime names the value after the step. /\ requires both updates together.
+\* A prime names the value after the step. := marks each assignment.
+\* Callers pass state variables for state and safe. After substitution, a prime
+\* applies to those variables, not to a temporary value.
 \* Example: a refund step reaches its declared target but breaks an identity rule.
 \* Its FALSE verdict remains visible even after a later valid step.
 \* This rule does not refuse an unsafe move. The caller's Safety must reject it.
 \* @type: (Str, Str, Bool, Bool) => Bool;
 AttemptedEdge(state, targetState, verdict, safe) ==
-  /\ state' = targetState
-  /\ safe' = ChecksStillPass(safe, verdict)
+  /\ state' := targetState
+  /\ safe' := ChecksStillPass(safe, verdict)
 
 =============================================================================
