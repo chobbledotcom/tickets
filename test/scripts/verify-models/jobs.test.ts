@@ -2,12 +2,12 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ModelDataSource } from "#scripts/verify-models/data.ts";
-import { prepareChecks } from "#scripts/verify-models/jobs.ts";
+import { plannedChecks, prepareModel } from "#scripts/verify-models/jobs.ts";
 import type {
   ModelControl,
   VerificationModule,
 } from "#scripts/verify-models/spec.ts";
-import { withTempDir } from "#test-utils/files.ts";
+import { directoryNames, withTempDir } from "#test-utils/files.ts";
 
 const writeSources = async (
   modules: readonly VerificationModule[],
@@ -21,10 +21,29 @@ const writeSources = async (
   }
 };
 
+/** A planned check from its module, directory name, kind, phase, and the name
+ * of its control. A proof has no name. */
+type PlannedRow = readonly [
+  module: string,
+  variant: string,
+  kind: string,
+  phase: string,
+  name?: string,
+];
+const plannedIn = (work: string, rows: readonly PlannedRow[]) =>
+  rows.map(([module, variant, kind, phase, name]) => ({
+    directory: join(work, module, variant),
+    kind,
+    module,
+    phase,
+    ...(name === undefined ? {} : { name }),
+  }));
+
 const modelWith = (
   module: string,
   data: ModelDataSource,
   controls: readonly [ModelDataSource, ...ModelDataSource[]],
+  reduced: readonly ModelControl[] = [],
 ): VerificationModule => {
   const control = (source: ModelDataSource, index: number): ModelControl => ({
     data: source,
@@ -37,6 +56,7 @@ const modelWith = (
     controls: [
       control(first, 0),
       ...rest.map((source, index) => control(source, index + 1)),
+      ...reduced,
     ],
     data,
     kind: "model",
@@ -50,38 +70,34 @@ describe("model fact preparation", () => {
       const seeded = Promise.withResolvers<void>();
       const release = Promise.withResolvers<void>();
       const events: string[] = [];
-      const model = (module: string): VerificationModule =>
-        modelWith(module, async () => {
-          events.push(`${module}:seed`);
-          seeded.resolve();
-          await release.promise;
-          events.push(`${module}:read`);
-          return "clean data";
-        }, [
-          () => {
-            events.push(`${module}:corrupt`);
-            return Promise.resolve("corrupted data");
-          },
-        ]);
+      const corrupt =
+        (name: string): ModelDataSource =>
+        () => {
+          events.push(name);
+          return Promise.resolve("corrupted data");
+        };
       const modules: VerificationModule[] = [
         { context: [], kind: "helper", module: "SharedRules" },
-        model("First"),
-        model("Second"),
+        modelWith("First", async () => {
+          events.push("seed");
+          seeded.resolve();
+          await release.promise;
+          events.push("read");
+          return "clean data";
+        }, [corrupt("corrupt one"), corrupt("corrupt two")]),
       ];
       await writeSources(modules, root);
-      const complete = prepareChecks(modules, root, join(root, "checks"));
+      const complete = prepareModel(
+        modules,
+        "First",
+        root,
+        join(root, "checks"),
+      );
       await seeded.promise;
-      expect(events).toEqual(["First:seed"]);
+      expect(events).toEqual(["seed"]);
       release.resolve();
       await complete;
-      expect(events).toEqual([
-        "First:seed",
-        "First:read",
-        "First:corrupt",
-        "Second:seed",
-        "Second:read",
-        "Second:corrupt",
-      ]);
+      expect(events).toEqual(["seed", "read", "corrupt one", "corrupt two"]);
     }));
 
   test("gives every check a work directory of its own", () =>
@@ -93,7 +109,8 @@ describe("model fact preparation", () => {
           reads.set(module, (reads.get(module) ?? 0) + 1);
           return "clean data";
         };
-      const modules = [
+      const modules: VerificationModule[] = [
+        { context: [], kind: "helper", module: "SharedRules" },
         modelWith("First", readClean("First"), [
           () => Promise.resolve("corrupted data one"),
           () => Promise.resolve("corrupted data two"),
@@ -104,54 +121,113 @@ describe("model fact preparation", () => {
       ];
       await writeSources(modules, root);
       const work = join(root, "checks");
-      const checks = await prepareChecks(modules, root, work);
-      expect([...reads]).toEqual([
-        ["First", 1],
-        ["Second", 1],
-      ]);
-      const directories = checks.map((check) => check.directory);
-      expect(directories).toEqual([
-        join(work, "First", "initial"),
-        join(work, "First", "step"),
-        join(work, "First", "control-1"),
-        join(work, "First", "control-2"),
-        join(work, "Second", "initial"),
-        join(work, "Second", "step"),
-        join(work, "Second", "control-1"),
-      ]);
-      expect(new Set(directories).size).toBe(checks.length);
-      const proofInputs: string[] = [];
-      for (const phase of ["initial", "step"]) {
-        const directory = join(work, "First", phase);
-        expect(await Deno.readTextFile(join(directory, "First.tla"))).toBe(
-          "---- MODULE First ----\n====\n",
-        );
-        proofInputs.push(
-          await Deno.readTextFile(join(directory, "FirstData.tla")),
-        );
+      const checks = plannedChecks(modules, work);
+      expect(checks).toEqual(
+        plannedIn(work, [
+          ["First", "initial", "proof", "initial"],
+          ["First", "step", "proof", "step"],
+          ["First", "control-1", "control", "initial", "corrupt state 1"],
+          ["First", "control-2", "control", "initial", "corrupt state 2"],
+          ["Second", "initial", "proof", "initial"],
+          ["Second", "step", "proof", "step"],
+          ["Second", "control-1", "control", "initial", "corrupt state 1"],
+        ]),
+      );
+      expect([...reads]).toEqual([]);
+
+      await prepareModel(modules, "First", root, work);
+      expect([...reads]).toEqual([["First", 1]]);
+      const data = (variant: string): Promise<string> =>
+        Deno.readTextFile(join(work, "First", variant, "FirstData.tla"));
+      for (const variant of ["initial", "step", "control-1", "control-2"]) {
+        expect(await directoryNames(join(work, "First", variant))).toEqual([
+          "First.tla",
+          "FirstData.tla",
+          "SharedRules.tla",
+        ]);
       }
-      expect(proofInputs).toEqual(["clean data", "clean data"]);
+      expect(
+        await Deno.readTextFile(join(work, "First", "step", "First.tla")),
+      ).toBe("---- MODULE First ----\n====\n");
+      expect(
+        await Promise.all(
+          ["initial", "step", "control-1", "control-2"].map(data),
+        ),
+      ).toEqual([
+        "clean data",
+        "clean data",
+        "corrupted data one",
+        "corrupted data two",
+      ]);
+    }));
+
+  test("checks the scope of a reduced control before that control", () =>
+    withTempDir(async (root) => {
+      const modules: VerificationModule[] = [
+        modelWith(
+          "First",
+          () => Promise.resolve("clean data"),
+          [() => Promise.resolve("whole control data")],
+          [
+            {
+              data: () => Promise.resolve("kept facts with the fault"),
+              name: "one wrong amount",
+              phase: "step",
+              scope: () => Promise.resolve("kept facts"),
+            },
+          ],
+        ),
+      ];
+      await writeSources(modules, root);
+      const work = join(root, "checks");
+      expect(plannedChecks(modules, work).slice(3)).toEqual(
+        plannedIn(work, [
+          ["First", "control-2-scope", "scope", "step", "one wrong amount"],
+          ["First", "control-2", "control", "step", "one wrong amount"],
+        ]),
+      );
+      await prepareModel(modules, "First", root, work);
+      const data = (variant: string): Promise<string> =>
+        Deno.readTextFile(join(work, "First", variant, "FirstData.tla"));
+      expect(
+        await Promise.all(["control-2-scope", "control-2"].map(data)),
+      ).toEqual(["kept facts", "kept facts with the fault"]);
     }));
 
   test("propagates an extraction failure before any later producer runs", () =>
     withTempDir(async (root) => {
       const failure = new Error("The stored refund leg is absent.");
       const events: string[] = [];
-      const model = (module: string): VerificationModule =>
-        modelWith(module, () => {
-          events.push(`${module}:read`);
+      const modules = [
+        modelWith("First", () => {
+          events.push("read");
           return Promise.resolve("clean data");
         }, [
           () => {
-            events.push(`${module}:corrupt`);
+            events.push("corrupt one");
             return Promise.reject(failure);
           },
-        ]);
-      const modules = [model("First"), model("Second")];
+          () => {
+            events.push("corrupt two");
+            return Promise.resolve("corrupted data");
+          },
+        ]),
+      ];
       await writeSources(modules, root);
       await expect(
-        prepareChecks(modules, root, join(root, "checks")),
+        prepareModel(modules, "First", root, join(root, "checks")),
       ).rejects.toBe(failure);
-      expect(events).toEqual(["First:read", "First:corrupt"]);
+      expect(events).toEqual(["read", "corrupt one"]);
+    }));
+
+  test("refuses a name that no registered model has", () =>
+    withTempDir(async (root) => {
+      const modules: VerificationModule[] = [
+        { context: [], kind: "helper", module: "SharedRules" },
+      ];
+      await writeSources(modules, root);
+      await expect(
+        prepareModel(modules, "SharedRules", root, join(root, "checks")),
+      ).rejects.toThrow("No registered model has the name SharedRules.");
     }));
 });

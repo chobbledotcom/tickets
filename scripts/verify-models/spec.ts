@@ -6,6 +6,10 @@ export type ModelControl = {
   readonly name: string;
   readonly phase: CheckPhase;
   readonly data: ModelDataSource;
+  /** The facts that a reduced control keeps, before its fault. The checker
+   *  must accept them, so the fault alone causes the counterexample. A control
+   *  on the complete clean facts has no scope. */
+  readonly scope?: ModelDataSource;
 };
 
 type ModuleContext = {
