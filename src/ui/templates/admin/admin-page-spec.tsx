@@ -74,6 +74,7 @@ export const AdminPage = ({
     contentClassName={contentClassName}
     family="admin"
     headExtra={headExtra}
+    imageStorageOff={!isStorageEnabled()}
     {...(theme !== undefined ? { theme } : {})}
     title={title}
   >

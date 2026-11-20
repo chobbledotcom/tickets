@@ -153,6 +153,7 @@ const getAdvancedSettingsPageState = async (
       settings.googleWallet.hostConfig?.issuerId,
     ),
     listingColumnOrder: settings.listingColumnOrder,
+    listingMode: settings.listingMode,
     logisticsEnabled: settings.features.logistics,
     logisticsRunSheetBody: settings.logisticsRunSheetBody,
     logisticsRunSheetHeading: settings.logisticsRunSheetHeading,

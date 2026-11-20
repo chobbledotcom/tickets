@@ -4,44 +4,35 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import {
-  expectFlash,
   expectHtmlResponse,
-  expectIncludesAll,
   redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { adminGet, testCookie } from "#test-utils/session.ts";
 import { describeAdminSettings } from "#test-utils/settings.ts";
+import {
+  expectAdminPage,
+  expectSettingsRefused,
+  expectSettingsSaved,
+  postSettingsForm,
+} from "#test-utils/settings-forms.ts";
+
+const PATH = "/admin/settings/theme";
 
 describeAdminSettings(() => {
   describe("POST /admin/settings/theme", () => {
-    testRequiresAuth("/admin/settings/theme", {
+    testRequiresAuth(PATH, {
       body: {
         theme: "dark",
       },
       method: "POST",
     });
 
-    /** POST a theme form with a fresh CSRF token + owner cookie. `fields` can
-     *  omit `theme` to exercise the missing-field path. */
-    const postTheme = async (
-      fields: Record<string, string>,
-    ): Promise<Response> => {
-      const csrfToken = await testCsrfToken();
-      return handleRequest(
-        mockFormRequest(
-          "/admin/settings/theme",
-          { csrfToken, ...fields },
-          await testCookie(),
-        ),
-      );
-    };
-
     test("rejects invalid CSRF token", async () => {
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/settings/theme",
+          PATH,
           { csrfToken: "invalid-csrf-token", theme: "dark" },
           await testCookie(),
         ),
@@ -50,64 +41,51 @@ describeAdminSettings(() => {
     });
 
     test("rejects invalid theme value", async () => {
-      const response = await postTheme({ theme: "invalid-theme" });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Invalid theme selection"),
-        false,
+      expectSettingsRefused(
+        await postSettingsForm(PATH, { theme: "invalid-theme" }),
+        "Invalid theme selection",
       );
     });
 
     test("rejects missing theme field", async () => {
-      const response = await postTheme({});
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Invalid theme selection"),
-        false,
+      expectSettingsRefused(
+        await postSettingsForm(PATH, {}),
+        "Invalid theme selection",
       );
     });
 
     test("updates theme to dark successfully", async () => {
-      const response = await postTheme({ theme: "dark" });
-      expect(response.status).toBe(302);
-      expectFlash(response, "Theme set to dark");
+      const response = await postSettingsForm(PATH, { theme: "dark" });
+
+      expectSettingsSaved(response, "Theme set to dark");
       expect(redirectFormId(response)).toBe("settings-theme");
     });
 
     test("updates theme to light successfully", async () => {
-      const response = await postTheme({ theme: "light" });
-      expect(response.status).toBe(302);
-      expectFlash(response, "Theme set to light");
+      expectSettingsSaved(
+        await postSettingsForm(PATH, { theme: "light" }),
+        "Theme set to light",
+      );
     });
 
     test("theme setting persists in database", async () => {
-      // Initially should be "light"
       expect(settings.theme).toBe("light");
 
-      // Update to dark
-      await postTheme({ theme: "dark" });
+      await postSettingsForm(PATH, { theme: "dark" });
 
-      // Should now be "dark"
       expect(settings.theme).toBe("dark");
     });
 
     test("settings page displays current theme selection", async () => {
-      // Set theme to dark
       await settings.update.theme("dark");
 
-      const response = await adminGet("/admin/settings");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      // Check that dark radio button is checked
-      expectIncludesAll(html, ['value="dark"', "checked"]);
+      await expectAdminPage("/admin/settings", ['value="dark"', "checked"]);
     });
 
     test("ticking the underline-links checkbox enables it", async () => {
       expect(settings.underlineLinks).toBe(false);
 
-      const response = await postTheme({
+      const response = await postSettingsForm(PATH, {
         theme: "light",
         underlineLinks: "true",
       });
@@ -120,7 +98,7 @@ describeAdminSettings(() => {
       // Enable first so the submission has to turn it back off.
       await settings.update.underlineLinks(true);
 
-      const response = await postTheme({ theme: "light" });
+      const response = await postSettingsForm(PATH, { theme: "light" });
 
       expect(response.status).toBe(302);
       expect(settings.underlineLinks).toBe(false);

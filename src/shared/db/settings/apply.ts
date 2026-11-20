@@ -59,14 +59,29 @@ const applyCountryDerived = (info: CountryInfo): void => {
   data.phone_prefix = info.phonePrefix;
 };
 
-/** Applier for a boolean snapshot field: on ⇔ the raw value is exactly "true"
- *  (an absent/garbled value reads as off), mirroring how {@link boolUpdate}
- *  writes the flag. */
-const boolApply =
-  (field: BoolSettingKey) =>
+/** The snapshot fields whose value is one choice out of a fixed set. */
+type ChoiceField = "calendar_feeds_group_by" | "listing_mode" | "theme";
+
+/** Write one snapshot field from the raw stored value. */
+const fieldApply =
+  (
+    field: BoolSettingKey | ChoiceField,
+    read: (raw: string | undefined) => unknown,
+  ) =>
   (raw: string | undefined): void => {
-    data[field] = raw === "true";
+    (data as Record<BoolSettingKey | ChoiceField, unknown>)[field] = read(raw);
   };
+
+/** A boolean field's applier: on ⇔ the raw value is exactly "true" (an
+ *  absent/garbled value reads as off), mirroring how {@link boolUpdate} writes
+ *  the flag. */
+const boolApply = (field: BoolSettingKey) =>
+  fieldApply(field, (raw) => raw === "true");
+
+/** A choice field's applier: the allowed value, or the fallback when the row
+ *  is absent or carries something the setting does not know. */
+const choiceApply = (field: ChoiceField, allowed: string, fallback: string) =>
+  fieldApply(field, (raw) => (raw === allowed ? allowed : fallback));
 
 /**
  * Per-key resolvers for the non-string snapshot fields. A config key may drive
@@ -80,17 +95,17 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
     data.country = country;
     applyCountryDerived(getCountry(country));
   },
-  [CONFIG_KEYS.THEME]: (raw) => {
-    data.theme = raw === "dark" ? "dark" : "light";
-  },
+  [CONFIG_KEYS.THEME]: choiceApply("theme", "dark", "light"),
   [CONFIG_KEYS.UNDERLINE_LINKS]: boolApply("underline_links"),
   [CONFIG_KEYS.SHOW_PUBLIC_API]: boolApply("show_public_api"),
   [CONFIG_KEYS.EXTERNAL_ORDER_ENABLED]: boolApply("external_order_enabled"),
   [CONFIG_KEYS.CALENDAR_FEEDS_ENABLED]: boolApply("calendar_feeds_enabled"),
-  [CONFIG_KEYS.CALENDAR_FEEDS_GROUP_BY]: (raw) => {
-    data.calendar_feeds_group_by =
-      raw === "listings" ? "listings" : "attendees";
-  },
+  [CONFIG_KEYS.CALENDAR_FEEDS_GROUP_BY]: choiceApply(
+    "calendar_feeds_group_by",
+    "listings",
+    "attendees",
+  ),
+  [CONFIG_KEYS.LISTING_MODE]: choiceApply("listing_mode", "image", "text"),
   [CONFIG_KEYS.CONTACT_FORM_ENABLED]: boolApply("contact_form_enabled"),
   [CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS]: boolApply("custom_css_bunny_fonts"),
   [CONFIG_KEYS.ORDER_ENABLED]: boolApply("order_enabled"),

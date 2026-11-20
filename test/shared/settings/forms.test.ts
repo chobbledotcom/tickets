@@ -188,6 +188,14 @@ const EXPECTED_FORM_ROWS = [
     ["addressLookupProvider", "addressLookupApiKey"],
     "Address lookup",
   ),
+  multi(
+    "listingMode",
+    "advanced",
+    "/admin/settings/listing-mode",
+    "settings-listing-mode",
+    ["listingMode"],
+    "Listing mode",
+  ),
   single(
     "externalOrder",
     "advanced",
