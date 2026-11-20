@@ -150,6 +150,25 @@ export const tlaStringSet = (name: string, values: readonly string[]): string =>
     ),
   ].join("\n");
 
+/** The type alias and one named definition for each record row. */
+const namedRecordDefinitions = (
+  name: string,
+  alias: string,
+  fields: string,
+  rows: readonly string[],
+): { definitions: string[]; names: string[] } => {
+  const names = rows.map((_, index) => `${name}Record${index}`);
+  return {
+    definitions: [
+      `\\* @typeAlias: ${alias} = { ${fields} };`,
+      ...rows.map(
+        (row, index) => `\\* @type: $${alias};\n${names[index]} == ${row}`,
+      ),
+    ],
+    names,
+  };
+};
+
 /** One field declaration supplies both the fact type and the checker type. */
 export const tlaRecords = <const Schema extends TlaRecordSchema>(
   name: string,
@@ -164,27 +183,16 @@ export const tlaRecords = <const Schema extends TlaRecordSchema>(
   const rendered = values.map((value, index) =>
     record(value, `${name}[${index}]`),
   );
-  if (collection === "Seq") {
-    const names = rendered.map((_, index) => `${name}Record${index}`);
-    const definitions = rendered.map(
-      (row, index) => `\\* @type: $${alias};\n${names[index]} == ${row}`,
-    );
-    return [
-      `\\* @typeAlias: ${alias} = { ${fields} };`,
-      ...definitions,
-      `\\* @type: Seq($${alias});\n${name} == <<${names.join(", ")}>>`,
-    ].join("\n");
-  }
-  const rows = unique(rendered);
-  const names = rows.map((_, index) => `${name}Record${index}`);
-  const definitions = rows.map(
-    (row, index) => `\\* @type: $${alias};\n${names[index]} == ${row}`,
-  );
+  const rows = collection === "Seq" ? rendered : unique(rendered);
+  const named = namedRecordDefinitions(name, alias, fields, rows);
   return [
-    `\\* @typeAlias: ${alias} = { ${fields} };`,
-    ...definitions,
-    ...pagedSet(name, `$${alias}`, names),
-    ...indexedDefinitions(name, `$${alias}`, names),
+    ...named.definitions,
+    collection === "Seq"
+      ? `\\* @type: Seq($${alias});\n${name} == <<${named.names.join(", ")}>>`
+      : [
+          ...pagedSet(name, `$${alias}`, named.names),
+          ...indexedDefinitions(name, `$${alias}`, named.names),
+        ].join("\n"),
   ].join("\n");
 };
 

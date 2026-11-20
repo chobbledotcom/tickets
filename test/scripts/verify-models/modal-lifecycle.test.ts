@@ -6,6 +6,7 @@ import {
   modalLifecycleFacts,
   modalSnapshot,
 } from "#scripts/verify-models/modal-lifecycle.ts";
+import { modalLifecycleVerification } from "#scripts/verify-models/modal-lifecycle-registration.ts";
 import {
   type ModalState,
   transitionModals,
@@ -220,6 +221,15 @@ describe("modal lifecycle production facts", () => {
         : next,
     );
     expect(faulty.edges).toContainEqual(reversedSurvivorsEdge);
+  });
+
+  test("registration loads the lazy model and every control", async () => {
+    expect(await modalLifecycleVerification.data()).toContain(
+      "MODULE ModalLifecycleData",
+    );
+    for (const control of modalLifecycleVerification.controls) {
+      expect(await control.data()).toContain("MODULE ModalLifecycleData");
+    }
   });
 
   test("projection fails on evidence outside the stated three-key domain", () => {
