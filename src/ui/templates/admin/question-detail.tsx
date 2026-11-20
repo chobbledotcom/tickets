@@ -24,7 +24,7 @@ import { reorderCountTable } from "#templates/components/reorder-list.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import type { ListingWithCount } from "#types";
-import { editPanel } from "./admin-page.tsx";
+import { errorFlash } from "./admin-page.tsx";
 import { WritableOnly } from "./writable-only.tsx";
 
 /** Where one of a question's answers is edited, deleted, or recalculated. */
@@ -101,48 +101,48 @@ export const QuestionEditPanel = ({
   values,
 }: {
   question: QuestionWithAnswers;
-} & SubmittedValueProps): JSX.Element =>
-  editPanel(error)(
-    <>
-      <WritableOnly>
-        <SaveForm
-          action={`/admin/questions/${question.id}/edit`}
-          submitLabel={t("questions.edit.update")}
-        >
-          <Raw
-            html={questionTextForm.renderField(
-              "text",
-              values?.text ?? question.text,
-            )}
-          />
-          {question.displayType === "free_text" ? (
-            // Free-text questions cannot become choice questions (a conversion
-            // orphans any stored text answers), so lock the type.
-            <input name="displayType" type="hidden" value="free_text" />
-          ) : (
-            <label>
-              Display as
-              <SelectField
-                name="displayType"
-                options={[
-                  { label: "Radio buttons", value: "radio" },
-                  { label: "Select box", value: "select" },
-                ]}
-                value={values?.displayType ?? question.displayType}
-              />
-            </label>
+} & SubmittedValueProps): JSX.Element => (
+  <>
+    {errorFlash(error)}
+    <WritableOnly>
+      <SaveForm
+        action={`/admin/questions/${question.id}/edit`}
+        submitLabel={t("questions.edit.update")}
+      >
+        <Raw
+          html={questionTextForm.renderField(
+            "text",
+            values?.text ?? question.text,
           )}
-        </SaveForm>
-      </WritableOnly>
-      {question.displayType === "free_text" && (
-        <div class="prose">
-          <p>
-            <em>{t("questions.edit.free_text_note")}</em>
-          </p>
-        </div>
-      )}
-    </>,
-  );
+        />
+        {question.displayType === "free_text" ? (
+          // Free-text questions cannot become choice questions (a conversion
+          // orphans any stored text answers), so lock the type.
+          <input name="displayType" type="hidden" value="free_text" />
+        ) : (
+          <label>
+            Display as
+            <SelectField
+              name="displayType"
+              options={[
+                { label: "Radio buttons", value: "radio" },
+                { label: "Select box", value: "select" },
+              ]}
+              value={values?.displayType ?? question.displayType}
+            />
+          </label>
+        )}
+      </SaveForm>
+    </WritableOnly>
+    {question.displayType === "free_text" && (
+      <div class="prose">
+        <p>
+          <em>{t("questions.edit.free_text_note")}</em>
+        </p>
+      </div>
+    )}
+  </>
+);
 
 /** A choice question's answers: the add-answer form and the reorderable
  * count table. Renders nothing for a free-text question, which collects a
