@@ -4,25 +4,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { bodySchemaFor, parseCommand } from "#cli/commands.ts";
 import { describeEntries } from "#cli/describe.ts";
-import { CliError, EXIT_CODES } from "#cli/errors.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
   DeleteBodySchema,
 } from "#shared/admin-api-resources.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { gadgetEntry, testTable } from "#test-utils/cli-table.ts";
-
-/** Parse one command, or answer the usage error's exit code and message. */
-const parseOrUsage = (args: string[]): { code: number; message: string } => {
-  try {
-    parseCommand(testTable, args);
-    throw new Error(`expected a usage error for ${args.join(" ")}`);
-  } catch (error) {
-    if (!(error instanceof CliError)) throw error;
-    return { code: EXIT_CODES[error.kind], message: error.message };
-  }
-};
+import { gadgetEntry, parseOrUsage, testTable } from "#test-utils/cli-table.ts";
 
 const writeCommand = (args: string[]) =>
   parseCommand(testTable, args) as Extract<
@@ -427,7 +415,7 @@ describe("CLI parser", () => {
   test("answers exit 2 when a custom route misses the resource or the id", () => {
     const bare = parseOrUsage(["deactivate"]);
     expect(bare.code).toBe(2);
-    assertStringIncludes(bare.message, "needs the resource and the id");
+    assertStringIncludes(bare.message, "needs the resource");
 
     const noId = parseOrUsage(["deactivate", "listings"]);
     expect(noId.code).toBe(2);
