@@ -5,10 +5,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getQuestionWithAnswers } from "#db/questions/queries.ts";
 import { t } from "#i18n";
-import {
-  expectIncludesAll,
-  expectRedirectWithFlash,
-} from "#test-utils/assertions.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { describeWithQuestions as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -39,11 +36,10 @@ describeWithEnv("Question answer level pins", { db: true }, () => {
       displayType: "free_text",
       text: "Pupil name",
     });
-    expectRedirectWithFlash(
-      `/admin/questions/${id}`,
+    expect(response.status).toBe(400);
+    expectIncludesAll(await response.text(), [
       t("questions.answer_level.locked"),
-      false,
-    )(response);
+    ]);
     expect((await getQuestionWithAnswers(id))?.answerLevel).toBe("listing");
   });
 
