@@ -1,6 +1,11 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import {
+  assert,
+  assertArrayIncludes,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert";
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   adminRedirect,
   databaseBusyResponse,
@@ -8,6 +13,7 @@ import {
   errorRedirect,
   htmlResponse,
   icsResponse,
+  infoRedirect,
   jsonResponse,
   migrationInProgressResponse,
   notFoundResponse,
@@ -15,11 +21,14 @@ import {
   publicPageResponse,
   redirect,
   redirectResponse,
+  redirectToDetail,
   rssResponse,
   temporaryErrorResponse,
   withCookie,
   withHeaders,
 } from "#routes/response.ts";
+import { clearFormStash, takeForm } from "#shared/form-stash.ts";
+import { clearSavedFormData } from "#shared/forms/saved-data.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { UpdatePageCheckError } from "#shared/update-guard.ts";
 import {
@@ -29,6 +38,7 @@ import {
 import {
   expectHtmlResponse,
   expectRedirectWithFlash,
+  parseFlashCookie,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -191,6 +201,80 @@ describeWithEnv("route responses", { db: true }, () => {
       }));
   });
 
+  describe("redirect target and form stash", () => {
+    beforeEach(() => {
+      clearFormStash();
+      clearSavedFormData();
+    });
+    afterEach(() => {
+      clearFormStash();
+      clearSavedFormData();
+    });
+
+    test("follows the submitted return URL instead of the default", () =>
+      withRequestContext(() => {
+        const form = new URLSearchParams({ returnUrl: "/admin/groups?tab=a" });
+        const response = redirect("/admin", "Saved", true, { form });
+        expectRedirectWithFlash("/admin/groups?tab=a", "Saved")(response);
+      }));
+
+    test("throws a TypeError for a target that cannot be parsed", () => {
+      assertThrows(
+        () => redirect("http://[::1", "bad", false),
+        TypeError,
+        "Invalid redirect URL",
+      );
+    });
+
+    test("stashes the submitted form without secret fields after an error", () =>
+      withRequestContext(() => {
+        const form = new URLSearchParams("name=Bob&apiKey=abc");
+        const response = redirect("/admin/x", "Bad", false, { form });
+        const { error, formToken } = parseFlashCookie(response);
+        expect(error).toBe("Bad");
+        if (formToken === undefined) throw new Error("Expected a stash token");
+        expect(takeForm(formToken)).toBe("name=Bob");
+      }));
+
+    test("stashes nothing after an error when no form was submitted", () =>
+      withRequestContext(() => {
+        const response = redirect("/admin/x", "Bad", false);
+        expect(parseFlashCookie(response)).toEqual({ error: "Bad" });
+      }));
+
+    test("stashes nothing on success even with a submitted form", () =>
+      withRequestContext(() => {
+        const form = new URLSearchParams("name=Bob");
+        const response = redirect("/admin/x", "Saved", true, { form });
+        expect(parseFlashCookie(response)).toEqual({ success: "Saved" });
+      }));
+  });
+
+  describe("redirectToDetail", () => {
+    test("returns to the row's detail page with an error flash", () =>
+      withRequestContext(() => {
+        const response = redirectToDetail("status")({
+          error: "Bad name",
+          params: { id: 7 },
+        });
+        expectRedirectWithFlash(
+          "/admin/settings/statuses/7",
+          "Bad name",
+          false,
+        )(response);
+      }));
+  });
+
+  describe("infoRedirect", () => {
+    test("stores an info flash, not a success or error flash", () =>
+      withRequestContext(() => {
+        const response = infoRedirect("/admin", "No change needed");
+        expect(parseFlashCookie(response)).toEqual({
+          info: "No change needed",
+        });
+      }));
+  });
+
   describe("adminRedirect", () => {
     test("fills distinct endpoint parameters and stores the success flash", () =>
       withRequestContext(() => {
@@ -263,6 +347,12 @@ describeWithEnv("route responses", { db: true }, () => {
   });
 
   describe("system responses", () => {
+    test("renders a public page with the default 200 status", async () => {
+      const response = await publicPageResponse(() => "<p>Hi</p>");
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("<p>Hi</p>");
+    });
+
     test("returns the not-found page with status 404", async () => {
       await expectHtmlResponse(
         await notFoundResponse(),

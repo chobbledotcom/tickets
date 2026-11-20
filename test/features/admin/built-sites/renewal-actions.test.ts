@@ -1,6 +1,11 @@
-import { assert, assertArrayIncludes } from "@std/assert";
+import {
+  assert,
+  assertArrayIncludes,
+  assertStringIncludes,
+} from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import { updateBuiltSiteRenewalState } from "#db/built-sites.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panels.tsx";
@@ -135,14 +140,26 @@ describeWithEnv(
         });
         await provisionTestBuiltSite(site.id);
 
-        await suite.withFailingSecretStub(async () => {
-          const { response } = await siteAction(site, "rotate-renewal-token");
-          await expectFlashRedirect(
-            `/admin/built-sites/${site.id}/renewal`,
-            "Renewal token could not be pushed to the site",
-            false,
-          )(response);
-        });
+        const errorSpy = spy(console, "error");
+        try {
+          await suite.withFailingSecretStub(async () => {
+            const { response } = await siteAction(site, "rotate-renewal-token");
+            await expectFlashRedirect(
+              `/admin/built-sites/${site.id}/renewal`,
+              "Renewal token could not be pushed to the site",
+              false,
+            )(response);
+          });
+          const logged = errorSpy.calls
+            .map((call) => String(call.args[0]))
+            .join("\n");
+          assertStringIncludes(
+            logged,
+            "Rotate token push failed for site : edge push failed",
+          );
+        } finally {
+          errorSpy.restore();
+        }
       });
     });
 

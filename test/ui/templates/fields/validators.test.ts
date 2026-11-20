@@ -26,6 +26,7 @@ import {
   validateUpdateTier,
   validateUsername,
   validateWholeNumber,
+  wholeNumberFieldShape,
 } from "#templates/fields/validators.ts";
 
 /** A validator accepts a value when it returns exactly `null` (not `undefined`,
@@ -63,6 +64,13 @@ describe("fields validators", () => {
       accepts(validate, "2");
       expect(validate("1.5")).toBe("Capacity must be a whole number");
       rejects(validate, "9007199254740993");
+    });
+
+    test("wholeNumberFieldShape declares a number input with parser and check", () => {
+      const shape = wholeNumberFieldShape("Capacity");
+      expect(shape.type).toBe("number");
+      expect(shape.parse("7")).toBe(7);
+      expect(shape.validate("1.5")).toBe("Capacity must be a whole number");
     });
   });
 

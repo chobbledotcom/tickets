@@ -7,10 +7,14 @@ import {
   deleteAttribute,
   deleteAttributeOption,
   getAllAttributesWithOptions,
+  getAttributeId,
+  getAttributeListingUse,
   getAttributeWithOptions,
   getSelectedAttributesForListings,
   listingAttributeOptions,
+  missingAttributeOptionIds,
 } from "#db/attributes.ts";
+import { withTransaction } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
@@ -190,5 +194,62 @@ describeWithEnv("db > attributes", { db: true }, () => {
     ]);
     expect(await attributeOptionIdsIn([123_456])).toEqual([]);
     expect(await attributeOptionIdsIn([])).toEqual([]);
+  });
+
+  test("finds an attribute id, or null for a missing attribute", async () => {
+    const attribute = await createTestAttribute("Lookup");
+
+    expect(await getAttributeId(attribute.id)).toBe(attribute.id);
+    expect(await getAttributeId(999_999)).toBeNull();
+  });
+
+  test("lists the submitted option ids the site does not have", async () => {
+    const attribute = await createTestAttributeWithOptions("Diet", [
+      "Vegan",
+      "Halal",
+    ]);
+    const [vegan, halal] = attribute.options;
+
+    expect(
+      await withTransaction((tx) =>
+        missingAttributeOptionIds(tx, [
+          vegan!.id,
+          123_456,
+          halal!.id,
+          123_456,
+          654_321,
+        ]),
+      ),
+    ).toEqual([123_456, 654_321]);
+    expect(
+      await withTransaction((tx) =>
+        missingAttributeOptionIds(tx, [vegan!.id, halal!.id]),
+      ),
+    ).toEqual([]);
+  });
+
+  test("reports which listings use each option, in listing id order", async () => {
+    const lower = await createTestListing({ name: "Lower id" });
+    const higher = await createTestListing({ name: "Higher id" });
+    const attribute = await createTestAttributeWithOptions("Pace", [
+      "Slow",
+      "Fast",
+    ]);
+    const [slow, fast] = attribute.options;
+    await listingAttributeOptions.setIds(higher.id, [slow!.id]);
+    await listingAttributeOptions.setIds(lower.id, [fast!.id]);
+
+    const use = await getAttributeListingUse(attribute.id);
+
+    expect(use.listings).toEqual([
+      { active: lower.active, id: lower.id, name: "Lower id" },
+      { active: higher.active, id: higher.id, name: "Higher id" },
+    ]);
+    expect(use.listingIdsByOption).toEqual(
+      new Map([
+        [slow!.id, [higher.id]],
+        [fast!.id, [lower.id]],
+      ]),
+    );
   });
 });

@@ -7,6 +7,7 @@ import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import {
+  keepDailyListingDate,
   performListingDelete,
   refuseUndatedListingSwitch,
   toggleListingActive,
@@ -33,6 +34,39 @@ import type { ListingWithCount } from "#types";
 import { inputFor } from "./listings-actions/helpers.ts";
 
 setupTestEncryptionKey();
+
+describe("keepDailyListingDate", () => {
+  const stored = (listingType: "daily" | "standard") => ({
+    date: "2027-03-04T10:00",
+    listingType,
+  });
+
+  test("a typed date always writes", () => {
+    expect(
+      keepDailyListingDate("2028-01-02T09:00", stored("daily"), "daily"),
+    ).toBe("2028-01-02T09:00");
+    expect(
+      keepDailyListingDate("2028-01-02T09:00", stored("standard"), undefined),
+    ).toBe("2028-01-02T09:00");
+  });
+
+  test("an empty date keeps the stored one while the listing is or becomes daily", () => {
+    expect(keepDailyListingDate("", stored("daily"), undefined)).toBe(
+      "2027-03-04T10:00",
+    );
+    expect(keepDailyListingDate("", stored("daily"), "standard")).toBe(
+      "2027-03-04T10:00",
+    );
+    expect(keepDailyListingDate("", stored("standard"), "daily")).toBe(
+      "2027-03-04T10:00",
+    );
+  });
+
+  test("an empty date stays empty for a listing that is and stays standard", () => {
+    expect(keepDailyListingDate("", stored("standard"), undefined)).toBe("");
+    expect(keepDailyListingDate("", stored("standard"), "standard")).toBe("");
+  });
+});
 
 describe("listingInputToEdge", () => {
   test("defaults every optional field for a sparse input", () => {
