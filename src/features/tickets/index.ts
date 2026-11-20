@@ -57,11 +57,14 @@ const buildTicketCard = async (
   };
 };
 
+/** Reads what each of a page's cards shows for one kind of price change. */
+type SharesFor<Share> = (
+  entries: readonly TokenEntry[],
+) => Promise<Map<TokenEntry, Share>>;
+
 /** The modifier lines each card shows. A modifier that an owner deleted has
  *  no name left, so its card names it with the plain price-change label. */
-const modifierSharesFor = async (
-  entries: readonly TokenEntry[],
-): Promise<Map<TokenEntry, ModifierLine[]>> => {
+const modifierSharesFor: SharesFor<ModifierLine[]> = async (entries) => {
   const lines = await orderModifierLines(
     entries.map((entry) => entry.ledgerEventGroup),
   );
@@ -84,9 +87,7 @@ const modifierSharesFor = async (
 
 /** The tax each card shows, for the orders whose tax the buyer paid on top of
  *  the listed prices. */
-const taxSharesFor = async (
-  entries: readonly TokenEntry[],
-): Promise<Map<TokenEntry, number>> =>
+const taxSharesFor: SharesFor<number> = async (entries) =>
   splitTaxAcrossCards(
     entries,
     addedTaxByOrder(
