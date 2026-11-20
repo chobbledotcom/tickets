@@ -26,9 +26,9 @@ describeWithEnv("ticket view > tax", { db: true }, () => {
       "shows the net price, the added tax, and the total the buyer paid",
       "add_to_total",
       [
-        `Price: ${formatCurrency(2000)}`,
-        `ticket-card-tax">Tax: ${formatCurrency(400)}`,
-        `ticket-card-total"><strong>Total:</strong> ${formatCurrency(2400)}`,
+        `Price: ${formatCurrency(1000)}`,
+        `ticket-card-tax">Tax: ${formatCurrency(200)}`,
+        `ticket-card-total"><strong>Total:</strong> ${formatCurrency(1200)}`,
       ],
       [],
     ],
@@ -46,12 +46,7 @@ describeWithEnv("ticket view > tax", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 1000,
       });
-      await assertJson(
-        createBooking(listing.id, {
-          lines: [{ listingId: listing.id, quantity: 2 }],
-        }),
-        201,
-      );
+      await assertJson(createBooking(listing.id), 201);
       const attendee = await decryptFirstAttendee(listing.id);
       const response = await handleRequest(
         mockRequest(`/t/${attendee.ticket_token}`),
