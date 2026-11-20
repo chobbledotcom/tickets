@@ -1,5 +1,5 @@
 ---------------------------- MODULE InvoiceFlow ----------------------------
-EXTENDS Integers, ModelRules, InvoiceFlowData
+EXTENDS Apalache, Integers, ModelRules, InvoiceFlowData
 
 \* An invoice is a bill for one attendee. An operator creates it from a Liquid
 \* template, and the rendered body is frozen. An invoice number identifies the
@@ -101,9 +101,9 @@ Safety ==
 \* Init is a fresh attendee with no invoice row, not a seed read. A real
 \* attendee can start with a closed invoice, which the facts supply as steps.
 Init ==
-  /\ firstInvoice = "absent"
-  /\ secondInvoice = "absent"
-  /\ allAttemptsSafe = TRUE
+  /\ firstInvoice := "absent"
+  /\ secondInvoice := "absent"
+  /\ allAttemptsSafe := TRUE
 
 \* \E selects any fact whose before status matches the current status at its
 \* number. A create fact also needs the other number's real state, so a stale
@@ -116,11 +116,11 @@ AttemptStep ==
     /\ StatusAt(attempt.slot) = attempt.statusBefore
     /\ (attempt.kind = "create" =>
           attempt.otherNew = IsOpen(StatusElsewhere(attempt.slot)))
-    /\ firstInvoice' =
+    /\ firstInvoice' :=
          IF attempt.slot = 1 THEN attempt.statusAfter ELSE firstInvoice
-    /\ secondInvoice' =
+    /\ secondInvoice' :=
          IF attempt.slot = 2 THEN attempt.statusAfter ELSE secondInvoice
-    /\ allAttemptsSafe' = ChecksStillPass(allAttemptsSafe, SafeAttempt(attempt))
+    /\ allAttemptsSafe' := ChecksStillPass(allAttemptsSafe, SafeAttempt(attempt))
 
 \* \/ means "or". Next permits a fact or a pause with no change. No rule
 \* requires a create, a cancel, a settle, or a delete. This checks safety, not

@@ -5,7 +5,7 @@
 \* VAT amount, and interval. Amounts here are integer minor currency units.
 \* For example, an active zero-place booking must survive an attempted delete.
 \* A merge may copy that whole plan to attendee 2, but cannot discard it.
-EXTENDS Integers, FiniteSets, ModelRules, SubscriptionRules, SubscriptionRecordsData
+EXTENDS Apalache, Integers, FiniteSets, ModelRules, SubscriptionRules, SubscriptionRecordsData
 
 \* scripts/verify-models/subscriptions/records.ts supplies immutable facts.
 \* records-operations.ts executes applyAttendeeAtomicEdit (including its lost-line
@@ -164,15 +164,15 @@ Safety == safe \in BOOLEAN /\ safe
 
 \* Start before any observed attempt is replayed. No database is initially empty:
 \* each fact already carries a separately seeded real operation's outcome.
-Init == safe = (OperationCoverage /\ ProjectionCoverage)
+Init == safe := (OperationCoverage /\ ProjectionCoverage)
 
 \* Integer choice permits every fact, not only the first. Paged row lookup
 \* bounds the checker's symbolic choices without removing refused outcomes.
 OperationStep ==
   \E index \in OperationFactsIndices :
     LET fact == OperationFactsAt(index) IN
-    safe' = ChecksStillPass(safe, OperationLaw(fact))
-ProjectionStep == safe' = ChecksStillPass(safe, ProjectionLaw)
+    safe' := ChecksStillPass(safe, OperationLaw(fact))
+ProjectionStep == safe' := ChecksStillPass(safe, ProjectionLaw)
 
 \* Next permits either observation, or a step with no model change. No fairness
 \* is assumed. These laws do not claim that an operation eventually happens.

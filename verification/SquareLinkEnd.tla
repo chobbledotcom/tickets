@@ -1,5 +1,5 @@
 -------------------------- MODULE SquareLinkEnd --------------------------
-EXTENDS ModelRules, SquareLinkEndData
+EXTENDS Apalache, ModelRules, SquareLinkEndData
 
 \* \E asks for at least one example. \A asks for every example.
 \* /\ requires both conditions and \/ permits either. \in means set membership.
@@ -261,14 +261,14 @@ Safety ==
 
 \* Start before creation, at fresh age, with no evidence and no failed verdict.
 Init ==
-  /\ handleState = "unwritten"
-  /\ sampledAge = AgeStart
-  /\ checkoutCreated = FALSE
-  /\ linkEndEstablished = FALSE
-  /\ handleRemovalSeen = FALSE
-  /\ attemptHistorySafe = TRUE
-  /\ replyHistorySafe = TRUE
-  /\ removalHistorySafe = TRUE
+  /\ handleState := "unwritten"
+  /\ sampledAge := AgeStart
+  /\ checkoutCreated := FALSE
+  /\ linkEndEstablished := FALSE
+  /\ handleRemovalSeen := FALSE
+  /\ attemptHistorySafe := TRUE
+  /\ replyHistorySafe := TRUE
+  /\ removalHistorySafe := TRUE
 
 \* Apply the observed target even when unsafe. Never filter a bad edge out.
 \* Conclusive evidence survives a refused transition. Creation, end and removal
@@ -279,12 +279,12 @@ ApplyAttempt(attempt, conclusive) ==
   LET createdAfter == (checkoutCreated \/
         (attempt.accepted /\ attempt.eventId = "checkout_created"))
       endedAfter == (linkEndEstablished \/ conclusive)
-  IN /\ handleState' = attempt.targetState
-     /\ checkoutCreated' = createdAfter
-     /\ linkEndEstablished' = endedAfter
-     /\ handleRemovalSeen' = (handleRemovalSeen \/ attempt.targetState = "gone")
-     /\ attemptHistorySafe' = ChecksStillPass(attemptHistorySafe, SafeAttempt(attempt))
-     /\ removalHistorySafe' =
+  IN /\ handleState' := attempt.targetState
+     /\ checkoutCreated' := createdAfter
+     /\ linkEndEstablished' := endedAfter
+     /\ handleRemovalSeen' := (handleRemovalSeen \/ attempt.targetState = "gone")
+     /\ attemptHistorySafe' := ChecksStillPass(attemptHistorySafe, SafeAttempt(attempt))
+     /\ removalHistorySafe' :=
           ChecksStillPass(removalHistorySafe,
             PayableLinkKeepsHandle(createdAfter, endedAfter, attempt.targetState))
      /\ UNCHANGED sampledAge
@@ -306,7 +306,7 @@ ReplyStep ==
        /\ attempt.sourceState = handleState
        /\ attempt.eventId = reply.eventId
        /\ ApplyAttempt(attempt, reply.expectedEvidence \in ConclusiveEvidence)
-       /\ replyHistorySafe' = ChecksStillPass(replyHistorySafe, ReplyAgrees(reply))
+       /\ replyHistorySafe' := ChecksStillPass(replyHistorySafe, ReplyAgrees(reply))
 
 \* Only a created checkout can age. Follow an age step that never goes backwards.
 \* Leave the handle and all evidence histories unchanged.
@@ -314,7 +314,7 @@ Age ==
   /\ checkoutCreated
   /\ \E move \in AgeMoves :
        /\ move.sourceAge = sampledAge
-       /\ sampledAge' = move.targetAge
+       /\ sampledAge' := move.targetAge
   /\ UNCHANGED <<handleState, checkoutCreated, linkEndEstablished, handleRemovalSeen,
                  attemptHistorySafe, replyHistorySafe, removalHistorySafe>>
 
@@ -324,8 +324,8 @@ Age ==
 Prune ==
   /\ handleState \in HandleStates
   /\ Prunable(sampledAge)
-  /\ handleState' = "gone"
-  /\ handleRemovalSeen' = TRUE
+  /\ handleState' := "gone"
+  /\ handleRemovalSeen' := TRUE
   /\ UNCHANGED <<sampledAge, checkoutCreated, linkEndEstablished, attemptHistorySafe,
                  replyHistorySafe, removalHistorySafe>>
 
