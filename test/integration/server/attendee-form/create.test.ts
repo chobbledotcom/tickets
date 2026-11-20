@@ -28,6 +28,28 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
+/** Post a new two-place booking with the money fields and answer what the
+ *  attendee owes. */
+const owedAfterCreate = async (
+  fields: Record<string, string>,
+): Promise<number> => {
+  const { listing: event } = await setupListingAndLogin({
+    maxAttendees: 100,
+    maxQuantity: 5,
+    unitPrice: 2000,
+  });
+  const { response } = await adminFormPost("/admin/attendees/new", {
+    email: "money@example.com",
+    name: "Money",
+    ...attendeeLineFields([{ eventId: event.id, quantity: 2 }]),
+    ...fields,
+  });
+  expectRedirect(response, "/admin/attendees/");
+  const attendees = await expectAttendeeLineCount(event.id, 1);
+  const { getAttendeeBalanceState } = await import("#db/attendees/balance.ts");
+  return (await getAttendeeBalanceState(attendees[0]!.id))!.remainingBalance;
+};
+
 describeWithEnv(
   "server (unified attendee form) — create & line edits",
   { db: true },
@@ -57,27 +79,13 @@ describeWithEnv(
       });
 
       test("records a payment and an adjustment against the new attendee", async () => {
-        const { listing: event } = await setupListingAndLogin({
-          maxAttendees: 100,
-          maxQuantity: 5,
-          unitPrice: 2000,
-        });
-        const { response } = await adminFormPost("/admin/attendees/new", {
-          email: "paid@example.com",
-          name: "Paid",
-          ...attendeeLineFields([{ eventId: event.id, quantity: 2 }]),
-          adjustmentAmount0: "-500",
-          adjustmentDescription0: "Delivery credit",
-          paymentAmount0: "1500",
-        });
-        expectRedirect(response, "/admin/attendees/");
-        const attendees = await expectAttendeeLineCount(event.id, 1);
         // Gross 4000 minus the payment 1500 plus the writeoff 500 leaves 2000.
-        const { getAttendeeBalanceState } = await import(
-          "#db/attendees/balance.ts"
-        );
         expect(
-          (await getAttendeeBalanceState(attendees[0]!.id))!.remainingBalance,
+          await owedAfterCreate({
+            adjustmentAmount0: "-500",
+            adjustmentDescription0: "Delivery credit",
+            paymentAmount0: "1500",
+          }),
         ).toBe(2000);
       });
 
@@ -86,29 +94,15 @@ describeWithEnv(
           mode: "add_to_total",
           rateBasisPoints: 2000,
         });
-        const { listing: event } = await setupListingAndLogin({
-          maxAttendees: 100,
-          maxQuantity: 5,
-          unitPrice: 2000,
-        });
-        const { response } = await adminFormPost("/admin/attendees/new", {
-          email: "taxed@example.com",
-          name: "Taxed",
-          ...attendeeLineFields([{ eventId: event.id, quantity: 2 }]),
-          adjustmentAmount0: "1000",
-          adjustmentAmount1: "500",
-          adjustmentDescription0: "Delivery",
-          adjustmentDescription1: "Handling",
-          adjustmentTaxable0: "1",
-        });
-        expectRedirect(response, "/admin/attendees/");
-        const attendees = await expectAttendeeLineCount(event.id, 1);
         // (4000 + 1000 delivery) plus 20% tax is 6000. Handling adds 500.
-        const { getAttendeeBalanceState } = await import(
-          "#db/attendees/balance.ts"
-        );
         expect(
-          (await getAttendeeBalanceState(attendees[0]!.id))!.remainingBalance,
+          await owedAfterCreate({
+            adjustmentAmount0: "1000",
+            adjustmentAmount1: "500",
+            adjustmentDescription0: "Delivery",
+            adjustmentDescription1: "Handling",
+            adjustmentTaxable0: "1",
+          }),
         ).toBe(6500);
       });
 
