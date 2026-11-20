@@ -15,6 +15,8 @@ It also shows the example values.
 Do not edit a page by hand.
 The page comes from a guide under `scripts/model-guides/guides/`.
 Run `deno task model-guides` to write the pages.
+The GitHub Pages build publishes the same pages at
+[`/models/`](https://chobbledotcom.github.io/tickets/models/).
 
 `deno task check:model-guides` fails when:
 

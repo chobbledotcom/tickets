@@ -30,7 +30,7 @@ jobs:
       - name: Set up devenv
         uses: $/.github/actions/setup-devenv
         with:
-          install_dependencies: "false"
+          install_dependencies: "true"
           profile: ci
 
       - name: Generate docs
@@ -49,21 +49,35 @@ jobs:
           src/docs/webhooks.ts
           src/docs/demo.ts
 
+      - name: Check model walkthroughs
+        run: deno task check:model-guides
+
+      - name: Generate model walkthroughs
+        run: deno task model-guides:site
+
       - name: Disable Jekyll processing
         run: touch docs-output/.nojekyll
 
-      - name: Add root redirect to overview page
+      - name: Add Pages home page
         run: |
           cat > docs-output/index.html << 'HTMLEOF'
           <!DOCTYPE html>
-          <html>
+          <html lang="en">
           <head>
             <meta charset="utf-8">
-            <meta http-equiv="refresh" content="0; url=doc.ts/index.html">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Chobble Tickets Documentation</title>
+            <style>
+              body { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem; font: 16px/1.6 system-ui, sans-serif; color-scheme: light dark; }
+              li { margin: 0.5rem 0; }
+            </style>
           </head>
           <body>
-            <p>Redirecting to <a href="doc.ts/index.html">documentation</a>...</p>
+            <h1>Chobble Tickets Documentation</h1>
+            <ul>
+              <li><a href="doc.ts/index.html">API reference</a> — every source module.</li>
+              <li><a href="models/index.html">Model walkthroughs</a> — each TLA model in everyday words.</li>
+            </ul>
           </body>
           </html>
           HTMLEOF
