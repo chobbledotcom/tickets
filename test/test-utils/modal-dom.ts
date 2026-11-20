@@ -47,6 +47,12 @@ export const OTHER_SETTINGS = {
 
 export type OpenWindow = { dialog: HTMLDialogElement; window: Window };
 
+export type DragPage = OpenWindow & {
+  bar: HTMLElement;
+  capture: { captured: number[]; released: number[] };
+  start: { left: number; top: number };
+};
+
 export const page = (html = TEMPLATE): Window => {
   const window = installDom(html);
   initAdminModalShell();
@@ -100,12 +106,6 @@ export const pointer = (
     pointerId: options.pointerId ?? 7,
   });
 
-export type DragPage = OpenWindow & {
-  bar: HTMLElement;
-  capture: { captured: number[]; released: number[] };
-  start: { left: number; top: number };
-};
-
 export const placed = (dialog: HTMLElement): { left: number; top: number } => ({
   left: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-left")),
   top: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-top")),
@@ -113,7 +113,11 @@ export const placed = (dialog: HTMLElement): { left: number; top: number } => ({
 
 /** Give the shell a size to clamp against. A DOM without a layout answers
  *  every rectangle with zeroes. */
-export const setSize = (window: Window, width: number, height: number): void => {
+export const setSize = (
+  window: Window,
+  width: number,
+  height: number,
+): void => {
   for (const dialog of dialogsIn(window)) {
     Object.defineProperty(dialog, "getBoundingClientRect", {
       configurable: true,
@@ -154,7 +158,11 @@ export const pressTitleBar = ({ bar, start, window }: DragPage): void => {
   fireEvent(bar, pointer(window, "pointerdown", start.left, start.top));
 };
 
-export const movePointer = ({ bar, window }: DragPage, x: number, y: number): void => {
+export const movePointer = (
+  { bar, window }: DragPage,
+  x: number,
+  y: number,
+): void => {
   fireEvent(bar, pointer(window, "pointermove", x, y));
 };
 
@@ -166,7 +174,7 @@ export const click = (target: Element, window: Window): void => {
   fireEvent(target, new window.MouseEvent("click", { bubbles: true }));
 };
 
-export type DomEvent = InstanceType<Window["Event"]>;
+type DomEvent = InstanceType<Window["Event"]>;
 
 export const fire = (
   target: { dispatchEvent(event: unknown): unknown },

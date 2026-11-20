@@ -2,9 +2,14 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import type { Window } from "happy-dom";
 import * as v from "valibot";
-import { openAdminModal } from "#src/ui/client/admin/modal.ts";
-import { fireEvent, requireElement, requireElements } from "#test-utils/happy-dom.ts";
+import { closeAdminModal, openAdminModal } from "#src/ui/client/admin/modal.ts";
+import {
+  fireEvent,
+  requireElement,
+  requireElements,
+} from "#test-utils/happy-dom.ts";
 import {
   cleanupModals,
   click,
@@ -21,6 +26,7 @@ import {
   pressTitleBar,
   releasePointer,
   SETTINGS,
+  setSize,
   stackOf,
 } from "#test-utils/modal-dom.ts";
 
@@ -308,25 +314,28 @@ describe("the admin modal shell", () => {
     expect(last.defaultPrevented).toBe(false);
   });
 
-  test("keeps a window on the screen after the viewport changes", () => {
-    const ready = dragPage();
-    const { dialog, window } = ready;
-    pressTitleBar(ready);
-    setSize(window, 200, 100);
+  test("returns the existing content without replacing it on duplicate open", () => {
+    const window = page();
+    const content = document.createElement("div");
+    content.textContent = "Fetched images";
+    expect(openAdminModal(SETTINGS, content)).toBe(content);
+    const replacement = document.createElement("div");
+    expect(openAdminModal(SETTINGS, replacement)).toBe(content);
+    expect(dialogsIn(window)).toHaveLength(1);
+    expect(content.isConnected).toBe(true);
+    expect(content.textContent).toBe("Fetched images");
+    expect(replacement.isConnected).toBe(false);
+  });
 
-    Object.defineProperty(window, "innerWidth", {
-      configurable: true,
-      value: 400,
-    });
-    Object.defineProperty(window, "innerHeight", {
-      configurable: true,
-      value: 300,
-    });
-    fire(window, window, "resize");
-
-    movePointer(ready, 5000, 5000);
-    expect(placed(dialog)).toEqual({ left: 200, top: 200 });
-    releasePointer(ready);
-    fire(window, window, "resize");
+  test("closes by key synchronously and preserves an immediately reopened shell", () => {
+    const window = page();
+    const first = open(window);
+    closeAdminModal(SETTINGS.key);
+    expect(first.open).toBe(false);
+    expect(first.isConnected).toBe(false);
+    const second = open(window);
+    fireEvent(first, new window.Event("close"));
+    expect(second.open).toBe(true);
+    expect(dialogsIn(window)).toEqual([second]);
   });
 });

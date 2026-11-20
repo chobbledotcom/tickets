@@ -353,6 +353,30 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "Address lookup",
   }),
   definition({
+    action: "/admin/settings/listing-mode",
+    copy: {
+      descriptionKey: "settings.advanced.listing_mode_hint",
+      submitLabelKey: "settings.advanced.save_listing_mode",
+      titleKey: "settings.advanced.listing_mode",
+    },
+    fields: [
+      {
+        fieldName: "listingMode",
+        kind: "radios",
+        options: [
+          { labelKey: "settings.advanced.listing_mode_text", value: "text" },
+          { labelKey: "settings.advanced.listing_mode_image", value: "image" },
+        ],
+        stateField: "listingMode",
+      },
+    ],
+    formId: "settings-listing-mode",
+    kind: "fields",
+    name: "listingMode",
+    page: "advanced",
+    routeLabel: "Listing mode",
+  }),
+  definition({
     action: "/admin/settings/external-order",
     copy: {
       descriptionKey: "settings.advanced.external_order_hint",

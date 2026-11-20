@@ -272,7 +272,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
 
     const result = await buildCreateListingResource(
       form,
-      listingFormView(session.adminLevel),
+      listingFormView(session.adminLevel, chosenTemplateId),
       imageIds,
     ).create(form);
     if (!result.ok) {
@@ -366,7 +366,8 @@ const saveListingEdit = async (
   // A switch to booked-by-the-day that leaves bookings without a day
   // cannot save. The POST serves the assign page (nothing written), or
   // carries the organiser's confirmed move into the save below.
-  const view = listingFormView(session.adminLevel);
+  const template = inferTemplate(existing);
+  const view = listingFormView(session.adminLevel, template?.id ?? "custom");
   const step = await planListingTypeSwitch(existing, form, view);
   if (step.kind === "invalid") {
     return renderListingEditError(id, session, form, step.error);

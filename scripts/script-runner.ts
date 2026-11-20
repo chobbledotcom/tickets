@@ -5,6 +5,13 @@ export interface ScriptIo {
   stdout: (line: string) => void;
 }
 
+/** The exit code for an unexpected argument, or undefined when there is none. */
+export const rejectArgs = (io: ScriptIo, task: string): number | undefined => {
+  if (io.args.length === 0) return;
+  io.stderr(`Usage: deno task ${task}`);
+  return 2;
+};
+
 /** Give a console task its standard Deno inputs and exit with its result. */
 export const runDenoScript = async (
   run: (io: ScriptIo) => Promise<number>,

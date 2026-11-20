@@ -338,12 +338,12 @@ export const ADMIN_API_RESOURCES = {
     updateBodySchema: attendeeStatusApi.bodies.update,
   },
   attendees: {
-    // The create is the one standard route this surface serves. A booking
-    // needs the server's full validation, so the table declares no client
-    // body schema. The server owns the request shape.
+    // The create and the update are the standard routes this surface serves.
+    // A booking needs the server's full validation, so the table declares no
+    // client body schema. The server owns the request shape.
     label: "Attendee",
     path: "attendees",
-    serves: { create: true },
+    serves: { create: true, update: true },
     singleSchema: v.looseObject({ attendee: AttendeeRowSchema }),
   },
   attributes: {

@@ -72,10 +72,11 @@ describe("CLI describe", () => {
       "questions",
       "site-pages",
     ]);
-    // A create-only resource describes only the create verb.
+    // The attendee resource describes only the create and the update verbs.
     expect(doc.resources.attendees!.label).toBe("Attendee");
     expect(doc.resources.attendees!.verbs).toEqual({
       create: { body: { kind: "server" } },
+      update: { body: { kind: "server" } },
     });
     const attributes = doc.resources.attributes!;
     expect(attributes.label).toBe("Attribute");
@@ -234,19 +235,22 @@ describe("CLI parser", () => {
     });
   });
 
-  test("a create-only resource serves only create", () => {
+  test("the attendee resource serves only create and update", () => {
     const attendeesTable = { attendees: ADMIN_API_RESOURCES.attendees };
-    expect(
-      parseCommand(attendeesTable, ["create", "attendees", "{}"]),
-    ).toMatchObject({
-      kind: "write",
-      resource: "attendees",
-      verb: "create",
-    });
+    const served: [string, string[]][] = [
+      ["create", ["create", "attendees", "{}"]],
+      ["update", ["update", "attendees", "1", "{}"]],
+    ];
+    for (const [verb, args] of served) {
+      expect(parseCommand(attendeesTable, args)).toMatchObject({
+        kind: "write",
+        resource: "attendees",
+        verb,
+      });
+    }
     for (const [verb, message] of [
       ["list", "The 'list' command is not available for 'attendees'."],
       ["get", "The 'get' command is not available for 'attendees'."],
-      ["update", "The 'update' command is not available for 'attendees'."],
       ["delete", "The 'delete' command is not available for 'attendees'."],
     ] as const) {
       const args =
