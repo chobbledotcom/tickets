@@ -2,10 +2,10 @@
  * The image upload fields, and the image picker template that renders them.
  * The images area renders the same fields. The admin shell renders the picker
  * once on each admin page as an inert `<template>`. The markdown editor and
- * the new-listing Images field clone it and show it in the shared admin
- * modal, which supplies the title bar and the close control. The title is
- * the words that bar shows. The notes after the picker are the copy that its
- * grid shows in place of thumbnails.
+ * the new-listing Images field clone it and show it in the shared admin modal.
+ * The modal supplies the title bar and the close control. The title is the
+ * words that bar shows. The notes after the picker are the copy that its grid
+ * shows in place of thumbnails.
  */
 
 import { t } from "#i18n";

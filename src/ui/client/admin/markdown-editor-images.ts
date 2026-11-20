@@ -3,11 +3,11 @@
 /**
  * The image picker for the markdown editor toolbar. The server renders the
  * picker's markup on each admin page with image storage, as a `<template>`.
- * Each editor clones it and shows it in the shared admin modal, fills the grid
- * from the image library, uploads new images, and inserts the short-form
- * reference (`![Alt](img#id)`) at the caret. The server translates img#id to
- * the real image URL at render time, so the editor stores the stable short
- * form.
+ * Each editor clones it and shows it in the shared admin modal. The picker
+ * fills its grid from the image library and uploads new images. It inserts the
+ * short-form reference (`![Alt](img#id)`) at the caret. The server translates
+ * img#id to the real image URL at render time, so the editor stores the stable
+ * short form.
  */
 
 import { schema } from "prosemirror-markdown";
