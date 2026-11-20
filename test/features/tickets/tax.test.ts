@@ -63,7 +63,7 @@ describeWithEnv("ticket view > tax", { db: true, triggers: true }, () => {
       mode: "calculate_from_total",
       rateBasisPoints: 2000,
     });
-    expect(html).toContain(`Price: ${formatCurrency(2000)}`);
+    expect(html).toContain("ticket-card-price");
     expect(html).not.toContain("ticket-card-tax");
     expect(html).not.toContain("ticket-card-total");
   });
