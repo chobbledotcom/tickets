@@ -68,13 +68,17 @@ describe("the image picker template", () => {
     ).toBe(true);
   });
 
-  test("the dialog carries the parts that the browser wires", () => {
-    // The editor finds the close button and the grid by these classes.
-    expectIncludesAll(String(ImagePickerTemplate()), [
-      '<dialog class="md-image-dialog">',
-      'class="md-preview-close"',
+  test("the picker carries the parts that the browser wires", () => {
+    // The browser finds the title, the picker, and the grid by these marks.
+    // The window around the picker is the shared admin modal, so the picker
+    // holds no dialog and no close control of its own.
+    const html = String(ImagePickerTemplate());
+    expectIncludesAll(html, [
+      '<span data-copy="title">Choose an image</span>',
+      '<div class="md-image-picker">',
       '<div class="md-image-grid"></div>',
     ]);
+    expect(html).not.toContain("<dialog");
   });
 
   test("the picker carries one note for each grid state", () => {

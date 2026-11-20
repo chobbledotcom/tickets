@@ -4,74 +4,35 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import type { Window } from "happy-dom";
 import * as v from "valibot";
+import { openAdminModal } from "#src/ui/client/admin/modal.ts";
 import {
-  initAdminModalShell,
-  openAdminModal,
-} from "#src/ui/client/admin/modal.ts";
-import { AdminModalTemplate } from "#templates/admin/modal.tsx";
-import {
-  closeDialogs,
-  createDomInstaller,
   fireEvent,
   requireElement,
   requireElements,
 } from "#test-utils/happy-dom.ts";
-import { withRequestContext } from "#test-utils/request-context.ts";
+import {
+  cleanupModals,
+  dialogsIn,
+  type OpenWindow,
+  OTHER_SETTINGS,
+  oneWindow,
+  open,
+  page,
+  pointer,
+  SETTINGS,
+  stackOf,
+} from "#test-utils/modal-dom.ts";
 
-const TEMPLATE = await withRequestContext(() => String(AdminModalTemplate()));
-
-const { installDom, cleanup } = createDomInstaller(["Element"]);
-
-const SETTINGS = {
-  collapsedTitle: "First, small",
-  key: "first",
-  title: "First",
-};
-
-const OTHER_SETTINGS = {
-  collapsedTitle: "Second, small",
-  key: "second",
-  title: "Second",
-};
-
-type Open = { dialog: HTMLDialogElement; window: Window };
-
-type DragPage = Open & {
+type DragPage = OpenWindow & {
   bar: HTMLElement;
   capture: { captured: number[]; released: number[] };
   start: { left: number; top: number };
-};
-
-const page = (html = TEMPLATE): Window => {
-  const window = installDom(html);
-  initAdminModalShell();
-  return window;
-};
-
-const dialogsIn = (window: Window): HTMLDialogElement[] =>
-  requireElements<HTMLDialogElement>(window.document, "dialog.admin-modal");
-
-/** Read the raised dialog from focus, not DOM insertion order. */
-const open = (
-  window: Window,
-  settings: unknown = SETTINGS,
-): HTMLDialogElement => {
-  openAdminModal(settings, document.createElement("div"));
-  return requireElement<HTMLDialogElement>(window.document, "dialog:focus");
-};
-
-const oneWindow = (): Open => {
-  const window = page();
-  return { dialog: open(window), window };
 };
 
 const placed = (dialog: HTMLElement): { left: number; top: number } => ({
   left: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-left")),
   top: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-top")),
 });
-
-const stackOf = (window: Window): number[] =>
-  dialogsIn(window).map((dialog) => Number(dialog.style.zIndex));
 
 /** Give the shell a size to clamp against. A DOM without a layout answers
  *  every rectangle with zeroes. */
@@ -83,21 +44,6 @@ const setSize = (window: Window, width: number, height: number): void => {
     });
   }
 };
-
-const pointer = (
-  window: Window,
-  type: string,
-  x: number,
-  y: number,
-  options: { button?: number; pointerId?: number } = {},
-): unknown =>
-  new window.PointerEvent(type, {
-    bubbles: true,
-    button: options.button ?? 0,
-    clientX: x,
-    clientY: y,
-    pointerId: options.pointerId ?? 7,
-  });
 
 const captureOn = (
   bar: HTMLElement,
@@ -157,10 +103,7 @@ const fire = (
 };
 
 describe("the admin modal shell", () => {
-  afterEach(async () => {
-    closeDialogs(document, "dialog.admin-modal");
-    await cleanup();
-  });
+  afterEach(cleanupModals);
 
   test("opens a window with its title, its controls, and the content", () => {
     const window = page();
