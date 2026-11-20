@@ -44,16 +44,15 @@ const stubTransport = (
 };
 
 /** One custom route call against a stub transport: the calls it sent. */
-const sendCustomRoute = (
+const sendCustomRoute = async (
   entry: AdminApiResource,
   routeKey: string,
   id: number | undefined,
   query?: Record<string, string>,
 ) => {
   const { calls, transport } = stubTransport({});
-  return adminApiCustomRoute(transport, entry, routeKey, id, query).then(
-    () => calls,
-  );
+  await adminApiCustomRoute(transport, entry, routeKey, id, query);
+  return calls;
 };
 
 describe("admin api client", () => {
