@@ -127,7 +127,6 @@ const getAdvancedSettingsPageState = async (
     bunnyDnsSubdomainSuffix: getBunnyDnsSubdomainSuffix(),
     bunnySubdomain: settings.bunnySubdomain,
     businessEmail: settings.businessEmail,
-    catalogGalleryEnabled: settings.catalogGalleryEnabled,
     cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
     confirmationTemplates,
     customCss: settings.customCss,

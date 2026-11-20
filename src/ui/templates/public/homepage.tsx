@@ -9,13 +9,10 @@ import { formatDatetimeLabel } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { Badge } from "#templates/components/badge.tsx";
-import {
-  CARD_GRID_CLASS,
-  cardInner,
-  cardPriceHtml,
-} from "#templates/components/card.tsx";
+import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import type { Group } from "#types";
 import { listingAttributesHtml } from "./listing-attributes.ts";
+import { listingPriceHtml } from "./listing-price.ts";
 import {
   compareGroupsByName,
   PackagesSection,
@@ -277,7 +274,7 @@ const renderListingCard = cardRenderer(
 /** A gallery card's detail lines: the price, then the date and location when
  *  present. */
 const galleryDetailHtml = (listing: TicketListing["listing"]): string =>
-  cardPriceHtml(listing) +
+  listingPriceHtml(listing) +
   cardDetailLinesHtml(listing, (content) => `<span>${content}</span>`);
 
 /** Render one listing as a product-gallery card — the shop-index look the
@@ -333,8 +330,8 @@ const renderGroupCard = (group: Group, soldOut: boolean): string => {
 
 /**
  * Homepage with listings - lists all active upcoming listings with booking links.
- * With `galleryView` on (the catalog-gallery setting), the listing cards render
- * as a product-card gallery instead of the classic prose cards.
+ * When most visible listings carry a picture, the cards render as a
+ * product-card gallery instead of the classic prose cards.
  */
 export const homepagePage = (
   listings: TicketListing[],

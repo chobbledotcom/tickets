@@ -14,13 +14,10 @@ import {
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
-import {
-  CARD_GRID_CLASS,
-  cardInner,
-  cardPriceHtml,
-} from "#templates/components/card.tsx";
+import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import type { GroupWithMembers } from "#types";
 import { listingAttributesHtml } from "./listing-attributes.ts";
+import { listingPriceHtml } from "./listing-price.ts";
 import {
   compareGroupsByName,
   MarkdownProse,
@@ -135,7 +132,7 @@ const renderOrderCard =
     const imageHtml = renderListingImage(listing, "card-image", {
       thumb: true,
     });
-    const priceHtml = cardPriceHtml(listing);
+    const priceHtml = listingPriceHtml(listing);
     const attributesHtml = listingAttributesHtml(
       attributesByListing,
       listing.id,

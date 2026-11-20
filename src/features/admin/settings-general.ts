@@ -234,11 +234,6 @@ export const handleExternalOrderPost = settingsToggleFor(
   (v) => settings.update.externalOrderEnabled(v),
 );
 
-/** Handle POST /admin/settings/catalog-gallery - owner only */
-export const handleCatalogGalleryPost = settingsToggleFor(
-  SETTINGS_FORMS.catalogGallery,
-  (v) => settings.update.catalogGalleryEnabled(v),
-);
 /* jscpd:ignore-end */
 
 /** Handle POST /admin/settings/calendar-feeds - owner only */

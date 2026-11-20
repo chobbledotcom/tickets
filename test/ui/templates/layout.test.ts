@@ -261,6 +261,27 @@ describe("adminLoginPage", () => {
   });
 });
 
+describe("Layout image storage marker", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
+  test("marks the page only when the shell reports missing storage", () => {
+    const marker = (imageStorageOff?: boolean): string =>
+      String(
+        Layout({
+          children: "",
+          family: "admin",
+          ...(imageStorageOff === undefined ? {} : { imageStorageOff }),
+          title: "Test",
+        }),
+      );
+
+    assert(!marker().includes("data-image-storage"));
+    assert(!marker(false).includes("data-image-storage"));
+    assertStringIncludes(marker(true), 'data-image-storage="off"');
+  });
+});
+
 describe("AdminNav image storage gating", () => {
   beforeAll(setupLayoutTest);
   afterEach(resetLayoutTest);
