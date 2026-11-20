@@ -122,7 +122,7 @@ describe("operations guide schema", () => {
   test("states the image library's order", () => {
     const html = String(renderGuideSections([imagesSection()]));
     expectIncludesAll(html, [
-      "lists images by name, A to Z",
+      "The tiles run in name order, A to Z",
       "the older upload first",
       "the image menu in the editors uses the same order",
     ]);

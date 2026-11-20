@@ -43,7 +43,7 @@ import {
 } from "#templates/admin/questions.tsx";
 import type { AdminSession } from "#types";
 import { createListingChoicePost } from "./listing-choice-post.ts";
-import { questionPage } from "./question-page.ts";
+import { questionPage, renderQuestionEditError } from "./question-page.tsx";
 import { answerRoutes, type QuestionIdParams } from "./questions/answers.ts";
 import { questionTextForm } from "./questions/forms.ts";
 
@@ -77,10 +77,10 @@ const renderList = async (
 
 const pages = recordPages(questionRecord, {
   createErrorPath: "/admin/questions",
-  editErrorPath: (id) => `/admin/questions/${id}`,
   form: questionTextForm,
   identifier: (question) => questionTextFlat(question.text),
   renderDelete: adminQuestionDeletePage,
+  renderEditError: renderQuestionEditError,
   renderList,
   toInput: ({ answerLevel, displayType, text }) => ({
     // A form that never names a level asks once for the booking.

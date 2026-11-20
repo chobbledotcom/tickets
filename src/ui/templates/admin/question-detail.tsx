@@ -14,6 +14,7 @@ import {
 } from "#routes/admin/questions/forms.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import { isReadOnly } from "#shared/env.ts";
+import type { SubmittedValueProps } from "#shared/form-data.ts";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import {
   LinkedItemsCheckboxes,
@@ -23,6 +24,7 @@ import { reorderCountTable } from "#templates/components/reorder-list.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import type { ListingWithCount } from "#types";
+import { errorFlash } from "./admin-page.tsx";
 import { answerLevelLabel } from "./answer-level.ts";
 import { WritableOnly } from "./writable-only.tsx";
 
@@ -96,16 +98,24 @@ const QuestionListingAssignment = ({
  * orphans any stored text answers. */
 export const QuestionEditPanel = ({
   question,
+  error,
+  values,
 }: {
   question: QuestionWithAnswers;
-}): JSX.Element => (
+} & SubmittedValueProps): JSX.Element => (
   <>
+    {errorFlash(error)}
     <WritableOnly>
       <SaveForm
         action={`/admin/questions/${question.id}/edit`}
         submitLabel={t("questions.edit.update")}
       >
-        <Raw html={questionTextForm.renderField("text", question.text)} />
+        <Raw
+          html={questionTextForm.renderField(
+            "text",
+            values?.text ?? question.text,
+          )}
+        />
         <input name="answerLevel" type="hidden" value={question.answerLevel} />
         {question.displayType === "free_text" ? (
           // Free-text questions cannot become choice questions (a conversion
@@ -120,7 +130,7 @@ export const QuestionEditPanel = ({
                 { label: "Radio buttons", value: "radio" },
                 { label: "Select box", value: "select" },
               ]}
-              value={question.displayType}
+              value={values?.displayType ?? question.displayType}
             />
           </label>
         )}

@@ -17,6 +17,7 @@ import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import {
   type BrowserContract,
   describeWithBrowser,
+  settled,
   withSignedInPage,
 } from "#test-utils/browser-contract.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -47,17 +48,6 @@ const openAdminPage = async (
   await page.setViewportSize(viewport);
   await page.goto(path);
   await page.getByRole("button", { name: PREVIEW_BUTTON }).first().waitFor();
-};
-
-/** Waits for the window's animations to end. A window rises in when it opens,
- * and it fades when it dims or brightens. Its box and filter are off until
- * then. */
-const settled = async (dialog: Locator): Promise<void> => {
-  await dialog.evaluate(async (element) => {
-    await Promise.all(
-      element.getAnimations().map((animation) => animation.finished),
-    );
-  });
 };
 
 /** Opens the preview for one field and waits for its window to settle. */
