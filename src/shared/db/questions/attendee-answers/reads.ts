@@ -228,7 +228,7 @@ export const getAttendeeTextAnswers = async (
 type OwnerKeyReader = () => Promise<CryptoKey>;
 
 /** One answer to a question that asks once for each booked listing. */
-export type LineAnswer = {
+type LineAnswer = {
   listingId: number;
   questionId: number;
   text: string;

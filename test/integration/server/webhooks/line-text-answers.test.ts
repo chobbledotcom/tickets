@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeeLineAnswers } from "#db/questions/attendee-answers/reads.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { readStoredLineAnswers } from "#test-utils/db-helpers/line-answers.ts";
 import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -40,9 +39,7 @@ describeWithEnv(
 
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       const [attendee] = await getAttendeesRaw(listing1.id);
-      expect(
-        await getAttendeeLineAnswers(attendee!.id, getTestPrivateKey),
-      ).toEqual([
+      expect(await readStoredLineAnswers(attendee!.id)).toEqual([
         { listingId: listing1.id, questionId: question.id, text: "Ava" },
         { listingId: listing2.id, questionId: question.id, text: "Ben" },
       ]);

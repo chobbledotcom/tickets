@@ -41,7 +41,7 @@ export const requireQuestionDisplayType = (
   throw new Error(questionDisplayTypeError);
 };
 
-export const isQuestionAnswerLevel = guardFor(QuestionAnswerLevelSchema);
+const isQuestionAnswerLevel = guardFor(QuestionAnswerLevelSchema);
 
 export const requireQuestionAnswerLevel = (
   value: string,

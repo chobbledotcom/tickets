@@ -1,16 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { getAttendeeLineAnswers } from "#db/questions/attendee-answers/reads.ts";
 import {
   expectCheckoutRedirect,
   expectFlash,
   expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { readStoredLineAnswers } from "#test-utils/db-helpers/line-answers.ts";
 import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { testPageHtml } from "#test-utils/mocks.ts";
@@ -32,9 +31,7 @@ const seedDiscos = async (unitPrice = 0) => {
 
 const lineAnswersOf = async (listingId: number) => {
   const [attendee] = await getAttendeesRaw(listingId);
-  return attendee === undefined
-    ? []
-    : getAttendeeLineAnswers(attendee.id, getTestPrivateKey);
+  return attendee === undefined ? [] : readStoredLineAnswers(attendee.id);
 };
 
 /** Submit the booking form for both discos with the given counts and fields. */

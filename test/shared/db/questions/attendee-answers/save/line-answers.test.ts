@@ -6,7 +6,6 @@ import {
   bookedAnswersTail,
   getBookedAnswers,
 } from "#db/questions/attendee-answers/at-booking.ts";
-import { getAttendeeLineAnswers } from "#db/questions/attendee-answers/reads.ts";
 import {
   type AttendeeAnswerSet,
   groupListingAnswerSets,
@@ -23,6 +22,7 @@ import {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { readStoredLineAnswers } from "#test-utils/db-helpers/line-answers.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import type { Attendee } from "#types";
@@ -63,8 +63,7 @@ const lineAnswer = (listingId: number, questionId: number, text: string) => ({
   text,
 });
 
-const readLineAnswers = (attendeeId: number) =>
-  getAttendeeLineAnswers(attendeeId, getTestPrivateKey);
+const readLineAnswers = readStoredLineAnswers;
 
 const listingLevelQuestion = async () =>
   (await seedListingLevelQuestion()).question;
