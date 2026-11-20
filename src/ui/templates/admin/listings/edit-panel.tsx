@@ -27,7 +27,7 @@ import { AssignUndatedDayCard } from "./assign-day-card.tsx";
 import {
   advancedSectionHasValues,
   DurationWarning,
-  listingFormPageState,
+  listingFormState,
 } from "./form-sections.tsx";
 import { listingFormClassAttr, listingToFieldValues } from "./form-values.tsx";
 import type { ChildCandidate, ListingEditPanelOptions } from "./types.ts";
@@ -134,13 +134,9 @@ export const ListingEditPanel = ({
   const durationWarning = String(<DurationWarning listing={listing} />);
   const template = inferTemplate(listing);
   const showFinancials = session.adminLevel !== "editor";
-  const form = listingFormPageState(
-    session,
-    groups,
-    selectedGroupIds,
-    !!template,
-    { includeSlug: true },
-  );
+  const form = listingFormState(session, groups, selectedGroupIds, template, {
+    includeSlug: true,
+  });
   return (
     <>
       <Flash error={error} />

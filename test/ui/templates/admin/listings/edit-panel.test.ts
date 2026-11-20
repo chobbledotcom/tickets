@@ -147,7 +147,7 @@ describe("adminListingEditPage form sections", () => {
     );
     expectIncludesAll(html, [
       "<legend>Basics</legend>",
-      "<legend>Tickets &amp; Pricing</legend>",
+      "<legend>Items &amp; Pricing</legend>",
       "<legend>Daily Scheduling</legend>",
       "<legend>Booking duration &amp; day prices</legend>",
       "<legend>Options &amp; Visibility</legend>",

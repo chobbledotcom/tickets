@@ -16,7 +16,6 @@ import {
 import {
   getListingEditForm,
   getListingForm,
-  type ListingFormView,
   listingFormView,
 } from "#templates/fields/listing.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
@@ -137,6 +136,7 @@ export const ListingFormSections = ({
   customiseOpen,
   isTemplated,
   images,
+  pricingHeading,
   showUseDefaults = false,
   useDefaultsChecked = false,
 }: {
@@ -152,6 +152,8 @@ export const ListingFormSections = ({
   isTemplated: boolean;
   /** The chosen pictures, when this form offers the Images section. */
   images?: readonly ChosenImage[];
+  /** The pricing section's heading for this listing's vocabulary. */
+  pricingHeading: string;
   showUseDefaults?: boolean;
   useDefaultsChecked?: boolean;
 }): JSX.Element => {
@@ -191,7 +193,7 @@ export const ListingFormSections = ({
       : null,
     {
       children: <Raw html={sectionFields("tickets")} />,
-      legend: t("listings_table.tickets_pricing"),
+      legend: pricingHeading,
     },
     {
       children: childNoteFields("daily"),
@@ -264,25 +266,29 @@ type ListingFormPageProps = Omit<
   Parameters<typeof ListingFormSections>[0],
   | "groups"
   | "isTemplated"
+  | "pricingHeading"
   | "renderSection"
   | "selectedGroupIds"
   | "showUseDefaults"
 >;
 
-export const listingFormPageState = (
+/** The form state for one listing template. A form without a named template
+ *  uses the Custom vocabulary. */
+export const listingFormState = (
   session: AdminSession,
   groups: Group[],
   selectedGroupIds: number[],
-  isTemplated: boolean,
+  template: { id: string } | null,
   fields: ListingFieldsOptions = {},
 ): {
   defaults: typeof settings.listingDefaults;
   formSections: (props: ListingFormPageProps) => JSX.Element;
   showUseDefaults: boolean;
 } => {
+  const isTemplated = template !== null;
   const defaults = settings.listingDefaults;
-  const view: ListingFormView = {
-    ...listingFormView(session.adminLevel),
+  const view = {
+    ...listingFormView(session.adminLevel, template?.id),
     ...(fields.nameAutofocus ? { nameAutofocus: true } : {}),
   };
   const showUseDefaults = showUseDefaultsToggle(view.closed, defaults);
@@ -296,6 +302,7 @@ export const listingFormPageState = (
         {...props}
         groups={groups}
         isTemplated={isTemplated}
+        pricingHeading={view.copy.pricingHeading}
         renderSection={renderSection}
         selectedGroupIds={selectedGroupIds}
         showUseDefaults={showUseDefaults}

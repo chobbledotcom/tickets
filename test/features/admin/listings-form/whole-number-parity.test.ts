@@ -42,7 +42,7 @@ const FRACTIONAL_CASES: readonly {
   {
     apiBody: { max_attendees: 10, max_quantity: 1.5, name: "Test" },
     apiError: "max_quantity has an invalid value",
-    formError: "Max tickets per purchase must be a whole number",
+    formError: "Max items per purchase must be a whole number",
     formExtra: { maxQuantity: "1.5" },
   },
   {

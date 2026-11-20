@@ -46,8 +46,24 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
     test("refuses a blank unit_price and asks for 0 for a free listing", async () => {
       await expectRefusedCreate(
         { name: "Free Listing", unitPrice: "" },
-        "Enter a ticket price. Type 0 for free.",
+        "Enter a price for the item. Type 0 for free.",
       );
+    });
+
+    test("re-renders a physical product refusal with item copy", async () => {
+      const text = await expectRefusedCreate(
+        {
+          name: "Physical Listing",
+          templateId: "physical-product",
+          unitPrice: "",
+        },
+        "Enter a price for the item. Type 0 for free.",
+      );
+      expectIncludesAll(text, [
+        "Items &amp; Pricing",
+        "Item price",
+        "Max items per purchase",
+      ]);
     });
   });
   describe("POST /admin/listing day-price validation", () => {
@@ -144,7 +160,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
           name: "Bad Max Price",
           unitPrice: "10.00",
         },
-        "Maximum price must be at least £1 more than the ticket price",
+        "Maximum price must be at least £1 more than the price",
       );
     });
 
