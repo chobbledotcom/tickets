@@ -78,10 +78,7 @@ const postLegacyLegs = async (
   );
 };
 
-/** A taxable delivery charge the API create posts beside the listed line. */
 const DELIVERY = { amount: 2000, description: "Delivery", taxable: true };
-
-/** The figures of the booking with the delivery under the added tax. */
 const WITH_DELIVERY_ADDED = { income: 10000, owed: 14400, tax: 2400 };
 
 const booking = async (legacy = false, withDelivery = false) => {
