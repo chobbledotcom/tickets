@@ -80,8 +80,8 @@ export const questionPage: EntityPage<QuestionWithAnswers> = defineEntityPage({
   titleOf: (question) => questionTextFlat(question.text),
 });
 
-/** A refused edit answers with the whole Overview, so the answers and the
- * listings stay on the page beside the form that keeps what was typed. */
+/** A refused edit answers with the whole Overview. The form keeps what the
+ * person typed, and the answers and listings stay beside it. */
 export const renderQuestionEditError = editErrorRenderer(
   () => questionPage,
   "",
