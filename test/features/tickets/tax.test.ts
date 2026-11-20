@@ -7,7 +7,10 @@ import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
 import { assertJson, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createBooking } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createBooking,
+  decryptFirstAttendee,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 
@@ -43,12 +46,13 @@ describeWithEnv("ticket view > tax", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 1000,
       });
-      const { attendee } = await assertJson(
+      await assertJson(
         createBooking(listing.id, {
           lines: [{ listingId: listing.id, quantity: 2 }],
         }),
         201,
       );
+      const attendee = await decryptFirstAttendee(listing.id);
       const response = await handleRequest(
         mockRequest(`/t/${attendee.ticket_token}`),
       );
