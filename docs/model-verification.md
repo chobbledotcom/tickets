@@ -6,28 +6,29 @@ Keep the claim, the source evidence, and the limits together in the review.
 
 ## Read a walkthrough before the formal model
 
-`docs/model-guides/` holds one generated page for each maintained module.
+The generator writes one page for each maintained module.
 A page uses everyday words.
 It names the model rules and the production TypeScript declarations that supply
 the facts.
 It also shows the example values.
 
-Do not edit a page by hand.
+Do not edit a generated page.
 The page comes from a guide under `scripts/model-guides/guides/`.
-Run `deno task model-guides` to write the pages.
+Run `deno task model-guides` to write the pages to `docs-output/models/` for a
+local preview.
 The GitHub Pages build publishes the same pages at
 [`/models/`](https://chobbledotcom.github.io/tickets/models/).
 
 `deno task check:model-guides` fails when:
 
-- a model rule or a cited declaration changes.
+- a guide names a rule or a declaration that no longer exists.
 - a rule has no step.
-- a page is missing, extra, or out of date.
+- a guide names a production file outside the model's review context.
 
 Repair a finding in this order.
 First read the changed rule or declaration.
 Then update the guide.
-Then run the generator.
+Then run `deno task model-guides` to review the page.
 
 ## State the claim before you write the model
 

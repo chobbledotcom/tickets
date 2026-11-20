@@ -14,21 +14,17 @@ import {
   type ModuleRun,
   sourceKey,
 } from "#scripts/model-guides/validate.ts";
-import { namesInDirectory, rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import type { VerificationModule } from "#scripts/verify-models/spec.ts";
 
 /** The file reads that the guide check needs. */
 export type GuideAccess = {
   readonly read: (path: string) => Promise<string>;
-  readonly list: (directory: string) => Promise<readonly string[]>;
 };
 
 export const denoGuideAccess: GuideAccess = {
-  list: (directory) => namesInDirectory(directory, (entry) => entry.isFile),
   read: (path) => Deno.readTextFile(path),
 };
-
-export const DOC_DIRECTORY = "docs/model-guides";
 
 export const readModel = async (
   declaration: VerificationModule,

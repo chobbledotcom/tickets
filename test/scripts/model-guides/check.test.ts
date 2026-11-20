@@ -12,7 +12,6 @@ import {
   findWithGuide,
   guide,
   issues,
-  issuesAfterFile,
   joinFindings,
   replaceGuide,
   SAMPLE_TLA,
@@ -168,42 +167,26 @@ describe("findModelGuideIssues", () => {
     ]);
   });
 
-  test("reports a page when a model rule or a source declaration changes", async () => {
-    const modelChange = await issuesAfterFile(
+  test("regenerates the page when a model rule or a source declaration changes", async () => {
+    const current = await state();
+    const first = (
+      await generateModelGuidePages(current.access, current.context)
+    ).get("Sample.md")!;
+    current.access.files.set(
       "verification/Sample.tla",
-      (content) => content.replace("  x = 0", "  x = 1"),
+      SAMPLE_TLA.replace("  x = 0", "  x = 1"),
     );
-    const sourceChange = await issuesAfterFile("src/fake.ts", (content) =>
-      content.replace("start = 1", "start = 2"),
+    current.access.files.set(
+      "src/fake.ts",
+      current.access.files
+        .get("src/fake.ts")!
+        .replace("start = 1", "start = 2"),
     );
-    expect(modelChange).toHaveLength(1);
-    expect(sourceChange).toHaveLength(1);
-    expectIncludesAll(joinFindings(modelChange, sourceChange), [
-      "docs/model-guides/Sample.md",
-      "generated page is out of date",
-      "[guide-doc]",
-    ]);
-  });
-
-  test("reports a missing, stale, and extra page", async () => {
-    const missing = await issues((current) => {
-      current.access.files.delete("docs/model-guides/Sample.md");
-    });
-    const stale = await issues((current) => {
-      current.access.files.set(
-        "docs/model-guides/Sample.md",
-        `${current.access.files.get("docs/model-guides/Sample.md")}\n`,
-      );
-    });
-    const extra = await issues((current) => {
-      current.access.files.set("docs/model-guides/Extra.md", "extra\n");
-      current.access.files.set("docs/model-guides/note.txt", "note\n");
-    });
-    expectIncludesAll(joinFindings(missing, stale, extra), [
-      "generated page is missing",
-      "generated page is out of date",
-      "[guide-doc-extra]",
-    ]);
+    const next = (
+      await generateModelGuidePages(current.access, current.context)
+    ).get("Sample.md")!;
+    expect(next).not.toBe(first);
+    expectIncludesAll(next, ["  x = 1", "export const start = 2;"]);
   });
 
   test("skips an absent helper module and a helper that extends itself", async () => {
@@ -223,7 +206,6 @@ describe("findModelGuideIssues", () => {
       SAMPLE_TLA.replace("EXTENDS ModelRules", "EXTENDS ModelRules, Missing"),
     );
     const access: GuideAccess = {
-      list: (directory) => current.access.list(directory),
       read: (path) =>
         path === "verification/Missing.tla"
           ? Promise.reject(new Error("boom"))
@@ -237,7 +219,6 @@ describe("findModelGuideIssues", () => {
   test("reports a source read that throws a plain value", async () => {
     const current = await state();
     const access: GuideAccess = {
-      list: (directory) => current.access.list(directory),
       read: (path) =>
         path === "src/fake.ts"
           ? Promise.reject("plain failure")
@@ -300,7 +281,7 @@ describe("checkModelGuides", () => {
       ),
     ).toBe(0);
     expect(logged).toEqual([
-      "Model walkthroughs: every model has a current, mapped walkthrough.",
+      "Model walkthroughs: every model has a guide with mapped rules and production code.",
     ]);
     expect(
       await checkModelGuides(

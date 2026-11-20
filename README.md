@@ -123,8 +123,10 @@ tax compliance.
 For model authors and reviewers, the
 [model verification guide](docs/model-verification.md) explains the commands,
 focused exemplars, evidence boundaries, and limits of advisory code grades.
-The [model walkthroughs](docs/model-guides/README.md) explain each model in
-everyday words and map its rules to the production TypeScript code.
+The
+[model walkthroughs](https://chobbledotcom.github.io/tickets/models/) explain
+each model in everyday words and map its rules to the production TypeScript
+code.
 
 ### Check-in
 

@@ -1,28 +1,17 @@
 import { generateModelGuidePages } from "#scripts/model-guides/check.ts";
-import { readTextFileOrNull } from "#scripts/not-found.ts";
+import { renderSitePages } from "#scripts/model-guides/site.ts";
 import { rejectArgs, runDenoScript } from "#scripts/script-runner.ts";
 
-const DIRECTORY = "docs/model-guides";
+const OUTPUT = "docs-output/models";
 
 await runDenoScript(async (io) => {
   const usage = rejectArgs(io, "model-guides");
   if (usage !== undefined) return usage;
-  const pages = await generateModelGuidePages();
-  await Deno.mkdir(DIRECTORY, { recursive: true });
-  const changed: string[] = [];
+  const pages = renderSitePages(await generateModelGuidePages());
+  await Deno.mkdir(OUTPUT, { recursive: true });
   for (const [name, content] of pages) {
-    const path = `${DIRECTORY}/${name}`;
-    if ((await readTextFileOrNull(path)) === content) continue;
-    await Deno.writeTextFile(path, content);
-    changed.push(path);
+    await Deno.writeTextFile(`${OUTPUT}/${name}`, content);
   }
-  if (changed.length === 0) {
-    io.stdout(`Model guides are up to date (${pages.size} pages).`);
-    return 0;
-  }
-  for (const path of changed) io.stdout(`Wrote ${path}`);
-  io.stdout(
-    `Wrote ${changed.length} of ${pages.size} pages. Review the changed text.`,
-  );
+  io.stdout(`Wrote ${pages.size} model pages to ${OUTPUT}.`);
   return 0;
 });

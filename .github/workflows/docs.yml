@@ -53,7 +53,7 @@ jobs:
         run: deno task check:model-guides
 
       - name: Generate model walkthroughs
-        run: deno task model-guides:site
+        run: deno task model-guides
 
       - name: Disable Jekyll processing
         run: touch docs-output/.nojekyll

@@ -1,8 +1,5 @@
 import type { GuideAccess } from "#scripts/model-guides/access.ts";
-import {
-  findModelGuideIssues,
-  generateModelGuidePages,
-} from "#scripts/model-guides/check.ts";
+import { findModelGuideIssues } from "#scripts/model-guides/check.ts";
 import type { ModelGuide } from "#scripts/model-guides/types.ts";
 import type { VerificationModule } from "#scripts/verify-models/spec.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -136,16 +133,6 @@ export class MemoryAccess implements GuideAccess {
     }
     return Promise.resolve(content);
   };
-
-  list = (directory: string): Promise<readonly string[]> => {
-    const prefix = `${directory}/`;
-    return Promise.resolve(
-      [...this.files.keys()]
-        .filter((path) => path.startsWith(prefix))
-        .map((path) => path.slice(prefix.length))
-        .filter((name) => !name.includes("/")),
-    );
-  };
 }
 
 export type State = {
@@ -169,10 +156,6 @@ export const state = async (): Promise<State> => {
   };
   await declaration.data();
   for (const control of declaration.controls) await control.data();
-  const pages = await generateModelGuidePages(access, context);
-  for (const [name, content] of pages) {
-    access.files.set(`docs/model-guides/${name}`, content);
-  }
   return { access, context };
 };
 
@@ -196,16 +179,6 @@ export const replaceGuide = (
 export const findWithGuide = (
   change: (guide: ModelGuide) => ModelGuide,
 ): Promise<string[]> => issues((current) => replaceGuide(current, change));
-
-/** Report the issues after one edit to a stored example file. */
-export const issuesAfterFile = (
-  path: string,
-  edit: (content: string) => string,
-): Promise<string[]> =>
-  issues((current) => {
-    const content = current.access.files.get(path)!;
-    current.access.files.set(path, edit(content));
-  });
 
 /** Join finding groups into one report. */
 export const joinFindings = (...groups: (readonly string[])[]): string =>

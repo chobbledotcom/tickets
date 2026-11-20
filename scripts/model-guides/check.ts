@@ -1,6 +1,5 @@
 import { consoleOutput, reportCheck } from "#scripts/check-report.ts";
 import {
-  DOC_DIRECTORY,
   denoGuideAccess,
   type GuideAccess,
   loadSources,
@@ -157,61 +156,13 @@ export const generateModelGuidePages = async (
   return renderPrepared(context, result.prepared);
 };
 
-const pageIssues = async (
-  access: GuideAccess,
-  pages: ReadonlyMap<string, string>,
-): Promise<string[]> => {
-  const findings: string[] = [];
-  const existing = await access.list(DOC_DIRECTORY);
-  for (const [name, content] of pages) {
-    const path = `${DOC_DIRECTORY}/${name}`;
-    if (!existing.includes(name)) {
-      findings.push(
-        issue(
-          path,
-          "guide-doc",
-          "The generated page is missing.",
-          "Run deno task model-guides.",
-        ),
-      );
-      continue;
-    }
-    if ((await access.read(path)) !== content) {
-      findings.push(
-        issue(
-          path,
-          "guide-doc",
-          "The generated page is out of date.",
-          "Run deno task model-guides, then review the explanation.",
-        ),
-      );
-    }
-  }
-  const expected = new Set(pages.keys());
-  for (const name of existing) {
-    if (!name.endsWith(".md") || expected.has(name)) continue;
-    findings.push(
-      issue(
-        `${DOC_DIRECTORY}/${name}`,
-        "guide-doc-extra",
-        "The page has no guide.",
-        "Remove the page, or add its guide and run deno task model-guides.",
-      ),
-    );
-  }
-  return findings;
-};
-
-/** Every finding against the guide set, the models, the sources, and the
- *  generated Markdown. */
+/** Every finding against the guide set, the models, and the sources. */
 export const findModelGuideIssues = async (
   access: GuideAccess = denoGuideAccess,
   context: GuideContext = guideContext,
 ): Promise<string[]> => {
   const result = await prepareSet(access, context);
-  return result.kind === "issues"
-    ? result.findings
-    : await pageIssues(access, renderPrepared(context, result.prepared));
+  return result.kind === "issues" ? result.findings : [];
 };
 
 /** Report the guide check through the standard check format. */
@@ -226,5 +177,5 @@ export const checkModelGuides = async (
     guide: "docs/model-verification.md",
     noun: "model walkthrough",
     success:
-      "Model walkthroughs: every model has a current, mapped walkthrough.",
+      "Model walkthroughs: every model has a guide with mapped rules and production code.",
   });
