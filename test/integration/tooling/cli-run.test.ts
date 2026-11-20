@@ -29,8 +29,10 @@ describe("CLI run", () => {
       ["describe", "gadgets"],
       runDeps(testTable, transport),
     );
-    expect(result.code).toBe(0);
-    expect(result.err ?? "").toBe("");
+    expect({ code: result.code, err: result.err ?? "" }).toEqual({
+      code: 0,
+      err: "",
+    });
     const answer = JSON.parse(result.out ?? "");
     expect(Object.keys(answer.resources)).toEqual(["gadgets"]);
     expect(answer.resources.gadgets.label).toBe("Gadget");
