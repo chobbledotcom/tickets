@@ -121,7 +121,9 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
   });
 
   describe("verifiedDelete", () => {
-    const stepArgs = (context: string): AuthedHandlerArgs<unknown, string> => ({
+    const stepArgs = (
+      context: string,
+    ): AuthedHandlerArgs<unknown, string> => ({
       context,
       form: new FormParams({}),
       params: undefined,

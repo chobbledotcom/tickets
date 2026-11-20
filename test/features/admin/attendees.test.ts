@@ -252,6 +252,9 @@ describeWithEnv("adding an attendee by hand", { db: true }, () => {
 });
 
 describeWithEnv("the days an added attendee stays", { db: true }, () => {
+  const day = (stamp: string | null | undefined) =>
+    stamp?.slice(0, 10) ?? null;
+
   /** The stored start and end day of the one booking line on a listing. */
   const stay = async (listingId: number) => {
     const line = await queryOne<{
@@ -260,7 +263,7 @@ describeWithEnv("the days an added attendee stays", { db: true }, () => {
     }>(
       sql`SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ${listingId}`,
     );
-    return { end: line?.end_at?.slice(0, 10), start: line?.start_at?.slice(0, 10) };
+    return { end: day(line?.end_at), start: day(line?.start_at) };
   };
 
   const dayPrices = { 1: 1000, 2: 1800, 3: 2500 };
@@ -325,7 +328,7 @@ describeWithEnv("the days an added attendee stays", { db: true }, () => {
       `/admin/listing/${listing.id}/attendees`,
       "Added Flat Booking",
     )(response);
-    expect(await stay(listing.id)).toEqual({ end: undefined, start: undefined });
+    expect(await stay(listing.id)).toEqual({ end: null, start: null });
   });
 });
 
@@ -380,5 +383,242 @@ describeWithEnv("clearing an incomplete payment", { db: true }, () => {
       "Incomplete registration removed",
     )(response);
     expect(await getAttendeesRaw(listing.id)).toHaveLength(0);
+  });
+});
+
+describeWithEnv("the re-send page's webhook choice", { db: true }, () => {
+  const pageHtml = async (attendeeId: number): Promise<string> => {
+    const response = await adminGet(
+      `/admin/attendees/${attendeeId}/resend-notification`,
+    );
+    expect(response.status).toBe(200);
+    return response.text();
+  };
+
+  test("offers the webhook choices only when the listing has a webhook", async () => {
+    const plain = await setupListingAndAttendee({ name: "No Hook Page" });
+    const hooked = await setupListingAndAttendee({
+      listing: { webhookUrl: "https://hook.example.com/registration" },
+      name: "Hook Page",
+    });
+
+    const plainHtml = await pageHtml(plain.attendee.id);
+    const hookedHtml = await pageHtml(hooked.attendee.id);
+
+    expect(plainHtml).not.toContain('type="radio" value="webhooks"');
+    expectIncludesAll(hookedHtml, [
+      'name="resendSides" type="radio" value="webhooks"',
+      'name="resendSides" type="radio" value="both"',
+    ]);
+  });
+});
+
+describeWithEnv("re-sending a notification", { db: true }, () => {
+  const fetch = stubFetchEachTest(() => new Response("{}"));
+  const actionsTab = (attendeeId: number) =>
+    `/admin/attendees/${attendeeId}/actions`;
+
+  /** The press, and the page and flash it must answer with when refused. */
+  const expectRefusedPress = async (
+    attendeeId: number,
+    name: string,
+    sides: string | undefined,
+    message: string,
+  ): Promise<void> => {
+    const { response } = await resend(attendeeId, name, sides);
+    expectRedirectWithFlash(actionsTab(attendeeId), message, false)(response);
+    expect(fetch.calls).toHaveLength(0);
+  };
+
+  const sideCases = [
+    {
+      counts: { buyerEmails: 1, webhooks: 0 },
+      flags: { email: 0, webhooks: 1 },
+      sides: "email",
+    },
+    {
+      counts: { buyerEmails: 0, webhooks: 1 },
+      flags: { email: 1, webhooks: 0 },
+      sides: "webhooks",
+    },
+    {
+      counts: { buyerEmails: 1, webhooks: 1 },
+      flags: { email: 0, webhooks: 0 },
+      sides: "both",
+    },
+  ] as const;
+
+  for (const { counts, flags, sides } of sideCases) {
+    test(`the "${sides}" choice sends those sides and settles only them`, async () => {
+      await configureTestEmail();
+      const { attendee } = await bookWebhookBuyer(`Chose ${sides}`, 1, 1);
+
+      const { response } = await resend(attendee.id, `Chose ${sides}`, sides);
+
+      await expectResendPress(response, attendee.id, counts, flags, fetch.calls);
+    });
+  }
+
+  test("an email choice needs no webhook on the listing", async () => {
+    await configureTestEmail();
+    const { attendee } = await bookTestAttendeeWithFlags("Mail Only", 1, 0);
+
+    const { response } = await resend(attendee.id, "Mail Only", "email");
+
+    await expectResendPress(
+      response,
+      attendee.id,
+      { buyerEmails: 1, webhooks: 0 },
+      { email: 0, webhooks: 0 },
+      fetch.calls,
+    );
+  });
+
+  test("a press with no choice sends the email and keeps an owed webhook badge", async () => {
+    await configureTestEmail();
+    const { attendee } = await bookWebhookBuyer("Default Choice", 0, 1);
+
+    const { response } = await resend(attendee.id, "Default Choice");
+
+    await expectResendPress(
+      response,
+      attendee.id,
+      { buyerEmails: 1, webhooks: 0 },
+      { email: 0, webhooks: 1 },
+      fetch.calls,
+    );
+    assertArrayIncludes(await activityMessages(), [
+      "Notification re-sent for attendee 'Default Choice'",
+    ]);
+  });
+
+  for (const sides of ["", "pigeon"]) {
+    test(`refuses the choice "${sides}" the form never offers`, async () => {
+      const { attendee } = await bookTestAttendeeWithFlags("Odd Press", 1, 0);
+
+      await expectRefusedPress(
+        attendee.id,
+        "Odd Press",
+        sides,
+        "That choice is not valid. Reload the page and try again",
+      );
+      expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+        email: 1,
+        webhooks: 0,
+      });
+    });
+  }
+
+  test("refuses a webhook choice when the listing has no webhook", async () => {
+    const { attendee } = await bookTestAttendeeWithFlags("No Hook Press", 1, 1);
+
+    await expectRefusedPress(
+      attendee.id,
+      "No Hook Press",
+      "webhooks",
+      "This attendee has no webhook to send",
+    );
+  });
+
+  test("refuses a line with no places", async () => {
+    const { attendee, listing } = await setupListingAndAttendee({
+      name: "Gave It Up",
+    });
+    await emptyBookingLine(listing.id, attendee.id);
+
+    await expectRefusedPress(
+      attendee.id,
+      "Gave It Up",
+      undefined,
+      "Cannot re-send a notification for a no-quantity line",
+    );
+  });
+
+  test("refuses a purchase that was refunded", async () => {
+    const listing = await createTestListing({ maxAttendees: 100 });
+    const made = await attendeesApi.createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, pricePaid: 300, quantity: 1 }],
+      email: "refunded@example.com",
+      name: "Refunded Buyer",
+    });
+    if (!made.success) throw new Error("Expected the booking to work");
+    const attendee = made.attendees[0]!;
+    await postListingSale({
+      attendeeId: attendee.id,
+      gross: 300,
+      listingId: listing.id,
+    });
+    await refundBookedOrder(attendee.id, listing.id);
+
+    await expectRefusedPress(
+      attendee.id,
+      "Refunded Buyer",
+      undefined,
+      "Cannot re-send a notification for a refunded purchase",
+    );
+  });
+
+  /** Refuse every activity write for one attendee, plus any extra trigger. */
+  const withRefusedActivity = async (
+    attendeeId: number,
+    extra: string[],
+    run: () => Promise<void>,
+  ): Promise<void> => {
+    await execute(
+      sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
+       WHEN NEW.attendee_id = ${sqlLiteral(attendeeId)}
+       BEGIN
+         SELECT RAISE(ABORT, 'activity rejected');
+       END`,
+    );
+    try {
+      for (const create of extra) await execute(sql`${sqlLiteral(create)}`);
+      await run();
+    } finally {
+      await execute(sql`DROP TRIGGER IF EXISTS reject_resend_activity`);
+      await execute(sql`DROP TRIGGER IF EXISTS ${sqlName("reject_flag_restore")}`);
+    }
+  };
+
+  test("a failed send gives the claimed flags back", async () => {
+    await configureTestEmail();
+    const { attendee } = await bookWebhookBuyer("Failed Send", 2, 1);
+
+    await withRefusedActivity(attendee.id, [], async () => {
+      await expect(resend(attendee.id, "Failed Send", "both")).rejects.toThrow(
+        "activity rejected",
+      );
+    });
+
+    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+      email: 2,
+      webhooks: 1,
+    });
+  });
+
+  test("names the failed flag release in the error log", async () => {
+    await configureTestEmail();
+    const { attendee } = await bookWebhookBuyer("Failed Release", 2, 1);
+    const restoreTrigger = `CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
+       WHEN NEW.id = ${attendee.id}
+         AND (NEW.email_pending > OLD.email_pending
+           OR NEW.webhooks_pending > OLD.webhooks_pending)
+       BEGIN
+         SELECT RAISE(ABORT, 'restore rejected');
+       END`;
+
+    const logs = await withErrorSpy(async (errorSpy) => {
+      await withRefusedActivity(attendee.id, [restoreTrigger], async () => {
+        await expect(
+          resend(attendee.id, "Failed Release", "both"),
+        ).rejects.toThrow("activity rejected");
+      });
+      return errorSpy.calls.map(({ args }) => String(args[0]));
+    });
+
+    expectIncludesAll(logs.join("\n"), [
+      "Restoring a recovery's claimed flags failed",
+      "restore rejected",
+    ]);
   });
 });
