@@ -1,7 +1,9 @@
 import type * as v from "valibot";
 import {
   type AdminApiChild,
+  type AdminApiCustomRoute,
   type AdminApiResource,
+  adminApiCustomRouteTakesId,
   DeleteBodySchema,
 } from "#shared/admin-api-resources.ts";
 import { CliError } from "./errors.ts";
@@ -37,8 +39,10 @@ export type ParsedCommand =
   | { entry: AdminApiResource; id: number; kind: "read"; resource: string }
   | {
       entry: AdminApiResource;
-      id: number;
+      /** Absent on a route whose subpath names no id param. */
+      id: number | undefined;
       kind: "custom";
+      query: Readonly<Record<string, string>>;
       resource: string;
       routeKey: string;
     }
@@ -301,13 +305,68 @@ const parseWrite = (
   };
 };
 
-/** Parse one custom-route command: `<routeKey> <resource> <id>`. */
+/** Split the arguments after a custom route's resource into the query
+ *  parameters (`key=value`) and the positional arguments. */
+const splitQuery = (
+  rest: readonly string[],
+): { positional: string[]; query: Record<string, string> } => {
+  const positional: string[] = [];
+  const query: Record<string, string> = {};
+  for (const arg of rest) {
+    const split = arg.indexOf("=");
+    if (split < 1) {
+      positional.push(arg);
+      continue;
+    }
+    const key = arg.slice(0, split);
+    if (Object.hasOwn(query, key)) {
+      throw new CliError(
+        "usage",
+        `The query parameter '${key}' appears twice. Give each one once.`,
+      );
+    }
+    query[key] = arg.slice(split + 1);
+  }
+  return { positional, query };
+};
+
+/** The id a custom route takes. A route with the id param in its subpath needs
+ *  exactly one id. A route without it takes none. */
+const customRouteId = (
+  entry: AdminApiResource,
+  route: AdminApiCustomRoute,
+  routeKey: string,
+  positional: readonly string[],
+): number | undefined => {
+  const [idRaw, ...extra] = positional;
+  if (extra.length > 0) throw tooManyArguments();
+  if (!adminApiCustomRouteTakesId(entry, route)) {
+    if (idRaw !== undefined) {
+      throw new CliError(
+        "usage",
+        `The '${routeKey}' command takes no id. Filter with key=value arguments, such as external_id=abc.`,
+      );
+    }
+    return undefined;
+  }
+  if (idRaw === undefined) {
+    throw new CliError(
+      "usage",
+      `The '${routeKey}' command needs the ${entry.label.toLowerCase()} id. Usage: ${routeKey} <resource> <id> [key=value ...].`,
+    );
+  }
+  return parseId(idRaw, `${entry.label.toLowerCase()} id`);
+};
+
+/** Parse one custom-route command:
+ *  `<routeKey> <resource> [<id>] [key=value ...]`. The `key=value` arguments
+ *  become the query string a filter route reads. */
 const parseCustom = (
   table: Table,
   routeKey: string,
   args: readonly string[],
 ): ParsedCommand => {
-  const [, resourceRaw, idRaw, extra, ...rest] = args;
+  const [, resourceRaw, ...rest] = args;
   if (
     !Object.values(table).some(
       (item) =>
@@ -321,15 +380,15 @@ const parseCustom = (
       )}, and every custom route 'describe' names.`,
     );
   }
-  if (extra !== undefined || rest.length > 0) throw tooManyArguments();
-  if (resourceRaw === undefined || idRaw === undefined) {
+  if (resourceRaw === undefined) {
     throw new CliError(
       "usage",
-      `The '${routeKey}' command needs the resource and the id. Usage: ${routeKey} <resource> <id>.`,
+      `The '${routeKey}' command needs the resource. Usage: ${routeKey} <resource> [<id>] [key=value ...].`,
     );
   }
   const entry = requireEntry(table, resourceRaw);
-  if (entry.custom === undefined || !Object.hasOwn(entry.custom, routeKey)) {
+  const route = entry.custom?.[routeKey];
+  if (entry.custom === undefined || route === undefined) {
     const routeNames = Object.keys(entry.custom ?? {});
     const names = routeNames.length > 0 ? routeNames.join(", ") : "none";
     throw new CliError(
@@ -337,10 +396,12 @@ const parseCustom = (
       `The command '${routeKey}' is not a route of '${resourceRaw}'. The routes of '${resourceRaw}' are: ${names}.`,
     );
   }
+  const { positional, query } = splitQuery(rest);
   return {
     entry,
-    id: parseId(idRaw, `${entry.label.toLowerCase()} id`),
+    id: customRouteId(entry, route, routeKey, positional),
     kind: "custom",
+    query,
     resource: resourceRaw,
     routeKey,
   };

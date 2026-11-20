@@ -153,6 +153,39 @@ describe("admin api client", () => {
     expect(answer).toEqual({ status: "inactive" });
   });
 
+  test("a custom route without an id param sends its query string", async () => {
+    const found = stubTransport({ links: [] });
+    await adminApiCustomRoute(
+      found.transport,
+      ADMIN_API_RESOURCES["external-sources"],
+      "linkLookup",
+      undefined,
+      { external_id: "a b&c" },
+    );
+    expect(found.calls).toEqual([
+      {
+        method: "GET",
+        path: "/api/admin/external-sources/lookup?external_id=a+b%26c",
+      },
+    ]);
+  });
+
+  test("a custom route refuses an id that does not match its subpath", async () => {
+    const message = (id: number | undefined, key: string) =>
+      adminApiCustomRoute(
+        stubTransport({}).transport,
+        ADMIN_API_RESOURCES["external-sources"],
+        key,
+        id,
+      ).catch((error: unknown) => (error as Error).message);
+    expect(await message(3, "linkLookup")).toBe(
+      "admin api external-sources linkLookup custom route takes no id",
+    );
+    expect(await message(undefined, "links")).toBe(
+      "admin api external-sources links custom route needs id",
+    );
+  });
+
   test("an unknown custom route throws instead of building a path", async () => {
     const failure = await adminApiCustomRoute(
       stubTransport({}).transport,

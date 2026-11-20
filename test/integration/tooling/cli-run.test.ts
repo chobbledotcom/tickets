@@ -358,6 +358,29 @@ describe("CLI run", () => {
     ]);
   });
 
+  test("sends the filtered link reads with an encoded query string", async () => {
+    const { requests, transport } = recordingTransport({ links: [] });
+    const deps = runDeps(testTable, transport);
+    for (const args of [
+      ["linkLookup", "external-sources", "external_id=a b&c"],
+      ["links", "external-sources", "3", "external_id=x"],
+      ["linkSearch", "external-sources", "link_type=listing", "link_id=4"],
+    ]) {
+      expect((await runApi(args, deps)).code).toBe(0);
+    }
+    expect(requests).toEqual([
+      {
+        method: "GET",
+        path: "/api/admin/external-sources/lookup?external_id=a+b%26c",
+      },
+      { method: "GET", path: "/api/admin/external-sources/3/links?external_id=x" },
+      {
+        method: "GET",
+        path: "/api/admin/external-sources/links?link_type=listing&link_id=4",
+      },
+    ]);
+  });
+
   test("answers exit 2 for a route the resource does not carry", async () => {
     await expectUsageRejection(
       ["recalibrate", "listings", "7"],
