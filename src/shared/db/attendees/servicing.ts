@@ -403,10 +403,8 @@ export const desiredLinesFromExisting = (
   existing: ExistingLine[],
 ): DesiredListingLine[] =>
   existing.map(({ key, booking }) => {
-    let date: string | null = null;
-    if (booking.start_at) date = booking.start_at.slice(0, 10);
     return {
-      date,
+      date: booking.start_at?.slice(0, 10) ?? null,
       durationDays: durationDaysFromRow(booking) ?? 1,
       exists: true,
       key,

@@ -16,10 +16,17 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createBooking,
   rosterAttendeeIds,
-  updateBooking,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { MONTHLY, subscribe } from "#test-utils/db-helpers/subscriptions.ts";
+import { apiRequest } from "#test-utils/session.ts";
+
+/** One PUT update request for an attendee. */
+const updateBooking = (
+  attendeeId: number,
+  body: Record<string, unknown>,
+): Promise<Response> =>
+  apiRequest(`/api/admin/attendees/${attendeeId}`, { body, method: "PUT" });
 
 /** One update body, and what holds after it. */
 type Step<Expected> = [body: Record<string, unknown>, expected: Expected];
