@@ -34,7 +34,9 @@ describe("markdownToPlainText", () => {
   });
 
   test("removes the hash marks of a heading", () => {
-    expect(markdownToPlainText("## Doors\n\nOpen at 7")).toBe("Doors Open at 7");
+    expect(markdownToPlainText("## Doors\n\nOpen at 7")).toBe(
+      "Doors Open at 7",
+    );
   });
 
   test("turns line breaks into single spaces", () => {

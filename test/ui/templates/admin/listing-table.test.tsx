@@ -101,7 +101,8 @@ describe("listingTable", () => {
 
   test("shows the description as plain text", () => {
     const listing = testListingWithCount({
-      description: "## Bath bombs\n\nand [shizz](https://x.test) ![nerves](img#4)",
+      description:
+        "## Bath bombs\n\nand [shizz](https://x.test) ![nerves](img#4)",
     });
 
     expect(cell("description", listing)).toBe("Bath bombs and shizz");
