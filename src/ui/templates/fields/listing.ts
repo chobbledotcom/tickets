@@ -16,6 +16,7 @@ import {
   requireChoiceOptions,
 } from "#shared/forms/field.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
+import { listingCopyContext } from "#shared/listing-templates.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { closedFieldsFor } from "#shared/records/write-access.ts";
 import {
@@ -30,6 +31,10 @@ import { parseSignedInt } from "#shared/validation/number.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
+import {
+  type ListingCopy,
+  listingCopy,
+} from "#templates/fields/listing-copy.ts";
 import {
   blankThenPicklistOptions,
   picklistOptions,
@@ -56,20 +61,29 @@ import {
 export interface ListingFormView {
   /** The fields this writer cannot set. The page hides their boxes. */
   closed: ClosedFields;
+  /** The nouns this form uses for its unit and its buyer. */
+  copy?: ListingCopy;
   nameAutofocus?: boolean;
   storage?: boolean;
 }
 
 /** A view that hides no field box, for a read of the box names. */
-const OPEN_VIEW: ListingFormView = { closed: new Map() };
+const openView = (): ListingFormView => ({
+  closed: new Map(),
+  copy: listingCopy(listingCopyContext(undefined)),
+});
 
 /** True when the page shows the box of this field. */
 const shows = (view: ListingFormView, key: string): boolean =>
   !view.closed.has(key);
 
-/** What the listing page shows to a writer of this level. */
-export const listingFormView = (adminLevel: AdminLevel): ListingFormView => ({
+/** What the listing page shows to a writer of this level for this template. */
+export const listingFormView = (
+  adminLevel: AdminLevel,
+  templateId?: string | null,
+): ListingFormView & { copy: ListingCopy } => ({
   closed: closedFieldsFor(LISTING_FIELDS, adminLevel),
+  copy: listingCopy(listingCopyContext(templateId)),
   storage: isStorageEnabled(),
 });
 
@@ -101,9 +115,12 @@ type ListingNumberField<
 };
 
 /** The label and hint of a listing box, read from its `copy` keys. */
-const fieldCopy = (copy: string): { hint: string; label: string } => ({
-  hint: t(`fields.listing.${copy}_hint`),
-  label: t(`fields.listing.${copy}`),
+const fieldCopy = (
+  words: ListingCopy,
+  copy: string,
+): { hint: string; label: string } => ({
+  hint: t(`fields.listing.${copy}_hint`, words),
+  label: t(`fields.listing.${copy}`, words),
 });
 const listingNumberField = <
   TName extends ListingNumberFieldName,
@@ -113,8 +130,9 @@ const listingNumberField = <
   name: TName,
   section: TSection,
   options: TOptions,
+  words: ListingCopy,
 ): ListingNumberField<TName, TSection> & TOptions => {
-  const copy = fieldCopy(LISTING_NUMBER_COPY[name]);
+  const copy = fieldCopy(words, LISTING_NUMBER_COPY[name]);
   const declared: FieldSpec = fieldOfKey(LISTING_FIELDS, name);
   // A count with a column default draws that default, so the page states the
   // value it will store. The box must hold a value. A blank box must not
@@ -143,14 +161,21 @@ const listingNumberField = <
   };
 };
 
+/** The capacity and per-order maximum every listing form requires. */
+const requiredTicketCounts = (words: ListingCopy) =>
+  (["maxAttendees", "maxQuantity"] as const).map((name) =>
+    listingNumberField(name, "tickets", { min: 1, required: true }, words),
+  );
+
 /** A money box in the tickets section. `copy` names its label, placeholder
  *  and title keys. */
 const ticketMoneyField = <TName extends string>(
   name: TName,
   copy: "max_price" | "price",
+  words: ListingCopy,
 ) => ({
   inputmode: "decimal" as const,
-  label: t(`fields.listing.${copy}`),
+  label: t(`fields.listing.${copy}`, words),
   name,
   pattern: moneyPattern(),
   placeholder: t(`fields.listing.${copy}_placeholder`),
@@ -160,16 +185,27 @@ const ticketMoneyField = <TName extends string>(
   validate: validateNonNegativePrice,
 });
 
+/** The label, hint, name and section every boxed field starts from. */
+const fieldBase = <TName extends string, TSection extends string>(
+  name: TName,
+  copy: string,
+  section: TSection,
+  words: ListingCopy,
+) => ({
+  ...fieldCopy(words, copy),
+  name,
+  section,
+});
+
 /** A date and time box. `copy` names its label and hint keys. */
 const datetimeField = <TName extends string, TSection extends string>(
   name: TName,
   copy: "date" | "registration_closes",
   section: TSection,
+  words: ListingCopy,
 ) => ({
-  ...fieldCopy(copy),
-  name,
-  section,
   type: "datetime" as const,
+  ...fieldBase(name, copy, section, words),
   validate: validateDatetime,
 });
 
@@ -185,11 +221,10 @@ const choiceField = <
   options: TOptions,
   section: TSection,
   type: TType,
+  words: ListingCopy,
 ) => ({
-  ...fieldCopy(copy),
-  name,
+  ...fieldBase(name, copy, section, words),
   options,
-  section,
   type,
 });
 
@@ -200,23 +235,26 @@ const payMoreOrDaysTick = <TName extends string, TSection extends string>(
   copy: "allow_pay_more" | "customisable_days",
   other: "canPayMore" | "customisableDays",
   section: TSection,
+  words: ListingCopy,
 ) => ({
   ...choiceField(
     name,
     copy,
-    [{ label: t(`fields.listing.${copy}_label`), value: "1" }],
+    [{ label: t(`fields.listing.${copy}_label`, words), value: "1" }],
     section,
     "checkbox-group",
+    words,
   ),
   exclusive: { other, why: t("error.customisable_days_with_pay_more") },
 });
 
 /** Listing fields and their sections, rebuilt per request for translated copy. */
-const listingFields = (view: ListingFormView = OPEN_VIEW) =>
-  [
+const listingFields = (view: ListingFormView = openView()) => {
+  const words = view.copy ?? listingCopy(listingCopyContext(undefined));
+  return [
     {
       ...(view.nameAutofocus ? { autofocus: true } : {}),
-      hint: t("fields.listing.name_hint"),
+      hint: t("fields.listing.name_hint", words),
       label: t("fields.listing.name"),
       name: "name",
       placeholder: t("fields.listing.name_placeholder"),
@@ -231,34 +269,28 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
         picklistOptions(ListingTypeSchema, "fields.listing.type"),
         "basics",
         "select",
+        words,
       ),
       invalidMessage: t("fields.validation.listing_type"),
     },
     {
       ...buildDescriptionField(
-        t("fields.listing.description_hint_field"),
+        t("fields.listing.description_hint_field", words),
         formattingHint(),
       ),
       section: "basics",
     },
-    datetimeField("date", "date", "basics"),
+    datetimeField("date", "date", "basics", words),
     {
-      hint: t("fields.listing.location_hint"),
+      hint: t("fields.listing.location_hint", words),
       label: t("fields.listing.location"),
       name: "location",
       placeholder: t("fields.listing.location_placeholder"),
       section: "basics",
       type: "text",
     },
-    listingNumberField("maxAttendees", "tickets", {
-      min: 1,
-      required: true,
-    }),
-    listingNumberField("maxQuantity", "tickets", {
-      min: 1,
-      required: true,
-    }),
-    listingNumberField("minQuantity", "tickets", { min: 1 }),
+    ...requiredTicketCounts(words),
+    listingNumberField("minQuantity", "tickets", { min: 1 }, words),
     {
       hint: t("fields.listing.bookable_days_hint"),
       label: t("fields.listing.bookable_days"),
@@ -271,21 +303,27 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       type: "checkbox-group",
       validate: validateBookableDays,
     },
-    listingNumberField("minimumDaysBefore", "daily", { min: 0 }),
-    listingNumberField("maximumDaysAfter", "daily", { min: 0 }),
-    listingNumberField("durationDays", "duration", {
-      max: MAX_DURATION_DAYS,
-      min: 1,
-      // The declared min/max enforce the range, and a negative whole number
-      // reaches them, so this check refuses only a non-integer shape.
-      parse: parseSignedInt,
-      validate: wholeNumberCheck(() => t("fields.validation.duration_whole")),
-    }),
+    listingNumberField("minimumDaysBefore", "daily", { min: 0 }, words),
+    listingNumberField("maximumDaysAfter", "daily", { min: 0 }, words),
+    listingNumberField(
+      "durationDays",
+      "duration",
+      {
+        max: MAX_DURATION_DAYS,
+        min: 1,
+        // The declared min/max enforce the range, and a negative whole number
+        // reaches them, so this check refuses only a non-integer shape.
+        parse: parseSignedInt,
+        validate: wholeNumberCheck(() => t("fields.validation.duration_whole")),
+      },
+      words,
+    ),
     payMoreOrDaysTick(
       "customisableDays",
       "customisable_days",
       "canPayMore",
       "customisable",
+      words,
     ),
     {
       ...choiceField(
@@ -294,25 +332,27 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
         picklistOptions(ContactFieldSchema, "fields.listing.contact"),
         "options",
         "checkbox-group",
+        words,
       ),
-      hintHtml: t("fields.listing.contact_fields_hint_html"),
+      hintHtml: t("fields.listing.contact_fields_hint_html", words),
       validate: validateListingFields,
     },
     {
-      ...ticketMoneyField("unitPrice", "price"),
+      ...ticketMoneyField("unitPrice", "price", words),
       required: true,
-      requiredMessage: t("fields.validation.unit_price_required"),
+      requiredMessage: t("fields.validation.unit_price_required", words),
     },
     payMoreOrDaysTick(
       "canPayMore",
       "allow_pay_more",
       "customisableDays",
       "tickets",
+      words,
     ),
     {
-      ...ticketMoneyField("recurringPrice", "price"),
-      hint: t("fields.listing.recurring_price_hint"),
-      label: t("fields.listing.recurring_price"),
+      ...ticketMoneyField("recurringPrice", "price", words),
+      hint: t("fields.listing.recurring_price_hint", words),
+      label: t("fields.listing.recurring_price", words),
       visible: shows(view, "recurringPrice"),
     },
     {
@@ -326,20 +366,24 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
         ),
         "tickets",
         "select",
+        words,
       ),
       visible: shows(view, "recurringInterval"),
     },
     {
-      ...ticketMoneyField("maxPrice", "max_price"),
+      ...ticketMoneyField("maxPrice", "max_price", words),
       // 100 currency units, formatted to the currency's decimals so the default
       // is valid for a zero-decimal currency (JPY "100") as well as GBP "100.00".
       // The box draws that value, and a cleared box is refused, not read as it.
       defaultValue: (100).toFixed(getDecimalPlaces(settings.currency)),
-      hint: t("fields.listing.max_price_hint", { amount: formatCurrency(100) }),
+      hint: t("fields.listing.max_price_hint", {
+        amount: formatCurrency(100),
+        ...words,
+      }),
       required: true,
       requiredMessage: t("fields.validation.max_price_required"),
     },
-    datetimeField("closesAt", "registration_closes", "tickets"),
+    datetimeField("closesAt", "registration_closes", "tickets", words),
     {
       hint: t("fields.listing.thank_you_url_hint"),
       label: t("fields.listing.thank_you_url"),
@@ -350,7 +394,7 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       validate: validateHttpsDomainUrl,
     },
     {
-      hint: t("fields.listing.webhook_url_hint"),
+      hint: t("fields.listing.webhook_url_hint", words),
       label: t("fields.listing.webhook_url"),
       name: "webhookUrl",
       placeholder: "https://example.com/webhook",
@@ -360,8 +404,8 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       visible: shows(view, "webhookUrl"),
     },
     {
-      hint: t("fields.listing.non_transferable_hint"),
-      label: t("fields.listing.non_transferable"),
+      hint: t("fields.listing.non_transferable_hint", words),
+      label: t("fields.listing.non_transferable", words),
       name: "nonTransferable",
       options: [
         { label: t("fields.listing.non_transferable_no"), value: "" },
@@ -388,26 +432,36 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       section: "options",
     },
     {
-      hint: "Handled by an agent at the customer's location. Attendees gain start and end agent selectors (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
-      label: "Needs logistics",
+      hint: t("fields.listing.uses_logistics_hint", words),
+      label: t("fields.listing.uses_logistics"),
       name: "usesLogistics",
       options: [
-        { label: "Assign agents to this listing's bookings", value: "1" },
+        { label: t("fields.listing.uses_logistics_label"), value: "1" },
       ],
       section: "options",
       type: "checkbox-group",
       visible: shows(view, "usesLogistics"),
     },
-    listingNumberField("monthsPerUnit", "advanced", {
-      max: 24,
-      min: 0,
-      visible: shows(view, "monthsPerUnit"),
-    }),
-    listingNumberField("initialSiteMonths", "advanced", {
-      max: 120,
-      min: 0,
-      visible: shows(view, "initialSiteMonths"),
-    }),
+    listingNumberField(
+      "monthsPerUnit",
+      "advanced",
+      {
+        max: 24,
+        min: 0,
+        visible: shows(view, "monthsPerUnit"),
+      },
+      words,
+    ),
+    listingNumberField(
+      "initialSiteMonths",
+      "advanced",
+      {
+        max: 120,
+        min: 0,
+        visible: shows(view, "initialSiteMonths"),
+      },
+      words,
+    ),
     {
       ...checkboxField("assignBuiltSite", {
         hint: t("fields.listing.assign_built_site_hint"),
@@ -427,10 +481,11 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       visible: view.storage === true,
     },
   ] as const satisfies readonly Field[];
+};
 
 export const getListingForm = defineFieldsForm(listingFields);
 
-const listingEditFields = (view: ListingFormView = OPEN_VIEW) =>
+const listingEditFields = (view: ListingFormView = openView()) =>
   [...listingFields(view), { ...getSlugField(), section: "advanced" }] as const;
 
 export const getListingEditForm = defineFieldsForm(listingEditFields);

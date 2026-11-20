@@ -35,8 +35,8 @@ describe("listing form count boxes", () => {
       ["durationDays", "Booking duration (days)"],
       ["maximumDaysAfter", "Maximum days ahead (for daily listings)"],
       ["minimumDaysBefore", "Minimum days notice (for daily listings)"],
-      ["minQuantity", "Min tickets per purchase"],
-      ["maxQuantity", "Max tickets per purchase"],
+      ["minQuantity", "Min items per purchase"],
+      ["maxQuantity", "Max items per purchase"],
     ] as const) {
       expectInvalid(`${label} is required`)(
         ownerFields(),

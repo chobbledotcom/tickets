@@ -59,8 +59,8 @@ describeWithEnv("listings form", { db: true }, () => {
         if (!result.ok) {
           expect(result.error).toBe(
             field === "maxAttendees"
-              ? "Max attendees must be 1 or greater"
-              : "Min tickets per purchase must be 1 or greater",
+              ? "Max items must be 1 or greater"
+              : "Min items per purchase must be 1 or greater",
           );
         }
       }
