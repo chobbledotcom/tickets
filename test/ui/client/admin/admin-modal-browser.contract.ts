@@ -120,6 +120,17 @@ const pressAndMove = async (
   await page.mouse.move(startX + by.x, startY + by.y, { steps: 5 });
 };
 
+/** What is dim now: the page's mark, and the key of each dim window. */
+const dimOf = async (
+  page: Page,
+): Promise<{ page: string | null; windows: (string | null)[] }> =>
+  await page.evaluate(() => ({
+    page: document.documentElement.getAttribute("data-admin-modal-page-dim"),
+    windows: [...document.querySelectorAll("dialog.admin-modal.is-dim")].map(
+      (dialog) => dialog.getAttribute("data-modal-key"),
+    ),
+  }));
+
 /** Whether the page stops itself from unloading. */
 const leaveIsWarned = async (page: Page): Promise<boolean> =>
   await page.evaluate(() => {
@@ -150,6 +161,58 @@ describeWithBrowser(
       });
       return `/admin/groups/${group.id}/edit`;
     };
+
+    test("dims everything except the one thing that has the focus", async () => {
+      const path = await groupEditPath();
+      await withSignedInPage(
+        contract.browser,
+        contract.baseUrl,
+        async (page) => {
+          await openAdminPage(page, path);
+          const descriptionKey = "markdown-preview:0";
+          const termsKey = "markdown-preview:1";
+          const first = await openPreview(page, 0, descriptionKey);
+          await openPreview(page, 1, termsKey);
+
+          // The newest window has the focus: the page and the older window
+          // are dim.
+          expect(await dimOf(page)).toEqual({
+            page: "true",
+            windows: [descriptionKey],
+          });
+
+          // The page takes the focus. Both windows stay open and turn dim,
+          // and the page dim goes.
+          await page.locator('input[name="name"]').focus();
+          expect(await dimOf(page)).toEqual({
+            page: "false",
+            windows: [descriptionKey, termsKey],
+          });
+          expect(await page.locator(MODAL).count()).toBe(2);
+          await page.waitForFunction(
+            () =>
+              getComputedStyle(document.documentElement, "::before")
+                .opacity === "0",
+          );
+
+          // A window takes the focus back: it is bright, and the page is dim
+          // again.
+          await first.locator(".admin-modal-close").focus();
+          expect(await dimOf(page)).toEqual({
+            page: "true",
+            windows: [termsKey],
+          });
+          await page.waitForFunction(
+            () =>
+              getComputedStyle(document.documentElement, "::before")
+                .opacity === "1",
+          );
+          expect(
+            await first.evaluate((dialog) => getComputedStyle(dialog).filter),
+          ).toBe("none");
+        },
+      );
+    });
 
     test("keeps the page usable and stacks the windows in use order", async () => {
       const path = await groupEditPath();
