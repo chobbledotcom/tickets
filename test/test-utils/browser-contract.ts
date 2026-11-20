@@ -6,7 +6,7 @@
  */
 
 import { afterAll, beforeAll } from "@std/testing/bdd";
-import { type Browser, chromium, type Page } from "playwright";
+import { type Browser, chromium, type Locator, type Page } from "playwright";
 import {
   defineScreenshotBrowserLauncher,
   withStrictBrowserTimeouts,
@@ -108,4 +108,15 @@ export const withSignedInPage = async <T>(
   } finally {
     await context.close();
   }
+};
+
+/** Waits for the window's animations to end. A window rises in when it opens,
+ * and it fades when it dims or brightens. Its box and filter are off until
+ * then. */
+export const settled = async (dialog: Locator): Promise<void> => {
+  await dialog.evaluate(async (element) => {
+    await Promise.all(
+      element.getAnimations().map((animation) => animation.finished),
+    );
+  });
 };

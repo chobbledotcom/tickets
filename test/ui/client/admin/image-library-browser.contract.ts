@@ -7,6 +7,7 @@ import { loggedMessages } from "#test-utils/activity-log.ts";
 import { postImageUpload } from "#test-utils/admin-images.ts";
 import {
   describeWithBrowser,
+  settled,
   withSignedInPage,
 } from "#test-utils/browser-contract.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
@@ -27,6 +28,7 @@ const openImage = async (page: Page): Promise<Locator> => {
   await page.getByRole("link", { name: "Hero" }).click();
   const dialog = page.locator("dialog.admin-modal");
   await dialog.locator('input[name="name"]').waitFor();
+  await settled(dialog);
   return dialog;
 };
 
