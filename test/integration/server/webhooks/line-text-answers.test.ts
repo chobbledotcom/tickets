@@ -6,12 +6,8 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
-import { signedMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import {
-  checkoutSessionEvent,
-  expectWebhookProcessed,
-} from "#test-utils/webhooks.ts";
+import { expectSignedOrderProcessed } from "#test-utils/webhooks.ts";
 
 describeWithEnv(
   "server webhooks > questions that ask once for each listing",
@@ -29,33 +25,18 @@ describeWithEnv(
       ]);
       const stringIds = await getOrCreateStringIds(["Ava", "Ben"]);
 
-      await expectWebhookProcessed(
-        checkoutSessionEvent({
-          amountTotal: 2000,
-          eventId: "evt_line_text",
-          metadata: signedMeta(
-            {
-              email: "pta@example.com",
-              items: JSON.stringify([
-                { e: listing1.id, p: 1000, q: 2 },
-                { e: listing2.id, p: 1000, q: 2 },
-              ]),
-              line_text_answer_ids: JSON.stringify({
-                [String(listing1.id)]: [
-                  { q: question.id, s: stringIds.get("Ava") },
-                ],
-                [String(listing2.id)]: [
-                  { q: question.id, s: stringIds.get("Ben") },
-                ],
-              }),
-              name: "PTA Parent",
-            },
-            2000,
-          ),
-          paymentIntent: "pi_line_text",
-          sessionId: "cs_line_text",
+      await expectSignedOrderProcessed("line_text", 2000, {
+        email: "pta@example.com",
+        items: JSON.stringify([
+          { e: listing1.id, p: 1000, q: 2 },
+          { e: listing2.id, p: 1000, q: 2 },
+        ]),
+        line_text_answer_ids: JSON.stringify({
+          [String(listing1.id)]: [{ q: question.id, s: stringIds.get("Ava") }],
+          [String(listing2.id)]: [{ q: question.id, s: stringIds.get("Ben") }],
         }),
-      );
+        name: "PTA Parent",
+      });
 
       const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
       const [attendee] = await getAttendeesRaw(listing1.id);

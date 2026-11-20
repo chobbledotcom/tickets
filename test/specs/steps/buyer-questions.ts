@@ -56,49 +56,36 @@ Given(
 );
 
 Given(
-  "the owner asks {word} and {word} buyers to write {string} for each listing they book",
-  function (
-    this: TicketsWorld,
-    first: string,
-    second: string,
-    text: string,
-  ): Promise<void> {
-    return ownerAsksQuestionForEachListing(this, text, [first, second]);
+  "the owner asks Pottery and Kiln buyers to write {string} for each listing they book",
+  function (this: TicketsWorld, text: string): Promise<void> {
+    return ownerAsksQuestionForEachListing(this, text, ["Pottery", "Kiln"]);
   },
 );
 
 When(
-  "a visitor books the {word} and the {word} together, writing {string} for the first and {string} for the second",
-  function (
-    this: TicketsWorld,
-    first: string,
-    second: string,
-    firstAnswer: string,
-    secondAnswer: string,
-  ): Promise<void> {
+  "a visitor books the Pottery and the Kiln together, writing {string} for the Pottery and {string} for the Kiln",
+  function (this: TicketsWorld, pottery: string, kiln: string): Promise<void> {
     return visitorBooksEachListingAnswering(this, [
-      [first, firstAnswer],
-      [second, secondAnswer],
+      ["Pottery", pottery],
+      ["Kiln", kiln],
     ]);
   },
 );
 
 Then(
-  "the owner reads {string} for the {word} and {string} for the {word} on that booking",
+  "the owner reads {string} for the Pottery and {string} for the Kiln on that booking",
   async function (
     this: TicketsWorld,
-    firstAnswer: string,
-    first: string,
-    secondAnswer: string,
-    second: string,
+    pottery: string,
+    kiln: string,
   ): Promise<void> {
-    const page = await answersOnTheBookingPage(this, first);
+    const page = await answersOnTheBookingPage(this, "Pottery");
     const question = askedQuestion(this).text;
     expectIncludesAll(page, [
-      `${question} (${first})`,
-      firstAnswer,
-      `${question} (${second})`,
-      secondAnswer,
+      `${question} (Pottery)`,
+      pottery,
+      `${question} (Kiln)`,
+      kiln,
     ]);
   },
 );

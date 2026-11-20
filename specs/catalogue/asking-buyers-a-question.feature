@@ -75,7 +75,7 @@ Feature: An owner decides what buyers are asked
       Given the site sells a Pottery
       And the site sells a Kiln
       And the owner asks Pottery and Kiln buyers to write "Pupil name" for each listing they book
-      When a visitor books the Pottery and the Kiln together, writing "Ava" for the first and "Ben" for the second
+      When a visitor books the Pottery and the Kiln together, writing "Ava" for the Pottery and "Ben" for the Kiln
       Then the owner reads "Ava" for the Pottery and "Ben" for the Kiln on that booking
 
   @rule:catalogue.taking-a-question-away-needs-its-exact-text

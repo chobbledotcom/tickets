@@ -98,16 +98,14 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       ];
       const ctx = await ticketContext([first.id, second.id]);
 
-      const { lineTextAnswerIds, listingTextAnswerIds } =
-        await computeTextAnswerRefs(ctx, {
-          ...answerInfo(ctx, first.id),
-          lineTextAnswers: [
-            { listingId: first.id, questionId: 7, text: "Ava" },
-            { listingId: second.id, questionId: 7, text: "Ben" },
-          ],
-        });
+      const { lineTextAnswerIds } = await computeTextAnswerRefs(ctx, {
+        ...answerInfo(ctx, first.id),
+        lineTextAnswers: [
+          { listingId: first.id, questionId: 7, text: "Ava" },
+          { listingId: second.id, questionId: 7, text: "Ben" },
+        ],
+      });
 
-      expect(listingTextAnswerIds).toBeUndefined();
       expect(Object.keys(lineTextAnswerIds ?? {}).sort()).toEqual(
         [String(first.id), String(second.id)].sort(),
       );

@@ -48,73 +48,61 @@ describe("the question rule", () => {
     });
   });
 
-  test("lets a new free-text question ask once for each listing", () => {
-    expect(
-      questionRule(
-        { answerLevel: "listing", displayType: "free_text", text: "Q" },
-        null,
-      ),
-    ).toEqual({
-      ok: true,
-      value: { answerLevel: "listing", displayType: "free_text", text: "Q" },
-    });
-  });
+  const LISTING = {
+    answerLevel: "listing" as const,
+    displayType: "free_text" as const,
+    text: "Q",
+  };
+  const listingLevel = {
+    ...stored("free_text"),
+    answerLevel: "listing" as const,
+  };
 
-  test("asks once for the booking when a new question names no level", () => {
-    expect(questionRule({ displayType: "free_text", text: "Q" }, null)).toEqual(
-      {
-        ok: true,
-        value: { answerLevel: "booking", displayType: "free_text", text: "Q" },
-      },
-    );
-  });
+  const LEVEL_CASES = [
+    {
+      input: LISTING,
+      kept: LISTING,
+      name: "lets a new free-text question ask once for each listing",
+      stored: null,
+    },
+    {
+      input: { displayType: "free_text" as const, text: "Q" },
+      kept: { ...LISTING, answerLevel: "booking" },
+      name: "asks once for the booking when a new question names no level",
+      stored: null,
+    },
+    {
+      input: { ...LISTING, displayType: "radio" as const },
+      kept: { ...LISTING, answerLevel: "booking", displayType: "radio" },
+      name: "keeps a new choice question at one per booking whatever the input says",
+      stored: null,
+    },
+    {
+      input: { displayType: "free_text" as const, text: "Q" },
+      kept: LISTING,
+      name: "keeps the stored level on an edit that names none",
+      stored: listingLevel,
+    },
+    {
+      input: LISTING,
+      kept: LISTING,
+      name: "keeps the stored level on an edit that repeats it",
+      stored: listingLevel,
+    },
+  ];
 
-  test("keeps a new choice question at one per booking whatever the input says", () => {
-    expect(
-      questionRule(
-        { answerLevel: "listing", displayType: "radio", text: "Q" },
-        null,
-      ),
-    ).toEqual({
-      ok: true,
-      value: { answerLevel: "booking", displayType: "radio", text: "Q" },
+  for (const { input, kept, name, stored: from } of LEVEL_CASES) {
+    test(name, () => {
+      expect(questionRule(input, from)).toEqual({ ok: true, value: kept });
     });
-  });
+  }
 
   test("refuses an edit that changes the answer level", () => {
-    expect(
-      questionRule(
-        { answerLevel: "listing", displayType: "free_text", text: "Q" },
-        stored("free_text"),
-      ),
-    ).toEqual({
+    expect(questionRule(LISTING, stored("free_text"))).toEqual({
       error:
         "You cannot change how often a question asks. Add a new question instead.",
       ok: false,
     });
-  });
-
-  test("keeps the stored answer level on an edit that names none or the same", () => {
-    const listingLevel = {
-      ...stored("free_text"),
-      answerLevel: "listing" as const,
-    };
-    expect([
-      questionRule({ displayType: "free_text", text: "Q" }, listingLevel),
-      questionRule(
-        { answerLevel: "listing", displayType: "free_text", text: "Q" },
-        listingLevel,
-      ),
-    ]).toEqual([
-      {
-        ok: true,
-        value: { answerLevel: "listing", displayType: "free_text", text: "Q" },
-      },
-      {
-        ok: true,
-        value: { answerLevel: "listing", displayType: "free_text", text: "Q" },
-      },
-    ]);
   });
 
   test("lets a choice question switch between radio and select", () => {
