@@ -5,16 +5,11 @@ import { assignQuestion } from "#test/shared/db/questions/helpers.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createBooking } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createBooking,
+  updateBooking,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { apiRequest } from "#test-utils/session.ts";
-
-/** One PUT update request for an attendee. */
-const updateBooking = (
-  attendeeId: number,
-  body: Record<string, unknown>,
-): Promise<Response> =>
-  apiRequest(`/api/admin/attendees/${attendeeId}`, { body, method: "PUT" });
 
 describeWithEnv(
   "Admin API - PUT /api/admin/attendees answers",

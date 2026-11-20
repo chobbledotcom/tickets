@@ -13,17 +13,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createBooking,
   rosterAttendeeIds,
+  updateBooking,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { MONTHLY, subscribe } from "#test-utils/db-helpers/subscriptions.ts";
-import { apiRequest } from "#test-utils/session.ts";
-
-/** One PUT update request for an attendee. */
-const updateBooking = (
-  attendeeId: number,
-  body: Record<string, unknown>,
-): Promise<Response> =>
-  apiRequest(`/api/admin/attendees/${attendeeId}`, { body, method: "PUT" });
 
 /** A booked attendee: a 500 listing, one ticket, and the given create body. */
 const bookOne = async (body: Record<string, unknown> = {}) => {
@@ -72,15 +65,6 @@ describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
       200,
     );
     expect(again.attendee.status_id).toBe(vip.id);
-  });
-
-  test("refuses an unknown status", async () => {
-    const { attendeeId } = await bookOne();
-    await expectApiError(
-      updateBooking(attendeeId, { status: "No such status" }),
-      400,
-      "Unknown status 'No such status'",
-    );
   });
 
   test("changes the contact fields it names and keeps the rest", async () => {
@@ -180,27 +164,27 @@ describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
     expect(updated.attendee).toMatchObject({ name: "Ada", quantity: 1 });
   });
 
-  test("refuses lines that are not a non-empty array", async () => {
+  test("refuses a body field it cannot accept", async () => {
     const { attendeeId } = await bookOne();
-    await expectApiError(
-      updateBooking(attendeeId, { lines: [] }),
-      400,
-      "Add at least one booking line",
-    );
-  });
-
-  test("never changes the ticket token or the created time", async () => {
-    const { attendeeId } = await bookOne();
-    await expectApiError(
-      updateBooking(attendeeId, { ticketToken: "other" }),
-      400,
-      "ticketToken cannot be changed",
-    );
-    await expectApiError(
-      updateBooking(attendeeId, { created: "2026-01-01T00:00:00Z" }),
-      400,
-      "created cannot be changed",
-    );
+    const refusals: [Record<string, unknown>, string][] = [
+      [{ status: "No such status" }, "Unknown status 'No such status'"],
+      [{ status: 5 }, "status must be text"],
+      [{ name: "" }, "name is required"],
+      [
+        { payments: [{ amount: -5 }] },
+        "payments[0].amount must be a positive whole number of pence or cents",
+      ],
+      [
+        { lines: [{ listingId: 987654, quantity: 1 }] },
+        "lines[0] references an unknown listing",
+      ],
+      [{ lines: [] }, "Add at least one booking line"],
+      [{ ticketToken: "other" }, "ticketToken cannot be changed"],
+      [{ created: "2026-01-01T00:00:00Z" }, "created cannot be changed"],
+    ];
+    for (const [body, message] of refusals) {
+      await expectApiError(updateBooking(attendeeId, body), 400, message);
+    }
   });
 
   test("answers 404 for an attendee that does not exist", async () => {
@@ -208,44 +192,6 @@ describeWithEnv("Admin API - PUT /api/admin/attendees", { db: true }, () => {
       updateBooking(987654, { name: "Nobody" }),
       404,
       "Attendee not found",
-    );
-  });
-
-  test("refuses a status that is not text", async () => {
-    const { attendeeId } = await bookOne();
-    await expectApiError(
-      updateBooking(attendeeId, { status: 5 }),
-      400,
-      "status must be text",
-    );
-  });
-
-  test("refuses a contact field the create would refuse", async () => {
-    const { attendeeId } = await bookOne();
-    await expectApiError(
-      updateBooking(attendeeId, { name: "" }),
-      400,
-      "name is required",
-    );
-  });
-
-  test("refuses a payment that is not a positive amount", async () => {
-    const { attendeeId } = await bookOne();
-    await expectApiError(
-      updateBooking(attendeeId, { payments: [{ amount: -5 }] }),
-      400,
-      "payments[0].amount must be a positive whole number of pence or cents",
-    );
-  });
-
-  test("refuses a line for a listing that does not exist", async () => {
-    const { attendeeId } = await bookOne();
-    await expectApiError(
-      updateBooking(attendeeId, {
-        lines: [{ listingId: 987654, quantity: 1 }],
-      }),
-      400,
-      "lines[0] references an unknown listing",
     );
   });
 

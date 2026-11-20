@@ -41,6 +41,13 @@ export const createBooking = (
     method: "POST",
   });
 
+/** One PUT update request for an attendee. */
+export const updateBooking = (
+  attendeeId: number,
+  body: Record<string, unknown>,
+): Promise<Response> =>
+  apiRequest(`/api/admin/attendees/${attendeeId}`, { body, method: "PUT" });
+
 /** The roster endpoint decrypts and answers every booking on the listing. */
 export const rosterAttendeeIds = async (
   listingId: number,
