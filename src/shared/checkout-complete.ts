@@ -28,6 +28,7 @@ import type { TxScope } from "#db/client.ts";
 import type { ModifierUsage } from "#db/modifier-usage.ts";
 import { tables } from "#db/select/tables.ts";
 import { update } from "#db/write.ts";
+import { sum, sumOf } from "#fp";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   type BookingLedgerContext,
@@ -117,6 +118,19 @@ export const taxableChargeAmounts = (
 ): number[] =>
   adjustments.flatMap((adjustment) =>
     adjustment.taxable === true ? [adjustment.amount] : [],
+  );
+
+/** What the attendee owes once the receipts are in. The order total holds the
+ * lines, the taxable adjustments and the tax. The payments come off it. The
+ * other adjustments add their signed amount. */
+export const remainingBalanceOf = (
+  order: PricedOrder,
+  receipts: CreateReceipts,
+): number =>
+  order.tax.total -
+  sum(receipts.payments) +
+  sumOf((adjustment: CreateAdjustment) => adjustment.amount)(
+    receipts.adjustments.filter((adjustment) => adjustment.taxable !== true),
   );
 
 /** The adjustments with each taxable charge at the amount the tax assessment

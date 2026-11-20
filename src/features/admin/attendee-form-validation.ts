@@ -13,6 +13,7 @@ import {
   isNoQuantityLine,
   isPaymentLockedLine,
   type ParsedAttendeeForm,
+  type SubmittedAdjustment,
 } from "#routes/admin/attendee-form-model.ts";
 import {
   ADJUSTMENT_DESCRIPTION_LIMIT,
@@ -138,23 +139,32 @@ const paymentRefusal = (parsed: ParsedAttendeeForm): string | null => {
   return null;
 };
 
+/** The refusal for one filled adjustment slot, or null when it carries valid
+ *  money. */
+const adjustmentSlotRefusal = (slot: SubmittedAdjustment): string | null => {
+  if (slot.description === "") {
+    return t("attendee_form.adjustment_description_required");
+  }
+  if (slot.description.length > ADJUSTMENT_DESCRIPTION_LIMIT) {
+    return t("attendee_form.adjustment_description_long", {
+      limit: ADJUSTMENT_DESCRIPTION_LIMIT,
+    });
+  }
+  const amount = parseSignedInt(slot.amount);
+  if (amount === null || !isValidAdjustmentAmount(amount)) {
+    return t("attendee_form.adjustment_amount_invalid");
+  }
+  return slot.taxable === true && amount < 0
+    ? t("attendee_form.adjustment_taxable_writeoff")
+    : null;
+};
+
 /** The first refusal on the submitted adjustment slots, or null when they all
  *  carry valid money. The message shows at the top of the page. */
 const adjustmentRefusal = (parsed: ParsedAttendeeForm): string | null => {
   for (const slot of parsed.adjustments) {
-    if (slot === null) continue;
-    if (slot.description === "") {
-      return t("attendee_form.adjustment_description_required");
-    }
-    if (slot.description.length > ADJUSTMENT_DESCRIPTION_LIMIT) {
-      return t("attendee_form.adjustment_description_long", {
-        limit: ADJUSTMENT_DESCRIPTION_LIMIT,
-      });
-    }
-    const amount = parseSignedInt(slot.amount);
-    if (amount === null || !isValidAdjustmentAmount(amount)) {
-      return t("attendee_form.adjustment_amount_invalid");
-    }
+    const refusal = slot === null ? null : adjustmentSlotRefusal(slot);
+    if (refusal !== null) return refusal;
   }
   return null;
 };

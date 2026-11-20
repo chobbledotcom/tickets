@@ -1,6 +1,7 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import {
   expectManualAddWebhook,
   stubWebhookFetch,
@@ -78,6 +79,37 @@ describeWithEnv(
         expect(
           (await getAttendeeBalanceState(attendees[0]!.id))!.remainingBalance,
         ).toBe(2000);
+      });
+
+      test("a taxed charge adds its tax to the balance and an untaxed one does not", async () => {
+        await settings.update.tax({
+          mode: "add_to_total",
+          rateBasisPoints: 2000,
+        });
+        const { listing: event } = await setupListingAndLogin({
+          maxAttendees: 100,
+          maxQuantity: 5,
+          unitPrice: 2000,
+        });
+        const { response } = await adminFormPost("/admin/attendees/new", {
+          email: "taxed@example.com",
+          name: "Taxed",
+          ...attendeeLineFields([{ eventId: event.id, quantity: 2 }]),
+          adjustmentAmount0: "1000",
+          adjustmentAmount1: "500",
+          adjustmentDescription0: "Delivery",
+          adjustmentDescription1: "Handling",
+          adjustmentTaxable0: "1",
+        });
+        expectRedirect(response, "/admin/attendees/");
+        const attendees = await expectAttendeeLineCount(event.id, 1);
+        // (4000 + 1000 delivery) plus 20% tax is 6000. Handling adds 500.
+        const { getAttendeeBalanceState } = await import(
+          "#db/attendees/balance.ts"
+        );
+        expect(
+          (await getAttendeeBalanceState(attendees[0]!.id))!.remainingBalance,
+        ).toBe(6500);
       });
 
       test("a no-quantity-only create persists the line and clears any balance", async () => {

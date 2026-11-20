@@ -28,6 +28,7 @@ import {
   type RefundPaymentReferenceSet,
 } from "#db/payment-references.ts";
 import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
+import { settings } from "#db/settings.ts";
 import { filter, identity, mapById, requiredMapValue } from "#fp";
 import { resolveSharedDates } from "#routes/admin/attendee-form-dates.ts";
 import type {
@@ -458,6 +459,7 @@ const assembleTemplateData = (
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
     selectedTextAnswers: opts.selectedTextAnswers ?? new Map(),
     statuses,
+    taxEnabled: settings.tax.mode !== "none",
     topWarnings: warnings.top,
   };
 };

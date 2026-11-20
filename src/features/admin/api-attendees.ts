@@ -30,7 +30,7 @@ import {
   saveAttendeeAnswersTx,
 } from "#db/questions/attendee-answers/save.ts";
 import { settings } from "#db/settings.ts";
-import { byId, sum, sumOf } from "#fp";
+import { byId } from "#fp";
 import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, withAuth } from "#routes/auth.ts";
@@ -40,6 +40,7 @@ import { createdBookingEntries } from "#shared/booking.ts";
 import {
   apiCreateLedgerPoster,
   type CreateAdjustment,
+  remainingBalanceOf,
   taxableChargeAmounts,
 } from "#shared/checkout-complete.ts";
 import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
@@ -181,12 +182,7 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
   // the attendee owes the lines and charges minus what was paid or written
   // off. The net includes the tax, because the sale total is tax-inclusive.
   // The order total already holds the taxable adjustments and their tax.
-  const remainingBalance =
-    order.tax.total -
-    sum(payments) +
-    sumOf((adjustment: CreateAdjustment) => adjustment.amount)(
-      adjustments.filter((adjustment) => adjustment.taxable !== true),
-    );
+  const remainingBalance = remainingBalanceOf(order, receipts);
   // The answers are encrypted and blind-indexed before the transaction opens.
   // The write itself rides the create work below. An answerless body prepares
   // no save but still records the questions the booking was asked.

@@ -1,4 +1,5 @@
 import { assert, assertStringIncludes } from "@std/assert";
+import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import {
@@ -307,6 +308,32 @@ describe("attendee form panel", () => {
       '<input id="adjustment_description_0" maxlength="200" name="adjustmentDescription0" type="text" value="">',
       'name="adjustmentAmount2"',
     ]);
+  });
+
+  test("offers a tax box on each charge only when the site charges tax", () => {
+    expect(render()).not.toContain("adjustmentTaxable");
+    const html = render({ taxEnabled: true });
+    expectIncludesAll(html, [
+      '<input name="adjustmentTaxable0" type="checkbox" value="1">',
+      "Add tax to charge 1",
+      'name="adjustmentTaxable2"',
+    ]);
+  });
+
+  test("keeps a ticked tax box even when the site charges no tax", () => {
+    const html = render({
+      parsed: parsed({
+        adjustments: [
+          { amount: "500", description: "Delivery", taxable: true },
+          null,
+          null,
+        ],
+      }),
+    });
+    expect(html).toContain(
+      '<input checked name="adjustmentTaxable0" type="checkbox" value="1">',
+    );
+    expect(html).not.toContain("adjustmentTaxable1");
   });
 
   test("keeps submitted money values on a rejected save", () => {
