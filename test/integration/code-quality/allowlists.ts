@@ -11,11 +11,10 @@ export const LIBRARY_PATHS = [
   "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
   // The transfer ledger (src/shared/ledger + src/shared/accounting) is built
   // ahead of the payment aggregate that consumes it, so some exports have no
-  // production caller. Each entry below names the rule it answers in
-  // docs/payment-aggregate-acceptance.md, or says that no rule asks for it. A
-  // module leaves this list when its last unconsumed export gains a caller.
-  "shared/ledger/reconcile.ts", // reconcileExternal, reconcileLegs: rule 2
-  "shared/accounting/queries.ts", // whole-account reads: rules 1 and 3
+  // production caller. A module leaves this list when its last unconsumed
+  // export gains a caller.
+  "shared/ledger/reconcile.ts", // reconcileExternal, reconcileLegs
+  "shared/accounting/queries.ts", // whole-account reads
   // The site-pages feature is being wired in incrementally,
   // foundation-first: the pure core + DB layer landed before the admin CRUD /
   // public route / recursive-nav slices that consume them, so — like the
