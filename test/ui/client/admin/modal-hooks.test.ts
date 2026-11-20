@@ -125,7 +125,7 @@ describe("the admin modal shell's close hooks", () => {
 
   test("keeps its state on the window, so every bundle's copy shares it", () => {
     const window = page();
-    expect(lifecycleOf(window)).toBeUndefined();
+    expect(Reflect.has(window, "adminModalLifecycle")).toBe(false);
 
     open(window);
     open(window, OTHER_SETTINGS);
