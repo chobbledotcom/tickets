@@ -101,6 +101,17 @@ describe("renderPage", () => {
     expect(page).toMatch(/sha256:[0-9a-f]{16}/);
   });
 
+  test("escapes a pipe and a newline in a table cell", () => {
+    const page = renderPage(
+      {
+        ...guide,
+        cast: [{ meaning: "first | second\nthird", term: "word" }],
+      },
+      sources,
+    );
+    expectIncludesAll(page, ["| **word** | first \\| second third |"]);
+  });
+
   test("omits the value table when a step has no values", () => {
     const page = renderPage(
       {
