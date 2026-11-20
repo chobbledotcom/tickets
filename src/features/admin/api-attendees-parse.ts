@@ -15,10 +15,9 @@ import { getListingsById } from "#db/listings/records.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import {
-  parseAdjustments,
   parseEach,
   parseLinePrice,
-  parsePayments,
+  parseReceipts,
   quantityOverCap,
 } from "#shared/booking-inputs.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
@@ -444,10 +443,8 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   if (!statusAndToken.ok) return statusAndToken;
   const created = parseCreated(body.created);
   if (!created.ok) return created;
-  const payments = parsePayments(body.payments);
-  if (!payments.ok) return payments;
-  const adjustments = parseAdjustments(body.adjustments);
-  if (!adjustments.ok) return adjustments;
+  const receipts = parseReceipts(body);
+  if (!receipts.ok) return receipts;
 
   const linesResult = await parseCheckedLines(linesArray.value);
   if (!linesResult.ok) return linesResult;
@@ -457,11 +454,11 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
 
   return okResult({
     ...contact.value,
-    adjustments: adjustments.value,
+    adjustments: receipts.value.adjustments,
     answers: answers.value,
     created: created.value,
     lines,
-    payments: payments.value,
+    payments: receipts.value.payments,
     statusId: statusAndToken.value.statusId,
     ticketToken: statusAndToken.value.ticketToken,
   });

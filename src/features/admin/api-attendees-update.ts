@@ -61,10 +61,7 @@ const updateFromParsed = async (
   { attendee, existing }: AttendeeToUpdate,
   parsed: ParsedApiUpdate,
 ): Promise<Response> => {
-  const receipts = await newReceiptLegs(attendee.id, {
-    adjustments: parsed.adjustments,
-    payments: parsed.payments,
-  });
+  const receipts = await newReceiptLegs(attendee.id, parsed.receipts);
   if (!receipts.ok) return apiErrorResponse(receipts.error);
   // A tax change needs the operator to confirm it, as the Edit tab asks. The
   // API has no preview to confirm, so it refuses the update.

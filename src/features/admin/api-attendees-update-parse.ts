@@ -8,8 +8,8 @@ import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import type { DesiredListingLine } from "#db/attendee-types.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { unique } from "#fp";
-import { parseAdjustments, parsePayments } from "#shared/booking-inputs.ts";
-import type { CreateAdjustment } from "#shared/checkout-complete.ts";
+import { parseReceipts } from "#shared/booking-inputs.ts";
+import type { CreateReceipts } from "#shared/checkout-complete.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { Attendee, ContactInfo } from "#types";
 import { keptLines, namedLines } from "./api-attendee-lines.ts";
@@ -30,12 +30,12 @@ export type AttendeeToUpdate = {
 
 /** The validated update body. */
 export type ParsedApiUpdate = {
-  adjustments: CreateAdjustment[];
   /** The answers to store, or null to leave the stored answers alone. */
   answers: ApiAnswer[] | null;
   contact: ContactInfo;
   desired: DesiredListingLine[];
-  payments: number[];
+  /** The complete lists of payments received and of adjustments. */
+  receipts: CreateReceipts;
   statusId: number | null;
 };
 
@@ -47,15 +47,6 @@ const fixedFieldRefusal = (body: Record<string, unknown>): string | null => {
   const named = FIXED_FIELDS.find((field) => body[field] !== undefined);
   return named === undefined ? null : `${named} cannot be changed`;
 };
-
-/** The stored contact fields, as a create body names them. */
-const storedContact = (attendee: Attendee): Record<string, unknown> => ({
-  address: attendee.address,
-  email: attendee.email,
-  name: attendee.name,
-  phone: attendee.phone,
-  special_instructions: attendee.special_instructions,
-});
 
 /** The status the attendee holds after the update: the named one, or the
  *  stored one when the body names none. */
@@ -90,14 +81,12 @@ export const parseUpdateBody = async (
 ): Promise<Result<ParsedApiUpdate>> => {
   const fixed = fixedFieldRefusal(body);
   if (fixed !== null) return errorResult(fixed);
-  const contact = parseContact({ ...storedContact(attendee), ...body });
+  const contact = parseContact({ ...attendee, ...body });
   if (!contact.ok) return contact;
   const statusId = await parseStatusId(body.status, attendee);
   if (!statusId.ok) return statusId;
-  const payments = parsePayments(body.payments);
-  if (!payments.ok) return payments;
-  const adjustments = parseAdjustments(body.adjustments);
-  if (!adjustments.ok) return adjustments;
+  const receipts = parseReceipts(body);
+  if (!receipts.ok) return receipts;
   const desired = await parseDesiredLines(body.lines, existing);
   if (!desired.ok) return desired;
   const answers =
@@ -113,11 +102,10 @@ export const parseUpdateBody = async (
         );
   if (!answers.ok) return answers;
   return okResult({
-    adjustments: adjustments.value,
     answers: answers.value,
     contact: contact.value,
     desired: desired.value,
-    payments: payments.value,
+    receipts: receipts.value,
     statusId: statusId.value,
   });
 };
