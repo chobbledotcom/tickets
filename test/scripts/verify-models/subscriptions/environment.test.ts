@@ -17,13 +17,11 @@ import {
 } from "#scripts/verify-models/subscriptions/environment.ts";
 import { stripeApi } from "#shared/stripe.ts";
 
-const PROVIDER_METHODS = [
-  "cancelSubscription",
-  "readPaidInvoices",
-  "readPaymentIntent",
-  "readSubscription",
-  "refundCharge",
-] as const;
+/** Every provider boundary the fixture can replace, discovered from the API
+ * object so the list cannot drift from it. */
+const providerMethods = (
+  Object.keys(stripeApi) as (keyof typeof stripeApi)[]
+).filter((method) => typeof stripeApi[method] === "function");
 
 describe("subscription model fixtures", () => {
   for (const interval of ["week", "month", "year"] as const) {
@@ -130,7 +128,7 @@ describe("subscription model fixtures", () => {
       const replacement = () => Promise.reject(fault);
       const probe = { calls: 0 };
       try {
-        for (const method of PROVIDER_METHODS) stripeApi[method] = replacement;
+        for (const method of providerMethods) stripeApi[method] = replacement;
         const result = withRestoredProvider(restore, probe, (observed) => {
           expect(observed).toBe(probe);
           observed.calls++;
@@ -139,7 +137,7 @@ describe("subscription model fixtures", () => {
         if (fails) await expect(result).rejects.toBe(fault);
         else expect(await result).toBe(probe);
         expect(probe.calls).toBe(1);
-        for (const method of PROVIDER_METHODS) {
+        for (const method of providerMethods) {
           expect(stripeApi[method]).toBe(previous[method]);
         }
       } finally {

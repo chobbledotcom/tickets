@@ -71,13 +71,7 @@ export const cancellationProbeFacts = (
 
 /** Capture before installing faults; restore every touched provider boundary. */
 export const restoreCancellationProvider = (): (() => void) => {
-  const previous = {
-    cancelSubscription: stripeApi.cancelSubscription,
-    readPaidInvoices: stripeApi.readPaidInvoices,
-    readPaymentIntent: stripeApi.readPaymentIntent,
-    readSubscription: stripeApi.readSubscription,
-    refundCharge: stripeApi.refundCharge,
-  };
+  const previous = { ...stripeApi };
   return () => Object.assign(stripeApi, previous);
 };
 
