@@ -13,10 +13,10 @@ import {
 import {
   cleanupModals,
   dialogsIn,
-  oneWindow,
-  open,
   type OpenWindow,
   OTHER_SETTINGS,
+  oneWindow,
+  open,
   page,
   pointer,
   SETTINGS,

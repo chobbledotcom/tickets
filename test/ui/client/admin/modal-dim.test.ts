@@ -8,9 +8,9 @@ import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import {
   cleanupModals,
   dialogsIn,
+  OTHER_SETTINGS,
   oneWindow,
   open,
-  OTHER_SETTINGS,
   page,
   pointer,
   stackOf,

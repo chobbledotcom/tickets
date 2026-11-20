@@ -15,8 +15,8 @@ import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import {
   cleanupModals,
   dialogsIn,
-  open,
   OTHER_SETTINGS,
+  open,
   page,
   SETTINGS,
   twoWindows,
