@@ -192,7 +192,7 @@ describeWithBrowser(
         );
         await image.waitFor();
         expect(await image.getAttribute("alt")).toBe("Harbour");
-        // The insert closes the dialog and hands focus back to the editor.
+        // The insert closes the window and hands focus back to the editor.
         expect(await page.locator(DIALOG).isVisible()).toBe(false);
         await expectFocusBackInEditor(page);
       });
@@ -251,8 +251,8 @@ describeWithBrowser(
       const harbour = await makeImage("Harbour");
       await withPage(async (page) => {
         await openPageEditor(page);
-        // The dialog's own upload form nests inside the page form, so the
-        // page's Name field is the one the roles distinguish.
+        // The picker's window is not on the page until it opens, so the
+        // page's Name field is the only one the role finds.
         await page
           .getByRole("textbox", { name: t("site.pages.field.name") })
           .fill("How to find us");
@@ -293,7 +293,7 @@ describeWithBrowser(
         // button is picked by its own name.
         await page.getByRole("button", { name: "Preview" }).click();
 
-        const shown = page.locator(".md-preview-dialog .md-preview-content");
+        const shown = page.locator("dialog.admin-modal .md-preview-content");
         await shown.locator("img").waitFor();
         expect(await shown.locator("img").getAttribute("src")).toBe(
           "/image/harbour.webp",
@@ -365,20 +365,39 @@ describeWithBrowser(
       });
     });
 
-    test("modal backdrop swallows toolbar clicks while the dialog is open", async () => {
+    test("the page stays usable behind the window, and the dim follows the focus", async () => {
       await makeImage("Harbour");
       await withPage(async (page) => {
         await openPageEditor(page);
         await openDialog(page);
         await page.locator(OPTION).first().waitFor();
+        const readPageDim = (): Promise<string | undefined> =>
+          page.evaluate(
+            () => document.documentElement.dataset.adminModalPageDim,
+          );
 
-        // The modal dialog's backdrop intercepts every pointer event, so a
-        // click aimed at the toolbar button lands on the backdrop and the
-        // dialog stays open. Force it: the click happens, the dialog ignores
-        // it.
-        await page.locator(EDITOR_BUTTON).click({ force: true });
-        await page.waitForTimeout(100);
+        // The window has the focus, so the page behind it is dim.
+        expect(await readPageDim()).toBe("true");
+
+        // The page takes focus and input. The window stays open, and it turns
+        // dim while the page is bright.
+        await page.locator('input[name="slug"]').focus();
+        expect(await readPageDim()).toBe("false");
         expect(await page.locator(DIALOG).getAttribute("open")).not.toBeNull();
+        expect(
+          await page
+            .locator(DIALOG)
+            .evaluate((dialog) => dialog.classList.contains("is-dim")),
+        ).toBe(true);
+
+        // Focus in the window makes the window bright and the page dim again.
+        await page.locator(DIALOG).locator('input[name="name"]').focus();
+        expect(await readPageDim()).toBe("true");
+        expect(
+          await page
+            .locator(DIALOG)
+            .evaluate((dialog) => dialog.classList.contains("is-dim")),
+        ).toBe(false);
       });
     });
 
@@ -389,7 +408,7 @@ describeWithBrowser(
         await openDialog(page);
 
         await expectDialogClosesWhen(page, (p) => p.keyboard.press("Escape"));
-        // The native dialog hands focus back to the element that held it.
+        // The window's close hands focus back to the editor.
         await expectFocusBackInEditor(page);
       });
     });
@@ -397,8 +416,8 @@ describeWithBrowser(
     test("stays closed when the library answers after the owner dismissed it", async () => {
       await makeImage("Harbour");
       await withPage(async (page) => {
-        // The gate holds the answer until the click has dismissed the
-        // dialog, so the test observes the answer arriving after dismissal.
+        // The gate holds the answer until Escape has dismissed the window,
+        // so the test observes the answer arriving after dismissal.
         const responseGate = Promise.withResolvers<void>();
         await page.route("**/admin/images/options", async (route) => {
           await responseGate.promise;
@@ -418,16 +437,29 @@ describeWithBrowser(
         });
         await openPageEditor(page);
 
-        const dialog = await openDialog(page);
-        // The modal backdrop swallows toolbar clicks, so Escape dismisses.
+        await openDialog(page);
         await page.keyboard.press("Escape");
         await waitForDialogClosed(page);
         responseGate.resolve();
         await page.waitForTimeout(500);
 
-        // The late answer must not reopen the dismissed dialog.
-        expect(await dialog.getAttribute("open")).toBeNull();
-        expect(await dialog.locator(OPTION).count()).toBe(0);
+        // The late answer must not reopen the dismissed window.
+        expect(await page.locator(DIALOG).count()).toBe(0);
+      });
+    });
+    test("the new listing form's Images field opens the shared picker", async () => {
+      await makeImage("Harbour");
+      await withPage(async (page) => {
+        await page.goto("/admin/listing/new?template=physical-product");
+        const section = page.locator("[data-listing-images]");
+        await section.locator("[data-listing-images-trigger]").click();
+
+        const dialog = page.locator(DIALOG);
+        await dialog.waitFor();
+        const options = dialog.locator(OPTION);
+        await options.getByText("Harbour", { exact: true }).waitFor();
+        expect(await dialog.getAttribute("open")).not.toBeNull();
+        expect(await options.allTextContents()).toEqual(["Harbour"]);
       });
     });
   },

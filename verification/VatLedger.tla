@@ -1,5 +1,5 @@
 ---------------------------- MODULE VatLedger ----------------------------
-EXTENDS ModelRules, VatLedgerData
+EXTENDS Apalache, ModelRules, VatLedgerData
 
 \* /\ requires every listed condition. \E selects at least one supplied
 \* example. A prime in an action marks the next value, not the current value.
@@ -79,8 +79,8 @@ Safety == TypeOK /\ allAttemptsSafe
 \* Start with an active sale, but check every generated initial assessment,
 \* even those for refunded representatives. \A means every member must pass.
 Init ==
-  /\ bookingState = "active"
-  /\ allAttemptsSafe = (\A sample \in VatInitial : sample.safe)
+  /\ bookingState := "active"
+  /\ allAttemptsSafe := (\A sample \in VatInitial : sample.safe)
 
 \* Choose any supplied attempt with this source state. \E means at least one.
 \* AttemptedEdge applies its target even if unsafe and retains the verdict.

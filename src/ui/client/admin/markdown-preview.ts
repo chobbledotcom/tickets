@@ -1,62 +1,49 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /**
- * Markdown preview: adds a "Preview" link under each markdown editor (opposite
- * the character counter) that renders the current content via the admin-only
- * /admin/markdown-preview endpoint and shows it in a modal dialog.
+ * Markdown preview: adds a "Preview" link under each markdown field that
+ * renders the current content through the admin-only /admin/markdown-preview
+ * endpoint and shows it in the shared admin modal.
  *
  * Rendering happens server-side so the preview matches the public page exactly
  * and is sanitised (raw HTML escaped, unsafe URLs stripped) before it reaches
- * the DOM. The request carries the page's CSRF token so it can't be triggered
- * cross-site.
+ * the DOM. The request carries the page's CSRF token so it cannot be triggered
+ * cross-site. The modal's words come from the inert `<template>` that the
+ * admin shell renders.
  */
 
-import { ICONS_PATH } from "#shared/asset-paths.ts";
+import { once } from "#fp";
+import {
+  MARKDOWN_PREVIEW_TEMPLATE_ID,
+  type PreviewCopy,
+  type PreviewNote,
+} from "#shared/markdown-preview.ts";
+import { openAdminModal } from "#src/ui/client/admin/modal.ts";
+import {
+  cloneContent,
+  csrfTokenFor,
+  requiredChild,
+} from "#src/ui/client/dom.ts";
 
-/** Lazily-built shared dialog, reused by every editor on the page. */
-type PreviewDialog = {
-  open: () => void;
-  setLoading: () => void;
-  show: (html: string) => void;
+/** A failed request leaves the field's text intact. */
+const fetchPreview = async (
+  textarea: HTMLTextAreaElement,
+): Promise<string | null> => {
+  const body = new URLSearchParams({
+    content: textarea.value,
+    csrfToken: csrfTokenFor(textarea),
+  }).toString();
+  try {
+    const response = await fetch("/admin/markdown-preview", {
+      body,
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: "POST",
+    });
+    return response.ok ? (await response.text()).trim() : null;
+  } catch {
+    return null;
+  }
 };
-
-const createDialog = (): PreviewDialog => {
-  const dialog = document.createElement("dialog");
-  dialog.className = "md-preview-dialog";
-
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "md-preview-close";
-  close.setAttribute("aria-label", "Close preview");
-  close.innerHTML = `<svg class="icon" aria-hidden="true" focusable="false"><use href="${ICONS_PATH}#x"></use></svg>`;
-  close.addEventListener("click", () => dialog.close());
-
-  const content = document.createElement("div");
-  content.className = "md-preview-content prose";
-
-  dialog.append(close, content);
-  // Close when the backdrop (the dialog element itself) is clicked.
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.appendChild(dialog);
-
-  return {
-    open: () => dialog.showModal(),
-    setLoading: () => {
-      content.textContent = "Loading preview…";
-    },
-    show: (html) => {
-      content.innerHTML = html.trim() || "<p><em>Nothing to preview.</em></p>";
-    },
-  };
-};
-
-/** Find the CSRF token for the form a textarea belongs to. */
-const csrfTokenFor = (textarea: HTMLTextAreaElement): string =>
-  textarea
-    .closest("form")
-    ?.querySelector<HTMLInputElement>('input[name="csrfToken"]')?.value ?? "";
 
 /**
  * The character counter (added earlier by initCharCounters) sits immediately
@@ -74,31 +61,21 @@ export const initMarkdownPreview = (): void => {
   );
   if (textareas.length === 0) return;
 
-  let dialog: PreviewDialog | null = null;
-
-  const requestPreview = async (
-    textarea: HTMLTextAreaElement,
-  ): Promise<void> => {
-    dialog ??= createDialog();
-    const d = dialog;
-    d.setLoading();
-    d.open();
-    try {
-      const res = await fetch("/admin/markdown-preview", {
-        body: new URLSearchParams({
-          content: textarea.value,
-          csrfToken: csrfTokenFor(textarea),
-        }).toString(),
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        method: "POST",
-      });
-      d.show(res.ok ? await res.text() : "<p><em>Preview failed.</em></p>");
-    } catch {
-      d.show("<p><em>Preview failed.</em></p>");
-    }
+  const template = requiredChild<HTMLTemplateElement>(
+    document,
+    `template#${MARKDOWN_PREVIEW_TEMPLATE_ID}`,
+  );
+  const copyFor = (name: PreviewCopy): Element =>
+    requiredChild(template.content, `[data-copy="${name}"]`);
+  const open = copyFor("open");
+  const heading = copyFor("title").textContent;
+  const notes: Record<PreviewNote, Element> = {
+    empty: copyFor("empty"),
+    failed: copyFor("failed"),
+    loading: copyFor("loading"),
   };
 
-  for (const textarea of textareas) {
+  for (const [index, textarea] of textareas.entries()) {
     // Capture the counter before inserting the footer, which would otherwise
     // become the textarea's next sibling.
     const counter = counterAfter(textarea);
@@ -106,14 +83,36 @@ export const initMarkdownPreview = (): void => {
     const footer = document.createElement("div");
     footer.className = "md-editor-footer";
 
-    const link = document.createElement("button");
-    link.type = "button";
-    link.className = "md-preview-link";
-    link.textContent = "Preview";
-    link.addEventListener("click", () => requestPreview(textarea));
+    const link = cloneContent(open);
+    const getContent = once(() => {
+      const content = document.createElement("div");
+      content.className = "md-preview-content prose";
+      return content;
+    });
+    let request = 0;
+    link.addEventListener("click", async () => {
+      const preview = openAdminModal(
+        {
+          collapsedTitle: heading,
+          key: `markdown-preview:${index}`,
+          title: heading,
+        },
+        getContent(),
+      );
+      preview.replaceChildren(cloneContent(notes.loading));
+      const current = ++request;
+      const html = await fetchPreview(textarea);
+      if (current !== request) return;
+      if (html === null || html === "") {
+        const note = html === null ? notes.failed : notes.empty;
+        preview.replaceChildren(cloneContent(note));
+      } else {
+        preview.innerHTML = html;
+      }
+    });
 
     textarea.insertAdjacentElement("afterend", footer);
-    footer.appendChild(link);
-    if (counter) footer.appendChild(counter);
+    footer.append(link);
+    if (counter !== null) footer.append(counter);
   }
 };

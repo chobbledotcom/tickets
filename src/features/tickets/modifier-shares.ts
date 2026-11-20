@@ -24,9 +24,15 @@ const weightsFor = (entries: readonly TokenEntry[]): number[] => {
     : entries.map((entry) => entry.attendee.quantity);
 };
 
-/** Split one order's modifiers across its cards. Largest remainder keeps every
- *  share a whole number of pennies, and the shares add up to the order's own
- *  figure. A share of zero changes no price, so the card omits it. */
+/** Split one order's amount across its cards. Largest remainder keeps every
+ *  share a whole number of pennies, and the shares add up to the amount. */
+const allocateAcrossOrder = (
+  entries: readonly TokenEntry[],
+  amount: number,
+): number[] => largestRemainderAllocation(weightsFor(entries), amount);
+
+/** Split one order's modifiers across its cards. A share of zero changes no
+ *  price, so the card omits it. */
 const splitOrder = (
   entries: readonly TokenEntry[],
   modifiers: readonly ModifierLine[],
@@ -34,12 +40,8 @@ const splitOrder = (
   const shares = new Map<TokenEntry, ModifierLine[]>(
     entries.map((entry) => [entry, []]),
   );
-  const weights = weightsFor(entries);
   for (const modifier of modifiers) {
-    const parts = largestRemainderAllocation(
-      weights,
-      Math.abs(modifier.amount),
-    );
+    const parts = allocateAcrossOrder(entries, Math.abs(modifier.amount));
     const sign = Math.sign(modifier.amount);
     for (const [index, entry] of entries.entries()) {
       const amount = sign * parts[index]!;
@@ -51,23 +53,55 @@ const splitOrder = (
   return shares;
 };
 
+/** Run `split` on each order's cards and gather what it gives for every card. */
+const splitByOrder = <Share>(
+  entries: readonly TokenEntry[],
+  split: (
+    orderEntries: readonly TokenEntry[],
+    order: string,
+  ) => Map<TokenEntry, Share>,
+): Map<TokenEntry, Share> => {
+  const byOrder = groupToMap(
+    (entry: TokenEntry) => entry.ledgerEventGroup,
+    (entry: TokenEntry) => entry,
+  )(entries);
+  const shares = new Map<TokenEntry, Share>();
+  for (const [order, orderEntries] of byOrder) {
+    for (const [entry, share] of split(orderEntries, order))
+      shares.set(entry, share);
+  }
+  return shares;
+};
+
 /** The modifier lines each booking card shows. An order with no modifier legs
  *  has no entry in `modifiersByOrder`, so its cards show none. */
 export const splitModifiersAcrossCards = (
   entries: readonly TokenEntry[],
   modifiersByOrder: ReadonlyMap<string, readonly ModifierLine[]>,
-): Map<TokenEntry, ModifierLine[]> => {
-  const byOrder = groupToMap(
-    (entry: TokenEntry) => entry.ledgerEventGroup,
-    (entry: TokenEntry) => entry,
-  )(entries);
-  const shares = new Map<TokenEntry, ModifierLine[]>();
-  for (const [order, orderEntries] of byOrder) {
-    const orderShares = splitOrder(
-      orderEntries,
-      modifiersByOrder.get(order) ?? [],
-    );
-    for (const [entry, lines] of orderShares) shares.set(entry, lines);
+): Map<TokenEntry, ModifierLine[]> =>
+  splitByOrder(entries, (orderEntries, order) =>
+    splitOrder(orderEntries, modifiersByOrder.get(order) ?? []),
+  );
+
+/** Split one order's tax across its cards. A card with no share is absent. */
+const splitOrderTax = (
+  entries: readonly TokenEntry[],
+  tax: number,
+): Map<TokenEntry, number> => {
+  const shares = new Map<TokenEntry, number>();
+  for (const [index, part] of allocateAcrossOrder(entries, tax).entries()) {
+    if (part > 0) shares.set(entries[index]!, part);
   }
   return shares;
 };
+
+/** The tax each booking card shows: its share of the tax that its order adds
+ *  to the total. It follows the same weights as the modifier split, so the
+ *  shares add up to the order's tax. */
+export const splitTaxAcrossCards = (
+  entries: readonly TokenEntry[],
+  taxByOrder: ReadonlyMap<string, number>,
+): Map<TokenEntry, number> =>
+  splitByOrder(entries, (orderEntries, order) =>
+    splitOrderTax(orderEntries, taxByOrder.get(order) ?? 0),
+  );

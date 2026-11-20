@@ -123,6 +123,10 @@ tax compliance.
 For model authors and reviewers, the
 [model verification guide](docs/model-verification.md) explains the commands,
 focused exemplars, evidence boundaries, and limits of advisory code grades.
+The
+[model walkthroughs](https://chobbledotcom.github.io/tickets/models/) explain
+each model in everyday words and map its rules to the production TypeScript
+code.
 
 ### Check-in
 
@@ -408,6 +412,10 @@ images.
 If image publication fails, the GitHub release remains available. Retry the
 failed image job from the release workflow run. A superseded release can publish
 its commit image, but it cannot replace `latest`.
+
+The image build keeps the database FFI library path for Deno. It removes
+`LD_LIBRARY_PATH` only for the nested devenv command. That command uses its own
+C++ runtime.
 
 GitHub creates the registry package as private on the first publish. A
 repository admin must make it public once. Open the `tickets` package in the

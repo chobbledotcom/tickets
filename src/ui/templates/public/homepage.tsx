@@ -9,13 +9,16 @@ import { formatDatetimeLabel } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { Badge } from "#templates/components/badge.tsx";
+import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import type { Group } from "#types";
 import { listingAttributesHtml } from "./listing-attributes.ts";
+import { listingPriceHtml } from "./listing-price.ts";
 import {
   compareGroupsByName,
   PackagesSection,
   type PublicNavProps,
   publicPage,
+  renderListingImage,
   titleWithSiteName,
 } from "./shared.tsx";
 
@@ -103,26 +106,38 @@ const cardDateState = (
 
 /** A card's booking CTA / status line, described in one place so the page
  *  can't disagree with itself about a card:
- *  - `insideProse` says WHERE the line belongs — the two date-search failure
- *    messages ("Sold Out", "Not available on {date}") live inside the card's
- *    `.prose` block as a red {@link Badge}; every other state (registration
- *    closed, add-on note, currently-unavailable note, the actual Book/Buy
- *    link) is a sibling after `.prose`.
- *  - `unavailable` says whether the card has no live booking path at all —
- *    the set a date search moves into the page's "Unavailable" section. An
- *    add-on note is not an availability failure (the item is bookable through
- *    its parent), so it stays with the available cards. */
-type CardCta = { html: string; insideProse: boolean; unavailable: boolean };
+ *  - `insideProse` — WHERE the line sits: the date-search failures ("Sold
+ *    Out", "Not available on {date}") render as a red {@link Badge} inside
+ *    the card's `.prose` block; every other state is a sibling after it.
+ *  - `unavailable` — whether the card has no live booking path at all: the
+ *    set a date search moves into the page's "Unavailable" section. An
+ *    add-on note is not an availability failure (the item is bookable
+ *    through its parent), so it stays with the available cards.
+ *  - `bookable` — whether the CTA IS the live Book/Buy link (not a status
+ *    note): the gallery card makes the whole card that link. */
+type CardCta = {
+  html: string;
+  insideProse: boolean;
+  unavailable: boolean;
+  bookable: boolean;
+};
 
 /** The two prose-Badge failure states share one shape. */
 const unavailableBadgeCta = (message: string): CardCta => ({
+  bookable: false,
   html: statusBadgeParagraph(message),
   insideProse: true,
   unavailable: true,
 });
 
-/** Everything else renders after the prose block. */
-const plainCta = (html: string, unavailable: boolean): CardCta => ({
+/** Everything else renders after the prose block. Only the Book/Buy link CTA
+ *  is `bookable`. */
+const plainCta = (
+  html: string,
+  unavailable: boolean,
+  bookable = false,
+): CardCta => ({
+  bookable,
   html,
   insideProse: false,
   unavailable,
@@ -172,6 +187,7 @@ const renderListingCardCta = (
       listing.slug,
     )}${dateQuery}">${bookLabel}</a></p>`,
     false,
+    true,
   );
 };
 
@@ -179,21 +195,57 @@ const renderListingCardCta = (
  *  "Unavailable" section once a date search is active. */
 type RenderedCard = { html: string; unavailable: boolean };
 
+/** A card's date and location lines. The prose card wraps each line in a
+ *  paragraph and makes the location bold. The gallery card wraps each line in
+ *  a plain span. Each line is empty when the listing has no such value. */
+const cardDetailLinesHtml = (
+  listing: TicketListing["listing"],
+  line: (content: string, strong: boolean) => string,
+): string => {
+  const dateHtml = listing.date
+    ? line(`<em>${escapeHtml(formatDatetimeLabel(listing.date))}</em>`, false)
+    : "";
+  const locationHtml = listing.location
+    ? line(escapeHtml(listing.location), true)
+    : "";
+  return `${dateHtml}${locationHtml}`;
+};
+
+/** The page state one card body renders from. */
+interface CardPageState {
+  attributesByListing: ListingAttributesById;
+  childStateOf: (id: number) => ChildCardState;
+  dateFilter: DailyDateFilter | null;
+  info: TicketListing;
+}
+
+/** Renders one listing's card in the layout the page asked for. */
+type CardBody = (page: CardPageState) => RenderedCard;
+
+/** A card renderer: the page's state first, then each listing. */
+type CardRenderer = (
+  childStateOf: (id: number) => ChildCardState,
+  dateFilter: DailyDateFilter | null,
+  attributesByListing: ListingAttributesById,
+) => (info: TicketListing) => RenderedCard;
+
+/** Build a card renderer: the page's state first, then each listing. Both
+ *  card layouts share this shape, so the curry lives once. */
+const cardRenderer =
+  (body: CardBody): CardRenderer =>
+  (childStateOf, dateFilter, attributesByListing) =>
+  (info) =>
+    body({ attributesByListing, childStateOf, dateFilter, info });
+
 /** Render one listing card. */
-const renderListingCard =
-  (
-    childStateOf: (id: number) => ChildCardState,
-    dateFilter: DailyDateFilter | null,
-    attributesByListing: ListingAttributesById,
-  ) =>
-  (info: TicketListing): RenderedCard => {
+const renderListingCard = cardRenderer(
+  ({ info, childStateOf, dateFilter, attributesByListing }) => {
     const { listing } = info;
-    const dateHtml = listing.date
-      ? `<p><em>${escapeHtml(formatDatetimeLabel(listing.date))}</em></p>`
-      : "";
-    const locationHtml = listing.location
-      ? `<p><strong>${escapeHtml(listing.location)}</strong></p>`
-      : "";
+    const linesHtml = cardDetailLinesHtml(
+      listing,
+      (content, strong) =>
+        `<p>${strong ? `<strong>${content}</strong>` : content}</p>`,
+    );
     const descriptionHtml = listing.description
       ? renderMarkdown(listing.description)
       : "";
@@ -209,14 +261,47 @@ const renderListingCard =
 
     const proseHtml = `<div class="prose"><h2>${escapeHtml(
       listing.name,
-    )}</h2>${dateHtml}${locationHtml}${descriptionHtml}${attributesHtml}${
+    )}</h2>${linesHtml}${descriptionHtml}${attributesHtml}${
       cta.insideProse ? cta.html : ""
     }</div>`;
     return {
       html: `${proseHtml}${cta.insideProse ? "" : cta.html}`,
       unavailable: cta.unavailable,
     };
-  };
+  },
+);
+
+/** A gallery card's detail lines: the price, then the date and location when
+ *  present. */
+const galleryDetailHtml = (listing: TicketListing["listing"]): string =>
+  listingPriceHtml(listing) +
+  cardDetailLinesHtml(listing, (content) => `<span>${content}</span>`);
+
+/** Render one listing as a product-gallery card — the shop-index look image
+ *  mode gives the listings page. The shared media
+ *  card (image, name, detail lines) reuses the order gallery's and news
+ *  list's `.card` layout. A bookable listing's whole card is the Book/Buy
+ *  link, while every non-bookable state keeps the card but swaps the link
+ *  for its status note. No description: the gallery is an index — the long
+ *  form stays on the listing's own page. */
+const renderGalleryCard = cardRenderer(({ info, childStateOf, dateFilter }) => {
+  const { listing } = info;
+  const dateState = cardDateState(info, dateFilter);
+  const cta = renderListingCardCta(info, childStateOf(listing.id), dateState);
+  const body = cardInner({
+    detailHtml: galleryDetailHtml(listing),
+    imageHtml: renderListingImage(listing, "card-image", { thumb: true }),
+    name: listing.name,
+  });
+  const dateQuery =
+    cta.bookable && dateState.kind === "serves"
+      ? `?date=${encodeURIComponent(dateState.date)}`
+      : "";
+  const html = cta.bookable
+    ? `<a class="card" href="/ticket/${escapeHtml(listing.slug)}${dateQuery}">${body}</a>`
+    : `<div class="card">${body}${cta.html}</div>`;
+  return { html, unavailable: cta.unavailable };
+});
 
 /** Render one group card (same style as a listing card). A package that's
  *  sold out for the searched date shows the same red "Sold Out" badge,
@@ -244,7 +329,9 @@ const renderGroupCard = (group: Group, soldOut: boolean): string => {
 };
 
 /**
- * Homepage with listings - lists all active upcoming listings with booking links
+ * Homepage with listings - lists all active upcoming listings with booking links.
+ * With `galleryView` on (image listing mode), the cards render as a
+ * product-card gallery instead of the classic text cards.
  */
 export const homepagePage = (
   listings: TicketListing[],
@@ -256,6 +343,7 @@ export const homepagePage = (
   soldOutPackageIds: ReadonlySet<number>,
   requestedDate: string | null,
   attributesByListing: ListingAttributesById,
+  galleryView = false,
 ): string => {
   const title = titleWithSiteName(t("terms.listings"), websiteTitle);
 
@@ -296,9 +384,10 @@ export const homepagePage = (
       ? keepTogether
       : partition((g: Group) => !soldOutPackageIds.has(g.id))
   )(packageGroups);
-  const listingCards = listings.map(
-    renderListingCard(childStateOf, dateFilter, attributesByListing),
-  );
+  const renderCard = galleryView
+    ? renderGalleryCard(childStateOf, dateFilter, attributesByListing)
+    : renderListingCard(childStateOf, dateFilter, attributesByListing);
+  const listingCards = listings.map(renderCard);
   const [availableCards, unavailableCards] = (
     requestedDate === null
       ? keepTogether
@@ -321,12 +410,24 @@ export const homepagePage = (
       </PackagesSection>
       <h2>{t("public.all_bookable_listings")}</h2>
       <Raw html={renderGroupCards(regularGroups)} />
-      <Raw html={cardsHtml(availableCards)} />
+      {galleryView ? (
+        <div class={CARD_GRID_CLASS}>
+          <Raw html={cardsHtml(availableCards)} />
+        </div>
+      ) : (
+        <Raw html={cardsHtml(availableCards)} />
+      )}
       {hasUnavailableSection && (
         <>
           <h2>{t("public.date_filter.unavailable_heading")}</h2>
           <Raw html={renderGroupCards(unavailablePackages)} />
-          <Raw html={cardsHtml(unavailableCards)} />
+          {galleryView ? (
+            <div class={CARD_GRID_CLASS}>
+              <Raw html={cardsHtml(unavailableCards)} />
+            </div>
+          ) : (
+            <Raw html={cardsHtml(unavailableCards)} />
+          )}
         </>
       )}
     </>,

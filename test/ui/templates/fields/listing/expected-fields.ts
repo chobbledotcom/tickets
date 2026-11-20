@@ -37,7 +37,7 @@ const INTERVAL_CHOICES = [
 /* jscpd:ignore-start -- a list of field records, not code */
 export const LISTING_FIELDS = [
   {
-    hint: "Displayed to attendees on the ticket page",
+    hint: "Displayed to buyers on the listing page",
     label: "Listing name",
     name: "name",
     placeholder: "Village Quiz Night",
@@ -46,7 +46,7 @@ export const LISTING_FIELDS = [
     type: "text",
   },
   {
-    hint: "Daily listings require attendees to select a specific date when booking",
+    hint: "Daily listings require buyers to select a specific date when booking",
     invalidMessage: "Listing type must be standard or daily.",
     label: "Listing type",
     name: "listingType",
@@ -64,7 +64,7 @@ export const LISTING_FIELDS = [
     type: "select",
   },
   {
-    hint: "Shown on the ticket page.",
+    hint: "Shown on the listing page.",
     label: "Description (optional)",
     name: "description",
     placeholder: "A short description of the listing",
@@ -79,7 +79,7 @@ export const LISTING_FIELDS = [
     type: "datetime",
   },
   {
-    hint: "Where the listing takes place. Shown on the ticket page.",
+    hint: "Where the listing takes place. Shown on the listing page.",
     label: "Location (optional)",
     name: "location",
     placeholder: "e.g. Village Hall, Main Street",
@@ -88,7 +88,7 @@ export const LISTING_FIELDS = [
   },
   {
     hint: "For daily listings, this limit applies per date",
-    label: "Max attendees",
+    label: "Max items",
     min: 1,
     name: "maxAttendees",
     required: true,
@@ -97,8 +97,8 @@ export const LISTING_FIELDS = [
   },
   {
     defaultValue: "1",
-    hint: "Maximum tickets a customer can buy in one transaction",
-    label: "Max tickets per purchase",
+    hint: "Maximum items a buyer can buy in one transaction",
+    label: "Max items per purchase",
     min: 1,
     name: "maxQuantity",
     required: true,
@@ -107,8 +107,8 @@ export const LISTING_FIELDS = [
   },
   {
     defaultValue: "1",
-    hint: "Minimum tickets a customer can buy in one transaction",
-    label: "Min tickets per purchase",
+    hint: "Minimum items a buyer can buy in one transaction",
+    label: "Min items per purchase",
     min: 1,
     name: "minQuantity",
     required: true,
@@ -125,7 +125,7 @@ export const LISTING_FIELDS = [
   },
   {
     defaultValue: "1",
-    hint: "How many days in advance attendees must book (0 = same day)",
+    hint: "How many days in advance buyers must book (0 = same day)",
     label: "Minimum days notice (for daily listings)",
     min: 0,
     name: "minimumDaysBefore",
@@ -135,7 +135,7 @@ export const LISTING_FIELDS = [
   },
   {
     defaultValue: "90",
-    hint: "How far into the future attendees can book (0 = no limit)",
+    hint: "How far into the future buyers can book (0 = no limit)",
     label: "Maximum days ahead (for daily listings)",
     min: 0,
     name: "maximumDaysAfter",
@@ -168,7 +168,7 @@ export const LISTING_FIELDS = [
     type: "checkbox-group",
   },
   {
-    hint: "Which contact details to collect from attendees",
+    hint: "Which contact details to collect from buyers",
     label: "Contact fields",
     name: "fields",
     options: [
@@ -194,23 +194,23 @@ export const LISTING_FIELDS = [
   },
   {
     inputmode: "decimal",
-    label: "Ticket price",
+    label: "Item price",
     name: "unitPrice",
     pattern: "\\d+(\\.\\d{1,2})?",
     placeholder: "e.g. 10.00",
     required: true,
-    requiredMessage: "Enter a ticket price. Type 0 for free.",
+    requiredMessage: "Enter a price for the item. Type 0 for free.",
     section: "tickets",
     title: "A non-negative number (e.g. 10.00)",
     type: "text",
   },
   {
-    hint: "Let attendees pay more than the ticket price (the price above becomes a minimum)",
+    hint: "Let buyers pay more than the item price (the price above becomes a minimum)",
     label: "Allow pay more",
     name: "canPayMore",
     options: [
       {
-        label: "Allow attendees to set their own price",
+        label: "Allow buyers to set their own price",
         value: "1",
       },
     ],
@@ -219,8 +219,8 @@ export const LISTING_FIELDS = [
   },
   {
     ...MONEY_TEXT,
-    hint: "Stripe charges this again each period, from one period after the first payment. VAT follows your tax settings. The first payment is the ticket price.",
-    label: "Recurring price (leave empty for an ordinary ticket)",
+    hint: "Stripe charges this again each period, from one period after the first payment. VAT follows your tax settings. The first payment is the item price.",
+    label: "Recurring price (leave empty for an ordinary item)",
     name: "recurringPrice",
     section: "tickets",
     visible: false,
@@ -236,7 +236,7 @@ export const LISTING_FIELDS = [
   },
   {
     defaultValue: "100.00",
-    hint: "The maximum price attendees can pay. Must be at least £1 more than the ticket price.",
+    hint: "The maximum price buyers can pay. Must be at least £1 more than the item price.",
     inputmode: "decimal",
     label: "Maximum price (for pay more)",
     name: "maxPrice",
@@ -264,7 +264,7 @@ export const LISTING_FIELDS = [
     type: "url",
   },
   {
-    hint: "Receives POST with attendee name, email, and phone on registration",
+    hint: "Receives POST with buyer name, email, and phone on registration",
     label: "Webhook URL (optional)",
     name: "webhookUrl",
     placeholder: "https://example.com/webhook",
@@ -273,8 +273,8 @@ export const LISTING_FIELDS = [
     visible: true,
   },
   {
-    hint: "Requires attendees to show ID matching the ticket name at entry",
-    label: "Non-transferable tickets",
+    hint: "Requires buyers to show ID matching the item name at entry",
+    label: "Non-transferable items",
     name: "nonTransferable",
     options: [
       {
@@ -330,7 +330,7 @@ export const LISTING_FIELDS = [
     type: "checkbox-group",
   },
   {
-    hint: "Handled by an agent at the customer's location. Attendees gain start and end agent selectors (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
+    hint: "Handled by an agent at the customer's location. Start and end agent selectors appear for buyers (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
     label: "Needs logistics",
     name: "usesLogistics",
     options: [
@@ -345,7 +345,7 @@ export const LISTING_FIELDS = [
   },
   {
     defaultValue: "0",
-    hint: "How many months one ticket buys. Leave 0 for non-renewal listings.",
+    hint: "How many months one item buys. Leave 0 for non-renewal listings.",
     label: "Months per unit (renewal tiers only)",
     max: 24,
     min: 0,

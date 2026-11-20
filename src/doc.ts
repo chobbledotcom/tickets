@@ -34,6 +34,9 @@
  * | [Webhooks](../docs/webhooks.ts) | Webhook delivery and API examples |
  * | [Demo](../docs/demo.ts) | Demo mode and seed data |
  *
+ * Read [the model walkthroughs](../models/index.html) for a plain-language
+ * explanation of each TLA safety model and its production code.
+ *
  * ## Deployment Options
  *
  * - Bunny Edge Scripting (edge-deployed)

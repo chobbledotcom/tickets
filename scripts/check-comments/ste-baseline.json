@@ -495,7 +495,7 @@
   },
   "src/shared/db/attendees/servicing.ts": {
     "banned-modal": 7,
-    "long-sentence": 18,
+    "long-sentence": 17,
     "semicolon": 6,
     "contraction": 6,
     "participle": 1
@@ -1229,8 +1229,8 @@
   },
   "src/shared/site-address.ts": {
     "semicolon": 1,
-    "long-sentence": 1,
-    "banned-modal": 1
+    "banned-modal": 1,
+    "long-sentence": 1
   },
   "src/shared/site-assignment.ts": {
     "semicolon": 6,
@@ -1507,7 +1507,6 @@
   },
   "src/ui/client/admin/markdown-preview.ts": {
     "long-sentence": 1,
-    "contraction": 1,
     "banned-modal": 1
   },
   "src/ui/client/admin/order-gallery.ts": {

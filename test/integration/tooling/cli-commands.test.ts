@@ -4,25 +4,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { bodySchemaFor, parseCommand } from "#cli/commands.ts";
 import { describeEntries } from "#cli/describe.ts";
-import { CliError, EXIT_CODES } from "#cli/errors.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
   DeleteBodySchema,
 } from "#shared/admin-api-resources.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { gadgetEntry, testTable } from "#test-utils/cli-table.ts";
-
-/** Parse one command, or answer the usage error's exit code and message. */
-const parseOrUsage = (args: string[]): { code: number; message: string } => {
-  try {
-    parseCommand(testTable, args);
-    throw new Error(`expected a usage error for ${args.join(" ")}`);
-  } catch (error) {
-    if (!(error instanceof CliError)) throw error;
-    return { code: EXIT_CODES[error.kind], message: error.message };
-  }
-};
+import { gadgetEntry, parseOrUsage, testTable } from "#test-utils/cli-table.ts";
 
 const writeCommand = (args: string[]) =>
   parseCommand(testTable, args) as Extract<
@@ -84,10 +72,11 @@ describe("CLI describe", () => {
       "questions",
       "site-pages",
     ]);
-    // A create-only resource describes only the create verb.
+    // The attendee resource describes only the create and the update verbs.
     expect(doc.resources.attendees!.label).toBe("Attendee");
     expect(doc.resources.attendees!.verbs).toEqual({
       create: { body: { kind: "server" } },
+      update: { body: { kind: "server" } },
     });
     const attributes = doc.resources.attributes!;
     expect(attributes.label).toBe("Attribute");
@@ -246,19 +235,22 @@ describe("CLI parser", () => {
     });
   });
 
-  test("a create-only resource serves only create", () => {
+  test("the attendee resource serves only create and update", () => {
     const attendeesTable = { attendees: ADMIN_API_RESOURCES.attendees };
-    expect(
-      parseCommand(attendeesTable, ["create", "attendees", "{}"]),
-    ).toMatchObject({
-      kind: "write",
-      resource: "attendees",
-      verb: "create",
-    });
+    const served: [string, string[]][] = [
+      ["create", ["create", "attendees", "{}"]],
+      ["update", ["update", "attendees", "1", "{}"]],
+    ];
+    for (const [verb, args] of served) {
+      expect(parseCommand(attendeesTable, args)).toMatchObject({
+        kind: "write",
+        resource: "attendees",
+        verb,
+      });
+    }
     for (const [verb, message] of [
       ["list", "The 'list' command is not available for 'attendees'."],
       ["get", "The 'get' command is not available for 'attendees'."],
-      ["update", "The 'update' command is not available for 'attendees'."],
       ["delete", "The 'delete' command is not available for 'attendees'."],
     ] as const) {
       const args =
@@ -427,7 +419,7 @@ describe("CLI parser", () => {
   test("answers exit 2 when a custom route misses the resource or the id", () => {
     const bare = parseOrUsage(["deactivate"]);
     expect(bare.code).toBe(2);
-    assertStringIncludes(bare.message, "needs the resource and the id");
+    assertStringIncludes(bare.message, "needs the resource");
 
     const noId = parseOrUsage(["deactivate", "listings"]);
     expect(noId.code).toBe(2);

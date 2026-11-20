@@ -199,7 +199,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
 
       await assertAdminHtml(
         `/admin/listing/${listing.id}/edit`,
-        "Non-transferable tickets",
+        "Non-transferable items",
         'value="1" selected',
       );
     });

@@ -6,6 +6,8 @@ import { isBuilderEnabled } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
+import type { ChosenImage } from "#shared/images/picker.ts";
+import { listingImagesEnabled } from "#shared/listing-image-field.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   inferTemplate,
@@ -25,7 +27,7 @@ import { ProseIntro } from "#templates/components/prose-intro.tsx";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 import {
   advancedSectionHasValues,
-  listingFormPageState,
+  listingFormState,
   TEMPLATE_SEEDS,
 } from "./form-sections.tsx";
 import {
@@ -75,7 +77,7 @@ const createListingFormPage = ({
   );
 
 const createListingPageFromForm = (
-  form: ReturnType<typeof listingFormPageState>,
+  form: ReturnType<typeof listingFormState>,
   session: AdminSession,
   template: ReturnType<typeof inferTemplate>,
   title: string,
@@ -221,12 +223,22 @@ export const adminListingPickerPage = (session: AdminSession): string => {
   );
 };
 
+/** The physical product and custom templates collect pictures while the
+ * listing is still new. The chosen images travel with the create and attach
+ * in the same write. */
+const newPageImages = (
+  templateId: string | null | undefined,
+  images: readonly ChosenImage[] | undefined,
+): readonly ChosenImage[] | undefined =>
+  listingImagesEnabled(templateId) ? (images ?? []) : undefined;
+
 export const adminListingNewPage = (
   groups: Group[],
   session: AdminSession,
   opts?: {
     customiseOpen?: boolean;
     error?: string;
+    images?: readonly ChosenImage[];
     templateId?: string | null;
     values?: FieldValues;
     selectedGroupIds?: number[];
@@ -236,18 +248,14 @@ export const adminListingNewPage = (
     error,
     templateId,
     customiseOpen = false,
+    images: submittedImages,
     values: submitted,
     selectedGroupIds = [],
   } = opts ?? {};
   const template =
     LISTING_TEMPLATES.find((tmpl) => tmpl.id === templateId) ?? null;
   const seeds = templateId ? (TEMPLATE_SEEDS[templateId] ?? {}) : {};
-  const form = listingFormPageState(
-    session,
-    groups,
-    selectedGroupIds,
-    !!template,
-  );
+  const form = listingFormState(session, groups, selectedGroupIds, template);
   const useDefaultsChecked = submitted
     ? submitted.useDefaults === "1"
     : form.showUseDefaults && !template;
@@ -256,6 +264,7 @@ export const adminListingNewPage = (
     : template
       ? seeds
       : { ...seeds, ...defaultsToFieldValues(form.defaults) };
+  const images = newPageImages(templateId, submittedImages);
   return createListingPageFromForm(
     form,
     session,
@@ -279,6 +288,7 @@ export const adminListingNewPage = (
           advancedOpen: !!error,
           customiseOpen,
           durationWarning: "",
+          ...(images === undefined ? {} : { images }),
           useDefaultsChecked,
           values: newValues,
         })}
@@ -297,13 +307,9 @@ export const adminDuplicateListingPage = (
   values.name = "";
   const builderEnabled = isBuilderEnabled();
   const template = inferTemplate(listing);
-  const form = listingFormPageState(
-    session,
-    groups,
-    selectedGroupIds,
-    !!template,
-    { nameAutofocus: true },
-  );
+  const form = listingFormState(session, groups, selectedGroupIds, template, {
+    nameAutofocus: true,
+  });
   return createListingPageFromForm(
     form,
     session,

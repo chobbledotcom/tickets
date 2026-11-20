@@ -19,6 +19,7 @@ const state = {
   expectedTax: '{"mode":"none"}',
   externalOrderEnabled: true,
   listingColumnOrder: "",
+  listingMode: "image",
   showPublicApi: true,
   siteFooter: "",
   taxMode: "none",

@@ -51,6 +51,7 @@ import { recordApi, recordJsonDeletePolicy } from "#shared/rest/record-api.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#types";
 import { handleCreateAttendee, toApiAttendee } from "./api-attendees.ts";
+import { handleUpdateAttendee } from "./api-attendees-update.ts";
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {
   type PreparedListingJoins,
@@ -235,6 +236,7 @@ const listingApiRoutes = recordApi<
 export const adminApiRoutes = {
   ...attendeeStatusApiRoutes,
   "POST /api/admin/attendees": handleCreateAttendee,
+  "PUT /api/admin/attendees/:attendeeId": handleUpdateAttendee,
   ...attributeApiRoutes,
   ...externalSourceApiRoutes,
   ...holidayApiRoutes,

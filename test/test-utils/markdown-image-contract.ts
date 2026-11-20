@@ -1,5 +1,5 @@
 /**
- * Shared page helpers for the image picker's browser contract: the dialog's
+ * Shared page helpers for the image picker's browser contract: the window's
  * selectors, its close waits, and the editor typing and focus probes.
  */
 
@@ -8,7 +8,7 @@ import type { Locator, Page } from "playwright";
 
 /* jscpd:ignore-start -- a list of strings, not code */
 export const EDITOR_BUTTON = ".md-toolbar-image";
-export const DIALOG = ".md-image-dialog";
+export const DIALOG = 'dialog.admin-modal[data-modal-key^="image-picker:"]';
 export const OPTION = ".md-image-option";
 export const NOTE = ".md-image-note";
 export const THUMBNAIL = ".md-image-option img";
@@ -16,17 +16,17 @@ export const CONTENT_BOX = 'textarea[name="content"]';
 export const EMPTY_MESSAGE = "No images yet.";
 /* jscpd:ignore-end */
 
-/** Waits for the image dialog to be closed, whatever closed it. */
+/** Waits for the image window to be closed, whatever closed it. A closed
+ * window leaves the page. */
 export const waitForDialogClosed = async (page: Page): Promise<void> => {
   await page.waitForFunction(
-    () =>
-      (document.querySelector(".md-image-dialog") as HTMLDialogElement)
-        ?.open === false,
+    (selector) => document.querySelector(selector) === null,
+    DIALOG,
   );
 };
 
-/** Asserts the editor body holds focus again, the way the native dialog
- * close hands it back. */
+/** Asserts the editor body holds focus again, the way the window's close
+ * hands it back. */
 export const expectFocusBackInEditor = async (page: Page): Promise<void> => {
   expect(
     await page.evaluate(
@@ -57,7 +57,7 @@ export const typeIntoEditorBody = async (
   await page.keyboard.type(text);
 };
 
-/** Dismisses the open dialog with `dismiss` and waits for it to shut. */
+/** Dismisses the open window with `dismiss` and waits for it to shut. */
 export const expectDialogClosesWhen = async (
   page: Page,
   dismiss: (page: Page) => Promise<void>,

@@ -27,6 +27,9 @@ export type TicketCard = {
   /** The card's share of its order's modifiers. Absent when none changed the
    *  order's price. */
   modifiers?: readonly ModifierLine[];
+  /** The card's share of the tax its order adds to the total, in pennies.
+   *  Absent when the order added none. */
+  tax?: number;
 };
 
 /** True when every card is a purchase-only listing (no admission ticket). */
@@ -66,21 +69,32 @@ const optionalHtml = <T,>(
   render: (v: T) => string,
 ): string => (value ? render(value) : "");
 
-/** One row per modifier that changed this card's price, with its signed amount,
- *  then the total those rows reach. The card shows neither when no modifier
- *  changed the price. */
-const renderModifiers = (
+/** Render the rows below the price line: one per modifier with its signed
+ *  amount, the tax that the order added, and the total. A card with no
+ *  modifier and no tax shows none of them. */
+const renderPriceAdjustments = (
   modifiers: readonly ModifierLine[],
+  tax: number,
   pricePaid: number,
 ): string => {
-  if (modifiers.length === 0) return "";
+  if (modifiers.length === 0 && tax === 0) return "";
   const rows = modifiers.map(
     (modifier) =>
       `<li>${escapeHtml(modifier.name)} <span class="ticket-card-modifier-amount">${escapeHtml(formatSignedCurrency(modifier.amount))}</span></li>`,
   );
-  const total = pricePaid + sumOf((m: ModifierLine) => m.amount)(modifiers);
+  const modifiersHtml =
+    rows.length > 0
+      ? `<ul class="ticket-card-modifiers">${rows.join("")}</ul>`
+      : "";
+  const taxHtml =
+    tax > 0
+      ? `<div class="ticket-card-tax">${t("tickets.tax")} ${escapeHtml(formatCurrency(tax))}</div>`
+      : "";
+  const total =
+    pricePaid + sumOf((m: ModifierLine) => m.amount)(modifiers) + tax;
   return (
-    `<ul class="ticket-card-modifiers">${rows.join("")}</ul>` +
+    modifiersHtml +
+    taxHtml +
     `<div class="ticket-card-total"><strong>${t("tickets.total")}</strong> ${escapeHtml(formatCurrency(total))}</div>`
   );
 };
@@ -233,7 +247,11 @@ const renderTicketCard = (
   );
 
   const modifiers = card.modifiers ?? [];
-  const modifiersHtml = renderModifiers(modifiers, pricePaid);
+  const adjustmentsHtml = renderPriceAdjustments(
+    modifiers,
+    card.tax ?? 0,
+    pricePaid,
+  );
 
   const nonTransferableHtml =
     listing.nonTransferable && !listing.purchaseOnly
@@ -266,7 +284,7 @@ const renderTicketCard = (
       ${attendeeDateHtml}
       <div class="ticket-card-quantity">${t("tickets.quantity")} ${attendee.quantity}</div>
       ${priceHtml}
-      ${modifiersHtml}
+      ${adjustmentsHtml}
       ${attachmentHtml}
       ${renderQrBlock(token, listing.purchaseOnly)}
       ${walletHtml}

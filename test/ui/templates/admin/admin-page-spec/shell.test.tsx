@@ -90,6 +90,13 @@ describe("the admin page shell", () => {
     ]);
     expect(pickerTemplates(withStorageDisabled(page))).toEqual([]);
   });
+
+  test("carries the shared modal and preview templates", () => {
+    expectIncludesAll(page(), [
+      '<template id="admin-modal">',
+      '<template id="markdown-preview">',
+    ]);
+  });
 });
 
 describe("rendering an admin page to a string", () => {

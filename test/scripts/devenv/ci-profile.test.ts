@@ -71,7 +71,7 @@ describe("CI devenv profile", () => {
           count(text, /uses: (?:\$|\.)\/\.github\/actions\/setup-devenv\n/g) !==
             count(
               text,
-              /setup-devenv\n\s+with:\n(\s+install_dependencies: .*\n)?\s+profile: (ci|browser)\n/g,
+              /setup-devenv\n\s+with:\n(\s+install_dependencies: .*\n)?\s+profile: (ci|browser|models)\n/g,
             ),
       )
       .map(({ name }) => name);

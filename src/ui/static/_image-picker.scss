@@ -1,0 +1,98 @@
+/* The shared image picker's layout, and the new-listing form's chosen-picture
+ * list. The picker shows in the shared admin modal. */
+
+@use "mixins" as *;
+
+/* The picker's window is wider than the default. A phone or a coarse pointer
+ * keeps the shell's full-screen shape, so this rule stops short of them. */
+@media (min-width: 769px) and (pointer: fine) {
+  .admin-modal:has(.md-image-picker) {
+    width: min(100% - 2 * var(--space-lg), 60rem);
+  }
+}
+
+.md-image-columns {
+  display: grid;
+  gap: var(--space-m);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 0;
+}
+
+.md-image-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  min-height: 0;
+}
+
+.md-image-picker .md-image-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.md-image-picker .md-image-upload {
+  margin-top: 0;
+}
+
+.md-image-picker .md-image-option[aria-pressed="true"] {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-link);
+  outline: 2px solid var(--color-link);
+  outline-offset: 2px;
+}
+
+.md-image-picker [data-note="loadFailed"],
+.md-image-picker [data-note="uploadFailed"] {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.md-image-upload textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+  width: 100%;
+}
+
+@media (max-width: 48rem) {
+  .md-image-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The new physical-product and custom listing's chosen pictures. */
+.listing-images-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  list-style: none;
+  margin: 0;
+  padding: var(--space-s) 0;
+}
+
+.listing-images-item {
+  @include panel-border;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-s);
+  padding: var(--space-s);
+}
+
+.listing-images-item img {
+  width: 8rem;
+  aspect-ratio: 1;
+  border-radius: var(--border-radius);
+  object-fit: cover;
+}
+
+.listing-images-remove {
+  width: auto;
+  padding: 0.2rem 0.5rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.listing-images [data-listing-images-trigger] {
+  margin-top: var(--space-m);
+}

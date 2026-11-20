@@ -98,7 +98,7 @@ const toLedgerOrder = (lines: ApiLine[]): PricedOrder =>
 /** The parsed answers reduced to the shape the answer save prepares: the
  *  chosen option ids and the free-text answers. A choice entry's question is
  *  implied by its answer. The question ids ride on the free-text entries. */
-const toAnswerSet = (answers: ApiAnswer[]): AttendeeAnswerSet => {
+export const toAnswerSet = (answers: ApiAnswer[]): AttendeeAnswerSet => {
   const answerIds: number[] = [];
   const textAnswers: TextAnswer[] = [];
   for (const answer of answers) {

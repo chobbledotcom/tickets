@@ -2,8 +2,10 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
-import { t } from "#i18n";
-import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
+import {
+  adminDuplicateListingPage,
+  adminListingNewPage,
+} from "#templates/admin/listings/form-pages.tsx";
 import {
   editPanelHtml,
   registerListingTemplateHooks,
@@ -44,8 +46,8 @@ describe("adminListingNewPage", () => {
       'name="maxAttendees"',
       'name="thankYouUrl"',
       'name="unitPrice"',
-      // The shared form keeps the site's own ticket wording on every install.
-      t("fields.listing.price"),
+      // The generic form uses the neutral item vocabulary.
+      "Item price",
     ]);
   });
 
@@ -81,6 +83,87 @@ describe("adminListingNewPage", () => {
       error: "Something went wrong",
     });
     assertStringIncludes(html, "Something went wrong");
+  });
+
+  test("uses each template's vocabulary", () => {
+    const cases = [
+      {
+        copy: [
+          "Items &amp; Pricing",
+          "Item price",
+          "Max items per purchase",
+          "Displayed to buyers on the listing page",
+        ],
+        templateId: "physical-product",
+      },
+      {
+        copy: [
+          "Tickets &amp; Pricing",
+          "Ticket price",
+          "Max tickets per purchase",
+          "Displayed to attendees on the ticket page",
+        ],
+        templateId: "one-off-event",
+      },
+      {
+        copy: [
+          "Donations &amp; Pricing",
+          "Donation price",
+          "Max donations per purchase",
+          "Displayed to donors on the listing page",
+        ],
+        templateId: "donation",
+      },
+      {
+        copy: [
+          "Items &amp; Pricing",
+          "Item price",
+          "Max items per purchase",
+          "Displayed to customers on the listing page",
+        ],
+        templateId: "hireable-item",
+      },
+      {
+        copy: [
+          "Subscriptions &amp; Pricing",
+          "Subscription price",
+          "Max subscriptions per purchase",
+          "Displayed to subscribers on the listing page",
+        ],
+        templateId: "subscription",
+      },
+      { copy: ["Items &amp; Pricing", "Item price"], templateId: "custom" },
+    ];
+
+    for (const { copy, templateId } of cases) {
+      const html = newPageFor(templateId);
+      expectIncludesAll(html, copy);
+      if (templateId === "physical-product") {
+        assert(!html.includes("Tickets &amp; Pricing"));
+      }
+    }
+  });
+
+  test("uses the inferred vocabulary on a duplicate form", () => {
+    const html = adminDuplicateListingPage(
+      testListingWithCount({ purchaseOnly: true }),
+      [],
+      OWNER_SESSION,
+    );
+
+    expectIncludesAll(html, ["Items &amp; Pricing", "Item price"]);
+  });
+
+  test("uses the inferred vocabulary on an edit form", () => {
+    const itemHtml = editPanelHtml(
+      testListingWithCount({ purchaseOnly: true }),
+    );
+    expectIncludesAll(itemHtml, ["Items &amp; Pricing", "Item price"]);
+
+    const ticketHtml = editPanelHtml(
+      testListingWithCount({ listingType: "daily" }),
+    );
+    expectIncludesAll(ticketHtml, ["Tickets &amp; Pricing", "Ticket price"]);
   });
 
   const TEMPLATE_CLASSES = [

@@ -1,5 +1,5 @@
 /**
- * The image picker dialog's upload flow
+ * The image picker window's upload flow
  * (`src/ui/client/admin/markdown-editor-images.ts`): the inline form, the
  * multipart POST to the images route, and the insert that follows a
  * successful upload.
@@ -8,9 +8,10 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { requireElement } from "#test-utils/happy-dom.ts";
+import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import { cleanup, PICKER_CSRF_TOKEN } from "#test-utils/markdown-editor-dom.ts";
 import {
+  closeControl,
   expectGridMessage,
   fetchStubHolder,
   finishUpload,
@@ -54,8 +55,8 @@ describe("the image picker dialog", () => {
   test("keeps the upload's submit away from the page form", async () => {
     await withUploadFlow(
       async ({ dialog, handle, textarea, window }, flushSelection) => {
-        // The dialog sits inside the page form, so an unstopped submit
-        // bubbles up and the page form sees it too.
+        // The window sits on the page, outside the page form, so the page
+        // form never sees the picker's submit.
         const pageForm = requireElement<HTMLFormElement>(
           window.document,
           'form[action="/admin/pages/1/edit"]',
@@ -203,6 +204,34 @@ describe("the image picker dialog", () => {
           form.querySelector<HTMLButtonElement>('button[type="submit"]')!
             .disabled,
         ).toBe(false);
+      },
+    );
+  });
+
+  test("keeps the window open while an upload is in flight", async () => {
+    const { promise: upload, resolve: resolveUpload } =
+      Promise.withResolvers<Response>();
+    await withDialogClock(
+      [twoImageList(), () => upload],
+      { form: true, value: "" },
+      async ({ dialog, handle, textarea, window }, flushSelection) => {
+        await submitUpload(dialog, "Harbour");
+
+        closeControl(dialog).click();
+        expect(dialog.open).toBe(true);
+        fireEvent(
+          dialog,
+          new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+        );
+        expect(dialog.open).toBe(true);
+
+        resolveUpload(redirected("/admin/images/12/edit"));
+        await flush();
+
+        expect(dialog.open).toBe(false);
+        expect(textarea.value).toContain("img#12");
+        handle.view.destroy();
+        await flushSelection();
       },
     );
   });

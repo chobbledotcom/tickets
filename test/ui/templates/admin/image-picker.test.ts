@@ -45,10 +45,13 @@ describe("the image picker template", () => {
     );
 
     const textInputs = inputsOf(html).filter(({ type }) => type === "text");
-    expect(textInputs.map(({ value }) => value)).toEqual([null, null]);
+    expect(textInputs.map(({ value }) => value)).toEqual([null]);
+    const textarea =
+      /<textarea[^>]*name="altText"[^>]*>([\s\S]*?)<\/textarea>/.exec(html);
+    expect(textarea?.[1]).toBe("");
   });
 
-  test("the upload form carries the images area's fields", () => {
+  test("the picker's upload form carries its own fields", () => {
     const fields = inputsOf(String(ImagePickerTemplate())).map(
       ({ name, required, type }) => ({ name, required, type }),
     );
@@ -56,18 +59,26 @@ describe("the image picker template", () => {
     expect(fields).toEqual([
       { name: "csrfToken", required: false, type: "hidden" },
       { name: "name", required: true, type: "text" },
-      { name: "altText", required: false, type: "text" },
       { name: "image", required: false, type: "file" },
     ]);
+    expect(
+      /<textarea[^>]*name="altText"[^>]*><\/textarea>/.test(
+        String(ImagePickerTemplate()),
+      ),
+    ).toBe(true);
   });
 
-  test("the dialog carries the parts that the browser wires", () => {
-    // The editor finds the close button and the grid by these classes.
-    expectIncludesAll(String(ImagePickerTemplate()), [
-      '<dialog class="md-image-dialog">',
-      'class="md-preview-close"',
+  test("the picker carries the parts that the browser wires", () => {
+    // The browser finds the title, the picker, and the grid by these marks.
+    // The window around the picker is the shared admin modal, so the picker
+    // holds no dialog and no close control of its own.
+    const html = String(ImagePickerTemplate());
+    expectIncludesAll(html, [
+      '<span data-copy="title">Choose an image</span>',
+      '<div class="md-image-picker">',
       '<div class="md-image-grid"></div>',
     ]);
+    expect(html).not.toContain("<dialog");
   });
 
   test("the picker carries one note for each grid state", () => {
@@ -80,6 +91,7 @@ describe("the image picker template", () => {
     expect(notes).toEqual([
       ["empty", "No images yet."],
       ["loading", "Loading…"],
+      ["loadFailed", "The image library could not load. Please try again."],
       ["uploadFailed", "The image could not be uploaded. Please try again."],
     ]);
   });

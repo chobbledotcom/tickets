@@ -23,6 +23,39 @@ export type TemplateId =
   | "subscription"
   | "weekly-event";
 
+/** The words a listing form uses for the thing it sells and the person who
+ *  buys it. Templates with the same vocabulary share one context. */
+export type ListingCopyContext =
+  | "donation"
+  | "hire"
+  | "item"
+  | "subscription"
+  | "ticket";
+
+const COPY_CONTEXT_BY_TEMPLATE: Record<
+  TemplateId | "custom",
+  ListingCopyContext
+> = {
+  custom: "item",
+  "day-pass": "ticket",
+  donation: "donation",
+  "hireable-item": "hire",
+  "one-off-event": "ticket",
+  "online-digital": "item",
+  "physical-product": "item",
+  subscription: "subscription",
+  "weekly-event": "ticket",
+};
+
+/** The form vocabulary for a template. An unknown or absent template uses the
+ *  neutral item vocabulary, which also covers the Custom form. */
+export const listingCopyContext = (
+  templateId: string | null | undefined,
+): ListingCopyContext =>
+  templateId === null || templateId === undefined
+    ? "item"
+    : (COPY_CONTEXT_BY_TEMPLATE[templateId as TemplateId | "custom"] ?? "item");
+
 /** A site feature that a template needs before the picker offers it. */
 export type TemplateRequirement = "logistics" | "subscriptions";
 
@@ -171,6 +204,34 @@ export const inferTemplate = (
   LISTING_TEMPLATES.find((tmpl) =>
     matchesSignature(tmpl.signature, dimensionsOf(source)),
   ) ?? null;
+
+/** The new-listing forms that collect pictures before the listing exists.
+ *  The custom form shows every option, so it collects pictures too. */
+const IMAGE_TEMPLATES: Record<TemplateId | "custom", boolean> = {
+  custom: true,
+  "day-pass": false,
+  donation: false,
+  "hireable-item": false,
+  "one-off-event": false,
+  "online-digital": false,
+  "physical-product": true,
+  subscription: false,
+  "weekly-event": false,
+};
+
+/** Whether a template id names a form that collects pictures. */
+const isImageTemplate = (
+  templateId: string,
+): templateId is TemplateId | "custom" =>
+  Object.hasOwn(IMAGE_TEMPLATES, templateId);
+
+export const newListingCollectsImages = (
+  templateId: string | null | undefined,
+): boolean =>
+  templateId !== null &&
+  templateId !== undefined &&
+  isImageTemplate(templateId) &&
+  IMAGE_TEMPLATES[templateId];
 
 /**
  * Both halves of the condition are needed. The template choice alone would

@@ -100,7 +100,11 @@ export const createItemImageHandlers = <T>(
       );
   const setItem = itemAction(
     async (form: FormParams, item: T, itemId: number) => {
-      await setImagesForItem(config.itemType, itemId, selectedImageIds(form));
+      await setImagesForItem({
+        imageIds: selectedImageIds(form),
+        itemId,
+        itemType: config.itemType,
+      });
       await logActivity(
         `Images updated for ${config.itemType} '${config.nameOf(item)}'`,
       );

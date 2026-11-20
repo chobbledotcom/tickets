@@ -26,7 +26,7 @@
   "guide.q.custom_redirect_after_booking": "How do I send people to my own page after booking?",
   "guide.a.custom_redirect_after_booking": "<p>When you create or edit a listing, enter an address in the &quot;thank you URL&quot; field. After a booking or payment finishes, attendees go to that address instead of the usual confirmation page.</p><p>The address must start with <code>https://</code>, or be a path starting with <code>/</code>.</p>",
   "guide.q.add_listing_image": "How do I add an image to a listing?",
-  "guide.a.add_listing_image": "<p>When you create or edit a listing, use the image upload field to attach a picture. It appears on the booking page and in the public listings list. You can use JPEG, PNG, and WebP pictures.</p>",
+  "guide.a.add_listing_image": "<p>On a new physical product or custom listing, use the Images section to choose pictures from your image library or upload new ones. For any listing, open it and use the Images tab to choose the pictures buyers see. You can use JPEG, PNG, and WebP pictures.</p>",
   "guide.q.add_file_attachment": "How do I add a file to a listing?",
   "guide.q.listing_qr_code": "Where can I find the listing QR code?",
   "guide.a.listing_qr_code": "<p>On the listing's page, click the <strong>QR code</strong> link next to the public address. It opens a picture of the QR code that links to your booking page. Save it or print it for posters and flyers.</p>",

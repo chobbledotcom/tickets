@@ -396,24 +396,22 @@ const desiredLines = (
 };
 
 /** Rebuild the desired-line set from an attendee's current booking rows. Used to
- *  restore the prior state when a post-edit side effect fails — every line
- *  carries its existing key + slot so the atomic edit treats it as a
- *  preserve-style re-apply. */
-const desiredLinesFromExisting = (
+ *  restore the prior state when a post-edit side effect fails, and to keep an
+ *  attendee's lines when an edit names none. Every line carries its existing
+ *  key + slot so the atomic edit treats it as a preserve-style re-apply. */
+export const desiredLinesFromExisting = (
   existing: ExistingLine[],
 ): DesiredListingLine[] =>
-  existing.map(({ key, booking }) => {
-    let date: string | null = null;
-    if (booking.start_at) date = booking.start_at.slice(0, 10);
-    return {
-      date,
-      durationDays: durationDaysFromRow(booking) ?? 1,
-      exists: true,
-      key,
-      listingId: booking.listing_id,
-      quantity: booking.quantity,
-    };
-  });
+  existing.map(({ key, booking }) => ({
+    date: booking.start_at?.slice(0, 10) ?? null,
+    durationDays: durationDaysFromRow(booking) ?? 1,
+    exists: true,
+    key,
+    listingId: booking.listing_id,
+    packageGroupId: booking.package_group_id,
+    parentListingId: booking.parent_listing_id,
+    quantity: booking.quantity,
+  }));
 
 /** The encrypted PII blob a service event stores: its name only, every
  *  customer-only field empty. The single source of the "servicing owns no

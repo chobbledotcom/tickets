@@ -49,6 +49,7 @@ export const MESSAGE_GROUPS = [
   "login",
   "logistics",
   "migrate",
+  "modal",
   "modifiers",
   "nav",
   "news",

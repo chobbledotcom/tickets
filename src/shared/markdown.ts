@@ -230,8 +230,14 @@ const rewriteChildren = (
   );
 };
 
+/** Every cell of a table, header first, in source order. */
+export const tableCells = (token: Tokens.Table): Tokens.TableCell[] => [
+  ...token.header,
+  ...token.rows.flat(),
+];
+
 const rewriteTable = (token: Tokens.Table, rewrites: TokenRewrites): string => {
-  const cells = [...token.header, ...token.rows.flat()];
+  const cells = tableCells(token);
   const parts = locateSourceParts(token.raw, cells, (cell) => cell.text);
   // Marked normalizes escaped pipes (`\|` → `|`) in cell.text, so a cell whose
   // source has an escaped pipe won't be found in token.raw. Skip those cells
@@ -245,14 +251,14 @@ const rewriteTable = (token: Tokens.Table, rewrites: TokenRewrites): string => {
   );
 };
 
-const isTableToken = (token: Token): token is Tokens.Table =>
+export const isTableToken = (token: Token): token is Tokens.Table =>
   token.type === "table" && "header" in token && "rows" in token;
 
-const childTokens = (token: Token): readonly Token[] => {
+/** The tokens inside one token: a table's cell tokens, or the inline tokens a
+ * block or a span holds. A list holds items, not tokens, so it gives none. */
+export const childTokens = (token: Token): readonly Token[] => {
   if (isTableToken(token)) {
-    return [...token.header, ...token.rows.flat()].flatMap(
-      (cell) => cell.tokens,
-    );
+    return tableCells(token).flatMap((cell) => cell.tokens);
   }
   return "tokens" in token && Array.isArray(token.tokens) ? token.tokens : [];
 };

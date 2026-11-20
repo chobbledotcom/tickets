@@ -314,28 +314,6 @@
     },
     {
       "path": [
-        { "name": "StripeCheckoutLineItemParams" },
-        { "name": "price_data" },
-        { "name": "recurring" }
-      ],
-      "kind": "provider-input",
-      "evidence": "createStripeRequest serialises the complete Stripe request"
-    },
-    {
-      "path": [{ "name": "StripeCheckoutSessionCreateParams" }],
-      "kind": "provider-input",
-      "evidence": "createStripeRequest serialises the complete Stripe request"
-    },
-    {
-      "path": [
-        { "name": "StripeCheckoutSessionCreateParams" },
-        { "name": "subscription_data" }
-      ],
-      "kind": "provider-input",
-      "evidence": "createStripeRequest serialises the complete Stripe request"
-    },
-    {
-      "path": [
         { "name": "StripeClient" },
         { "name": "refunds" },
         { "name": "create" },
@@ -391,6 +369,13 @@
       "path": [{ "name": "SettingsPageState" }],
       "kind": "schema-driven",
       "evidence": "settingsForm reads state fields through each form definition"
+    }
+  ],
+  "src/ui/templates/fields/listing-copy.ts": [
+    {
+      "path": [{ "name": "ListingCopy" }],
+      "kind": "dynamic-read",
+      "evidence": "listingFormView passes the copy to t as ICU values, and t reads each field by its template placeholder name"
     }
   ]
 }

@@ -16,6 +16,7 @@ import {
   type AdminApiDeleteAnswer,
   type AdminApiDeleteBody,
   type AdminApiResource,
+  adminApiCustomRouteTakesId,
   adminApiIdParam,
   DeleteAnswerSchema,
 } from "#shared/admin-api-resources.ts";
@@ -304,23 +305,37 @@ export const adminApiChildCreate = async <
   ) as Promise<v.InferOutput<E["children"][K]["responseSchema"]>>;
 
 /** One server-side custom route: the table's method and subpath, the id
- *  substituted for the resource's id param. The table declares no response
- *  schema for a custom route, so the answer passes through unvalidated. */
+ *  substituted for the resource's id param, and the query parameters a filter
+ *  route reads (`external_id`, `link_type`). A route whose subpath has no id
+ *  param takes no id. The table declares no response schema for a custom
+ *  route, so the answer passes through unvalidated. */
 export const adminApiCustomRoute = async <E extends AdminApiResource>(
   transport: AdminApiTransport,
   entry: E,
   routeKey: string,
-  id: number,
+  id: number | undefined,
+  query: Readonly<Record<string, string>> = {},
 ): Promise<unknown> => {
   const route = entry.custom?.[routeKey];
   if (!route) {
     throw new Error(`admin api ${entry.path} has no ${routeKey} custom route`);
   }
+  if (adminApiCustomRouteTakesId(entry, route) !== (id !== undefined)) {
+    throw new Error(
+      `admin api ${entry.path} ${routeKey} custom route ${
+        id === undefined ? "needs" : "takes no"
+      } id`,
+    );
+  }
+  const queryString = new URLSearchParams(query).toString();
+  const subpath = route.subpath.replace(
+    `:${adminApiIdParam(entry.label)}`,
+    String(id),
+  );
   return request(transport, entry.path, v.unknown(), {
     method: route.method,
-    path: `/api/admin/${entry.path}/${route.subpath.replace(
-      `:${adminApiIdParam(entry.label)}`,
-      String(id),
-    )}`,
+    path: `/api/admin/${entry.path}/${subpath}${
+      queryString === "" ? "" : `?${queryString}`
+    }`,
   });
 };

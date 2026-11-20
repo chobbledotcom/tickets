@@ -1,5 +1,5 @@
 --------------------------- MODULE PaymentReview ---------------------------
-EXTENDS ModelRules, PaymentReviewData
+EXTENDS Apalache, ModelRules, PaymentReviewData
 
 \* /\ requires both conditions. \in means set membership. \E selects at
 \* least one supplied example. IF/THEN/ELSE chooses the applicable condition.
@@ -133,8 +133,8 @@ Safety == TypeOK /\ allAttemptsSafe
 
 \* Start with no review and no failed attempt. No actual database row is created.
 Init ==
-  /\ reviewState = "none"
-  /\ allAttemptsSafe = TRUE
+  /\ reviewState := "none"
+  /\ allAttemptsSafe := TRUE
 
 \* Select any fact at the current state. AttemptedEdge applies its target and
 \* retains SafeAttempt through ModelRules, even when that verdict is false.

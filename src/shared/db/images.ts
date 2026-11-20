@@ -7,6 +7,7 @@ import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { removalWithChildren, targetRowsRemoval } from "#db/child-rows.ts";
 import {
   executeBatch,
+  queryAllPrimary,
   resultRows,
   type TxScope,
   useTransaction,
@@ -41,6 +42,7 @@ import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom, insertInto } from "#db/write.ts";
 import { groupToMap, unique } from "#fp";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
+import type { PickerImage } from "#shared/images/picker.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -145,6 +147,30 @@ const imageFileColumns = columnsNamed([
   "filenameThumb",
   "id",
 ]);
+
+/** The stored images with these ids, in the given order. An id the library
+ *  lacks is left out. The read uses the primary because the form can name an
+ *  image that a previous request uploaded. */
+export const getImagesByIds = async (
+  ids: readonly number[],
+): Promise<PickerImage[]> => {
+  const wanted = unique([...ids]);
+  if (wanted.length === 0) return [];
+  const rows = await queryAllPrimary(
+    from(tables.images)
+      .where((image) => among(image.id, wanted))
+      .select((image) => ({
+        filenameThumb: image.filenameThumb,
+        id: image.id,
+        name: image.name,
+      })),
+  );
+  const byId = new Map(rows.map((image) => [image.id, image]));
+  return wanted.flatMap((id) => {
+    const image = byId.get(id);
+    return image === undefined ? [] : [image];
+  });
+};
 
 /** The images attached to one item, in the order the operator arranged them.
  * Both image reads below want the same rows and differ only in which columns
@@ -283,19 +309,36 @@ export const clearImageUsesForItemStatement = targetRowsRemoval(
   imageUseTargets,
 );
 
-export const setImagesForItem = (
-  itemType: ImageUseItemType,
-  itemId: number,
-  imageIds: readonly number[],
-): Promise<void> => {
+/** One record's full image selection, and the transaction to write it in. */
+export type ImageItemWrite = {
+  imageIds: readonly number[];
+  itemId: number;
+  itemType: ImageUseItemType;
+  transaction?: TxScope;
+};
+
+/** Set one record's images to exactly the given ids. A link lands only while
+ *  its image and record still exist. Pass an open transaction so the links
+ *  commit with the write that owns the record. */
+export const setImagesForItem = async ({
+  imageIds,
+  itemId,
+  itemType,
+  transaction,
+}: ImageItemWrite): Promise<void> => {
   const target = imageUseTargets.of(itemType)(itemId);
-  const uniqueIds = [...new Set(imageIds)];
-  return executeBatch([
+  const uniqueIds = unique([...imageIds]);
+  const statements = [
     clearImageUsesForItemStatement(target),
     ...uniqueIds.map((imageId, index) =>
       linkImageStatement(imageId, target, index),
     ),
-  ]);
+  ];
+  if (transaction === undefined) {
+    await executeBatch(statements);
+    return;
+  }
+  await transaction.batch(statements);
 };
 
 export const appendImageToItem = (

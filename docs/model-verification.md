@@ -4,6 +4,32 @@ Use this guide when you add or review a model under `verification/`.
 A model checks a stated abstract system. It does not prove the whole application.
 Keep the claim, the source evidence, and the limits together in the review.
 
+## Read a walkthrough before the formal model
+
+The generator writes one page for each maintained module.
+A page uses everyday words.
+It names the model rules and the production TypeScript declarations that supply
+the facts.
+It also shows the example values.
+
+Do not edit a generated page.
+The page comes from a guide under `scripts/model-guides/guides/`.
+Run `deno task model-guides` to write the pages to `docs-output/models/` for a
+local preview.
+The GitHub Pages build publishes the same pages at
+[`/models/`](https://chobbledotcom.github.io/tickets/models/).
+
+`deno task check:model-guides` fails when:
+
+- a guide names a rule or a declaration that no longer exists.
+- a rule has no step.
+- a guide names a production file outside the model's review context.
+
+Repair a finding in this order.
+First read the changed rule or declaration.
+Then update the guide.
+Then run `deno task model-guides` to review the page.
+
 ## State the claim before you write the model
 
 Write down:
@@ -82,6 +108,21 @@ A model must not claim that a safety check establishes eventual completion.
 A selected finite domain does not establish the claim for all production inputs.
 Generated decision facts do not establish database atomicity, provider truth, or race safety by themselves.
 
+## Write assignments and actions clearly
+
+Extend `Apalache`. Write each deterministic state update as `x' := e`.
+For a nondeterministic update, write `\E v \in S: x' := v`.
+Keep every permitted choice in `S`. Write `x := e` in `Init`.
+Use `UNCHANGED` for a value that does not change.
+
+Prefer separate actions to an `IF-THEN-ELSE` that selects an action.
+Keep each branch condition as an explicit guard.
+For `IF C THEN A ELSE B`, preserve `(C /\ A) \/ (~C /\ B)`.
+For nested branches, retain every condition that earlier branches exclude.
+Join the actions with `\/`. Do not add or remove permitted transitions.
+An `IF-THEN-ELSE` can still compute a value or a state predicate.
+Keep dependent conditions together when separate actions obscure their meaning.
+
 ## Build facts that can expose a fault
 
 Execute the production decision or transition. Preserve refused outcomes as
@@ -150,6 +191,32 @@ transition. Model-level fact corruption checks whether the invariant detects a
 bad fact. Producer-level fault injection checks whether a production defect
 reaches the facts at all. Use both where that boundary matters.
 
+### Reduce a step control to the facts that its law reads
+
+The work of the checker grows with every fact in its input. A step law reads
+few facts. A step control on the complete facts uses most of its time on facts
+that the law does not read. A reduced control keeps only these facts:
+
+- the facts that the fault changes
+- the facts in other tables that the law of those facts reads
+- the facts that give the step a start state
+
+A reduced control has two checks:
+
+- The scope check gives the checker the kept facts before the fault. The
+  checker must accept them.
+- The control check gives the checker the same facts with the fault. The checker
+  must produce an invariant violation and a trace.
+
+The scope check shows that the reduction breaks no law. Thus the fault is the
+cause of the violation. If the kept facts give the step no start state, the
+control check finds no violation, and the run fails.
+
+A reduced control shows that the law refuses the fault. It does not show that
+the checker finds the fault among the complete facts. Keep one step control on
+the complete facts in each model for that evidence. Do not reduce an initial
+control or a control that removes a fact. Coverage reads the complete facts.
+
 These checks concern safety: something bad does not happen. They do not establish
 liveness: work eventually runs, retries eventually finish, or a provider replies.
 A liveness claim needs explicit scheduling and fairness assumptions and a
@@ -157,19 +224,45 @@ separate suitable check. Lease expiry does not cancel a request in flight.
 
 ## Execute checks within machine resources
 
-The runner prepares all clean and corrupted facts in registry order.
-It never overlaps data producers, because some producers replace shared database state.
+The runner prepares the facts of each model in a separate process with
+`--expose-gc`. Thus the producers of two models can run at the same time.
+Inside one model, the producers run in registry order and never overlap.
+Some producers replace shared database state.
 Each proof phase and each negative control has a separate work directory.
+The scope check of a reduced control has a separate work directory also.
 The two proof phases read equal copies of the clean input.
 No check shares a work directory with another check.
 
-The runner starts at most two Apalache processes at once.
+The runner sets the number of Apalache processes from the machine.
+The number is half the cores, with 6 GiB of free memory for each process.
+One worker is permitted when either budget has only one place.
+The runner fails before it starts a producer if less than 6 GiB is free.
 When one process completes, the next queued check starts.
-This limit bounds the number of JVMs on the shared machine.
 Each completed check reports its duration.
-The runner still executes both proof obligations and every declared negative control.
 
-If a check fails, the runner stops new work and awaits both active processes.
+Each producer has a 15-minute limit. Each checker command has a 30-minute
+limit. The checker version command has a one-minute limit.
+At the limit, the runner sends a stop signal. It allows five seconds for exit,
+then sends a forced stop signal and allows five more seconds for exit.
+A timeout is a failure, even if the output contains a counterexample.
+The error retains the command output and names the work directory.
+The required `checks` job has the same 120-minute limit as the nightly job.
+The uncached suite takes about 46 minutes with two workers. The job limit
+allows a memory-limited machine to run it with one worker and leaves time
+for setup and the other static checks.
+
+The runner records each pass in `.verify-models-passes/`.
+The name of a record is a hash of the checker name and version, the command,
+the runner source that accepts a result, and the TLA files of the check.
+A change to one of these runs the check again.
+The checker gives one verdict for one input, so a check with a record does not run again.
+The runner removes a record that no run used for 30 days.
+The runner still plans both proof obligations and every declared negative control.
+
+The `Model checks` workflow runs the same task without a pass cache each night.
+It finds a change to the checker environment or the machine.
+
+If a check fails, the runner stops new work and awaits the active processes.
 It propagates the failure and retains the input and checker artifacts.
 A successful run removes its temporary directories.
 

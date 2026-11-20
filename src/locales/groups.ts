@@ -9,12 +9,13 @@ export const PUBLIC_SHELL_MESSAGE_GROUPS = [
 
 /** Copy used by the admin layout itself, independent of the page it wraps:
  *  the public shell's copy and the admin copy. The layout carries the
- *  editor's image picker, so the image copy is here. */
+ *  editor's image picker and the shared modal shell, so their copy is here. */
 export const ADMIN_SHELL_MESSAGE_GROUPS = [
   ...PUBLIC_SHELL_MESSAGE_GROUPS,
   "activity-log",
   "admin-shell",
   "images",
+  "modal",
 ] as const satisfies readonly MessageGroup[];
 
 /** Add route-owned copy to the shared public shell. */

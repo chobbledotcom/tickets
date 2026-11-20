@@ -39,7 +39,7 @@ describeWithEnv("validateListingInput boundaries", { db: true }, () => {
         }),
       ),
     ).resolves.toBe(
-      `Maximum price must be at least ${formatCurrency(100)} more than the ticket price`,
+      `Maximum price must be at least ${formatCurrency(100)} more than the price`,
     );
   });
 
