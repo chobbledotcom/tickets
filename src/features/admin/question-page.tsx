@@ -20,6 +20,12 @@ import {
   type SlotLoader,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
+import {
+  editErrorRenderer,
+  type EditPanelLoader,
+  type RejectedEdit,
+  submittedValueProps,
+} from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import {
   QuestionAnswersSection,
@@ -28,8 +34,14 @@ import {
 } from "#templates/admin/question-detail.tsx";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
 
-const loadEditPanel: SlotLoader<QuestionWithAnswers> = (question) =>
-  Promise.resolve(QuestionEditPanel({ question }));
+const loadEditPanel: EditPanelLoader<QuestionWithAnswers> = (
+  question,
+  _ctx,
+  rejected,
+) =>
+  Promise.resolve(
+    QuestionEditPanel({ question, ...submittedValueProps(rejected) }),
+  );
 
 const loadAnswersPanel: SlotLoader<QuestionWithAnswers> = async (question) =>
   QuestionAnswersSection({
@@ -67,3 +79,17 @@ export const questionPage: EntityPage<QuestionWithAnswers> = defineEntityPage({
   ],
   titleOf: (question) => questionTextFlat(question.text),
 });
+
+/** A refused edit answers with the whole Overview, so the answers and the
+ * listings stay on the page beside the form that keeps what was typed. */
+export const renderQuestionEditError = editErrorRenderer(
+  () => questionPage,
+  "",
+  async (question, ctx, rejected: RejectedEdit) => (
+    <>
+      {await loadEditPanel(question, ctx, rejected)}
+      {await loadAnswersPanel(question, ctx)}
+      {await loadListingsPanel(question, ctx)}
+    </>
+  ),
+);
