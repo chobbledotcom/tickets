@@ -402,18 +402,16 @@ const desiredLines = (
 export const desiredLinesFromExisting = (
   existing: ExistingLine[],
 ): DesiredListingLine[] =>
-  existing.map(({ key, booking }) => {
-    return {
-      date: booking.start_at?.slice(0, 10) ?? null,
-      durationDays: durationDaysFromRow(booking) ?? 1,
-      exists: true,
-      key,
-      listingId: booking.listing_id,
-      packageGroupId: booking.package_group_id,
-      parentListingId: booking.parent_listing_id,
-      quantity: booking.quantity,
-    };
-  });
+  existing.map(({ key, booking }) => ({
+    date: booking.start_at?.slice(0, 10) ?? null,
+    durationDays: durationDaysFromRow(booking) ?? 1,
+    exists: true,
+    key,
+    listingId: booking.listing_id,
+    packageGroupId: booking.package_group_id,
+    parentListingId: booking.parent_listing_id,
+    quantity: booking.quantity,
+  }));
 
 /** The encrypted PII blob a service event stores: its name only, every
  *  customer-only field empty. The single source of the "servicing owns no
