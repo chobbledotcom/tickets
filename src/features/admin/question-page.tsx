@@ -21,8 +21,8 @@ import {
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import {
-  editErrorRenderer,
   type EditPanelLoader,
+  editErrorRenderer,
   type RejectedEdit,
   submittedValueProps,
 } from "#routes/admin/entity-write-tab.ts";
