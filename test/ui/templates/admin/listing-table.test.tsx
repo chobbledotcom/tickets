@@ -99,6 +99,15 @@ describe("listingTable", () => {
     expect(rawValue("date", testListingWithCount({ date: "" }))).toBe("");
   });
 
+  test("shows the description as plain text", () => {
+    const listing = testListingWithCount({
+      description:
+        "## Bath bombs\n\nand [shizz](https://x.test) ![nerves](img#4)",
+    });
+
+    expect(cell("description", listing)).toBe("Bath bombs and shizz");
+  });
+
   test("renders optional listing values", () => {
     const listing = testListingWithCount({
       created: "2026-04-05T12:00:00Z",

@@ -14,7 +14,10 @@ import {
   adminApiList,
   adminApiWrite,
 } from "#shared/admin-api-client.ts";
-import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import {
+  ADMIN_API_RESOURCES,
+  type AdminApiResource,
+} from "#shared/admin-api-resources.ts";
 
 const ATTRIBUTE = {
   id: 3,
@@ -38,6 +41,18 @@ const stubTransport = (
     return Promise.resolve({ data: body, status } as AdminApiResponse);
   };
   return { calls, transport };
+};
+
+/** One custom route call against a stub transport: the calls it sent. */
+const sendCustomRoute = async (
+  entry: AdminApiResource,
+  routeKey: string,
+  id: number | undefined,
+  query?: Record<string, string>,
+) => {
+  const { calls, transport } = stubTransport({});
+  await adminApiCustomRoute(transport, entry, routeKey, id, query);
+  return calls;
 };
 
 describe("admin api client", () => {
@@ -162,6 +177,30 @@ describe("admin api client", () => {
     ).catch((error: unknown) => error);
     expect((failure as Error).message).toBe(
       "admin api groups has no deactivate custom route",
+    );
+  });
+
+  test("a custom route sends its query string and refuses a wrong id", async () => {
+    const sources = ADMIN_API_RESOURCES["external-sources"];
+    expect(
+      await sendCustomRoute(sources, "linkLookup", undefined, {
+        external_id: "a b&c",
+      }),
+    ).toEqual([
+      {
+        method: "GET",
+        path: "/api/admin/external-sources/lookup?external_id=a+b%26c",
+      },
+    ]);
+    const refusal = (key: string, id: number | undefined) =>
+      sendCustomRoute(sources, key, id).catch(
+        (error: unknown) => (error as Error).message,
+      );
+    expect(await refusal("linkLookup", 3)).toBe(
+      "admin api external-sources linkLookup custom route takes no id",
+    );
+    expect(await refusal("links", undefined)).toBe(
+      "admin api external-sources links custom route needs id",
     );
   });
 

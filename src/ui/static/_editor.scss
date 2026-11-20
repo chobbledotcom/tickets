@@ -84,19 +84,6 @@
   width: auto;
 }
 
-/* The image picker's close control, pinned over its own dialog. */
-.md-preview-close {
-  @include pinned-top-right;
-  z-index: 1;
-  display: flex;
-  width: auto;
-  padding: var(--space-s);
-  border: none;
-  background: none;
-  color: var(--color-text);
-  cursor: pointer;
-}
-
 label {
   @include wrap-row-tight;
   align-items: baseline;

@@ -1,5 +1,5 @@
 /**
- * Shared harness for the image picker dialog suites
+ * Shared harness for the image picker window suites
  * (`src/ui/client/admin/markdown-editor-images.ts`): reply builders, the
  * happy-dom editor mounts, the stubbed fetch holder, and the open/upload
  * flows the dialog's tests share.
@@ -72,7 +72,26 @@ const partReader =
 export const toolbarImageButton =
   partReader<HTMLButtonElement>(".md-toolbar-image");
 
-export const imageDialog = partReader<HTMLDialogElement>(".md-image-dialog");
+/** The picker's window. It exists only while the picker is open. */
+export const imageDialog = partReader<HTMLDialogElement>(
+  'dialog.admin-modal[data-modal-key^="image-picker:"]',
+);
+
+/** The close control that the window shell supplies. */
+export const closeControl = (dialog: HTMLElement): HTMLButtonElement =>
+  requireElement<HTMLButtonElement>(dialog, ".admin-modal-close");
+
+/** Asserts that the grid shows the library's load failure note, then closes
+ * the window, so that the next press of the opener retries. */
+export const expectLoadFailureThenClose = (
+  dialog: HTMLElement,
+  grid: HTMLElement,
+): void => {
+  expect(grid.textContent).toBe(
+    "The image library could not load. Please try again.",
+  );
+  closeControl(dialog).click();
+};
 
 export const imageGrid = partReader<HTMLElement>(".md-image-grid");
 
@@ -257,7 +276,7 @@ export const closeDialogBeforeAnswer = async (
     toolbarImageButton(window).click();
     const dialog = imageDialog(window);
     const grid = imageGrid(window);
-    dialog.close();
+    closeControl(dialog).click();
     await flush();
 
     // The shut dialog is the invariant both close-early tests share; the

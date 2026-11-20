@@ -3,7 +3,10 @@
  *  surface writes only its own refusal message around it. */
 
 import * as v from "valibot";
-import type { CreateAdjustment } from "#shared/checkout-complete.ts";
+import type {
+  CreateAdjustment,
+  CreateReceipts,
+} from "#shared/checkout-complete.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 
@@ -102,3 +105,18 @@ export const parsePayments = (raw: unknown): Result<number[]> =>
  *  the attendee. A negative one forgives part of the debt. */
 export const parseAdjustments = (raw: unknown): Result<CreateAdjustment[]> =>
   parseEach(raw, "adjustments", parseAdjustment);
+
+/** The money a body records: the payments received and the named adjustments,
+ *  or the first refusal. The create and the update read it the same way. */
+export const parseReceipts = (
+  body: Record<string, unknown>,
+): Result<CreateReceipts> => {
+  const payments = parsePayments(body.payments);
+  if (!payments.ok) return payments;
+  const adjustments = parseAdjustments(body.adjustments);
+  if (!adjustments.ok) return adjustments;
+  return okResult({
+    adjustments: adjustments.value,
+    payments: payments.value,
+  });
+};

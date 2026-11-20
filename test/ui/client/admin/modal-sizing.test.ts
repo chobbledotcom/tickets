@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { closeAdminModal } from "#src/ui/client/admin/modal.ts";
 import {
-  cleanup,
+  cleanupModals,
   dialogsIn,
   dragPage,
   fire,
@@ -14,14 +14,10 @@ import {
   releasePointer,
   SETTINGS,
   setSize,
-} from "#test-utils/admin-modal-dom.ts";
-import { closeDialogs } from "#test-utils/happy-dom.ts";
+} from "#test-utils/modal-dom.ts";
 
 describe("the admin modal size", () => {
-  afterEach(async () => {
-    closeDialogs(document, "dialog.admin-modal");
-    await cleanup();
-  });
+  afterEach(cleanupModals);
 
   test("keeps a window on the screen after the viewport changes", () => {
     const ready = dragPage();

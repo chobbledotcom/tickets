@@ -78,6 +78,16 @@ deno task cli:api reactivate listings 5
 deno task cli:api attendees listings 5
 ```
 
+A filter route reads its filter from the query string. Give each filter as a
+`key=value` argument after the resource and the id. A route whose path has no
+id takes no id:
+
+```sh
+deno task cli:api linkLookup external-sources external_id=ABC-123
+deno task cli:api links external-sources 3 external_id=ABC-123
+deno task cli:api linkSearch external-sources link_type=listing link_id=4
+```
+
 An unknown resource, verb, child, or argument answers exit `2` and names the
 valid choices. Ids are whole numbers. A body that fails the table's schema
 never leaves the machine: the answer is exit `3` with the per-field problems

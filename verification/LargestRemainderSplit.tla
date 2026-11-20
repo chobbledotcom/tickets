@@ -1,7 +1,7 @@
 ---------------------------- MODULE LargestRemainderSplit ----------------------------
 \* This module describes whole-unit allocation after the first rounded shares.
 \* EXTENDS imports integer arithmetic, finite-set helpers, and example facts.
-EXTENDS Integers, FiniteSets, LargestRemainderSplitData
+EXTENDS Apalache, Integers, FiniteSets, LargestRemainderSplitData
 
 \* An allocation divides one amount between parts. A part is one recipient,
 \* such as one ticket unit or one tax line. A weight is its share of the basis.
@@ -116,15 +116,15 @@ Safety ==
 
 \* Start after the floor shares, before any extra unit award.
 \* \E lets the checker select any supplied case.
-\* Primes describe the initial output values in this initialisation action.
+\* Unprimed assignments set the initial values for the selected case.
 Init ==
   \E caseFact \in SplitCases :
-    /\ current' = caseFact.caseTag
-    /\ capped' = caseFact.capped
-    /\ leftover' = caseFact.leftover
-    /\ remaining' = caseFact.leftover
-    /\ bumped' = {}
-    /\ stranded' = FALSE
+    /\ current := caseFact.caseTag
+    /\ capped := caseFact.capped
+    /\ leftover := caseFact.leftover
+    /\ remaining := caseFact.leftover
+    /\ bumped := {}
+    /\ stranded := FALSE
 
 \* Award one unit only to an eligible part that has not received an extra unit.
 \* A prime marks a value after the step. UNCHANGED preserves the other values.
@@ -135,8 +135,8 @@ AwardStep ==
     /\ partFact.eligible
     /\ partFact.partIndex \notin bumped
     /\ remaining >= 1
-    /\ bumped' = bumped \cup {partFact.partIndex}
-    /\ remaining' = remaining - 1
+    /\ bumped' := bumped \cup {partFact.partIndex}
+    /\ remaining' := remaining - 1
     /\ UNCHANGED <<current, capped, leftover, stranded>>
 
 \* Expose a fault when units remain but every eligible part already has an award.
@@ -146,7 +146,7 @@ StrandStep ==
   /\ remaining >= 1
   /\ \A partFact \in PartsOf(current) :
        partFact.eligible => partFact.partIndex \in bumped
-  /\ stranded' = TRUE
+  /\ stranded' := TRUE
   /\ UNCHANGED <<current, capped, leftover, remaining, bumped>>
 
 \* \/ permits any enabled award, fault step, or step with no change.

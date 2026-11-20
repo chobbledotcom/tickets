@@ -15,6 +15,7 @@ import {
   type MarkdownEditorHandle,
 } from "#src/ui/client/admin/markdown-editor.ts";
 import { ImagePickerTemplate } from "#templates/admin/image-picker.tsx";
+import { AdminModalTemplate } from "#templates/admin/modal.tsx";
 import { createDomInstaller, requireElement } from "#test-utils/happy-dom.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -41,13 +42,21 @@ const PICKER_TEMPLATE = await withRequestContext(() => {
   return String(ImagePickerTemplate());
 });
 
-export { PICKER_TEMPLATE };
+/** The window markup that every admin page carries, rendered by the real
+ * server template. */
+const MODAL_TEMPLATE = await withRequestContext(() =>
+  String(AdminModalTemplate()),
+);
+
+/** The two templates of an admin page with image storage: the window shell
+ * and the picker that the shell shows. */
+export const ADMIN_TEMPLATES = MODAL_TEMPLATE + PICKER_TEMPLATE;
 
 /** Install a lone markdown textarea and enhance it. The page carries the
- * image picker template unless `imageStorage` is false. Options add a footer
- * strip as the preview module lays out, a stylesheet that the editor's
- * styles are asserted against, or a page form around the textarea with a
- * token of its own. */
+ * window shell, and the image picker template unless `imageStorage` is false.
+ * Options add a footer strip as the preview module lays out, a stylesheet that
+ * the editor's styles are asserted against, or a page form around the textarea
+ * with a token of its own. */
 export const enhanced = (
   value: string,
   options: {
@@ -64,7 +73,7 @@ export const enhanced = (
   const textareaHtml = TEXTAREA.replace("%s", value);
   const window = installDom(
     (options.stylesheet ? `<style>${options.stylesheet}</style>` : "") +
-      (options.imageStorage === false ? "" : PICKER_TEMPLATE) +
+      (options.imageStorage === false ? MODAL_TEMPLATE : ADMIN_TEMPLATES) +
       (options.form
         ? `<form action="/admin/pages/1/edit" method="post">` +
           `<input type="hidden" name="csrfToken" value="page-token">${textareaHtml}</form>`

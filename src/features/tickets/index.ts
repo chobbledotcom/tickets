@@ -16,6 +16,7 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
   type ModifierLine,
   splitModifiersAcrossCards,
+  splitTaxAcrossCards,
 } from "#routes/tickets/modifier-shares.ts";
 import {
   createTokenRoute,
@@ -27,6 +28,8 @@ import {
 import type { PathMethodRoute } from "#routes/types.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { generateQrSvg } from "#shared/qr.ts";
+import { addedTaxByOrder } from "#shared/tax/added.ts";
+import { readTaxAssessments } from "#shared/tax/store.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 
@@ -40,6 +43,7 @@ const buildTicketCard = async (
   entry: TokenEntry,
   token: string,
   modifiers: readonly ModifierLine[],
+  tax: number,
 ): Promise<TicketCard> => {
   const attachmentUrl = entry.listing.attachmentUrl
     ? await signAttachmentUrl(entry.listing.id, entry.attendee.id)
@@ -48,15 +52,19 @@ const buildTicketCard = async (
     ...(attachmentUrl !== undefined ? { attachmentUrl } : {}),
     entry,
     ...(modifiers.length > 0 ? { modifiers } : {}),
+    ...(tax > 0 ? { tax } : {}),
     token,
   };
 };
 
+/** Reads what each of a page's cards shows for one kind of price change. */
+type SharesFor<Share> = (
+  entries: readonly TokenEntry[],
+) => Promise<Map<TokenEntry, Share>>;
+
 /** The modifier lines each card shows. A modifier that an owner deleted has
  *  no name left, so its card names it with the plain price-change label. */
-const modifierSharesFor = async (
-  entries: readonly TokenEntry[],
-): Promise<Map<TokenEntry, ModifierLine[]>> => {
+const modifierSharesFor: SharesFor<ModifierLine[]> = async (entries) => {
   const lines = await orderModifierLines(
     entries.map((entry) => entry.ledgerEventGroup),
   );
@@ -76,6 +84,16 @@ const modifierSharesFor = async (
   );
   return splitModifiersAcrossCards(entries, named);
 };
+
+/** The tax each card shows, for the orders whose tax the buyer paid on top of
+ *  the listed prices. */
+const taxSharesFor: SharesFor<number> = async (entries) =>
+  splitTaxAcrossCards(
+    entries,
+    addedTaxByOrder(
+      await readTaxAssessments(entries.map((entry) => entry.attendee.id)),
+    ),
+  );
 
 /** Curry a ticket handler over the shared preamble: look the tokens up, drop
  * no-quantity ghost lines, and 404 when nothing real is left, then hand the real
@@ -100,6 +118,7 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
     await Promise.all(tokens.map(async (t) => [await hmacHash(t), t] as const)),
   );
   const shares = await modifierSharesFor(entries);
+  const taxShares = await taxSharesFor(entries);
   const cards = await Promise.all(
     entries.map((entry) =>
       buildTicketCard(
@@ -110,6 +129,7 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
           `Token ${entry.attendee.ticket_token_index} missing`,
         ),
         requiredMapValue(shares, entry, "Ticket modifier split omitted a card"),
+        taxShares.get(entry) ?? 0,
       ),
     ),
   );

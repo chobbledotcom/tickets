@@ -1,7 +1,7 @@
 /**
- * The image picker dialog
+ * The image picker window
  * (`src/ui/client/admin/markdown-editor-images.ts`): the real editor mount,
- * a stubbed image-list endpoint, and the dialog's render, close, and error
+ * a stubbed image-list endpoint, and the window's render, close, and error
  * paths. The image view suite holds the library and the pictures in the
  * editor. `markdown-editor-images/upload.test.ts` holds the upload flow.
  */
@@ -11,12 +11,16 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import type { Window } from "happy-dom";
 import { STATIC_ASSET_OUTFILES } from "#scripts/static-assets/outfiles.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
-import { requireElement } from "#test-utils/happy-dom.ts";
+import { initAdminModalShell } from "#src/ui/client/admin/modal.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import { cleanup, enhanced, select } from "#test-utils/markdown-editor-dom.ts";
 import {
+  closeControl,
   closeDialogBeforeAnswer,
   expectDialogCloses,
   expectGridMessage,
+  expectLoadFailureThenClose,
   fetchStubHolder,
   flush,
   imageDialog,
@@ -44,8 +48,8 @@ describe("the image picker dialog", () => {
     );
     expect(button.textContent).toBe("Image");
     expect(button.getAttribute("aria-label")).toBe("Insert image");
-    // The button opens a modal dialog, which carries its own focus and
-    // Escape semantics, so the button only names what it opens.
+    // The button opens a window, which carries its own focus and Escape
+    // semantics, so the button only names what it opens.
     expect(button.getAttribute("aria-haspopup")).toBe("dialog");
     expect(button.hidden).toBe(false);
     handle.view.destroy();
@@ -60,27 +64,39 @@ describe("the image picker dialog", () => {
 
     // The admin shell renders the picker template only with storage. The
     // editor keeps the control out of the toolbar without it, and builds
-    // no dialog.
+    // no picker.
     expect(button.hidden).toBe(true);
-    expect(window.document.querySelector(".md-image-dialog")).toBeNull();
+    expect(window.document.querySelector(".md-image-picker")).toBeNull();
     handle.view.destroy();
   });
 
-  test("clones the server's picker into the editor", () => {
+  test("opens the server's picker in a window over the page", async () => {
+    fetchStubHolder.stub = stubFetch(twoImageList());
     const { window, handle } = enhanced("hello");
+    // The window does not exist until the operator presses the button.
+    expect(window.document.querySelector("dialog.admin-modal")).toBeNull();
+    toolbarImageButton(window).click();
     const dialog = imageDialog(window);
+    // Let the library answer before the test ends.
+    await untilReady(imageGrid(window));
 
-    // The dialog carries the template's catalog copy and the images area's
-    // upload fields.
-    expect(dialog.querySelector("h2")?.textContent).toBe("Choose an image");
+    // The window carries the template's catalog copy in its title bar, the
+    // shell's controls, and the images area's upload fields.
     expect(
-      dialog.querySelector(".md-preview-close")?.getAttribute("aria-label"),
-    ).toBe("Close image picker");
+      requireElement<HTMLElement>(dialog, ".admin-modal-title").textContent,
+    ).toBe("Choose an image");
+    expect(
+      [...dialog.querySelectorAll(".admin-modal-controls button")].map(
+        (control) => control.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Minimise", "Close"]);
     expect(
       [...dialog.querySelectorAll("input")].map((input) => input.name),
     ).toEqual(["csrfToken", "name", "image"]);
     expect(dialog.querySelector("textarea")?.name).toBe("altText");
-    expect(dialog.closest(".md-editor")).not.toBeNull();
+    // The window sits on the page, not inside the editor or the page form.
+    expect(dialog.closest(".md-editor")).toBeNull();
+    expect(dialog.parentElement).toBe(window.document.body);
     handle.view.destroy();
   });
 
@@ -103,14 +119,60 @@ describe("the image picker dialog", () => {
     handle.view.destroy();
   });
 
-  test("closes from the dialog's close button", async () => {
-    await expectDialogCloses(({ dialog }) =>
-      dialog.querySelector<HTMLButtonElement>(".md-preview-close")!.click(),
+  test("closes from the window's close button", async () => {
+    await expectDialogCloses(({ dialog }) => closeControl(dialog).click());
+  });
+
+  test("closes on Escape", async () => {
+    await expectDialogCloses(({ dialog, window }) =>
+      fireEvent(
+        dialog,
+        new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+      ),
     );
   });
 
-  test("closes when its own backdrop is clicked", async () => {
-    await expectDialogCloses(({ dialog }) => dialog.click());
+  test("stays open when the page behind it is pressed", async () => {
+    await withInsertFlow(async ({ dialog, window, handle }, flushSelection) => {
+      initAdminModalShell();
+      const { document } = window;
+      const page = requireElement<HTMLElement>(document, ".md-editor");
+
+      fireEvent(
+        page,
+        new window.PointerEvent("pointerdown", { bubbles: true, button: 0 }),
+      );
+      page.click();
+
+      // The press moved the focus to the page and closed nothing.
+      expect(dialog.open).toBe(true);
+      expect(dialog.isConnected).toBe(true);
+      expect(dialog.classList.contains("is-dim")).toBe(true);
+      expect(document.documentElement.dataset.adminModalPageDim).toBe("false");
+      handle.view.destroy();
+      await flushSelection();
+    });
+  });
+
+  test("raises the open window when the button is pressed again", async () => {
+    await withInsertFlow(async ({ dialog, window, handle }, flushSelection) => {
+      requireElement<HTMLInputElement>(dialog, 'input[name="name"]').value =
+        "Typed";
+
+      toolbarImageButton(window).click();
+      await flush();
+
+      // One window, one library fetch, and the operator's typing is kept.
+      expect(
+        window.document.querySelectorAll("dialog.admin-modal"),
+      ).toHaveLength(1);
+      expect(fetchStubHolder.stub?.calls.length).toBe(1);
+      expect(
+        requireElement<HTMLInputElement>(dialog, 'input[name="name"]').value,
+      ).toBe("Typed");
+      handle.view.destroy();
+      await flushSelection();
+    });
   });
 
   test("loads the deep library's thumbnails lazily", async () => {
@@ -133,7 +195,7 @@ describe("the image picker dialog", () => {
 
   test("inserts the short-form image tag at the caret and closes", async () => {
     await withInsertFlow(
-      async ({ window, handle, textarea }, flushSelection) => {
+      async ({ dialog, window, handle, textarea }, flushSelection) => {
         select(handle.view, 7);
 
         optionByName(window, "Alpha").click();
@@ -150,7 +212,9 @@ describe("the image picker dialog", () => {
         );
         expect(image.getAttribute("src")).toBe("/image/alpha.webp");
         expect(image.alt).toBe("Alpha");
-        expect(imageDialog(window).open).toBe(false);
+        // The insert closes the window, and a closed window leaves the page.
+        expect(dialog.open).toBe(false);
+        expect(dialog.isConnected).toBe(false);
         expect(window.document.activeElement).toBe(handle.view.dom);
         handle.view.destroy();
         await flushSelection();
@@ -170,10 +234,7 @@ describe("the image picker dialog", () => {
       twoImageList(),
     ]);
 
-    expect(grid.textContent).toBe(
-      "The image library could not load. Please try again.",
-    );
-    dialog.close();
+    expectLoadFailureThenClose(dialog, grid);
     toolbarImageButton(window).click();
     await untilReady(grid);
 
@@ -183,9 +244,9 @@ describe("the image picker dialog", () => {
 
   test("keeps the image control inert after the editor is destroyed", async () => {
     await withInsertFlow(async ({ dialog, window, handle }, flushSelection) => {
-      // The dialog closes the way the operator closes it, then the editor
+      // The window closes the way the operator closes it, then the editor
       // dies.
-      dialog.close();
+      closeControl(dialog).click();
       handle.view.destroy();
 
       toolbarImageButton(window).click();

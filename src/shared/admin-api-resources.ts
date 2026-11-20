@@ -257,6 +257,14 @@ export type AdminApiChild = {
 export const adminApiIdParam = (label: string): string =>
   `${label.toLowerCase()}Id`;
 
+/** Whether a custom route's subpath names the resource's id param. A route
+ *  without it ("lookup", "contact") is not about one row, so a call passes no
+ *  id. */
+export const adminApiCustomRouteTakesId = (
+  entry: Pick<AdminApiResource, "label">,
+  route: Pick<AdminApiCustomRoute, "subpath">,
+): boolean => route.subpath.includes(`:${adminApiIdParam(entry.label)}`);
+
 /** A server-side custom route declared for the docs and the route keys. */
 export type AdminApiCustomRoute = {
   method: "DELETE" | "GET" | "POST" | "PUT";
@@ -330,12 +338,12 @@ export const ADMIN_API_RESOURCES = {
     updateBodySchema: attendeeStatusApi.bodies.update,
   },
   attendees: {
-    // The create is the one standard route this surface serves. A booking
-    // needs the server's full validation, so the table declares no client
-    // body schema. The server owns the request shape.
+    // The create and the update are the standard routes this surface serves.
+    // A booking needs the server's full validation, so the table declares no
+    // client body schema. The server owns the request shape.
     label: "Attendee",
     path: "attendees",
-    serves: { create: true },
+    serves: { create: true, update: true },
     singleSchema: v.looseObject({ attendee: AttendeeRowSchema }),
   },
   attributes: {
