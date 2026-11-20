@@ -340,22 +340,22 @@ const customRouteId = (
 ): number | undefined => {
   const [idRaw, ...extra] = positional;
   if (extra.length > 0) throw tooManyArguments();
-  if (!adminApiCustomRouteTakesId(entry, route)) {
-    if (idRaw !== undefined) {
-      throw new CliError(
-        "usage",
-        `The '${routeKey}' command takes no id. Filter with key=value arguments, such as external_id=abc.`,
-      );
-    }
-    return undefined;
+  const takesId = adminApiCustomRouteTakesId(entry, route);
+  if (!takesId && idRaw !== undefined) {
+    throw new CliError(
+      "usage",
+      `The '${routeKey}' command takes no id. Filter with key=value arguments, such as external_id=abc.`,
+    );
   }
-  if (idRaw === undefined) {
+  if (takesId && idRaw === undefined) {
     throw new CliError(
       "usage",
       `The '${routeKey}' command needs the ${entry.label.toLowerCase()} id. Usage: ${routeKey} <resource> <id> [key=value ...].`,
     );
   }
-  return parseId(idRaw, `${entry.label.toLowerCase()} id`);
+  return idRaw === undefined
+    ? idRaw
+    : parseId(idRaw, `${entry.label.toLowerCase()} id`);
 };
 
 /** Parse one custom-route command:

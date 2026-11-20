@@ -373,7 +373,10 @@ describe("CLI run", () => {
         method: "GET",
         path: "/api/admin/external-sources/lookup?external_id=a+b%26c",
       },
-      { method: "GET", path: "/api/admin/external-sources/3/links?external_id=x" },
+      {
+        method: "GET",
+        path: "/api/admin/external-sources/3/links?external_id=x",
+      },
       {
         method: "GET",
         path: "/api/admin/external-sources/links?link_type=listing&link_id=4",
