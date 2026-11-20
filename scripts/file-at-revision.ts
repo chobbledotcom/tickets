@@ -25,21 +25,3 @@ export const fileAtRevision = async (
   }
   return show.stdout;
 };
-
-/** A reader of the paths that one git command lists for a revision, one on
- * each line. A failed command must surface, because an empty list reads as
- * "no path". */
-const pathLister =
-  (...command: string[]) =>
-  async (run: RunCommand, revision: string): Promise<string[]> => {
-    const args = [...command, revision];
-    const listing = await runGit(run, args);
-    if (listing.code !== 0) {
-      throw new Error(`git ${args.join(" ")} failed: ${listing.stderr.trim()}`);
-    }
-    return listing.stdout.split("\n").filter((path) => path !== "");
-  };
-
-/** Every path `revision` holds, in git's order. A caller that matches a file
- * by name reads a file the revision holds at a path it does not know. */
-export const pathsAtRevision = pathLister("ls-tree", "-r", "--name-only");

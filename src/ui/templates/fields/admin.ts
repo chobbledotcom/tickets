@@ -15,6 +15,7 @@ import {
 } from "#shared/limits.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import { LOGISTICS_AGENT_FIELDS } from "#shared/records/logistics-agent-fields.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { blankThenPicklistOptions } from "#templates/fields/picklist-options.ts";
 import { fieldsForm } from "#templates/fields/record-fields.ts";
@@ -44,6 +45,8 @@ const getLoginFields = () =>
 export const getLoginForm = defineFieldsForm(getLoginFields);
 
 export const getHolidayForm = fieldsForm(HOLIDAY_FIELDS);
+
+export const getLogisticsAgentForm = fieldsForm(LOGISTICS_AGENT_FIELDS);
 
 /** One built-site box: its label and placeholder come from the field's
  * catalog keys, so every form naming this value says the same words. */

@@ -1,0 +1,174 @@
+/* Popup chrome, and the shared admin modal shell built on it. A shell window
+   is non-modal: the page behind it stays usable, and the window never covers
+   the page. */
+
+@use "mixins" as *;
+
+/* Popups */
+dialog {
+  max-width: 90%;
+  max-height: 85dvh;
+  margin: auto;
+  padding-block: 0;
+  padding-inline: 20px;
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: 0.5rem;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: none; /* Hide scrollbar for Firefox */
+  -ms-overflow-style: none; /* Hide scrollbar for IE and Edge */
+  scrollbar-color: transparent transparent;
+  animation: bottom-to-top 0.25s ease-in-out forwards;
+}
+
+dialog::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
+
+dialog::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+dialog::-webkit-scrollbar-thumb {
+  background-color: transparent;
+}
+
+@media (min-width: 650px) {
+  dialog {
+    max-width: 39rem;
+  }
+}
+
+dialog::backdrop {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+@keyframes bottom-to-top {
+  0% {
+    opacity: 0;
+    transform: translateY(10%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The page dims behind a popup at the speed the popup rises. */
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(dialog)::backdrop {
+    animation: backdrop-in 0.25s ease-out;
+  }
+}
+
+/* The shell window. A drag or a resize sets the two custom properties; the
+   full-screen rule below ignores them. */
+.admin-modal {
+  position: fixed;
+  left: var(--admin-modal-left, 0);
+  top: var(--admin-modal-top, 0);
+  flex-direction: column;
+  width: min(100% - 2 * var(--space-lg), 40rem);
+  max-width: calc(100vw - 2 * var(--space-s));
+  max-height: calc(100dvh - 2 * var(--space-s));
+  margin: 0;
+  padding: var(--space-m);
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--space-s);
+  @include surface-colors;
+  overscroll-behavior: contain;
+  animation: none;
+}
+
+.admin-modal[open] {
+  display: flex;
+}
+
+/* The title bar is the drag surface. It spans the padded content box, so the
+   surface matches the box below it. */
+.admin-modal-bar {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-s);
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-s);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.admin-modal.is-dragging .admin-modal-bar {
+  cursor: grabbing;
+}
+
+.admin-modal-title {
+  overflow: hidden;
+  font-weight: bold;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-modal-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-s);
+}
+
+.admin-modal-controls button {
+  display: flex;
+  width: auto;
+  padding: var(--space-s);
+  border: none;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.admin-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* A minimised window is its title bar, which keeps its own controls. */
+.admin-modal.is-collapsed {
+  width: max-content;
+  height: auto;
+}
+
+.admin-modal.is-collapsed .admin-modal-bar {
+  padding-bottom: 0;
+}
+
+.admin-modal.is-collapsed .admin-modal-body {
+  display: none;
+}
+
+/* A phone or a coarse pointer shows the window full screen, and dragging is
+   off. The client module carries the same query. */
+@media (max-width: 768px), (pointer: coarse) {
+  .admin-modal {
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    border: none;
+    border-radius: 0;
+  }
+
+  .admin-modal-bar {
+    cursor: default;
+    touch-action: auto;
+  }
+}

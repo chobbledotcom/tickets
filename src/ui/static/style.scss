@@ -8,6 +8,7 @@
 @use "field-visibility";
 @use "entity-page";
 @use "markdown-editor";
+@use "image-picker";
 @use "print";
 @use "public-url-rows";
 @use "tactile";
@@ -17,6 +18,7 @@
 @use "typography";
 @use "forms";
 @use "editor";
+@use "modal";
 @use "tables";
 @use "app";
 @use "attendee";

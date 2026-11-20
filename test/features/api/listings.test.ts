@@ -270,7 +270,11 @@ describePublicApi(() => {
         filenameThumb: nonEmptyString("primary-thumb.webp", "test thumb"),
         name: "Primary",
       });
-      await setImagesForItem("listing", listing.id, [image.id]);
+      await setImagesForItem({
+        imageIds: [image.id],
+        itemId: listing.id,
+        itemType: "listing",
+      });
       const { body } = await fetchListingBySlug(listing.slug);
       const apiListing = v.parse(PublicListingDetailSchema, body.listing);
       expect(apiListing.imageUrl).toBe("primary.webp");

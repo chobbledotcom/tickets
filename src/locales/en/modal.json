@@ -1,0 +1,9 @@
+{
+  "modal.close": "Close",
+  "modal.minimise": "Minimise",
+  "modal.preview.empty": "Nothing to preview.",
+  "modal.preview.failed": "Preview failed.",
+  "modal.preview.heading": "Markdown preview",
+  "modal.preview.loading": "Loading preview…",
+  "modal.preview.open": "Preview"
+}

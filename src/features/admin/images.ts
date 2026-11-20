@@ -37,12 +37,14 @@ import {
 } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
+
 import { logImageAction } from "#shared/images/activity.ts";
 import {
   byNameThenUpload,
   isSiteContentImageType,
   whenSiteContentBlocksManager,
 } from "#shared/images/library.ts";
+import { imageOptionsOf } from "#shared/images/picker.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { imageRecord } from "#shared/records/images.ts";
 import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
@@ -199,14 +201,17 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
  * save can proceed. Shared by the edit and delete handlers. */
 const siteContentImageGate = async (
   adminLevel: AdminLevel,
-  imageId: number,
+  image: Image,
   redirectTo: string,
-): Promise<Response | null> =>
-  whenSiteContentBlocksManager(
+): Promise<Response | null> => {
+  const blocked = await whenSiteContentBlocksManager(
     adminLevel,
-    imageId,
+    image.id,
     redirect(redirectTo, t("images.news_gated"), false),
   );
+  if (blocked !== null) await logImageAction("denied", image.name);
+  return blocked;
+};
 
 /** The link targets a save can apply. A non-Site session (manager) never
  * attaches a Site-content target — any submitted `news:<id>`/`page:<id>` is
@@ -225,7 +230,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
   imageHandlers.post(async (image, form, adminLevel) => {
     const blocked = await siteContentImageGate(
       adminLevel,
-      image.id,
+      image,
       imagePath(image.id),
     );
     if (blocked) return blocked;
@@ -279,11 +284,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     const deletePath = adminPath("imageDelete", { id: image.id });
     // The record delete prunes every use, including a news one, so a non-Site
     // role cannot delete an image a news post uses (public Site content).
-    const blocked = await siteContentImageGate(
-      adminLevel,
-      image.id,
-      deletePath,
-    );
+    const blocked = await siteContentImageGate(adminLevel, image, deletePath);
     if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
     if (mismatch) {
@@ -311,15 +312,13 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     );
   });
 
-/** The image list the editor's image dropdown offers: every image's id and
- * name, in the library's name order. No URLs or thumbnails — the client needs
- * nothing more to insert the short-form reference. */
+/** The image list the image picker offers, in the library's name order. The
+ *  picker shows the thumbnails, and the rich editor shows the full image for
+ *  an inserted short-form img#id reference. */
 const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
   contentResponsePage(async () => {
     const images = isStorageEnabled() ? await getAllImages() : [];
-    const options = sortByName(images, byNameThenUpload).map(
-      ({ id, name }) => ({ id, name }),
-    );
+    const options = imageOptionsOf(sortByName(images, byNameThenUpload));
     return jsonResponse({ images: options });
   });
 

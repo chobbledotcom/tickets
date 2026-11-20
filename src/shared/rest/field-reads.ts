@@ -5,6 +5,7 @@ import * as v from "valibot";
 import { columnName } from "#shared/column-names.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
 import { definedValuesBy } from "#shared/defined-values.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import {
   optionalDateString,
   parseEach,
@@ -76,12 +77,22 @@ const NULL_VALUES: Partial<Record<FieldKind, unknown>> = {
 const keptValue = (field: FieldSpec, stored: unknown): unknown =>
   stored ?? CREATE_VALUES[field.kind]?.(field);
 
+/** The value rule of one Markdown field, which declares a text kind. Four
+ *  spaces start a code block, so the indentation of the first line stays. The
+ *  blank lines before the text and the white space after it go. */
+const markdownValueSchema = v.pipe(v.string(), v.transform(markdownSource));
+
 /** Read one supplied value through the field's value rule. */
 const checkedRead: BodyRead = (field, body, stored) => {
   const value = body[columnName(field.key)];
   if (value === undefined) return okResult(keptValue(field, stored));
   if (value === null) {
     return okResult(NULL_VALUES[field.kind] ?? keptValue(field, stored));
+  }
+  if (field.markdown === true) {
+    const markdown = v.safeParse(markdownValueSchema, value);
+    if (!markdown.success) return errorResult(apiRefusal(field));
+    return okResult(markdown.output);
   }
   return v.is(fieldValueSchema(field), value)
     ? okResult(value)
@@ -113,28 +124,40 @@ const BODY_READS: Record<FieldKind, BodyRead> = {
 const orDefault = (value: unknown, field: FieldSpec): unknown =>
   value ?? field.default;
 
+/** A whole number a shown box must carry. The form's own check refuses a
+ *  blank box, so a missing value means the read and the form disagree. */
+const wholeNumberBox = (value: unknown, field: FieldSpec): number => {
+  if (typeof value === "number") return value;
+  throw new Error(`The ${field.key} form box holds no count`);
+};
+
 /** A local time box as the stored UTC time. An empty box stays empty. */
 const formTime = (value: unknown, field: FieldSpec): string =>
   value === "" ? "" : normalizeDatetime(value as string, field.key);
 
 /** The value one checked form box stores. A switch box sends "1" when it is
  *  on. A price box holds an amount in major units, and its own check refused
- *  anything else. A time box holds a local time. */
+ *  anything else. A blank price box stores the declared default. A time box
+ *  holds a local time. A count box must not be blank. Its own check refused a
+ *  blank before this read runs. */
 const FORM_READS: Record<
   FieldKind,
   (value: unknown, field: FieldSpec) => unknown
 > = {
   contactFields: orDefault,
-  count: orDefault,
+  count: wholeNumberBox,
   date: (value, field) =>
     parseDateStringOrThrow(value as string, `the ${field.key} form box`),
   datetime: formTime,
   dayPrices: orDefault,
-  durationDays: orDefault,
+  durationDays: wholeNumberBox,
   listingType: orDefault,
   name: (value) => value,
   optionalDatetime: (value, field) => formTime(value, field) || null,
   price: (value, field) => {
+    // The page draws the declared default in an optional price box, and a
+    // required box that is blank is refused before this read runs. A box with
+    // no default and no value means the read and the form disagree.
     const amount =
       value === "" ? field.default : parseOptionalMinorUnits(value as string);
     if (amount === null || amount === undefined) {

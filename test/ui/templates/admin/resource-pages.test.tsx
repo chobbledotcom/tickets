@@ -5,6 +5,7 @@ import { escapeHtml } from "#jsx/escape-html.ts";
 import {
   type AdminResourcePagesConfig,
   defineAdminResourcePages,
+  pageLabels,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import {
@@ -41,7 +42,6 @@ const config: AdminResourcePagesConfig<SyntheticResource> = {
       key: "statuses.delete_confirm",
     }),
     danger: true,
-    heading: "Delete synthetic widget",
     label: "Widget name",
     name: ({ name }) => name,
     prompt: ({ name }) => ({ args: { name }, key: "news.delete_prompt" }),
@@ -104,6 +104,19 @@ const listPage = (
 
 describe("admin resource page factory", () => {
   beforeAll(setupAdminPageTest);
+
+  test("builds one resource's six page labels from its key", () => {
+    // Every role reads its own scheme key, so a swap between the create and
+    // delete pages, or a Title Case copy slip, fails here.
+    expect(pageLabels("statuses")).toEqual({
+      addHeading: "Add attendee status",
+      addSubmit: "Create status",
+      addTitle: "Add attendee status",
+      deleteButton: "Delete status",
+      deleteTitle: "Delete attendee status",
+      listTitle: "Attendee statuses",
+    });
+  });
 
   test("the writable name column keys itself as the row's name", () => {
     const column = writableNameColumn<SyntheticResource>(

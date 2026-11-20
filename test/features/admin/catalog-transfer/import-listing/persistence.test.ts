@@ -19,7 +19,9 @@ import {
   generateUniqueListingSlug,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -67,26 +69,28 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     );
   });
 
-  test("clears package-only values when a listing joins a regular group", async () => {
+  test("refuses package-only values when a listing joins a regular group", async () => {
     const group = await createTestGroup({ name: "Ordinary group" });
-    const id = await importedId({
-      groups: [
-        {
-          dayPrices: { 1: 200 },
-          group: group.name,
-          packagePrice: 300,
-          quantity: 4,
-        },
-      ],
-      kind: "listing",
-      listing: customListing("Ordinary joiner"),
-      version: 1,
-    });
-
-    expect(await getGroupPackagePrices(group.id)).toEqual([
-      { groupId: group.id, listingId: id, packagePrice: null, quantity: 1 },
+    const message = importRefusal(
+      await importCatalog({
+        groups: [
+          {
+            dayPrices: { 1: 200 },
+            group: group.name,
+            packagePrice: 300,
+            quantity: 4,
+          },
+        ],
+        kind: "listing",
+        listing: customListing("Ordinary joiner"),
+        version: 1,
+      }),
+    );
+    expectIncludesAll(message, [
+      "Only a package group can hold",
+      "packagePrice",
     ]);
-    expect([...(await getGroupDayPrices(group.id)).entries()]).toEqual([]);
+    expect(await getGroupPackagePrices(group.id)).toEqual([]);
   });
 
   test("does not import attachment storage fields", async () => {
@@ -113,22 +117,19 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     expect(await listingParents.getIds(id)).toEqual([parent.id]);
   });
 
-  test("an omitted package flag keeps imported group members ordinary", async () => {
+  test("refuses package values for a group whose package flag is omitted", async () => {
     const member = await createTestListing({ name: "Ordinary member" });
-    const groupId = await importedId({
-      group: { name: "Imported ordinary group" },
-      kind: "group",
-      members: [{ listing: member.name, packagePrice: 400, quantity: 3 }],
-      version: 1,
-    });
-
-    expect(await getGroupPackagePrices(groupId)).toEqual([
-      {
-        groupId,
-        listingId: member.id,
-        packagePrice: null,
-        quantity: 1,
-      },
+    const message = importRefusal(
+      await importCatalog({
+        group: { name: "Imported ordinary group" },
+        kind: "group",
+        members: [{ listing: member.name, packagePrice: 400, quantity: 3 }],
+        version: 1,
+      }),
+    );
+    expectIncludesAll(message, [
+      "Only a package group can hold",
+      "packagePrice",
     ]);
   });
 

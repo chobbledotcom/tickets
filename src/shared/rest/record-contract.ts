@@ -308,6 +308,9 @@ export interface RecordSpec<Shape extends RecordShape>
    * the fields that its input leaves out. */
   readonly fieldDefaults?: FieldSpecs;
   readonly getAll?: GetAllCommand<ListRowOf<Shape>>;
+  /** A check both doors run on every write input, before the rule and before
+   * a declared write command. It answers the refusal message, or null. */
+  readonly inputCheck?: (input: InputOf<Shape>) => string | null;
   /** Link create/update log entries to the row (the listing log does). */
   readonly linkActivityToRow?: boolean;
   /** Read one row for a page, the API, and the delete confirmation. */

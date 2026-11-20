@@ -200,6 +200,16 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Feature-complete by default**: Build the whole feature. Stop short only when
   finishing it adds more branches or more special cases than the honest shape
   needs.
+- **Keep a pull request under 1,000 changed `src/` lines**: A pull request
+  changes fewer than 1,000 lines in `src/`, unless the owner asks for more.
+  Count the added and deleted lines that `git diff <base>...HEAD -- src`
+  reports. Split a larger change into stacked pull requests (see
+  [Stacked Pull Requests](#stacked-pull-requests)).
+- **Keep the admin guide up to date**: When a change adds or changes a feature
+  that an operator uses, update `/admin/guide` in the same pull request. The
+  guide is data in `src/ui/templates/admin/guide/`. Add or edit the section the
+  operator reads, and write its words in
+  [Simple Language](#simple-language--how-we-talk-to-users).
 - **Unify systems — the answer is yes**: When two systems do almost the same
   job, find the single abstraction that does both.
 - **Copy the shared shape, not the nearest one**: When a helper already does
@@ -332,6 +342,10 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Use types where they remove noise**: Replace repeated inline shapes with a
   named type when that clarifies a boundary. Do not add a second vocabulary for
   one concept.
+- **Commit when the feature is done**: Make one commit for one feature or fix.
+  Do not commit after each step of a plan. Run the light gates on the finished
+  change, then commit it. Commit a work-in-progress checkpoint only when you
+  pause or hand off (see "Never lose work").
 - **Never lose work — commit WIP even if broken**: Commit and push work in
   progress before you pause, hand off, or end a turn with a dirty tree. Mark a
   known-broken checkpoint in the commit message.
@@ -346,6 +360,11 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   hand the decision to a human.
 - **Finish by rewriting the PR name and description**: Make the finished PR name
   and describe what was actually built, in plain words.
+- **Run the narrow tests first**: Run `deno task test:files` on the test files
+  the change touches, and repeat that run after each fix. Do not run the full
+  suite again to confirm a targeted run. Run the full suite once, on the final
+  head, through `job-submit`. When a change breaks a test outside the files you
+  ran, add that file to the next targeted run.
 - **Final check**: Several agents share one machine. Do not run the full
   precommit or the full coverage run locally. Run the tests for the files you
   changed with `deno task test:files`, then run these gates:
@@ -450,6 +469,19 @@ a key that no source file references. When you delete the code that reads a
 key, delete the key in the same change. `scripts/check-i18n/unused.ts` says
 what counts as a reference.
 
+A record page names its six labels from its resource key. `pageLabels` in
+`src/ui/templates/admin/resource-pages.tsx` builds them from one noun and five
+keys:
+
+- `<resource>.add.heading` and `<resource>.add.title`: the create page.
+- `<resource>.add.submit`: the create button.
+- `<resource>.delete.heading`: the delete page heading and browser title.
+- `<resource>.delete.submit`: the delete button.
+- `terms.<resource>`: the list page title.
+
+Add the noun to `src/locales/en/nouns.json` and the five keys. The helper
+supplies all six labels, so a new record page needs no key list.
+
 ## Simplified Technical English — How We Write Documentation
 
 Technical text follows ASD-STE100 Simplified Technical English. It covers
@@ -517,14 +549,15 @@ for why.
 
 ## Code Duplication
 
-`deno task cpd` runs jscpd, and every scan fails on a clone that its committed
-baseline does not carry. The strict scans ignore names, literals, and
-annotations, so a renamed copy is a clone. The baselines only shrink. The scan
-configs and the committed baselines live in `cfg/`. A tool or a platform that
-must read its config from the repository root keeps the file there, as
-`biome.json`, `deno.json`, `devenv.nix`, `fly.toml` and `render.yaml` do. Biome
-refuses a second root configuration in a subdirectory, and the platforms look
-for their file at the root.
+`deno task cpd` runs jscpd, and every scan fails when it reports more
+duplicated places than its count. The scan configs and the counts file live in
+`cfg/`, and `cfg/cpd-counts.json` holds one count for each scan. A count only
+falls. The strict scans ignore names, literals, and annotations, so a renamed
+copy is a clone. A tool or a platform that must read its config from the
+repository root keeps the file there, as `biome.json`, `deno.json`,
+`devenv.nix`, `fly.toml` and `render.yaml` do. Biome refuses a second root
+configuration in a subdirectory, and the platforms look for their file at the
+root.
 
 A flagged pair is one merge:
 
@@ -536,49 +569,40 @@ A flagged pair is one merge:
 - After a dedup, search for the other places that now fold into the new helper.
 - The one honest exception is a shared signature with nothing behind it: no
   shared call at all. Give that signature a named type instead.
-- The renamed scan holds accepted matches in
-  `cfg/.jscpd.renamed-baseline.json`. Add a pair only after you try the curry,
-  with `deno task cpd:renamed --update`.
-- The strict scans hold the cloned code that existed when they started to count
-  renamed copies, in `cfg/.jscpd.baseline.json`,
-  `cfg/.jscpd.test-baseline.json`, `cfg/.jscpd.helpers-baseline.json`, and
-  `cfg/.jscpd.support-baseline.json`. After a merge, remove the fixed clones
-  with `deno task cpd:update`. Never add a clone to these baselines.
-- A baseline holds one count for each duplicated snippet. The fingerprint of a
-  snippet covers its text with every run of whitespace removed. A line that
-  moves, a blank line, a file rename, and a new partner for a recorded place
-  therefore keep the count. jscpd's own `--baseline` file hashes the raw text
-  of a clone pair, so this repository writes its own baseline over the scan
-  report, in `scripts/jscpd/baseline.ts`. `deno task cpd:update` rewrites every
-  baseline, and `deno task cpd` checks each scan against it.
-- A branch must not raise a baseline. The ratchet in `deno task cpd` fails on
-  a clone that the merge base on `origin/main` does not hold, and on a count
-  above the base's, so precommit and CI catch both. It reads every
-  `.jscpd.*baseline.json` in `cfg/`, and matches each one to the merge base by
-  file name, so a baseline that moves between directories does not count as
-  new. It fails on a scan task that names another path, so a new scan's
-  baseline is compared too. Run it on its own with
-  `deno task check:jscpd-baselines`.
-- A baseline names its fingerprint version. The ratchet cannot compare counts
-  of two versions, so it passes a merge base copy that holds an older version.
-  A baseline whose own version is old fails, and the fix is
-  `deno task cpd:update`.
-- A rewrite re-keys the recorded places it changes. The ratchet accepts those
-  places while the baseline's total falls. A baseline whose total rises, or one
-  that adds more places than it gives up, still fails. A count above the
-  base's for a snippet that the base holds still fails.
-- After each scan, `deno task cpd` names the worst duplication: the code in the
-  most places, then the code with the most tokens. Merge that one first.
+- The renamed scan counts its accepted matches under `renamed`. A new pair
+  raises the count, and `deno task cpd:renamed --update` refuses it. Merge the
+  pair instead. The command writes only a lower count.
+- The counts for `main`, `test`, `helpers` and `support` hold the cloned code
+  that existed when the strict scans started to count renamed copies. After a
+  merge, remove the fixed clones with `deno task cpd:update`.
+- A count is the number of duplicated places that one scan reports. A place
+  counts once, however many clone pairs link it. A line that moves, a blank
+  line, a file rename, and a new partner for a recorded place keep the count.
+  `scripts/jscpd/counts.ts` reads the file and counts the places in the scan
+  report. `deno task cpd:update` writes each count, and `deno task cpd` checks
+  each scan against it. An update fails on a rise.
+- A branch must not raise a count. The ratchet in `deno task cpd` compares two
+  integers for each scan with the merge base on `origin/main`, so precommit and
+  CI catch a rise. It fails on a scan task that names another counts file, and
+  on a scan name that the file does not hold. Run it on its own with
+  `deno task check:cpd-counts`.
+- A merge that removes a clone lowers the count. A merge that changes no
+  duplicated place leaves the count alone, so a rewrite does not touch the
+  record.
+- A failing scan prints its place total, the committed count, and the worst
+  duplication. The worst duplication is the code in the most places, then the
+  code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. This includes a
   destructured dynamic import, `const { name } = await import("…");`. The
   `ignorePattern` list in each config skips them, so do not add ignore markers
   around imports. The scans of the tests and of their helpers skip no dynamic
-  import: that pattern gives their recorded clones new fingerprints.
-- A declared list of strings is the other sanctioned repeat. The strict scans
-  ignore literals, so two long word lists match. Wrap the whole declaration in
-  `/* jscpd:ignore-start -- a list of strings, not code */` and
-  `/* jscpd:ignore-end */`. Wrap only a declaration that holds nothing but
-  strings. Never wrap code, SQL text, or a list inside a call.
+  import: each one names its own module, so two of them rarely match.
+- A declaration of static data is the other sanctioned repeat: a list of
+  strings, or an object hash whose values are literals. The strict scans
+  ignore literals, so two such declarations match. Wrap the whole declaration
+  in `/* jscpd:ignore-start -- static data, not code */` and
+  `/* jscpd:ignore-end */`. Wrap only a declaration that holds static data.
+  Never wrap code, SQL text, or a declaration inside a call.
 
 `docs/test-duplication.md` measures the remaining steps. Read its counts as work
 to do.
@@ -823,13 +847,20 @@ must finish in about ten minutes. When a run needs longer, stop it, and rely on
 the direct tests around the method you changed. A small edit owes those tests,
 not a mutation run, and a review that asks for more gets that answer.
 
+Decide whether to run it from the risk, not from habit. Run a targeted mutation
+test when the change adds a rule with branches, boundaries, or money moves, and
+the tests around it can miss a wrong operator. Skip the run when the change
+touches only prose, copy, a type, a rename, a config value, or a line that a
+direct test already pins. A mutation run is slow and holds a shared machine.
+
 Survivors on a file you touch are yours to fix, even on lines you did not
 change. Write the assertion that kills the mutant, or record it in
 `scripts/mutation/equivalent-mutants/` with a proof that no input can
 distinguish it.
 
-`deno task precommit:mutation` is the branch gate. Run it before you merge a
-branch that changes `src/` files.
+`deno task precommit:mutation` is the branch gate. Run it once, on the final
+head, before you merge a branch that changes `src/` files. Rerun it only when a
+later commit changes `src/` files.
 
 The runner stops a test batch that outlives the baseline by two orders of
 magnitude. The limit is 100 times the measured baseline, with a floor of 60

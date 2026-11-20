@@ -48,6 +48,7 @@ export type IconName =
   | "log-in"
   | "log-out"
   | "shopping-cart"
+  | "minus"
   | "x";
 
 /** Visual variants for a button-styled link */

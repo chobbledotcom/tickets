@@ -66,6 +66,9 @@ export type FieldSpec = {
   readonly kind: FieldKind;
   readonly label?: string;
   readonly lockedFor?: readonly Lock[];
+  /** Set on a text field that holds Markdown. A JSON write keeps the
+   *  indentation of the text, because four spaces start a code block. */
+  readonly markdown?: true;
   readonly min?: 0 | 1;
   readonly placeholder?: string;
   readonly required?: true;

@@ -1,8 +1,9 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
+import { compact } from "#fp";
 import type { GroupInput } from "#shared/records/group-fields.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
-import { errorResult, type Result } from "#shared/result.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   availableDayCounts,
   type DayPricedListing,
@@ -34,19 +35,45 @@ export const nameTakenError = (name: string): string =>
 type MembershipSpec = Omit<ImportedMembership, "listingId" | "groupId"> &
   Partial<Pick<ImportedMembership, "listingId" | "groupId">>;
 
+/** The package overrides one membership side declares. */
+export type MembershipOverrides = {
+  dayPrices?: Record<string, number> | undefined;
+  packagePrice?: number | null | undefined;
+  quantity?: number | undefined;
+};
+
+/** The fields a non-package membership supplies above the neutral value. */
+const overrideFieldsSupplied = (overrides: MembershipOverrides): string[] =>
+  compact([
+    (overrides.packagePrice ?? null) === null ? null : "packagePrice",
+    (overrides.quantity ?? 1) === 1 ? null : "quantity",
+    Object.keys(overrides.dayPrices ?? {}).length === 0 ? null : "dayPrices",
+  ]);
+
+/** The membership one side declares. A package holds the overrides. A group
+ *  that is not a package holds only plain memberships, so its overrides are
+ *  refused, not cleared. Clearing them stores a different membership than the
+ *  file asked for. */
 export const membershipSpec = (
-  packagePrice: number | null | undefined,
-  quantity: number | undefined,
-  dayPrices: Record<string, number> | undefined,
+  overrides: MembershipOverrides,
   isPackage: boolean,
-): MembershipSpec =>
-  isPackage
-    ? {
-        dayPrices: dayPrices ? parseDayPrices(dayPrices) : {},
-        packagePrice: packagePrice ?? null,
-        quantity: quantity === undefined ? 1 : quantity,
-      }
-    : { dayPrices: {}, packagePrice: null, quantity: 1 };
+): Result<MembershipSpec> => {
+  if (isPackage) {
+    return okResult({
+      dayPrices: overrides.dayPrices ? parseDayPrices(overrides.dayPrices) : {},
+      packagePrice: overrides.packagePrice ?? null,
+      quantity: overrides.quantity ?? 1,
+    });
+  }
+  const supplied = overrideFieldsSupplied(overrides);
+  return supplied.length === 0
+    ? okResult({ dayPrices: {}, packagePrice: null, quantity: 1 })
+    : errorResult(
+        `Only a package group can hold ${supplied.join(", ")}. Remove ${
+          supplied.length === 1 ? "it" : "them"
+        } or make the group a package.`,
+      );
+};
 
 /** The error message for a package member whose day-price override targets a
  *  day count the member does not offer. Null when there is no override or

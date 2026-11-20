@@ -2,6 +2,7 @@ import { isNotNullish, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import { datetimePartNames } from "#shared/forms/datetime-parts.ts";
 import {
   type ChoiceField,
   effectiveMaxLength,
@@ -65,17 +66,21 @@ const renderCheckboxGroup = (
 const renderDatetimeInputs = (
   name: string,
   { date, time }: { date: string; time: string },
-): string =>
-  `<input type="date" name="${escapeHtml(
-    name,
-  )}Date" placeholder="Date" aria-label="Date"${
-    date ? ` value="${escapeHtml(date)}"` : ""
-  }>` +
-  `<input type="time" name="${escapeHtml(
-    name,
-  )}Time" placeholder="Time" aria-label="Time"${
-    time ? ` value="${escapeHtml(time)}"` : ""
-  }>`;
+): string => {
+  const parts = datetimePartNames(name);
+  return (
+    `<input type="date" name="${escapeHtml(
+      parts.date,
+    )}" placeholder="Date" aria-label="Date"${
+      date ? ` value="${escapeHtml(date)}"` : ""
+    }>` +
+    `<input type="time" name="${escapeHtml(
+      parts.time,
+    )}" placeholder="Time" aria-label="Time"${
+      time ? ` value="${escapeHtml(time)}"` : ""
+    }>`
+  );
+};
 
 const splitDatetime = (value: string): { date: string; time: string } => {
   if (!value) return { date: "", time: "" };
@@ -248,7 +253,9 @@ const resolveFieldValue = (
   if (isNotNullish(explicit) && explicit !== "") return String(explicit);
   const saved = getSavedFieldValue(field);
   if (saved !== "") return saved;
-  return String(explicit ?? field.defaultValue ?? "");
+  // The caller gave no value, so the box draws its default. A blank explicit
+  // value is no value: it must not hide the default the page promises.
+  return String(field.defaultValue ?? "");
 };
 
 export const renderFields = (

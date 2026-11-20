@@ -6,13 +6,16 @@ import { runUpdateMode, type UpdateModeIo } from "./update-mode-lib.ts";
 
 /**
  * The entry the deploy workflows run around every site code update. The
- * caller grants the site host alongside api.bunny.net, because both waits
- * fetch the site's read-only page. `end` pins the wait to the released
+ * caller grants the hosts `scripts/update-mode-hosts.ts` prints, because both
+ * waits fetch the site's read-only page. `end` pins the wait to the released
  * build's tag, which the workflow takes from the build's .build-tag file:
  *
- *   deno run --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY --allow-net=api.bunny.net,site.example \
+ *   hosts=$(deno run scripts/update-mode-hosts.ts site.example)
+ *   deno run --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
+ *     --allow-net="api.bunny.net,$hosts" \
  *     scripts/update-mode.ts begin <script-id> <site-url>
- *   deno run --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY --allow-net=api.bunny.net,site.example \
+ *   deno run --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
+ *     --allow-net="api.bunny.net,$hosts" \
  *     scripts/update-mode.ts end <script-id> <site-url> <build-tag>
  */
 

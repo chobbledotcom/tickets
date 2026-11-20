@@ -22,10 +22,12 @@ import { initFillDefaultTemplate } from "./admin/fill-default-template.ts";
 import { initFormSubmitDisable } from "./admin/form-submit-disable.ts";
 import { initIframeScrollIntoView } from "./admin/iframe-scroll-into-view.ts";
 import { initListingDatePicker } from "./admin/listing-date-picker.ts";
+import { initListingImages } from "./admin/listing-images.ts";
 import { initLogisticsMapLoader } from "./admin/logistics-map-loader.ts";
 import { initManualCheckin } from "./admin/manual-checkin.ts";
 import { initMarkdownEditorLoader } from "./admin/markdown-editor-loader.ts";
 import { initMarkdownPreview } from "./admin/markdown-preview.ts";
+import { initAdminModalShell } from "./admin/modal.ts";
 import { initMultiBookingBuilder } from "./admin/multi-booking.ts";
 import { initNavSelect } from "./admin/nav-select.ts";
 import { initOrderGallery } from "./admin/order-gallery.ts";
@@ -55,6 +57,7 @@ initPaymentTestButtons();
 initQrRefresh();
 initRunningTotal();
 initCharCounters();
+initAdminModalShell();
 initMarkdownPreview();
 // After the preview module so the injected editor's toggle can join the
 // preview's footer strip once its bundle loads.
@@ -67,6 +70,7 @@ initChildRequired();
 initChildCompat();
 initOrderGallery();
 initListingDatePicker();
+initListingImages();
 initDuplicatePreview();
 initDurationWarning();
 initPairedControls();

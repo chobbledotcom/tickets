@@ -44,6 +44,16 @@ export const standardParentWithDailyChildEdge =
     return { child, parent };
   };
 
+/** Save a child id list through the admin JSON API and read its answer. */
+export const putListingChildren = (
+  parentId: number,
+  ids: unknown,
+): Promise<Response> =>
+  apiRequest(`/api/admin/listings/${parentId}`, {
+    body: { child_listing_ids: ids },
+    method: "PUT",
+  });
+
 /** Create a listing through the admin JSON API, returning the created id. */
 export const apiCreateListing = async (
   body: Record<string, unknown>,

@@ -409,6 +409,10 @@ If image publication fails, the GitHub release remains available. Retry the
 failed image job from the release workflow run. A superseded release can publish
 its commit image, but it cannot replace `latest`.
 
+The image build keeps the database FFI library path for Deno. It removes
+`LD_LIBRARY_PATH` only for the nested devenv command. That command uses its own
+C++ runtime.
+
 GitHub creates the registry package as private on the first publish. A
 repository admin must make it public once. Open the `tickets` package in the
 `chobbledotcom` organisation on GitHub. Select Package settings, then Change
@@ -716,8 +720,13 @@ secret.
   client sites that accept the published tier. It asks the main instance for the
   DB credentials of the sites on that tier (each site's own full-access token —
   the workflow only reads, to take backups), backs each up to the builder's
-  storage, then deploys. The **`tier`** run input (`alpha` default, then `beta`
-  or `release`) is the release channel being published: each site carries its
+  storage, then deploys. The job log names each site by its numeric site id. It
+  masks the site URL and the database URL and token before any step can print
+  them, so the public log holds no client address or database credential. A
+  site that is not activated has no live page and accepts no writes, so the
+  deploy updates it without the update wait. The **`tier`** run input
+  (`alpha` default, then `beta` or `release`) is the release channel being
+  published: each site carries its
   own `updates` channel and only the sites at the deploy's tier or more eager
   are returned — a `release` deploy reaches every site, `beta` reaches beta +
   alpha sites, `alpha` only alpha sites. The default is `alpha` (the smallest
