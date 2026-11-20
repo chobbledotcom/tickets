@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { assessTax } from "#shared/tax/assessment.ts";
 import { addedTaxByOrder } from "#shared/tax/added.ts";
+import { assessTax } from "#shared/tax/assessment.ts";
 import type { TaxState } from "#shared/tax/transitions.ts";
 import type { TaxPolicy } from "#shared/tax/types.ts";
 

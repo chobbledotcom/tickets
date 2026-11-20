@@ -84,7 +84,9 @@ const renderPriceAdjustments = (
       `<li>${escapeHtml(modifier.name)} <span class="ticket-card-modifier-amount">${escapeHtml(formatSignedCurrency(modifier.amount))}</span></li>`,
   );
   const modifiersHtml =
-    rows.length > 0 ? `<ul class="ticket-card-modifiers">${rows.join("")}</ul>` : "";
+    rows.length > 0
+      ? `<ul class="ticket-card-modifiers">${rows.join("")}</ul>`
+      : "";
   const taxHtml =
     tax > 0
       ? `<div class="ticket-card-tax">${t("tickets.tax")} ${escapeHtml(formatCurrency(tax))}</div>`

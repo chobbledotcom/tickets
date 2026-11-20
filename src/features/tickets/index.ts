@@ -10,8 +10,6 @@ import { packageDisplaysForRows } from "#db/groups/package-display.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { getModifierNamesByIds } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
-import { addedTaxByOrder } from "#shared/tax/added.ts";
-import { readTaxAssessments } from "#shared/tax/store.ts";
 import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
@@ -30,6 +28,8 @@ import {
 import type { PathMethodRoute } from "#routes/types.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { generateQrSvg } from "#shared/qr.ts";
+import { addedTaxByOrder } from "#shared/tax/added.ts";
+import { readTaxAssessments } from "#shared/tax/store.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 

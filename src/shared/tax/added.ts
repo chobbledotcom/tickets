@@ -17,7 +17,10 @@ export const addedTaxByOrder = (
   const latest = new Map(stored.map((record) => [record.bookingGroup, record]));
   const added = new Map<string, number>();
   for (const [order, { state }] of latest) {
-    if (state.kind === "active" && state.assessment.policy.mode === "add_to_total")
+    if (
+      state.kind === "active" &&
+      state.assessment.policy.mode === "add_to_total"
+    )
       added.set(order, state.assessment.taxAmount);
   }
   return added;

@@ -26,7 +26,10 @@ const ticketPageUnderTax = async (policy: {
   rateBasisPoints: number;
 }): Promise<string> =>
   withSetting({ tax: JSON.stringify(policy) }, async () => {
-    const listing = await createTestListing({ maxAttendees: 10, unitPrice: 1000 });
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      unitPrice: 1000,
+    });
     const result = await processBooking(
       listing,
       contact,
