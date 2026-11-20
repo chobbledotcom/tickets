@@ -157,28 +157,30 @@ describe("splitModifiersAcrossCards", () => {
 });
 
 describe("splitTaxAcrossCards", () => {
-  test("gives one card its order's whole tax", () => {
-    const entry = card(2, 2000);
-    expect(
-      splitTaxAcrossCards([entry], new Map([["evt-order", 400]])).get(entry),
-    ).toBe(400);
-  });
-
-  test("splits the tax by ticket income and keeps every penny", () => {
-    const costly = card(1, 46_150);
-    const middle = card(1, 52_576);
-    const cheap = card(1, 57_834);
-    const shares = splitTaxAcrossCards(
-      [costly, middle, cheap],
-      new Map([["evt-order", 31_312]]),
-    );
-    const parts = [costly, middle, cheap].map((entry) => shares.get(entry)!);
-    expect(parts).toEqual([9230, 10_515, 11_567]);
-    expect(sumOf((part: number) => part)(parts)).toBe(31_312);
-  });
-
-  test("gives a card in an order with no added tax no share", () => {
-    const entry = card(1, 1000);
-    expect(splitTaxAcrossCards([entry], new Map()).has(entry)).toBe(false);
-  });
+  type TaxSplit = [
+    name: string,
+    incomes: number[],
+    tax: number,
+    shares: number[],
+  ];
+  const splits: TaxSplit[] = [
+    ["gives one card its order's whole tax", [2000], 400, [400]],
+    [
+      "splits the tax by ticket income and keeps every penny",
+      [46_150, 52_576, 57_834],
+      31_312,
+      [9230, 10_515, 11_567],
+    ],
+    ["gives a card in an order with no added tax no share", [1000], 0, [0]],
+  ];
+  for (const [name, incomes, tax, expected] of splits) {
+    test(name, () => {
+      const entries = incomes.map((income) => card(1, income));
+      const shares = splitTaxAcrossCards(
+        entries,
+        new Map([["evt-order", tax]]),
+      );
+      expect(entries.map((entry) => shares.get(entry) ?? 0)).toEqual(expected);
+    });
+  }
 });

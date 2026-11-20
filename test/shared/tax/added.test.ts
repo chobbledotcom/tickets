@@ -24,34 +24,45 @@ const included = {
 } as const;
 
 describe("addedTaxByOrder", () => {
-  test("holds the tax that an active tax-added order adds", () => {
-    expect(addedTaxByOrder([saved("order-a", addTax, 0)])).toEqual(
-      new Map([["order-a", 200]]),
-    );
-  });
-
-  test("leaves out an order whose prices already hold their tax", () => {
-    expect(addedTaxByOrder([saved("order-a", included, 0)]).size).toBe(0);
-  });
-
-  test("leaves out an order with no tax", () => {
-    expect(addedTaxByOrder([saved("order-a", { mode: "none" }, 0)]).size).toBe(
-      0,
-    );
-  });
-
-  test("leaves out a refunded order", () => {
-    expect(
-      addedTaxByOrder([saved("order-a", addTax, 1, "refunded")]).size,
-    ).toBe(0);
-  });
-
-  test("reads the latest saved assessment of each order", () => {
-    const reassessed = addedTaxByOrder([
-      saved("order-a", addTax, 0),
-      saved("order-a", included, 1),
-      saved("order-b", addTax, 0),
-    ]);
-    expect(reassessed).toEqual(new Map([["order-b", 200]]));
-  });
+  type Case = [
+    name: string,
+    records: ReturnType<typeof saved>[],
+    expected: [string, number][],
+  ];
+  const cases: Case[] = [
+    [
+      "holds the tax that an active tax-added order adds",
+      [saved("order-a", addTax, 0)],
+      [["order-a", 200]],
+    ],
+    [
+      "leaves out an order whose prices already hold their tax",
+      [saved("order-a", included, 0)],
+      [],
+    ],
+    [
+      "leaves out an order with no tax",
+      [saved("order-a", { mode: "none" }, 0)],
+      [],
+    ],
+    [
+      "leaves out a refunded order",
+      [saved("order-a", addTax, 1, "refunded")],
+      [],
+    ],
+    [
+      "reads the latest saved assessment of each order",
+      [
+        saved("order-a", addTax, 0),
+        saved("order-a", included, 1),
+        saved("order-b", addTax, 0),
+      ],
+      [["order-b", 200]],
+    ],
+  ];
+  for (const [name, records, expected] of cases) {
+    test(name, () => {
+      expect(addedTaxByOrder(records)).toEqual(new Map(expected));
+    });
+  }
 });

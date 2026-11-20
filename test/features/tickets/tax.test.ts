@@ -46,25 +46,35 @@ const ticketPageUnderTax = async (policy: {
   });
 
 describeWithEnv("ticket view > tax", { db: true, triggers: true }, () => {
-  test("shows the net price, the added tax, and the total the buyer paid", async () => {
-    const html = await ticketPageUnderTax({
-      mode: "add_to_total",
-      rateBasisPoints: 2000,
+  type TaxedPage = [
+    name: string,
+    mode: string,
+    shown: string[],
+    hidden: string[],
+  ];
+  const pages: TaxedPage[] = [
+    [
+      "shows the net price, the added tax, and the total the buyer paid",
+      "add_to_total",
+      [
+        `Price: ${formatCurrency(2000)}`,
+        `ticket-card-tax">Tax: ${formatCurrency(400)}`,
+        `ticket-card-total"><strong>Total:</strong> ${formatCurrency(2400)}`,
+      ],
+      [],
+    ],
+    [
+      "adds no tax row when the listed price already holds its tax",
+      "calculate_from_total",
+      ["ticket-card-price"],
+      ["ticket-card-tax", "ticket-card-total"],
+    ],
+  ];
+  for (const [name, mode, shown, hidden] of pages) {
+    test(name, async () => {
+      const html = await ticketPageUnderTax({ mode, rateBasisPoints: 2000 });
+      expectIncludesAll(html, shown);
+      for (const absent of hidden) expect(html).not.toContain(absent);
     });
-    expectIncludesAll(html, [
-      `Price: ${formatCurrency(2000)}`,
-      `ticket-card-tax">Tax: ${formatCurrency(400)}`,
-      `ticket-card-total"><strong>Total:</strong> ${formatCurrency(2400)}`,
-    ]);
-  });
-
-  test("adds no tax row when the listed price already holds its tax", async () => {
-    const html = await ticketPageUnderTax({
-      mode: "calculate_from_total",
-      rateBasisPoints: 2000,
-    });
-    expect(html).toContain("ticket-card-price");
-    expect(html).not.toContain("ticket-card-tax");
-    expect(html).not.toContain("ticket-card-total");
-  });
+  }
 });

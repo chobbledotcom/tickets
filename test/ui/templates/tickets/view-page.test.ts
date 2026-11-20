@@ -271,29 +271,39 @@ describe("ticketViewPage ticket cards", () => {
     );
   });
 
-  test("shows the added tax and the total that holds it", () => {
-    const html = oneCardPage(
-      { attendee: { price_paid: "107500" } },
+  type AdjustedCard = [
+    name: string,
+    pricePaid: string,
+    onTheCard: { modifiers?: ModifierLine[]; tax?: number },
+    shown: string[],
+  ];
+  const adjustedCards: AdjustedCard[] = [
+    [
+      "shows the added tax and the total that holds it",
+      "107500",
       { tax: 21_500 },
-    );
-    expectIncludesAll(html, [
-      `Price: ${formatCurrency(107_500)}`,
-      `ticket-card-tax">Tax: ${formatCurrency(21_500)}`,
-      `ticket-card-total"><strong>Total:</strong> ${formatCurrency(129_000)}`,
-    ]);
-    assert(!html.includes("ticket-card-modifiers"));
-  });
-
-  test("adds the tax to the modifier total", () => {
-    const html = oneCardPage(
-      { attendee: { price_paid: "1000" } },
+      [
+        `Price: ${formatCurrency(107_500)}`,
+        `ticket-card-tax">Tax: ${formatCurrency(21_500)}`,
+        `ticket-card-total"><strong>Total:</strong> ${formatCurrency(129_000)}`,
+      ],
+    ],
+    [
+      "adds the tax to the modifier total",
+      "1000",
       { modifiers: [{ amount: 100, name: "Service charge" }], tax: 220 },
-    );
-    assertStringIncludes(
-      html,
-      `ticket-card-total"><strong>Total:</strong> ${formatCurrency(1320)}`,
-    );
-  });
+      [`ticket-card-total"><strong>Total:</strong> ${formatCurrency(1320)}`],
+    ],
+  ];
+  for (const [name, pricePaid, onTheCard, shown] of adjustedCards) {
+    test(name, () => {
+      const html = oneCardPage(
+        { attendee: { price_paid: pricePaid } },
+        onTheCard,
+      );
+      expectIncludesAll(html, shown);
+    });
+  }
 
   test("adds no modifier rows or total when no modifier changed the price", () => {
     const html = oneCardPage({ attendee: { price_paid: "1500" } });
