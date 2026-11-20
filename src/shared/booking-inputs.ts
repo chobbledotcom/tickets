@@ -72,7 +72,9 @@ const parseAdjustment = (
     return errorResult(`${at}.taxable must be true or false`);
   }
   if (taxable && amount < 0) {
-    return errorResult(`${at}.taxable only applies to a charge, not a writeoff`);
+    return errorResult(
+      `${at}.taxable only applies to a charge, not a writeoff`,
+    );
   }
   return okResult({ amount, description, taxable });
 };

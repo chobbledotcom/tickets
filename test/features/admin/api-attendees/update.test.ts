@@ -133,7 +133,9 @@ describeWithEnv(
       const { attendeeId } = await bookOne();
       await expectApiError(
         updateBooking(attendeeId, {
-          adjustments: [{ amount: 250, description: "Delivery", taxable: true }],
+          adjustments: [
+            { amount: 250, description: "Delivery", taxable: true },
+          ],
         }),
         400,
         "adjustments[0].taxable only applies when a booking is created",

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { assessTax } from "#shared/tax/assessment.ts";
 import * as v from "valibot";
+import { assessTax } from "#shared/tax/assessment.ts";
 import {
   TaxAssessmentSchema,
   type TaxBasisInput,
