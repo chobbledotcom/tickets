@@ -20,6 +20,7 @@ import {
 } from "#test-utils/markdown-editor-dom.ts";
 import {
   closeControl,
+  expectLoadFailureThenClose,
   fetchStubHolder,
   flush,
   json,
@@ -306,10 +307,7 @@ describe("the listing images field", () => {
       twoImageList(),
     ]);
 
-    expect(grid.textContent).toBe(
-      "The image library could not load. Please try again.",
-    );
-    closeControl(dialog).click();
+    expectLoadFailureThenClose(dialog, grid);
 
     part<HTMLButtonElement>(window, "[data-listing-images-trigger]").click();
     await untilReady(grid);

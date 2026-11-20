@@ -81,6 +81,18 @@ export const imageDialog = partReader<HTMLDialogElement>(
 export const closeControl = (dialog: HTMLElement): HTMLButtonElement =>
   requireElement<HTMLButtonElement>(dialog, ".admin-modal-close");
 
+/** Asserts that the grid shows the library's load failure note, then closes
+ * the window, so that the next press of the opener retries. */
+export const expectLoadFailureThenClose = (
+  dialog: HTMLElement,
+  grid: HTMLElement,
+): void => {
+  expect(grid.textContent).toBe(
+    "The image library could not load. Please try again.",
+  );
+  closeControl(dialog).click();
+};
+
 export const imageGrid = partReader<HTMLElement>(".md-image-grid");
 
 export interface OpenDialogResult {

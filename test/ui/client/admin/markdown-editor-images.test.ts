@@ -19,6 +19,7 @@ import {
   closeDialogBeforeAnswer,
   expectDialogCloses,
   expectGridMessage,
+  expectLoadFailureThenClose,
   fetchStubHolder,
   flush,
   imageDialog,
@@ -227,10 +228,7 @@ describe("the image picker dialog", () => {
       twoImageList(),
     ]);
 
-    expect(grid.textContent).toBe(
-      "The image library could not load. Please try again.",
-    );
-    closeControl(dialog).click();
+    expectLoadFailureThenClose(dialog, grid);
     toolbarImageButton(window).click();
     await untilReady(grid);
 

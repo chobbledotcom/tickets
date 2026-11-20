@@ -135,6 +135,19 @@ const dimOf = async (
     ),
   }));
 
+/** Waits for the page's dim to settle at the opacity. The dim fades. */
+const waitForPageDimOpacity = async (
+  page: Page,
+  opacity: "0" | "1",
+): Promise<void> => {
+  await page.waitForFunction(
+    (expected) =>
+      getComputedStyle(document.documentElement, "::before").opacity ===
+      expected,
+    opacity,
+  );
+};
+
 /** Whether the page stops itself from unloading. */
 const leaveIsWarned = async (page: Page): Promise<boolean> =>
   await page.evaluate(() => {
@@ -193,11 +206,7 @@ describeWithBrowser(
             windows: [descriptionKey, termsKey],
           });
           expect(await page.locator(MODAL).count()).toBe(2);
-          await page.waitForFunction(
-            () =>
-              getComputedStyle(document.documentElement, "::before").opacity ===
-              "0",
-          );
+          await waitForPageDimOpacity(page, "0");
 
           // A window takes the focus back: it is bright, and the page is dim
           // again.
@@ -206,11 +215,7 @@ describeWithBrowser(
             page: "true",
             windows: [termsKey],
           });
-          await page.waitForFunction(
-            () =>
-              getComputedStyle(document.documentElement, "::before").opacity ===
-              "1",
-          );
+          await waitForPageDimOpacity(page, "1");
           expect(
             await first.evaluate((dialog) => getComputedStyle(dialog).filter),
           ).toBe("none");
