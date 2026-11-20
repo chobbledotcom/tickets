@@ -75,22 +75,17 @@ const openPicker = async (picker: Picker): Promise<void> => {
   if (!showPicker(picker, () => picker.editor().focus())) return;
   fillGrid(picker.grid, "loading", [noteFrom(picker.template, "loading")]);
   const options = await picker.library.load().catch(() => null);
-  if (options === null) {
-    if (isAdminModalOpen(picker.key)) {
-      fillGrid(picker.grid, "ready", [noteFrom(picker.template, "loadFailed")]);
-    }
-    return;
-  }
   // A window closed before the answer stays as it is.
-  if (isAdminModalOpen(picker.key)) {
-    fillGrid(
-      picker.grid,
-      "ready",
-      imageOptionNodes(picker.template, options, (option, index) =>
-        optionButton(option, index, () => chooseImage(picker, option)),
-      ),
-    );
-  }
+  if (!isAdminModalOpen(picker.key)) return;
+  fillGrid(
+    picker.grid,
+    "ready",
+    options === null
+      ? [noteFrom(picker.template, "loadFailed")]
+      : imageOptionNodes(picker.template, options, (option, index) =>
+          optionButton(option, index, () => chooseImage(picker, option)),
+        ),
+  );
 };
 
 const wirePicker = (picker: Picker, button: HTMLButtonElement): void => {
