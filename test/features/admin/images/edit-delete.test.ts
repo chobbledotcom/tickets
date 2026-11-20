@@ -2,7 +2,7 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getImageUsesForImage, setImagesForItem } from "#db/images.ts";
+import { getImageUsesForImage } from "#db/images.ts";
 import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { imageRecord } from "#shared/records/images.ts";
@@ -27,6 +27,7 @@ import {
   createDeactivatedTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { linkListingImages } from "#test-utils/image-projections.ts";
 import {
   mockFormRequest,
   withCdnRejecting,
@@ -280,7 +281,7 @@ describeWithEnv(
         });
         const image = await makeImage("Original first");
         const trailing = await makeImage("Original trailing");
-        await setImagesForItem("listing", listing.id, [image.id, trailing.id]);
+        await linkListingImages(listing.id, [image.id, trailing.id]);
         const { cookie, response } = await postImageEdit(image, [
           ["name", "Renamed first"],
           ["altText", "Updated alt"],

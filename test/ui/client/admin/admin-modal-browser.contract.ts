@@ -31,7 +31,7 @@ const PREVIEW_TITLE = t("modal.preview.heading");
 const DESKTOP = { height: 900, width: 1200 };
 const PHONE = { height: 667, width: 375 };
 const SITE_PAGE = "/admin/site/pages/new";
-const CONTENT_KEY = "markdown-preview:content";
+const CONTENT_KEY = "markdown-preview:0";
 
 /** An element's page box. */
 type Box = { height: number; width: number; x: number; y: number };
@@ -100,6 +100,8 @@ const expectInside = (
   viewport: { height: number; width: number },
 ): void => {
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 0.5);
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 0.5);
 };
 
@@ -156,8 +158,8 @@ describeWithBrowser(
         contract.baseUrl,
         async (page) => {
           await openAdminPage(page, path);
-          const descriptionKey = "markdown-preview:description";
-          const termsKey = "markdown-preview:termsAndConditions";
+          const descriptionKey = "markdown-preview:0";
+          const termsKey = "markdown-preview:1";
 
           const first = await openPreview(page, 0, descriptionKey);
           const second = await openPreview(page, 1, termsKey);
@@ -234,7 +236,7 @@ describeWithBrowser(
     });
 
     test("minimises to its title bar and opens again from that bar", async () => {
-      await withPreview(contract, async (_page, dialog) => {
+      await withPreview(contract, async (page, dialog) => {
         const before = await boxOf(dialog);
         await dialog.locator(".admin-modal-minimise").click();
         const body = dialog.locator(".admin-modal-body");
@@ -249,6 +251,14 @@ describeWithBrowser(
         );
         expect(await dialog.locator(".admin-modal-minimise").isVisible()).toBe(
           true,
+        );
+        await pressAndMove(page, dialog.locator(".admin-modal-bar"), {
+          x: 40,
+          y: 30,
+        });
+        await page.mouse.up();
+        expect(await dialog.getAttribute("class")).toBe(
+          "admin-modal is-collapsed",
         );
 
         await dialog.locator(".admin-modal-title").click();
@@ -289,8 +299,66 @@ describeWithBrowser(
           expect(
             await dialog.locator(".admin-modal-minimise").isVisible(),
           ).toBe(true);
+          await dialog.locator(".admin-modal-minimise").click();
+          const collapsed = await boxOf(dialog);
+          expect(collapsed.height).toBeLessThan(PHONE.height / 2);
+          await page.locator('input[name="name"]').click();
+          await dialog.locator(".admin-modal-title").click();
+          expect(await boxOf(dialog)).toEqual(box);
         },
       );
+    });
+
+    test("keeps the window on screen after its preview grows", async () => {
+      await withPreview(contract, async (page, dialog) => {
+        await dialog
+          .getByText(t("modal.preview.empty"), { exact: true })
+          .waitFor();
+        await pressAndMove(page, dialog.locator(".admin-modal-bar"), {
+          x: DESKTOP.width,
+          y: DESKTOP.height,
+        });
+        await page.mouse.up();
+        await dialog.locator(".md-preview-content").evaluate((content) => {
+          content.innerHTML = '<div style="height: 2000px">Long preview</div>';
+        });
+        await page.waitForFunction(() => {
+          const dialog = document.querySelector("dialog.admin-modal");
+          if (dialog === null) throw new Error("The preview is absent");
+          const box = dialog.getBoundingClientRect();
+          return box.bottom <= innerHeight && box.top >= 0;
+        });
+        expectInside(await boxOf(dialog), DESKTOP);
+      });
+    });
+
+    test("reopens a key immediately after its close control", async () => {
+      await withPreview(contract, async (page) => {
+        const states = await page.evaluate(() => {
+          const close =
+            document.querySelector<HTMLButtonElement>(".admin-modal-close");
+          const preview = document.querySelector<HTMLButtonElement>(
+            ".md-preview-link:not(.md-editor-toggle)",
+          );
+          if (close === null || preview === null) {
+            throw new Error("The preview controls are absent");
+          }
+          close.click();
+          preview.click();
+          return [
+            ...document.querySelectorAll<HTMLDialogElement>(
+              "dialog.admin-modal",
+            ),
+          ].map((dialog) => dialog.open);
+        });
+        expect(states).toEqual([true]);
+        await page.evaluate(() => {
+          const { promise, resolve } = Promise.withResolvers<void>();
+          requestAnimationFrame(() => resolve());
+          return promise;
+        });
+        expect(await page.locator(`${MODAL}[open]`).count()).toBe(1);
+      });
     });
 
     test("warns before the page unloads while a window is open", async () => {

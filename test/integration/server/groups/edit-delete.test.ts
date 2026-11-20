@@ -94,6 +94,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
           `/admin/groups/${group.id}/edit`,
           {
             csrfToken,
+            maxAttendees: "0",
             name: "Changed",
             slug: "changed",
             termsAndConditions: "",
@@ -155,6 +156,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const g2 = await createTestGroup({ name: "Two", slug: "two" });
 
       const { response } = await adminFormPost(`/admin/groups/${g2.id}/edit`, {
+        maxAttendees: "0",
         name: "Two",
         slug: g1.slug,
         termsAndConditions: "",
@@ -168,6 +170,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
 
     test("returns 404 when editing a non-existent group", async () => {
       const { response } = await adminFormPost("/admin/groups/999/edit", {
+        maxAttendees: "0",
         name: "Missing",
         slug: "missing",
         termsAndConditions: "",

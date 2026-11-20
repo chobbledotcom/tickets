@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   createButton,
+  csrfTokenFor,
   forEachMatch,
   requiredChild,
 } from "#src/ui/client/dom.ts";
@@ -33,6 +34,20 @@ describe("client dom helpers", () => {
     expect(() => requiredChild(document, "dialog")).toThrow(
       "Missing element: dialog",
     );
+  });
+
+  test("csrfTokenFor reads the token from the element's form", () => {
+    dom.installDom(
+      '<form><input name="csrfToken" value="page-token"><textarea></textarea></form>',
+    );
+    const textarea = requiredChild<HTMLTextAreaElement>(document, "textarea");
+    expect(csrfTokenFor(textarea)).toBe("page-token");
+  });
+
+  test("csrfTokenFor answers empty without a form or a token field", () => {
+    dom.installDom("<p>Loose</p><form></form>");
+    expect(csrfTokenFor(requiredChild(document, "p"))).toBe("");
+    expect(csrfTokenFor(requiredChild(document, "form"))).toBe("");
   });
 
   test("forEachMatch runs fn for every matching element, and no others", () => {

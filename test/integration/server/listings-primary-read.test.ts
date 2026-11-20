@@ -8,6 +8,7 @@ import { isReadSql } from "#db/sql-text.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
 import { rawDbClient } from "#test-utils/raw-db.ts";
 import { adminMultipartPost } from "#test-utils/session.ts";
@@ -45,6 +46,7 @@ describeWithEnv("listing save primary read", { db: true }, () => {
     try {
       for (const name of ["First listing", "Second listing"]) {
         const { response } = await adminMultipartPost("/admin/listing", {
+          ...baseListingForm,
           maxAttendees: "50",
           maxQuantity: "1",
           name,

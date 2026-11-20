@@ -10,9 +10,9 @@ import { adminFormPost } from "#test-utils/session.ts";
 
 const groupFields = (name: string) => ({
   description: "",
-  max_attendees: "0",
+  maxAttendees: "0",
   name,
-  terms_and_conditions: "",
+  termsAndConditions: "",
 });
 
 describeDemoNameSaves({

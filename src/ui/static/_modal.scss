@@ -75,7 +75,6 @@ dialog::backdrop {
   position: fixed;
   left: var(--admin-modal-left, 0);
   top: var(--admin-modal-top, 0);
-  display: flex;
   flex-direction: column;
   width: min(100% - 2 * var(--space-lg), 40rem);
   max-width: calc(100vw - 2 * var(--space-s));
@@ -87,6 +86,10 @@ dialog::backdrop {
   @include surface-colors;
   overscroll-behavior: contain;
   animation: none;
+}
+
+.admin-modal[open] {
+  display: flex;
 }
 
 /* The title bar is the drag surface. It spans the padded content box, so the
@@ -139,6 +142,7 @@ dialog::backdrop {
 /* A minimised window is its title bar, which keeps its own controls. */
 .admin-modal.is-collapsed {
   width: max-content;
+  height: auto;
 }
 
 .admin-modal.is-collapsed .admin-modal-bar {

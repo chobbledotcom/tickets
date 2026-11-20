@@ -8,7 +8,6 @@ src/shared/builder-dry-run.ts::CANNED_BODIES.primary_regions.id~10dvhh2  eu-west
 src/shared/builder-dry-run.ts::CANNED_BODIES.replica_regions.id~10dvhh2  eu-west-1→"" audited:0sa17d1 # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
 
 src/shared/form-data.ts::FormParams.getString~0hhlva7  ?? → || audited:1lmi6e2 # trim returns a string, and its only falsy value is the empty string supplied by the fallback
-src/shared/forms/validation.ts::validateSingleField.trimmed~0vrlsmq  = → += audited:1pe2mbz # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
 src/shared/forms/submitted-value.ts::readSubmittedFieldValue~012mra6  ??→|| audited:1g9kpu4 # parseDateString answers null or a valid calendar date, and a valid date is never the empty string
 src/shared/forms/submitted-value.ts::readSubmittedMarkdown~1wbs1x5  ??→|| audited:1g9kpu4 # form.get answers string or null over the fallback "", so "" ?? "" and "" || "" are both ""
 src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2 audited:18dzm9u # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows

@@ -7,6 +7,7 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import type { Window } from "happy-dom";
 import { initMarkdownPreview } from "#src/ui/client/admin/markdown-preview.ts";
 import { initAdminModalShell } from "#src/ui/client/admin/modal.ts";
@@ -58,6 +59,24 @@ const preview = async (window: Window, index = 0): Promise<void> => {
   await flush();
 };
 
+/** Open the first preview and let the test settle each request itself. */
+const pendingPreviews = (fields = FIELD) => {
+  const first = Promise.withResolvers<Response>();
+  const second = Promise.withResolvers<Response>();
+  const fetch = stubFetch(
+    () => first.promise,
+    () => second.promise,
+  );
+  const window = page(fields);
+  linksIn(window)[0]!.click();
+  return {
+    first,
+    second,
+    window,
+    [Symbol.dispose]: () => fetch.restore(),
+  };
+};
+
 /** The words the preview settles on, for the reply that cannot show text.
  *  The window closes again, so the next probe opens its own. */
 const wordsAfter = async (reply: FetchReply): Promise<string | null> => {
@@ -84,12 +103,12 @@ const sentFrom = async (body: string): Promise<Sent> => {
   return { bodies, window };
 };
 
-afterEach(async () => {
-  closeDialogs(document, "dialog.admin-modal");
-  await cleanup();
-});
-
 describe("the markdown preview", () => {
+  afterEach(async () => {
+    closeDialogs(document, "dialog.admin-modal");
+    await cleanup();
+  });
+
   test("adds a Preview link under each markdown field", () => {
     const window = page(FIELD);
     const link = linksIn(window)[0]!;
@@ -111,6 +130,21 @@ describe("the markdown preview", () => {
 
     expect(window.document.querySelector(".md-editor-footer")).toBeNull();
   });
+
+  for (const name of ["open", "title", "empty", "failed", "loading"]) {
+    test(`rejects a template without its ${name} copy before any request`, () => {
+      const window = installDom(`${TEMPLATES}${FIELD}`);
+      const template = requireElement<HTMLTemplateElement>(
+        window.document,
+        "template#markdown-preview",
+      );
+      requireElement(template.content, `[data-copy="${name}"]`).remove();
+
+      expect(() => initMarkdownPreview()).toThrow(
+        `Missing element: [data-copy="${name}"]`,
+      );
+    });
+  }
 
   test("moves the character counter into the footer, opposite the link", () => {
     const window = page(
@@ -148,7 +182,7 @@ describe("the markdown preview", () => {
     expect(
       requireElement<HTMLDialogElement>(window.document, "dialog.admin-modal")
         .dataset.modalKey,
-    ).toBe("markdown-preview:homepageText");
+    ).toBe("markdown-preview:0");
     expect(
       requireElement<HTMLElement>(window.document, ".admin-modal-title")
         .textContent,
@@ -190,6 +224,139 @@ describe("the markdown preview", () => {
     expect(contentIn(window).innerHTML).toBe("<p>Second answer</p>");
   });
 
+  for (const [name, body] of [
+    [
+      "matching names in separate forms",
+      `<form>${FIELD}</form><form>${FIELD}</form>`,
+    ],
+    [
+      "an id that matches another name",
+      `<textarea data-markdown-preview id="content">One</textarea>${FIELD}`,
+    ],
+    ["unnamed fields", "<textarea data-markdown-preview></textarea>".repeat(2)],
+    [
+      "a name that resembles a generated key",
+      FIELD +
+        FIELD +
+        '<textarea data-markdown-preview name="content:1">Three</textarea>',
+    ],
+  ] as const) {
+    test(`keeps separate windows for ${name}`, async () => {
+      using _fetch = stubFetch((_url, init) => {
+        const text = new URLSearchParams(String(init?.body)).get("content");
+        return new Response(`<p>${text}</p>`);
+      });
+      const window = page(body);
+      const fields = requireElements<HTMLTextAreaElement>(
+        window.document,
+        "textarea",
+      );
+
+      for (const [index, field] of fields.entries()) {
+        field.value = `Answer ${index}`;
+        await preview(window, index);
+      }
+
+      const dialogs = requireElements<HTMLDialogElement>(
+        window.document,
+        MODAL,
+      );
+      expect(dialogs).toHaveLength(fields.length);
+      expect(
+        new Set(dialogs.map((dialog) => dialog.dataset.modalKey)).size,
+      ).toBe(fields.length);
+      expect(
+        dialogs.map(
+          (dialog) => requireElement(dialog, ".md-preview-content").textContent,
+        ),
+      ).toEqual(fields.map((_field, index) => `Answer ${index}`));
+    });
+  }
+
+  for (const [name, stale] of [
+    ["text", new Response("<p>Old answer</p>")],
+    ["empty text", new Response("")],
+    ["a refused request", new Response("no", { status: 500 })],
+    ["a network failure", new Error("offline")],
+  ] as const) {
+    test(`ignores an older request with ${name} that settles last`, async () => {
+      using pending = pendingPreviews();
+      pending.second.resolve(new Response("<p>Latest answer</p>"));
+      await preview(pending.window);
+
+      if (stale instanceof Error) pending.first.reject(stale);
+      else pending.first.resolve(stale);
+      await flush();
+
+      expect(contentIn(pending.window).innerHTML).toBe("<p>Latest answer</p>");
+    });
+  }
+
+  test("ignores an older response whose body arrives last", async () => {
+    const body = Promise.withResolvers<string>();
+    const first = new Response();
+    using _body = stub(first, "text", () => body.promise);
+    using pending = pendingPreviews();
+    pending.first.resolve(first);
+    await flush();
+    pending.second.resolve(new Response("<p>Latest answer</p>"));
+    await preview(pending.window);
+
+    body.resolve("<p>Old answer</p>");
+    await flush();
+
+    expect(contentIn(pending.window).innerHTML).toBe("<p>Latest answer</p>");
+  });
+
+  test("keeps the latest preview after a close and reopen", async () => {
+    using pending = pendingPreviews();
+    requireElement<HTMLDialogElement>(pending.window.document, MODAL).close();
+    pending.second.resolve(new Response("<p>Reopened answer</p>"));
+    await preview(pending.window);
+
+    pending.first.resolve(new Response("<p>Closed answer</p>"));
+    await flush();
+
+    expect(contentIn(pending.window).innerHTML).toBe("<p>Reopened answer</p>");
+  });
+
+  test("says when the response body cannot load", async () => {
+    const response = new Response();
+    using _body = stub(response, "text", () =>
+      Promise.reject(new Error("stream interrupted")),
+    );
+
+    expect(await wordsAfter(response)).toBe("Preview failed.");
+  });
+
+  test("keeps the loading note when an older request finishes first", async () => {
+    using pending = pendingPreviews();
+    await preview(pending.window);
+
+    pending.first.resolve(new Response("<p>Old answer</p>"));
+    await flush();
+    expect(contentIn(pending.window).textContent).toBe("Loading preview…");
+
+    pending.second.resolve(new Response("<p>Latest answer</p>"));
+    await flush();
+    expect(contentIn(pending.window).innerHTML).toBe("<p>Latest answer</p>");
+  });
+
+  test("lets different fields finish in either order", async () => {
+    using pending = pendingPreviews(FIELD + FIELD);
+    linksIn(pending.window)[1]!.click();
+
+    pending.second.resolve(new Response("<p>Second field</p>"));
+    pending.first.resolve(new Response("<p>First field</p>"));
+    await flush();
+
+    expect(
+      requireElements(pending.window.document, ".md-preview-content").map(
+        (content) => content.textContent,
+      ),
+    ).toEqual(["First field", "Second field"]);
+  });
+
   test("opens a separate window for each field", async () => {
     using _fetch = stubFetch(new Response("<p>Answer</p>"));
     const window = page(
@@ -205,9 +372,6 @@ describe("the markdown preview", () => {
         window.document,
         "dialog.admin-modal",
       ).map((dialog) => dialog.dataset.modalKey),
-    ).toEqual([
-      "markdown-preview:description",
-      "markdown-preview:termsAndConditions",
-    ]);
+    ).toEqual(["markdown-preview:0", "markdown-preview:1"]);
   });
 });

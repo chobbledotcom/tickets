@@ -46,9 +46,9 @@ describeWithEnv("admin group pages", { db: true }, () => {
   test("sends the operator to the new group's page after creating it", async () => {
     const { response } = await adminFormPost("/admin/groups", {
       description: "",
-      max_attendees: "0",
+      maxAttendees: "0",
       name: "Created group",
-      terms_and_conditions: "",
+      termsAndConditions: "",
     });
 
     expect(response.status).toBe(302);

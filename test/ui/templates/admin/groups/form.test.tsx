@@ -10,7 +10,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { expectIncludesAll, inputNamed } from "#test-utils/assertions.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
@@ -72,8 +72,11 @@ describe("admin group form templates", () => {
       'value="Family &quot;Bundle&quot;"',
       'value="family-bundle"',
       "A &lt;strong&gt;group&lt;/strong&gt;",
-      'name="maxAttendees" type="number" value="25"',
       "Be kind.",
+    ]);
+    expectIncludesAll(inputNamed(html, "maxAttendees"), [
+      'value="25"',
+      "required",
     ]);
     for (const name of ["hidden", "isPackage", "hidePackageListings"]) {
       assertStringIncludes(html, `name="${name}" value="1" checked`);
@@ -201,9 +204,10 @@ describe("admin group form templates", () => {
       html,
       "Add listings to this group to set their package prices.",
     );
-    expect(html).toMatch(
-      /<input(?=[^>]*name="maxAttendees")(?![^>]*value=)[^>]*>/,
-    );
+    expectIncludesAll(inputNamed(html, "maxAttendees"), [
+      'value="0"',
+      "required",
+    ]);
     assert(!html.includes("<table"));
     assert(!html.includes('name="packagePrice'));
   });

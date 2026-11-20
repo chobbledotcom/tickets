@@ -9,7 +9,7 @@ import {
   registerListingTemplateHooks,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
-import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { expectIncludesAll, inputNamed } from "#test-utils/assertions.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
 /** The new-listing form opened from one picker card. */
@@ -52,6 +52,22 @@ describe("adminListingNewPage", () => {
   test("renders breadcrumb back link", () => {
     const html = adminListingNewPage([], OWNER_SESSION);
     expectIncludesAll(html, ['href="/admin/"', "Listings"]);
+  });
+
+  test("draws each count box at the value its column takes by default", () => {
+    const html = adminListingNewPage([], OWNER_SESSION);
+    for (const [name, value] of [
+      ["durationDays", "1"],
+      ["maximumDaysAfter", "90"],
+      ["maxQuantity", "1"],
+      ["minimumDaysBefore", "1"],
+      ["minQuantity", "1"],
+    ] as const) {
+      expectIncludesAll(inputNamed(html, name), [
+        `value="${value}"`,
+        "required",
+      ]);
+    }
   });
 
   test("renders group checkboxes when groups exist", () => {

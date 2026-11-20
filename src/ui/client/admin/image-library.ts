@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 
-import { type AdminModal, openAdminModal } from "#src/ui/client/admin/modal.ts";
+import { closeAdminModal, openAdminModal } from "#src/ui/client/admin/modal.ts";
 import { forEachMatch } from "#src/ui/client/dom.ts";
 
 const dataValue = (
@@ -21,8 +21,11 @@ const isPlainClick = (event: MouseEvent): boolean =>
   !event.metaKey &&
   !event.shiftKey;
 
-const loadEdit = async (modal: AdminModal, page: URL): Promise<void> => {
-  const { content } = modal;
+const loadEdit = async (
+  key: string,
+  content: HTMLElement,
+  page: URL,
+): Promise<void> => {
   const form = new URL(page);
   form.searchParams.set("modal", "1");
   try {
@@ -36,7 +39,7 @@ const loadEdit = async (modal: AdminModal, page: URL): Promise<void> => {
   } catch {
     // A failed load uses the full page, unless the operator closed the window.
     if (content.isConnected) {
-      modal.close();
+      closeAdminModal(key);
       window.location.assign(`${page.pathname}${page.search}`);
     }
   }
@@ -53,17 +56,18 @@ export const initImageLibrary = (): void => {
       const name = dataValue(link, "imageEditName");
       const content = document.createElement("div");
       content.textContent = loading;
+      const key = `image-edit:${dataValue(link, "imageEditId")}`;
       const modal = openAdminModal(
         {
           collapsedTitle: name,
-          key: `image-edit:${dataValue(link, "imageEditId")}`,
+          key,
           title: name,
         },
         content,
       );
       // A repeated open raises the existing window without a new request.
-      if (modal.content !== content) return;
-      void loadEdit(modal, new URL(link.href));
+      if (modal !== content) return;
+      void loadEdit(key, content, new URL(link.href));
     });
   });
 };

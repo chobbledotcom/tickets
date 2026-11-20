@@ -10,9 +10,6 @@ import * as v from "valibot";
  *  the admin shell renders on every admin page. */
 export const ADMIN_MODAL_TEMPLATE_ID = "admin-modal";
 
-/** Each modal key supplies the suffix for its title id. */
-export const ADMIN_MODAL_TITLE_ID = "admin-modal-title";
-
 /** The settings one modal opens with.
  *
  *  - `key` names the modal. A second open with the same key raises the modal

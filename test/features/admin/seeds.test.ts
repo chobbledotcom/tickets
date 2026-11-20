@@ -55,74 +55,64 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
     assertStringIncludes(await response.text(), t("admin.seeds.heading"));
   });
 
-  test("creates the asked-for listings and says exactly what was made", async () => {
-    const response = await postSeeds({
-      attendeesPerListing: "0",
-      listingCount: "2",
-    });
+  /** Post the seeds form and read the flash it lands with. */
+  const expectSeedsAnswer = async (
+    boxes: { attendeesPerListing: string; listingCount: string },
+    message: string,
+    good = false,
+  ): Promise<void> => {
+    const response = await postSeeds(boxes);
+    await expectFlashRedirect("/admin/seeds", message, good)(response);
+  };
 
-    await expectFlashRedirect(
-      "/admin/seeds",
+  test("creates the asked-for listings and says exactly what was made", async () => {
+    await expectSeedsAnswer(
+      { attendeesPerListing: "0", listingCount: "2" },
       t("admin.seeds.created", { attendees: 0, listings: 2 }),
-    )(response);
+      true,
+    );
     expect((await getAllListings()).length).toBe(2);
   });
 
   test("refuses a listing count past the declared ceiling", async () => {
-    const response = await postSeeds({
-      attendeesPerListing: "0",
-      listingCount: "999",
-    });
-
-    await expectFlashRedirect(
-      "/admin/seeds",
+    await expectSeedsAnswer(
+      { attendeesPerListing: "0", listingCount: "999" },
       t("fields.validation.max_value", {
         label: t("admin.seeds.listing_count_label"),
         max: MAX_SEED_LISTINGS,
       }),
-      false,
-    )(response);
+    );
   });
 
   test("refuses counts below the declared minimums", async () => {
-    const response = await postSeeds({
-      attendeesPerListing: "-10",
-      listingCount: "-5",
-    });
-
-    await expectFlashRedirect(
-      "/admin/seeds",
+    await expectSeedsAnswer(
+      { attendeesPerListing: "-10", listingCount: "-5" },
       t("fields.validation.min_value", {
         label: t("admin.seeds.listing_count_label"),
         min: 1,
       }),
-      false,
-    )(response);
+    );
   });
 
   test("rejects a non-numeric listing count", async () => {
-    const response = await postSeeds({
-      attendeesPerListing: "2",
-      listingCount: "abc",
-    });
-
-    await expectFlashRedirect(
-      "/admin/seeds",
+    await expectSeedsAnswer(
+      { attendeesPerListing: "2", listingCount: "abc" },
       "Number of listings must be a whole number",
-      false,
-    )(response);
+    );
   });
 
-  test("rejects non-numeric attendees per listing", async () => {
-    const response = await postSeeds({
-      attendeesPerListing: "abc",
-      listingCount: "1",
-    });
-
-    await expectFlashRedirect(
-      "/admin/seeds",
+  test("rejects a non-numeric attendees per listing", async () => {
+    await expectSeedsAnswer(
+      { attendeesPerListing: "abc", listingCount: "1" },
       "Attendees per listing must be a whole number",
-      false,
-    )(response);
+    );
+  });
+
+  test("refuses a blank count box instead of taking its drawn default", async () => {
+    await expectSeedsAnswer(
+      { attendeesPerListing: "0", listingCount: "" },
+      "Number of listings is required",
+    );
+    expect((await getAllListings()).length).toBe(0);
   });
 });

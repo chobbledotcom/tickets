@@ -1,9 +1,11 @@
 import { settings } from "#db/settings.ts";
+import { compact } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
+import type { ChosenImage } from "#shared/images/picker.ts";
 import { showUseDefaultsToggle } from "#shared/listing-defaults.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
@@ -19,6 +21,7 @@ import {
 } from "#templates/fields/listing.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 import { renderDayPricesFieldset } from "./form-values.tsx";
+import { ListingImagesField } from "./listing-images.tsx";
 
 type ListingFieldsOptions = { includeSlug?: boolean; nameAutofocus?: boolean };
 
@@ -133,6 +136,7 @@ export const ListingFormSections = ({
   childOfNote = "",
   customiseOpen,
   isTemplated,
+  images,
   showUseDefaults = false,
   useDefaultsChecked = false,
 }: {
@@ -146,6 +150,8 @@ export const ListingFormSections = ({
   childOfNote?: string;
   customiseOpen: boolean;
   isTemplated: boolean;
+  /** The chosen pictures, when this form offers the Images section. */
+  images?: readonly ChosenImage[];
   showUseDefaults?: boolean;
   useDefaultsChecked?: boolean;
 }): JSX.Element => {
@@ -163,7 +169,7 @@ export const ListingFormSections = ({
       {after}
     </>
   );
-  const sections: FormSection[] = [
+  const sections: FormSection[] = compact([
     {
       children: (
         <>
@@ -176,6 +182,13 @@ export const ListingFormSections = ({
       ),
       legend: t("listings_table.basics"),
     },
+    images
+      ? {
+          children: <ListingImagesField selected={images} />,
+          className: "listing-section listing-section--images",
+          legend: t("listings_table.images"),
+        }
+      : null,
     {
       children: <Raw html={sectionFields("tickets")} />,
       legend: t("listings_table.tickets_pricing"),
@@ -200,7 +213,7 @@ export const ListingFormSections = ({
       children: <Raw html={sectionFields("options")} />,
       legend: t("listings_table.options_visibility"),
     },
-  ];
+  ]);
   return (
     <>
       {(isTemplated || showUseDefaults) && (
