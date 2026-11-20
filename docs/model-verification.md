@@ -4,6 +4,29 @@ Use this guide when you add or review a model under `verification/`.
 A model checks a stated abstract system. It does not prove the whole application.
 Keep the claim, the source evidence, and the limits together in the review.
 
+## Read a walkthrough before the formal model
+
+`docs/model-guides/` holds one generated page for each maintained module.
+A page uses everyday words.
+It names the model rules and the production TypeScript declarations that supply
+the facts.
+It also shows the example values.
+
+Do not edit a page by hand.
+The page comes from a guide under `scripts/model-guides/guides/`.
+Run `deno task model-guides` to write the pages.
+
+`deno task check:model-guides` fails when:
+
+- a model rule or a cited declaration changes.
+- a rule has no step.
+- a page is missing, extra, or out of date.
+
+Repair a finding in this order.
+First read the changed rule or declaration.
+Then update the guide.
+Then run the generator.
+
 ## State the claim before you write the model
 
 Write down:
