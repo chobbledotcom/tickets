@@ -6,7 +6,6 @@
 .md-image-dialog {
   width: min(100% - 2 * var(--space-lg), 60rem);
   max-width: min(100% - 2 * var(--space-lg), 60rem);
-
   &[open] {
     display: flex;
     flex-direction: column;

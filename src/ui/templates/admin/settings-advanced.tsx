@@ -25,6 +25,7 @@ export type AdvancedSettingsPageState = {
   addressLookupApiKeyConfigured: boolean;
   showPublicApi: boolean;
   externalOrderEnabled: boolean;
+  catalogGalleryEnabled: boolean;
   emailProvider: string;
   emailApiKeyConfigured: boolean;
   emailFromAddress: string;
@@ -93,6 +94,7 @@ export const adminAdvancedSettingsPage = (
       {s.logisticsEnabled && LogisticsRunSheetTemplateForm(s)}
       {settingsForm(SETTINGS_FORMS.customCss, s)}
       {settingsForm(SETTINGS_FORMS.showPublicApi, s)}
+      {settingsForm(SETTINGS_FORMS.catalogGallery, s)}
       {settingsForm(SETTINGS_FORMS.externalOrder, s)}
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}

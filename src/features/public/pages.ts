@@ -145,10 +145,6 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
       ...groups.map((group) => group.description),
       settings.siteFooter,
     ]);
-    const galleryView =
-      homeListings.length > 0 &&
-      homeListings.filter(({ listing }) => listing.imageUrl !== "").length * 2 >
-        homeListings.length;
     return htmlResponse(
       homepagePage(
         homeListings,
@@ -163,7 +159,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
         soldOutPackages,
         requestedDate,
         attributesByListing,
-        galleryView,
+        settings.catalogGalleryEnabled,
       ),
     );
   });

@@ -353,6 +353,22 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "Address lookup",
   }),
   definition({
+    action: "/admin/settings/catalog-gallery",
+    copy: {
+      descriptionHtml: true,
+      descriptionKey: "settings.advanced.catalog_gallery_hint",
+      titleKey: "settings.advanced.catalog_gallery",
+    },
+    fieldName: "catalog_gallery_enabled",
+    formId: "settings-catalog-gallery",
+    key: CONFIG_KEYS.CATALOG_GALLERY_ENABLED,
+    kind: "boolean",
+    name: "catalogGallery",
+    page: "advanced",
+    routeLabel: "Product gallery catalog",
+    stateField: "catalogGalleryEnabled",
+  }),
+  definition({
     action: "/admin/settings/external-order",
     copy: {
       descriptionKey: "settings.advanced.external_order_hint",
