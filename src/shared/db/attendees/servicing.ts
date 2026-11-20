@@ -396,10 +396,10 @@ const desiredLines = (
 };
 
 /** Rebuild the desired-line set from an attendee's current booking rows. Used to
- *  restore the prior state when a post-edit side effect fails — every line
- *  carries its existing key + slot so the atomic edit treats it as a
- *  preserve-style re-apply. */
-const desiredLinesFromExisting = (
+ *  restore the prior state when a post-edit side effect fails, and to keep an
+ *  attendee's lines when an edit names none. Every line carries its existing
+ *  key + slot so the atomic edit treats it as a preserve-style re-apply. */
+export const desiredLinesFromExisting = (
   existing: ExistingLine[],
 ): DesiredListingLine[] =>
   existing.map(({ key, booking }) => {
@@ -411,6 +411,8 @@ const desiredLinesFromExisting = (
       exists: true,
       key,
       listingId: booking.listing_id,
+      packageGroupId: booking.package_group_id,
+      parentListingId: booking.parent_listing_id,
       quantity: booking.quantity,
     };
   });

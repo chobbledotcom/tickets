@@ -314,6 +314,10 @@ const attendeeExample = (access: WriteAccess): Record<string, unknown> =>
     new Set(featureClosedKeys(ATTENDEE_FEATURE_KEYS, access.features)),
   )(ADMIN_API_EXAMPLE_ATTENDEE);
 
+/** The answer of an attendee write: the stored attendee row. */
+const attendeeAnswer = (access: WriteAccess) =>
+  json({ attendee: attendeeExample(access) });
+
 /** The documented listing routes. Each listing answer leaves out the keys
  *  whose feature is off, as the server does. */
 const listingDocs = (access: WriteAccess): EndpointDoc[] => {
@@ -394,7 +398,7 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
       method: "POST",
       path: "/api/admin/attendees",
       request: json(ADMIN_API_ATTENDEE_CREATE_BODY),
-      response: json({ attendee: attendeeExample(access) }),
+      response: attendeeAnswer(access),
     },
     {
       description:
@@ -402,7 +406,7 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
       method: "PUT",
       path: "/api/admin/attendees/:attendeeId",
       request: json(ADMIN_API_ATTENDEE_UPDATE_BODY),
-      response: json({ attendee: attendeeExample(access) }),
+      response: attendeeAnswer(access),
     },
     ...shown(ADMIN_API_RESOURCES.questions, QUESTION_ENDPOINTS),
     ...shown(ADMIN_API_RESOURCES["site-pages"], SITE_PAGE_ENDPOINTS),

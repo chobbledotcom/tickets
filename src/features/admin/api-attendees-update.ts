@@ -67,7 +67,7 @@ const updateFromParsed = async (
   // API has no preview to confirm, so it refuses the update.
   const taxPlan = await buildTaxSavePlan(attendee.id);
   if (taxPlan.preview.changed) return apiErrorResponse(REFUSALS.tax_changed);
-  const outcome = await saveAttendeeEdit({
+  const saved = await saveAttendeeEdit({
     activity: `Attendee '${parsed.contact.name}' updated via API`,
     answers: parsed.answers === null ? null : toAnswerSet(parsed.answers),
     attendee,
@@ -78,7 +78,7 @@ const updateFromParsed = async (
     statusId: parsed.statusId,
     taxPlan,
   });
-  if (!outcome.ok) return apiErrorResponse(REFUSALS[outcome.reason]);
+  if (!saved.ok) return apiErrorResponse(REFUSALS[saved.reason]);
   const stored = requireValue(
     await loadAttendeeToUpdate(attendee.id),
     "Attendee vanished after its update",

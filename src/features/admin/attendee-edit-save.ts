@@ -49,7 +49,7 @@ type AttendeeEdit = {
 export type AttendeeEditFailure = AttendeeUpdateFailureReason | "tax_changed";
 
 type AttendeeEditOutcome =
-  | { ok: true }
+  | { ok: true; hasRealLine: boolean }
   | { ok: false; reason: AttendeeEditFailure };
 
 /** The stored PII facts after an edit. The Edit tab has no location inputs,
@@ -129,5 +129,5 @@ export const saveAttendeeEdit = async (
     await saveAttendeeAnswers(new Map([[attendee.id, edit.answers]]));
   }
   await logActivity(edit.activity, desired[0]?.listingId, attendee.id);
-  return { ok: true };
+  return { hasRealLine, ok: true };
 };

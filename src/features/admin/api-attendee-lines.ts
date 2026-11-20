@@ -9,24 +9,7 @@
 import type { DesiredListingLine } from "#db/attendee-types.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
-import { bookingDurationDays } from "#routes/admin/attendee-form-dates.ts";
 import type { ApiLine } from "./api-attendees-parse.ts";
-
-/** The line a stored row already is: the same identity, date and quantity. */
-const keptLine = ({ booking, key }: ExistingLine): DesiredListingLine => ({
-  date: booking.start_at?.slice(0, 10) ?? null,
-  durationDays: bookingDurationDays(booking) ?? 1,
-  exists: true,
-  key,
-  listingId: booking.listing_id,
-  packageGroupId: booking.package_group_id,
-  parentListingId: booking.parent_listing_id,
-  quantity: booking.quantity,
-});
-
-/** The lines of an update with no `lines`: every stored row, unchanged. */
-export const keptLines = (existing: ExistingLine[]): DesiredListingLine[] =>
-  existing.map(keptLine);
 
 /** True when the stored row books the line's listing on the line's day. */
 const sameSlot = (line: ApiLine, row: ExistingLine): boolean => {

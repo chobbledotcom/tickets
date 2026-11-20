@@ -186,7 +186,6 @@ export const applyEdit = async (
     return { ok: false, saveError: t(EDIT_SAVE_ERRORS[outcome.reason]) };
   }
   await applyLogisticsPlan(attendeeId, logisticsPlan);
-  const hasRealLine = desired.some((line) => line.quantity > 0);
   return {
     ok: true,
     response: savedRedirect(
@@ -194,7 +193,7 @@ export const applyEdit = async (
       parsed.returnUrl,
       attendeeTaxSavedMessage(parsed.name, {
         ...taxPlan.preview,
-        afterBalance: hasRealLine ? taxPlan.preview.afterBalance : 0,
+        afterBalance: outcome.hasRealLine ? taxPlan.preview.afterBalance : 0,
       }),
     ),
   };

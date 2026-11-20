@@ -7,12 +7,13 @@
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import type { DesiredListingLine } from "#db/attendee-types.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
+import { desiredLinesFromExisting } from "#db/attendees/servicing.ts";
 import { unique } from "#fp";
 import { parseReceipts } from "#shared/booking-inputs.ts";
 import type { CreateReceipts } from "#shared/checkout-complete.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { Attendee, ContactInfo } from "#types";
-import { keptLines, namedLines } from "./api-attendee-lines.ts";
+import { namedLines } from "./api-attendee-lines.ts";
 import {
   type ApiAnswer,
   parseAnswers,
@@ -42,12 +43,6 @@ export type ParsedApiUpdate = {
 /** The fields that name the booking. An update never changes them. */
 const FIXED_FIELDS = ["created", "ticketToken"] as const;
 
-/** The refusal for a fixed field the body carries, or null. */
-const fixedFieldRefusal = (body: Record<string, unknown>): string | null => {
-  const named = FIXED_FIELDS.find((field) => body[field] !== undefined);
-  return named === undefined ? null : `${named} cannot be changed`;
-};
-
 /** The status the attendee holds after the update: the named one, or the
  *  stored one when the body names none. */
 const parseStatusId = async (
@@ -66,7 +61,7 @@ const parseDesiredLines = async (
   raw: unknown,
   existing: ExistingLine[],
 ): Promise<Result<DesiredListingLine[]>> => {
-  if (raw === undefined) return okResult(keptLines(existing));
+  if (raw === undefined) return okResult(desiredLinesFromExisting(existing));
   const array = readLinesArray(raw);
   if (!array.ok) return array;
   const lines = await parseCheckedLines(array.value);
@@ -79,14 +74,14 @@ export const parseUpdateBody = async (
   body: Record<string, unknown>,
   { attendee, existing }: AttendeeToUpdate,
 ): Promise<Result<ParsedApiUpdate>> => {
-  const fixed = fixedFieldRefusal(body);
-  if (fixed !== null) return errorResult(fixed);
+  const fixed = FIXED_FIELDS.find((field) => body[field] !== undefined);
+  if (fixed !== undefined) return errorResult(`${fixed} cannot be changed`);
   const contact = parseContact({ ...attendee, ...body });
   if (!contact.ok) return contact;
   const statusId = await parseStatusId(body.status, attendee);
   if (!statusId.ok) return statusId;
-  const receipts = parseReceipts(body);
-  if (!receipts.ok) return receipts;
+  const received = parseReceipts(body);
+  if (!received.ok) return received;
   const desired = await parseDesiredLines(body.lines, existing);
   if (!desired.ok) return desired;
   const answers =
@@ -105,7 +100,7 @@ export const parseUpdateBody = async (
     answers: answers.value,
     contact: contact.value,
     desired: desired.value,
-    receipts: receipts.value,
+    receipts: received.value,
     statusId: statusId.value,
   });
 };
