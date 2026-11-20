@@ -409,6 +409,10 @@ If image publication fails, the GitHub release remains available. Retry the
 failed image job from the release workflow run. A superseded release can publish
 its commit image, but it cannot replace `latest`.
 
+The image build keeps the database FFI library path for Deno. It removes
+`LD_LIBRARY_PATH` only for the nested devenv command. That command uses its own
+C++ runtime.
+
 GitHub creates the registry package as private on the first publish. A
 repository admin must make it public once. Open the `tickets` package in the
 `chobbledotcom` organisation on GitHub. Select Package settings, then Change
