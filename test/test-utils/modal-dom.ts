@@ -45,9 +45,9 @@ export const OTHER_SETTINGS = {
   title: "Second",
 };
 
-export type OpenWindow = { dialog: HTMLDialogElement; window: Window };
+type OpenWindow = { dialog: HTMLDialogElement; window: Window };
 
-export type DragPage = OpenWindow & {
+type DragPage = OpenWindow & {
   bar: HTMLElement;
   capture: { captured: number[]; released: number[] };
   start: { left: number; top: number };

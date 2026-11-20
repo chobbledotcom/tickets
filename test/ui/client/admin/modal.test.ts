@@ -2,7 +2,6 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import type { Window } from "happy-dom";
 import * as v from "valibot";
 import { closeAdminModal, openAdminModal } from "#src/ui/client/admin/modal.ts";
 import {
@@ -26,7 +25,6 @@ import {
   pressTitleBar,
   releasePointer,
   SETTINGS,
-  setSize,
   stackOf,
 } from "#test-utils/modal-dom.ts";
 
