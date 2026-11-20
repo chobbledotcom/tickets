@@ -32,6 +32,8 @@ const DESKTOP = { height: 900, width: 1200 };
 const PHONE = { height: 667, width: 375 };
 const SITE_PAGE = "/admin/site/pages/new";
 const CONTENT_KEY = "markdown-preview:0";
+const DESCRIPTION_KEY = "markdown-preview:0";
+const TERMS_KEY = "markdown-preview:1";
 
 /** An element's page box. */
 type Box = { height: number; width: number; x: number; y: number };
@@ -179,99 +181,93 @@ describeWithBrowser(
       return `/admin/groups/${group.id}/edit`;
     };
 
-    test("dims everything except the one thing that has the focus", async () => {
+    /** Run `check` on the group edit page with both previews open. */
+    const withTwoPreviews = async (
+      check: (page: Page, first: Locator, second: Locator) => Promise<void>,
+    ): Promise<void> => {
       const path = await groupEditPath();
       await withSignedInPage(
         contract.browser,
         contract.baseUrl,
         async (page) => {
           await openAdminPage(page, path);
-          const descriptionKey = "markdown-preview:0";
-          const termsKey = "markdown-preview:1";
-          const first = await openPreview(page, 0, descriptionKey);
-          await openPreview(page, 1, termsKey);
-
-          // The newest window has the focus: the page and the older window
-          // are dim.
-          expect(await dimOf(page)).toEqual({
-            page: "true",
-            windows: [descriptionKey],
-          });
-
-          // The page takes the focus. Both windows stay open and turn dim,
-          // and the page dim goes.
-          await page.locator('input[name="name"]').focus();
-          expect(await dimOf(page)).toEqual({
-            page: "false",
-            windows: [descriptionKey, termsKey],
-          });
-          expect(await page.locator(MODAL).count()).toBe(2);
-          await waitForPageDimOpacity(page, "0");
-
-          // A window takes the focus back: it is bright, and the page is dim
-          // again.
-          await first.locator(".admin-modal-close").focus();
-          expect(await dimOf(page)).toEqual({
-            page: "true",
-            windows: [termsKey],
-          });
-          await waitForPageDimOpacity(page, "1");
-          expect(
-            await first.evaluate((dialog) => getComputedStyle(dialog).filter),
-          ).toBe("none");
+          const first = await openPreview(page, 0, DESCRIPTION_KEY);
+          const second = await openPreview(page, 1, TERMS_KEY);
+          await check(page, first, second);
         },
       );
+    };
+
+    test("dims everything except the one thing that has the focus", async () => {
+      await withTwoPreviews(async (page, first) => {
+        // The newest window has the focus: the page and the older window
+        // are dim.
+        expect(await dimOf(page)).toEqual({
+          page: "true",
+          windows: [DESCRIPTION_KEY],
+        });
+
+        // The page takes the focus. Both windows stay open and turn dim,
+        // and the page dim goes.
+        await page.locator('input[name="name"]').focus();
+        expect(await dimOf(page)).toEqual({
+          page: "false",
+          windows: [DESCRIPTION_KEY, TERMS_KEY],
+        });
+        expect(await page.locator(MODAL).count()).toBe(2);
+        await waitForPageDimOpacity(page, "0");
+
+        // A window takes the focus back: it is bright, and the page is dim
+        // again.
+        await first.locator(".admin-modal-close").focus();
+        expect(await dimOf(page)).toEqual({
+          page: "true",
+          windows: [TERMS_KEY],
+        });
+        await waitForPageDimOpacity(page, "1");
+        expect(
+          await first.evaluate((dialog) => getComputedStyle(dialog).filter),
+        ).toBe("none");
+      });
     });
 
     test("keeps the page usable and stacks the windows in use order", async () => {
-      const path = await groupEditPath();
-      await withSignedInPage(
-        contract.browser,
-        contract.baseUrl,
-        async (page) => {
-          await openAdminPage(page, path);
-          const descriptionKey = "markdown-preview:0";
-          const termsKey = "markdown-preview:1";
+      await withTwoPreviews(async (page, first, second) => {
+        // Two windows are open, and neither is modal: the page behind stays
+        // out of the top layer, so its controls still take input.
+        expect(await page.locator(MODAL).count()).toBe(2);
+        const modalStates = await page.evaluate(() =>
+          [...document.querySelectorAll("dialog.admin-modal")].map((dialog) =>
+            dialog.matches(":modal"),
+          ),
+        );
+        expect(modalStates).toEqual([false, false]);
 
-          const first = await openPreview(page, 0, descriptionKey);
-          const second = await openPreview(page, 1, termsKey);
+        await page.locator('input[name="name"]').focus();
+        expect(
+          await page.evaluate(() =>
+            document.activeElement?.getAttribute("name"),
+          ),
+        ).toBe("name");
 
-          // Two windows are open, and neither is modal: the page behind stays
-          // out of the top layer, so its controls still take input.
-          expect(await page.locator(MODAL).count()).toBe(2);
-          const modalStates = await page.evaluate(() =>
-            [...document.querySelectorAll("dialog.admin-modal")].map((dialog) =>
-              dialog.matches(":modal"),
-            ),
-          );
-          expect(modalStates).toEqual([false, false]);
+        // The window opened last sits on top, and the words its bar shows
+        // come from the catalog.
+        expect(await stackOf(page)).toEqual([
+          { key: DESCRIPTION_KEY, z: 1000 },
+          { key: TERMS_KEY, z: 1001 },
+        ]);
+        expect(await first.locator(".admin-modal-title").textContent()).toBe(
+          PREVIEW_TITLE,
+        );
+        expect(await second.locator(".admin-modal-title").textContent()).toBe(
+          PREVIEW_TITLE,
+        );
 
-          await page.locator('input[name="name"]').focus();
-          expect(
-            await page.evaluate(() =>
-              document.activeElement?.getAttribute("name"),
-            ),
-          ).toBe("name");
-
-          // The window opened last sits on top, and the words its bar shows
-          // come from the catalog.
-          expect(await stackOf(page)).toEqual([
-            { key: descriptionKey, z: 1000 },
-            { key: termsKey, z: 1001 },
-          ]);
-          expect(await first.locator(".admin-modal-title").textContent()).toBe(
-            PREVIEW_TITLE,
-          );
-          expect(await second.locator(".admin-modal-title").textContent()).toBe(
-            PREVIEW_TITLE,
-          );
-
-          // A press on the window behind brings it forward.
-          await first.locator(".admin-modal-close").focus();
-          expect(await zIndexOf(page, descriptionKey)).toBe(1001);
-          expect(await zIndexOf(page, termsKey)).toBe(1000);
-        },
-      );
+        // A press on the window behind brings it forward.
+        await first.locator(".admin-modal-close").focus();
+        expect(await zIndexOf(page, DESCRIPTION_KEY)).toBe(1001);
+        expect(await zIndexOf(page, TERMS_KEY)).toBe(1000);
+      });
     });
 
     test("drags the window by its title bar and keeps it on the screen", async () => {

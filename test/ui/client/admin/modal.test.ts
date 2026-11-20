@@ -549,8 +549,7 @@ describe("the admin modal shell", () => {
   });
 
   test("focus that moves out of the windows and back moves the dim", () => {
-    const window = page();
-    const first = open(window);
+    const { dialog: first, window } = oneWindow();
     const outside = window.document.createElement("button");
     window.document.body.append(outside);
 
