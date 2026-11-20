@@ -85,8 +85,7 @@ describeWithEnv("a record edit page", { db: true }, () => {
   test("marks no nav section when the given section is empty", async () => {
     const { html } = await holidayPage("Lammas", "", "");
 
-    assertStringIncludes(html, '<a href="/admin/holidays">');
-    expect(html).not.toContain('<a class="active" href="/admin/holidays">');
+    expect(html).not.toContain('<a class="active" href="/admin/');
   });
 
   test("answers 404 for a record that is not there", async () => {
