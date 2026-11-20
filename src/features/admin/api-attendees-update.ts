@@ -2,14 +2,12 @@
  * PUT /api/admin/attendees/:attendeeId — update a booking through the admin
  * JSON API.
  *
- * The update saves through the same code as the admin Edit tab
- * ({@link saveAttendeeEdit}), so a line change moves no money and the tax
- * rules are the form's. The body can change the contact fields, the status,
- * the booking lines, and the buyer's answers. It can also name the payments
- * received and the adjustments, as complete lists in the create's shape. A
- * receipt already stored as the same money adds nothing, so a repeated update
- * is a no-op. A receipt already stored as different money is refused. The
- * update never emails the buyer.
+ * It saves through the Edit tab's code ({@link saveAttendeeEdit}), so a line
+ * change moves no money and the tax rules are the form's. The body can change
+ * the contact fields, the status, the lines and the answers. `payments` and
+ * `adjustments` are complete lists in the create's shape. A receipt that is
+ * already stored as the same money adds nothing. One stored as different money
+ * is refused. The update never emails the buyer.
  */
 
 import { insertIfNewStatements } from "#accounting/rows.ts";
