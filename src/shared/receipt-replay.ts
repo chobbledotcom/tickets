@@ -1,8 +1,9 @@
 /**
  * The money an attendee update carries: the full list of payments received
- * and of named adjustments, in the shape the create takes. A leg's reference
- * names the attendee and the receipt's place in its list, so a list that
- * repeats an earlier one derives references that are already stored.
+ * and the full list of named adjustments, in the shape the create takes.
+ * A leg's reference names the attendee and the receipt's place in its list.
+ * A list that repeats an earlier one therefore derives references that are
+ * already stored.
  */
 
 import { eventGroup } from "#accounting/refs.ts";

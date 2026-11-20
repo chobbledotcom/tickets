@@ -1,9 +1,10 @@
 /**
  * The one save of an existing attendee. The admin Edit tab and the admin API
  * update both run it, so a change to how an edit saves lands in one place.
- * The caller parses its input into an {@link AttendeeEdit}, and this applies
- * it: the contact block, the status, the booking lines and any extra writes in
- * one transaction, then the contact tokens, the answers and the activity line.
+ * The caller parses its input into an {@link AttendeeEdit}. This applies it.
+ * The contact block, the status, the booking lines and any extra writes commit
+ * in one transaction. The contact tokens, the answers and the activity line
+ * follow.
  */
 
 import { logActivity } from "#db/activity-log.ts";
