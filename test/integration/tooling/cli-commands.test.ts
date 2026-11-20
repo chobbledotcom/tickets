@@ -24,6 +24,14 @@ const parseOrUsage = (args: string[]): { code: number; message: string } => {
   }
 };
 
+/** Assert that a command is a usage error (exit 2) whose message names the
+ *  fragment. */
+const expectUsage = (args: string[], fragment: string): void => {
+  const answer = parseOrUsage(args);
+  expect(answer.code).toBe(2);
+  assertStringIncludes(answer.message, fragment);
+};
+
 const writeCommand = (args: string[]) =>
   parseCommand(testTable, args) as Extract<
     ReturnType<typeof parseCommand>,
@@ -458,19 +466,12 @@ describe("CLI parser", () => {
   });
 
   test("answers exit 2 for a filter route call the route cannot take", () => {
-    const cases: [string[], string][] = [
-      [["linkLookup", "external-sources", "3"], "takes no id"],
-      [["links", "external-sources", "a=b"], "needs the source id"],
-      [
-        ["linkLookup", "external-sources", "external_id=a", "external_id=b"],
-        "'external_id' appears twice",
-      ],
-    ];
-    for (const [args, fragment] of cases) {
-      const answer = parseOrUsage(args);
-      expect(answer.code).toBe(2);
-      assertStringIncludes(answer.message, fragment);
-    }
+    expectUsage(["linkLookup", "external-sources", "3"], "takes no id");
+    expectUsage(["links", "external-sources", "a=b"], "needs the source id");
+    expectUsage(
+      ["linkLookup", "external-sources", "external_id=a", "external_id=b"],
+      "'external_id' appears twice",
+    );
   });
 
   test("parses a delete with its confirmation body", () => {
