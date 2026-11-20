@@ -115,10 +115,9 @@ export type CreateReceipts = {
   payments: number[];
 };
 
-/** One API-create leg (a payment or an adjustment) sharing the booking event
- * group. A distinct per-leg reference keeps each independent for refunds and
- * display. */
-const apiCreateLeg = async (
+/** One receipt leg (a payment or an adjustment) in its event group. A distinct
+ * per-leg reference keeps each independent for refunds and display. */
+const receiptLeg = async (
   ctx: BookingLedgerContext,
   group: string,
   refParts: RefPart[],
@@ -153,7 +152,7 @@ const adjustmentLeg = async (
   group: string,
 ): Promise<TransferInput> => {
   const charge = adjustment.amount > 0;
-  return apiCreateLeg(ctx, group, ["api-adjustment", ctx.eventId, index], {
+  return receiptLeg(ctx, group, ["api-adjustment", ctx.eventId, index], {
     amount: Math.abs(adjustment.amount),
     destination: charge ? WRITEOFF : attendee,
     kind: charge ? MANUAL_ATTENDEE_CHARGE : MANUAL_ATTENDEE_WRITEOFF,
@@ -161,6 +160,66 @@ const adjustmentLeg = async (
     source: charge ? attendee : WRITEOFF,
   });
 };
+
+/** Which event group a receipt leg posts under, given its kind and its index
+ * in the caller's list. The create shares the booking's group. An update
+ * gives each receipt its own group, so the booking's stored group never
+ * changes. */
+type ReceiptGroupFor = (
+  kind: "adjustment" | "payment",
+  index: number,
+) => Promise<string>;
+
+/** The legs of the money received and the named adjustments, in list order:
+ * every payment, then every adjustment. A leg's reference names the booking
+ * and the receipt's index, so the same list always derives the same
+ * references. The create and the update both build their legs here. */
+export const receiptLegs = async (
+  ctx: BookingLedgerContext,
+  receipts: CreateReceipts,
+  groupFor: ReceiptGroupFor,
+): Promise<TransferInput[]> => {
+  const attendee = attendeeAccount(ctx.attendeeId);
+  return [
+    ...(await Promise.all(
+      receipts.payments.map(async (amount, index) =>
+        // One payment leg per received payment: cash from the world into the
+        // attendee.
+        receiptLeg(
+          ctx,
+          await groupFor("payment", index),
+          ["api-payment", ctx.eventId, index],
+          {
+            amount,
+            destination: attendee,
+            kind: KIND.payment,
+            source: WORLD,
+          },
+        ),
+      ),
+    )),
+    ...(await Promise.all(
+      receipts.adjustments.map(async (adjustment, index) =>
+        adjustmentLeg(
+          attendee,
+          adjustment,
+          index,
+          ctx,
+          await groupFor("adjustment", index),
+        ),
+      ),
+    )),
+  ];
+};
+
+/** The booking context of an API receipt: the attendee, the event id every
+ * receipt reference carries, and the time the legs record. The create and the
+ * update derive the same references from it. */
+export const receiptContext = (attendeeId: number): BookingLedgerContext => ({
+  attendeeId,
+  eventId: String(attendeeId),
+  occurredAt: nowIso(),
+});
 
 /**
  * The creation work for an API attendee create. Unlike the manual-add form,
@@ -174,35 +233,14 @@ const adjustmentLeg = async (
 export const apiCreateLedgerPoster =
   (order: PricedOrder, receipts: CreateReceipts): AttendeeCreationWork =>
   async (tx, attendeeId) => {
-    const ctx: BookingLedgerContext = {
-      attendeeId,
-      eventId: String(attendeeId),
-      occurredAt: nowIso(),
-    };
+    const ctx = receiptContext(attendeeId);
     const legs = await mapBooking(
       bookingFactsFromOrder(owedOrderForLedger(order), ctx),
     );
     const group = await bookingEventGroup(ctx.eventId);
-    const attendee = attendeeAccount(attendeeId);
     await postBookingLegsTx(tx, attendeeId, [
       ...legs,
-      // One payment leg per received payment: cash from the world into the
-      // attendee.
-      ...(await Promise.all(
-        receipts.payments.map((amount, index) =>
-          apiCreateLeg(ctx, group, ["api-payment", ctx.eventId, index], {
-            amount,
-            destination: attendee,
-            kind: KIND.payment,
-            source: WORLD,
-          }),
-        ),
-      )),
-      ...(await Promise.all(
-        receipts.adjustments.map((adjustment, index) =>
-          adjustmentLeg(attendee, adjustment, index, ctx, group),
-        ),
-      )),
+      ...(await receiptLegs(ctx, receipts, () => Promise.resolve(group))),
     ]);
     // A free add posts no legs at all: the row still carries the group the
     // later refund reconciliation reads.

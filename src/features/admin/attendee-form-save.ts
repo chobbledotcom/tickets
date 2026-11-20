@@ -3,18 +3,15 @@ import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { hasPaidLine } from "#db/attendees/queries.ts";
 import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
-import { syncAttendeeContactTokens } from "#db/contact-tokens.ts";
 import {
   type LogisticsAssignment,
   setLogisticsAssignments,
 } from "#db/logistics.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
-import {
-  type AttendeeAnswerSet,
-  saveAttendeeAnswers,
-} from "#db/questions/attendee-answers/save.ts";
+import type { AttendeeAnswerSet } from "#db/questions/attendee-answers/save.ts";
 import { sum, sumOf } from "#fp";
 import { t } from "#i18n";
+import { saveAttendeeEdit } from "#routes/admin/attendee-edit-save.ts";
 import {
   ATTENDEE_FORM_ID,
   type ParsedAttendeeForm,
@@ -24,10 +21,7 @@ import {
   toLedgerOrder,
 } from "#routes/admin/attendee-form-model.ts";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
-import {
-  attendeeTaxSavedMessage,
-  attendeeTaxSaveWork,
-} from "#routes/admin/attendee-tax.ts";
+import { attendeeTaxSavedMessage } from "#routes/admin/attendee-tax.ts";
 import {
   adminLineSend,
   anyNoQuantityLineMatches,
@@ -39,9 +33,7 @@ import {
   apiCreateLedgerPoster,
   type CreateAdjustment,
 } from "#shared/checkout-complete.ts";
-import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { TaxSavePlan } from "#shared/tax/save.ts";
-import { isTaxAssessmentConflict } from "#shared/tax/store.ts";
 import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { Attendee, ListingWithCount } from "#types";
 
@@ -146,6 +138,7 @@ const EDIT_SAVE_ERRORS = {
   capacity_exceeded: "attendee_form.error_capacity",
   no_lines: "attendee_form.error_no_lines",
   subscription_live: "error.subscription_live",
+  tax_changed: "attendee_form.tax_changed",
 } as const;
 
 export const applyEdit = async (
@@ -177,83 +170,22 @@ export const applyEdit = async (
     return { ok: false, saveError: t("attendee_form.error_paid_no_qty") };
   }
 
-  // The Edit tab has no location inputs, so the Logistics pin survives only
-  // while the address it was pinned for stays the same. An edit that changes
-  // the address clears the now-stale pin (a fresh one is set on the
-  // Logistics tab).
-  const addressUnchanged = parsed.address === attendee.address;
-  const pii = {
-    address: parsed.address,
-    email: parsed.email,
-    lat: addressUnchanged ? attendee.lat : "",
-    lng: addressUnchanged ? attendee.lng : "",
-    name: parsed.name,
-    payment_id: attendee.payment_id,
-    phone: parsed.phone,
-    special_instructions: parsed.special_instructions,
-    ticket_token: attendee.ticket_token,
-  };
-
   const desired = toDesiredLines(parsed);
-  const hasRealLine = desired.some((line) => line.quantity > 0);
-  // Admin manual edit can deliberately overbook (warned, not blocked).
-  const editResult = await attendeesApi
-    .applyAttendeeAtomicEdit(
-      attendeeId,
-      pii,
-      desired,
-      true,
-      await attendeeTaxSaveWork(
-        attendeeId,
-        parsed.statusId,
-        hasRealLine,
-        taxPlan,
-      ),
-    )
-    .catch((error: unknown) => {
-      if (isTaxAssessmentConflict(error)) return null;
-      throw error;
-    });
-  if (editResult === null) {
-    return { ok: false, saveError: t("attendee_form.tax_changed") };
+  const outcome = await saveAttendeeEdit({
+    activity: `Attendee '${parsed.name}' updated`,
+    answers: questions.length > 0 ? answers : null,
+    attendee,
+    contact: parsed,
+    desired,
+    existingByKey,
+    extraWork: [],
+    statusId: parsed.statusId,
+    taxPlan,
+  });
+  if (!outcome.ok) {
+    return { ok: false, saveError: t(EDIT_SAVE_ERRORS[outcome.reason]) };
   }
-  if (!editResult.success) {
-    return { ok: false, saveError: t(EDIT_SAVE_ERRORS[editResult.reason]) };
-  }
-
-  const hadRealLine = [...existingByKey.values()].some(
-    (line) => line.quantity > 0,
-  );
-  const contactChanged =
-    parsed.email !== attendee.email || parsed.phone !== attendee.phone;
-  const gainedFirstRealLine = hasRealLine && !hadRealLine;
-  if (contactChanged || gainedFirstRealLine) {
-    // Keep this attendee's ticket token attached to whichever contact owns it
-    // now. Running when the first real line appears links placeholders that
-    // have just become bookings.
-    await syncAttendeeContactTokens({
-      after: { email: parsed.email, phone: parsed.phone },
-      before: { email: attendee.email, phone: attendee.phone },
-      firstRealBooking: gainedFirstRealLine,
-      hasBooking: hasRealLine,
-      privateKey: await requireRequestPrivateKey(),
-      source: "admin",
-      ticketToken: attendee.ticket_token,
-    });
-  }
-
   await applyLogisticsPlan(attendeeId, logisticsPlan);
-
-  if (questions.length > 0) {
-    await saveAttendeeAnswers(new Map([[attendeeId, answers]]));
-  }
-
-  const firstListingId = desired[0]?.listingId;
-  await logActivity(
-    `Attendee '${parsed.name}' updated`,
-    firstListingId,
-    attendeeId,
-  );
   return {
     ok: true,
     response: savedRedirect(
@@ -261,7 +193,7 @@ export const applyEdit = async (
       parsed.returnUrl,
       attendeeTaxSavedMessage(parsed.name, {
         ...taxPlan.preview,
-        afterBalance: hasRealLine ? taxPlan.preview.afterBalance : 0,
+        afterBalance: outcome.hasRealLine ? taxPlan.preview.afterBalance : 0,
       }),
     ),
   };
