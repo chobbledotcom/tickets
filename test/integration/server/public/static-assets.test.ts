@@ -352,7 +352,6 @@ describeWithEnv(
           ".custom-question[data-listing-ids]",
           "data-child-hint",
           "data-child-dates",
-          ".daily-date-field",
           "[data-duplicate-preview]",
           "duration-warning-confirm",
           "Please select at least one ticket",
