@@ -42,7 +42,79 @@ describe("the question rule", () => {
   test("accepts a new question at the text area limit", () => {
     const input = { displayType: "radio" as const, text: "q".repeat(LIMIT) };
 
-    expect(questionRule(input, null)).toEqual({ ok: true, value: input });
+    expect(questionRule(input, null)).toEqual({
+      ok: true,
+      value: { ...input, answerLevel: "booking" },
+    });
+  });
+
+  test("lets a new free-text question ask once for each listing", () => {
+    expect(
+      questionRule(
+        { answerLevel: "listing", displayType: "free_text", text: "Q" },
+        null,
+      ),
+    ).toEqual({
+      ok: true,
+      value: { answerLevel: "listing", displayType: "free_text", text: "Q" },
+    });
+  });
+
+  test("asks once for the booking when a new question names no level", () => {
+    expect(questionRule({ displayType: "free_text", text: "Q" }, null)).toEqual(
+      {
+        ok: true,
+        value: { answerLevel: "booking", displayType: "free_text", text: "Q" },
+      },
+    );
+  });
+
+  test("keeps a new choice question at one per booking whatever the input says", () => {
+    expect(
+      questionRule(
+        { answerLevel: "listing", displayType: "radio", text: "Q" },
+        null,
+      ),
+    ).toEqual({
+      ok: true,
+      value: { answerLevel: "booking", displayType: "radio", text: "Q" },
+    });
+  });
+
+  test("refuses an edit that changes the answer level", () => {
+    expect(
+      questionRule(
+        { answerLevel: "listing", displayType: "free_text", text: "Q" },
+        stored("free_text"),
+      ),
+    ).toEqual({
+      error:
+        "You cannot change how often a question asks. Add a new question instead.",
+      ok: false,
+    });
+  });
+
+  test("keeps the stored answer level on an edit that names none or the same", () => {
+    const listingLevel = {
+      ...stored("free_text"),
+      answerLevel: "listing" as const,
+    };
+    expect([
+      questionRule({ displayType: "free_text", text: "Q" }, listingLevel),
+      questionRule(
+        { answerLevel: "listing", displayType: "free_text", text: "Q" },
+        listingLevel,
+      ),
+    ]).toEqual([
+      {
+        ok: true,
+        value: { answerLevel: "listing", displayType: "free_text", text: "Q" },
+      },
+      {
+        ok: true,
+        value: { answerLevel: "listing", displayType: "free_text", text: "Q" },
+      },
+    ]);
   });
 
   test("lets a choice question switch between radio and select", () => {
@@ -68,7 +140,12 @@ describe("the question rule", () => {
       ),
     ).toEqual({
       ok: true,
-      value: { assignAll: true, displayType: "select", text: "Pick" },
+      value: {
+        answerLevel: "booking",
+        assignAll: true,
+        displayType: "select",
+        text: "Pick",
+      },
     });
   });
 });

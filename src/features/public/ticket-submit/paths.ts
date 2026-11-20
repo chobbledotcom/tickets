@@ -29,7 +29,7 @@ import type {
 } from "#shared/checkout-pricing.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
-import { computeListingTextAnswerIdMap } from "./parse.ts";
+import { computeTextAnswerRefs } from "./parse.ts";
 
 export type PathParams = OrderSpan & {
   ctx: TicketCtx;
@@ -63,7 +63,8 @@ export const handlePaidPath = async (
   }
   // Create the encrypted free-text strings only once availability is confirmed,
   // so a rejected over-capacity submission never leaves orphaned plaintext rows.
-  const listingTextAnswerIds = await computeListingTextAnswerIdMap(ctx, info);
+  const { lineTextAnswerIds, listingTextAnswerIds } =
+    await computeTextAnswerRefs(ctx, info);
   if (listingTextAnswerIds !== undefined) {
     intent.listingTextAnswerIds = listingTextAnswerIds;
     intent.textAnswers = Object.fromEntries(
@@ -72,6 +73,9 @@ export const handlePaidPath = async (
         text,
       ]),
     );
+  }
+  if (lineTextAnswerIds !== undefined) {
+    intent.lineTextAnswerIds = lineTextAnswerIds;
   }
   return handlePaymentFlow(request, intent, ctx);
 };

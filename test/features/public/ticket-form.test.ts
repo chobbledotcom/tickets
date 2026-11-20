@@ -48,6 +48,7 @@ const question = (
 const answerInfo = (over: Partial<AnswerInfo>): AnswerInfo => ({
   activeQuestions: [],
   answerIds: [],
+  lineTextAnswers: [],
   selectedListingIds: new Set(),
   textAnswers: [],
   ...over,

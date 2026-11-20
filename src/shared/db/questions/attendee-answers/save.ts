@@ -2,13 +2,18 @@
  * Saving attendee answers.
  *
  * Each attendee's chosen answer ids and free-text strings are written in one
- * atomic batch (deleting their old answers first so the string-refcount
- * trigger fires before the strings are recreated).
+ * atomic batch. The old booking answers go first, so the string count
+ * trigger fires before the strings are recreated.
  */
 
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
 import { executeBatch, type TxScope, withTransaction } from "#db/client.ts";
-import type { TextAnswer, TextAnswerId } from "#db/question-types.ts";
+import type {
+  LineTextAnswer,
+  LineTextAnswerId,
+  TextAnswer,
+  TextAnswerId,
+} from "#db/question-types.ts";
 import {
   internWriteStatements,
   type PreparedStringRow,
@@ -21,6 +26,10 @@ import { requiredMapValue } from "#fp";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];
+  /** The answers to the questions that ask once for each booked listing. Each
+   * one is filed against the attendee's booking row for its listing. */
+  lineTextAnswerIds?: LineTextAnswerId[];
+  lineTextAnswers?: LineTextAnswer[];
   textAnswerIds?: TextAnswerId[];
   textAnswers?: TextAnswer[];
 };
@@ -45,7 +54,23 @@ const dedupeByQuestion = <T extends { questionId: number }>(
   return [...answerByQuestion.values()];
 };
 
+/** One answer for each question and listing: a repeat keeps the last. */
+const dedupeByQuestionAndListing = <
+  T extends { listingId: number; questionId: number },
+>(
+  answers: T[],
+): T[] => [
+  ...new Map(
+    answers.map((answer) => [
+      `${answer.questionId}:${answer.listingId}`,
+      answer,
+    ]),
+  ).values(),
+];
+
 type NormalizedAnswerSet = AttendeeAnswerSet & {
+  lineTextAnswerIds: LineTextAnswerId[];
+  lineTextAnswers: LineTextAnswer[];
   textAnswerIds: TextAnswerId[];
   textAnswers: TextAnswer[];
 };
@@ -65,13 +90,17 @@ export type PreparedAnswerSave = {
 type AttendeeRef = {
   /** The attendee_id value of one row. */
   idOf: (attendeeId: number) => SqlSlot;
-  /** The delete that clears the attendee's previous answers. */
+  /** The delete that clears the attendee's previous answers to the booking.
+   * Answers filed against a booked listing stay. */
   delete: (attendeeIds: number[]) => SqlStatement;
 };
 
 const idsRef: AttendeeRef = {
   delete: (attendeeIds) =>
-    deleteFrom(tables.attendee_answers).where({ attendeeId: attendeeIds }),
+    deleteFrom(tables.attendee_answers).where({
+      attendeeId: attendeeIds,
+      listingAttendeeId: null,
+    }),
   idOf: (attendeeId) => attendeeId,
 };
 
@@ -81,7 +110,10 @@ const bookedRef = (tokenIndex: string): AttendeeRef => {
   const attendee = attendeeByToken(tokenIndex);
   return {
     delete: () =>
-      deleteFrom(tables.attendee_answers).where({ attendeeId: attendee }),
+      deleteFrom(tables.attendee_answers).where({
+        attendeeId: attendee,
+        listingAttendeeId: null,
+      }),
     idOf: () => attendee,
   };
 };
@@ -123,6 +155,56 @@ const pushAnswerRows = <Row extends { attendeeId: number }>(
       insert.afterValues,
     ),
   );
+};
+
+/** The insert of each listing's own answers. The join to the attendee's
+ * booking rows files an answer against every row the attendee holds for its
+ * listing. A row with no booked quantity takes none. */
+const lineAnswerStatements = (
+  normalized: Map<number, NormalizedAnswerSet>,
+  ref: AttendeeRef,
+  textIndexByText: Map<string, string>,
+): SqlStatement[] => {
+  const rows = [...normalized].flatMap(([attendeeId, set]) => [
+    ...set.lineTextAnswerIds.map((answer) => ({
+      attendeeId,
+      listingId: answer.listingId,
+      questionId: answer.questionId,
+      value: answer.stringId,
+    })),
+    ...set.lineTextAnswers.map((answer) => ({
+      attendeeId,
+      listingId: answer.listingId,
+      questionId: answer.questionId,
+      value: requiredMapValue(
+        textIndexByText,
+        answer.text,
+        `Text answer for question ${answer.questionId} missing`,
+      ),
+    })),
+  ]);
+  const statements: SqlStatement[] = [];
+  pushAnswerRows(statements, ref, {
+    afterValues: sql`INSERT INTO attendee_answers
+          (attendee_id, question_id, string_id, listing_attendee_id)
+        SELECT selected.attendee_id, selected.question_id, selected.string_id, line.id
+        FROM selected
+        INNER JOIN questions AS question ON question.id = selected.question_id
+        INNER JOIN listing_attendees AS line
+          ON line.attendee_id = selected.attendee_id
+          AND line.listing_id = selected.listing_id
+          AND line.quantity > 0`,
+    columns: sql`attendee_id, question_id, listing_id, string_id`,
+    rows,
+    rowValues: (row) => [
+      row.questionId,
+      row.listingId,
+      typeof row.value === "string"
+        ? sql`(SELECT id FROM strings WHERE text_index = ${row.value})`
+        : row.value,
+    ],
+  });
+  return statements;
 };
 
 /** The whole save as plain statements: delete the attendees' previous answers,
@@ -217,7 +299,11 @@ const answerSaveStatements = (
         : row.value,
     ],
   });
-  return [...statements, ...alongside];
+  return [
+    ...statements,
+    ...lineAnswerStatements(normalized, ref, textIndexByText),
+    ...alongside,
+  ];
 };
 
 /**
@@ -237,6 +323,12 @@ export const prepareAttendeeAnswerSave = async (
         id,
         {
           ...answerSet,
+          lineTextAnswerIds: dedupeByQuestionAndListing(
+            arrayOrEmpty(answerSet.lineTextAnswerIds),
+          ),
+          lineTextAnswers: dedupeByQuestionAndListing(
+            arrayOrEmpty(answerSet.lineTextAnswers),
+          ),
           textAnswerIds: dedupeByQuestion(
             arrayOrEmpty(answerSet.textAnswerIds),
           ),
@@ -247,7 +339,7 @@ export const prepareAttendeeAnswerSave = async (
   );
   const preparedStringRows = await prepareStringRows(
     [...normalized.values()].flatMap((set) =>
-      set.textAnswers.map((a) => a.text),
+      [...set.textAnswers, ...set.lineTextAnswers].map((a) => a.text),
     ),
   );
   return { normalized, preparedStringRows };
@@ -313,6 +405,62 @@ export type AttendeeListingEntry = {
   listing: { id: number };
 };
 
+/** The answers to questions that ask once for each booked listing, keyed by
+ * `String(listingId)`: the typed text, or the string ids of a checkout. */
+export type LineAnswerMaps = {
+  textAnswers?: Record<string, TextAnswer[]>;
+  textRefs?: Record<string, TextAnswerId[]>;
+};
+
+/** Names the listing that owns each of these answers. */
+const withListing = <T extends { questionId: number }>(
+  listingId: number,
+  answers: T[] | undefined,
+): (T & { listingId: number })[] =>
+  arrayOrEmpty(answers).map((answer) => ({ ...answer, listingId }));
+
+/** One listing's answers, as they join its attendee's set. */
+type ListingAnswers = {
+  answerIds: number[];
+  lineRefs: LineTextAnswerId[];
+  lineTexts: LineTextAnswer[];
+  textAnswers: TextAnswer[];
+  textRefs: TextAnswerId[];
+};
+
+/** Adds one listing's answers to its attendee's set. A booking answer keeps
+ * its last text. A listing's own answers never merge by question. */
+const addListingAnswers = (
+  existing: AttendeeAnswerSet,
+  added: ListingAnswers,
+): void => {
+  existing.answerIds.push(...added.answerIds);
+  if (added.textAnswers.length > 0) {
+    existing.textAnswers = dedupeByQuestion([
+      ...arrayOrEmpty(existing.textAnswers),
+      ...added.textAnswers,
+    ]);
+  }
+  if (added.textRefs.length > 0) {
+    existing.textAnswerIds = dedupeByQuestion([
+      ...arrayOrEmpty(existing.textAnswerIds),
+      ...added.textRefs,
+    ]);
+  }
+  if (added.lineTexts.length > 0) {
+    existing.lineTextAnswers = [
+      ...arrayOrEmpty(existing.lineTextAnswers),
+      ...added.lineTexts,
+    ];
+  }
+  if (added.lineRefs.length > 0) {
+    existing.lineTextAnswerIds = [
+      ...arrayOrEmpty(existing.lineTextAnswerIds),
+      ...added.lineRefs,
+    ];
+  }
+};
+
 /**
  * Reduce per-listing answer selections to one answer set per attendee. An
  * attendee booking several listings in the same submission accumulates every
@@ -329,34 +477,22 @@ export const groupListingAnswerSets = (
   listingAnswerIds: Record<string, number[]>,
   listingTextAnswers: Record<string, TextAnswer[]> = {},
   listingTextRefs: Record<string, TextAnswerId[]> = {},
+  lineAnswers: LineAnswerMaps = {},
 ): Map<number, AttendeeAnswerSet> => {
   const answersByAttendee = new Map<number, AttendeeAnswerSet>();
   for (const { attendee, listing } of entries) {
     const key = String(listing.id);
-    const answerIds = arrayOrEmpty(listingAnswerIds[key]);
-    const textAnswers = arrayOrEmpty(listingTextAnswers[key]);
-    const textRefs = arrayOrEmpty(listingTextRefs[key]);
-    if (
-      answerIds.length === 0 &&
-      textAnswers.length === 0 &&
-      textRefs.length === 0
-    )
-      continue;
+    const added: ListingAnswers = {
+      answerIds: arrayOrEmpty(listingAnswerIds[key]),
+      lineRefs: withListing(listing.id, lineAnswers.textRefs?.[key]),
+      lineTexts: withListing(listing.id, lineAnswers.textAnswers?.[key]),
+      textAnswers: arrayOrEmpty(listingTextAnswers[key]),
+      textRefs: arrayOrEmpty(listingTextRefs[key]),
+    };
+    if (Object.values(added).every((answers) => answers.length === 0)) continue;
     const saved = answersByAttendee.get(attendee.id);
     const existing = saved === undefined ? { answerIds: [] } : saved;
-    existing.answerIds.push(...answerIds);
-    if (textAnswers.length > 0) {
-      existing.textAnswers = dedupeByQuestion([
-        ...arrayOrEmpty(existing.textAnswers),
-        ...textAnswers,
-      ]);
-    }
-    if (textRefs.length > 0) {
-      existing.textAnswerIds = dedupeByQuestion([
-        ...arrayOrEmpty(existing.textAnswerIds),
-        ...textRefs,
-      ]);
-    }
+    addListingAnswers(existing, added);
     answersByAttendee.set(attendee.id, existing);
   }
   return answersByAttendee;

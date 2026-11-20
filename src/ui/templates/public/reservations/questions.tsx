@@ -3,10 +3,16 @@
  * validation re-render. */
 
 import type { QuestionWithAnswers } from "#db/question-types.ts";
+import {
+  type AnswerLine,
+  isListingLevel,
+  linesAskedBy,
+} from "#db/questions/line-answers.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { t } from "#i18n";
 import { savedFormValue } from "#shared/forms/saved-data.ts";
 import { questionControl } from "#templates/components/question-controls.tsx";
+import { renderLineQuestion } from "./line-questions.tsx";
 
 /** Render one question control. `required` is the HTML constraint: page listings
  * emit required controls; folded child questions render non-required (the server
@@ -42,16 +48,24 @@ export const answerableQuestion = (q: QuestionWithAnswers): boolean =>
   q.displayType === "free_text" || q.answers.some((a) => a.active);
 
 /** Render the custom question fields. A `questionListingMap` adds data-listing-ids
- * so JS can show/hide questions based on selected listing quantities. */
+ * so JS can show/hide questions based on selected listing quantities. A
+ * question that asks once for each listing shows a field under each of the
+ * `lines` it asks. */
 export const renderQuestions = (
   questions: QuestionWithAnswers[],
   questionListingMap?: QuestionListingMap,
+  lines: readonly AnswerLine[] = [],
 ): JSX.Element => (
   <>
     {questions
       .filter(answerableQuestion)
       .map((q) =>
-        renderQuestion(q, true, questionListingMap?.get(q.id)?.join(" ")),
+        isListingLevel(q)
+          ? renderLineQuestion(
+              q,
+              linesAskedBy(lines, questionListingMap?.get(q.id)),
+            )
+          : renderQuestion(q, true, questionListingMap?.get(q.id)?.join(" ")),
       )}
   </>
 );

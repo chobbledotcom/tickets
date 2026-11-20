@@ -31,6 +31,7 @@ const renderForm = (
   String(
     TicketPageForm({
       addOns: undefined,
+      answerLines: [],
       dates: undefined,
       dayCounts: [],
       durationDays: 1,
@@ -152,7 +153,7 @@ describe("ticketPage — fields & form", () => {
     ];
     const questions = [
       {
-        answerLevel: "booking",
+        answerLevel: "booking" as const,
         answers: [
           {
             active: true,

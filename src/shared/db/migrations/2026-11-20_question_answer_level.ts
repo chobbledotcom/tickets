@@ -14,6 +14,7 @@ export default schemaMigration(
       "idx_attendee_listing_answers_unique",
       "idx_attendee_string_answers_unique",
     ],
+    triggers: ["trg_listing_attendees_answers_delete"],
   },
   // The one-answer-per-question index now covers booking answers only.
   // The index sync never changes an index that keeps its name, so drop the

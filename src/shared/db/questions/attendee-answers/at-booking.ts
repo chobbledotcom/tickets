@@ -44,11 +44,11 @@ const recordAnswersStatement = (
         ON question.assign_all = 1 OR question.id IN (
           SELECT listingQuestion.question_id FROM listing_questions AS listingQuestion
           WHERE listingQuestion.listing_id = booked.listing_id)
-      WHERE question.display_type = 'free_text'
+      WHERE question.answer_level = 'booking' AND (question.display_type = 'free_text'
         OR EXISTS (SELECT 1 FROM answers AS offered
           WHERE offered.question_id = question.id AND offered.active = 1)
         OR EXISTS (SELECT 1 FROM attendee_answers AS given
-          WHERE given.attendee_id = booked.attendee_id AND given.question_id = question.id)
+          WHERE given.attendee_id = booked.attendee_id AND given.question_id = question.id))
     )
     INSERT INTO answers_at_booking
       (attendee_id, question_id, question_text, answer_id, answer_text, free_text, free_text_index)
@@ -57,6 +57,7 @@ const recordAnswersStatement = (
     FROM asked
     LEFT JOIN attendee_answers AS given
       ON given.attendee_id = asked.attendee_id AND given.question_id = asked.question_id
+      AND given.listing_attendee_id IS NULL
     LEFT JOIN answers AS answer ON answer.id = given.answer_id
     LEFT JOIN strings AS string ON string.id = given.string_id
     WHERE true
@@ -104,6 +105,7 @@ const comparedAnswers = (
       UNION
       SELECT given.attendee_id, given.question_id FROM attendee_answers AS given
       INNER JOIN recorded ON recorded.attendee_id = given.attendee_id
+      WHERE given.listing_attendee_id IS NULL
     )
     SELECT ${columns}
     FROM pair
@@ -111,6 +113,7 @@ const comparedAnswers = (
       ON booked.attendee_id = pair.attendee_id AND booked.question_id = pair.question_id
     LEFT JOIN attendee_answers AS given
       ON given.attendee_id = pair.attendee_id AND given.question_id = pair.question_id
+      AND given.listing_attendee_id IS NULL
     LEFT JOIN answers AS givenChoice ON givenChoice.id = given.answer_id
     LEFT JOIN answers AS bookedChoice ON bookedChoice.id = booked.answer_id
     LEFT JOIN strings AS givenString ON givenString.id = given.string_id

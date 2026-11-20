@@ -11,8 +11,13 @@ import { buildOrderLines } from "#booking/order-lines.ts";
 import { isMemberNodeOf } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { answerModifierQuantities } from "#db/modifier-resolve.ts";
+import {
+  type AnswerLine,
+  isListingLevel,
+  parseLineTextAnswers,
+} from "#db/questions/line-answers.ts";
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
-import { requiredMapValue, sum } from "#fp";
+import { requiredMapValue, sum, uniqueBy } from "#fp";
 import { resolveDayCount } from "#routes/public/booking-dates.ts";
 import {
   type AnswerInfo,
@@ -49,6 +54,20 @@ import {
   priceSubmissionBeforeContact,
   type SubmissionPricingParams,
 } from "./pricing.ts";
+
+/** The booked listings the buyer can see, once each. A listing booked through
+ * two paths has one answer for each question. */
+const namedLines = (
+  items: readonly CheckoutItem[],
+  namedListingIds: ReadonlySet<number>,
+): AnswerLine[] =>
+  uniqueBy((line: AnswerLine) => line.id)(
+    items.flatMap((item) =>
+      namedListingIds.has(item.listingId)
+        ? [{ id: item.listingId, name: item.name }]
+        : [],
+    ),
+  );
 
 /** A parsed-and-priced submission, or the message explaining why it could not
  * be priced. `prepareOrder` runs every step shared by the booking submit and
@@ -215,13 +234,25 @@ export const prepareOrder = async (
   });
   const answersResult = parseQuestionAnswers({ optional: false })(
     form,
-    activeQuestions,
+    activeQuestions.filter((question) => !isListingLevel(question)),
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
+  // A listing-level question asks under each booked listing the buyer can
+  // see. A concealed package member has no field, so it owes no answer.
+  const lineAnswersResult = parseLineTextAnswers(
+    form,
+    activeQuestions,
+    namedLines(items, namedListingIds),
+    foldedCtx.questionListingMap,
+  );
+  if (!lineAnswersResult.ok) {
+    return { error: lineAnswersResult.error, ok: false };
+  }
 
   const info: AnswerInfo = {
     activeQuestions,
     answerIds: answersResult.answerIds,
+    lineTextAnswers: lineAnswersResult.lineTextAnswers,
     selectedListingIds,
     textAnswers: answersResult.textAnswers,
   };

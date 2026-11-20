@@ -4,11 +4,13 @@ import { expect } from "@std/expect";
 import {
   answerInListDownload,
   answerOffersMoveUp,
+  answersOnTheBookingPage,
   askedQuestion,
   offeredAnswersInOrder,
   ownerAddsAnswer,
   ownerAsksAnotherChoiceQuestion,
   ownerAsksChoiceQuestion,
+  ownerAsksQuestionForEachListing,
   ownerAsksWrittenQuestion,
   ownerLastTold,
   ownerMovesAnswerUp,
@@ -16,6 +18,7 @@ import {
   questionFieldOn,
   questionPageOffersChoices,
   visitorBooksAnswering,
+  visitorBooksEachListingAnswering,
   visitorOpensBooking,
 } from "#test/specs/support/buyer-questions.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
@@ -49,6 +52,54 @@ Given(
   "the owner asks buyers to write {string}",
   function (this: TicketsWorld, text: string): Promise<void> {
     return ownerAsksWrittenQuestion(this, text);
+  },
+);
+
+Given(
+  "the owner asks {word} and {word} buyers to write {string} for each listing they book",
+  function (
+    this: TicketsWorld,
+    first: string,
+    second: string,
+    text: string,
+  ): Promise<void> {
+    return ownerAsksQuestionForEachListing(this, text, [first, second]);
+  },
+);
+
+When(
+  "a visitor books the {word} and the {word} together, writing {string} for the first and {string} for the second",
+  function (
+    this: TicketsWorld,
+    first: string,
+    second: string,
+    firstAnswer: string,
+    secondAnswer: string,
+  ): Promise<void> {
+    return visitorBooksEachListingAnswering(this, [
+      [first, firstAnswer],
+      [second, secondAnswer],
+    ]);
+  },
+);
+
+Then(
+  "the owner reads {string} for the {word} and {string} for the {word} on that booking",
+  async function (
+    this: TicketsWorld,
+    firstAnswer: string,
+    first: string,
+    secondAnswer: string,
+    second: string,
+  ): Promise<void> {
+    const page = await answersOnTheBookingPage(this, first);
+    const question = askedQuestion(this).text;
+    expectIncludesAll(page, [
+      `${question} (${first})`,
+      firstAnswer,
+      `${question} (${second})`,
+      secondAnswer,
+    ]);
   },
 );
 

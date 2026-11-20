@@ -51,6 +51,7 @@ import {
   splitChildQuestions,
 } from "./day-config.ts";
 import { TicketPageForm, TicketPageHeader } from "./form.tsx";
+import { pageAnswerLines } from "./line-questions.tsx";
 import { buildPageListingRows } from "./listing-rows.ts";
 import { ticketPageHeadExtra } from "./og-tags.ts";
 import type { TicketPageOptions } from "./types.ts";
@@ -311,6 +312,7 @@ export const ticketPage = ({
         <TicketPageForm
           actionUrl={actionUrl}
           addOns={addOns}
+          answerLines={pageAnswerLines(listings, tree, childrenByParentId)}
           cartConflicts={cartConflicts(
             cartDateItems,
             listings,

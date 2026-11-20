@@ -58,7 +58,6 @@ export const questionTextForm = defineForm({
           value,
         })),
       ),
-      required: true,
       type: "select",
     },
   ] as const,

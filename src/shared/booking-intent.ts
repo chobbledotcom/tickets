@@ -87,6 +87,10 @@ export type ListingAnswerRefs = {
   listingAnswerIds?: Record<string, number[]> | undefined;
   /** Per-listing free-text string refs: maps listingId → question/string ids. */
   listingTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
+  /** Per-listing free-text refs for a question that asks once for each booked
+   * listing. Each listing keeps its own answer, so the webhook files these
+   * against the listing's booking row and never merges them by question. */
+  lineTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
 };
 /**
  * Answers are filed under the listing they belong to, written the way a
@@ -98,6 +102,11 @@ export type ListingAnswerRefs = {
 const ListingKeySchema = v.pipe(
   v.string(),
   v.regex(/^[1-9][0-9]*$/u, "A listing key must be a listing id"),
+);
+
+/** Free-text refs filed under the listing each one belongs to. */
+const TextAnswerRefsByListingSchema = v.optional(
+  v.record(ListingKeySchema, v.array(TextAnswerRefSchema)),
 );
 
 /** Canonical booking facts persisted for a payment and sent through metadata. */
@@ -118,12 +127,11 @@ export const BookingIntentSchema = v.pipe(
     dayCount: v.optional(positiveInt),
     email: v.string(),
     items: BookingItemsSchema,
+    lineTextAnswerIds: TextAnswerRefsByListingSchema,
     listingAnswerIds: v.optional(
       v.record(ListingKeySchema, v.array(positiveInt)),
     ),
-    listingTextAnswerIds: v.optional(
-      v.record(ListingKeySchema, v.array(TextAnswerRefSchema)),
-    ),
+    listingTextAnswerIds: TextAnswerRefsByListingSchema,
     modifiers: v.array(ModifierRefSchema),
     name: v.string(),
     phone: v.string(),

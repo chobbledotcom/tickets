@@ -3,6 +3,7 @@
 import type {
   Answer,
   Question,
+  QuestionAnswerLevel,
   QuestionDisplayType,
 } from "#db/question-types.ts";
 import { questionListings } from "#db/questions/queries.ts";
@@ -10,6 +11,7 @@ import { records } from "#db/record-table.ts";
 
 /** What a seeded question asks, how, and on which listings. */
 export interface QuestionSeed<Texts extends readonly string[]> {
+  answerLevel?: QuestionAnswerLevel;
   answers?: Texts;
   displayType?: QuestionDisplayType;
   listingIds?: readonly number[];
@@ -25,12 +27,14 @@ export interface SeededQuestion<Texts extends readonly string[]> {
 /** A question with one answer for each text, in the order given, asked on
  *  each listing given. A radio question unless the seed says otherwise. */
 export const seedQuestion = async <const Texts extends readonly string[] = []>({
+  answerLevel = "booking",
   answers,
   displayType = "radio",
   listingIds = [],
   text,
 }: QuestionSeed<Texts>): Promise<SeededQuestion<Texts>> => {
   const question = await records.questions.insert({
+    answerLevel,
     displayType: displayType,
     text,
   });

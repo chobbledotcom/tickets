@@ -86,6 +86,28 @@ describe("payment-helpers", () => {
       );
     });
 
+    test("throws PaymentUserError when line_text_answer_ids exceeds limit", () => {
+      const longLineTextAnswerIds = JSON.stringify(
+        Object.fromEntries(
+          Array.from({ length: 20 }, (_, i) => [
+            String(i),
+            Array.from({ length: 10 }, (_, j) => ({ q: j, s: j })),
+          ]),
+        ),
+      );
+      const metadata = {
+        email: "john@example.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        line_text_answer_ids: longLineTextAnswerIds,
+        name: "John",
+      };
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
+        PaymentUserError,
+        /too many options/i,
+      );
+    });
+
     test("throws PaymentUserError when modifiers exceeds limit", () => {
       const longModifiers = JSON.stringify(
         Array.from({ length: 40 }, (_, i) => ({ i, q: 1 })),

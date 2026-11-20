@@ -83,7 +83,10 @@ const pages = recordPages(questionRecord, {
   renderDelete: adminQuestionDeletePage,
   renderList,
   toInput: ({ answerLevel, displayType, text }) => ({
-    answerLevel: requireQuestionAnswerLevel(answerLevel),
+    // A form that never names a level asks once for the booking.
+    answerLevel: answerLevel
+      ? requireQuestionAnswerLevel(answerLevel)
+      : undefined,
     displayType: requireQuestionDisplayType(displayType),
     text,
   }),

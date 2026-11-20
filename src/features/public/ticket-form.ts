@@ -6,7 +6,7 @@ import { bookingError } from "#booking/form.ts";
 import type { TicketListing } from "#booking/model.ts";
 import { quantityFieldName } from "#booking/tree.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
-import type { TextAnswer } from "#db/question-types.ts";
+import type { LineTextAnswer, TextAnswer } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { filter, map } from "#fp";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
@@ -30,6 +30,8 @@ export const parseQuantityValue = (raw: string, minDefault = 1): number => {
 export type AnswerInfo = {
   activeQuestions: TicketCtx["questions"];
   answerIds: number[];
+  /** The answers to the questions that ask once for each booked listing. */
+  lineTextAnswers: LineTextAnswer[];
   textAnswers: TextAnswer[];
   selectedListingIds: Set<number>;
 };
@@ -75,8 +77,23 @@ const answeredQuestionPairs = (
  * `String(listingId)`. */
 export type ListingAnswerMaps = {
   answerIds: Record<string, number[]>;
+  /** Each listing's own answers, kept apart so none merges by question. */
+  lineTextAnswers: Record<string, TextAnswer[]>;
   textAnswers: Record<string, TextAnswer[]>;
 };
+
+/** Files each listing's own answers under that listing alone. */
+const lineAnswersByListing = (
+  answers: readonly LineTextAnswer[],
+): Record<string, TextAnswer[]> =>
+  Object.fromEntries(
+    [...Map.groupBy(answers, (answer) => answer.listingId)].map(
+      ([listingId, listingAnswers]) => [
+        String(listingId),
+        listingAnswers.map(({ questionId, text }) => ({ questionId, text })),
+      ],
+    ),
+  );
 
 /** Files a submission's chosen answer ids and free-text answers under every
  * selected listing their question applies to — the one place both per-listing
@@ -91,6 +108,7 @@ export const listingAnswerMaps = (
   );
   return {
     answerIds: collect(answeredQuestionPairs(info)),
+    lineTextAnswers: lineAnswersByListing(info.lineTextAnswers),
     textAnswers: collect(
       info.textAnswers.map((answer) => [answer.questionId, answer] as const),
     ),

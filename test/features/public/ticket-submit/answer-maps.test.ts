@@ -8,7 +8,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { AnswerInfo } from "#routes/public/ticket-form.ts";
 import {
   computeListingAnswerMap,
-  computeListingTextAnswerIdMap,
+  computeTextAnswerRefs,
 } from "#routes/public/ticket-submit/parse.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,6 +28,7 @@ const answerInfo = (
   },
 ): AnswerInfo => ({
   activeQuestions: ctx.questions,
+  lineTextAnswers: [],
   selectedListingIds: new Set([listingId]),
   ...chosen,
 });
@@ -66,14 +67,14 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       ]);
       const ctx = await ticketContext([listing.id]);
 
-      const map = await computeListingTextAnswerIdMap(
+      const { listingTextAnswerIds } = await computeTextAnswerRefs(
         ctx,
         answerInfo(ctx, listing.id, {
           answerIds: [],
           textAnswers: [{ questionId: question.id, text: "Hello" }],
         }),
       );
-      const entry = map?.[String(listing.id)]?.[0];
+      const entry = listingTextAnswerIds?.[String(listing.id)]?.[0];
       expect(entry?.q).toBe(question.id);
       expect(entry?.s).toBeGreaterThan(0);
     });
@@ -83,8 +84,40 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       const ctx = await ticketContext([listing.id]);
 
       expect(
-        await computeListingTextAnswerIdMap(ctx, answerInfo(ctx, listing.id)),
-      ).toBe(undefined);
+        await computeTextAnswerRefs(ctx, answerInfo(ctx, listing.id)),
+      ).toEqual({
+        lineTextAnswerIds: undefined,
+        listingTextAnswerIds: undefined,
+      });
+    });
+
+    test("files each listing's own answers under that listing alone", async () => {
+      const [first, second] = [
+        await createTestListing({ maxAttendees: 5 }),
+        await createTestListing({ maxAttendees: 5 }),
+      ];
+      const ctx = await ticketContext([first.id, second.id]);
+
+      const { lineTextAnswerIds, listingTextAnswerIds } =
+        await computeTextAnswerRefs(ctx, {
+          ...answerInfo(ctx, first.id),
+          lineTextAnswers: [
+            { listingId: first.id, questionId: 7, text: "Ava" },
+            { listingId: second.id, questionId: 7, text: "Ben" },
+          ],
+        });
+
+      expect(listingTextAnswerIds).toBeUndefined();
+      expect(Object.keys(lineTextAnswerIds ?? {}).sort()).toEqual(
+        [String(first.id), String(second.id)].sort(),
+      );
+      const [ava, ben] = [
+        lineTextAnswerIds?.[String(first.id)],
+        lineTextAnswerIds?.[String(second.id)],
+      ];
+      expect(ava?.map((ref) => ref.q)).toEqual([7]);
+      expect(ben?.map((ref) => ref.q)).toEqual([7]);
+      expect(ava?.[0]?.s).not.toBe(ben?.[0]?.s);
     });
   });
 });

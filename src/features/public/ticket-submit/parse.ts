@@ -27,6 +27,7 @@ import {
   quantityFieldName,
   standaloneListingIds,
 } from "#booking/tree.ts";
+import type { TextAnswer } from "#db/question-types.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { byId, requiredMapValue } from "#fp";
 import {
@@ -39,6 +40,7 @@ import {
   REGISTRATION_CLOSED_SUBMIT_MESSAGE,
   type TicketCtx,
 } from "#routes/public/types.ts";
+import type { StoredTextAnswerRef } from "#shared/booking-intent.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { getTicketFieldsSetting } from "#shared/listing-fields.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -233,20 +235,17 @@ export const applyQrTokenOverride = async (
   }
 };
 
-/** Compute listing-answer map if answers exist */
-
-export const computeListingTextAnswerIdMap = async (
-  ctx: TicketCtx,
-  info: AnswerInfo,
-): Promise<CheckoutIntent["listingTextAnswerIds"]> => {
-  if (info.textAnswers.length === 0) return;
-  const stringIds = await getOrCreateStringIds(
-    info.textAnswers.map((answer) => answer.text),
-  );
+/** Files each listing's text answers as stored strings, or nothing when no
+ * text was typed. The strings are created only now, so a rejected order
+ * leaves none behind. */
+const storedTextAnswers = async (
+  typed: readonly TextAnswer[],
+  byListing: Record<string, TextAnswer[]>,
+): Promise<Record<string, StoredTextAnswerRef[]> | undefined> => {
+  if (typed.length === 0) return;
+  const stringIds = await getOrCreateStringIds(typed.map((a) => a.text));
   return Object.fromEntries(
-    Object.entries(
-      listingAnswerMaps(info, ctx.questionListingMap).textAnswers,
-    ).map(([listingId, answers]) => [
+    Object.entries(byListing).map(([listingId, answers]) => [
       listingId,
       // These answers are a subset of the texts handed to getOrCreateStringIds,
       // which returns an id for every input text or throws — so `s` is always a
@@ -262,6 +261,28 @@ export const computeListingTextAnswerIdMap = async (
       })),
     ]),
   );
+};
+
+/** The stored strings of every text answer. A booking-level answer files
+ * under each listing its question applies to. A listing's own answer files
+ * under that listing alone. */
+export const computeTextAnswerRefs = async (
+  ctx: TicketCtx,
+  info: AnswerInfo,
+): Promise<
+  Pick<CheckoutIntent, "lineTextAnswerIds" | "listingTextAnswerIds">
+> => {
+  const byListing = listingAnswerMaps(info, ctx.questionListingMap);
+  return {
+    lineTextAnswerIds: await storedTextAnswers(
+      info.lineTextAnswers,
+      byListing.lineTextAnswers,
+    ),
+    listingTextAnswerIds: await storedTextAnswers(
+      info.textAnswers,
+      byListing.textAnswers,
+    ),
+  };
 };
 
 export const computeListingAnswerMap = (

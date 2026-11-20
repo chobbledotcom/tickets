@@ -44,6 +44,7 @@ const selectAttendeeAnswerRows = <R>(
        FROM attendee_answers AS attendee_answer
        ${join}
       WHERE ${sqlName(`attendee_answer.${column}`)} IS NOT NULL
+        AND attendee_answer.listing_attendee_id IS NULL
         AND attendee_answer.attendee_id IN (${idSlots})`,
     readAll,
   );
@@ -222,6 +223,47 @@ export const getAttendeeTextAnswers = async (
   (await getAttendeeTextAnswersBatch([attendeeId], privateKey)).get(
     attendeeId,
   ) ?? new Map();
+
+/** One answer to a question that asks once for each booked listing. */
+export type LineAnswer = {
+  listingId: number;
+  questionId: number;
+  text: string;
+};
+
+/** Row shape for a line answer joined onto its booking row and its string. */
+type LineAnswerRow = {
+  encrypted_text: OwnerKeyEncrypted;
+  listing_id: number;
+  question_id: number;
+};
+
+/** The answers an attendee gave for each booked listing, decrypted for the
+ * owner. A listing booked through two paths has one answer for each question,
+ * so each pair shows once. */
+export const getAttendeeLineAnswers = async (
+  attendeeId: number,
+  privateKey: () => Promise<CryptoKey>,
+): Promise<LineAnswer[]> => {
+  const rows = await queryAll<LineAnswerRow>(
+    sql`SELECT DISTINCT line.listing_id, attendee_answer.question_id, string.encrypted_text
+       FROM attendee_answers AS attendee_answer
+       INNER JOIN listing_attendees AS line
+         ON line.id = attendee_answer.listing_attendee_id
+       INNER JOIN strings AS string ON string.id = attendee_answer.string_id
+      WHERE attendee_answer.attendee_id = ${attendeeId}
+      ORDER BY attendee_answer.question_id, line.listing_id`,
+  );
+  if (rows.length === 0) return [];
+  const key = await privateKey();
+  return mapParallel(
+    async (row: LineAnswerRow): Promise<LineAnswer> => ({
+      listingId: row.listing_id,
+      questionId: row.question_id,
+      text: await decryptWithOwnerKey(row.encrypted_text, key),
+    }),
+  )(rows);
+};
 
 /** Get attendee answers mapped by question ID.
  * Returns Map<questionId, { answerId, answerText }> for a single attendee. */

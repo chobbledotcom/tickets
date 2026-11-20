@@ -77,6 +77,14 @@ const questionListingsFor =
       totalListings,
     });
 
+/** The column that says how often each question asks. */
+const answerLevelColumn = () => ({
+  cell: (question: QuestionWithAnswers) =>
+    answerLevelLabel(question.answerLevel),
+  header: t("questions.answer_level_column"),
+  key: "answer-level",
+});
+
 /** List all questions in a reorderable table, mirroring the listings table:
  * reorder arrows in the first column, then the question, its answer count, and
  * the listings it applies to. */
@@ -101,11 +109,7 @@ export const adminQuestionsPage = (
         header: t("questions.question_column"),
         key: "question",
       },
-      {
-        cell: (question) => answerLevelLabel(question.answerLevel),
-        header: t("questions.answer_level_column"),
-        key: "answer-level",
-      },
+      answerLevelColumn(),
       {
         cell: (question) => question.answers.length,
         class: "quantity",

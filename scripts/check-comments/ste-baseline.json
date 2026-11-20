@@ -830,7 +830,7 @@
     "contraction": 2
   },
   "src/shared/db/questions/attendee-answers/save.ts": {
-    "long-sentence": 6,
+    "long-sentence": 5,
     "banned-modal": 1,
     "semicolon": 3
   },

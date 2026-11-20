@@ -1,0 +1,103 @@
+/**
+ * Questions that ask once for each booked listing. A free-text question with
+ * the `listing` answer level shows one field under each booked listing it
+ * asks, and keeps one answer for each of them.
+ */
+
+import type {
+  LineTextAnswer,
+  ParsedLineAnswers,
+  Question,
+  QuestionWithAnswers,
+} from "#db/question-types.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+
+/** A booked listing a line answer belongs to. */
+export type AnswerLine = { id: number; name: string };
+
+/** Whether the question keeps one answer for each booked listing. */
+export const isListingLevel = (
+  question: Pick<Question, "answerLevel" | "displayType">,
+): boolean =>
+  question.displayType === "free_text" && question.answerLevel === "listing";
+
+/** The form field that holds the answer to a question for one listing. */
+export const lineAnswerFieldName = (
+  questionId: number,
+  listingId: number,
+): string => `question${questionId}_listing${listingId}`;
+
+/** The booked listings a question asks: every one when the question has no
+ * listing list, or the ones on its list. */
+export const linesAskedBy = (
+  lines: readonly AnswerLine[],
+  askedListingIds: readonly number[] | undefined,
+): AnswerLine[] =>
+  lines.filter(
+    (line) =>
+      askedListingIds === undefined || askedListingIds.includes(line.id),
+  );
+
+/** The words a refusal names the answer by: the question and its listing. */
+const answerName = (question: Pick<Question, "text">, line: AnswerLine) =>
+  `${question.text} (${line.name})`;
+
+type LineAnswerRead =
+  | { ok: true; answer: LineTextAnswer }
+  | { ok: false; error: string };
+
+/** Read one question's answer for one listing. It must be there, and it must
+ * fit the answer limit. */
+const readLineAnswer = (
+  form: URLSearchParams,
+  question: QuestionWithAnswers,
+  line: AnswerLine,
+): LineAnswerRead => {
+  const text = (
+    form.get(lineAnswerFieldName(question.id, line.id)) ?? ""
+  ).trim();
+  const name = answerName(question, line);
+  if (text.length > MAX_TEXTAREA_LENGTH) {
+    return { error: `Answer is too long: ${name}`, ok: false };
+  }
+  if (text === "") return { error: `Please answer: ${name}`, ok: false };
+  return {
+    answer: { listingId: line.id, questionId: question.id, text },
+    ok: true,
+  };
+};
+
+/** The listing-level question and the booked listing of every answer owed. */
+const answersOwed = (
+  questions: readonly QuestionWithAnswers[],
+  lines: readonly AnswerLine[],
+  questionListingMap: ReadonlyMap<number, number[]> | undefined,
+): { question: QuestionWithAnswers; line: AnswerLine }[] =>
+  questions.filter(isListingLevel).flatMap((question) =>
+    linesAskedBy(lines, questionListingMap?.get(question.id)).map((line) => ({
+      line,
+      question,
+    })),
+  );
+
+/** Read the answer to each listing-level question for each booked listing it
+ * asks. Every one of them must have an answer. The first missing or too long
+ * answer stops the booking. */
+export const parseLineTextAnswers = (
+  form: URLSearchParams,
+  questions: readonly QuestionWithAnswers[],
+  lines: readonly AnswerLine[],
+  questionListingMap: ReadonlyMap<number, number[]> | undefined,
+): ParsedLineAnswers => {
+  const lineTextAnswers: LineTextAnswer[] = [];
+  for (const { line, question } of answersOwed(
+    questions,
+    lines,
+    questionListingMap,
+  )) {
+    const read = readLineAnswer(form, question, line);
+    if (!read.ok) return read;
+    lineTextAnswers.push(read.answer);
+  }
+  return { lineTextAnswers, ok: true };
+};

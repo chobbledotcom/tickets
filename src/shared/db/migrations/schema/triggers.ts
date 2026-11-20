@@ -148,6 +148,24 @@ END`,
   },
 ];
 
+/** A trigger that runs `body` after each deleted row of `table`. */
+const afterRowDelete = (
+  name: string,
+  table: string,
+  uses: Trigger["uses"],
+  body: SqlStatement,
+): Trigger => ({
+  name,
+  sql: sql`CREATE TRIGGER IF NOT EXISTS ${sqlName(name)}
+AFTER DELETE ON ${sqlName(table)}
+FOR EACH ROW
+BEGIN
+  ${body};
+END`,
+  table,
+  uses,
+});
+
 const ANSWER_AGGREGATE_USES = {
   answers: ["times_selected"],
   attendee_answers: ["answer_id"],
@@ -206,6 +224,17 @@ END`,
     table: "attendee_answers",
     uses: ANSWER_AGGREGATE_USES,
   },
+];
+
+/** An answer to a booked listing lives and dies with that booking row. Every
+ * way a row goes — an edit, a merge, a listing delete — takes its answers. */
+const LINE_ANSWER_TRIGGERS: Trigger[] = [
+  afterRowDelete(
+    "trg_listing_attendees_answers_delete",
+    "listing_attendees",
+    { attendee_answers: ["listing_attendee_id"], listing_attendees: ["id"] },
+    sql`DELETE FROM attendee_answers WHERE listing_attendee_id = OLD.id`,
+  ),
 ];
 
 const ATTENDEE_ANSWER_VALIDATION_USES = {
@@ -326,6 +355,7 @@ export const TRIGGERS: Trigger[] = [
   ...MODIFIER_AGGREGATE_TRIGGERS,
   ...ANSWER_AGGREGATE_TRIGGERS,
   ...ATTENDEE_ANSWER_VALIDATION_TRIGGERS,
+  ...LINE_ANSWER_TRIGGERS,
   ...ATTENDEE_STATUS_VALIDATION_TRIGGERS,
   ...STRING_AGGREGATE_TRIGGERS,
 ];
