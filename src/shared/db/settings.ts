@@ -241,6 +241,10 @@ const settingsBase = {
       CONFIG_KEYS.CALENDAR_FEEDS_GROUP_BY,
       "calendar_feeds_group_by",
     ) as (v: "attendees" | "listings") => Promise<void>,
+    catalogGalleryEnabled: boolUpdate(
+      CONFIG_KEYS.CATALOG_GALLERY_ENABLED,
+      "catalog_gallery_enabled",
+    ),
     contactFormEnabled: boolUpdate(
       CONFIG_KEYS.CONTACT_FORM_ENABLED,
       "contact_form_enabled",
@@ -330,6 +334,7 @@ const storedSettingGetters = snapGetters({
   autoPurgeOrphans: "auto_purge_orphans",
   bookingFee: "booking_fee",
   calendarFeedsEnabled: "calendar_feeds_enabled",
+  catalogGalleryEnabled: "catalog_gallery_enabled",
   contactFormEnabled: "contact_form_enabled",
   country: "country",
   currency: "currency",

@@ -189,6 +189,17 @@ const EXPECTED_FORM_ROWS = [
     "Address lookup",
   ),
   single(
+    "catalogGallery",
+    "advanced",
+    "CATALOG_GALLERY_ENABLED",
+    "boolean",
+    "/admin/settings/catalog-gallery",
+    "settings-catalog-gallery",
+    "catalog_gallery_enabled",
+    "Product gallery catalog",
+    "catalogGalleryEnabled",
+  ),
+  single(
     "externalOrder",
     "advanced",
     "EXTERNAL_ORDER_ENABLED",

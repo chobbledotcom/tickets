@@ -59,6 +59,7 @@ type SpecificFields = {
   external_order_enabled: boolean;
   calendar_feeds_enabled: boolean;
   calendar_feeds_group_by: string;
+  catalog_gallery_enabled: boolean;
   contact_form_enabled: boolean;
   custom_css_bunny_fonts: boolean;
   order_enabled: boolean;
@@ -84,6 +85,7 @@ export const data: SettingsData = {
   booking_fee: "0",
   calendar_feeds_enabled: false,
   calendar_feeds_group_by: "attendees",
+  catalog_gallery_enabled: false,
   contact_form_enabled: false,
   country: DEFAULT_COUNTRY,
   currency: "GBP",
