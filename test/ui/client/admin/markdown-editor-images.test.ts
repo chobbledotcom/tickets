@@ -195,7 +195,7 @@ describe("the image picker dialog", () => {
 
   test("inserts the short-form image tag at the caret and closes", async () => {
     await withInsertFlow(
-      async ({ window, handle, textarea }, flushSelection) => {
+      async ({ dialog, window, handle, textarea }, flushSelection) => {
         select(handle.view, 7);
 
         optionByName(window, "Alpha").click();
@@ -212,7 +212,9 @@ describe("the image picker dialog", () => {
         );
         expect(image.getAttribute("src")).toBe("/image/alpha.webp");
         expect(image.alt).toBe("Alpha");
-        expect(imageDialog(window).open).toBe(false);
+        // The insert closes the window, and a closed window leaves the page.
+        expect(dialog.open).toBe(false);
+        expect(dialog.isConnected).toBe(false);
         expect(window.document.activeElement).toBe(handle.view.dom);
         handle.view.destroy();
         await flushSelection();
