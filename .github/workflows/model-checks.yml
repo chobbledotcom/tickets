@@ -52,8 +52,7 @@ jobs:
     needs: plan
     name: model-checks (${{ matrix.model }})
     runs-on: ubicloud-standard-8
-    # One model is a share of the old 46-minute serial run. A wedged checker
-    # must fail loudly, so the job has a hard limit.
+    # A wedged checker must fail loudly, so the job has a hard limit.
     timeout-minutes: 120
     strategy:
       # One failed model must not hide the verdict of the others.
