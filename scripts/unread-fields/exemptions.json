@@ -370,5 +370,12 @@
       "kind": "schema-driven",
       "evidence": "settingsForm reads state fields through each form definition"
     }
+  ],
+  "src/ui/templates/fields/listing-copy.ts": [
+    {
+      "path": [{ "name": "ListingCopy" }],
+      "kind": "dynamic-read",
+      "evidence": "listingFormView passes the copy to t as ICU values, and t reads each field by its template placeholder name"
+    }
   ]
 }
