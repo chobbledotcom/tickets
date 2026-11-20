@@ -11,9 +11,8 @@ EXTENDS Integers, FiniteSets, Sequences, ModalLifecycleData, ModelRules
 \* src/ui/client/admin/modal-state.ts for every event at every discovered state.
 \* These are observed reducer outputs, not a second lifecycle implementation.
 \* The producer starts empty and applies each selected event to each new state.
-\* It stops when no event reaches a new state. SnapshotsPages is an ordered
-\* page table of distinct observed states. SnapshotsAt reads one row by its
-\* one-based page index. Each row stores its zero-based model-only id.
+\* It stops when no event reaches a new state. Snapshots is an ordered tuple
+\* of distinct observed states. Each row stores its zero-based model-only id.
 \* Events stores the selected input metadata once, with a separate event id.
 \* Targets is a tuple of rows.
 \* Cell Targets[source + 1][event + 1] holds the observed target state id.
@@ -67,17 +66,17 @@ VARIABLES
 \* @type: Set(Str);
 Keys == {"a", "b", "c"}
 \* @type: Set(Int);
-NodeIds == 0..(SnapshotsCount - 1)
+NodeIds == {index - 1 : index \in DOMAIN Snapshots}
 \* @type: Set(Int);
 EventIds == {e.event : e \in Events}
 \* @type: $snapshotsFact;
 Empty == [id |-> 0, aRank |-> 0, aPoint |-> -1, aSaved |-> -1,
           bRank |-> 0, bPoint |-> -1, bSaved |-> -1, cRank |-> 0]
 
-\* The indexed page table permits direct lookup, without a set search.
-\* DomainOK checks that each row's stored id matches its page position.
+\* The ordered state table permits direct lookup, without a set search.
+\* DomainOK checks that each row's stored id matches its tuple position.
 \* @type: (Int) => $snapshotsFact;
-Snapshot(id) == SnapshotsAt(id + 1)
+Snapshot(id) == Snapshots[id + 1]
 \* @type: ($snapshotsFact, Str) => Int;
 Rank(s, key) ==
   IF key = "a" THEN s.aRank ELSE IF key = "b" THEN s.bRank ELSE s.cRank
@@ -194,14 +193,14 @@ LegalTransition(source, target, input) ==
 \* Generator tests also require every selected event at every discovered state.
 \* @type: Bool;
 DomainOK ==
-  /\ SnapshotsCount > 0 /\ Events # {} /\ Len(Targets) > 0
-  /\ Snapshot(0) = Empty
-  /\ SnapshotsCount = Len(Targets)
+  /\ Len(Snapshots) > 0 /\ Events # {} /\ Len(Targets) > 0
+  /\ Snapshots[1] = Empty
+  /\ Len(Snapshots) = Len(Targets)
   /\ Cardinality(Events) = Cardinality(EventIds)
   /\ EventIds = {index - 1 : index \in DOMAIN Targets[1]}
-  /\ \A index \in SnapshotsIndices :
-       /\ Snapshot(index - 1).id = index - 1
-       /\ ValidStack(Snapshot(index - 1))
+  /\ \A index \in DOMAIN Snapshots :
+       /\ Snapshots[index].id = index - 1
+       /\ ValidStack(Snapshots[index])
   /\ \A source \in NodeIds :
        /\ Len(Targets[source + 1]) = Cardinality(Events)
        /\ \A event \in EventIds : Targets[source + 1][event + 1] \in NodeIds

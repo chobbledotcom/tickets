@@ -8,6 +8,13 @@ const setBody = (data: string, name: string): string => {
   );
   return requireValue(match[1], `Missing checker set body ${name}`);
 };
+const sequenceBody = (data: string, name: string): string => {
+  const match = requireValue(
+    data.match(new RegExp(`^${name} == <<(.*)>>$`, "m")),
+    `Missing checker sequence ${name}`,
+  );
+  return requireValue(match[1], `Missing checker sequence body ${name}`);
+};
 export const members = (data: string, name: string): string[] =>
   JSON.parse(`[${setBody(data, name)}]`);
 
@@ -69,7 +76,7 @@ export const records = (
   collection: TlaCollection = "Set",
 ): DecodedRecord[] =>
   collection === "Seq"
-    ? recordPages(data, name).flat()
+    ? decodeRecords(recordBodies(data, sequenceBody(data, name)))
     : partNames(data, name).flatMap((part) =>
         decodeRecords(recordBodies(data, setBody(data, part))),
       );

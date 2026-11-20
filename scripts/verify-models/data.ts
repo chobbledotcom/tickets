@@ -187,8 +187,12 @@ export const tlaRecords = <const Schema extends TlaRecordSchema>(
   const named = namedRecordDefinitions(name, alias, fields, rows);
   return [
     ...named.definitions,
-    ...(collection === "Seq" ? [] : pagedSet(name, `$${alias}`, named.names)),
-    ...indexedDefinitions(name, `$${alias}`, named.names),
+    collection === "Seq"
+      ? `\\* @type: Seq($${alias});\n${name} == <<${named.names.join(", ")}>>`
+      : [
+          ...pagedSet(name, `$${alias}`, named.names),
+          ...indexedDefinitions(name, `$${alias}`, named.names),
+        ].join("\n"),
   ].join("\n");
 };
 
