@@ -81,6 +81,9 @@ const postLegacyLegs = async (
 /** A taxable delivery charge the API create posts beside the listed line. */
 const DELIVERY = { amount: 2000, description: "Delivery", taxable: true };
 
+/** The figures of the booking with the delivery under the added tax. */
+const WITH_DELIVERY_ADDED = { income: 10000, owed: 14400, tax: 2400 };
+
 const booking = async (legacy = false, withDelivery = false) => {
   await settings.update.tax(withDelivery ? added : NO_TAX);
   const listing = await createTestListing({
@@ -232,11 +235,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
 
   it("corrects a taxable charge with the lines when the tax setting changes", async () => {
     const fixture = await booking(false, true);
-    expect(await figures(fixture)).toEqual({
-      income: 10000,
-      owed: 14400,
-      tax: 2400,
-    });
+    expect(await figures(fixture)).toEqual(WITH_DELIVERY_ADDED);
     const original = await allTransfers();
     await settings.update.tax(included);
     expect((await buildTaxSavePlan(fixture.attendee.id)).preview).toMatchObject(
@@ -256,11 +255,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
     await expectOriginalLegsKept(original);
     await settings.update.tax(added);
     await save(fixture);
-    expect(await figures(fixture)).toEqual({
-      income: 10000,
-      owed: 14400,
-      tax: 2400,
-    });
+    expect(await figures(fixture)).toEqual(WITH_DELIVERY_ADDED);
   });
 
   it("preserves payments and write-offs instead of taxing the unpaid balance", async () => {

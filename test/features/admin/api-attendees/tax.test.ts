@@ -5,6 +5,7 @@ import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { settings } from "#db/settings.ts";
 import { account } from "#shared/ledger/account.ts";
 import { readTaxAssessments } from "#shared/tax/store.ts";
+import type { TaxPolicy } from "#shared/tax/types.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
@@ -30,25 +31,38 @@ describeWithEnv("Admin API booking tax", { db: true }, () => {
     expect(await accountBalance(account("tax", "vat"))).toBe(200);
   });
 
-  test("taxes a taxable adjustment with the lines and keeps the others outside", async () => {
-    await settings.update.tax({ mode: "add_to_total", rateBasisPoints: 2000 });
+  /** A booking on a fresh listing under one tax setting, with the adjustments. */
+  const bookWithAdjustments = async (
+    policy: TaxPolicy,
+    unitPrice: number,
+    adjustments: Record<string, unknown>[],
+  ): Promise<Response> => {
+    await settings.update.tax(policy);
     const listing = await createTestListing({
       maxAttendees: 10,
-      name: "Taxed delivery fair",
-      unitPrice: 134000,
+      name: "Taxed adjustment fair",
+      unitPrice,
     });
+    return createBooking(listing.id, { adjustments });
+  };
+  const added: TaxPolicy = { mode: "add_to_total", rateBasisPoints: 2000 };
+  const delivery = (amount: number) => ({
+    amount,
+    description: "Delivery",
+    taxable: true,
+  });
+
+  test("taxes a taxable adjustment with the lines and keeps the others outside", async () => {
+    // 134000 + 4560 + 18000 = 156560 net. Tax is 31312. The total is 187872.
+    // The writeoff and the untaxed charge add -500.
     const created = await assertJson(
-      createBooking(listing.id, {
-        adjustments: [
-          { amount: 4560, description: "Card fee", taxable: true },
-          { amount: 18000, description: "Delivery", taxable: true },
-          { amount: -1000, description: "Goodwill" },
-          { amount: 500, description: "Untaxed charge" },
-        ],
-      }),
+      bookWithAdjustments(added, 134000, [
+        { ...delivery(4560), description: "Card fee" },
+        delivery(18000),
+        { amount: -1000, description: "Goodwill" },
+        { amount: 500, description: "Untaxed charge" },
+      ]),
       201,
-      // 134000 + 4560 + 18000 = 156560 net. Tax is 31312. The total is
-      // 187872. The writeoff and the untaxed charge add -500.
       (body) => expect(body.attendee.remaining_balance).toBe(187372),
     );
     const id = created.attendee.id as number;
@@ -71,19 +85,12 @@ describeWithEnv("Admin API booking tax", { db: true }, () => {
   });
 
   test("takes the tax out of a taxable adjustment when prices include tax", async () => {
-    await settings.update.tax({
-      mode: "calculate_from_total",
-      rateBasisPoints: 2000,
-    });
-    const listing = await createTestListing({
-      maxAttendees: 10,
-      name: "Included delivery fair",
-      unitPrice: 10000,
-    });
     const created = await assertJson(
-      createBooking(listing.id, {
-        adjustments: [{ amount: 2000, description: "Delivery", taxable: true }],
-      }),
+      bookWithAdjustments(
+        { mode: "calculate_from_total", rateBasisPoints: 2000 },
+        10000,
+        [delivery(2000)],
+      ),
       201,
       (body) => expect(body.attendee.remaining_balance).toBe(12000),
     );
@@ -98,40 +105,29 @@ describeWithEnv("Admin API booking tax", { db: true }, () => {
   });
 
   test("a taxable adjustment adds nothing when the site charges no tax", async () => {
-    await settings.update.tax({ mode: "none" });
-    const listing = await createTestListing({
-      maxAttendees: 10,
-      name: "Untaxed delivery fair",
-      unitPrice: 1000,
-    });
     await assertJson(
-      createBooking(listing.id, {
-        adjustments: [{ amount: 250, description: "Delivery", taxable: true }],
-      }),
+      bookWithAdjustments({ mode: "none" }, 1000, [delivery(250)]),
       201,
       (body) => expect(body.attendee.remaining_balance).toBe(1250),
     );
   });
 
   test("refuses a taxable writeoff and a taxable value that is not true or false", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 10,
-      name: "Taxable refusals",
-      unitPrice: 1000,
-    });
-    await expectApiError(
-      createBooking(listing.id, {
-        adjustments: [{ amount: -100, description: "Goodwill", taxable: true }],
-      }),
-      400,
-      "adjustments[0].taxable only applies to a charge, not a writeoff",
-    );
-    await expectApiError(
-      createBooking(listing.id, {
-        adjustments: [{ amount: 100, description: "Fee", taxable: "yes" }],
-      }),
-      400,
-      "adjustments[0].taxable must be true or false",
-    );
+    for (const [adjustment, message] of [
+      [
+        { ...delivery(-100), description: "Goodwill" },
+        "adjustments[0].taxable only applies to a charge, not a writeoff",
+      ],
+      [
+        { ...delivery(100), taxable: "yes" },
+        "adjustments[0].taxable must be true or false",
+      ],
+    ] as const) {
+      await expectApiError(
+        bookWithAdjustments(added, 1000, [adjustment]),
+        400,
+        message,
+      );
+    }
   });
 });

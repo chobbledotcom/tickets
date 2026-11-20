@@ -107,27 +107,36 @@ describe("a booking tax assessment", () => {
     expect(assessment.total).toBe(8000800000000000);
   });
 
-  it("taxes a taxable charge with the lines", () => {
-    const assessment = assessTax(
-      { ...basis, charges: [{ gross: 2000 }] },
+  for (const [name, policy, expected] of [
+    [
+      "taxes a taxable charge with the lines",
       added,
-    );
-    expect(assessment.taxableTotal).toBe(12000);
-    expect(assessment.taxAmount).toBe(2400);
-    expect(assessment.total).toBe(14400);
-    expect(assessment.charges).toEqual([{ gross: 2000 }]);
-  });
-
-  it("takes included tax out of a taxable charge as well as the lines", () => {
-    const assessment = assessTax(
-      { ...basis, charges: [{ gross: 2000 }] },
+      {
+        charges: [{ gross: 2000 }],
+        lines: basis.lines,
+        taxAmount: 2400,
+        taxableTotal: 12000,
+        total: 14400,
+      },
+    ],
+    [
+      "takes included tax out of a taxable charge as well as the lines",
       included,
-    );
-    expect(assessment.taxAmount).toBe(2000);
-    expect(assessment.lines).toEqual([{ gross: 8333, listingId: 1 }]);
-    expect(assessment.charges).toEqual([{ gross: 1667 }]);
-    expect(assessment.total).toBe(12000);
-  });
+      {
+        charges: [{ gross: 1667 }],
+        lines: [{ gross: 8333, listingId: 1 }],
+        taxAmount: 2000,
+        taxableTotal: 12000,
+        total: 12000,
+      },
+    ],
+  ] as const) {
+    it(name, () => {
+      expect(
+        assessTax({ ...basis, charges: [{ gross: 2000 }] }, policy),
+      ).toMatchObject(expected);
+    });
+  }
 
   it("reads a stored assessment from before charges existed", () => {
     const { charges: _basisCharges, ...legacyBasis } = assessTax(
