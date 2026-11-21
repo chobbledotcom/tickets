@@ -311,6 +311,7 @@ describe("documented listing examples", () => {
 });
 
 describe("documented attendee examples", () => {
+  /* jscpd:ignore-start -- static data, not code */
   const ATTENDEE = {
     address: "12 Main Street, Springfield",
     attachment_downloads: 0,
@@ -340,6 +341,23 @@ describe("documented attendee examples", () => {
     ticket_token: "tok_9f3c7a1b",
     webhooks_pending: 0,
   };
+  const CREATE_BODY = {
+    address: "12 Main Street, Springfield",
+    adjustments: [{ amount: 250, description: "Delivery" }],
+    answers: [
+      { answerId: 3, questionId: 2 },
+      { freeText: "Vegetarian", questionId: 5 },
+    ],
+    created: "2026-06-01T09:00:00.000Z",
+    email: "jane@example.com",
+    lines: [{ listingId: 4, price: 4500, quantity: 2 }],
+    name: "Jane Doe",
+    payments: [{ amount: 9000 }],
+    phone: "+1 555 0123",
+    special_instructions: "Vegetarian",
+    status: "Confirmed",
+  };
+  /* jscpd:ignore-end */
   const create = "/api/admin/attendees";
   const update = "/api/admin/attendees/:attendeeId";
 
@@ -352,22 +370,7 @@ describe("documented attendee examples", () => {
   });
 
   test("the attendee request bodies are pinned", () => {
-    expect(requestOf("POST", create)).toEqual({
-      address: "12 Main Street, Springfield",
-      adjustments: [{ amount: 250, description: "Delivery" }],
-      answers: [
-        { answerId: 3, questionId: 2 },
-        { freeText: "Vegetarian", questionId: 5 },
-      ],
-      created: "2026-06-01T09:00:00.000Z",
-      email: "jane@example.com",
-      lines: [{ listingId: 4, price: 4500, quantity: 2 }],
-      name: "Jane Doe",
-      payments: [{ amount: 9000 }],
-      phone: "+1 555 0123",
-      special_instructions: "Vegetarian",
-      status: "Confirmed",
-    });
+    expect(requestOf("POST", create)).toEqual(CREATE_BODY);
     expect(requestOf("PUT", update)).toEqual({
       adjustments: [{ amount: 250, description: "Delivery" }],
       payments: [{ amount: 9000 }, { amount: 1500 }],

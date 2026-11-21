@@ -30,17 +30,20 @@ const uploadForm = (): FormData => {
 const metadataForm = (name: string, altText: string): FormParams =>
   new FormParams({ altText, name });
 
+/** Assert that `form` is refused because file storage is switched off. */
+const expectStorageNotConfigured = (form: FormData): Promise<void> =>
+  withStorageDisabled(async () => {
+    expect(await createImageFromUpload(form)).toEqual({
+      error: "File storage is not configured.",
+      ok: false,
+    });
+  });
+
 describe("admin image upload helper", () => {
   beforeAll(() => ensureMessageGroups(["images", "validation"]));
 
-  test("rejects direct uploads when storage is disabled", async () => {
-    await withStorageDisabled(async () => {
-      expect(await createImageFromUpload(uploadForm())).toEqual({
-        error: "File storage is not configured.",
-        ok: false,
-      });
-    });
-  });
+  test("rejects direct uploads when storage is disabled", () =>
+    expectStorageNotConfigured(uploadForm()));
 
   test("reads a one-byte file as a file, not as a missing one", async () => {
     const form = new FormData();
@@ -49,12 +52,7 @@ describe("admin image upload helper", () => {
       "image",
       new File([new Uint8Array([1])], "tiny.png", { type: "image/png" }),
     );
-    await withStorageDisabled(async () => {
-      expect(await createImageFromUpload(form)).toEqual({
-        error: "File storage is not configured.",
-        ok: false,
-      });
-    });
+    await expectStorageNotConfigured(form);
   });
 
   test("asks for a file when the form sends none, or an empty one", async () => {

@@ -29,6 +29,15 @@ const names = <T extends { name: string }>(items: T[]): string[] =>
 const optionTexts = <T extends { text: string }>(items: T[]): string[] =>
   items.map((item) => item.text);
 
+/** Creates one listing per name, one after the other, so ids rise in order. */
+const createListingsInOrder = async (listingNames: string[]) => {
+  const listings = [];
+  for (const name of listingNames) {
+    listings.push(await createTestListing({ name }));
+  }
+  return listings;
+};
+
 describeWithEnv("db > attributes", { db: true }, () => {
   test("lists attributes and options in their display order", async () => {
     const first = await createTestAttributeWithOptions("Difficulty", [
@@ -229,26 +238,28 @@ describeWithEnv("db > attributes", { db: true }, () => {
   });
 
   test("reports which listings use each option, in listing id order", async () => {
-    const lower = await createTestListing({ name: "Lower id" });
-    const higher = await createTestListing({ name: "Higher id" });
+    const [lower, higher] = await createListingsInOrder([
+      "Lower id",
+      "Higher id",
+    ]);
     const attribute = await createTestAttributeWithOptions("Pace", [
       "Slow",
       "Fast",
     ]);
     const [slow, fast] = attribute.options;
-    await listingAttributeOptions.setIds(higher.id, [slow!.id]);
-    await listingAttributeOptions.setIds(lower.id, [fast!.id]);
+    await listingAttributeOptions.setIds(higher!.id, [slow!.id]);
+    await listingAttributeOptions.setIds(lower!.id, [fast!.id]);
 
     const use = await getAttributeListingUse(attribute.id);
 
     expect(use.listings).toEqual([
-      { active: lower.active, id: lower.id, name: "Lower id" },
-      { active: higher.active, id: higher.id, name: "Higher id" },
+      { active: lower!.active, id: lower!.id, name: "Lower id" },
+      { active: higher!.active, id: higher!.id, name: "Higher id" },
     ]);
     expect(use.listingIdsByOption).toEqual(
       new Map([
-        [slow!.id, [higher.id]],
-        [fast!.id, [lower.id]],
+        [slow!.id, [higher!.id]],
+        [fast!.id, [lower!.id]],
       ]),
     );
   });

@@ -17,6 +17,18 @@ import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
+/** Make the support-message read answer with this error. */
+const failingRead = (error: string) =>
+  stub(supportMessageApi, "readSupportMessage", () =>
+    Promise.resolve({ error, ok: false as const }),
+  );
+
+/** Make the support-message write answer with this error. */
+const failingSet = (error: string) =>
+  stub(supportMessageApi, "setSupportMessage", () =>
+    Promise.resolve({ error, ok: false as const }),
+  );
+
 describeWithEnv(
   "built-site page",
   { db: true, env: { BUNNY_API_KEY: "k", CAN_BUILD_SITES: "true" } },
@@ -44,18 +56,8 @@ describeWithEnv(
         name: "Draft Pictures",
       });
       const image = await makeImage("DraftPoster");
-      using _read = stub(supportMessageApi, "readSupportMessage", () =>
-        Promise.resolve({
-          error: "Read support message failed (500): outage",
-          ok: false as const,
-        }),
-      );
-      using _set = stub(supportMessageApi, "setSupportMessage", () =>
-        Promise.resolve({
-          error: "Set support message failed (500): try later",
-          ok: false as const,
-        }),
-      );
+      using _read = failingRead("Read support message failed (500): outage");
+      using _set = failingSet("Set support message failed (500): try later");
       const cookie = await testCookie();
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/support-message`,

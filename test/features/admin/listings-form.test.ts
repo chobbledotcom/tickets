@@ -265,10 +265,10 @@ describeWithEnv("listings form", { db: true }, () => {
     });
 
     test("the checked duration is the form's count, never a blank", () => {
+      const blank = () => checkedDurationDays({ durationDays: null });
+
       expect(checkedDurationDays({ durationDays: 3 })).toBe(3);
-      expect(() => checkedDurationDays({ durationDays: null })).toThrow(
-        "The booking duration form box holds no count",
-      );
+      expect(blank).toThrow("The booking duration form box holds no count");
     });
 
     test("one picture chosen on the form links to the new listing", async () => {

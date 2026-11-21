@@ -16,23 +16,18 @@ import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
   adminCheckinPost as checkIn,
   setupListingAndAttendee,
-  submitDeleteIncomplete,
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import {
-  decryptFirstAttendee,
-  getAttendeesRaw,
-} from "#test-utils/db-helpers/attendees.ts";
+import { decryptFirstAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 import {
-  adminFormPost,
-  getTestSession,
-  setupListingAndLogin,
-} from "#test-utils/session.ts";
+  expectClearOutcome,
+  stuckPaidAttendee,
+} from "./attendees/incomplete.ts";
 
 /** Whether the roster row for one attendee on one listing is checked in. */
 const isCheckedIn = async (
@@ -305,48 +300,20 @@ describeWithEnv("clearing an incomplete payment", { db: true }, () => {
       name: "Fully Booked",
     });
 
-    const { cookie, csrfToken } = await getTestSession();
-    const response = await submitDeleteIncomplete(
-      listing.id,
-      attendee.id,
-      cookie,
-      csrfToken,
-    );
-
-    expectRedirectWithFlash(
-      `/admin/listing/${listing.id}/attendees`,
-      t("error.attendee_no_incomplete_payment"),
-      false,
-    )(response);
-    expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
+    await expectClearOutcome(listing, attendee, {
+      flash: t("error.attendee_no_incomplete_payment"),
+      left: 1,
+      succeeded: false,
+    });
   });
 
   test("removes a payment that never completed and says so", async () => {
-    const { listing } = await setupListingAndLogin({
-      maxAttendees: 100,
-      name: "Paid Listing",
-      unitPrice: 1000,
+    const { attendee, listing } = await stuckPaidAttendee();
+
+    await expectClearOutcome(listing, attendee, {
+      flash: "Incomplete registration removed",
+      left: 0,
+      succeeded: true,
     });
-    const attendee = await createPaidTestAttendee(
-      listing.id,
-      "Never Paid",
-      "stuck@example.com",
-      "",
-      1000,
-    );
-    const { cookie, csrfToken } = await getTestSession();
-
-    const response = await submitDeleteIncomplete(
-      listing.id,
-      attendee.id,
-      cookie,
-      csrfToken,
-    );
-
-    expectRedirectWithFlash(
-      `/admin/listing/${listing.id}/attendees`,
-      "Incomplete registration removed",
-    )(response);
-    expect(await getAttendeesRaw(listing.id)).toHaveLength(0);
   });
 });
