@@ -153,7 +153,9 @@ describeWithEnv("a settled sealed checkout order", { db: true }, () => {
   test("the return page after the webhook booked still offers the order's thank-you link", async () => {
     const listing = await setupWithListing();
     const session = await sealedSession(listing.id, "cs_settled_thanks");
-    await runWebhook(session, () => webhookRequest().then(() => undefined));
+    await runWebhook(session, async () => {
+      await webhookRequest();
+    });
     using _retrieve = stubRetrieveCheckoutSession({
       amountTotal: 1000,
       metadata: session.metadata,
@@ -170,7 +172,9 @@ describeWithEnv("a settled sealed checkout order", { db: true }, () => {
   test("the return page for a settled session with no receipt shows the success page", async () => {
     const listing = await setupWithListing();
     const session = await sealedSession(listing.id, "cs_settled_return");
-    await runWebhook(session, () => webhookRequest().then(() => undefined));
+    await runWebhook(session, async () => {
+      await webhookRequest();
+    });
     await pruneBundleOf(session);
     using _retrieve = stubRetrieveCheckoutSession({
       amountTotal: 1000,
