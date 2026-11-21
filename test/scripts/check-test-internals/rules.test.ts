@@ -36,6 +36,17 @@ const IMPORT_CASES: Record<string, [string, [number, string][]]> = {
     source('import { one } from "#db/client.ts";', "export { one };"),
     [[1, db("client.ts")]],
   ],
+  "a dynamic import above a static import, in line order": [
+    source(
+      'export const early = () => import("#db/a.ts");',
+      'import { b } from "#db/b.ts";',
+      "export { b };",
+    ),
+    [
+      [1, db("a.ts")],
+      [2, db("b.ts")],
+    ],
+  ],
   "a dynamic import, with its own line": [
     source('export const load = () => import("#db/settings.ts");'),
     [[1, db("settings.ts")]],
@@ -116,10 +127,14 @@ describe("internalCounts", () => {
 });
 
 describe("inBlackboxTree", () => {
-  test("names the files under the black-box directory", () => {
-    expect(inBlackboxTree("test/blackbox/login.test.ts", context)).toBe(true);
-    expect(inBlackboxTree("test/shared/login.test.ts", context)).toBe(false);
-  });
+  for (const [file, inside] of [
+    ["test/blackbox/login.test.ts", true],
+    ["test/shared/login.test.ts", false],
+  ] as const) {
+    test(`says ${inside} for ${file}`, () => {
+      expect(inBlackboxTree(file, context)).toBe(inside);
+    });
+  }
 });
 
 describe("findIssues", () => {
@@ -145,16 +160,77 @@ describe("findIssues", () => {
     expect(shape(FILE, TWO, 2)).toEqual([]);
   });
 
-  test("fails the imports past the recorded count, naming the module", () => {
-    expect(findIssues(FILE, TWO, { [FILE]: 1 }, context)).toEqual([
-      {
-        fix: 'drive the app through test/blackbox/driver.ts, or add the line "// effects: pure" to the module when it is pure',
-        line: 2,
-        problem: `imports ${db("b.ts")}, a src module that is not pure`,
-        rule: "internal-import",
-      },
-    ]);
+  /** One finding of the shape that the rule reports. */
+  const finding = (
+    rule: string,
+    line: number,
+    fix: string,
+    problem: string,
+  ) => ({
+    fix,
+    line,
+    problem,
+    rule,
   });
+
+  const DRIVE =
+    'drive the app through test/blackbox/driver.ts, or add the line "// effects: pure" to the module when it is pure';
+
+  /** Each case: the file text, what the registry records, and the findings. */
+  const CASES: Record<
+    string,
+    [string, number | null, ReturnType<typeof finding>[]]
+  > = {
+    "asks for the entry of a clean file to go": [
+      NONE,
+      1,
+      [
+        finding(
+          "stale-entry",
+          1,
+          `delete the entry in ${REGISTRY}`,
+          "holds no import of a src module that is not pure",
+        ),
+      ],
+    ],
+    "asks for the record when the count has fallen": [
+      TWO,
+      5,
+      [
+        finding(
+          "improved",
+          1,
+          "run `deno task check:test-internals --update` to record the count",
+          "imports 2 src modules that are not pure, fewer than the recorded 5",
+        ),
+      ],
+    ],
+    "fails the imports past the recorded count, naming the module": [
+      TWO,
+      1,
+      [
+        finding(
+          "internal-import",
+          2,
+          DRIVE,
+          `imports ${db("b.ts")}, a src module that is not pure`,
+        ),
+      ],
+    ],
+  };
+
+  for (const [name, [content, recorded, expected]] of Object.entries(CASES)) {
+    test(name, () => {
+      expect(
+        findIssues(
+          FILE,
+          content,
+          recorded === null ? {} : { [FILE]: recorded },
+          context,
+        ),
+      ).toEqual(expected);
+    });
+  }
 
   test("fails every import of a file that no entry covers", () => {
     expect(shape(FILE, TWO, null)).toEqual([
@@ -163,38 +239,24 @@ describe("findIssues", () => {
     ]);
   });
 
-  test("asks for the record when the count has fallen", () => {
-    expect(findIssues(FILE, TWO, { [FILE]: 5 }, context)).toEqual([
-      {
-        fix: "run `deno task check:test-internals --update` to record the count",
-        line: 1,
-        problem:
-          "imports 2 src modules that are not pure, fewer than the recorded 5",
-        rule: "improved",
-      },
-    ]);
-  });
-
-  test("asks for the entry of a clean file to go", () => {
-    expect(findIssues(FILE, NONE, { [FILE]: 1 }, context)).toEqual([
-      {
-        fix: `delete the entry in ${REGISTRY}`,
-        line: 1,
-        problem: "holds no import of a src module that is not pure",
-        rule: "stale-entry",
-      },
-    ]);
-  });
-
   test("says nothing about a clean file with no entry", () => {
     expect(shape(FILE, NONE, null)).toEqual([]);
   });
 
   test("fails every import in the black-box tree, whatever the registry holds", () => {
-    expect(shape(BLACKBOX, TWO, 2)).toEqual([
-      ["stale-entry", 1],
-      ["blackbox-import", 1],
-      ["blackbox-import", 2],
+    expect(findIssues(BLACKBOX, TWO, { [BLACKBOX]: 2 }, context)).toEqual([
+      {
+        fix: `delete the entry in ${REGISTRY}`,
+        line: 1,
+        problem: "black-box files hold no entry",
+        rule: "stale-entry",
+      },
+      ...["a.ts", "b.ts"].map((name, index) => ({
+        fix: "drive the app through the driver",
+        line: index + 1,
+        problem: `imports ${db(name)}: black-box tests use the driver only`,
+        rule: "blackbox-import",
+      })),
     ]);
   });
 

@@ -44,8 +44,8 @@ scripts/test-tree-scan.ts::scanTestTree.subjectsOf~15036b4  ?? → || audited:0h
 scripts/test-tree-scan.ts::scanTestTree.loadsAppOf~06gpsz0  ?? → || audited:0hkpt3b # the map holds true, false, or nothing; false and nothing take the same fallback, so ?? and || agree
 
 # Mutation test map: null-coalescing and the integration split.
-scripts/mutation/test-map.ts::mirrorOwnerOrNull~0tdqf2c  ?? → || audited:1hzd0lv # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
-scripts/mutation/test-map.ts::buildMutationTestMap.integrationTestFiles~12ldm3l  && → || audited:1hzd0lv # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
+scripts/mutation/test-map.ts::mirrorOwnerOrNull~0tdqf2c  ?? → || audited:1imbdrb # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
+scripts/mutation/test-map.ts::buildMutationTestMap.integrationTestFiles~12ldm3l  && → || audited:1imbdrb # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
 
 # Script cleanup: the second length check can never see a single error.
 scripts/cleanup.ts::throwCollectedErrors~0ppty15  1 → 0 audited:0dgok8m # the line above already throws when there is exactly one error, so this check only ever runs with 0 or 2+ errors, where > 1 and > 0 agree
@@ -179,3 +179,19 @@ scripts/verify-models/door-scan.ts::admitFacts.id~1n1imh5  9 → 0 audited:01ged
 scripts/verify-models/door-scan.ts::admitFacts.quantity~0236789  1 → 0 audited:01ged2e # the pick of 2 caps the two-row unit at 2 whether the second row owes 1 or 0, so the derived fact stays (0, 2)
 scripts/verify-models/door-scan.ts::admitFacts~0hqvvy8@2  0 → 1 audited:01ged2e # without the box the scan admits the party row only, so whether the untouched guest row owes a place changes no fact
 scripts/verify-models/door-scan.ts::admitFacts.force~1kw3cci  true → false audited:01ged2e # a scan of an empty ticket names no rows forced or not, so both pool outcomes derive no facts
+
+# The counts registry check (scripts/check-runner.ts). Every count is a number
+# or undefined, so `x ?? 0` and `x || 0` differ only for a count of 0, which
+# both turn into 0. The one object fallback is a Counts record, which is never
+# falsy.
+scripts/check-runner.ts::countsByPath.counts%5bfinding%2epath%5d~0ef8brf  ?? → || audited:1dm1y61 # counts[path]: number|undefined, and a count of 0 falls back to 0 either way
+scripts/check-runner.ts::countsRose~06solga  ?? → || audited:1dm1y61 # recorded[key]: number|undefined, and a count of 0 falls back to 0 either way
+scripts/check-runner.ts::risenFindings.shown~1hdhr0s  ?? → || audited:1dm1y61 # reported.get(key): number|undefined, and a count of 0 falls back to 0 either way
+scripts/check-runner.ts::compareCounts.past~1in8df8  ?? → || audited:1dm1y61 # recorded[key]: number|undefined, and a count of 0 falls back to 0 either way
+scripts/check-runner.ts::compareCounts.fell~0th5azn  ?? → || audited:1dm1y61 # current[key]: number|undefined, and a count of 0 falls back to 0 either way
+scripts/check-runner.ts::findingsPastRecord.recorded~0nmsfnk  ?? → || audited:1dm1y61 # accepted[file]: number|undefined, and a count of 0 falls back to 0 either way
+scripts/check-runner.ts::ratchetedState~0g1v3ce  ?? → || audited:1dm1y61 # recorded[path]: a Counts object or undefined, and an object is always truthy
+
+# The test-internals branch ratchet. now[file] is a number or undefined, and a
+# count of 0 falls back to 0 either way.
+scripts/check-test-internals/ratchet.ts::freedBy~0gywdbh  ?? → || audited:1g0esvx # now[file]: number|undefined, and a count of 0 falls back to 0 either way

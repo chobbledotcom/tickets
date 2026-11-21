@@ -34,20 +34,21 @@ To start the shell on every entry to this directory, add the hook to your shell
 All `deno ...` commands in this file assume you are already inside
 `devenv shell`. Non-interactive agents must prefix them with `devenv shell`.
 
-### Without devenv
+### Without Nix
 
-If `devenv shell` cannot start, for example because the network blocks the
-nixpkgs download, run `bin/setup-deno`. The script installs the pinned Deno
-from npm, builds `stripe-mock` with Go, and installs the dependencies. Both
-binaries go to `.bin/`. Then put them on your PATH:
+Some machines cannot run `devenv shell`. A sandbox whose network policy blocks
+the pinned nixpkgs download is one example. On such a Linux machine, install
+the pinned Deno, Biome, and stripe-mock without Nix:
 
 ```bash
-bin/setup-deno
-export PATH="$PWD/.bin:$PATH"
+bash scripts/devenv/setup-without-nix.sh
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-This shell has no Apalache or Java, so `deno task verify:models` does not run
-in it. Hosted CI still uses devenv and decides.
+The script reads each version from the file that pins it. It is safe to run
+again. It leaves out Apalache, Java, Chromium, and the Git hook. Afterwards,
+run `deno ...` commands directly, without `devenv shell`. Do not use the script
+to work around another failure of devenv. Report that failure instead.
 
 ## Runtime Environment
 
@@ -72,8 +73,9 @@ devenv shell -- deno --version
 SHA there, then run `devenv update`. CI uses the same environment through
 `.github/actions/setup-devenv`. CI jobs that never launch a browser evaluate it
 with `devenv --profile ci shell`. That profile leaves out Apalache and Java. The
-step that checks the machine safety models uses `devenv --profile models shell`.
-The default shell on a development machine carries both.
+model check jobs do not use devenv. They install Deno, Java, and Apalache with
+`scripts/ci/setup-model-tools.sh`. The default shell on a development machine
+carries both.
 
 ## stripe-mock
 
