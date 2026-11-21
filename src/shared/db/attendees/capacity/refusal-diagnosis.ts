@@ -39,11 +39,7 @@ const linesDemand = (
     listingDemand: new Map(),
   };
   for (const line of lines) {
-    const facts = requiredMapValue(
-      factsById,
-      line.listingId,
-      `Listing ${line.listingId} was not read for the refusal diagnosis`,
-    );
+    const facts = requiredMapValue(factsById, line.listingId);
     const item = {
       durationDays: line.durationDays,
       listingId: line.listingId,
@@ -159,12 +155,8 @@ const listingFactsChanged = (
       facts.listingType +
       JSON.stringify([...facts.groupIds].sort((left, right) => left - right));
     return (
-      groupsThatMattered(
-        requiredMapValue(withDemand, id, `Listing ${id} missing`),
-      ) !==
-      groupsThatMattered(
-        requiredMapValue(atSnapshot, id, `Listing ${id} missing`),
-      )
+      groupsThatMattered(requiredMapValue(withDemand, id)) !==
+      groupsThatMattered(requiredMapValue(atSnapshot, id))
     );
   });
 

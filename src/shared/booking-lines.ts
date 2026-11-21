@@ -59,11 +59,7 @@ export const checkoutBookingLines = <T extends CheckoutItem>(
   items.map((item) => {
     const pricePaid = paidAmountForOrNull(item, paidByItem);
     return {
-      listing: requiredMapValue(
-        listingById,
-        item.listingId,
-        `Listing ${item.listingId} was not loaded for checkout`,
-      ),
+      listing: requiredMapValue(listingById, item.listingId),
       listingId: item.listingId,
       packageGroupId: item.packageGroupId ?? 0,
       ...(pricePaid !== undefined ? { pricePaid } : {}),

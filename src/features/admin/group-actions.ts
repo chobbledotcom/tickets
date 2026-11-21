@@ -235,11 +235,7 @@ const handleDuplicateGroupPost = groupFormPost(
     // default into the new row (matching the single-listing edit/duplicate path).
     const cloneInputs = await Promise.all(
       listings.map(async (listing) => {
-        const stored = requiredMapValue(
-          storedById,
-          listing.id,
-          `Stored listing missing for ${listing.id}`,
-        );
+        const stored = requiredMapValue(storedById, listing.id);
         return {
           input: await buildDuplicateListingInput(stored, {
             closesAt: shiftUtcIsoByDays(stored.closesAt ?? "", dayOffset),
@@ -303,11 +299,7 @@ const handleDuplicateGroupPost = groupFormPost(
       // Every clone was just read as a member of the source group, so it always
       // has a group_listings row whose quantity the clone copies. The flat price
       // override lives in listing_prices and is rewritten to the new group below.
-      const source = requiredMapValue(
-        memberBySource,
-        sourceId,
-        `Listing ${sourceId} membership missing`,
-      );
+      const source = requiredMapValue(memberBySource, sourceId);
       return cloneGroupMembershipStatement({
         groupSlugIndex: slugIndex,
         listingSlugIndex: input.slugIndex,
@@ -332,11 +324,7 @@ const handleDuplicateGroupPost = groupFormPost(
     const idMap = new Map(
       cloneInputs.map(({ sourceId, input }) => [
         sourceId,
-        requiredMapValue(
-          idBySlugIndex,
-          input.slugIndex,
-          `Listing with slug index ${input.slugIndex} missing`,
-        ),
+        requiredMapValue(idBySlugIndex, input.slugIndex),
       ]),
     );
     // The clones' own per-day-count prices are no longer a column, so the raw
@@ -346,11 +334,7 @@ const handleDuplicateGroupPost = groupFormPost(
       await executeBatch(
         cloneInputs.flatMap(({ sourceId, input }) =>
           dayCountPriceStatements(
-            requiredMapValue(
-              idMap,
-              sourceId,
-              `Cloned listing ${sourceId} missing`,
-            ),
+            requiredMapValue(idMap, sourceId),
             input.dayPrices,
           ),
         ),
@@ -365,11 +349,7 @@ const handleDuplicateGroupPost = groupFormPost(
       ...groupFlatPriceStatements(
         newGroupId,
         [...memberBySource].map(([sourceId, row]) => ({
-          listingId: requiredMapValue(
-            idMap,
-            sourceId,
-            `Cloned listing ${sourceId} missing`,
-          ),
+          listingId: requiredMapValue(idMap, sourceId),
           price: row.packagePrice,
         })),
       ),
@@ -377,11 +357,7 @@ const handleDuplicateGroupPost = groupFormPost(
         newGroupId,
         [...sourceDayPrices].map(([sourceId, byDay]) => ({
           dayPrices: Object.fromEntries(byDay),
-          listingId: requiredMapValue(
-            idMap,
-            sourceId,
-            `Cloned listing ${sourceId} missing`,
-          ),
+          listingId: requiredMapValue(idMap, sourceId),
         })),
       ),
     ]);
@@ -393,7 +369,6 @@ const handleDuplicateGroupPost = groupFormPost(
             SELECT ${requiredMapValue(
               idMap,
               sourceId,
-              `Cloned listing ${sourceId} missing`,
             )}, option_id FROM listing_attribute_options WHERE listing_id = ${sourceId}`,
       ),
     );

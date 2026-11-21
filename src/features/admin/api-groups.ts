@@ -211,11 +211,7 @@ export const groupApiRoutes = recordApi<
     );
     return new Map(
       pkgGroups.map((row) => {
-        const pricing = requiredMapValue(
-          pricingByGroup,
-          row.id,
-          "Missing package pricing",
-        );
+        const pricing = requiredMapValue(pricingByGroup, row.id);
         return [
           row.id,
           {

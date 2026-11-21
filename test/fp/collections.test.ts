@@ -49,15 +49,11 @@ describe("fp collections", () => {
 
   describe("requiredMapValue", () => {
     test("returns a stored value", () => {
-      expect(requiredMapValue(new Map([[4, "four"]]), 4, "missing")).toBe(
-        "four",
-      );
+      expect(requiredMapValue(new Map([[4, "four"]]), 4)).toBe("four");
     });
 
-    test("throws the supplied error when the key is missing", () => {
-      expect(() => requiredMapValue(new Map(), 4, "Number 4 missing")).toThrow(
-        "Number 4 missing",
-      );
+    test("throws an error that names the key when the key is missing", () => {
+      expect(() => requiredMapValue(new Map(), 4)).toThrow("Missing map key 4");
     });
   });
 
@@ -161,7 +157,7 @@ describe("fp collections", () => {
           map((value: string) => value.length),
           map((value: string) => value.toUpperCase()),
         );
-      void make;
+      expect(typeof make()).toBe("function");
     });
   });
 

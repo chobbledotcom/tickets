@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -11,6 +10,7 @@ import {
 } from "#scripts/mutation/run-file.ts";
 import type { StaticEvaluation } from "#scripts/mutation/static.ts";
 import type { Status } from "#scripts/mutation/summary.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 type FileRunDeps = NonNullable<Parameters<typeof runFileMutants>[3]>;
 type MutantLoopContext = Parameters<typeof runFileMutants>[2];
@@ -63,7 +63,7 @@ const context = (
   counts: emptyCounts(),
   frozen: { current: null },
   gates: [],
-  testLimitMs: 60_000,
+  timings: [{ file: "test/source.test.ts", ms: 5 }],
   totalMutants: plan.mutants.length,
   unconfirmedKeys: new Set(),
   ...changes,
@@ -117,7 +117,12 @@ describe("mutation file coordinator", () => {
       lines.push(String(line));
     });
     const deps = dependencies({
-      evaluateStatic: (_plan, _gates, config) => {
+      evaluateStatic: (runnable, _gates, config) => {
+        expect(runnable.mutants.map(({ anchor }) => anchor)).toEqual([
+          "mutant-0",
+          "mutant-1",
+          "mutant-2",
+        ]);
         expect(config.jobs).toBe(3);
         expect(config.workerParent).toBe("/workers");
         return Promise.resolve([
@@ -137,8 +142,11 @@ describe("mutation file coordinator", () => {
       ) => {
         tested.push(mutant.anchor);
         expect(run.batchJobs).toBe(2);
-        expect(run.limitMs).toBe(60_000);
+        expect(run.limitMs).toBeNull();
         expect(run.testFiles).toEqual(opts.testFiles);
+        expect(run.plan?.(run.testFiles)).toEqual([
+          { files: ["test/source.test.ts"], ms: 5 },
+        ]);
         expect(integrationFiles).toEqual(opts.integrationTestFiles);
         expect(signal.aborted).toBe(false);
         return Promise.resolve({
@@ -159,12 +167,38 @@ describe("mutation file coordinator", () => {
       ["mutant-2", "survived"],
       ["mutant-3", "ignored"],
     ]);
-    expect(tested).toEqual(["mutant-1", "mutant-2", "mutant-3"]);
+    expect(tested).toEqual(["mutant-1", "mutant-2"]);
     expect(ctx.counts).toEqual({ ignored: 1, killed: 1, survived: 2 });
     expect(lines).toHaveLength(3);
-    assertStringIncludes(lines[0] ?? "", "last survived");
-    assertStringIncludes(lines[1] ?? "", "last survived");
-    assertStringIncludes(lines[2] ?? "", "last ignored");
+    expectIncludesAll(lines.join("\n"), ["last survived", "last ignored"]);
+    expect(opts.originals.size).toBe(0);
+  });
+
+  test("skips every gate and test when every mutant is a confirmed equivalent", async () => {
+    const opts = options({
+      ignoreList: {
+        entries: [],
+        keys: new Set(
+          plan.mutants.map((mutant) => mutantKey(plan.file, mutant)),
+        ),
+      },
+    });
+    const ctx = context();
+    let staticCalls = 0;
+    const deps = dependencies({
+      evaluateStatic: () => {
+        staticCalls += 1;
+        return Promise.resolve([]);
+      },
+    });
+
+    await runFileMutants(plan, opts, ctx, deps);
+
+    expect(staticCalls).toBe(0);
+    expect(opts.results.map(({ status }) => status)).toEqual(
+      plan.mutants.map(() => "ignored"),
+    );
+    expect(ctx.counts).toEqual({ ignored: 4, killed: 0, survived: 0 });
     expect(opts.originals.size).toBe(0);
   });
 

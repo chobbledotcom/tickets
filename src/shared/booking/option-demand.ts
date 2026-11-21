@@ -189,12 +189,7 @@ const parentFoldsAtSpan = (
 const parentQuantityOf = (
   question: OptionDemandQuestion,
   parent: TicketListing,
-): number =>
-  requiredMapValue(
-    question.quantities,
-    parent.listing.id,
-    `Option quantities miss parent ${parent.listing.id}`,
-  );
+): number => requiredMapValue(question.quantities, parent.listing.id);
 
 /** One member's fold inputs at one span. Its candidates are the children the
  * form can book at that span and date. The feasibility pre-pass and the fold

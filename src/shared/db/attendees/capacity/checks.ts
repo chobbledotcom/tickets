@@ -163,11 +163,7 @@ const aggregateDemand = (
   const { items, listingsById, date } = context;
   const buckets = new Map<number, CapacityBucket>();
   for (const item of items) {
-    const listing = requiredMapValue(
-      listingsById,
-      item.listingId,
-      `Listing ${item.listingId} missing`,
-    );
+    const listing = requiredMapValue(listingsById, item.listingId);
     for (const key of keysFor(listing, item)) {
       addDemandToBucket(getOrCreateBucket(buckets, key), listing, item, date);
     }

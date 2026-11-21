@@ -59,16 +59,8 @@ const relationshipError = (
   listings: Map<number, CurrentEdgeListing>,
   scopes: Map<number, AddOnScopeRow[]>,
 ): string | null => {
-  const parent = requiredMapValue(
-    listings,
-    edge.parentId,
-    `Listing ${edge.parentId} missing`,
-  );
-  const child = requiredMapValue(
-    listings,
-    edge.childId,
-    `Listing ${edge.childId} missing`,
-  );
+  const parent = requiredMapValue(listings, edge.parentId);
+  const child = requiredMapValue(listings, edge.childId);
   const fieldError = edgeFieldError(parent, child);
   if (fieldError || child.bookableAlone) return fieldError;
   const blocked = [...scopes.values()].find((scope) =>

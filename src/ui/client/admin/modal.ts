@@ -136,11 +136,7 @@ const apply = (event: ModalEvent): void => {
   if (next === lifecycle.states) return;
   lifecycle.states = next;
   for (const [index, state] of next.entries()) {
-    const shell = requiredMapValue(
-      shells,
-      state.key,
-      "The modal shell is absent.",
-    );
+    const shell = requiredMapValue(shells, state.key);
     const { dialog, rendered } = shell;
     const zIndex = String(Z_INDEX_BASE + index);
     if (dialog.style.zIndex !== zIndex) dialog.style.zIndex = zIndex;

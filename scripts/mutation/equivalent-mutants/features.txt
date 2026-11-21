@@ -33,7 +33,6 @@ src/features/public/free-reservation.ts::createFreeReservation.dayCount.dayCount
 src/features/public/free-reservation.ts::createFreeReservation.result.pricedOrder~1mtrtps  ?? → || audited:11r5csl # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
 src/features/public/booking-dates.ts::singleDailyParent.children~1kv3u53  ?? → || audited:11sunzi # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
 src/features/public/ticket-payment.ts::getTicketContext.packages~0yyoaiz ??→||  audited:036z6s3   # pagePackages is an array when present, and arrays are always truthy
-src/features/public/ticket-payment.ts::loadPagePackages~0vaeh8c  Missing package pricing → "" audited:11sunzi # loadPackageMemberPricingByGroupIds seeds an entry for every group id it is given, and only the page's own package ids are looked up, so requiredMapValue never raises this message
 
 # attendee-form-model: `?? → ||` where the left operand can never be a
 # falsy-but-non-null value, so the two operators always agree.
@@ -126,7 +125,7 @@ src/features/api/payment-processing/pricing.ts::paidByItem.current~0h5qe1t  ?? �
 src/features/api/payment-processing/package-pricing.ts::packageBundleMismatch.count~0paa7g7  ?? → || audited:1cn80jx # stored per-package quantities are at least 1, so every present value is truthy
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.topLevel~1g6e18j  false → true audited:1cn80jx # orderEdgeDriftedFromFacts uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~0t0xtlh  ?? → || audited:1cn80jx # child id lists are arrays (always truthy), while a missing parent selects [] under either operator
-src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~04idxs9  false → true audited:1cn80jx # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~0yu5hzn  false → true audited:0lnsxmz # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.packages.hideListings~0xzhsy5  false → true audited:1cn80jx # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts~1sr8ybw  ?? → || audited:1cn80jx # intent.allocations is an array or undefined, and arrays (including []) are truthy
 
@@ -147,8 +146,6 @@ src/features/admin/questions/forms.ts::questionTextForm.fields.options~0y51s1u  
 
 # Cart package resolution (features/public/groups.ts): map lookups whose key is
 # guaranteed present, and a nullable-object fallback.
-src/features/public/groups.ts::loadCartPackagesBySlugs.completeById~0c1aa2y  Missing package members → "" audited:00jz5rn # getListingsByGroupIds seeds an entry for every group id it is given, and the lookup uses ids taken from that same list, so requiredMapValue never raises this message
-src/features/public/groups.ts::loadCartPackagesBySlugs.completeById~0ywy95s  Missing package membership → "" audited:00jz5rn # groupListings.getIdsByKeys likewise returns an entry for every requested key, so this message is unreachable
 src/features/public/groups.ts::loadCartPackagesBySlugs~1y9lq6a  ?? → || audited:00jz5rn # completeById holds GroupWithListings objects or null, so a present value is always truthy and ?? null and || null agree for object, null and undefined alike
 
 # Cart slug resolution (features/public/cart.ts): nullable-object fallbacks and
@@ -232,9 +229,6 @@ src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3  ?? → |
 src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3   → "mutated" audited:1ntpyzf # an absent quantity uses the fallback, and both fallback strings fail the positive-integer parser
 src/features/public/ticket-submit.ts::renderTicketFlow.prefill~160lbzo  ?? → || audited:1ntpyzf # a supplied prefill is an object, so every present value is truthy
 src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → || audited:1iurmhx # parseMemberDayPrices answers a DayPrices record object or undefined, never a falsy value, so the || fallback is unreachable
-src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → "" audited:1iurmhx # loadPackageMemberPricingByGroupIds builds its map over the same id list hydrate passes it, so requiredMapValue always finds the entry; the message is an impossible-state guard (AGENTS.md: do not defend against the impossible)
-src/features/admin/api.ts::hydrateListingJoins.attribute_option_ids~0qoqna9  Missing listing attribute selection → "" audited:018qm4l # listingAttributeOptions.getIdsByKeys seeds every requested key with [] (rowsToIdsByKeys in link-table.ts), and hydrate asks for the ids of the same rows it reads back, so requiredMapValue always finds the entry and the message never shows
-src/features/admin/api-external-sources.ts::handleLinkSearch.links~1kn7qj8 Every link names a source in the directory→""  audited:0y04i0d   # a link is only created under a source the gate loaded, and deleteExternalSource deletes the source's links in the same batch, so every link's sourceId is in the full source list and requiredMapValue never throws (AGENTS.md: do not defend against the impossible)
 src/features/admin/api-external-sources.ts::linkConfirmText~0fh86v2 ??→||  audited:0y04i0d   # externalId is null or non-empty: parseLinkWrite reads a supplied id through requireEntityField with no stored value, and requireStrings refuses a blank one, so "" never reaches a stored link
 src/features/admin/api-questions.ts::createQuestionInput.assignAll~1g4dg5p  ?? → || audited:1gxyldu # the flag is a boolean or undefined, and the only falsy boolean is the false fallback itself
 src/features/admin/api-questions.ts::updateQuestionInput.displayType~0gcwri5 ??→||  audited:1hclmb5   # the schema's display_type picklist holds only non-empty type names, so a present value is never falsy
@@ -314,7 +308,7 @@ src/features/admin/confirmation.ts::createConfirmedHandlers.post~0ilb5xo  ?? →
 src/features/admin/settings-statuses.ts::pages.deleteInput~1wh7t1g ??→||  audited:0m9bbbq   # getOptionalInt answers a non-negative integer or null; the only falsy-but-non-null value is 0, and a posted target of 0 misses the two-row target read exactly like an absent one, so both spellings refuse with status_in_use
 src/shared/db/groups/membership.ts::oneMembershipErrorTx.ownQuantity~00fsoji  ?? → || audited:0w5b3ei # groupStatesTx coalesces stored member quantities to one, so the default only runs for a fresh join; a stored quantity is never 0, so the || side cannot fire on a present value
 src/shared/package-membership.ts::packageMemberQuantityBroken.quantity~1p9t5cr  ?? → || audited:1agvoyd # the judge runs before any message builds, so the pick count is either undefined (both operators give one) or at least one (both give the count)
-src/shared/db/attendee-statuses.ts::reassignHeldAttendees~17u7hro  0 → 1 audited:0smdedr # deleteStatus reads the moved count only through a null comparison; the empty status returns 0 or 1, both reading as not-null, and a held delete always returns a count of at least one, so no input separates the two returns
+src/shared/db/attendee-statuses.ts::reassignHeldAttendees~17u7hro  0 → 1 audited:0b6zj6c # deleteStatus reads the moved count only through a null comparison; the empty status returns 0 or 1, both reading as not-null, and a held delete always returns a count of at least one, so no input separates the two returns
 src/ui/client/admin/paired-controls.ts::initPairedControls.whyHolder.holder%2eclassName~0ziyg8o  = → += audited:021elmv # the holder is always a freshly created element whose className is "", so assignment and append produce the same string
 src/ui/client/admin/paired-controls.ts::initPairedControls.whyHolder.holder%2etextContent~16ylsmd  = → += audited:021elmv # same: the fresh holder's textContent is "", so assignment and append produce the why text either way
 src/ui/client/admin/paired-controls.ts::initPairedControls.whyHolder.holder%2etextContent~094dnre  ?? → || audited:021elmv # dataset.exclusiveWhy is a string or undefined; undefined falls to "" under both operators, and the only falsy string is "" itself

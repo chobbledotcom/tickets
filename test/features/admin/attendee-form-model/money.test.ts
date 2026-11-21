@@ -21,8 +21,24 @@ describe("parseAttendeeForm money slots", () => {
     );
     expect(parsed.payments).toEqual([null, "2000", null]);
     expect(parsed.adjustments).toEqual([
-      { amount: "-500", description: "Delivery" },
+      { amount: "-500", description: "Delivery", taxable: false },
       null,
+      null,
+    ]);
+  });
+
+  test("reads the tax box of an adjustment slot", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({
+        adjustmentAmount1: "250",
+        adjustmentDescription1: "Delivery",
+        adjustmentTaxable1: "1",
+      }),
+      new Map(),
+    );
+    expect(parsed.adjustments).toEqual([
+      null,
+      { amount: "250", description: "Delivery", taxable: true },
       null,
     ]);
   });
@@ -38,7 +54,7 @@ describe("parseAttendeeForm money slots", () => {
     expect(parsed.adjustments).toEqual([
       null,
       null,
-      { amount: "", description: "Delivery" },
+      { amount: "", description: "Delivery", taxable: false },
     ]);
   });
 
@@ -72,7 +88,7 @@ describe("toLedgerOrder with an agreed price", () => {
         }),
       ],
     });
-    const order = toLedgerOrder(parsed);
+    const order = toLedgerOrder(parsed, []);
     expect(order.lines[0]!.item.unitPrice).toBe(500);
     expect(order.lines[0]!.chargedUnitAmount).toBe(500);
   });
@@ -83,18 +99,59 @@ describe("toLedgerOrder with an agreed price", () => {
         line({ listing, listingId: 3, packageGroupId: 4, packagePrice: 700 }),
       ],
     });
-    expect(toLedgerOrder(parsed).lines[0]!.item.unitPrice).toBe(700);
+    expect(toLedgerOrder(parsed, []).lines[0]!.item.unitPrice).toBe(700);
   });
 
   test("a blank price with no package falls back to the list price", () => {
     const parsed = parsedBase({
       lines: [line({ listing, listingId: 3 })],
     });
-    expect(toLedgerOrder(parsed).lines[0]!.item.unitPrice).toBe(900);
+    expect(toLedgerOrder(parsed, []).lines[0]!.item.unitPrice).toBe(900);
+  });
+});
+
+describe("toLedgerOrder with a taxable adjustment", () => {
+  const listing = testListingWithCount({ id: 3, unitPrice: 1000 });
+
+  test("the taxable adjustments join the tax basis and the others stay out", () => {
+    const order = toLedgerOrder(
+      parsedBase({ lines: [line({ listing, listingId: 3 })] }),
+      [
+        { amount: 500, description: "Delivery", taxable: true },
+        { amount: 300, description: "Fee" },
+      ],
+    );
+    expect(order.tax.basis.charges).toEqual([{ gross: 500 }]);
+    expect(order.tax.taxableTotal).toBe(1500);
   });
 });
 
 describe("money validation", () => {
+  test("refuses a taxable writeoff and accepts a taxable charge", () => {
+    const refused = validateParsedForm(
+      parsedBase({
+        adjustments: [
+          { amount: "-500", description: "Goodwill", taxable: true },
+        ],
+      }),
+    );
+    expect(refused.valid).toBe(false);
+    if (!refused.valid) {
+      expect(refused.formError).toBe(
+        "A writeoff cannot carry tax. Clear the tax box, or enter a positive amount.",
+      );
+    }
+    expect(
+      validateParsedForm(
+        parsedBase({
+          adjustments: [
+            { amount: "500", description: "Delivery", taxable: true },
+          ],
+        }),
+      ).valid,
+    ).toBe(true);
+  });
+
   test("refuses a payment that is not a positive whole amount", () => {
     for (const raw of ["0", "12ab", "-5"]) {
       const result = validateParsedForm(parsedBase({ payments: [raw] }));
@@ -212,7 +269,7 @@ describe("receiptsOf", () => {
         adjustments: [
           { amount: "-500", description: "Delivery" },
           null,
-          { amount: "750", description: "Extra hours" },
+          { amount: "750", description: "Extra hours", taxable: true },
         ],
         payments: ["2000", null, "250"],
       }),
@@ -220,7 +277,7 @@ describe("receiptsOf", () => {
     expect(receipts).toEqual({
       adjustments: [
         { amount: -500, description: "Delivery" },
-        { amount: 750, description: "Extra hours" },
+        { amount: 750, description: "Extra hours", taxable: true },
       ],
       payments: [2000, 250],
     });
