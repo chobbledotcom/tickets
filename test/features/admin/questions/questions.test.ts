@@ -328,33 +328,50 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect((await records.questions.find(question.id))?.text).toBe("Before?");
     });
 
-    test("rejects empty text with error page", async () => {
+    test("refuses empty text and keeps the display type that was chosen", async () => {
       const id = await createQuestion("Keep me");
+      const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
+        displayType: "select" as const,
+        text: "",
+      });
+      const html = await expectHtmlResponse(
+        response,
+        400,
+        "Question text is required",
+      );
+      expect(html).toMatch(/<option selected[^>]*value="select"/);
+      expect(html).not.toMatch(/<option selected[^>]*value="radio"/);
+      expect((await records.questions.find(id))?.displayType).toBe("radio");
+    });
+
+    test("refuses an unsupported display type and keeps the text that was typed", async () => {
+      const id = await createQuestion("Keep me");
+      const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
+        displayType: "dropdown",
+        text: "Typed but not saved",
+      });
+      const html = await expectHtmlResponse(
+        response,
+        400,
+        "Display as must be radio buttons, a select box, or free text",
+        ">Typed but not saved</textarea>",
+      );
+      expect(html).not.toContain(">Keep me</textarea>");
+      expect((await records.questions.find(id))?.text).toBe("Keep me");
+    });
+
+    test("a refused edit still shows the answers beside the form", async () => {
+      const id = await createQuestion("Keep me");
+      await addAnswer(id, "First answer");
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
         displayType: "radio" as const,
         text: "",
       });
-      expect(response.status).toBe(302);
-      expectFlash(
+      await expectHtmlResponse(
         response,
-        expect.stringContaining("Question text is required"),
-        false,
-      );
-    });
-
-    test("rejects unsupported display types on edit", async () => {
-      const id = await createQuestion("Keep me");
-      const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
-        displayType: "dropdown",
-        text: "Still here",
-      });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining(
-          "Display as must be radio buttons, a select box, or free text",
-        ),
-        false,
+        400,
+        "Question text is required",
+        "First answer",
       );
     });
 
@@ -394,18 +411,12 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectStatus(404)(response);
     });
 
-    test("redirects with error when question disappears during empty text validation", async () => {
-      // Edit with empty text on a non-existent question triggers the requireTextOrError redirect
+    test("returns 404 for a missing question even when the text is empty", async () => {
       const { response } = await adminFormPost("/admin/questions/999/edit", {
         displayType: "radio" as const,
         text: "",
       });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Question text is required"),
-        false,
-      );
+      expectStatus(404)(response);
     });
   });
 

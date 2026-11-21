@@ -2,12 +2,16 @@ import { expect } from "@std/expect";
 import { encrypt } from "#crypto/encryption.ts";
 import { toBase64 } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
-import { getImagesForItem, setItemsForImage } from "#db/images.ts";
+import {
+  getImagesForItem,
+  setImagesForItem,
+  setItemsForImage,
+} from "#db/images.ts";
 import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
-import { expectApiError } from "#test-utils/assertions.ts";
+import { expectApiError, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
@@ -23,6 +27,21 @@ export const makeImage = (name: string): Promise<Image> =>
     filenameThumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
     name,
   });
+
+/** A listing with these library images linked in the given order. */
+export const listingWithImages = async (
+  listingName: string,
+  imageNames: readonly string[],
+) => {
+  const listing = await createTestListing({ name: listingName });
+  const images = await Promise.all(imageNames.map(makeImage));
+  await setImagesForItem({
+    imageIds: images.map((image) => image.id),
+    itemId: listing.id,
+    itemType: "listing",
+  });
+  return { images, listing };
+};
 
 type ImageWithListingAndGroup = {
   group: { id: number };
@@ -208,6 +227,22 @@ export const expectImageName = async (
   name: string,
 ): Promise<void> => {
   expect((await records.images.find(id))?.name).toBe(name);
+};
+
+/** Assert one successful image save: the answer returns to the library with
+ *  its update flash, and one listing holds the image names in `names` order. */
+export const expectImageSaved = async (
+  answer: { cookie: string; response: Response },
+  listing: { id: number },
+  names: readonly string[],
+): Promise<void> => {
+  await expectFlashRedirect(
+    "/admin/images",
+    "Image updated",
+    true,
+    answer.cookie,
+  )(answer.response);
+  expect(await imageNamesForItem("listing", listing.id)).toEqual([...names]);
 };
 
 /** One image row as the JSON API answers with it. */

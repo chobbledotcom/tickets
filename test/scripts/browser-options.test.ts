@@ -26,16 +26,39 @@ const launchOptions = async (
   return requireValue(calledWith, "Chromium was not launched.");
 };
 
+/** The launch options without the browser environment. */
+const withoutEnvironment = ({
+  env: _env,
+  ...rest
+}: LaunchOptions): LaunchOptions => rest;
+
 describe("screenshot browser options", () => {
   test("includes only provided launch fields", () => {
-    expect(browserLaunchOptions(true, undefined, undefined)).toEqual({
-      headless: true,
-    });
-    expect(browserLaunchOptions(false, "/usr/bin/ch", ["--flag"])).toEqual({
+    expect(
+      withoutEnvironment(browserLaunchOptions(true, undefined, undefined)),
+    ).toEqual({ headless: true });
+    expect(
+      withoutEnvironment(
+        browserLaunchOptions(false, "/usr/bin/ch", ["--flag"]),
+      ),
+    ).toEqual({
       args: ["--flag"],
       executablePath: "/usr/bin/ch",
       headless: false,
     });
+  });
+
+  test("launches Chromium without the shell's library path", () => {
+    const shellPath = Deno.env.get("LD_LIBRARY_PATH");
+    Deno.env.set("LD_LIBRARY_PATH", "/shell/lib");
+    try {
+      const { LD_LIBRARY_PATH: _shellPath, ...expected } = Deno.env.toObject();
+
+      expect(browserLaunchOptions(true).env).toEqual(expected);
+    } finally {
+      if (shellPath === undefined) Deno.env.delete("LD_LIBRARY_PATH");
+      else Deno.env.set("LD_LIBRARY_PATH", shellPath);
+    }
   });
 
   test("bounds a contract page with strict action and navigation timeouts", () => {
@@ -52,7 +75,7 @@ describe("screenshot browser options", () => {
   });
 
   test("launches Chromium with screenshot-mode headless and CDP fix", async () => {
-    expect(await launchOptions()).toEqual({
+    expect(withoutEnvironment(await launchOptions())).toEqual({
       args: ["--disable-features=CDPScreenshotNewSurface"],
       executablePath: "/path/to/chromium",
       headless: true,
@@ -60,9 +83,11 @@ describe("screenshot browser options", () => {
   });
 
   test("passes screenshot launch overrides to Chromium", async () => {
-    expect(
-      await launchOptions({ ignoreDefaultArgs: ["--hide-scrollbars"] }),
-    ).toEqual({
+    const options = await launchOptions({
+      ignoreDefaultArgs: ["--hide-scrollbars"],
+    });
+
+    expect(withoutEnvironment(options)).toEqual({
       args: ["--disable-features=CDPScreenshotNewSurface"],
       executablePath: "/path/to/chromium",
       headless: true,

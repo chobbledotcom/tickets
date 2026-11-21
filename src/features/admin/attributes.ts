@@ -45,6 +45,7 @@ import {
   createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import type { SubmittedValueProps } from "#shared/form-data.ts";
 import { attributeRecord } from "#shared/records/attributes.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import {
@@ -59,6 +60,7 @@ import {
   attributeNameForm,
   attributeOptionForm,
 } from "#templates/fields/attribute.ts";
+import type { AdminSession } from "#types";
 import {
   attributeListingRows,
   optionListingCounts,
@@ -67,10 +69,19 @@ import { createListingChoicePost } from "./listing-choice-post.ts";
 
 const pages = recordPages(attributeRecord, {
   createErrorPath: "/admin/attributes",
-  editErrorPath: (id) => `/admin/attributes/${id}`,
   form: attributeNameForm,
   identifier: (attribute) => attributeNameFlat(attribute.name),
   renderDelete: adminAttributeDeletePage,
+  renderEditError: (id, session, form, error) =>
+    orNotFound(getAttributeWithOptions(id), async (attribute) =>
+      htmlResponse(
+        await renderAttributePage(attribute, session, {
+          error,
+          values: form.toRenderValues(),
+        }),
+        400,
+      ),
+    ),
   renderList: (rows, session) =>
     adminAttributesPage(rows, session, getFlash().error),
   toInput: ({ name }) => ({ name }),
@@ -90,20 +101,29 @@ const loadAttributeListingUse = async (attributeId: number) => {
   };
 };
 
+/** The attribute page. A refused edit passes its message and what was typed. */
+const renderAttributePage = async (
+  attribute: AttributeWithOptions,
+  session: AdminSession,
+  submitted: SubmittedValueProps = {},
+): Promise<string> => {
+  const { listingCounts, rowsFor } = await loadAttributeListingUse(
+    attribute.id,
+  );
+  return adminAttributePage(
+    attribute,
+    session,
+    submitted.error ?? getFlash().error,
+    { listingCounts, listings: rowsFor(attribute.options) },
+    submitted.values,
+  );
+};
+
 const handleAttributeGet = entityPageById(
   "/admin/attributes/:id",
   getAttributeWithOptions,
-  async (attribute, session) => {
-    const { listingCounts, rowsFor } = await loadAttributeListingUse(
-      attribute.id,
-    );
-    return htmlResponse(
-      adminAttributePage(attribute, session, getFlash().error, {
-        listingCounts,
-        listings: rowsFor(attribute.options),
-      }),
-    );
-  },
+  async (attribute, session) =>
+    htmlResponse(await renderAttributePage(attribute, session)),
 );
 
 type AttributeOptionParams = { id: number; optionId: number };

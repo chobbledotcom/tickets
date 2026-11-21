@@ -21,6 +21,12 @@ import {
   STAFF_ADMIN_LEVELS,
 } from "#types";
 
+/** A route open to content admins in an area whose default is staff. */
+const contentRoute = <const Pattern extends string>(pattern: Pattern) => ({
+  audience: CONTENT_ADMIN_LEVELS,
+  pattern,
+});
+
 /** The admin areas from `apiKeys` through `listings`. */
 export const AREAS_A_L = {
   apiKeys: {
@@ -317,56 +323,30 @@ export const AREAS_A_L = {
     view: {
       // A record page opens on the first tab its viewer can see, so an editor
       // reaches it and lands on Edit. The staff-only tabs stay shut.
-      listing: {
-        audience: CONTENT_ADMIN_LEVELS,
-        pattern: "/admin/listing/:id",
-      },
+      listing: contentRoute("/admin/listing/:id"),
       listingAttendeesCsv: "/admin/listing/:id/attendees.csv",
       listingExport: "/admin/listing/:id/export",
     },
     write: {
-      listingAttachmentDelete: {
-        audience: CONTENT_ADMIN_LEVELS,
-        pattern: "/admin/listing/:id/attachment/delete",
-      },
+      listingAttachmentDelete: contentRoute(
+        "/admin/listing/:id/attachment/delete",
+      ),
       listingAttributes: {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/listing/:id/attributes",
       },
-      listingChildren: {
-        audience: CONTENT_ADMIN_LEVELS,
-        pattern: "/admin/listing/:id/children",
-      },
-      listingCreate: {
-        audience: CONTENT_ADMIN_LEVELS,
-        pattern: "/admin/listing",
-      },
+      listingChildren: contentRoute("/admin/listing/:id/children"),
+      listingCreate: contentRoute("/admin/listing"),
       listingDeactivate: "/admin/listing/:id/deactivate",
       listingDelete: "/admin/listing/:id/delete",
-      listingDuplicate: {
-        audience: CONTENT_ADMIN_LEVELS,
-        pattern: "/admin/listing/:id/duplicate",
-      },
-      listingEdit: {
-        audience: CONTENT_ADMIN_LEVELS,
-        pattern: "/admin/listing/:id/edit",
-      },
-      listingImages: {
-        audience: CONTENT_ADMIN_LEVELS,
-        pattern: "/admin/listing/:id/images",
-      },
-      listingImagesUpload: {
-        audience: CONTENT_ADMIN_LEVELS,
-        pattern: "/admin/listing/:id/images/upload",
-      },
+      listingDuplicate: contentRoute("/admin/listing/:id/duplicate"),
+      listingEdit: contentRoute("/admin/listing/:id/edit"),
+      listingImages: contentRoute("/admin/listing/:id/images"),
       listingIncome: {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/listing/:id/income",
       },
-      listingNew: {
-        audience: CONTENT_ADMIN_LEVELS,
-        pattern: "/admin/listing/new",
-      },
+      listingNew: contentRoute("/admin/listing/new"),
       listingNote: "/admin/listing/:id/note",
       listingNoteDelete: "/admin/listing/:id/note/:noteId/delete",
       listingQr: "/admin/listing/:id/qr",

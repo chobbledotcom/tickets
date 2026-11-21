@@ -11,6 +11,7 @@
   "images.delete.storage_failed": "Could not delete the image files from storage. The image was kept so you can try again.",
   "images.delete.submit": "Delete image",
   "images.edit.heading": "Edit {name}",
+  "images.edit.loading": "Loading…",
   "images.empty": "No images yet.",
   "images.error.file_required": "Choose an image file to upload",
   "images.error.name_required": "Image name is required",
