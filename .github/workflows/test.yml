@@ -180,6 +180,9 @@ jobs:
   model-plan:
     runs-on: ubicloud-standard-2
     timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     outputs:
       models: ${{ steps.list.outputs.models }}
 
@@ -189,10 +192,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up devenv
-        uses: $/.github/actions/setup-devenv
-        with:
-          profile: ci
+      - name: Set up model tools
+        uses: $/.github/actions/setup-model-tools
 
       # The registry is the one list of models, so a new model gets a job
       # without a workflow edit.
@@ -203,14 +204,18 @@ jobs:
   model-checks:
     needs: model-plan
     name: model-checks (${{ matrix.model }})
-    runs-on: ubicloud-standard-2
+    runs-on: ${{ matrix.runner }}
     # A wedged checker must fail loudly, so the job has a hard limit.
     timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     strategy:
       # One failed model must not hide the verdict of the others.
       fail-fast: false
+      # The plan job lists each model with its runner.
       matrix:
-        model: ${{ fromJSON(needs.model-plan.outputs.models) }}
+        include: ${{ fromJSON(needs.model-plan.outputs.models) }}
 
     steps:
       - name: Checkout repository
@@ -218,11 +223,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # Only the models profile carries Apalache and Java.
-      - name: Set up devenv
-        uses: $/.github/actions/setup-devenv
-        with:
-          profile: models
+      - name: Set up model tools
+        uses: $/.github/actions/setup-model-tools
 
       # A pass names its inputs, so a restored pass is safe.
       - name: Restore the model passes
@@ -234,7 +236,6 @@ jobs:
             verify-models-${{ runner.os }}-${{ matrix.model }}-
 
       - name: Check the machine safety model
-        shell: devenv --profile models shell bash -- -e {0}
         env:
           MODEL: ${{ matrix.model }}
         run: deno task verify:models --model "$MODEL"
