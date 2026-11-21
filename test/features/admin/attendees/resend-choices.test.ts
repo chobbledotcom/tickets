@@ -78,6 +78,7 @@ describeWithEnv("re-sending a notification", { db: true }, () => {
     ]);
   });
 
+  /* jscpd:ignore-start -- static data, not code */
   const sideCases = [
     {
       counts: { buyerEmails: 1, webhooks: 0 },
@@ -95,6 +96,7 @@ describeWithEnv("re-sending a notification", { db: true }, () => {
       sides: "both",
     },
   ] as const;
+  /* jscpd:ignore-end */
 
   for (const { counts, flags, sides } of sideCases) {
     test(`the "${sides}" choice sends those sides and settles only them`, async () => {

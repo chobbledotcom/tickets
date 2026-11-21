@@ -9,7 +9,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { claimOutstandingNotificationFlags } from "#db/attendees/notification-flags.ts";
-import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { t } from "#i18n";
