@@ -39,14 +39,21 @@ fetch \
 tar -xOzf "$tools/apalache.tgz" "apalache-${APALACHE_VERSION}/lib/apalache.jar" \
   >"$tools/apalache.jar"
 
-# The runner image carries Java. Install a headless runtime only when it does
-# not, so a changed image does not stop the checks.
-if ! command -v java >/dev/null; then
-  sudo -n apt-get install --yes --no-install-recommends default-jre-headless
+# Apalache needs Java 21. The runner default can be older, so use the image
+# copy of Java 21 and install a headless runtime only when the image has none.
+java_bin=""
+if [ -n "${JAVA_HOME_21_X64:-}" ] && [ -x "$JAVA_HOME_21_X64/bin/java" ]; then
+  java_bin="$JAVA_HOME_21_X64/bin/java"
+elif [ -x /usr/lib/jvm/java-21-openjdk-amd64/bin/java ]; then
+  java_bin=/usr/lib/jvm/java-21-openjdk-amd64/bin/java
+else
+  sudo -n apt-get update --quiet
+  sudo -n apt-get install --yes --no-install-recommends openjdk-21-jre-headless
+  java_bin=/usr/lib/jvm/java-21-openjdk-amd64/bin/java
 fi
 
 # The checker command is the one that devenv.nix names.
-printf '#!/usr/bin/env bash\nexec java -jar "%s" "$@"\n' "$tools/apalache.jar" \
+printf '#!/usr/bin/env bash\nexec "%s" -jar "%s" "$@"\n' "$java_bin" "$tools/apalache.jar" \
   >"$tools/bin/apalache-mc"
 chmod +x "$tools/bin/apalache-mc"
 
