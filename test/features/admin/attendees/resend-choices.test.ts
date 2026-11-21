@@ -9,8 +9,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { execute } from "#db/client.ts";
-import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
-import { withErrorSpy } from "#test/shared/webhook/helpers.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectIncludesAll,
@@ -203,12 +202,11 @@ describeWithEnv("re-sending a notification", { db: true }, () => {
     );
   });
 
-  /** Run a press that fails on its activity write, optionally with the flag
-   * release refused as well, and drop the triggers afterwards. */
+  /** Run a press that fails on its activity write, and drop the trigger
+   * afterwards. */
   const failedPress = async (
     attendeeId: number,
     name: string,
-    refuseRelease: boolean,
   ): Promise<void> => {
     const id = sqlLiteral(attendeeId);
     try {
@@ -219,24 +217,11 @@ describeWithEnv("re-sending a notification", { db: true }, () => {
          SELECT RAISE(ABORT, 'activity rejected');
        END`,
       );
-      if (refuseRelease) {
-        await execute(
-          sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
-       WHEN NEW.id = ${id}
-         AND (NEW.email_pending > OLD.email_pending
-           OR NEW.webhooks_pending > OLD.webhooks_pending)
-       BEGIN
-         SELECT RAISE(ABORT, 'restore rejected');
-       END`,
-        );
-      }
       await expect(resend(attendeeId, name, "both")).rejects.toThrow(
         "activity rejected",
       );
     } finally {
-      for (const trigger of ["reject_resend_activity", "reject_flag_restore"]) {
-        await execute(sql`DROP TRIGGER IF EXISTS ${sqlName(trigger)}`);
-      }
+      await execute(sql`DROP TRIGGER IF EXISTS reject_resend_activity`);
     }
   };
 
@@ -244,25 +229,11 @@ describeWithEnv("re-sending a notification", { db: true }, () => {
     await configureTestEmail();
     const { attendee } = await bookWebhookBuyer("Failed Send", 2, 1);
 
-    await failedPress(attendee.id, "Failed Send", false);
+    await failedPress(attendee.id, "Failed Send");
 
     expect(await readPendingNotificationFlags(attendee.id)).toEqual({
       email: 2,
       webhooks: 1,
     });
-  });
-
-  test("names a failed flag release in the error log", async () => {
-    await configureTestEmail();
-    const { attendee } = await bookWebhookBuyer("Failed Release", 2, 1);
-
-    const logs = await withErrorSpy(async (errorSpy) => {
-      await failedPress(attendee.id, "Failed Release", true);
-      return errorSpy.calls.map(({ args }) => String(args[0]));
-    });
-
-    expectIncludesAll(logs.join("\n"), [
-      "Restoring a recovery's claimed flags failed",
-    ]);
   });
 });

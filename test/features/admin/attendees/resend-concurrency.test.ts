@@ -13,6 +13,7 @@ import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
+import { withErrorSpy } from "#test/shared/webhook/helpers.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -311,19 +312,27 @@ describeWithEnv(
       await configureTestEmail();
       const { attendee } = await bookWebhookBuyer("Restore Fault Buyer", 2, 1);
 
-      await expectPressWithRefusedActivity(
-        attendee.id,
-        "Restore Fault Buyer",
-        { email: 0, webhooks: 0 },
-        {
-          reject_flag_restore: sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
+      const logs = await withErrorSpy(async (errorSpy) => {
+        await expectPressWithRefusedActivity(
+          attendee.id,
+          "Restore Fault Buyer",
+          { email: 0, webhooks: 0 },
+          {
+            reject_flag_restore: sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
        WHEN NEW.id = ${sqlLiteral(attendee.id)}
          AND (NEW.email_pending > OLD.email_pending
            OR NEW.webhooks_pending > OLD.webhooks_pending)
        BEGIN
          SELECT RAISE(ABORT, 'restore rejected');
        END`,
-        },
+          },
+        );
+        return errorSpy.calls.map(({ args }) => String(args[0]));
+      });
+
+      // The refused release is named in the error log.
+      expect(logs.join("\n")).toContain(
+        "Restoring a recovery's claimed flags failed",
       );
     });
 
