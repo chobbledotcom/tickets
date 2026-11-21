@@ -311,21 +311,22 @@ const focusedStack = (...keys: string[]): ModalSnapshot =>
     ),
   );
 
+/** Corrupt one field of the two-window row, a below b, with the focus in the
+ * window. */
+const corruptTwoWindowData = (fault: Partial<ModalNode>) =>
+  corruptNodeData(
+    focusedStack("a", "b"),
+    "No two-window stack to corrupt",
+    (row) => ({ ...row, ...fault }),
+  );
+
 /** Corrupt a domain record: initial safety must detect duplicate stack ranks. */
-export const duplicateRankModalData = corruptNodeData(
-  focusedStack("a", "b"),
-  "No two-window stack to corrupt",
-  (row) => ({ ...row, bRank: 1 }),
-);
+export const duplicateRankModalData = corruptTwoWindowData({ bRank: 1 });
 
 /** Corrupt a domain record: both windows of a two-window stack are bright
  * while a window has the focus. Initial safety must detect the second bright
  * thing. */
-export const twoBrightWindowsModalData = corruptNodeData(
-  focusedStack("a", "b"),
-  "No two-window stack to corrupt",
-  (row) => ({ ...row, aDim: 0 }),
-);
+export const twoBrightWindowsModalData = corruptTwoWindowData({ aDim: 0 });
 
 /** Corrupt one observed minimise: it forgets the expanded position. */
 export const forgottenPositionModalData = corruptEdgeData(
