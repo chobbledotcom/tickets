@@ -9,8 +9,8 @@
  */
 
 import { matchName, type NameIndex } from "#db/name-registry.ts";
-import { requiredMapValueWithMessage } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
+import { requiredMapValueWithMessage } from "#shared/required-map-value.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { BundleRef } from "./bundle-plan.ts";
 

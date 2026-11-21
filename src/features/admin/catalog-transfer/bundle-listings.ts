@@ -4,7 +4,7 @@
  */
 
 import { getListingsByGroupIds } from "#db/groups.ts";
-import { requiredMapValueWithMessage, unique } from "#fp";
+import { unique } from "#fp";
 import { t } from "#i18n";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
@@ -19,6 +19,7 @@ import {
 } from "#shared/package-membership.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { closedFieldsFor } from "#shared/records/write-access.ts";
+import { requiredMapValueWithMessage } from "#shared/required-map-value.ts";
 import { closedFieldErrorOrNull } from "#shared/rest/field-specs.ts";
 import type { AdminLevel, ListingWithCount } from "#types";
 import type { FailureCollector } from "./bundle-names.ts";

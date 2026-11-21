@@ -22,7 +22,6 @@ import {
   partition,
   pipe,
   requiredMapValue,
-  requiredMapValueWithMessage,
   sameOn,
   sameOrder,
   sortedNumbers,
@@ -54,23 +53,7 @@ describe("fp collections", () => {
     });
 
     test("throws an error that names the key when the key is missing", () => {
-      expect(() => requiredMapValue(new Map(), 4)).toThrow(
-        "Required map entry missing: 4",
-      );
-    });
-  });
-
-  describe("requiredMapValueWithMessage", () => {
-    test("returns a stored value", () => {
-      expect(
-        requiredMapValueWithMessage(new Map([[4, "four"]]), 4, "missing"),
-      ).toBe("four");
-    });
-
-    test("throws the supplied error when the key is missing", () => {
-      expect(() =>
-        requiredMapValueWithMessage(new Map(), 4, "Number 4 missing"),
-      ).toThrow("Number 4 missing");
+      expect(() => requiredMapValue(new Map(), 4)).toThrow("Missing map key 4");
     });
   });
 

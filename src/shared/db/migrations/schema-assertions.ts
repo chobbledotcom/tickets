@@ -1,4 +1,4 @@
-import { requiredMapValueWithMessage } from "#fp";
+import { requiredMapValueWithMessage } from "#shared/required-map-value.ts";
 
 type LiveTables = {
   tables: Map<string, Set<string>>;
