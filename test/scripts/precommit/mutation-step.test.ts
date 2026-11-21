@@ -12,33 +12,10 @@ import {
   STALE_BASE_SOURCE_LIMIT,
 } from "#scripts/precommit/mutation-step.ts";
 import type { CapturedOutput } from "#scripts/process.ts";
+import { fakeGit } from "#test/scripts/precommit/fake-git.ts";
 import { capturedFail, capturedOk } from "#test-utils/captured-output.ts";
 
 const fail = (stderr = ""): CapturedOutput => capturedFail(1, stderr);
-
-/** A fake git: `base` is the only ref that resolves (null = none), `diff`
- *  answers `git diff`, and `show` the two revisions of each changed source. */
-const fakeGit =
-  (opts: {
-    base?: string | null;
-    diff: CapturedOutput;
-    /** Contents per `git show <rev>:<path>`; by default each revision differs,
-     *  so every changed file counts as a real code change. */
-    show?: (revPath: string) => CapturedOutput;
-  }): RunCommand =>
-  (cmd) => {
-    if (cmd[1] === "rev-parse") {
-      return Promise.resolve(
-        cmd.at(-1) === (opts.base ?? null) ? capturedOk() : fail(),
-      );
-    }
-    if (cmd[1] === "show") {
-      const revPath = cmd[2] ?? "";
-      const fallback = capturedOk(`const a = "${revPath}";\n`);
-      return Promise.resolve(opts.show ? opts.show(revPath) : fallback);
-    }
-    return Promise.resolve(opts.diff);
-  };
 
 describe("partitionChanged", () => {
   test("collects src .ts, .tsx and .js files as sources", () => {

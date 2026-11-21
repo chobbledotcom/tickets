@@ -1,3 +1,4 @@
+// effects: pure
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /**
@@ -72,29 +73,27 @@ const moveFor = (item: HTMLElement): { anchor: string; place: MovePlace } => {
     : { anchor: anchorOf(above), place: "after" };
 };
 
-/** Post the move form, with the CSRF token the item's arrow forms carry. The
+/** Post a copy of one of the item's own arrow forms, so the drop sends the
+ *  same fields an arrow sends. Only the address and the anchor change. The
  *  server sends the operator back to this page, with its filters. */
 const postMove = (
-  list: HTMLElement,
   item: HTMLElement,
   move: { anchor: string; place: MovePlace },
 ): void => {
   const path = requireValue(handleOf(item).dataset.sortablePath, "path");
-  const token = requiredChild<HTMLInputElement>(
-    list,
-    'input[name="csrfToken"]',
-  );
-  const form = document.createElement("form");
-  form.method = "POST";
+  const form = requiredChild<HTMLFormElement>(item, "form").cloneNode(
+    true,
+  ) as HTMLFormElement;
   form.action = `${path}/move-${move.place}`;
+  requiredChild<HTMLInputElement>(form, 'input[name="anchor"]').value =
+    move.anchor;
   form.append(
-    createHiddenInput("csrfToken", token.value),
-    createHiddenInput("anchor", move.anchor),
     createHiddenInput(
       "returnUrl",
       window.location.pathname + window.location.search,
     ),
   );
+  form.hidden = true;
   document.body.append(form);
   form.submit();
 };
@@ -118,7 +117,7 @@ const setUpHandle = (list: HTMLElement, handle: HTMLElement): void => {
       item.classList.remove("is-dragging");
       if (item.nextElementSibling === before) return;
       if (commit) {
-        postMove(list, item, moveFor(item));
+        postMove(item, moveFor(item));
       } else {
         list.insertBefore(item, before);
       }

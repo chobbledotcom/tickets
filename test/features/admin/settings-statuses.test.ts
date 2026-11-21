@@ -62,35 +62,51 @@ describeWithEnv("attendee statuses", { db: true }, () => {
     const move = async (id: number, place: string, anchor: string) =>
       (await adminFormPost(`${PATH}/${id}/move-${place}`, { anchor })).response;
 
-    test("the down arrow moves a status after the next one", async () => {
-      const { first, second } = await threeStatuses();
-      const [firstName] = await names();
+    /** The three statuses by their place in the list: 0, 1 and 2. */
+    type Slot = 0 | 1 | 2;
 
-      await expectFlashRedirect(
-        PATH,
-        "Status moved",
-      )(await move(first, "after", String(second)));
+    for (const [title, target, place, anchor, order] of [
+      [
+        "the down arrow moves a status after the next one",
+        0,
+        "after",
+        1,
+        [1, 0, 2],
+      ],
+      [
+        "the up arrow moves a status before the one above",
+        2,
+        "before",
+        1,
+        [0, 2, 1],
+      ],
+      [
+        "a drop moves a status several places at once",
+        2,
+        "before",
+        0,
+        [2, 0, 1],
+      ],
+    ] as const satisfies readonly (readonly [
+      string,
+      Slot,
+      string,
+      Slot,
+      readonly Slot[],
+    ])[]) {
+      test(title, async () => {
+        const { first, second, third } = await threeStatuses();
+        const ids = [first, second, third] as const;
+        const before = await names();
 
-      expect(await names()).toEqual(["Second", firstName, "Third"]);
-    });
+        await expectFlashRedirect(
+          PATH,
+          "Status moved",
+        )(await move(ids[target], place, String(ids[anchor])));
 
-    test("the up arrow moves a status before the one above", async () => {
-      const { second, third } = await threeStatuses();
-      const [firstName] = await names();
-
-      await move(third, "before", String(second));
-
-      expect(await names()).toEqual([firstName, "Third", "Second"]);
-    });
-
-    test("a drop moves a status several places at once", async () => {
-      const { first, third } = await threeStatuses();
-      const [firstName] = await names();
-
-      await move(third, "before", String(first));
-
-      expect(await names()).toEqual(["Third", firstName, "Second"]);
-    });
+        expect(await names()).toEqual(order.map((slot) => before[slot]));
+      });
+    }
 
     test("the same move twice gives the same order", async () => {
       const { first, third } = await threeStatuses();
