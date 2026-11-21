@@ -23,7 +23,7 @@ defaults:
 
 jobs:
   plan:
-    runs-on: ubicloud-standard-2
+    runs-on: tickets-builder
     timeout-minutes: 30
     defaults:
       run:
@@ -51,7 +51,7 @@ jobs:
   model-checks:
     needs: plan
     name: model-checks (${{ matrix.model }})
-    runs-on: ubicloud-standard-2
+    runs-on: tickets-builder
     # A wedged checker must fail loudly, so the job has a hard limit.
     timeout-minutes: 30
     strategy:
