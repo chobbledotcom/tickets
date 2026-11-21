@@ -7,9 +7,6 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#db/attendees/api.ts";
-import { execute } from "#db/client.ts";
-import { sql, sqlLiteral } from "#db/sql.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectIncludesAll,
@@ -21,15 +18,21 @@ import {
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  bookTestAttendeeWithFlags,
-  readPendingNotificationFlags,
-} from "#test-utils/db-helpers/attendees.ts";
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
+import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
-import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
+import { refundBookedOrder } from "#test-utils/ledger.ts";
 import { adminGet } from "#test-utils/session.ts";
-import { bookWebhookBuyer, expectResendPress, resend } from "./resend-press.ts";
+import {
+  bookWebhookBuyer,
+  expectPressWithRefusedActivity,
+  expectResendPress,
+  resend,
+} from "./resend-press.ts";
 
 describeWithEnv("re-sending a notification", { db: true }, () => {
   const fetch = stubFetchEachTest(() => new Response("{}"));
@@ -183,15 +186,14 @@ describeWithEnv("re-sending a notification", { db: true }, () => {
 
   test("refuses a purchase that was refunded", async () => {
     const listing = await createTestListing({ maxAttendees: 100 });
-    const made = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, pricePaid: 300, quantity: 1 }],
-      email: "refunded@example.com",
-      name: "Refunded Buyer",
-    });
-    if (!made.success) throw new Error("Expected the booking to work");
-    const attendee = made.attendees[0]!;
-    const sale = { attendeeId: attendee.id, gross: 300, listingId: listing.id };
-    await postListingSale(sale);
+    const attendee = bookedAttendee(
+      await bookAttendee(listing, {
+        email: "refunded@example.com",
+        name: "Refunded Buyer",
+        pricePaid: 300,
+        quantity: 1,
+      }),
+    );
     await refundBookedOrder(attendee.id, listing.id);
 
     await expectRefusedPress(
@@ -202,36 +204,11 @@ describeWithEnv("re-sending a notification", { db: true }, () => {
     );
   });
 
-  /** Run a press that fails on its activity write, and drop the trigger
-   * afterwards. */
-  const failedPress = async (
-    attendeeId: number,
-    name: string,
-  ): Promise<void> => {
-    const id = sqlLiteral(attendeeId);
-    try {
-      await execute(
-        sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
-       WHEN NEW.attendee_id = ${id}
-       BEGIN
-         SELECT RAISE(ABORT, 'activity rejected');
-       END`,
-      );
-      await expect(resend(attendeeId, name, "both")).rejects.toThrow(
-        "activity rejected",
-      );
-    } finally {
-      await execute(sql`DROP TRIGGER IF EXISTS reject_resend_activity`);
-    }
-  };
-
   test("a failed send gives the claimed flags back", async () => {
     await configureTestEmail();
     const { attendee } = await bookWebhookBuyer("Failed Send", 2, 1);
 
-    await failedPress(attendee.id, "Failed Send");
-
-    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+    await expectPressWithRefusedActivity(attendee.id, "Failed Send", {
       email: 2,
       webhooks: 1,
     });
