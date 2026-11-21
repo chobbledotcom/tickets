@@ -269,8 +269,12 @@ The checker gives one verdict for one input, so a check with a record does not r
 The runner removes a record that no run used for 30 days.
 The runner still plans both proof obligations and every declared negative control.
 
-The `Model checks` workflow runs the same task without a pass cache each night.
+The `Model checks` workflow runs the same task each night and restores no pass cache.
 It finds a change to the checker environment or the machine.
+It saves the passes of each model that passes, under a key that the pull request
+workflow restores. A cache that a branch saves is not visible to other branches.
+A cache that the default branch saves is visible to all branches and to the merge queue.
+A new branch and a merge queue run therefore skip every model that has the same inputs as `main`.
 A plan job runs `deno task verify:models --list`, which prints the model names
 as JSON. The workflow starts one job for each name. Each job runs on its own
 runner and runs `deno task verify:models --model <name>`. The jobs run in

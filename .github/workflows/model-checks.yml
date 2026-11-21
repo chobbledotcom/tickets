@@ -1,9 +1,12 @@
 name: Model checks
 
 # A cached model check is a recorded verdict for the same inputs. This suite
-# deliberately runs with no pass cache, so it finds a change to the checker,
+# deliberately restores no pass cache, so it finds a change to the checker,
 # the runner environment, or the machine. It does not gate merges. Each model
 # runs as its own job on its own runner, and the jobs run in parallel.
+# A passing job saves its passes, and the pull request workflow restores them.
+# A cache that a branch saves is not visible to other branches, but a cache
+# that the default branch saves is.
 on:
   schedule:
     # Nightly at 04:11 UTC. The off-the-hour minute is not a peak for
@@ -73,6 +76,15 @@ jobs:
       # exactly the environment change this job exists to find.
       - name: Assert the pass cache is empty
         run: test ! -e .verify-models-passes
+
+      # The key never matches an earlier entry, so nothing restores. The post
+      # step saves the passes under a key that the pull request restore keys
+      # match.
+      - name: Save the model passes
+        uses: actions/cache@v4.3.0
+        with:
+          path: .verify-models-passes
+          key: verify-models-${{ runner.os }}-${{ matrix.model }}-nightly-${{ github.run_id }}
 
       - name: Run the model checks
         env:
