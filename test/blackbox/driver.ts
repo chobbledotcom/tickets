@@ -39,6 +39,8 @@ export interface App {
   /** Open `path`, fill the form that the page offers, and send it. `form`
    * names the form by its action, and defaults to `path`. */
   submit(path: string, fields?: Fields, form?: string): Promise<Page>;
+  /** The target that this visitor sends to. */
+  readonly target: Target;
 }
 
 /** Send requests to the handler in this process. */
@@ -175,5 +177,6 @@ export const createApp = (target: Target, cookie = ""): App => {
     logIn: (username = TEST_ADMIN_USERNAME, password = TEST_ADMIN_PASSWORD) =>
       submit("/admin/", { password, username }, "/admin/login"),
     submit,
+    target,
   };
 };
