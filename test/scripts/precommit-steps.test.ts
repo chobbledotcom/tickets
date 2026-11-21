@@ -57,6 +57,6 @@ describe("precommit steps", () => {
     );
     const summary = await coverageStep?.summary?.("", "");
 
-    expect(summary === undefined || typeof summary === "string").toBe(true);
+    expect(["string", "undefined"]).toContain(typeof summary);
   });
 });
