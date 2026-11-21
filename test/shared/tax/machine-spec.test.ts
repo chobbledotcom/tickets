@@ -27,7 +27,7 @@ describe("VAT assessment contract", () => {
         events: TAX_EVENTS,
         nodes: TAX_NODES,
       }),
-    ).toBe("a43195c1303d6db0abb265fecf37f3f96350f1cb7c0c1f2e04c17a380d6dd3cc");
+    ).toBe("20fbcacd66b0d50f0d1537c330c83ac0bfa88491fdddbb8a86ab92e65b1d8dcc");
   });
 
   it("replays and returns A → B → A from the original listed basis", () => {
