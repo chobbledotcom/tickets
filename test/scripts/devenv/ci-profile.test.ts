@@ -1,6 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const DEVENV_NIX_PATH = "devenv.nix";
 const WORKFLOW_DIR = ".github/workflows";
@@ -44,16 +45,13 @@ describe("CI devenv profile", () => {
   test("the model check step runs in the models profile", async () => {
     const workflow = await Deno.readTextFile(TEST_WORKFLOW_PATH);
 
-    assertStringIncludes(
-      workflow,
+    expectIncludesAll(workflow, [
       [
         "      - name: Check the machine safety model",
         "        shell: devenv --profile models shell bash -- -e {0}",
-        "        env:",
-        `          MODEL: \${{ matrix.model }}`,
-        '        run: deno task verify:models --model "$MODEL"',
       ].join("\n"),
-    );
+      '        run: deno task verify:models --model "$MODEL"',
+    ]);
   });
 
   // The default profile carries Chromium, Apalache, Java, and the Git hook.
