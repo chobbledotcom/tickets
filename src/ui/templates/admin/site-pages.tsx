@@ -69,14 +69,16 @@ const PageNameLink = ({
 );
 
 const pageReorderTable = <T,>(opts: {
+  anchor: (row: T) => string;
   base: (row: T) => string;
   columns: TableColumn<T>[];
   rows: T[];
 }): JSX.Element =>
   renderTable(defineTable(opts.columns), opts.rows, {
     reorder: {
-      action: (row) => (direction) => `${opts.base(row)}/move-${direction}`,
+      anchor: opts.anchor,
       header: translatedTableHeader("site.pages.order_column"),
+      path: opts.base,
     },
   });
 
@@ -133,6 +135,7 @@ export const adminSitePagesListPage = (
               all-empty case above) guarantees at least one root to list. */}
         <h2>{t("site.pages.roots_heading")}</h2>
         {pageReorderTable({
+          anchor: (page) => String(page.id),
           base: (page) => `${LIST}/${page.id}`,
           columns: [
             ownPageColumns.name,
@@ -221,6 +224,7 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
         </p>
       ) : (
         pageReorderTable({
+          anchor: (item) => `${item.type}:${item.id}`,
           base: itemBase,
           columns: [
             {

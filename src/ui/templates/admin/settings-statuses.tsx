@@ -257,12 +257,12 @@ export const statusPages = defineRecordPages(statusRecord, {
     ),
     intro: <ProseIntro html={t("statuses.attendee_statuses_description")} />,
     reorder: {
-      action: (status) => (direction) =>
-        `${LIST_PATH}/${status.id}/move-${direction}`,
+      anchor: (status) => String(status.id),
       header: translatedTableHeader("statuses.order_header"),
+      path: (status) => `${LIST_PATH}/${status.id}`,
       titles: {
-        down: t("statuses.move_down_title"),
-        up: t("statuses.move_up_title"),
+        after: t("statuses.move_down_title"),
+        before: t("statuses.move_up_title"),
       },
     },
   },

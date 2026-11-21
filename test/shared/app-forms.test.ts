@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { OWNER_FORM } from "#routes/auth.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
+import type { MovePlace } from "#shared/reorder.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
@@ -10,66 +11,67 @@ import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 type Params = { id: number };
 
 describeWithEnv("app form handlers", { db: true }, () => {
-  const request = async (): Promise<Request> =>
+  const request = async (anchor: string): Promise<Request> =>
     mockFormRequest(
       "/admin/things/2/move",
-      { csrfToken: await testCsrfToken() },
+      { anchor, csrfToken: await testCsrfToken() },
       await testCookie(),
     );
 
-  const setup = () => {
-    const swaps: [number, number][] = [];
+  /** Move one item beside the anchor, and hand back the response and every
+   *  order the handler stored. */
+  const moved = async (place: MovePlace, id: number, anchor: string) => {
+    const stored: (readonly number[])[] = [];
     const handlers = createOrderedCollectionHandlers({
+      arrange: (keys) => {
+        stored.push(keys);
+        return Promise.resolve();
+      },
       auth: OWNER_FORM,
       keys: () => Promise.resolve([1, 2, 3]),
       loadContext: ({ id }: Params) =>
         Promise.resolve(id === 99 ? null : { id }),
       movedMessage: "Thing moved",
       redirectPath: ({ context }) => `/admin/things/${context.id}`,
-      swap: (first, second) => {
-        swaps.push([first, second]);
-        return Promise.resolve();
-      },
       target: ({ context }) => context.id,
     });
-    return { handlers, swaps };
+    const response = await handlers[place](await request(anchor), { id });
+    return { response, stored };
   };
 
-  /** Answers a move of one item in the given direction. */
-  const moved = async (direction: "down" | "up", id: number) =>
-    setup().handlers[direction](await request(), { id });
+  test("stores the order with the item before its anchor", async () => {
+    const { response, stored } = await moved("before", 3, "1");
 
-  test("moves an item up by swapping it with its previous neighbour", async () => {
-    const { handlers, swaps } = setup();
-    const response = await handlers.up(await request(), { id: 2 });
-
-    expect(swaps).toEqual([[2, 1]]);
-    expect(response.headers.get("location")).toBe("/admin/things/2?flash=");
+    expect(stored).toEqual([[3, 1, 2]]);
+    expect(response.headers.get("location")).toBe("/admin/things/3?flash=");
+    expectFlash(response, "Thing moved", true);
   });
 
-  test("answers a move with a success flash carrying the moved message", async () => {
-    expectFlash(await moved("down", 2), "Thing moved", true);
+  test("stores the order with the item after its anchor", async () => {
+    expect((await moved("after", 1, "2")).stored).toEqual([[2, 1, 3]]);
   });
 
-  test("moves an item down by swapping it with its next neighbour", async () => {
-    const { handlers, swaps } = setup();
-    await handlers.down(await request(), { id: 2 });
+  for (const [title, anchor] of [
+    ["is gone", "7"],
+    ["is the item itself", "2"],
+    ["is blank", ""],
+  ] as const) {
+    test(`stores nothing and says the list changed when the anchor ${title}`, async () => {
+      const { response, stored } = await moved("after", 2, anchor);
 
-    expect(swaps).toEqual([[2, 3]]);
-  });
-
-  test("does not swap an item beyond the collection boundary", async () => {
-    const { handlers, swaps } = setup();
-    await handlers.up(await request(), { id: 1 });
-
-    expect(swaps).toEqual([]);
-  });
+      expect(stored).toEqual([]);
+      expectFlash(
+        response,
+        "That list changed since you opened it. Please try the move again.",
+        false,
+      );
+    });
+  }
 
   test("returns 404 when the ordered item context is missing", async () => {
-    const { handlers, swaps } = setup();
-    const response = await handlers.up(await request(), { id: 99 });
+    const { response, stored } = await moved("before", 99, "1");
 
     expect(response.status).toBe(404);
-    expect(swaps).toEqual([]);
+    expect(stored).toEqual([]);
   });
 });

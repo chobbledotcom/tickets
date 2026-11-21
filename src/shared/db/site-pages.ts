@@ -107,5 +107,3 @@ export const createSitePage = (
  * time (the edit form posts them all), with the blind index recomputed from the
  * slug here so a renamed slug stays findable/reservable. */
 export const updateSitePage = sitePageWrites.update;
-
-/** Swap the `sort_order` of two root pages (the move-up/down apply step). */

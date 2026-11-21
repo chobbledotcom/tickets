@@ -149,11 +149,11 @@ describe("defineAdminRoutes", () => {
 
 describe("orderRoutes", () => {
   test("binds the two move handlers under the row path", () => {
-    const down = () => new Response("down");
-    const up = () => new Response("up");
-    expect(orderRoutes("/admin/things/:id", { down, up })).toEqual({
-      "POST /admin/things/:id/move-down": down,
-      "POST /admin/things/:id/move-up": up,
+    const after = () => new Response("after");
+    const before = () => new Response("before");
+    expect(orderRoutes("/admin/things/:id", { after, before })).toEqual({
+      "POST /admin/things/:id/move-after": after,
+      "POST /admin/things/:id/move-before": before,
     });
   });
 });

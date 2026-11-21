@@ -125,12 +125,12 @@ export const crudRoutes = <Base extends string>(
  * they move, ready to spread into the route table. */
 export const orderRoutes = <Base extends string, Handler>(
   base: Base,
-  order: { down: Handler; up: Handler },
-): Record<`POST ${Base}/move-down` | `POST ${Base}/move-up`, Handler> =>
+  order: { after: Handler; before: Handler },
+): Record<`POST ${Base}/move-after` | `POST ${Base}/move-before`, Handler> =>
   ({
-    [`POST ${base}/move-down`]: order.down,
-    [`POST ${base}/move-up`]: order.up,
-  }) as Record<`POST ${Base}/move-down` | `POST ${Base}/move-up`, Handler>;
+    [`POST ${base}/move-after`]: order.after,
+    [`POST ${base}/move-before`]: order.before,
+  }) as Record<`POST ${Base}/move-after` | `POST ${Base}/move-before`, Handler>;
 
 /** The routes a record area's list and record page serve. The new page route
  * is absent when the area declares none. */

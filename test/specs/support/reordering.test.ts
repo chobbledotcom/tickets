@@ -40,11 +40,11 @@ describe("finding a row's own arrow", () => {
     };
 
   const arrowAt = (id: number, direction: Direction = "up"): string =>
-    `<td><form action="${LIST}/${id}/move-${direction}" method="POST"><button>➤</button></form></td>`;
+    `<td><form action="${LIST}/${id}/move-${direction === "up" ? "before" : "after"}" method="POST"><button>➤</button></form></td>`;
 
-  /** The Confirmed row with a move-up arrow that posts under `list`. */
+  /** The Confirmed row with an up arrow that posts under `list`. */
   const confirmedRowPostingUp = (list: string): string =>
-    `<td>Confirmed</td><td><form action="${list}/7/move-up" method="POST"><button>➤</button></form></td>`;
+    `<td>Confirmed</td><td><form action="${list}/7/move-before" method="POST"><button>➤</button></form></td>`;
 
   /** A list whose Confirmed row holds these cells beside its name, with any
    * other rows given alongside it. */
@@ -74,7 +74,7 @@ describe("finding a row's own arrow", () => {
   });
 
   test("does not offer an arrow rendered against somebody else's row", async () => {
-    // The page carries this row's move-up address, but on the other row — the
+    // The page carries this row's up-arrow address, but on the other row — the
     // person looking at Confirmed sees no arrow, so the story must not either.
     const rows = confirmedWith("<td></td>", {
       Paid: { id: 9, row: `<td>Paid</td>${arrowAt(7)}` },
@@ -85,7 +85,7 @@ describe("finding a row's own arrow", () => {
     ).rejects.toThrow('The list offers no way to move "Confirmed" up');
   });
 
-  /** A page whose Confirmed row carries a move-up arrow that posts to
+  /** A page whose Confirmed row carries a up arrow that posts to
    * postsTo, served by a recording browser. Moving the row up sends that
    * form, so the send must be a POST to the arrow's own address. */
   const expectPressingUpSendsTo = async (
@@ -107,13 +107,13 @@ describe("finding a row's own arrow", () => {
   };
 
   test("presses the row's own arrow, sending its form where it posts", async () => {
-    await expectPressingUpSendsTo(`${LIST}/7/move-up`, LIST, world);
+    await expectPressingUpSendsTo(`${LIST}/7/move-before`, LIST, world);
   });
 
   test("reads a list path the world carries", async () => {
     const path = `${LIST}/7/answers`;
     await expectPressingUpSendsTo(
-      `${path}/7/move-up`,
+      `${path}/7/move-before`,
       (w: TicketsWorld) => `${LIST}/${w.listingId}/answers`,
       { listingId: 7 } as TicketsWorld,
     );
@@ -132,7 +132,7 @@ describe("finding a row's own arrow", () => {
 
     await arrow.movesUp(world, "Confirmed");
 
-    expect(sent().path).toBe(`${LIST}/7/move-up`);
+    expect(sent().path).toBe(`${LIST}/7/move-before`);
   });
 
   test("the up arrow asks about the move up, not the move down", async () => {
@@ -164,6 +164,6 @@ describe("finding a row's own arrow", () => {
 
     await arrows.move(asked, "Confirmed", "up");
 
-    expect(sent().path).toBe(`${list}/7/move-up`);
+    expect(sent().path).toBe(`${list}/7/move-before`);
   });
 });

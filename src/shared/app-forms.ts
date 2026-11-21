@@ -1,3 +1,4 @@
+import { t } from "#i18n";
 import {
   type AuthPolicy,
   type AuthSession,
@@ -15,7 +16,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms/validation.ts";
-import { planReorder } from "#shared/reorder.ts";
+import { type MovePlace, moveKey } from "#shared/reorder.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 
 export type FormValidator<TValues> = {
@@ -103,34 +104,46 @@ export const authedHandlerWithStep = <TParams, TContext>(
   createAuthedHandler<TParams, TContext>({ ...config, handle });
 
 type OrderedConfig<Params, Context, Key> = AuthedBase<Params, Context> & {
+  /** Store the whole new order. */
+  arrange: (
+    keys: readonly Key[],
+    args: AuthedHandlerArgs<Params, Context>,
+  ) => Promise<void>;
   keys: (
     args: AuthedHandlerArgs<Params, Context>,
   ) => readonly Key[] | Promise<readonly Key[]>;
   movedMessage: string;
   redirectPath: (args: AuthedHandlerArgs<Params, Context>) => string;
-  swap: (
-    first: Key,
-    second: Key,
-    args: AuthedHandlerArgs<Params, Context>,
-  ) => Promise<void>;
   target: (args: AuthedHandlerArgs<Params, Context>) => Key;
 };
 
-/** Build both move routes for any ordered admin collection. */
+/** Build both move routes for any ordered admin collection. Each route moves
+ * its row to just before or just after the row the `anchor` field names. The
+ * arrows name the next row up or down, and a drop names the row it lands
+ * next to. An anchor that is gone, or is the row itself, changes nothing. */
 export const createOrderedCollectionHandlers = <Params, Context, Key>(
   config: OrderedConfig<Params, Context, Key>,
-): { down: ParamsRoute<Params>; up: ParamsRoute<Params> } => {
-  const move = (direction: "up" | "down"): ParamsRoute<Params> =>
+): Record<MovePlace, ParamsRoute<Params>> => {
+  const move = (place: MovePlace): ParamsRoute<Params> =>
     authedHandlerWithStep(config, async (args) => {
-      const pair = planReorder(
-        await config.keys(args),
-        config.target(args),
-        direction,
-      );
-      if (pair) await config.swap(pair[0], pair[1], args);
+      const keys = await config.keys(args);
+      const anchorText = args.form.getString("anchor");
+      const anchor = keys.find((key) => String(key) === anchorText);
+      const order =
+        anchor === undefined
+          ? null
+          : moveKey(keys, config.target(args), place, anchor);
+      if (order === null) {
+        return redirect(
+          config.redirectPath(args),
+          t("common.reorder_stale"),
+          false,
+        );
+      }
+      await config.arrange(order, args);
       return redirect(config.redirectPath(args), config.movedMessage, true);
     });
-  return { down: move("down"), up: move("up") };
+  return { after: move("after"), before: move("before") };
 };
 
 // ── createAuthedFormRoute: adds schema validation on top ──────────────

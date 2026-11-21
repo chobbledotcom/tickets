@@ -176,9 +176,8 @@ export const QuestionAnswersSection = ({
         items: question.answers,
         label: (a) => a.text,
         labelHeader: t("questions.answer_column"),
-        moveAction: (a) => (d) =>
-          `/admin/questions/${question.id}/answers/${a.id}/move-${d}`,
         orderLabel: t("questions.order_column"),
+        path: (a) => `/admin/questions/${question.id}/answers/${a.id}`,
       })}
     </>
   );

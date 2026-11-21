@@ -15,7 +15,6 @@ import { defineTable } from "#shared/tables/definition.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
-import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import type { AdminSession } from "#types";
 
@@ -39,8 +38,8 @@ const itemsOrEmptyReorderTable = <T,>(
   );
 
 /** A reorderable detail-page table: a text column then a quantity column, each
- *  row linking through to the item's own edit page, its move arrows posting to
- *  the item's move routes, and ending in a count cell. Shows `emptyText` when
+ *  row linking through to the item's own edit page, its move controls posting
+ *  to the item's move routes, and ending in a count cell. Shows `emptyText` when
  *  there are no items. Shared by the question answers table and the attribute
  *  options table, which differ only in their headers, empty text, edit/move
  *  routes, and count. */
@@ -50,7 +49,8 @@ export const reorderCountTable = <T extends { id: number }>(opts: {
   orderLabel: string;
   items: T[];
   emptyText: string;
-  moveAction: (item: T) => (direction: ReorderDirection) => string;
+  /** The item's own path, which its move routes hang off. */
+  path: (item: T) => string;
   editHref: (item: T) => string;
   label: (item: T) => Child;
   count: (item: T) => Child;
@@ -58,7 +58,11 @@ export const reorderCountTable = <T extends { id: number }>(opts: {
   itemsOrEmptyReorderTable(
     opts.items,
     opts.emptyText,
-    { action: opts.moveAction, header: opts.orderLabel },
+    {
+      anchor: (item) => String(item.id),
+      header: opts.orderLabel,
+      path: opts.path,
+    },
     [
       {
         cell: (item: T) =>
@@ -112,9 +116,9 @@ export const reorderableListPage = <T extends { id: number }>(opts: {
         opts.items,
         opts.emptyText,
         {
-          action: (item: T) => (direction: ReorderDirection) =>
-            `${opts.basePath}/${item.id}/move-${direction}`,
+          anchor: (item: T) => String(item.id),
           header: opts.orderLabel,
+          path: (item: T) => `${opts.basePath}/${item.id}`,
         },
         opts.columns,
       )}

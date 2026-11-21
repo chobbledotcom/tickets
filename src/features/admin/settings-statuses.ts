@@ -22,7 +22,7 @@ import {
   heldAttendeeCount,
   statusDeleteProspects,
 } from "#db/attendee-statuses.ts";
-import { flatCollectionSwap } from "#db/ordered-collection.ts";
+import { flatCollectionArrange } from "#db/ordered-collection.ts";
 import { formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
@@ -76,14 +76,14 @@ const pages = recordPages(statusRecord, {
 });
 
 const statusOrder = createOrderedCollectionHandlers({
+  arrange: flatCollectionArrange(attendeeStatusOrder),
   auth: formPolicyFor(
-    adminDestinationAt("/admin/settings/statuses/:id/move-up"),
+    adminDestinationAt("/admin/settings/statuses/:id/move-before"),
   ),
   keys: async () => (await statusRecord.getAll()).map((status) => status.id),
   loadContext: ({ id }: { id: number }) => getAttendeeStatus(id),
   movedMessage: "Status moved",
   redirectPath: () => LIST_PATH,
-  swap: flatCollectionSwap(attendeeStatusOrder),
   target: ({ context }) => context.id,
 });
 

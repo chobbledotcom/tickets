@@ -24,6 +24,13 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 export type Direction = "up" | "down";
 
+/** The move route each arrow posts to: up goes before the row above, and
+ * down goes after the row below. */
+const MOVE_TAIL: Record<Direction, string> = {
+  down: "move-after",
+  up: "move-before",
+};
+
 /** The address one world sees a list at: fixed, or worked out from the world
  * when the address carries its state. */
 type ListPath = string | ((world: TicketsWorld) => string);
@@ -69,7 +76,7 @@ export const movingRowsOn = (
     direction: Direction,
   ): Promise<{ browser: TestBrowser; posts: string | null }> => {
     const { browser, id, row } = await openAt(world, name);
-    const posts = `${listPathOn(listPath, world)}/${id}/move-${direction}`;
+    const posts = `${listPathOn(listPath, world)}/${id}/${MOVE_TAIL[direction]}`;
     return {
       browser,
       posts: row.includes(posts) ? posts : null,

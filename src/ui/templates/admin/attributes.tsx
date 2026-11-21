@@ -174,9 +174,9 @@ export const adminAttributePage = (
         items: attribute.options,
         label: (option) => option.text,
         labelHeader: t("attributes.option_column"),
-        moveAction: (option) => (direction) =>
-          `/admin/attributes/${attribute.id}/options/${option.id}/move-${direction}`,
         orderLabel: t("attributes.order_column"),
+        path: (option) =>
+          `/admin/attributes/${attribute.id}/options/${option.id}`,
       })}
 
       <h2>{t("attributes.listings.heading")}</h2>

@@ -6,7 +6,7 @@ import { logActivity } from "#db/activity-log.ts";
 import { getAllModifiers } from "#db/modifiers.ts";
 import {
   insertScopedOrderedRow,
-  scopedCollectionSwap,
+  scopedCollectionArrange,
 } from "#db/ordered-collection.ts";
 import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
 import {
@@ -349,20 +349,20 @@ const handleAnswerRecalculatePost = answerHandlers.post(
 );
 
 const answerOrder: {
-  down: ParamsRoute<AnswerRouteParams>;
-  up: ParamsRoute<AnswerRouteParams>;
+  after: ParamsRoute<AnswerRouteParams>;
+  before: ParamsRoute<AnswerRouteParams>;
 } = createOrderedCollectionHandlers({
+  arrange: scopedCollectionArrange(
+    answersOrder,
+    ({ context }: { context: AnswerContext }) => context.question.id,
+  ),
   auth: formPolicyFor(
-    adminDestinationAt("/admin/questions/:id/answers/:answerId/move-up"),
+    adminDestinationAt("/admin/questions/:id/answers/:answerId/move-before"),
   ),
   keys: ({ context }) => context.question.answers.map((answer) => answer.id),
   loadContext: loadQuestionAndAnswer,
   movedMessage: "Answer moved",
   redirectPath: ({ context }) => `/admin/questions/${context.question.id}`,
-  swap: scopedCollectionSwap(
-    answersOrder,
-    ({ context }: { context: AnswerContext }) => context.question.id,
-  ),
   target: ({ context }) => context.answer.id,
 });
 

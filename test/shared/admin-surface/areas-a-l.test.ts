@@ -92,15 +92,15 @@ describe("the A-L record areas", () => {
       write: {
         attributeDelete: { pattern: "/admin/attributes/:id/delete" },
         attributeEdit: "/admin/attributes/:id/edit",
-        attributeMoveDown: "/admin/attributes/:id/move-down",
-        attributeMoveUp: "/admin/attributes/:id/move-up",
+        attributeMoveAfter: "/admin/attributes/:id/move-after",
+        attributeMoveBefore: "/admin/attributes/:id/move-before",
         attributeOptionAdd: "/admin/attributes/:id/options",
         attributeOptionDelete: "/admin/attributes/:id/options/:optionId/delete",
         attributeOptionEdit: "/admin/attributes/:id/options/:optionId/edit",
-        attributeOptionMoveDown:
-          "/admin/attributes/:id/options/:optionId/move-down",
-        attributeOptionMoveUp:
-          "/admin/attributes/:id/options/:optionId/move-up",
+        attributeOptionMoveAfter:
+          "/admin/attributes/:id/options/:optionId/move-after",
+        attributeOptionMoveBefore:
+          "/admin/attributes/:id/options/:optionId/move-before",
       },
     });
   });

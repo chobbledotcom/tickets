@@ -46,24 +46,85 @@ describeWithEnv("attendee statuses", { db: true }, () => {
     expectIncludesAll(html, ["Name", "Spare"]);
   });
 
-  test("moves a status down, and the list shows the new order", async () => {
-    const first = (await attendeeStatuses.getAll())[0]!;
-    await create("Second");
+  describe("moving a status", () => {
+    /** Three statuses in a known order: the seeded first status, then two
+     *  more. */
+    const threeStatuses = async () => {
+      const first = (await attendeeStatuses.getAll())[0]!;
+      const second = await create("Second");
+      const third = await create("Third");
+      return { first: first.id, second, third };
+    };
 
-    const { response } = await adminFormPost(
-      `${PATH}/${first.id}/move-down`,
-      {},
-    );
+    const names = async (): Promise<string[]> =>
+      (await attendeeStatuses.getAll()).map((one) => one.name);
 
-    await expectFlashRedirect(PATH, "Status moved")(response);
-    const order = (await attendeeStatuses.getAll()).map((one) => one.name);
-    expect(order[0]).toBe("Second");
-  });
+    const move = async (id: number, place: string, anchor: string) =>
+      (await adminFormPost(`${PATH}/${id}/move-${place}`, { anchor })).response;
 
-  test("answers 404 moving a status that is not there", async () => {
-    const { response } = await adminFormPost(`${PATH}/99999/move-up`, {});
+    test("the down arrow moves a status after the next one", async () => {
+      const { first, second } = await threeStatuses();
+      const [firstName] = await names();
 
-    expect(response.status).toBe(404);
+      await expectFlashRedirect(
+        PATH,
+        "Status moved",
+      )(await move(first, "after", String(second)));
+
+      expect(await names()).toEqual(["Second", firstName, "Third"]);
+    });
+
+    test("the up arrow moves a status before the one above", async () => {
+      const { second, third } = await threeStatuses();
+      const [firstName] = await names();
+
+      await move(third, "before", String(second));
+
+      expect(await names()).toEqual([firstName, "Third", "Second"]);
+    });
+
+    test("a drop moves a status several places at once", async () => {
+      const { first, third } = await threeStatuses();
+      const [firstName] = await names();
+
+      await move(third, "before", String(first));
+
+      expect(await names()).toEqual(["Third", firstName, "Second"]);
+    });
+
+    test("the same move twice gives the same order", async () => {
+      const { first, third } = await threeStatuses();
+      await move(third, "before", String(first));
+      const once = await names();
+
+      await move(third, "before", String(first));
+
+      expect(await names()).toEqual(once);
+    });
+
+    for (const [title, anchorOf] of [
+      ["a status that is gone", () => "99999"],
+      ["the status itself", (id: number) => String(id)],
+    ] as const) {
+      test(`an anchor naming ${title} changes nothing`, async () => {
+        const { second } = await threeStatuses();
+        const order = await names();
+
+        await expectFlashRedirect(
+          PATH,
+          "That list changed since you opened it. Please try the move again.",
+          false,
+        )(await move(second, "after", anchorOf(second)));
+
+        expect(await names()).toEqual(order);
+      });
+    }
+
+    test("answers 404 moving a status that is not there", async () => {
+      const response = await move(99999, "before", "1");
+
+      expect(response.status).toBe(404);
+    });
   });
 
   describe("the status form", () => {

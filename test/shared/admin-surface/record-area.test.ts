@@ -178,8 +178,8 @@ describe("the shared write sets", () => {
         answerAdd: "/admin/questions/:id/answers",
         answerDelete: "/admin/questions/:id/answers/:answerId/delete",
         answerEdit: "/admin/questions/:id/answers/:answerId/edit",
-        answerMoveDown: "/admin/questions/:id/answers/:answerId/move-down",
-        answerMoveUp: "/admin/questions/:id/answers/:answerId/move-up",
+        answerMoveAfter: "/admin/questions/:id/answers/:answerId/move-after",
+        answerMoveBefore: "/admin/questions/:id/answers/:answerId/move-before",
       },
       // A content record gets its actions and its images.
       content: {
@@ -192,8 +192,8 @@ describe("the shared write sets", () => {
         postImagesUpload: "/admin/posts/:id/images/upload",
       },
       move: {
-        rowMoveDown: "/admin/rows/:id/move-down",
-        rowMoveUp: "/admin/rows/:id/move-up",
+        rowMoveAfter: "/admin/rows/:id/move-after",
+        rowMoveBefore: "/admin/rows/:id/move-before",
       },
     });
   });

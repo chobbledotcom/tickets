@@ -207,13 +207,16 @@ const writesWith =
       ]),
     ) as SuffixWrites<Prefix, Path, Suffixes>;
 
-const MOVE_TAILS = { MoveDown: "move-down", MoveUp: "move-up" } as const;
+const MOVE_TAILS = {
+  MoveAfter: "move-after",
+  MoveBefore: "move-before",
+} as const;
 const IMAGE_TAILS = {
   Images: "images",
   ImagesUpload: "images/upload",
 } as const;
 
-/** The move-down and move-up writes of one ordered row, under its path. */
+/** The two move writes of one ordered row, under its path. */
 export const moveWrites = writesWith(MOVE_TAILS);
 
 /** The image set and image upload writes of one record with an Images tab. */

@@ -1,58 +1,90 @@
 /**
- * Shared move-up / move-down reorder arrows: one tiny CSRF form per direction,
- * boundary-aware (no up arrow on the first row, no down arrow on the last).
- * The single implementation every reorderable admin table renders — each table
- * wraps it in its own cell (`<td>`, `<span class="reorder">`, …).
+ * Shared reorder controls for one row of an ordered list. The up arrow is a
+ * tiny CSRF form that moves the row before the row above. The down arrow
+ * moves it after the row below. The drag handle uses the same two routes.
+ * The admin bundle shows it, and a drop names the row it lands next to.
  */
 
-import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
+import { t } from "#i18n";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import type { MovePlace } from "#shared/reorder.ts";
 
-/** The reorder inputs shared by {@link ReorderArrows} and the per-table cells
- *  that wrap it (for example, `ReorderControls` in questions.tsx): a
- *  direction-to-path builder plus the row's `index` within `count` rows. */
-export type ReorderDirection = "up" | "down";
-
+/** The reorder inputs for one row: its path and its own anchor. It also
+ *  holds the anchors of the rows above and below, which the ends lack. */
 export type ReorderProps = {
-  action: (direction: ReorderDirection) => string;
-  index: number;
-  count: number;
+  path: string;
+  anchor: string;
+  above: string | undefined;
+  below: string | undefined;
 };
 
-/** The triangle glyph rendered on each direction's arrow button. */
-const ARROW_GLYPH = { down: "▼", up: "▲" } as const;
+/** The triangle glyph each arrow shows, keyed by where it moves the row. */
+const ARROW_GLYPH: Record<MovePlace, string> = { after: "▼", before: "▲" };
 
-/** One direction's reorder button — a tiny inline CSRF form. Rendered only
- *  when the row can actually move that way (see {@link ReorderArrows}). */
-const ArrowButton = ({
-  action,
-  direction,
+/** The move route for one place. */
+export const moveAction = (path: string, place: MovePlace): string =>
+  `${path}/move-${place}`;
+
+/** One arrow: a tiny CSRF form that moves the row beside `anchor`. */
+const ArrowForm = ({
+  anchor,
+  path,
+  place,
   title,
 }: {
-  action: (direction: ReorderDirection) => string;
-  direction: ReorderDirection;
+  anchor: string;
+  path: string;
+  place: MovePlace;
   title?: string | undefined;
 }): JSX.Element => (
-  <InlineFormButton action={action(direction)} title={title}>
-    {ARROW_GLYPH[direction]}
-  </InlineFormButton>
+  <CsrfForm action={moveAction(path, place)} class="inline">
+    <input name="anchor" type="hidden" value={anchor} />
+    <button class="link-button small" title={title} type="submit">
+      {ARROW_GLYPH[place]}
+    </button>
+  </CsrfForm>
 );
 
-/** The arrows for the row at `index` of `count`. `action` builds the POST path
- * for a direction. `titles`, when given, adds a tooltip per arrow. */
+/** The drag handle and the arrows for one row. `titles`, when given, adds a
+ * tooltip per arrow. The handle stays hidden until the admin bundle runs, so
+ * a page without scripts offers the arrows only. */
 export const ReorderArrows = ({
-  action,
-  index,
-  count,
+  above,
+  anchor,
+  below,
+  path,
   titles,
 }: ReorderProps & {
-  titles?: { up: string; down: string };
+  titles?: Readonly<Record<MovePlace, string>> | undefined;
 }): JSX.Element => (
   <>
-    {index > 0 && (
-      <ArrowButton action={action} direction="up" title={titles?.up} />
+    <button
+      class="reorder-handle"
+      data-sortable-anchor={anchor}
+      data-sortable-handle
+      data-sortable-path={path}
+      hidden
+      tabindex="-1"
+      title={t("common.reorder_handle")}
+      type="button"
+    >
+      ⠿
+    </button>
+    {above !== undefined && (
+      <ArrowForm
+        anchor={above}
+        path={path}
+        place="before"
+        title={titles?.before}
+      />
     )}{" "}
-    {index < count - 1 && (
-      <ArrowButton action={action} direction="down" title={titles?.down} />
+    {below !== undefined && (
+      <ArrowForm
+        anchor={below}
+        path={path}
+        place="after"
+        title={titles?.after}
+      />
     )}
   </>
 );

@@ -10,7 +10,7 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
-import type { ReorderProps } from "#templates/components/reorder.tsx";
+import type { MovePlace } from "#shared/reorder.ts";
 import type { ColumnKind } from "#templates/components/table-columns.ts";
 
 type TableHeader = Child | (() => Child);
@@ -76,11 +76,14 @@ export type TableColumn<
   readonly description?: string | (() => string);
 };
 
-/** The standard up/down reorder-arrows column declaration: prepended to a
- *  table when the operator can re-order rows (holidays, attributes,
- *  questions, site-page items). Hidden entirely in read-only mode. */
+/** The standard reorder column declaration: prepended to a table when the
+ *  operator can re-order rows (attributes, questions, statuses, site pages).
+ *  `path` is the row's own path, which its two move routes hang off.
+ *  `anchor` is the key the move routes name the row by. Hidden entirely in
+ *  read-only mode. */
 export type ReorderColumnOptions<TRow> = {
-  readonly action: (row: TRow) => ReorderProps["action"];
+  readonly anchor: (row: TRow) => string;
+  readonly path: (row: TRow) => string;
   readonly header: TableHeader;
-  readonly titles?: { readonly down: string; readonly up: string };
+  readonly titles?: Readonly<Record<MovePlace, string>>;
 };

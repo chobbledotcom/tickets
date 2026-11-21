@@ -1,19 +1,24 @@
-/** Pure helper behind every "move up / move down" admin control. */
+/** Pure helper behind every admin reorder control: the arrows and a drop. */
+
+/** Where a moved item lands beside its anchor. */
+export type MovePlace = "before" | "after";
 
 /**
- * Given an ordered list of keys and one target key, return the target paired
- * with the neighbour it should trade places with when nudged one step `dir`,
- * or null when it can't move — the target isn't in the list, or it's already
- * at the end it's heading toward. Keeping the off-by-one here means every
- * ordered-list surface reorders the same way.
+ * The new order after `target` moves to just before or just after `anchor`.
+ * Null when either key is not in the list, or when the anchor is the target.
+ * An arrow names the neighbour above or below, and a drop names the row it
+ * lands next to, so every reorder takes this one path.
  */
-export const planReorder = <K>(
-  orderedKeys: readonly K[],
+export const moveKey = <K>(
+  order: readonly K[],
   target: K,
-  dir: "up" | "down",
-): readonly [K, K] | null => {
-  const idx = orderedKeys.indexOf(target);
-  if (idx === -1) return null;
-  const neighbor = orderedKeys[idx + (dir === "up" ? -1 : 1)];
-  return neighbor === undefined ? null : [target, neighbor];
+  place: MovePlace,
+  anchor: K,
+): readonly K[] | null => {
+  if (target === anchor || !order.includes(target)) return null;
+  const rest = order.filter((key) => key !== target);
+  const anchorIndex = rest.indexOf(anchor);
+  if (anchorIndex === -1) return null;
+  const at = place === "before" ? anchorIndex : anchorIndex + 1;
+  return [...rest.slice(0, at), target, ...rest.slice(at)];
 };

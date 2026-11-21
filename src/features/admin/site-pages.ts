@@ -15,7 +15,9 @@ import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
 
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getListingOfferFlags } from "#db/listings/catalog.ts";
+import { flatCollectionArrange } from "#db/ordered-collection.ts";
 import { readExists } from "#db/read.ts";
+import type { RecordTargetKey } from "#db/record-target.ts";
 import {
   addPageItem,
   getItemsForPage,
@@ -122,7 +124,6 @@ const itemSaved = (page: SitePage, flashKey: string, logMessage: string) => ({
   path: itemsPath(page.id),
 });
 
-const pageTarget = sitePageItemTargets.of("page");
 const pageFormHandler = createIdEntityHandler<SitePage>(
   records.site_pages.find,
 )(formGuard(SITE_FORM));
@@ -130,20 +131,12 @@ const pageFormHandler = createIdEntityHandler<SitePage>(
 // ─── Root reorder ───────────────────────────────────────────────
 
 const rootPageOrder = createOrderedCollectionHandlers({
+  arrange: flatCollectionArrange(sitePageOrder),
   auth: SITE_FORM,
-  keys: async () =>
-    (await loadPageForest()).forest.rootIds.map((id) =>
-      sitePageItemTargets.key(pageTarget(id)),
-    ),
+  keys: async () => (await loadPageForest()).forest.rootIds,
   movedMessage: t("site.pages.moved"),
   redirectPath: () => LIST_PATH,
-  swap: (first, second) =>
-    sitePageOrder.swap({
-      first: sitePageItemTargets.fromKey(first).id,
-      second: sitePageItemTargets.fromKey(second).id,
-    }),
-  target: ({ params }: { params: IdParam }) =>
-    sitePageItemTargets.key(pageTarget(params.id)),
+  target: ({ params }: { params: IdParam }) => params.id,
 });
 
 // ─── Item manager ───────────────────────────────────────────────
@@ -233,7 +226,18 @@ const handleRemoveItem = pageItemHandler(async ({ page, ref }) =>
   ),
 );
 
+/** The key one page item goes by in the page's order. */
+type SitePageItemKey = RecordTargetKey<SitePageItemType>;
+
 const pageItemOrder = createOrderedCollectionHandlers({
+  arrange: (keys: readonly SitePageItemKey[], { params }) =>
+    sitePageItemOrder.arrange({
+      keys: keys.map((key) => {
+        const ref = sitePageItemTargets.fromKey(key);
+        return [ref.kind, ref.id] as const;
+      }),
+      scope: params.id,
+    }),
   auth: SITE_FORM,
   keys: async ({ params }) =>
     (await getItemsForPage(params.id)).map((item) =>
@@ -243,15 +247,6 @@ const pageItemOrder = createOrderedCollectionHandlers({
     isSitePageItemType(itemType) ? { id: itemId, kind: itemType } : null,
   movedMessage: t("site.pages.moved"),
   redirectPath: ({ params }) => itemsPath(params.id),
-  swap: (first, second, { params }) => {
-    const firstRef = sitePageItemTargets.fromKey(first);
-    const secondRef = sitePageItemTargets.fromKey(second);
-    return sitePageItemOrder.swap({
-      first: [firstRef.kind, firstRef.id],
-      scope: params.id,
-      second: [secondRef.kind, secondRef.id],
-    });
-  },
   target: ({ context }) => sitePageItemTargets.key(context),
 });
 

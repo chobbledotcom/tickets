@@ -6,7 +6,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { getAllListings } from "#db/listings/records.ts";
-import { flatCollectionSwap } from "#db/ordered-collection.ts";
+import { flatCollectionArrange } from "#db/ordered-collection.ts";
 import {
   type QuestionWithAnswers,
   requireQuestionDisplayType,
@@ -116,13 +116,13 @@ const handleQuestionListings = entityFormById(
 );
 
 const questionOrder = createOrderedCollectionHandlers({
-  auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/move-up")),
+  arrange: flatCollectionArrange(questionsOrder),
+  auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/move-before")),
   keys: async () =>
     (await getAllQuestionsWithAnswers()).map((question) => question.id),
   loadContext: ({ id }: QuestionIdParams) => getQuestionWithAnswers(id),
   movedMessage: "Question moved",
   redirectPath: () => "/admin/questions",
-  swap: flatCollectionSwap(questionsOrder),
   target: ({ context }) => context.id,
 });
 

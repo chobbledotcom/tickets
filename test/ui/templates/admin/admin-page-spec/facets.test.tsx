@@ -261,34 +261,34 @@ describe("the spec's list facet", () => {
   test("adds the move column to a reorderable list", () => {
     using _writable = withEnv({ READ_ONLY_FROM: undefined });
     const html = listSpec(["one", "two"], {
-      action: (name) => (direction) =>
-        `/admin/groups/${name}/move-${direction}`,
+      anchor: (name) => name,
       header: () => "Move",
+      path: (name) => `/admin/groups/${name}`,
     });
 
     expectIncludesAll(html, [
       '<th class="col-reorder">',
-      "/admin/groups/one/move-down",
-      "/admin/groups/two/move-up",
+      "/admin/groups/one/move-after",
+      "/admin/groups/two/move-before",
     ]);
-    assert(!html.includes("/admin/groups/one/move-up"));
-    assert(!html.includes("/admin/groups/two/move-down"));
+    assert(!html.includes("/admin/groups/one/move-before"));
+    assert(!html.includes("/admin/groups/two/move-after"));
     expectIncludesAll(html, ["▲", "▼"]);
   });
 
   test("omits the move column when the site is read-only", () => {
     using _readOnly = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = listSpec(["one", "two"], {
-      action: (name) => (direction) =>
-        `/admin/groups/${name}/move-${direction}`,
+      anchor: (name) => name,
       header: () => "Move",
+      path: (name) => `/admin/groups/${name}`,
     });
 
     assert(!html.includes('class="col-reorder"'));
-    assert(!html.includes("/admin/groups/one/move-up"));
-    assert(!html.includes("/admin/groups/one/move-down"));
-    assert(!html.includes("/admin/groups/two/move-up"));
-    assert(!html.includes("/admin/groups/two/move-down"));
+    assert(!html.includes("/admin/groups/one/move-before"));
+    assert(!html.includes("/admin/groups/one/move-after"));
+    assert(!html.includes("/admin/groups/two/move-before"));
+    assert(!html.includes("/admin/groups/two/move-after"));
     assert(!html.includes("▲"));
     assert(!html.includes("▼"));
     assertStringIncludes(html, "<p>one</p>");

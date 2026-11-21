@@ -49,11 +49,10 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "In person",
     ]);
 
-    await attributesOrder.swap({ first: first.id, second: second.id });
-    await attributeOptionsOrder.swap({
-      first: first.options[0]!.id,
+    await attributesOrder.arrange({ keys: [second.id, first.id] });
+    await attributeOptionsOrder.arrange({
+      keys: [first.options[1]!.id, first.options[0]!.id],
       scope: first.id,
-      second: first.options[1]!.id,
     });
 
     const attributes = await getAllAttributesWithOptions();

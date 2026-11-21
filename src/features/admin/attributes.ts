@@ -14,9 +14,9 @@ import {
 } from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
 import {
-  flatCollectionSwap,
+  flatCollectionArrange,
   insertScopedOrderedRow,
-  scopedCollectionSwap,
+  scopedCollectionArrange,
 } from "#db/ordered-collection.ts";
 import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
@@ -313,27 +313,27 @@ const handleEditOptionPost = createAuthedFormRoute<
 });
 
 const optionOrder = createOrderedCollectionHandlers({
+  arrange: scopedCollectionArrange(
+    attributeOptionsOrder,
+    ({ context }: { context: AttributeOptionContext }) => context.attribute.id,
+  ),
   auth: formPolicyFor(
-    adminDestinationAt("/admin/attributes/:id/options/:optionId/move-up"),
+    adminDestinationAt("/admin/attributes/:id/options/:optionId/move-before"),
   ),
   keys: ({ context }) => context.attribute.options.map((item) => item.id),
   loadContext: loadAttributeOption,
   movedMessage: "Option moved",
   redirectPath: ({ context }) => `/admin/attributes/${context.attribute.id}`,
-  swap: scopedCollectionSwap(
-    attributeOptionsOrder,
-    ({ context }: { context: AttributeOptionContext }) => context.attribute.id,
-  ),
   target: ({ context }) => context.option.id,
 });
 
 const attributeOrder = createOrderedCollectionHandlers({
-  auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/move-up")),
+  arrange: flatCollectionArrange(attributesOrder),
+  auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/move-before")),
   keys: getAttributeIdsOrdered,
   loadContext: ({ id }: { id: number }) => getAttributeId(id),
   movedMessage: "Attribute moved",
   redirectPath: () => "/admin/attributes",
-  swap: flatCollectionSwap(attributesOrder),
   target: ({ context }) => context,
 });
 
