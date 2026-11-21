@@ -166,6 +166,8 @@
   "attendee_form.adjustment_description_long": "Keep each description to {limit} characters or fewer.",
   "attendee_form.adjustment_amount": "Amount {slot}",
   "attendee_form.adjustment_amount_invalid": "Enter a whole number of pence or cents, not zero.",
+  "attendee_form.adjustment_taxable": "Add tax to charge {slot}",
+  "attendee_form.adjustment_taxable_writeoff": "A writeoff cannot carry tax. Clear the tax box, or enter a positive amount.",
   "attendee_form.date_required": "A start date is required for the booked daily listings",
   "attendee_form.balance_paid_but_owes": "This attendee is in a paid status but still owes {amount}.",
   "attendee_form.balance_reservation_unpaid": "This reservation has no balance recorded, but {amount} of the order is still unpaid.",

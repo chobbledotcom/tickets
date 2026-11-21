@@ -199,11 +199,7 @@ const firstChildUnreachableAddOnForListings = (
       {
         active: modifier.active,
         name: modifier.name,
-        scope: requiredMapValue(
-          scopes,
-          modifier.id,
-          `Modifier ${modifier.id} missing`,
-        ),
+        scope: requiredMapValue(scopes, modifier.id),
         trigger: modifier.trigger,
       },
       childListingIds,

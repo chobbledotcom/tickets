@@ -7,7 +7,7 @@
  * income, the figure the card shows as its price.
  */
 
-import { groupToMap, sum } from "#fp";
+import { groupToMap, requiredMapValue, sum } from "#fp";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 
@@ -46,7 +46,10 @@ const splitOrder = (
     for (const [index, entry] of entries.entries()) {
       const amount = sign * parts[index]!;
       if (amount !== 0) {
-        shares.get(entry)!.push({ amount, name: modifier.name });
+        requiredMapValue(shares, entry).push({
+          amount,
+          name: modifier.name,
+        });
       }
     }
   }

@@ -184,15 +184,12 @@ const writeBundle = async (
     const idOf = (
       ref: BundleRef,
       idsByKey: ReadonlyMap<string, number>,
-      missing: string,
     ): number =>
       "bundleKey" in ref
-        ? requiredMapValue(idsByKey, ref.bundleKey, missing)
+        ? requiredMapValue(idsByKey, ref.bundleKey)
         : ref.siteId;
-    const listingIdOf = (ref: BundleRef): number =>
-      idOf(ref, listingIdByKey, "Planned listing id missing");
-    const groupIdOf = (ref: BundleRef): number =>
-      idOf(ref, groupIdByKey, "Planned group id missing");
+    const listingIdOf = (ref: BundleRef): number => idOf(ref, listingIdByKey);
+    const groupIdOf = (ref: BundleRef): number => idOf(ref, groupIdByKey);
     const memberships: ImportedMembership[] = pairs.map((pair) => ({
       ...pair.spec,
       groupId: groupIdOf(pair.group),

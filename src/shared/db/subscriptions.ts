@@ -7,8 +7,9 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
+import { abortUnless } from "#db/guarded-writes.ts";
 import { readRows } from "#db/read.ts";
-import { desc, greaterThan, not, notEqual } from "#db/select/expression.ts";
+import { desc, greaterThan, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { type RowOf, tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
@@ -155,18 +156,19 @@ export const getLiveRowBySubscriptionIdOrNull = async (
 /** A merge can replace this booking while Stripe answers. Refuse stale money
  * in the same batch as its ledger legs. */
 export const renewalBookingGuard = (row: LiveRow): SqlStatement =>
-  sql`INSERT INTO listing_attendees (listing_id)
-        SELECT NULL
-         WHERE ${not(
-           bookings()
-             .where({
-               attendeeId: row.attendeeId,
-               id: row.id,
-               listingId: row.listingId,
-               subscriptionId: row.subscriptionId,
-             })
-             .exists(),
-         )}`;
+  abortUnless(
+    sql`listing_attendees (listing_id)`,
+    sql`NULL`,
+  )(
+    bookings()
+      .where({
+        attendeeId: row.attendeeId,
+        id: row.id,
+        listingId: row.listingId,
+        subscriptionId: row.subscriptionId,
+      })
+      .exists(),
+  );
 
 /** The stored words that a write of `status` can replace. An ended status is
  * final, so it replaces any live one. A live status needs the row to hold the

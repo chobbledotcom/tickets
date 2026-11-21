@@ -63,12 +63,7 @@ export const dropChildListings = async (
     listings.map((listing) => listing.id),
   );
   return listings.filter(
-    (listing) =>
-      requiredMapValue(
-        parentsByChild,
-        listing.id,
-        `Listing ${listing.id} missing`,
-      ).length === 0,
+    (listing) => requiredMapValue(parentsByChild, listing.id).length === 0,
   );
 };
 

@@ -379,11 +379,7 @@ export const computeAttendeeRefunds = async (
   return await Promise.all(
     inputs.map((input) => {
       const account = attendeeAccount(input.attendeeId);
-      const legs = requiredMapValue(
-        transfers,
-        accountKey(account),
-        `Refund ledger read omitted attendee ${input.attendeeId}`,
-      );
+      const legs = requiredMapValue(transfers, accountKey(account));
       return computeAttendeeRefundFromLegs(
         input,
         legs,

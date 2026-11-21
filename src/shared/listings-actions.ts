@@ -172,12 +172,7 @@ const validateListingGroup: ListingUpdateCheck = async (
   return firstProblem(async (groupId: number): Promise<string | null> => {
     const checked = checkGroupListingSettings(
       groupsById.get(groupId),
-      () =>
-        requiredMapValue(
-          siblingsByGroup,
-          groupId,
-          "Missing group listing membership",
-        ),
+      () => requiredMapValue(siblingsByGroup, groupId),
       // The DB column defaults to "standard" when omitted (e.g. a JSON API
       // create that sends group_ids but no listing_type), so validate against
       // that default rather than passing undefined and reading every standard

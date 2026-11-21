@@ -16,6 +16,7 @@ import type {
   ListingAttendeeRow,
   ListingBooking,
 } from "#db/attendee-types.ts";
+import { settings } from "#db/settings.ts";
 import { range } from "#fp";
 import {
   type PackagePricesByListingId,
@@ -23,7 +24,11 @@ import {
 } from "#routes/admin/attendee-form-lines.ts";
 import { isValidAdjustmentAmount } from "#shared/booking-inputs.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
-import type { CreateReceipts } from "#shared/checkout-complete.ts";
+import {
+  type CreateAdjustment,
+  type CreateReceipts,
+  taxableChargeAmounts,
+} from "#shared/checkout-complete.ts";
 import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { START_DATE_BOX } from "#shared/order-select.ts";
@@ -88,11 +93,13 @@ export type AttendeeFormLine = {
   error: string | null;
 };
 
-/** One submitted adjustment slot: its raw description and signed amount.
- *  A slot the operator left entirely blank is null. */
+/** One submitted adjustment slot: its raw description and signed amount, and
+ *  whether the operator ticked its tax box. A slot the operator left entirely
+ *  blank is null. */
 export type SubmittedAdjustment = {
   amount: string;
   description: string;
+  taxable?: boolean;
 };
 
 /** The fixed payment slots the create form renders. A blank slot is null. */
@@ -165,7 +172,10 @@ const adjustmentSlots = (form: FormParams): (SubmittedAdjustment | null)[] =>
   range(0, ADJUSTMENT_SLOTS).map((slot) => {
     const amount = form.getString(`adjustmentAmount${slot}`);
     const description = form.getString(`adjustmentDescription${slot}`);
-    return amount === "" && description === "" ? null : { amount, description };
+    const taxable = form.getFlag(`adjustmentTaxable${slot}`);
+    return amount === "" && description === ""
+      ? null
+      : { amount, description, taxable };
   });
 
 /**
@@ -275,9 +285,13 @@ export const toCreateInput = (
  * paid and no booking fee, so this carries no extras and a zero total.
  * `owedOrderForLedger`/`bookingFactsFromOrder` then recognise each line's
  * gross as a `sale` leg (income) with no `payment`/`fee` leg. The manual-add
- * poster reconciles the owner-entered outstanding balance on top.
+ * poster reconciles the owner-entered outstanding balance on top. The
+ * taxable adjustments join the tax basis.
  */
-export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder =>
+export const toLedgerOrder = (
+  parsed: ParsedAttendeeForm,
+  adjustments: CreateAdjustment[],
+): PricedOrder =>
   listPriceOrder(
     parsed.lines.filter(isBookedLine).map((line) => {
       const agreedPrice = parseNonNegativeInt(line.priceRaw);
@@ -291,6 +305,8 @@ export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder =>
         ...(agreedPrice === null ? {} : { unitPrice: agreedPrice }),
       };
     }),
+    settings.tax,
+    taxableChargeAmounts(adjustments),
   );
 
 /** The recorded receipts behind a validated form: the payments and named
@@ -301,7 +317,13 @@ export const receiptsOf = (parsed: ParsedAttendeeForm): CreateReceipts => ({
     if (slot === null || slot.description === "") return [];
     const amount = parseSignedInt(slot.amount);
     return amount !== null && isValidAdjustmentAmount(amount)
-      ? [{ amount, description: slot.description }]
+      ? [
+          {
+            amount,
+            description: slot.description,
+            ...(slot.taxable === true ? { taxable: true } : {}),
+          },
+        ]
       : [];
   }),
   payments: parsed.payments.flatMap((raw) => {

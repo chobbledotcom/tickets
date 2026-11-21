@@ -29,6 +29,7 @@ export const bookingFactsFromOrder = (
   amountPaid: order.total,
   attendeeId: ctx.attendeeId,
   bookingFee: order.extras.find((extra) => extra.key === "fee")?.amount ?? 0,
+  charges: order.tax.basis.charges,
   eventId: ctx.eventId,
   ...taxBasisOfOrder(order),
   occurredAt: ctx.occurredAt,

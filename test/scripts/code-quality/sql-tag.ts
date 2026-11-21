@@ -175,7 +175,7 @@ export const findSqlTagViolationsIn = (
   files.flatMap((file) =>
     findSqlTagViolations(
       toRelative(file),
-      requiredMapValue(contents, file, `Missing source text for ${file}`),
+      requiredMapValue(contents, file),
       plainSqlFiles.includes(toRelative(file)),
     ),
   );

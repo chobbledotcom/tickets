@@ -29,7 +29,8 @@ import {
   prepareAttendeeAnswerSave,
   saveAttendeeAnswersTx,
 } from "#db/questions/attendee-answers/save.ts";
-import { byId, sum, sumOf } from "#fp";
+import { settings } from "#db/settings.ts";
+import { byId } from "#fp";
 import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, withAuth } from "#routes/auth.ts";
@@ -39,6 +40,8 @@ import { createdBookingEntries } from "#shared/booking.ts";
 import {
   apiCreateLedgerPoster,
   type CreateAdjustment,
+  remainingBalanceOf,
+  taxableChargeAmounts,
 } from "#shared/checkout-complete.ts";
 import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
 import { ATTENDEE_FEATURE_KEYS } from "#shared/records/attendee-answer-keys.ts";
@@ -85,14 +88,20 @@ const emailPendingFor = (lines: ApiLine[]): PendingNotificationFlag =>
 
 /** The gross ledger order for an API-created booking. Every line is at the
  *  listing's list price unless the caller agreed a per-unit price for it. It
- *  carries no extras. The receipts (payments, adjustments) ride the poster. */
-const toLedgerOrder = (lines: ApiLine[]): PricedOrder =>
+ *  carries no extras. The taxable adjustments join the tax basis. The other
+ *  receipts (payments, adjustments) ride the poster. */
+const toLedgerOrder = (
+  lines: ApiLine[],
+  adjustments: CreateAdjustment[],
+): PricedOrder =>
   listPriceOrder(
     lines.map((line) => ({
       listing: line.listing,
       quantity: line.quantity,
       ...(line.price === undefined ? {} : { unitPrice: line.price }),
     })),
+    settings.tax,
+    taxableChargeAmounts(adjustments),
   );
 
 /** The parsed answers reduced to the shape the answer save prepares: the
@@ -164,7 +173,7 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
     listingId: line.listing.id,
     quantity: line.quantity,
   }));
-  const order = toLedgerOrder(lines);
+  const order = toLedgerOrder(lines, adjustments);
   const receipts = { adjustments, payments };
   // Admin manual add can deliberately overbook (a warning shows, the system
   // does not block). The poster records the sale and VAT legs at the lines'
@@ -172,10 +181,8 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
   // transaction. The input carries the projected net as remainingBalance, so
   // the attendee owes the lines and charges minus what was paid or written
   // off. The net includes the tax, because the sale total is tax-inclusive.
-  const remainingBalance =
-    order.tax.total -
-    sum(payments) +
-    sumOf((adjustment: CreateAdjustment) => adjustment.amount)(adjustments);
+  // The order total already holds the taxable adjustments and their tax.
+  const remainingBalance = remainingBalanceOf(order, receipts);
   // The answers are encrypted and blind-indexed before the transaction opens.
   // The write itself rides the create work below. An answerless body prepares
   // no save but still records the questions the booking was asked.

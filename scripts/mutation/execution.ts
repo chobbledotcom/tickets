@@ -11,6 +11,7 @@ import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
 import { denoExitCode, denoExitDetail, envWith } from "./child-process.ts";
 import { planIsolateEntries } from "./isolate-entry.ts";
+import type { PlannedRun } from "./plan.ts";
 import type { EvaluationStatus, FrozenTestRun } from "./summary.ts";
 
 export type Outcome = "cancelled" | "failed" | "passed";
@@ -25,9 +26,12 @@ export interface StaticGate {
 export interface TestRunConfig {
   batchJobs: number;
   env: Record<string, string>;
-  /** Longest one test batch may run, or null to leave it unbounded. A caller
-   *  that has a baseline passes {@link testRunLimitMs}. */
+  /** Longest one test batch may run, or null to leave it unbounded. A run with
+   *  a plan sets each planned run's own limit instead. */
   limitMs: number | null;
+  /** The baseline's runs for a test set, quickest first. Without it, one run
+   *  holds every file and `limitMs` applies. */
+  plan?: (testFiles: readonly string[]) => readonly PlannedRun[];
   testFiles: string[];
 }
 
@@ -52,31 +56,6 @@ export interface TestRunResult {
   frozen?: FrozenTestRun;
   outcome: Outcome;
 }
-
-/** How far above its baseline a test batch must run before it counts as
- *  frozen: two orders of magnitude, which no loop that ends normally reaches. */
-const FROZEN_RUN_FACTOR = 100;
-
-/** The shortest limit. Process start-up and machine load vary by seconds, and
- *  a limit below this could stop a healthy batch on a busy machine. */
-const FROZEN_RUN_FLOOR_MS = 60_000;
-
-/**
- * The limit for one test batch in a run whose unmutated tests took
- * `baselineMs`. The limit is two orders of magnitude above the baseline, so a
- * mutant that merely runs slower than the original still finishes. Half the run
- * deadline caps the limit, except when the baseline is already longer. The
- * limit never drops below the baseline, so a frozen loop is usually named
- * before the whole-run guard fires.
- */
-export const testRunLimitMs = (
-  baselineMs: number,
-  deadlineMs: number,
-): number =>
-  Math.min(
-    Math.max(FROZEN_RUN_FLOOR_MS, baselineMs * FROZEN_RUN_FACTOR),
-    Math.max(baselineMs, deadlineMs / 2),
-  );
 
 export type TestBatchRunner = (
   batch: string[],
@@ -177,6 +156,7 @@ const runTestBatch: TestBatchRunner = async (batch, signal, env) => {
         [
           "test",
           "--no-check",
+          "--fail-fast",
           "--allow-all",
           "--parallel",
           "--preload",

@@ -88,7 +88,7 @@ describeWithEnv("free reservation construction", { db: true }, () => {
           listings: [],
           modifierUsages: [],
         }),
-      ).rejects.toThrow(`Listing ${missingId} was not loaded for checkout`);
+      ).rejects.toThrow(`Missing map key ${missingId}`);
     });
   });
 

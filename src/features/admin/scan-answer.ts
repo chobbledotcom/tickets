@@ -167,7 +167,6 @@ const performCheckIns = async ({
       `Attendee checked in ${ticketsWord(move.count)} via scanner for '${requiredMapValue(
         listingNames,
         move.listingId,
-        `Listing ${move.listingId} is no unit of this scan`,
       )}'`,
     ledger && {
       reserve: ledger.reserve,

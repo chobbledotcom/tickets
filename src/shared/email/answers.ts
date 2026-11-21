@@ -45,11 +45,7 @@ const asksOn = (
   questionListingMap: QuestionListingMap,
 ): boolean =>
   question.assignAll === true ||
-  requiredMapValue(
-    questionListingMap,
-    question.id,
-    `Missing listing assignments for question ${question.id}`,
-  ).includes(listingId);
+  requiredMapValue(questionListingMap, question.id).includes(listingId);
 
 /** The answer text this attendee gave for one question, or null when they
  * left it unanswered: a free-text question reads the held plaintext, a choice
@@ -108,13 +104,8 @@ export const entryAnswerLines =
   (lines: OrderAnswerLines) =>
   (entry: EmailEntry): AnswerLine[] =>
     requiredMapValue(
-      requiredMapValue(
-        lines,
-        entry.attendee.id,
-        `Missing answers for attendee ${entry.attendee.id}`,
-      ),
+      requiredMapValue(lines, entry.attendee.id),
       entry.listing.id,
-      `Missing answers for attendee ${entry.attendee.id} on listing ${entry.listing.id}`,
     );
 
 /** Each answer once, first seen first: two package members that ask the same

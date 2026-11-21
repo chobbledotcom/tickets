@@ -124,11 +124,7 @@ const hydrateListingJoins = async (
     listingAttributeOptions.getIdsByKeys(ids),
   ]);
   return mapById((row: (typeof rows)[number]) => ({
-    attribute_option_ids: requiredMapValue(
-      optionIdsByListing,
-      row.id,
-      "Missing listing attribute selection",
-    ),
+    attribute_option_ids: requiredMapValue(optionIdsByListing, row.id),
     group_ids: listingGroups.idsFor(groupIdsByListing, row.id),
   }))(rows);
 };

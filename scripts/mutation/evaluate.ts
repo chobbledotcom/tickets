@@ -17,6 +17,7 @@ import {
   runTestStages,
   type TestStageResult,
 } from "./phases.ts";
+import { type PlannedRun, timeLimit } from "./plan.ts";
 import type { EvaluationStatus, FrozenTestRun } from "./summary.ts";
 import {
   createMutantTestState,
@@ -122,8 +123,40 @@ const runTestFiles = async (
   phase: "direct-tests" | "integration-tests",
   testFiles: string[],
   env: Record<string, string>,
-): Promise<TestStageResult> =>
-  testStatus(phase, await deps.runTests({ ...run, env, testFiles }, signal));
+): Promise<TestStageResult> => {
+  const planned: readonly PlannedRun[] =
+    run.plan === undefined
+      ? [{ files: testFiles, ms: 0 }]
+      : run.plan(testFiles);
+  const timings: PhaseTiming[] = [];
+  for (const plannedRun of planned) {
+    const result = await deps.runTests(
+      {
+        ...run,
+        env,
+        limitMs: run.plan === undefined ? run.limitMs : timeLimit(plannedRun),
+        testFiles: [...plannedRun.files],
+      },
+      signal,
+    );
+    timings.push({ durationMs: result.durationMs, phase });
+    if (result.frozen !== undefined) {
+      return {
+        detectedBy: null,
+        frozen: result.frozen,
+        status: "cancelled",
+        timings,
+      };
+    }
+    if (result.outcome === "cancelled") {
+      return { detectedBy: null, status: "cancelled", timings };
+    }
+    if (result.outcome === "failed") {
+      return { detectedBy: phase, status: "killed", timings };
+    }
+  }
+  return { detectedBy: null, status: "survived", timings };
+};
 
 const runIntegrationTestStage = async (
   context: MutantRunContext,

@@ -145,21 +145,11 @@ const buildAttributeGroups = (
   ...reduce(
     (acc: Map<number, AttributeWithOptions>, row: JoinedAttributeRow) => {
       const group = acc.get(row.attribute_id) ?? {
-        ...requiredMapValue(
-          collected.attributes,
-          row.attribute_id,
-          `Attribute ${row.attribute_id} missing`,
-        ),
+        ...requiredMapValue(collected.attributes, row.attribute_id),
         options: [],
       };
       if (row.option_id !== null) {
-        group.options.push(
-          requiredMapValue(
-            collected.options,
-            row.option_id,
-            `Option ${row.option_id} missing`,
-          ),
-        );
+        group.options.push(requiredMapValue(collected.options, row.option_id));
       }
       return acc.set(row.attribute_id, group);
     },

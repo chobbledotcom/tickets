@@ -129,11 +129,7 @@ const apply = (event: ScreenEvent): void => {
   lifecycle.screen = next;
   renderDimming();
   for (const [index, state] of next.windows.entries()) {
-    const shell = requiredMapValue(
-      shells,
-      state.key,
-      "The modal shell is absent.",
-    );
+    const shell = requiredMapValue(shells, state.key);
     const { dialog, rendered } = shell;
     const zIndex = String(Z_INDEX_BASE + index);
     if (dialog.style.zIndex !== zIndex) dialog.style.zIndex = zIndex;

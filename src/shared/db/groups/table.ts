@@ -21,12 +21,7 @@ export const listingGroups = {
   idsFor: (
     idsByListing: ReadonlyMap<number, number[]>,
     listingId: number,
-  ): number[] =>
-    requiredMapValue(
-      idsByListing,
-      listingId,
-      "Missing listing group membership",
-    ),
+  ): number[] => requiredMapValue(idsByListing, listingId),
 };
 
 /** The read of the groups among `ids` where `also` holds. */
