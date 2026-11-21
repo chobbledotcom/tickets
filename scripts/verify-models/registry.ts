@@ -27,6 +27,9 @@ const paymentControl = dataFrom(
   () => import("#scripts/verify-models/counterexample.ts"),
 );
 const booking = dataFrom(() => import("#scripts/verify-models/booking.ts"));
+const sealedOrder = dataFrom(
+  () => import("#scripts/verify-models/sealed-order.ts"),
+);
 const workers = dataFrom(() => import("#scripts/verify-models/two-workers.ts"));
 const notification = dataFrom(
   () => import("#scripts/verify-models/notification-flag-lease.ts"),
@@ -242,6 +245,38 @@ export const VERIFICATION_MODULES = [
     data: booking((m) => m.bookingReplayModelData),
     kind: "model",
     module: "BookingReplay",
+  },
+  {
+    context: [
+      "verification/ModelRules.tla",
+      "scripts/verify-models/sealed-order.ts",
+      "src/features/api/payment-callback.ts",
+      "src/features/api/payment-processing/classify.ts",
+      "src/features/api/payment-processing/index.ts",
+      "src/features/api/payment-processing/lost-bundle.ts",
+      "src/features/api/payment-processing/settled-order.ts",
+      "src/shared/db/checkout-bundles.ts",
+    ],
+    controls: [
+      {
+        data: sealedOrder((m) => m.earlyReceiptData),
+        name: "a receipt while the session is open",
+        phase: "step",
+      },
+      {
+        data: sealedOrder((m) => m.settledAlarmData),
+        name: "a lost-order alarm for a settled session",
+        phase: "step",
+      },
+      {
+        data: sealedOrder((m) => m.lostOrderRefundData),
+        name: "a refund of a lost order",
+        phase: "step",
+      },
+    ],
+    data: sealedOrder((m) => m.sealedOrderModelData),
+    kind: "model",
+    module: "SealedOrder",
   },
   {
     context: [

@@ -22,6 +22,7 @@ import {
   notificationFlagLease,
 } from "#scripts/model-guides/guides/records.ts";
 import { modelRules } from "#scripts/model-guides/guides/rules.ts";
+import { sealedOrder } from "#scripts/model-guides/guides/sealed-order.ts";
 import { subscriptionCancellation } from "#scripts/model-guides/guides/subscriptions-cancellation.ts";
 import {
   subscriptionCheckout,
@@ -50,6 +51,7 @@ const GUIDE_BY_MODULE = {
   NotificationFlagLease: notificationFlagLease,
   PaymentReview: paymentReview,
   RefundReversal: refundReversal,
+  SealedOrder: sealedOrder,
   SharedGroupCapacity: sharedGroupCapacity,
   SquareLinkEnd: squareLinkEnd,
   SubscriptionCancellation: subscriptionCancellation,
