@@ -239,7 +239,7 @@ describeWithEnv("package pricing database revalidation", { db: true }, () => {
           listingsById: new Map(),
         },
       ),
-    ).toThrow("Missing linked listing 999");
+    ).toThrow("Missing map key 999");
   });
 
   test("accepts a child allocation while its parent edge still exists", async () => {
