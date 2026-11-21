@@ -147,9 +147,9 @@ describe("modal focus production facts", () => {
         "No press edge",
       ).target,
     ).toBe(id);
-    expect(() =>
-      focusFacts(() => ({ focus: "window", windows: [] })),
-    ).toThrow("does not hold an observed screen");
+    expect(() => focusFacts(() => ({ focus: "window", windows: [] }))).toThrow(
+      "does not hold an observed screen",
+    );
     expect(() =>
       focusFacts(() => ({
         focus: "window",

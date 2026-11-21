@@ -127,7 +127,10 @@ export const modalFocus: ModelGuide = {
       title: "Press the page and press a window",
       values: [
         { name: "after a press on the page", value: "focus 0, pageDim 0." },
-        { name: "windows", value: "Every window keeps its rank and turns dim." },
+        {
+          name: "windows",
+          value: "Every window keeps its rank and turns dim.",
+        },
         { name: "after a raise of a", value: "focus 1, pageDim 1, aDim 0." },
         { name: "bright parts", value: "Exactly one, in every screen." },
       ],
