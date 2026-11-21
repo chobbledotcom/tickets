@@ -50,7 +50,7 @@ describe("CI devenv profile", () => {
         "      - name: Check the machine safety model",
         "        shell: devenv --profile models shell bash -- -e {0}",
         "        env:",
-        "          MODEL: ${{ matrix.model }}",
+        `          MODEL: \${{ matrix.model }}`,
         '        run: deno task verify:models --model "$MODEL"',
       ].join("\n"),
     );
