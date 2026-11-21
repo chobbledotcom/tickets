@@ -172,7 +172,7 @@ jobs:
         run: deno task build:edge
 
   model-plan:
-    runs-on: tickets-builder
+    runs-on: ubicloud-standard-2
     timeout-minutes: 30
     outputs:
       models: ${{ steps.list.outputs.models }}
@@ -197,7 +197,7 @@ jobs:
   model-checks:
     needs: model-plan
     name: model-checks (${{ matrix.model }})
-    runs-on: tickets-builder
+    runs-on: ubicloud-standard-2
     # A wedged checker must fail loudly, so the job has a hard limit.
     timeout-minutes: 30
     strategy:
@@ -238,7 +238,7 @@ jobs:
   checks:
     needs: [static, model-plan, model-checks]
     if: ${{ always() }}
-    runs-on: tickets-builder
+    runs-on: ubicloud-standard-2
     timeout-minutes: 5
     defaults:
       run:
