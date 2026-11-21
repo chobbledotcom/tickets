@@ -59,8 +59,6 @@ AttemptedEdge(state, targetState, verdict, safe) ==
   /\ state' := targetState
   /\ safe' := ChecksStillPass(safe, verdict)
 
-========================================================================
-
 \* A table of observed states is a tuple of records, one for each state. A row id
 \* starts at zero, so row id 0 is tuple position 1. A caller supplies its own
 \* table, its own matrix of targets, and its own laws over the rows.
@@ -107,4 +105,4 @@ RanksInRange(s) ==
     /\ RankOf(s, key) \in {0, 1, 2, 3}
     /\ RankOf(s, key) <= OpenWindows(s)
 
-=====
+=============================================================================
