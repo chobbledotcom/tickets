@@ -4,7 +4,7 @@ import type { ModelGuide } from "#scripts/model-guides/types.ts";
 /* jscpd:ignore-start -- static data, not code */
 export const modalLifecycle: ModelGuide = {
   badOutcome:
-    "A restore forgets the expanded position, a close reverses the survivors, a point leaves the viewport, or two things are bright at once.",
+    "A restore forgets the expanded position, a close reverses the survivors, or a point leaves the viewport.",
   cast: [
     {
       meaning: "An admin window that leaves the rest of the page usable.",
@@ -46,17 +46,7 @@ export const modalLifecycle: ModelGuide = {
     },
     {
       meaning:
-        "Who has the focus. Focus 0 means the page has it. Focus 1 means the top window has it. With no window, the page has it.",
-      term: "focus",
-    },
-    {
-      meaning:
-        "A part of the screen that is dimmed. The page is dim while a window has the focus. A window is dim unless it is the top window with the focus.",
-      term: "dim",
-    },
-    {
-      meaning:
-        "One input to the pure reducer, such as open, raise, close, minimise, restore, move, resize, or a press on the page.",
+        "One input to the pure reducer, such as open, raise, close, minimise, restore, move, or resize.",
       term: "event",
     },
     {
@@ -66,17 +56,17 @@ export const modalLifecycle: ModelGuide = {
     },
   ],
   claim:
-    "This page follows an admin window stack from no window to close and restore. Every observed event keeps a valid stack, a saved expanded position, a point inside the limit, and exactly one bright part of the screen.",
+    "This page follows an admin window stack from no window to close and restore. Every observed event keeps a valid stack, a saved expanded position, and a point inside the limit.",
   limits: [
     "The examples use three keys, points 0 and 2, one move request of 3, sizes 2 by 2, and viewports 2 by 2 and 4 by 4. They do not prove every pixel input.",
     "Input keys and measurements are assumed. Each live window has a resize measurement, and open receives its initial positioned point.",
-    "The model checks a pure reducer. It does not prove browser event delivery, pointer capture, native focus events, native dialog timing, CSS size, rendered content, or actual viewport measurement.",
+    "The model checks a pure reducer. It does not prove browser event delivery, pointer capture, focus, native dialog timing, CSS size, rendered content, or actual viewport measurement.",
     "The model does not check drag click suppression, one axis of a position, or an oversized window.",
     "No fairness rule is present. Safety does not prove that a window eventually closes or restores.",
   ],
   module: "ModalLifecycle",
   safety:
-    "Every current state has a valid stack with unique consecutive ranks. Each live window has its requested point, clamped to the limit when the event needs a clamp. A saved point belongs to the expanded position. The page or one window has the focus, and exactly one part of the screen is bright. The initial row is empty and the retained verdict is true.",
+    "Every current state has a valid stack with unique consecutive ranks. Each live window has its requested point, clamped to the limit when the event needs a clamp. A saved point belongs to the expanded position. The initial row is empty and the retained verdict is true.",
   steps: [
     {
       code: [
@@ -85,8 +75,8 @@ export const modalLifecycle: ModelGuide = {
           symbol: "modalLifecycleFacts",
         },
         {
-          path: "src/ui/client/admin/modal-focus.ts",
-          symbol: "transitionScreen",
+          path: "src/ui/client/admin/modal-state.ts",
+          symbol: "transitionModals",
         },
       ],
       rules: ["Init", "Empty", "Keys", "NodeIds", "EventIds", "DomainOK"],
@@ -97,10 +87,9 @@ export const modalLifecycle: ModelGuide = {
         { name: "aRank", value: "0" },
         { name: "aPoint", value: "-1" },
         { name: "aSaved", value: "-1" },
-        { name: "focus", value: "0" },
-        { name: "state rows", value: "141" },
-        { name: "input rows", value: "13" },
-        { name: "observed transitions", value: "1833" },
+        { name: "state rows", value: "71" },
+        { name: "input rows", value: "12" },
+        { name: "observed transitions", value: "852" },
       ],
       what: "The model starts before the first open. Empty is the row with id 0 and every rank at zero. Keys names a, b, and c. NodeIds holds every discovered state id, and EventIds holds every selected event id. DomainOK checks that row 1 is Empty, that every row id matches its tuple position, and that every state has one target for each event.",
     },
@@ -226,53 +215,12 @@ export const modalLifecycle: ModelGuide = {
     {
       code: [
         {
-          path: "src/ui/client/admin/modal-focus.ts",
-          symbol: "transitionScreen",
-        },
-        {
-          path: "src/ui/client/admin/modal-focus.ts",
-          symbol: "dimmingFor",
-        },
-        {
-          path: "src/ui/client/admin/modal.ts",
-          symbol: "initAdminModalShell",
-        },
-      ],
-      rules: [
-        "Transition",
-        "FocusLaw",
-        "DimLaw",
-        "ExpectedDim",
-        "ExpectedPageDim",
-        "BrightCount",
-        "Dim",
-        "ValidStack",
-      ],
-      title: "Press the page and press a window",
-      values: [
-        { name: "after open a", value: "focus 1, pageDim 1, aDim 0." },
-        {
-          name: "after a press on the page",
-          value: "focus 0, pageDim 0, aDim 1. The window stays open.",
-        },
-        { name: "after a raise of a", value: "focus 1, pageDim 1, aDim 0." },
-        { name: "bright parts", value: "Exactly one, in every state." },
-      ],
-      what: "One thing has the focus: the page or the top window. An open or a raise of a live window gives that window the focus. A press on the page gives the focus to the page and moves no window. The last close gives the focus to the page. FocusLaw checks the focus after each event. Dim reads the dim flag of one window. ExpectedDim and ExpectedPageDim state which parts are dim. BrightCount adds the parts that are not dim. DimLaw requires that sum to be exactly one. The producer reads the observed dim from dimmingFor.",
-    },
-    {
-      code: [
-        {
           path: "scripts/verify-models/modal-lifecycle-matrix.ts",
           symbol: "modalTargets",
         },
         {
           path: "scripts/verify-models/modal-lifecycle.ts",
           symbol: "modalLifecycleModelData",
-        },
-        {
-          path: "src/ui/client/admin/modal-focus.ts",
-          symbol: "transitionScreen",
         },
       ],
       rules: [
@@ -283,21 +231,19 @@ export const modalLifecycle: ModelGuide = {
         "PointLaw",
         "OrderLaw",
         "SavedLaw",
-        "FocusLaw",
-        "DimLaw",
       ],
       title: "Every selected event fits the laws",
       values: [
-        { name: "state rows", value: "141" },
-        { name: "input rows", value: "13" },
-        { name: "observed transitions", value: "1833" },
+        { name: "state rows", value: "71" },
+        { name: "input rows", value: "12" },
+        { name: "observed transitions", value: "852" },
         {
           name: "target",
           value: "One observed reducer state id for each source and event.",
         },
         { name: "safe", value: "TRUE" },
       ],
-      what: "The producer runs transitionScreen at every discovered state for every selected event. The matrix stores the observed target id. LegalTransition checks the stack order, the saved position, the clamp law, the focus, and the dim for each key. DomainOK checks the state and event tables. Safety checks the current id, the retained verdict, and the domain. Next permits any transition or a pause. Safety does not prove that a window eventually closes.",
+      what: "The producer runs transitionModals at every discovered state for every selected event. The matrix stores the observed target id. LegalTransition checks the stack order, the saved position, and the clamp law for each key. DomainOK checks the state and event tables. Safety checks the current id, the retained verdict, and the domain. Next permits any transition or a pause. Safety does not prove that a window eventually closes.",
     },
   ],
   title: "Keep the admin window stack in order through close and restore",

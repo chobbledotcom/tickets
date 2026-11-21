@@ -8,6 +8,9 @@ import {
 } from "#scripts/verify-models/spec.ts";
 import { SUBSCRIPTION_MODULES } from "#scripts/verify-models/subscriptions/registry.ts";
 
+const modalFocus = dataFrom(
+  () => import("#scripts/verify-models/modal-focus.ts"),
+);
 const vat = dataFrom(() => import("#scripts/verify-models/vat.ts"));
 const square = dataFrom(() => import("#scripts/verify-models/square.ts"));
 const sumup = dataFrom(() => import("#scripts/verify-models/sumup.ts"));
@@ -58,6 +61,31 @@ const splitControl = (
 export const VERIFICATION_MODULES = [
   { context: [], kind: "helper", module: "ModelRules" },
   modalLifecycleVerification,
+  {
+    context: [
+      "verification/ModelRules.tla",
+      "scripts/verify-models/modal-focus.ts",
+      "scripts/verify-models/modal-lifecycle-matrix.ts",
+      "src/ui/client/admin/modal-focus.ts",
+      "src/ui/client/admin/modal-state.ts",
+      "src/ui/client/admin/modal.ts",
+    ],
+    controls: [
+      {
+        data: modalFocus((m) => m.twoBrightFocusData),
+        name: "two windows that are both bright",
+        phase: "initial",
+      },
+      {
+        data: modalFocus((m) => m.stuckFocusData),
+        name: "a press on the page leaving the focus in the window",
+        phase: "step",
+      },
+    ],
+    data: modalFocus((m) => m.modalFocusModelData),
+    kind: "model",
+    module: "ModalFocus",
+  },
   {
     context: [
       "verification/ModelRules.tla",

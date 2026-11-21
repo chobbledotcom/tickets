@@ -1,5 +1,16 @@
-import type { ModalFacts } from "#scripts/verify-models/modal-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
+
+/** The facts that the matrix reads: dense ids, and one edge for each source
+ * and event. A model may carry more fields on its rows. */
+export type TargetFacts = {
+  readonly snapshots: readonly { readonly id: number }[];
+  readonly events: readonly { readonly event: number }[];
+  readonly edges: readonly {
+    readonly event: number;
+    readonly source: number;
+    readonly target: number;
+  }[];
+};
 
 const boundedIndex = (value: number, count: number, field: string): number => {
   if (!Number.isSafeInteger(value) || value < 0 || value >= count) {
@@ -22,7 +33,7 @@ const orderedIds = <Row>(
 /** Every selected source/event pair has exactly one observed destination.
  * Reject missing, duplicate, noninteger, and out-of-domain links before render. */
 export const modalTargets = (
-  facts: ModalFacts,
+  facts: TargetFacts,
 ): readonly (readonly number[])[] => {
   if (facts.snapshots.length === 0 || facts.events.length === 0) {
     throw new Error("Empty modal transition domain");

@@ -1,3 +1,5 @@
+import type { ModelDataSource } from "#scripts/verify-models/data.ts";
+import type * as ModalProducer from "#scripts/verify-models/modal-lifecycle.ts";
 import {
   type CheckPhase,
   dataFrom,
@@ -9,43 +11,31 @@ const modal = dataFrom(
   () => import("#scripts/verify-models/modal-lifecycle.ts"),
 );
 
-/** The producer export that supplies each control's data. */
-type ControlData =
-  | "duplicateRankModalData"
-  | "twoBrightWindowsModalData"
-  | "forgottenPositionModalData"
-  | "stuckWindowFocusModalData"
-  | "reversedSurvivorsModalData";
-
 type ControlDefinition = readonly [
   name: string,
   phase: CheckPhase,
-  data: ControlData,
+  select: (producer: typeof ModalProducer) => ModelDataSource,
 ];
-/* jscpd:ignore-start -- static data, not code */
 const controlDefinitions = [
-  ["two windows sharing one stack rank", "initial", "duplicateRankModalData"],
-  ["two windows that are both bright", "initial", "twoBrightWindowsModalData"],
+  [
+    "two windows sharing one stack rank",
+    "initial",
+    (m) => m.duplicateRankModalData,
+  ],
   [
     "minimise forgetting the expanded position",
     "step",
-    "forgottenPositionModalData",
-  ],
-  [
-    "a press on the page leaving the focus in the window",
-    "step",
-    "stuckWindowFocusModalData",
+    (m) => m.forgottenPositionModalData,
   ],
   [
     "close reversing the two surviving windows",
     "step",
-    "reversedSurvivorsModalData",
+    (m) => m.reversedSurvivorsModalData,
   ],
 ] as const satisfies readonly [ControlDefinition, ...ControlDefinition[]];
-/* jscpd:ignore-end */
 
-const controls = controlDefinitions.map(([name, phase, data]) => ({
-  data: modal((m) => m[data]),
+const controls = controlDefinitions.map(([name, phase, select]) => ({
+  data: modal(select),
   name,
   phase,
 })) as [ModelControl, ...ModelControl[]];
@@ -57,7 +47,6 @@ export const modalLifecycleVerification = {
     "scripts/verify-models/modal-lifecycle.ts",
     "scripts/verify-models/modal-lifecycle-matrix.ts",
     "scripts/verify-models/modal-lifecycle-registration.ts",
-    "src/ui/client/admin/modal-focus.ts",
     "src/ui/client/admin/modal-state.ts",
     "src/ui/client/admin/modal-position.ts",
     "src/ui/client/admin/modal.ts",

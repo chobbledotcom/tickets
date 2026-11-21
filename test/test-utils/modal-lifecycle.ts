@@ -10,27 +10,21 @@ import {
 } from "#scripts/verify-models/modal-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
-  type ModalScreen,
-  type ScreenEvent,
-  transitionScreen,
-} from "#src/ui/client/admin/modal-focus.ts";
-import type { ModalState } from "#src/ui/client/admin/modal-state.ts";
+  type ModalEvent,
+  type ModalState,
+  transitionModals,
+} from "#src/ui/client/admin/modal-state.ts";
 import { records } from "#test-utils/tla-data.ts";
 
 /** Expected fact defaults describe an empty stack, not a reducer observation. */
 const EMPTY: ModalSnapshot = {
-  aDim: 0,
   aPoint: -1,
   aRank: 0,
   aSaved: -1,
-  bDim: 0,
   bPoint: -1,
   bRank: 0,
   bSaved: -1,
-  cDim: 0,
   cRank: 0,
-  focus: 0,
-  pageDim: 0,
 };
 const columns = Object.keys(EMPTY) as (keyof ModalSnapshot)[];
 type NextField = `next${Capitalize<keyof ModalSnapshot>}`;
@@ -38,29 +32,10 @@ export type ModalWitness = ModalSnapshot &
   Record<NextField, number> &
   ModalInput;
 
-/** The usual focus of a stack: the top window has it, so the page and every
- * lower window are dim. A fixture that needs another focus names its fields. */
-const topWindowFocus = (
-  fields: Partial<ModalSnapshot>,
-): Partial<ModalSnapshot> => {
-  const count = [fields.aRank, fields.bRank, fields.cRank].filter(
-    (rank) => rank !== undefined && rank > 0,
-  ).length;
-  const dim = (rank = 0): number => Number(rank > 0 && rank < count);
-  return {
-    aDim: dim(fields.aRank),
-    bDim: dim(fields.bRank),
-    cDim: dim(fields.cRank),
-    focus: Number(count > 0),
-    pageDim: Number(count > 0),
-  };
-};
-
 export const snapshotFixture = (
   fields: Partial<ModalSnapshot> = {},
 ): ModalSnapshot => ({
   ...EMPTY,
-  ...topWindowFocus(fields),
   ...fields,
 });
 
@@ -119,18 +94,9 @@ export const closeFirstWindowEdge = edgeFixture(
 );
 export const reversedSurvivorsEdge: ModalWitness = {
   ...closeFirstWindowEdge,
-  nextBDim: 0,
   nextBRank: 2,
-  nextCDim: 1,
   nextCRank: 1,
 };
-
-/** A press on the page whose target keeps the window focus. */
-export const stuckFocusEdge = edgeFixture(
-  snapshotFixture({ aPoint: 0, aRank: 1 }),
-  snapshotFixture({ aPoint: 0, aRank: 1 }),
-  { event: 12, key: "page", kind: "focus-page" },
-);
 
 const snapshotOfNode = (node: ModalNode): ModalSnapshot =>
   Object.fromEntries(
@@ -229,14 +195,14 @@ export const edgeIdsFor = (
 /** A fault changes a real reducer result before the producer extracts it. */
 export const modalFactsWithFault = (
   fault: (
-    result: ModalScreen,
-    before: ModalScreen,
-    event: ScreenEvent,
-  ) => ModalScreen,
+    result: readonly ModalState[],
+    before: readonly ModalState[],
+    event: ModalEvent,
+  ) => readonly ModalState[],
 ) =>
   witnessFacts(
     modalLifecycleFacts((before, event) =>
-      fault(transitionScreen(before, event), before, event),
+      fault(transitionModals(before, event), before, event),
     ),
   );
 
