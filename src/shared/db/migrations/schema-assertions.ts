@@ -1,4 +1,4 @@
-import { requiredMapValue } from "#fp";
+import { requiredMapValueWithMessage } from "#fp";
 
 type LiveTables = {
   tables: Map<string, Set<string>>;
@@ -67,7 +67,11 @@ export const assertLiveTableColumns = (
   assertColumnsPresent(
     kind,
     table,
-    requiredMapValue(live.tables, table, missingTableMessage(kind, table)),
+    requiredMapValueWithMessage(
+      live.tables,
+      table,
+      missingTableMessage(kind, table),
+    ),
     required,
   );
 };

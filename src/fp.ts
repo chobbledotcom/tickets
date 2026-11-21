@@ -251,9 +251,22 @@ export const sameOrder = <T>(
   return true;
 };
 
-/** Read a required map entry, failing where a broken completeness invariant is
- * first observed instead of passing an undefined value onward. */
+/** Read a map entry that the code has already proved is there. A missing key
+ * is a bug, so the error names the key and the stack names the place. For data
+ * that can arrive broken, use `requiredMapValueWithMessage`. */
 export const requiredMapValue = <Key, Value>(
+  values: ReadonlyMap<Key, Value>,
+  key: Key,
+): Value =>
+  requiredMapValueWithMessage(
+    values,
+    key,
+    `Required map entry missing: ${String(key)}`,
+  );
+
+/** Read a map entry from data that can arrive broken, such as an uploaded
+ * file or an API reply. The message says what is wrong with that data. */
+export const requiredMapValueWithMessage = <Key, Value>(
   values: ReadonlyMap<Key, Value>,
   key: Key,
   errorMessage: string,

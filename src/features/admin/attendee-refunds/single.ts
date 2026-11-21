@@ -52,7 +52,6 @@ const whatIsLeftToRefund = async (
       await requireRequestPrivateKey(),
     ),
     attendee.id,
-    `No refund references read for attendee ${attendee.id}`,
   );
   if (referenceSet.kind !== "complete") {
     return {

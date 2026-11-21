@@ -268,12 +268,7 @@ export const missingImageUseTargets = async (
     found.set(kind, await txIdSetInTable(imageUseTables[kind])(tx, ids));
   }
   return targets.filter(
-    (target) =>
-      !requiredMapValue(
-        found,
-        target.kind,
-        `No image use lookup for ${target.kind}`,
-      ).has(target.id),
+    (target) => !requiredMapValue(found, target.kind).has(target.id),
   );
 };
 

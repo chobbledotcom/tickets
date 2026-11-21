@@ -103,11 +103,7 @@ export const orderEdgeDriftedFromFacts = (
       listing.id,
       (facts.childIdsByParent.get(listing.id) ?? []).map((childId) =>
         buildTicketListing(
-          requiredMapValue(
-            facts.listingsById,
-            childId,
-            `Missing linked listing ${childId}`,
-          ),
+          requiredMapValue(facts.listingsById, childId),
           false,
           undefined,
         ),

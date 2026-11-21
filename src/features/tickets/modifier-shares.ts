@@ -46,7 +46,7 @@ const splitOrder = (
     for (const [index, entry] of entries.entries()) {
       const amount = sign * parts[index]!;
       if (amount !== 0) {
-        requiredMapValue(shares, entry, "Token entry has no share list").push({
+        requiredMapValue(shares, entry).push({
           amount,
           name: modifier.name,
         });

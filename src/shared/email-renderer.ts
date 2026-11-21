@@ -167,11 +167,7 @@ const entryGroupsBy = (
     // A group only collapses when its display resolves (the predicate
     // checks), so the display is always present here.
     return {
-      display: requiredMapValue(
-        displays,
-        group.groupId,
-        `Missing package display for collapsed group ${group.groupId}`,
-      ),
+      display: requiredMapValue(displays, group.groupId),
       entries: group.rows,
     };
   })(

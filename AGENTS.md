@@ -213,8 +213,10 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Copy the shared shape, not the nearest one**: When a helper already does
   the job, use it and delete the local copy in the same change. A record form
   POST uses `createIdEntityHandler` with `formGuard`. A lookup the boundary
-  cannot prove uses `requiredMapValue`. A whole-number form field parses with
-  `parseSignedInt` and names its rule with `validateWholeNumber`. A page opens
+  cannot prove uses `requiredMapValue`. A lookup in data that can arrive
+  broken, such as an uploaded file, uses `requiredMapValueWithMessage`. A
+  whole-number form field parses with `parseSignedInt` and names its rule with
+  `validateWholeNumber`. A page opens
   through `renderAdminPage` or `renderAdminPageSpec` at its own call site, not
   through a local wrapper. `src/features/admin/built-site-form.ts`,
   `src/features/admin/images.ts` and `src/ui/templates/fields/modifier.ts` are

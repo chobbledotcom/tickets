@@ -145,10 +145,7 @@ const commit = (ledger: Ledger, demand: Demand): void => {
   for (const { day, pool, units } of demandEntries(demand)) {
     const remaining = remainingOn(ledger, pool, day);
     if (remaining !== undefined) {
-      requiredMapValue(ledger, pool, `Pool ${pool} missing`).set(
-        day,
-        remaining - units,
-      );
+      requiredMapValue(ledger, pool).set(day, remaining - units);
     }
   }
 };

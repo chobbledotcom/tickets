@@ -218,11 +218,7 @@ const oldPinOf = (
   parentListingId: number;
   packageGroupId: number;
 } => {
-  const row = requiredMapValue(
-    existingByKey,
-    line.key,
-    `Booking line ${line.key} missing`,
-  );
+  const row = requiredMapValue(existingByKey, line.key);
   return {
     packageGroupId: row.package_group_id,
     parentListingId: row.parent_listing_id,

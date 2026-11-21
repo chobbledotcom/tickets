@@ -103,11 +103,7 @@ export const ticketCacheForScope = async (
     Promise.all(
       batch.map(async (token) => ({
         hash: await hmacHex(key, token),
-        tickets: requiredMapValue(
-          owedByToken,
-          token,
-          "A digested token lost its owed count",
-        ),
+        tickets: requiredMapValue(owedByToken, token),
       })),
     );
   const entries = (

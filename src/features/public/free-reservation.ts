@@ -134,11 +134,7 @@ export const createFreeReservation = async ({
   // its attendee from the batch's own ticket token.
   const sealedActivities = await sealBookedActivities(
     finalBookings.map((booking) => {
-      const listing = requiredMapValue(
-        listingById,
-        booking.listingId,
-        `Listing ${booking.listingId} missing`,
-      );
+      const listing = requiredMapValue(listingById, booking.listingId);
       return {
         listing,
         message: registeredActivityMessage(listing.name),

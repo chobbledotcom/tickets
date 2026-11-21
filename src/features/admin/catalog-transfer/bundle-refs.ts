@@ -9,7 +9,7 @@
  */
 
 import { matchName, type NameIndex } from "#db/name-registry.ts";
-import { requiredMapValue } from "#fp";
+import { requiredMapValueWithMessage } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { BundleRef } from "./bundle-plan.ts";
@@ -84,7 +84,11 @@ export const refsOf = <Body, Refs>(
   body: Body,
   description: string,
 ): Refs =>
-  requiredMapValue(refsByBody, body, `${description} references missing`);
+  requiredMapValueWithMessage(
+    refsByBody,
+    body,
+    `${description} references missing`,
+  );
 
 /** The first failed reference in a resolved list, for the item's report. */
 export const firstReferenceError = (

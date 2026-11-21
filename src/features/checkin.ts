@@ -202,11 +202,7 @@ const commitDoorMoves = async (
     entries.map((e) => [e.listing.id, e.listing.name]),
   );
   const listingName = (listingId: number): string =>
-    requiredMapValue(
-      listingNames,
-      listingId,
-      `Listing ${listingId} has no entry on this token`,
-    );
+    requiredMapValue(listingNames, listingId);
   return ticketCount(
     await moveTicketsAndLog(
       checkedIn ? "admit" : "release",

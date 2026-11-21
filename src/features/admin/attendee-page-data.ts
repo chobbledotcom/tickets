@@ -144,11 +144,9 @@ export const loadPackagePaths = async (): Promise<PackagePath[]> => {
     // The members loader seeds every requested group id, so that lookup
     // always hits. The price loader returns only groups with membership
     // rows, so a memberless package prices from an empty row set.
-    memberListingIds: requiredMapValue(
-      membersByGroupId,
-      group.id,
-      `Group ${group.id} missing`,
-    ).map((listing) => listing.id),
+    memberListingIds: requiredMapValue(membersByGroupId, group.id).map(
+      (listing) => listing.id,
+    ),
     memberPrices: packageMemberMaps(priceRowsByGroupId.get(group.id) ?? [])
       .prices,
     packageName: group.name,
@@ -184,11 +182,7 @@ const lineForExistingRow = (
   key: existing.key,
   // A stored row's listing always renders: booked inactive listings are in the
   // render set, and deleting a listing deletes its rows.
-  listing: requiredMapValue(
-    listingsById,
-    existing.booking.listing_id,
-    `Listing ${existing.booking.listing_id} missing`,
-  ),
+  listing: requiredMapValue(listingsById, existing.booking.listing_id),
   listingId: existing.booking.listing_id,
   // A stored quantity-0 line renders with the "no quantity" box ticked.
   noQuantity: existing.booking.quantity === 0,

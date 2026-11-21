@@ -13,7 +13,7 @@ import { readRows } from "#db/read.ts";
 import { among, equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { requiredMapValue, unique } from "#fp";
+import { requiredMapValueWithMessage, unique } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Group, ListingWithCount } from "#types";
@@ -76,7 +76,7 @@ export const groupOptIns = (
   addOnsByGroup: ReadonlyMap<number, GroupOptIns>,
   groupId: number,
 ): GroupOptIns =>
-  requiredMapValue(addOnsByGroup, groupId, "Group add-ons missing");
+  requiredMapValueWithMessage(addOnsByGroup, groupId, "Group add-ons missing");
 
 /** The group-scoped opt-in add-ons covering `groupIds`, one query, names
  * decrypted for the refusal message. These are the only opt-ins that can
@@ -221,7 +221,7 @@ export const siteListingOf = (
   ref: BundleRef & { siteId: number },
   context: ValidationContext,
 ): ListingWithCount =>
-  requiredMapValue(
+  requiredMapValueWithMessage(
     context.siteListingById,
     ref.siteId,
     "Referenced listing missing",
@@ -233,7 +233,7 @@ export const bundleGroupOf = (
   context: ValidationContext,
 ): GroupBody =>
   context.bundle.groups[
-    requiredMapValue(
+    requiredMapValueWithMessage(
       context.groupIndexByName,
       ref.bundleKey,
       "Bundle group missing",
@@ -247,7 +247,7 @@ export const groupViewOf = (
   context: ValidationContext,
 ): { isPackage: boolean; hidePackageListings: boolean } => {
   if ("siteId" in ref) {
-    const row = requiredMapValue(
+    const row = requiredMapValueWithMessage(
       context.siteGroupById,
       ref.siteId,
       "Referenced group missing",

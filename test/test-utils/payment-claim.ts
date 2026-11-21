@@ -52,16 +52,8 @@ export const claimCurrentAttendeeRows = async (
   }));
   const references = await getCompleteRefundPaymentReferences(sources);
   const loadedAttendees = sources.map(({ id }) => {
-    const attendee = requiredMapValue(
-      storedById,
-      id,
-      `Attendee ${id} was not found before the claim`,
-    );
-    const loaded = requiredMapValue(
-      references,
-      id,
-      `Attendee ${id}'s payment references were not loaded`,
-    );
+    const attendee = requiredMapValue(storedById, id);
+    const loaded = requiredMapValue(references, id);
     return {
       attendeeId: id,
       loadedPiiBlob: attendee.pii_blob,
@@ -239,11 +231,7 @@ export const releaseClaimRows = (
         {
           ...changes.get(sessionId),
           claim: "release",
-          phase: requiredMapValue(
-            claim.phases,
-            sessionId,
-            `Test claim lost payment-row phase ${sessionId}`,
-          ),
+          phase: requiredMapValue(claim.phases, sessionId),
         } as const,
       ]),
     ),

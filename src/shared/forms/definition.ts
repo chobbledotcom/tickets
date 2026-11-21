@@ -115,7 +115,7 @@ export const defineForm = <
   ] as FormSectionId<TFields>[];
 
   const fieldByName = (name: TFields[number]["name"]): Field =>
-    requiredMapValue(fieldMap, name, `Unknown field: ${name}`);
+    requiredMapValue(fieldMap, name);
 
   const validate = (
     form: FormParams,

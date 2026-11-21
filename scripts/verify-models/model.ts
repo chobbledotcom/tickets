@@ -167,12 +167,8 @@ const refundMoves = (start: string) => {
 /** Run the production transitions. No stored copy supplies proof inputs. */
 export const paymentModel = async (): Promise<PaymentModel> => {
   const machines = new Map(Object.entries((await currentContracts()).machines));
-  const row = requiredMapValue(machines, "row", "The row machine is absent");
-  const refund = requiredMapValue(
-    machines,
-    "refund",
-    "The refund machine is absent",
-  );
+  const row = requiredMapValue(machines, "row");
+  const refund = requiredMapValue(machines, "refund");
   const claimedRows = nodeIdsWhere(
     ROW_NODES,
     "Row",

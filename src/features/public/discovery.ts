@@ -155,11 +155,7 @@ export const classifyForDiscovery = async (
     // to "addon" before it could read as a normal standalone card.
     if (!nonStandaloneChildIds.has(childId)) return false;
     // childId comes from the displayed `ids`, so it is always present in `listingById`.
-    const child = requiredMapValue(
-      listingById,
-      childId,
-      `Listing ${childId} missing`,
-    );
+    const child = requiredMapValue(listingById, childId);
     return parents.some(
       (p) =>
         parentBookable(p, parentGroupRemaining.get(p.id)) &&
