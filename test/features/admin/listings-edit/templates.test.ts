@@ -13,43 +13,20 @@ import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
-import { testListingInput } from "#test-utils/factories.ts";
-import { adminGet, adminMultipartPost } from "#test-utils/session.ts";
 import {
   featureSetting,
   setupStripe,
   withSetting,
 } from "#test-utils/settings.ts";
+import { carriedTemplate, pageAt, rejectedCreate } from "./fixtures.ts";
 
 const PICKER_HEADING = "Choose a listing type";
 const FORM_HEADING = "<h1>Add Listing</h1>";
-
-const pageAt = async (path: string): Promise<string> =>
-  await (await adminGet(path)).text();
 
 /** The page is the type picker, not a form. */
 const expectPicker = (html: string): void => {
   assertStringIncludes(html, PICKER_HEADING);
   assert(!html.includes(FORM_HEADING));
-};
-
-/** The template the page will carry back into a re-submitted create. */
-const carriedTemplate = (html: string): string | null =>
-  /name="templateId"[^>]*value="([^"]*)"/.exec(html)?.[1] ?? null;
-
-/** A create that always fails validation, so the error page renders. The blank
- * name is what fails; every other field is the shape under test. */
-const rejectedCreate = async (
-  shape: Parameters<typeof testListingInput>[0],
-  extra: Record<string, string> = {},
-): Promise<string> => {
-  const { response } = await adminMultipartPost("/admin/listing", {
-    ...buildCreateListingForm(testListingInput({ ...shape, name: "" })),
-    ...extra,
-  });
-  expect(response.status).toBe(400);
-  return await response.text();
 };
 
 describeWithEnv("opening the new listing form", { db: true }, () => {

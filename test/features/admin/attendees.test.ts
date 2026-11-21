@@ -5,20 +5,29 @@
  * view with the confirmation.
  */
 
-import { assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryOne } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
+import { t } from "#i18n";
+import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
   adminCheckinPost as checkIn,
   setupListingAndAttendee,
-  submitDeleteIncomplete,
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
-import { adminFormPost, getTestSession } from "#test-utils/session.ts";
+import { decryptFirstAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import { adminFormPost } from "#test-utils/session.ts";
+import {
+  expectClearOutcome,
+  stuckPaidAttendee,
+} from "./attendees/incomplete.ts";
 
 /** Whether the roster row for one attendee on one listing is checked in. */
 const isCheckedIn = async (
@@ -148,12 +157,139 @@ describeWithEnv("adding an attendee by hand", { db: true }, () => {
       { email: "late@example.com", name: "Too Late", quantity: "1" },
     );
 
-    expect(response.status).toBe(302);
-    assertStringIncludes(
-      response.headers.get("location") ?? "",
+    expectRedirectWithFlash(
       `/admin/listing/${listing.id}/attendees`,
-    );
+      t("error.not_enough_spots"),
+      false,
+    )(response);
   });
+
+  test("turns a form with no name away with the reason", async () => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+
+    const { response } = await adminFormPost(
+      `/admin/listing/${listing.id}/attendee`,
+      { email: "nameless@example.com", quantity: "1" },
+    );
+
+    expectRedirectWithFlash(
+      `/admin/listing/${listing.id}/attendees`,
+      expect.stringContaining("required"),
+      false,
+    )(response);
+  });
+
+  test("writes the addition in the listing's history", async () => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+
+    await adminFormPost(`/admin/listing/${listing.id}/attendee`, {
+      email: "logged@example.com",
+      name: "Written Down",
+      quantity: "1",
+    });
+
+    assertArrayIncludes(await activityMessages(), [
+      "Attendee 'Written Down' added manually",
+    ]);
+  });
+
+  test("stores the details the listing never asked for as empty", async () => {
+    const phoneOnly = await createTestListing({ fields: "phone" });
+    const emailOnly = await createTestListing({ fields: "email" });
+
+    await adminFormPost(`/admin/listing/${phoneOnly.id}/attendee`, {
+      name: "Phone Guest",
+      phone: "07700900123",
+      quantity: "1",
+    });
+    await adminFormPost(`/admin/listing/${emailOnly.id}/attendee`, {
+      email: "mail@example.com",
+      name: "Mail Guest",
+      quantity: "1",
+    });
+
+    expect(await decryptFirstAttendee(phoneOnly.id)).toMatchObject({
+      address: "",
+      email: "",
+      phone: "07700900123",
+      special_instructions: "",
+    });
+    expect(await decryptFirstAttendee(emailOnly.id)).toMatchObject({
+      address: "",
+      email: "mail@example.com",
+      phone: "",
+      special_instructions: "",
+    });
+  });
+});
+
+describeWithEnv("the days an added attendee stays", { db: true }, () => {
+  const day = (stamp: string | null | undefined) => stamp?.slice(0, 10) ?? null;
+  const daily = { maxAttendees: 10, maximumDaysAfter: 100 };
+  const nights = { end: "2026-09-03", start: "2026-09-01" };
+
+  const stayCases = [
+    {
+      form: { date: "2026-09-01" },
+      listing: () => createDailyTestListing({ ...daily, durationDays: 2 }),
+      name: "a daily listing books its own length",
+      stay: nights,
+    },
+    {
+      form: { date: "2026-09-01", dayCount: "2" },
+      listing: () =>
+        createDailyTestListing({
+          ...daily,
+          customisableDays: true,
+          dayPrices: { 1: 1000, 2: 1800, 3: 2500 },
+          durationDays: 3,
+        }),
+      name: "a daily listing that lets the operator choose books the chosen length",
+      stay: nights,
+    },
+    {
+      form: {},
+      listing: () =>
+        createTestListing({
+          customisableDays: true,
+          dayPrices: { 1: 1000, 2: 1800 },
+          durationDays: 2,
+          maxAttendees: 10,
+        }),
+      name: "a standard listing flagged for choosing books no day",
+      stay: { end: null, start: null },
+    },
+  ];
+
+  for (const { form, listing: makeListing, name, stay } of stayCases) {
+    test(name, async () => {
+      const listing = await makeListing();
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/attendee`,
+        {
+          email: "stay@example.com",
+          name: "Stay Guest",
+          quantity: "1",
+          ...form,
+        },
+      );
+
+      expectRedirectWithFlash(
+        `/admin/listing/${listing.id}/attendees`,
+        "Added Stay Guest",
+      )(response);
+      const line = await queryOne<{
+        start_at: string | null;
+        end_at: string | null;
+      }>(
+        sql`SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ${listing.id}`,
+      );
+      expect({ end: day(line?.end_at), start: day(line?.start_at) }).toEqual(
+        stay,
+      );
+    });
+  }
 });
 
 describeWithEnv("clearing an incomplete payment", { db: true }, () => {
@@ -164,15 +300,20 @@ describeWithEnv("clearing an incomplete payment", { db: true }, () => {
       name: "Fully Booked",
     });
 
-    const { cookie, csrfToken } = await getTestSession();
-    const response = await submitDeleteIncomplete(
-      listing.id,
-      attendee.id,
-      cookie,
-      csrfToken,
-    );
+    await expectClearOutcome(listing, attendee, {
+      flash: t("error.attendee_no_incomplete_payment"),
+      left: 1,
+      succeeded: false,
+    });
+  });
 
-    expect(response.status).toBe(302);
-    expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
+  test("removes a payment that never completed and says so", async () => {
+    const { attendee, listing } = await stuckPaidAttendee();
+
+    await expectClearOutcome(listing, attendee, {
+      flash: "Incomplete registration removed",
+      left: 0,
+      succeeded: true,
+    });
   });
 });

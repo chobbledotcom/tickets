@@ -56,6 +56,17 @@ test("requireDateString trims and validates a real calendar day", () => {
   });
 });
 
+test("requireDateString answers a blank text as required, not invalid", () => {
+  expect(requireDateString({ start_date: "" }, "start_date")).toEqual({
+    error: "start_date is required",
+    ok: false,
+  });
+  expect(requireDateString({ start_date: "   " }, "start_date")).toEqual({
+    error: "start_date is required",
+    ok: false,
+  });
+});
+
 test("optionalDateString keeps the fallback when the key is absent", () => {
   expect(optionalDateString({}, "start_date", "2026-01-01")).toEqual({
     ok: true,
