@@ -1,6 +1,7 @@
 name: Runner benchmark
 
-# Scratch branch only. Time every model on every runner size, cold, twice.
+# Scratch branch only. Time the heavy models on two runner sizes, with and
+# without the pass-cache step that the pull request workflow has.
 on:
   push:
     branches: [claude/runner-benchmark]
@@ -9,31 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  plan:
-    runs-on: ubicloud-standard-2
-    timeout-minutes: 30
-    defaults:
-      run:
-        shell: bash
-    outputs:
-      models: ${{ steps.list.outputs.models }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.4.0
-        with:
-          persist-credentials: false
-
-      - name: Set up model tools
-        uses: $/.github/actions/setup-model-tools
-
-      - name: List the registered models
-        id: list
-        run: echo "models=$(deno task --quiet verify:models --list)" >> "$GITHUB_OUTPUT"
-
   benchmark:
-    needs: plan
-    name: bench ${{ matrix.model }} ${{ matrix.runner }} ${{ matrix.rep }}
+    name: bench ${{ matrix.model }} ${{ matrix.runner }} ${{ matrix.variant }} ${{ matrix.rep }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     defaults:
@@ -42,12 +20,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model: ${{ fromJSON(needs.plan.outputs.models) }}
+        model:
+          - ModalLifecycle
+          - SubscriptionCancellation
+          - SubscriptionCheckout
+          - SubscriptionLifecycle
+          - SubscriptionRecords
+          - SubscriptionRenewals
         runner:
           - ubicloud-standard-2
           - ubicloud-standard-4
-          - ubicloud-standard-8
-          - ubicloud-standard-16
+        variant: [plain, cache]
         rep: [a, b]
 
     steps:
@@ -58,6 +41,15 @@ jobs:
 
       - name: Set up model tools
         uses: $/.github/actions/setup-model-tools
+
+      - name: Restore the model passes
+        if: matrix.variant == 'cache'
+        uses: actions/cache@v4.3.0
+        with:
+          path: .verify-models-passes
+          key: verify-models-${{ runner.os }}-${{ matrix.model }}-${{ github.sha }}-${{ matrix.runner }}-${{ matrix.rep }}
+          restore-keys: |
+            verify-models-${{ runner.os }}-${{ matrix.model }}-
 
       - name: Check the machine safety model
         env:
