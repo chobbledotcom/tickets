@@ -67,9 +67,7 @@ VARIABLES
 \* @type: Set(Str);
 Keys == {"a", "b", "c"}
 \* @type: Set(Int);
-NodeIds == {index - 1 : index \in DOMAIN Snapshots}
-\* @type: Set(Int);
-EventIds == {e.event : e \in Events}
+NodeIds == RowIds(Snapshots)
 \* @type: $snapshotsFact;
 Empty == [id |-> 0, aRank |-> 0, aPoint |-> -1, aSaved |-> -1,
           bRank |-> 0, bPoint |-> -1, bSaved |-> -1, cRank |-> 0]
@@ -77,10 +75,7 @@ Empty == [id |-> 0, aRank |-> 0, aPoint |-> -1, aSaved |-> -1,
 \* The ordered state table permits direct lookup, without a set search.
 \* DomainOK checks that each row's stored id matches its tuple position.
 \* @type: (Int) => $snapshotsFact;
-Snapshot(id) == Snapshots[id + 1]
-\* @type: ($snapshotsFact, Str) => Int;
-Rank(s, key) ==
-  IF key = "a" THEN s.aRank ELSE IF key = "b" THEN s.bRank ELSE s.cRank
+Snapshot(id) == RowAt(Snapshots, id)
 \* @type: ($snapshotsFact, Str) => Int;
 Point(s, key) ==
   IF key = "a" THEN s.aPoint ELSE IF key = "b" THEN s.bPoint
@@ -88,23 +83,18 @@ Point(s, key) ==
 \* @type: ($snapshotsFact, Str) => Int;
 Saved(s, key) ==
   IF key = "a" THEN s.aSaved ELSE IF key = "b" THEN s.bSaved ELSE -1
-\* @type: ($snapshotsFact) => Int;
-Count(s) == (IF s.aRank > 0 THEN 1 ELSE 0) +
-            (IF s.bRank > 0 THEN 1 ELSE 0) + (IF s.cRank > 0 THEN 1 ELSE 0)
-
 
 \* A valid stack has unique, consecutive ranks. An absent key owns no position.
 \* These structural rules detect duplicate open results and broken removals.
 \* @type: ($snapshotsFact) => Bool;
 ValidStack(s) ==
+  /\ RanksInRange(s)
   /\ \A key \in Keys :
-       /\ Rank(s, key) \in {0, 1, 2, 3}
-       /\ (Rank(s, key) = 0 => Point(s, key) = -1 /\ Saved(s, key) = -1)
-       /\ (Rank(s, key) > 0 => Point(s, key) \in {0, 2} /\ Saved(s, key) \in {-1, 0, 2})
-       /\ Rank(s, key) <= Count(s)
+       /\ (RankOf(s, key) = 0 => Point(s, key) = -1 /\ Saved(s, key) = -1)
+       /\ (RankOf(s, key) > 0 => Point(s, key) \in {0, 2} /\ Saved(s, key) \in {-1, 0, 2})
   /\ \A first \in Keys : \A second \in Keys :
-       first # second /\ Rank(s, first) > 0 /\ Rank(s, second) > 0 =>
-         Rank(s, first) # Rank(s, second)
+       first # second /\ RankOf(s, first) > 0 /\ RankOf(s, second) > 0 =>
+         RankOf(s, first) # RankOf(s, second)
 
 \* A clamp must return the requested point inside the boundary. Outside it,
 \* the nearest legal edge is required. This law does not call the JS clamp.
@@ -123,7 +113,7 @@ Clamped(request, result, limit) ==
 PositionEvent(before, e, key, kinds) ==
   /\ e.key = key
   /\ e.kind \in kinds
-  /\ CASE e.kind = "open" -> Rank(before, key) = 0
+  /\ CASE e.kind = "open" -> RankOf(before, key) = 0
        [] e.kind = "restore" -> Saved(before, key) # -1
        [] OTHER -> TRUE
 
@@ -132,16 +122,16 @@ PositionEvent(before, e, key, kinds) ==
 \* the top rank for raise/open, zero for close. No other event changes order.
 \* @type: ($snapshotsFact, $snapshotsFact, $eventsFact, Str) => Bool;
 OrderLaw(before, after, e, key) ==
-  LET old == Rank(before, key)
-      selected == Rank(before, e.key)
+  LET old == RankOf(before, key)
+      selected == RankOf(before, e.key)
       required ==
-        IF PositionEvent(before, e, key, {"open"}) THEN Count(before) + 1
+        IF PositionEvent(before, e, key, {"open"}) THEN OpenWindows(before) + 1
         ELSE IF e.kind \in {"open", "raise", "close"} /\ selected > 0
         THEN IF key = e.key
-             THEN IF e.kind = "close" THEN 0 ELSE Count(before)
+             THEN IF e.kind = "close" THEN 0 ELSE OpenWindows(before)
              ELSE old - (IF old > selected THEN 1 ELSE 0)
         ELSE old
-  IN Rank(after, key) = required
+  IN RankOf(after, key) = required
 
 \* Open and move request the input point. Restore requests the saved point.
 \* All other events request the current point. This rule does not clamp it.
@@ -162,7 +152,7 @@ NeedsClamp(before, e, key) ==
 \* @type: ($snapshotsFact, $snapshotsFact, $eventsFact, Str) => Bool;
 SavedLaw(before, after, e, key) ==
   Saved(after, key) =
-    IF Rank(after, key) = 0 \/ PositionEvent(before, e, key, {"open", "restore"})
+    IF RankOf(after, key) = 0 \/ PositionEvent(before, e, key, {"open", "restore"})
     THEN -1
     ELSE IF PositionEvent(before, e, key, {"minimise"}) /\ Saved(before, key) = -1
     THEN Point(before, key)
@@ -172,7 +162,7 @@ SavedLaw(before, after, e, key) ==
 \* either unchanged or clamped under the independent nearest-edge law.
 \* @type: ($snapshotsFact, $snapshotsFact, $eventsFact, Str) => Bool;
 PointLaw(before, after, e, key) ==
-  IF Rank(after, key) = 0 THEN Point(after, key) = -1
+  IF RankOf(after, key) = 0 THEN Point(after, key) = -1
   ELSE IF NeedsClamp(before, e, key)
   THEN Clamped(RequestedPoint(before, e, key), Point(after, key), e.limit)
   ELSE Point(after, key) = RequestedPoint(before, e, key)
@@ -194,17 +184,9 @@ LegalTransition(source, target, input) ==
 \* Generator tests also require every selected event at every discovered state.
 \* @type: Bool;
 DomainOK ==
-  /\ Len(Snapshots) > 0 /\ Events # {} /\ Len(Targets) > 0
+  /\ TablesWellFormed(Snapshots, Targets, Events)
   /\ Snapshots[1] = Empty
-  /\ Len(Snapshots) = Len(Targets)
-  /\ Cardinality(Events) = Cardinality(EventIds)
-  /\ EventIds = {index - 1 : index \in DOMAIN Targets[1]}
-  /\ \A index \in DOMAIN Snapshots :
-       /\ Snapshots[index].id = index - 1
-       /\ ValidStack(Snapshots[index])
-  /\ \A source \in NodeIds :
-       /\ Len(Targets[source + 1]) = Cardinality(Events)
-       /\ \A event \in EventIds : Targets[source + 1][event + 1] \in NodeIds
+  /\ \A index \in DOMAIN Snapshots : ValidStack(Snapshots[index])
 
 \* Every current id selects one domain row. DomainOK requires each row to have
 \* a valid stack. Safety checks the domain, current id, and sticky verdict.

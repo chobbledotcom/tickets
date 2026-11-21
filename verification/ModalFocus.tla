@@ -37,57 +37,46 @@ VARIABLES
 \* @type: Set(Str);
 Keys == {"a", "b", "c"}
 \* @type: Set(Int);
-ScreenIds == {index - 1 : index \in DOMAIN Snapshots}
-\* @type: Set(Int);
-EventIds == {e.event : e \in Events}
+ScreenIds == RowIds(Snapshots)
 \* @type: $snapshotsFact;
 Blank == [id |-> 0, aRank |-> 0, aDim |-> 0, bRank |-> 0, bDim |-> 0,
           cRank |-> 0, cDim |-> 0, focus |-> 0, pageDim |-> 0]
 
 \* @type: (Int) => $snapshotsFact;
-Snapshot(id) == Snapshots[id + 1]
-\* @type: ($snapshotsFact, Str) => Int;
-Rank(s, key) ==
-  IF key = "a" THEN s.aRank ELSE IF key = "b" THEN s.bRank ELSE s.cRank
+Snapshot(id) == RowAt(Snapshots, id)
 \* @type: ($snapshotsFact, Str) => Int;
 Dim(s, key) ==
   IF key = "a" THEN s.aDim ELSE IF key = "b" THEN s.bDim ELSE s.cDim
-\* The number of open windows.
-\* @type: ($snapshotsFact) => Int;
-Total(s) == (IF s.aRank > 0 THEN 1 ELSE 0) +
-            (IF s.bRank > 0 THEN 1 ELSE 0) + (IF s.cRank > 0 THEN 1 ELSE 0)
-
 \* A valid screen has unique consecutive ranks, and a focus of 0 or 1. With no
 \* window open, the page holds the focus. An absent window is never dim.
 \* @type: ($snapshotsFact) => Bool;
 ValidScreen(s) ==
+  /\ RanksInRange(s)
   /\ \A key \in Keys :
-       /\ Rank(s, key) \in {0, 1, 2, 3}
-       /\ Rank(s, key) <= Total(s)
        /\ Dim(s, key) \in {0, 1}
-       /\ (Rank(s, key) = 0 => Dim(s, key) = 0)
+       /\ (RankOf(s, key) = 0 => Dim(s, key) = 0)
   /\ \A first, second \in Keys :
-       (first # second /\ Rank(s, first) = Rank(s, second)) =>
-         Rank(s, first) = 0
+       (first # second /\ RankOf(s, first) = RankOf(s, second)) =>
+         RankOf(s, first) = 0
   /\ s.focus \in {0, 1} /\ s.pageDim \in {0, 1}
-  /\ (Total(s) = 0 => s.focus = 0)
+  /\ (OpenWindows(s) = 0 => s.focus = 0)
 
 \* The page is dim while a window holds the focus. A window is dim unless it is
 \* the top window and a window holds the focus. This law does not call the JS rule.
 \* @type: ($snapshotsFact, Str) => Int;
 ExpectedDim(s, key) ==
-  IF Rank(s, key) > 0 /\ (s.focus = 0 \/ Rank(s, key) < Total(s)) THEN 1 ELSE 0
+  IF RankOf(s, key) > 0 /\ (s.focus = 0 \/ RankOf(s, key) < OpenWindows(s)) THEN 1 ELSE 0
 \* @type: ($snapshotsFact) => Int;
-ExpectedPageDim(s) == IF Total(s) > 0 /\ s.focus = 1 THEN 1 ELSE 0
+ExpectedPageDim(s) == IF OpenWindows(s) > 0 /\ s.focus = 1 THEN 1 ELSE 0
 
 \* The page and each open window are the bright candidates. A bright candidate
 \* is not dim. Exactly one candidate is bright.
 \* @type: ($snapshotsFact) => Int;
 BrightCount(s) ==
   (1 - s.pageDim)
-  + (IF Rank(s, "a") > 0 THEN 1 - s.aDim ELSE 0)
-  + (IF Rank(s, "b") > 0 THEN 1 - s.bDim ELSE 0)
-  + (IF Rank(s, "c") > 0 THEN 1 - s.cDim ELSE 0)
+  + (IF RankOf(s, "a") > 0 THEN 1 - s.aDim ELSE 0)
+  + (IF RankOf(s, "b") > 0 THEN 1 - s.bDim ELSE 0)
+  + (IF RankOf(s, "c") > 0 THEN 1 - s.cDim ELSE 0)
 
 \* The observed dim must match the focus, and one part must be bright.
 \* @type: ($snapshotsFact) => Bool;
@@ -96,27 +85,31 @@ DimLaw(s) ==
   /\ \A key \in Keys : Dim(s, key) = ExpectedDim(s, key)
   /\ BrightCount(s) = 1
 
+\* An open or a raise that leaves its key as a live window.
+\* @type: ($snapshotsFact, $eventsFact) => Bool;
+TakesFocus(after, e) ==
+  e.kind \in {"open", "raise"} /\ RankOf(after, e.key) > 0
+
 \* The focus after an event. No window leaves it on the page. A press on the page
 \* gives it the page. An open or a raise of a live window gives it the window.
 \* Every other event keeps it. A raise of an absent key changes nothing.
 \* @type: ($snapshotsFact, $snapshotsFact, $eventsFact) => Bool;
 FocusLaw(before, after, e) ==
   after.focus =
-    IF Total(after) = 0 THEN 0
+    IF OpenWindows(after) = 0 THEN 0
     ELSE IF e.kind = "focus-page" THEN 0
-    ELSE IF e.kind \in {"open", "raise"} /\ Rank(after, e.key) > 0 THEN 1
+    ELSE IF TakesFocus(after, e) THEN 1
     ELSE before.focus
 
 \* A window that opens or rises must reach the top, where the focus sits.
 \* @type: ($snapshotsFact, $eventsFact) => Bool;
 TopLaw(after, e) ==
-  (e.kind \in {"open", "raise"} /\ Rank(after, e.key) > 0) =>
-    Rank(after, e.key) = Total(after)
+  TakesFocus(after, e) => RankOf(after, e.key) = OpenWindows(after)
 
 \* A press on the page leaves every window at its rank.
 \* @type: ($snapshotsFact, $snapshotsFact, $eventsFact) => Bool;
 PressLaw(before, after, e) ==
-  e.kind = "focus-page" => \A key \in Keys : Rank(after, key) = Rank(before, key)
+  e.kind = "focus-page" => \A key \in Keys : RankOf(after, key) = RankOf(before, key)
 
 \* Each chosen production edge must leave a valid screen with the right focus,
 \* the right dim, the top window on top, and every window in place after a press.
@@ -134,18 +127,11 @@ LegalMove(origin, result, input) ==
 \* They catch corrupted screen rows, empty input, and missing joins.
 \* @type: Bool;
 DomainOK ==
-  /\ Len(Snapshots) > 0 /\ Len(Targets) = Len(Snapshots)
-  /\ Events # {}
+  /\ TablesWellFormed(Snapshots, Targets, Events)
   /\ Snapshots[1] = Blank
-  /\ Cardinality(EventIds) = Cardinality(Events)
-  /\ \A event \in EventIds : event + 1 \in DOMAIN Targets[1]
   /\ \A index \in DOMAIN Snapshots :
-       /\ Snapshots[index].id = index - 1
        /\ ValidScreen(Snapshots[index])
        /\ DimLaw(Snapshots[index])
-  /\ \A source \in ScreenIds :
-       /\ Len(Targets[source + 1]) = Cardinality(Events)
-       /\ \A event \in EventIds : Targets[source + 1][event + 1] \in ScreenIds
 
 \* Every current id selects one declared screen. The unrestricted step starts
 \* from ANY state that satisfies Safety, not only a reachable subset.

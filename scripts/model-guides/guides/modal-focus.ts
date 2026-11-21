@@ -63,7 +63,7 @@ export const modalFocus: ModelGuide = {
           symbol: "transitionScreen",
         },
       ],
-      rules: ["Init", "Blank", "Keys", "ScreenIds", "EventIds", "DomainOK"],
+      rules: ["Init", "Blank", "Keys", "ScreenIds", "DomainOK"],
       title: "Start with no window",
       values: [
         { name: "screen", value: "0" },
@@ -74,7 +74,7 @@ export const modalFocus: ModelGuide = {
         { name: "input rows", value: "10" },
         { name: "observed transitions", value: "310" },
       ],
-      what: "The model starts before the first open. Blank is the row with id 0, every rank at zero, and the page holding the focus. Keys names a, b, and c. ScreenIds holds every declared screen id, and EventIds holds every selected event id. DomainOK checks that row 1 is Blank, that every row id matches its tuple position, and that every screen has one target for each event.",
+      what: "The model starts before the first open. Blank is the row with id 0, every rank at zero, and the page holding the focus. Keys names a, b, and c. ScreenIds holds every declared screen id. DomainOK checks that row 1 is Blank, that every row id matches its tuple position, and that every screen has one target for each event.",
     },
     {
       code: [
@@ -92,8 +92,9 @@ export const modalFocus: ModelGuide = {
         "LegalMove",
         "FocusLaw",
         "TopLaw",
-        "Rank",
-        "Total",
+        "TakesFocus",
+        "RankOf",
+        "OpenWindows",
         "Snapshot",
       ],
       title: "Open a and take the focus",
@@ -101,7 +102,7 @@ export const modalFocus: ModelGuide = {
         { name: "before", value: "no window, focus 0." },
         { name: "after", value: "aRank 1, focus 1, pageDim 1, aDim 0." },
       ],
-      what: "An open of a live or absent key puts that window at the top. The window takes the focus from the page. TopLaw requires the opened window to hold the top rank. FocusLaw requires focus 1 after the event. Rank reads the new place of the key, and Total counts the open windows. Snapshot reads the source and target rows from the observed screen table.",
+      what: "An open of a live or absent key puts that window at the top. The window takes the focus from the page. TopLaw requires the opened window to hold the top rank. FocusLaw requires focus 1 after the event. RankOf reads the new place of the key, and OpenWindows counts the open windows. TakesFocus names an open or a raise that leaves its key as a live window. Snapshot reads the source and target rows from the observed screen table.",
     },
     {
       code: [
@@ -147,13 +148,13 @@ export const modalFocus: ModelGuide = {
           symbol: "transitionScreen",
         },
       ],
-      rules: ["Transition", "FocusLaw", "Total", "ValidScreen"],
+      rules: ["Transition", "FocusLaw", "OpenWindows", "ValidScreen"],
       title: "Close the last window",
       values: [
         { name: "before", value: "aRank 1, focus 1." },
         { name: "after", value: "no window, focus 0." },
       ],
-      what: "A close removes its key and keeps the focus where it was, until the last window closes. The last close gives the focus to the page, because no window can hold it. Total reads that no window is open. FocusLaw requires focus 0 for that screen, and ValidScreen requires the same for every screen with no window.",
+      what: "A close removes its key and keeps the focus where it was, until the last window closes. The last close gives the focus to the page, because no window can hold it. OpenWindows reads that no window is open. FocusLaw requires focus 0 for that screen, and ValidScreen requires the same for every screen with no window.",
     },
     {
       code: [
