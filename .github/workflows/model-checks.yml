@@ -24,7 +24,7 @@ defaults:
 jobs:
   plan:
     runs-on: ubicloud-standard-2
-    timeout-minutes: 15
+    timeout-minutes: 30
     defaults:
       run:
         shell: devenv --profile ci shell bash -- -e {0}

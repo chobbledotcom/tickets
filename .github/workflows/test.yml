@@ -173,7 +173,7 @@ jobs:
 
   model-plan:
     runs-on: ubicloud-standard-2
-    timeout-minutes: 15
+    timeout-minutes: 30
     outputs:
       models: ${{ steps.list.outputs.models }}
 
