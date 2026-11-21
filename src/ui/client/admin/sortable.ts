@@ -1,3 +1,4 @@
+// effects: pure
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /**
@@ -11,11 +12,7 @@
 
 import type { MovePlace } from "#shared/reorder.ts";
 import { requireValue } from "#shared/required-value.ts";
-import {
-  createHiddenInput,
-  forEachMatch,
-  requiredChild,
-} from "#src/ui/client/dom.ts";
+import { forEachMatch, requiredChild } from "#src/ui/client/dom.ts";
 
 /** The direct child of `list` that holds `node`. */
 const itemHolding = (list: HTMLElement, node: Element): HTMLElement =>
@@ -72,24 +69,20 @@ const moveFor = (item: HTMLElement): { anchor: string; place: MovePlace } => {
     : { anchor: anchorOf(above), place: "after" };
 };
 
-/** Post the move form, with the CSRF token the item's arrow forms carry. */
+/** Post a copy of one of the item's own arrow forms, so the drop sends the
+ *  same fields an arrow sends. Only the address and the anchor change. */
 const postMove = (
-  list: HTMLElement,
   item: HTMLElement,
   move: { anchor: string; place: MovePlace },
 ): void => {
   const path = requireValue(handleOf(item).dataset.sortablePath, "path");
-  const token = requiredChild<HTMLInputElement>(
-    list,
-    'input[name="csrfToken"]',
-  );
-  const form = document.createElement("form");
-  form.method = "POST";
+  const form = requiredChild<HTMLFormElement>(item, "form").cloneNode(
+    true,
+  ) as HTMLFormElement;
   form.action = `${path}/move-${move.place}`;
-  form.append(
-    createHiddenInput("csrfToken", token.value),
-    createHiddenInput("anchor", move.anchor),
-  );
+  requiredChild<HTMLInputElement>(form, 'input[name="anchor"]').value =
+    move.anchor;
+  form.hidden = true;
   document.body.append(form);
   form.submit();
 };
@@ -113,7 +106,7 @@ const setUpHandle = (list: HTMLElement, handle: HTMLElement): void => {
       item.classList.remove("is-dragging");
       if (item.nextElementSibling === before) return;
       if (commit) {
-        postMove(list, item, moveFor(item));
+        postMove(item, moveFor(item));
       } else {
         list.insertBefore(item, before);
       }
