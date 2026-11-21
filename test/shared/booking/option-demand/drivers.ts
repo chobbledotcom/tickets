@@ -89,13 +89,7 @@ export const choiceForm = (built: BuiltCase): FormParams => {
   return new FormParams([
     [
       childQuantityFieldName(parent.listing.id, child.listing.id),
-      String(
-        requiredMapValue(
-          built.quantities,
-          parent.listing.id,
-          "A case's choice form needs its parent quantity",
-        ),
-      ),
+      String(requiredMapValue(built.quantities, parent.listing.id)),
     ],
   ]);
 };

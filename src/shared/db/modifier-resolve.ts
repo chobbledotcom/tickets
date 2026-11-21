@@ -52,7 +52,7 @@ type ListingScopes = Map<number, number[] | null>;
 
 /** The resolved scope of a modifier whose id the scope map always holds. */
 const scopeOf = (scopes: ListingScopes, modifier: Modifier): number[] | null =>
-  requiredMapValue(scopes, modifier.id, `Modifier ${modifier.id} missing`);
+  requiredMapValue(scopes, modifier.id);
 
 /** The active opt-in add-on modifiers plus each one's resolved listing scopes —
  * the shared starting point for the add-on and child-reachability checks. */
@@ -232,11 +232,7 @@ export const answerModifierQuantities = async (
     const listingId = Number(listingIdStr);
     // Answers are filed under the order's own lines, so every key here has a
     // chosen quantity. A miss would price the modifier by NaN, so say so.
-    const count = requiredMapValue(
-      listingQuantities,
-      listingId,
-      `Listing ${listingId} carries answers but no chosen quantity`,
-    );
+    const count = requiredMapValue(listingQuantities, listingId);
     const modifierIds = ids.flatMap((id) => modifiersByAnswer.get(id) ?? []);
     for (const modifierId of modifierIds) {
       if (scopeCoversListing(scopes.get(modifierId), listingId)) {

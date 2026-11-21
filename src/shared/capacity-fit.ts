@@ -36,9 +36,7 @@ export const minOver = (
   groupIds.length === 0
     ? undefined
     : Math.min(
-        ...groupIds.map((groupId) =>
-          requiredMapValue(byGroup, groupId, `Group ${groupId} missing`),
-        ),
+        ...groupIds.map((groupId) => requiredMapValue(byGroup, groupId)),
       );
 
 /** The capacity parts of one parent's required children: each child's groups
@@ -108,15 +106,14 @@ const childFlowBound = (
   for (const [index, child] of children.entries()) {
     capacity[0]![index + 1] = child.ownMax;
     for (const groupId of child.pools) {
-      capacity[index + 1]![
-        requiredMapValue(poolNode, groupId, `Group ${groupId} missing`)
-      ] = need;
+      capacity[index + 1]![requiredMapValue(poolNode, groupId)] = need;
     }
   }
   for (const groupId of poolIds) {
-    capacity[requiredMapValue(poolNode, groupId, `Group ${groupId} missing`)]![
-      sink
-    ] = requiredMapValue(residual, groupId, `Group ${groupId} missing`);
+    capacity[requiredMapValue(poolNode, groupId)]![sink] = requiredMapValue(
+      residual,
+      groupId,
+    );
   }
   let flow = 0;
   // Edmonds-Karp: augment along breadth-first paths until the sink is cut
@@ -183,10 +180,7 @@ const roomForChild = (
 ): number => {
   let room = Math.min(child.ownMax, left);
   for (const groupId of child.pools) {
-    room = Math.min(
-      room,
-      requiredMapValue(remaining, groupId, `Group ${groupId} missing`),
-    );
+    room = Math.min(room, requiredMapValue(remaining, groupId));
   }
   return room;
 };
@@ -241,10 +235,7 @@ const spendAcrossPool = (
   groupId: number,
   units: number,
 ): void => {
-  remaining.set(
-    groupId,
-    requiredMapValue(remaining, groupId, `Group ${groupId} missing`) + units,
-  );
+  remaining.set(groupId, requiredMapValue(remaining, groupId) + units);
 };
 
 /** Move `units` of one child's lines across every pool the child draws
@@ -340,11 +331,7 @@ export const combinedChildCapacityForParent = (
   }
   if (capped.length === 0) return free;
   const remainingOf = (groupId: number): number =>
-    requiredMapValue(
-      remainingByGroupId,
-      groupId,
-      `Group ${groupId} missing from the remaining map`,
-    );
+    requiredMapValue(remainingByGroupId, groupId);
   const ownTotal = free + capped.reduce((sum, child) => sum + child.ownMax, 0);
   const poolIds = poolIdsFor(capped);
   const parentGroupSet = new Set(parentGroupIds);

@@ -317,12 +317,8 @@ const reassignNameRows = async (
   if (rows.length !== 2) return null;
   const named = new Map(rows.map((row) => [row.id, row.name] as const));
   return {
-    fromName: requiredMapValue(
-      named,
-      fromId,
-      `Attendee status ${fromId} missing`,
-    ),
-    toName: requiredMapValue(named, toId, `Attendee status ${toId} missing`),
+    fromName: requiredMapValue(named, fromId),
+    toName: requiredMapValue(named, toId),
   };
 };
 

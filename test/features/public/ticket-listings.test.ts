@@ -13,11 +13,7 @@ import {
 
 /** The group's active members, read through the shared one-or-many query. */
 const activeListingsOf = async (groupId: number) =>
-  requiredMapValue(
-    await getListingsByGroupIds([groupId], true),
-    groupId,
-    "Missing group listing membership",
-  );
+  requiredMapValue(await getListingsByGroupIds([groupId], true), groupId);
 
 describeWithEnv("routes > public > ticket-listings", { db: true }, () => {
   describe("buildTicketListingsWithGroupCapacity", () => {

@@ -157,7 +157,6 @@ const ledgerLegs = async (attendeeId: number): Promise<Transfer[]> => {
   return requiredMapValue(
     await transfersByAccounts([account]),
     accountKey(account),
-    `Refund ledger read omitted attendee ${attendeeId}`,
   );
 };
 

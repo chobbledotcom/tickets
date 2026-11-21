@@ -224,7 +224,6 @@ src/shared/logger.ts::persistErrorToActivityLog~0kl9lpw  ?? → || audited:0mco9
 # falsy left-hand values coincide with the fallback, plus two unreachable arms.
 src/shared/listings-actions.ts::validateMaxPrice.minPrice~16xqeks  ?? → || audited:1s7h5dn # input.unitPrice is a validated whole number or absent; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateListingGroup.incompatibleByType~0d42sm3  ?? → || audited:1s7h5dn # input.canPayMore is boolean when present; false stays false with either operator
-src/shared/listings-actions.ts::validateListingGroup.checked~0ndre14  Missing group listing membership → "" audited:1s7h5dn # getListingsByGroupIds seeds every requested group id with at least an empty array, so the missing-key throw can never fire and its message is unobservable
 src/shared/listings-actions.ts::validateListingGroup.checked.customisableDays~0350hpg ??→||  audited:1fasj9w   # input.customisableDays is boolean when present; false stays false with either operator
 src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  ?? → || audited:1s7h5dn # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  0 → 1 audited:1s7h5dn # checkGroupListingSettings never reads the candidate's id — sibling self-exclusion uses the separate excludeListingId argument

@@ -261,6 +261,6 @@ describe("findSqlTagViolationsIn", () => {
   test("throws when a file has no loaded text", () => {
     expect(() =>
       findSqlTagViolationsIn(["/root/missing.ts"], contents, toRelative, []),
-    ).toThrow("Missing source text for /root/missing.ts");
+    ).toThrow("Missing map key /root/missing.ts");
   });
 });

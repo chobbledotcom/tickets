@@ -42,7 +42,7 @@ export const childDateCapacity = (
   const info = buildTicketListing(
     child,
     isRegistrationClosed(child),
-    requiredMapValue(ctx.remaining, child.id, `Listing ${child.id} missing`),
+    requiredMapValue(ctx.remaining, child.id),
   );
   if (!childActive(info) || !childOpen(info)) return 0;
   const offered = childOfferedOnDate(

@@ -48,11 +48,7 @@ const loadedAttendee = async (
     attendeeId,
     loadedPiiBlob: attendee.pii_blob,
     references: requireCompleteRefundReferences(
-      requiredMapValue(
-        referenceSets,
-        attendeeId,
-        `Attendee ${attendeeId}'s payment references were not loaded`,
-      ),
+      requiredMapValue(referenceSets, attendeeId),
     ),
   };
 };

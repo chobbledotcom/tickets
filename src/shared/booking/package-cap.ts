@@ -165,11 +165,7 @@ const limitedGroupsFor = (
     .filter((groupId) => ctx.groupRemainingByGroupId.has(groupId))
     .map((groupId) => ({
       groupId,
-      remaining: requiredMapValue(
-        ctx.groupRemainingByGroupId,
-        groupId,
-        `Group ${groupId} missing`,
-      ),
+      remaining: requiredMapValue(ctx.groupRemainingByGroupId, groupId),
     }));
 
 const smallestLimitedGroupFor = (
@@ -214,11 +210,7 @@ const childGroupLimit = (
 ): number =>
   sumOf(([groupId, ownLimit]: [number, number]) =>
     sharedGroupTicketLimit(
-      requiredMapValue(
-        ctx.groupRemainingByGroupId,
-        groupId,
-        `Group ${groupId} missing`,
-      ),
+      requiredMapValue(ctx.groupRemainingByGroupId, groupId),
       ownLimit,
     ),
   )([
@@ -321,11 +313,7 @@ const packageChildrenToBook = (
   return membersWithBookableChildren(ctx)
     .map(({ member, children }) => ({
       children,
-      packageQty: requiredMapValue(
-        memberQty,
-        member.listing.id,
-        `Listing ${member.listing.id} missing`,
-      ),
+      packageQty: requiredMapValue(memberQty, member.listing.id),
     }))
     .filter(({ children }) => children.length > 0);
 };
@@ -375,8 +363,7 @@ const singleChildLimits = (needs: readonly OneChildNeed[]): number[] => {
   );
   return limitsFromPooledNeeds<OneChildNeed>(
     (need) => need.childId,
-    (childId) =>
-      requiredMapValue(limitByChildId, childId, `Listing ${childId} missing`),
+    (childId) => requiredMapValue(limitByChildId, childId),
   )(needs);
 };
 
@@ -388,12 +375,7 @@ const sharedChildGroupLimits = (
     (need) => need.groupId,
     // Every groupId here came from `groupNeedsFor(ctx)`, which only emits ids it
     // already found in `ctx.groupRemainingByGroupId`, so the lookup always hits.
-    (groupId) =>
-      requiredMapValue(
-        ctx.groupRemainingByGroupId,
-        groupId,
-        `Group ${groupId} missing`,
-      ),
+    (groupId) => requiredMapValue(ctx.groupRemainingByGroupId, groupId),
   )(needs);
 
 const sharedChildrenAcrossMembersLimit = (

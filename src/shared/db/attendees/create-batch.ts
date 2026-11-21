@@ -11,6 +11,7 @@ import {
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
+import { abortUnless } from "#db/guarded-writes.ts";
 import {
   allModifiersInStockCondition,
   type ModifierUsage,
@@ -63,9 +64,11 @@ export type BookingBatchPlan = {
 
 /** Abort the batch if the immediately preceding guarded booking did not insert
  * exactly one row. The deliberate NOT NULL failure rolls back every write. */
-const bookingWriteGuard =
-  (): SqlStatement => sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-        SELECT NULL, NULL, 1 WHERE changes() != ${1}`;
+const bookingWriteGuard = (): SqlStatement =>
+  abortUnless(
+    sql`listing_attendees (listing_id, attendee_id, quantity)`,
+    sql`NULL, NULL, 1`,
+  )(sql`changes() = ${1}`);
 
 const isBookingWriteGuardFailure = notNullGuardFailureAt(
   "listing_attendees.listing_id",

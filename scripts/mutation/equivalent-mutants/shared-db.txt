@@ -88,13 +88,9 @@ src/shared/db/images.ts::imageUseOrder.key~0srejmf  image_id → "" audited:1xm7
 # an entry for each requested key before they read rows.
 src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → || audited:0n5yfdo # Map.get returns a Group object or undefined, and each Group object is truthy
 src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → || audited:0n5yfdo # entriesByGroup returns an array or undefined, and every array is truthy
-src/shared/db/groups.ts::getListingsByGroupId~0qcnvni  Missing group listing membership → "" audited:0n5yfdo # getListingsByGroupIds creates an entry for every requested group id, so requiredMapValue cannot raise this message
-src/shared/db/groups.ts::packageMembersError.blocked.childIds~05z1ovp  Missing listing child edges → "" audited:0n5yfdo # getIdsByKeys creates an entry for each requested parent id before it reads rows
-src/shared/db/groups.ts::packageMembersError.blocked.parentIds~069l6kv  Missing listing parent edges → "" audited:0n5yfdo # getIdsByKeys gives the reverse side the same complete-map guarantee
 src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → || audited:0n5yfdo # blocked contains non-empty translated error strings, so both operators return the first error or null
 src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → || audited:0n5yfdo # Map.groupBy returns a GroupListing array or undefined, and every array is truthy
 src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → || audited:0n5yfdo # rowsByGroup has the same array-or-undefined domain
-src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → "" audited:0n5yfdo # getGroupDayPricesByGroupIds creates an entry for every requested group before it reads rows
 src/shared/db/groups/membership/package-writes.ts::packageGroupMembersErrorTx~1ngldaa  ?? → || audited:02pv2yh # both guards return a non-empty translated error string or null, so either operator returns the first error or null
 
 # Accounting batch reads return arrays. An empty listing filter skips its SQL
@@ -133,12 +129,6 @@ src/shared/db/activity-log.ts::logActivity~078kit2  Activity log row missing →
 # label cannot be observed through any database state.
 src/shared/sumup/transaction.ts::eventsOf~0aphohd  ?? → || audited:1odotwz # validated transaction_events is an array or undefined; every array is truthy, so both operators select the same events or empty fallback
 
-# settleAttendeeRows reads its rows with WHERE payment_session_id IN
-# ([...rows.keys()]), so every row the settle callback sees carries a
-# sessionId that is a key of that same map. requiredMapValue can never miss
-# there, and no input can observe the message on that unreachable throw.
-src/shared/db/payment-claim.ts::settleAttendeeRows~1iaqh2o  Refund settlement lost a payment row→ "" audited:087nen1 # unreachable: the IN-clause is built from the same map's keys
-src/shared/db/payment-claim.ts::assertRefundRowsHeld.phase~19s22mv  Refund confirmation lost a payment-row phase→ "" audited:087nen1 # unreachable: the rows are read by this same map's keys, so every row has a phase
 src/shared/db/payment-claim.ts::paymentClaimRowsSql~1oy3usg  charge.→ "" audited:087nen1 # the work test reads refund_state_name and refund_local_state, which only payment_charges carries in this join, so the bare names resolve to the same columns
 
 # refund-all-candidates.ts — table aliases the reader needs and SQLite does
@@ -221,11 +211,6 @@ src/shared/db/listings/records.ts::withDayPrices~12esd4i  ?? → || audited:0yh7
 src/shared/db/listings/records.ts::withDayPrices~0jasiuh  ?? → || audited:0yh75dm # a projected image column set is an object (always truthy), so the fetch fallback runs only when it is undefined
 src/shared/db/listings/records.ts::getStoredListingWithCount~0s7oh7g  ?? → || audited:0yh75dm # the array element is a listing object or undefined; a present listing is truthy
 src/shared/db/listing-relationship-validation.ts::listingById.listingPrices~0p5a2j2  ?? → || audited:163edcq # the day-price map holds record objects, and a record is always truthy even when empty
-
-# The one-direction link reader's fold throws when a row's key falls outside
-# the requested key set, but the reader's WHERE clause already restricts every
-# returned row to a requested key, so the throw is unreachable.
-src/shared/db/link-table.ts::rowsToIdsByKeys~0a4lik4  Unexpected link key→ "" audited:0tfjsk3 # unreachable: WHERE key_id IN (...) lets only requested keys through
 
 src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → || audited:143g2p7 # read.one answers the row object or null, and every row object is truthy
 

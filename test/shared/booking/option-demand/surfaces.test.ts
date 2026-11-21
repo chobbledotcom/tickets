@@ -211,11 +211,7 @@ const submitAtSpan = async (
 ): Promise<boolean> => {
   const chosen = built.parents.map((info) => ({
     listing: info.listing,
-    qty: requiredMapValue(
-      built.quantities,
-      info.listing.id,
-      `Case ${testCase.name} misses its parent quantity`,
-    ),
+    qty: requiredMapValue(built.quantities, info.listing.id),
   }));
   const resolved = await resolveDayCount(
     chosen,

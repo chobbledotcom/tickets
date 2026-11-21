@@ -116,11 +116,7 @@ export const buildPageTree = (
   // Pair them here, once, so no renderer carries a lookup or a message.
   const rows = input.listings.map((info) => ({
     info,
-    node: requiredMapValue(
-      nodeByListingId,
-      info.listing.id,
-      `Listing ${info.listing.id} has no booking node`,
-    ),
+    node: requiredMapValue(nodeByListingId, info.listing.id),
   }));
   return {
     rows,

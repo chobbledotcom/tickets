@@ -237,14 +237,7 @@ const handleLinkSearch = ownerRead(async (params) => {
   const byId = sourcesById(sources);
   return jsonResponse({
     links: links.map((link) =>
-      toSourceLinkResponse(
-        link,
-        requiredMapValue(
-          byId,
-          link.sourceId,
-          "Every link names a source in the directory",
-        ),
-      ),
+      toSourceLinkResponse(link, requiredMapValue(byId, link.sourceId)),
     ),
   });
 });

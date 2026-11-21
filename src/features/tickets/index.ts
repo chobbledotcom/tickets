@@ -123,12 +123,8 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
     entries.map((entry) =>
       buildTicketCard(
         entry,
-        requiredMapValue(
-          tokenByIndex,
-          entry.attendee.ticket_token_index,
-          `Token ${entry.attendee.ticket_token_index} missing`,
-        ),
-        requiredMapValue(shares, entry, "Ticket modifier split omitted a card"),
+        requiredMapValue(tokenByIndex, entry.attendee.ticket_token_index),
+        requiredMapValue(shares, entry),
         taxShares.get(entry) ?? 0,
       ),
     ),

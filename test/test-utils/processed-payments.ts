@@ -128,7 +128,6 @@ export const refundReferencesFor = async (
         privateKey,
       ),
       attendeeId,
-      `Attendee ${attendeeId} was omitted from the refund read`,
     ),
     `Attendee ${attendeeId}`,
   );
