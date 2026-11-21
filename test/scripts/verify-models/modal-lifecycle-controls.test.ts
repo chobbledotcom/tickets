@@ -6,6 +6,8 @@ import {
   type ModalFacts,
   modalLifecycleModelData,
   reversedSurvivorsModalData,
+  stuckWindowFocusModalData,
+  twoBrightWindowsModalData,
 } from "#scripts/verify-models/modal-lifecycle.ts";
 import {
   edgeIdsFor,
@@ -15,6 +17,7 @@ import {
   snapshotFixture,
   snapshotFromEdge,
   snapshotId,
+  stuckFocusEdge,
   witnessFacts,
 } from "#test-utils/modal-lifecycle.ts";
 
@@ -24,7 +27,14 @@ const controls = [
     duplicateRankModalData,
     "snapshots",
     (facts: ModalFacts) => ({
-      ...snapshotFixture({ aPoint: 0, aRank: 1, bPoint: 0, bRank: 1 }),
+      // The row keeps the dim of the real two-window stack.
+      ...snapshotFixture({
+        aPoint: 0,
+        aRank: 1,
+        bDim: 0,
+        bPoint: 0,
+        bRank: 1,
+      }),
       id: snapshotId(
         facts,
         snapshotFixture({ aPoint: 0, aRank: 1, bPoint: 0, bRank: 2 }),
@@ -33,11 +43,33 @@ const controls = [
     null,
   ],
   [
+    "the bright control changes exactly one dim flag and no transition",
+    twoBrightWindowsModalData,
+    "snapshots",
+    (facts: ModalFacts) => {
+      const stack = snapshotFixture({
+        aPoint: 0,
+        aRank: 1,
+        bPoint: 0,
+        bRank: 2,
+      });
+      return { ...stack, aDim: 0, id: snapshotId(facts, stack) };
+    },
+    null,
+  ],
+  [
     "the step control changes exactly one saved point and no domain row",
     forgottenPositionModalData,
     "edges",
     (facts: ModalFacts) => edgeIdsFor(facts, forgottenSaveEdge),
     snapshotFromEdge(forgottenSaveEdge, "after"),
+  ],
+  [
+    "the focus control keeps one press on the page in the window's focus and reaches a valid declared state",
+    stuckWindowFocusModalData,
+    "edges",
+    (facts: ModalFacts) => edgeIdsFor(facts, stuckFocusEdge),
+    snapshotFromEdge(stuckFocusEdge, "after"),
   ],
   [
     "the close control reverses exactly two survivors but still reaches a valid declared state",

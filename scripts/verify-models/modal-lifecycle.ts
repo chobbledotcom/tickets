@@ -8,10 +8,14 @@ import {
 import { modalTargets } from "#scripts/verify-models/modal-lifecycle-matrix.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
-  type ModalEvent,
-  type ModalState,
-  transitionModals,
-} from "#src/ui/client/admin/modal-state.ts";
+  dimmingFor,
+  EMPTY_SCREEN,
+  type ModalFocus,
+  type ModalScreen,
+  type ScreenEvent,
+  transitionScreen,
+} from "#src/ui/client/admin/modal-focus.ts";
+import type { ModalState } from "#src/ui/client/admin/modal-state.ts";
 
 /** Three window identities expose relative survivor order after close.
  * Diagonal points keep the geometry product small. */
@@ -21,8 +25,9 @@ const point = (position: number) => ({ left: position, top: position });
 const viewport = (limit: number) => ({ height: limit + 2, width: limit + 2 });
 
 /** The selected events keep three keys for survivor order, two open points
- * for a, one drag clamp, one restore clamp, and one resize clamp. */
-export const modalEvents: readonly ModalEvent[] = [
+ * for a, one drag clamp, one restore clamp, and one resize clamp. A press on
+ * the page comes last, so that the other event numbers stay put. */
+export const modalEvents: readonly ScreenEvent[] = [
   { key: "a", point: point(0), type: "open" },
   { key: "a", point: point(2), type: "open" },
   { key: "a", type: "raise" },
@@ -39,16 +44,24 @@ export const modalEvents: readonly ModalEvent[] = [
     type: "resize",
     viewport: viewport(0),
   },
+  { type: "focus-page" },
 ];
 
+/** `focus` is 0 while the page has the focus and 1 while the top window has
+ * it. The `Dim` fields and `pageDim` are 1 for each dim part of the screen. */
 const SNAPSHOT_FIELDS = [
+  "aDim",
   "aPoint",
   "aRank",
   "aSaved",
+  "bDim",
   "bPoint",
   "bRank",
   "bSaved",
+  "cDim",
   "cRank",
+  "focus",
+  "pageDim",
 ] as const;
 const snapshotFields = Object.fromEntries(
   SNAPSHOT_FIELDS.map((field) => [field, "Int"]),
@@ -84,7 +97,10 @@ const modalLocation = (states: readonly ModalState[], key: string) => {
   };
 };
 
-export const modalSnapshot = (states: readonly ModalState[]): ModalSnapshot => {
+export const modalSnapshot = (screen: ModalScreen): ModalSnapshot => {
+  const states = screen.windows;
+  const dimming = dimmingFor(screen);
+  const dim = (key: string): number => Number(dimming.windows.has(key));
   const a = modalLocation(states, "a");
   const b = modalLocation(states, "b");
   const c = modalLocation(states, "c");
@@ -101,18 +117,25 @@ export const modalSnapshot = (states: readonly ModalState[]): ModalSnapshot => {
     throw new Error("Stack-only modal changed its fixed expanded position");
   }
   return {
+    aDim: dim("a"),
     aPoint: a.point,
     aRank: a.rank,
     aSaved: a.saved,
+    bDim: dim("b"),
     bPoint: b.point,
     bRank: b.rank,
     bSaved: b.saved,
+    cDim: dim("c"),
     cRank: c.rank,
+    focus: screen.focus === "window" ? 1 : 0,
+    pageDim: Number(dimming.page),
   };
 };
 
 /** The explicit return type makes a new unhandled event a compile error. */
-const eventInputs = (event: ModalEvent): Omit<ModalInput, "event" | "kind"> => {
+const eventInputs = (
+  event: ScreenEvent,
+): Omit<ModalInput, "event" | "kind"> => {
   switch (event.type) {
     case "open":
     case "move":
@@ -133,19 +156,21 @@ const eventInputs = (event: ModalEvent): Omit<ModalInput, "event" | "kind"> => {
     case "close":
     case "minimise":
       return { input: -1, key: event.key, limit: -1 };
+    case "focus-page":
+      return { input: -1, key: "page", limit: -1 };
   }
 };
 
-export type ModalTransition = typeof transitionModals;
+export type ModalTransition = typeof transitionScreen;
 
 /** Breadth-first closure, not hand-picked safe edges. Every event runs at every
  * discovered state, including missing keys and duplicate lifecycle actions.
  * An injected production fault must survive projection into the observed facts. */
 export const modalLifecycleFacts = (
-  transition: ModalTransition = transitionModals,
+  transition: ModalTransition = transitionScreen,
 ) => {
-  const empty = modalSnapshot([]);
-  const pending: (readonly ModalState[])[] = [[]];
+  const empty = modalSnapshot(EMPTY_SCREEN);
+  const pending: ModalScreen[] = [EMPTY_SCREEN];
   const snapshots = new Map<string, ModalNode>([
     [JSON.stringify(empty), { ...empty, id: 0 }],
   ]);
@@ -158,7 +183,7 @@ export const modalLifecycleFacts = (
       const identity = JSON.stringify(observed);
       let target = snapshots.get(identity);
       if (target === undefined) {
-        if (pending.length >= 200)
+        if (pending.length >= 300)
           throw new Error("Modal domain is not finite as declared");
         target = { ...observed, id: pending.length };
         snapshots.set(identity, target);
@@ -205,6 +230,12 @@ const expandedWindow = (key: string, position: number): ModalState => ({
   key,
   point: point(position),
 });
+
+/** A control names the focus owner beside the windows it holds. */
+const screenOf = (
+  focus: ModalFocus,
+  windows: readonly ModalState[],
+): ModalScreen => ({ focus, windows });
 
 /** Compare every named before-state field from the shared snapshot schema. */
 const matchesSnapshot = (
@@ -256,10 +287,9 @@ export const modalLifecycleModelData = modalDataWith((facts) => facts);
 
 /** Corrupt a domain record: initial safety must detect duplicate stack ranks. */
 export const duplicateRankModalData = modalDataWith((facts) => {
-  const expected = modalSnapshot([
-    expandedWindow("a", 0),
-    expandedWindow("b", 0),
-  ]);
+  const expected = modalSnapshot(
+    screenOf("window", [expandedWindow("a", 0), expandedWindow("b", 0)]),
+  );
   return {
     ...facts,
     snapshots: corruptOneFact(
@@ -271,23 +301,56 @@ export const duplicateRankModalData = modalDataWith((facts) => {
   };
 });
 
+/** Corrupt a domain record: both windows of a two-window stack are bright
+ * while a window has the focus. Initial safety must detect the second bright
+ * thing. */
+export const twoBrightWindowsModalData = modalDataWith((facts) => {
+  const expected = modalSnapshot(
+    screenOf("window", [expandedWindow("a", 0), expandedWindow("b", 0)]),
+  );
+  return {
+    ...facts,
+    snapshots: corruptOneFact(
+      facts.snapshots,
+      (row) => matchesSnapshot(expected, row),
+      "No two-window stack to corrupt",
+      (row) => ({ ...row, aDim: 0 }),
+    ),
+  };
+});
+
 /** Corrupt one observed minimise: it forgets the expanded position. */
 export const forgottenPositionModalData = corruptEdgeData(
   { key: "a", kind: "minimise" },
-  modalSnapshot([expandedWindow("a", 2)]),
+  modalSnapshot(screenOf("window", [expandedWindow("a", 2)])),
   "No expanded window to corrupt",
   (row) => ({ ...row, aSaved: 0 }),
+);
+
+/** Corrupt one press on the page: the window keeps the focus, so the page
+ * stays dim. The target is a valid declared state, so only the focus law can
+ * detect this step fault. */
+export const stuckWindowFocusModalData = corruptEdgeData(
+  { key: "page", kind: "focus-page" },
+  modalSnapshot(screenOf("window", [expandedWindow("a", 0)])),
+  "No focused window to corrupt",
+  () => modalSnapshot(screenOf("window", [expandedWindow("a", 0)])),
 );
 
 /** Closing a leaves b then c, not c then b. The target remains a valid stack,
  * so only the independent order law can detect this focused step fault. */
 export const reversedSurvivorsModalData = corruptEdgeData(
   { key: "a", kind: "close" },
-  modalSnapshot([
-    expandedWindow("a", 0),
-    expandedWindow("b", 0),
-    expandedWindow("c", 0),
-  ]),
+  modalSnapshot(
+    screenOf("window", [
+      expandedWindow("a", 0),
+      expandedWindow("b", 0),
+      expandedWindow("c", 0),
+    ]),
+  ),
   "No three-window close to corrupt",
-  (row) => ({ ...row, bRank: 2, cRank: 1 }),
+  () =>
+    modalSnapshot(
+      screenOf("window", [expandedWindow("c", 0), expandedWindow("b", 0)]),
+    ),
 );

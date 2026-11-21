@@ -10,8 +10,8 @@ import { parsedModalFacts } from "#test-utils/modal-lifecycle.ts";
 test("the checker matrix preserves every observed transition and event identity", async () => {
   const facts = modalLifecycleFacts();
   const targets = modalTargets(facts);
-  expect(targets).toHaveLength(71);
-  for (const row of targets) expect(row).toHaveLength(12);
+  expect(targets).toHaveLength(141);
+  for (const row of targets) expect(row).toHaveLength(13);
   for (const edge of facts.edges) {
     expect(targets[edge.source]?.[edge.event]).toBe(edge.target);
   }

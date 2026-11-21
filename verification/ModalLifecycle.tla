@@ -1,14 +1,20 @@
 ------------------------- MODULE ModalLifecycle -------------------------
 \* A modal is an admin window that leaves the rest of the page usable.
-\* A key names one window.
+\* A key names one window. One thing has the focus: the page or the top window.
+\* Everything else is dim. Focus 0 is the page and focus 1 is the top window.
+\* With no window the page has the focus. A window that opens or rises takes the
+\* focus. A press on the page gives it back and moves no window. The last window
+\* to close hands the focus to the page. Every other event keeps the focus.
 \* The stack orders windows from bottom to top. Minimise hides a window's body
 \* and saves its expanded position. A later drag must not replace that saved
 \* position. Example: minimise a at pixel 0, then drag it to pixel 2.
 \* Its saved expanded position must stay at 0.
 EXTENDS Apalache, Integers, FiniteSets, Sequences, ModalLifecycleData, ModelRules
 
-\* scripts/verify-models/modal-lifecycle.ts calls transitionModals from
-\* src/ui/client/admin/modal-state.ts for every event at every discovered state.
+\* scripts/verify-models/modal-lifecycle.ts calls transitionScreen from
+\* src/ui/client/admin/modal-focus.ts for every event at every discovered state.
+\* That reducer wraps transitionModals from src/ui/client/admin/modal-state.ts.
+\* The producer also reads the dim of each part from dimmingFor.
 \* These are observed reducer outputs, not a second lifecycle implementation.
 \* The producer starts empty and applies each selected event to each new state.
 \* It stops when no event reaches a new state. Snapshots is an ordered tuple
@@ -48,7 +54,7 @@ EXTENDS Apalache, Integers, FiniteSets, Sequences, ModalLifecycleData, ModelRule
 \* Assumed: input keys are unique and measurements are finite. Each live window
 \* has a resize measurement. Open receives its initial positioned point.
 \* The model checks a synchronous pure reducer, not browser event delivery,
-\* pointer capture, drag click suppression, focus, native dialog close timing,
+\* pointer capture, drag click suppression, native focus events, dialog close timing,
 \* CSS dimensions, rendered content, or actual viewport measurements. Core tests check
 \* separate axes and oversized windows. Browser tests must check these IO limits.
 \* No fairness rule is present. Safety does not establish eventual close/restore.
@@ -71,8 +77,9 @@ NodeIds == {index - 1 : index \in DOMAIN Snapshots}
 \* @type: Set(Int);
 EventIds == {e.event : e \in Events}
 \* @type: $snapshotsFact;
-Empty == [id |-> 0, aRank |-> 0, aPoint |-> -1, aSaved |-> -1,
-          bRank |-> 0, bPoint |-> -1, bSaved |-> -1, cRank |-> 0]
+Empty == [id |-> 0, aRank |-> 0, aPoint |-> -1, aSaved |-> -1, aDim |-> 0,
+          bRank |-> 0, bPoint |-> -1, bSaved |-> -1, bDim |-> 0, cRank |-> 0,
+          cDim |-> 0, focus |-> 0, pageDim |-> 0]
 
 \* The ordered state table permits direct lookup, without a set search.
 \* DomainOK checks that each row's stored id matches its tuple position.
@@ -88,6 +95,9 @@ Point(s, key) ==
 \* @type: ($snapshotsFact, Str) => Int;
 Saved(s, key) ==
   IF key = "a" THEN s.aSaved ELSE IF key = "b" THEN s.bSaved ELSE -1
+\* @type: ($snapshotsFact, Str) => Int;
+Dim(s, key) ==
+  IF key = "a" THEN s.aDim ELSE IF key = "b" THEN s.bDim ELSE s.cDim
 \* @type: ($snapshotsFact) => Int;
 Count(s) == (IF s.aRank > 0 THEN 1 ELSE 0) +
             (IF s.bRank > 0 THEN 1 ELSE 0) + (IF s.cRank > 0 THEN 1 ELSE 0)
@@ -99,12 +109,39 @@ Count(s) == (IF s.aRank > 0 THEN 1 ELSE 0) +
 ValidStack(s) ==
   /\ \A key \in Keys :
        /\ Rank(s, key) \in {0, 1, 2, 3}
-       /\ (Rank(s, key) = 0 => Point(s, key) = -1 /\ Saved(s, key) = -1)
+       /\ (Rank(s, key) = 0 =>
+             Point(s, key) = -1 /\ Saved(s, key) = -1 /\ Dim(s, key) = 0)
+       /\ Dim(s, key) \in {0, 1}
        /\ (Rank(s, key) > 0 => Point(s, key) \in {0, 2} /\ Saved(s, key) \in {-1, 0, 2})
        /\ Rank(s, key) <= Count(s)
   /\ \A first \in Keys : \A second \in Keys :
        first # second /\ Rank(s, first) > 0 /\ Rank(s, second) > 0 =>
          Rank(s, first) # Rank(s, second)
+  /\ s.focus \in {0, 1} /\ s.pageDim \in {0, 1}
+  /\ (Count(s) = 0 => s.focus = 0)
+
+\* The page is dim while a window has the focus. A window is dim unless it is
+\* the top window and a window has the focus. This law does not call the JS rule.
+\* @type: ($snapshotsFact, Str) => Int;
+ExpectedDim(s, key) ==
+  IF Rank(s, key) > 0 /\ (s.focus = 0 \/ Rank(s, key) < Count(s)) THEN 1 ELSE 0
+\* @type: ($snapshotsFact) => Int;
+ExpectedPageDim(s) == IF Count(s) > 0 /\ s.focus = 1 THEN 1 ELSE 0
+
+\* The page and each open window are the bright candidates. Exactly one is bright.
+\* @type: ($snapshotsFact) => Int;
+BrightCount(s) ==
+  (1 - s.pageDim)
+  + (IF Rank(s, "a") > 0 THEN 1 - s.aDim ELSE 0)
+  + (IF Rank(s, "b") > 0 THEN 1 - s.bDim ELSE 0)
+  + (IF Rank(s, "c") > 0 THEN 1 - s.cDim ELSE 0)
+
+\* The observed dim must match the focus, and one thing must be bright.
+\* @type: ($snapshotsFact) => Bool;
+DimLaw(s) ==
+  /\ s.pageDim = ExpectedPageDim(s)
+  /\ \A key \in Keys : Dim(s, key) = ExpectedDim(s, key)
+  /\ BrightCount(s) = 1
 
 \* A clamp must return the requested point inside the boundary. Outside it,
 \* the nearest legal edge is required. This law does not call the JS clamp.
@@ -177,6 +214,17 @@ PointLaw(before, after, e, key) ==
   THEN Clamped(RequestedPoint(before, e, key), Point(after, key), e.limit)
   ELSE Point(after, key) = RequestedPoint(before, e, key)
 
+\* The focus after an event. No window leaves it on the page. A press on the page
+\* gives it the page. An open or a raise of a live window gives it the window.
+\* Every other event keeps it. A raise of an absent key changes nothing.
+\* @type: ($snapshotsFact, $snapshotsFact, $eventsFact) => Bool;
+FocusLaw(before, after, e) ==
+  after.focus =
+    IF Count(after) = 0 THEN 0
+    ELSE IF e.kind = "focus-page" THEN 0
+    ELSE IF e.kind \in {"open", "raise"} /\ Rank(after, e.key) > 0 THEN 1
+    ELSE before.focus
+
 \* Each chosen production edge must preserve structure, key identity, saved
 \* position, the required clamp, and the order of every unselected window.
 \* @type: (Int, Int, $eventsFact) => Bool;
@@ -184,6 +232,8 @@ LegalTransition(source, target, input) ==
   LET before == Snapshot(source)
       after == Snapshot(target)
   IN /\ ValidStack(after)
+     /\ DimLaw(after)
+     /\ FocusLaw(before, after, input)
      /\ \A key \in Keys :
           /\ OrderLaw(before, after, input, key)
           /\ SavedLaw(before, after, input, key)
@@ -202,6 +252,7 @@ DomainOK ==
   /\ \A index \in DOMAIN Snapshots :
        /\ Snapshots[index].id = index - 1
        /\ ValidStack(Snapshots[index])
+       /\ DimLaw(Snapshots[index])
   /\ \A source \in NodeIds :
        /\ Len(Targets[source + 1]) = Cardinality(Events)
        /\ \A event \in EventIds : Targets[source + 1][event + 1] \in NodeIds

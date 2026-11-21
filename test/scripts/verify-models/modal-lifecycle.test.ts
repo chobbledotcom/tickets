@@ -8,9 +8,10 @@ import {
 } from "#scripts/verify-models/modal-lifecycle.ts";
 import { modalLifecycleVerification } from "#scripts/verify-models/modal-lifecycle-registration.ts";
 import {
-  type ModalState,
-  transitionModals,
-} from "#src/ui/client/admin/modal-state.ts";
+  EMPTY_SCREEN,
+  type ModalScreen,
+  transitionScreen,
+} from "#src/ui/client/admin/modal-focus.ts";
 import {
   closeFirstWindowEdge,
   edgeFixture,
@@ -21,6 +22,7 @@ import {
   reversedSurvivorsEdge,
   snapshotFixture,
   snapshotFromEdge,
+  stuckFocusEdge,
   threeWindowStack,
   witnessFacts,
 } from "#test-utils/modal-lifecycle.ts";
@@ -32,7 +34,7 @@ const after = (edge: ModalWitness): ModalSnapshot =>
 
 /** Turn a fact back into reducer inputs to test the production linkage. This
  * is not the safety oracle: the independent lifecycle laws live in TLA. */
-const statesOf = (snapshot: ModalSnapshot): readonly ModalState[] => {
+const screenOf = (snapshot: ModalSnapshot): ModalScreen => {
   const locations = [
     ["a", snapshot.aRank, snapshot.aPoint, snapshot.aSaved],
     ["b", snapshot.bRank, snapshot.bPoint, snapshot.bSaved],
@@ -50,15 +52,19 @@ const statesOf = (snapshot: ModalSnapshot): readonly ModalState[] => {
           },
         ],
   );
-  return states.sort((a, b) => a.rank - b.rank);
+  return {
+    focus: snapshot.focus === 1 ? "window" : "page",
+    windows: states.sort((a, b) => a.rank - b.rank),
+  };
 };
 
 describe("modal lifecycle production facts", () => {
   test("covers the full small domain and every event, including unchanged outcomes", () => {
     const facts = witnessFacts(modalLifecycleFacts());
-    // The selected 12 events close over 71 states.
-    expect(facts.snapshots).toHaveLength(71);
-    expect(modalEvents).toHaveLength(12);
+    // The selected 13 events close over 141 states: the empty state, and each
+    // of the 70 window states with the page or a window holding the focus.
+    expect(facts.snapshots).toHaveLength(141);
+    expect(modalEvents).toHaveLength(13);
     expect(facts.edges).toHaveLength(
       facts.snapshots.length * modalEvents.length,
     );
@@ -79,6 +85,7 @@ describe("modal lifecycle production facts", () => {
         "restore",
         "move",
         "resize",
+        "focus-page",
       ]),
     );
     expect(facts.edges).toContainEqual(
@@ -110,7 +117,7 @@ describe("modal lifecycle production facts", () => {
     for (const edge of facts.edges) {
       expect(Object.keys(edge).sort()).toEqual(["event", "source", "target"]);
     }
-    expect(witnessFacts(facts).edges).toHaveLength(71 * 12);
+    expect(witnessFacts(facts).edges).toHaveLength(141 * 13);
   });
 
   test("every edge is an actual reducer call with complete source and target joins", () => {
@@ -122,14 +129,14 @@ describe("modal lifecycle production facts", () => {
       const event = modalEvents[edge.event];
       if (event === undefined)
         throw new Error(`Missing modal event ${edge.event}`);
-      const observed = transitionModals(statesOf(before(edge)), event);
+      const observed = transitionScreen(screenOf(before(edge)), event);
       expect(modalSnapshot(observed)).toEqual(after(edge));
     }
   });
 
   test("all declared states are reachable from empty through the supplied edges", () => {
     const facts = witnessFacts(modalLifecycleFacts());
-    const reached = new Set([JSON.stringify(modalSnapshot([]))]);
+    const reached = new Set([JSON.stringify(modalSnapshot(EMPTY_SCREEN))]);
     for (let count = -1; count !== reached.size; ) {
       count = reached.size;
       for (const edge of facts.edges) {
@@ -144,7 +151,7 @@ describe("modal lifecycle production facts", () => {
 
   test("retains the minimise, drag, raise, resize, restore, close and reopen interleaving", () => {
     const facts = witnessFacts(modalLifecycleFacts());
-    let snapshot = modalSnapshot([]);
+    let snapshot = modalSnapshot(EMPTY_SCREEN);
     const sequence = [1, 4, 6, 5, 7, 9, 2, 11, 8];
     for (const event of sequence) {
       const edge = facts.edges.find(
@@ -189,14 +196,17 @@ describe("modal lifecycle production facts", () => {
 
   test("producer-level forgotten-save fault reaches facts rather than being filtered", () => {
     let calls = 0;
-    const faulty = modalFactsWithFault((next, _states, event) => {
+    const faulty = modalFactsWithFault((next, _before, event) => {
       calls++;
       if (event.type !== "minimise") return next;
-      return next.map((state) =>
-        state.key === event.key
-          ? { ...state, expandedPoint: { left: 0, top: 0 } }
-          : state,
-      );
+      return {
+        ...next,
+        windows: next.windows.map((state) =>
+          state.key === event.key
+            ? { ...state, expandedPoint: { left: 0, top: 0 } }
+            : state,
+        ),
+      };
     });
     expect(calls).toBe(faulty.edges.length);
     expect(faulty.edges).toContainEqual(forgottenSaveEdge);
@@ -212,12 +222,106 @@ describe("modal lifecycle production facts", () => {
         { event: 8, key: "b", kind: "close" },
       ),
     );
-    const faulty = modalFactsWithFault((next, states, event) =>
-      event.type === "close" && states.length === 3
-        ? [...next].reverse()
+    const faulty = modalFactsWithFault((next, before, event) =>
+      event.type === "close" && before.windows.length === 3
+        ? { ...next, windows: [...next.windows].reverse() }
         : next,
     );
     expect(faulty.edges).toContainEqual(reversedSurvivorsEdge);
+  });
+
+  test("a press on the page hands the focus to the page and moves no window", () => {
+    const facts = witnessFacts(modalLifecycleFacts());
+    const pressEdges = facts.edges.filter((edge) => edge.kind === "focus-page");
+    expect(pressEdges).toHaveLength(141);
+    const windowFields = [
+      "aPoint",
+      "aRank",
+      "aSaved",
+      "bPoint",
+      "bRank",
+      "bSaved",
+      "cRank",
+    ] as const;
+    for (const edge of pressEdges) {
+      expect(after(edge).focus).toBe(0);
+      for (const field of windowFields) {
+        expect(after(edge)[field]).toBe(before(edge)[field]);
+      }
+    }
+    // The stuck-focus control starts from a state that this press changes.
+    expect(pressEdges).not.toContainEqual(stuckFocusEdge);
+    expect(pressEdges).toContainEqual(
+      edgeFixture(
+        snapshotFixture({ aPoint: 0, aRank: 1 }),
+        snapshotFixture({
+          aDim: 1,
+          aPoint: 0,
+          aRank: 1,
+          focus: 0,
+          pageDim: 0,
+        }),
+        { event: 12, key: "page", kind: "focus-page" },
+      ),
+    );
+  });
+
+  test("an open or a raise gives a window the focus, and a close of the last window gives the page", () => {
+    const facts = witnessFacts(modalLifecycleFacts());
+    const pressed = snapshotFixture({
+      aDim: 1,
+      aPoint: 0,
+      aRank: 1,
+      bDim: 1,
+      bPoint: 0,
+      bRank: 2,
+      focus: 0,
+      pageDim: 0,
+    });
+    // Opening b under the page's focus gives b the focus.
+    expect(facts.edges).toContainEqual(
+      edgeFixture(
+        snapshotFixture({
+          aDim: 1,
+          aPoint: 0,
+          aRank: 1,
+          focus: 0,
+          pageDim: 0,
+        }),
+        snapshotFixture({ aPoint: 0, aRank: 1, bPoint: 0, bRank: 2 }),
+        { event: 7, input: 0, key: "b", kind: "open" },
+      ),
+    );
+    // Raising a under the page's focus brings a to the top and gives it the focus.
+    expect(facts.edges).toContainEqual(
+      edgeFixture(
+        pressed,
+        snapshotFixture({ aPoint: 0, aRank: 2, bPoint: 0, bRank: 1 }),
+        { event: 2, key: "a", kind: "raise" },
+      ),
+    );
+    // Closing the last window under the window's focus leaves the page in focus.
+    expect(facts.edges).toContainEqual(
+      edgeFixture(snapshotFixture({ aPoint: 0, aRank: 1 }), snapshotFixture(), {
+        event: 3,
+        key: "a",
+        kind: "close",
+      }),
+    );
+    // Closing one of two windows keeps the page's focus when the page holds it.
+    expect(facts.edges).toContainEqual(
+      edgeFixture(
+        pressed,
+        snapshotFixture({
+          aDim: 1,
+          aPoint: 0,
+          aRank: 1,
+          focus: 0,
+          pageDim: 0,
+        }),
+        { event: 8, key: "b", kind: "close" },
+      ),
+    );
   });
 
   test("registration loads the lazy model and every control", async () => {
@@ -240,12 +344,15 @@ describe("modal lifecycle production facts", () => {
         "Stack-only modal changed",
       ],
     ] as const;
-    for (const [states, message] of invalid) {
-      expect(() => modalSnapshot(states)).toThrow(message);
+    for (const [windows, message] of invalid) {
+      expect(() => modalSnapshot({ focus: "window", windows })).toThrow(
+        message,
+      );
     }
     expect(() =>
-      modalFactsWithFault((next) =>
-        next.map((state) =>
+      modalFactsWithFault((next) => ({
+        ...next,
+        windows: next.windows.map((state) =>
           state.key === "a"
             ? {
                 ...state,
@@ -253,7 +360,7 @@ describe("modal lifecycle production facts", () => {
               }
             : state,
         ),
-      ),
+      })),
     ).toThrow("not finite as declared");
   });
 });

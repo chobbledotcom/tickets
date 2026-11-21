@@ -23,9 +23,19 @@ const controlDefinitions = [
     (m) => m.duplicateRankModalData,
   ],
   [
+    "two windows that are both bright",
+    "initial",
+    (m) => m.twoBrightWindowsModalData,
+  ],
+  [
     "minimise forgetting the expanded position",
     "step",
     (m) => m.forgottenPositionModalData,
+  ],
+  [
+    "a press on the page leaving the focus in the window",
+    "step",
+    (m) => m.stuckWindowFocusModalData,
   ],
   [
     "close reversing the two surviving windows",
@@ -47,6 +57,7 @@ export const modalLifecycleVerification = {
     "scripts/verify-models/modal-lifecycle.ts",
     "scripts/verify-models/modal-lifecycle-matrix.ts",
     "scripts/verify-models/modal-lifecycle-registration.ts",
+    "src/ui/client/admin/modal-focus.ts",
     "src/ui/client/admin/modal-state.ts",
     "src/ui/client/admin/modal-position.ts",
     "src/ui/client/admin/modal.ts",
