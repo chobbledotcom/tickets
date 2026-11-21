@@ -58,6 +58,33 @@ const screenOf = (snapshot: ModalSnapshot): ModalScreen => {
   };
 };
 
+const windowA = snapshotFixture({ aPoint: 0, aRank: 1 });
+
+/** Windows a and b, with the top window holding the focus. */
+const aBelowB = snapshotFixture({ aPoint: 0, aRank: 1, bPoint: 0, bRank: 2 });
+const bBelowA = snapshotFixture({ aPoint: 0, aRank: 2, bPoint: 0, bRank: 1 });
+
+/** Window a alone, with the page holding the focus, so that a is dim. */
+const pressedA = snapshotFixture({
+  aDim: 1,
+  aPoint: 0,
+  aRank: 1,
+  focus: 0,
+  pageDim: 0,
+});
+
+/** Windows a and b, with the page holding the focus, so that both are dim. */
+const pressedAB = snapshotFixture({
+  aDim: 1,
+  aPoint: 0,
+  aRank: 1,
+  bDim: 1,
+  bPoint: 0,
+  bRank: 2,
+  focus: 0,
+  pageDim: 0,
+});
+
 describe("modal lifecycle production facts", () => {
   test("covers the full small domain and every event, including unchanged outcomes", () => {
     const facts = witnessFacts(modalLifecycleFacts());
@@ -252,75 +279,44 @@ describe("modal lifecycle production facts", () => {
     // The stuck-focus control starts from a state that this press changes.
     expect(pressEdges).not.toContainEqual(stuckFocusEdge);
     expect(pressEdges).toContainEqual(
-      edgeFixture(
-        snapshotFixture({ aPoint: 0, aRank: 1 }),
-        snapshotFixture({
-          aDim: 1,
-          aPoint: 0,
-          aRank: 1,
-          focus: 0,
-          pageDim: 0,
-        }),
-        { event: 12, key: "page", kind: "focus-page" },
-      ),
+      edgeFixture(windowA, pressedA, {
+        event: 12,
+        key: "page",
+        kind: "focus-page",
+      }),
     );
   });
 
   test("an open or a raise gives a window the focus, and a close of the last window gives the page", () => {
     const facts = witnessFacts(modalLifecycleFacts());
-    const pressed = snapshotFixture({
-      aDim: 1,
-      aPoint: 0,
-      aRank: 1,
-      bDim: 1,
-      bPoint: 0,
-      bRank: 2,
-      focus: 0,
-      pageDim: 0,
-    });
     // Opening b under the page's focus gives b the focus.
     expect(facts.edges).toContainEqual(
-      edgeFixture(
-        snapshotFixture({
-          aDim: 1,
-          aPoint: 0,
-          aRank: 1,
-          focus: 0,
-          pageDim: 0,
-        }),
-        snapshotFixture({ aPoint: 0, aRank: 1, bPoint: 0, bRank: 2 }),
-        { event: 7, input: 0, key: "b", kind: "open" },
-      ),
+      edgeFixture(pressedA, aBelowB, {
+        event: 7,
+        input: 0,
+        key: "b",
+        kind: "open",
+      }),
     );
     // Raising a under the page's focus brings a to the top and gives it the focus.
     expect(facts.edges).toContainEqual(
-      edgeFixture(
-        pressed,
-        snapshotFixture({ aPoint: 0, aRank: 2, bPoint: 0, bRank: 1 }),
-        { event: 2, key: "a", kind: "raise" },
-      ),
+      edgeFixture(pressedAB, bBelowA, {
+        event: 2,
+        key: "a",
+        kind: "raise",
+      }),
     );
-    // Closing the last window under the window's focus leaves the page in focus.
+    // Closing the last window leaves the page in focus.
     expect(facts.edges).toContainEqual(
-      edgeFixture(snapshotFixture({ aPoint: 0, aRank: 1 }), snapshotFixture(), {
+      edgeFixture(windowA, snapshotFixture(), {
         event: 3,
         key: "a",
         kind: "close",
       }),
     );
-    // Closing one of two windows keeps the page's focus when the page holds it.
+    // Closing one of two windows keeps the focus where the page holds it.
     expect(facts.edges).toContainEqual(
-      edgeFixture(
-        pressed,
-        snapshotFixture({
-          aDim: 1,
-          aPoint: 0,
-          aRank: 1,
-          focus: 0,
-          pageDim: 0,
-        }),
-        { event: 8, key: "b", kind: "close" },
-      ),
+      edgeFixture(pressedAB, pressedA, { event: 8, key: "b", kind: "close" }),
     );
   });
 

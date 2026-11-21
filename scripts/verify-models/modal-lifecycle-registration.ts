@@ -1,5 +1,3 @@
-import type { ModelDataSource } from "#scripts/verify-models/data.ts";
-import type * as ModalProducer from "#scripts/verify-models/modal-lifecycle.ts";
 import {
   type CheckPhase,
   dataFrom,
@@ -11,41 +9,43 @@ const modal = dataFrom(
   () => import("#scripts/verify-models/modal-lifecycle.ts"),
 );
 
+/** The producer export that supplies each control's data. */
+type ControlData =
+  | "duplicateRankModalData"
+  | "twoBrightWindowsModalData"
+  | "forgottenPositionModalData"
+  | "stuckWindowFocusModalData"
+  | "reversedSurvivorsModalData";
+
 type ControlDefinition = readonly [
   name: string,
   phase: CheckPhase,
-  select: (producer: typeof ModalProducer) => ModelDataSource,
+  data: ControlData,
 ];
+/* jscpd:ignore-start -- static data, not code */
 const controlDefinitions = [
-  [
-    "two windows sharing one stack rank",
-    "initial",
-    (m) => m.duplicateRankModalData,
-  ],
-  [
-    "two windows that are both bright",
-    "initial",
-    (m) => m.twoBrightWindowsModalData,
-  ],
+  ["two windows sharing one stack rank", "initial", "duplicateRankModalData"],
+  ["two windows that are both bright", "initial", "twoBrightWindowsModalData"],
   [
     "minimise forgetting the expanded position",
     "step",
-    (m) => m.forgottenPositionModalData,
+    "forgottenPositionModalData",
   ],
   [
     "a press on the page leaving the focus in the window",
     "step",
-    (m) => m.stuckWindowFocusModalData,
+    "stuckWindowFocusModalData",
   ],
   [
     "close reversing the two surviving windows",
     "step",
-    (m) => m.reversedSurvivorsModalData,
+    "reversedSurvivorsModalData",
   ],
 ] as const satisfies readonly [ControlDefinition, ...ControlDefinition[]];
+/* jscpd:ignore-end */
 
-const controls = controlDefinitions.map(([name, phase, select]) => ({
-  data: modal(select),
+const controls = controlDefinitions.map(([name, phase, data]) => ({
+  data: modal((m) => m[data]),
   name,
   phase,
 })) as [ModelControl, ...ModelControl[]];

@@ -285,39 +285,42 @@ const corruptEdgeData = (
 
 export const modalLifecycleModelData = modalDataWith((facts) => facts);
 
-/** Corrupt a domain record: initial safety must detect duplicate stack ranks. */
-export const duplicateRankModalData = modalDataWith((facts) => {
-  const expected = modalSnapshot(
-    screenOf("window", [expandedWindow("a", 0), expandedWindow("b", 0)]),
-  );
-  return {
+/** Replace one domain row. The row is the one that matches `expected`. */
+const corruptNodeData = (
+  expected: ModalSnapshot,
+  missingMessage: string,
+  corrupt: (row: ModalNode) => ModalNode,
+) =>
+  modalDataWith((facts) => ({
     ...facts,
     snapshots: corruptOneFact(
       facts.snapshots,
       (row) => matchesSnapshot(expected, row),
-      "No two-window stack to corrupt",
-      (row) => ({ ...row, bRank: 1 }),
+      missingMessage,
+      corrupt,
     ),
-  };
-});
+  }));
+
+/** The windows in bottom-first order, all expanded at 0, with the top window
+ * holding the focus. */
+const focusedStack = (...keys: string[]): ModalSnapshot =>
+  modalSnapshot(screenOf("window", keys.map((key) => expandedWindow(key, 0))));
+
+/** Corrupt a domain record: initial safety must detect duplicate stack ranks. */
+export const duplicateRankModalData = corruptNodeData(
+  focusedStack("a", "b"),
+  "No two-window stack to corrupt",
+  (row) => ({ ...row, bRank: 1 }),
+);
 
 /** Corrupt a domain record: both windows of a two-window stack are bright
  * while a window has the focus. Initial safety must detect the second bright
  * thing. */
-export const twoBrightWindowsModalData = modalDataWith((facts) => {
-  const expected = modalSnapshot(
-    screenOf("window", [expandedWindow("a", 0), expandedWindow("b", 0)]),
-  );
-  return {
-    ...facts,
-    snapshots: corruptOneFact(
-      facts.snapshots,
-      (row) => matchesSnapshot(expected, row),
-      "No two-window stack to corrupt",
-      (row) => ({ ...row, aDim: 0 }),
-    ),
-  };
-});
+export const twoBrightWindowsModalData = corruptNodeData(
+  focusedStack("a", "b"),
+  "No two-window stack to corrupt",
+  (row) => ({ ...row, aDim: 0 }),
+);
 
 /** Corrupt one observed minimise: it forgets the expanded position. */
 export const forgottenPositionModalData = corruptEdgeData(
@@ -332,25 +335,16 @@ export const forgottenPositionModalData = corruptEdgeData(
  * detect this step fault. */
 export const stuckWindowFocusModalData = corruptEdgeData(
   { key: "page", kind: "focus-page" },
-  modalSnapshot(screenOf("window", [expandedWindow("a", 0)])),
+  focusedStack("a"),
   "No focused window to corrupt",
-  () => modalSnapshot(screenOf("window", [expandedWindow("a", 0)])),
+  () => focusedStack("a"),
 );
 
 /** Closing a leaves b then c, not c then b. The target remains a valid stack,
  * so only the independent order law can detect this focused step fault. */
 export const reversedSurvivorsModalData = corruptEdgeData(
   { key: "a", kind: "close" },
-  modalSnapshot(
-    screenOf("window", [
-      expandedWindow("a", 0),
-      expandedWindow("b", 0),
-      expandedWindow("c", 0),
-    ]),
-  ),
+  focusedStack("a", "b", "c"),
   "No three-window close to corrupt",
-  () =>
-    modalSnapshot(
-      screenOf("window", [expandedWindow("c", 0), expandedWindow("b", 0)]),
-    ),
+  () => focusedStack("c", "b"),
 );

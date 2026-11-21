@@ -77,22 +77,16 @@ describe("the modal focus transitions", () => {
     );
   });
 
-  test("a window that rises takes the focus from the page", () => {
-    const pressed = screenOf(["a", "b"], "page");
-    const raised = step(pressed, { key: "a", type: "raise" });
-    expect(raised.focus).toBe("window");
-    expect(keysOf(raised)).toEqual(["b", "a"]);
-  });
-
-  test("opening a window that is already open raises it and gives it the focus", () => {
-    const reopened = step(screenOf(["a", "b"], "page"), {
-      key: "a",
-      point: at,
-      type: "open",
+  for (const [title, event] of [
+    ["rises", { key: "a", type: "raise" }],
+    ["is opened again", { key: "a", point: at, type: "open" }],
+  ] as const) {
+    test(`a window that ${title} takes the focus from the page and comes to the top`, () => {
+      const taken = step(screenOf(["a", "b"], "page"), event);
+      expect(taken.focus).toBe("window");
+      expect(keysOf(taken)).toEqual(["b", "a"]);
     });
-    expect(reopened.focus).toBe("window");
-    expect(keysOf(reopened)).toEqual(["b", "a"]);
-  });
+  }
 
   test("raising a window that is not open changes nothing", () => {
     const pressed = screenOf(["a"], "page");

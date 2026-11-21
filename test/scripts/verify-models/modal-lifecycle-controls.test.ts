@@ -5,6 +5,7 @@ import {
   forgottenPositionModalData,
   type ModalFacts,
   modalLifecycleModelData,
+  type ModalSnapshot,
   reversedSurvivorsModalData,
   stuckWindowFocusModalData,
   twoBrightWindowsModalData,
@@ -12,6 +13,7 @@ import {
 import {
   edgeIdsFor,
   forgottenSaveEdge,
+  type ModalWitness,
   parsedModalFacts,
   reversedSurvivorsEdge,
   snapshotFixture,
@@ -21,64 +23,73 @@ import {
   witnessFacts,
 } from "#test-utils/modal-lifecycle.ts";
 
-const controls = [
+/** A control that replaces one domain row. `real` is the row that the
+ * control finds, and `corrupted` is the row that it leaves. */
+const rowControl = (
+  name: string,
+  source: typeof modalLifecycleModelData,
+  real: ModalSnapshot,
+  corrupted: ModalSnapshot,
+) =>
   [
+    name,
+    source,
+    "snapshots",
+    (facts: ModalFacts) => ({ ...corrupted, id: snapshotId(facts, real) }),
+    null,
+  ] as const;
+
+/** A control that replaces the target of one edge with a declared state. */
+const edgeControl = (
+  name: string,
+  source: typeof modalLifecycleModelData,
+  edge: ModalWitness,
+) =>
+  [
+    name,
+    source,
+    "edges",
+    (facts: ModalFacts) => edgeIdsFor(facts, edge),
+    snapshotFromEdge(edge, "after"),
+  ] as const;
+
+const twoWindows = snapshotFixture({
+  aPoint: 0,
+  aRank: 1,
+  bPoint: 0,
+  bRank: 2,
+});
+
+const controls = [
+  // The corrupted row keeps the dim of the real two-window stack.
+  rowControl(
     "the initial control changes exactly one domain row and no transition",
     duplicateRankModalData,
-    "snapshots",
-    (facts: ModalFacts) => ({
-      // The row keeps the dim of the real two-window stack.
-      ...snapshotFixture({
-        aPoint: 0,
-        aRank: 1,
-        bDim: 0,
-        bPoint: 0,
-        bRank: 1,
-      }),
-      id: snapshotId(
-        facts,
-        snapshotFixture({ aPoint: 0, aRank: 1, bPoint: 0, bRank: 2 }),
-      ),
-    }),
-    null,
-  ],
-  [
+    twoWindows,
+    { ...twoWindows, bRank: 1 },
+  ),
+  rowControl(
     "the bright control changes exactly one dim flag and no transition",
     twoBrightWindowsModalData,
-    "snapshots",
-    (facts: ModalFacts) => {
-      const stack = snapshotFixture({
-        aPoint: 0,
-        aRank: 1,
-        bPoint: 0,
-        bRank: 2,
-      });
-      return { ...stack, aDim: 0, id: snapshotId(facts, stack) };
-    },
-    null,
-  ],
-  [
+    twoWindows,
+    { ...twoWindows, aDim: 0 },
+  ),
+  edgeControl(
     "the step control changes exactly one saved point and no domain row",
     forgottenPositionModalData,
-    "edges",
-    (facts: ModalFacts) => edgeIdsFor(facts, forgottenSaveEdge),
-    snapshotFromEdge(forgottenSaveEdge, "after"),
-  ],
-  [
+    forgottenSaveEdge,
+  ),
+  edgeControl(
     "the focus control keeps one press on the page in the window's focus and reaches a valid declared state",
     stuckWindowFocusModalData,
-    "edges",
-    (facts: ModalFacts) => edgeIdsFor(facts, stuckFocusEdge),
-    snapshotFromEdge(stuckFocusEdge, "after"),
-  ],
-  [
+    stuckFocusEdge,
+  ),
+  edgeControl(
     "the close control reverses exactly two survivors but still reaches a valid declared state",
     reversedSurvivorsModalData,
-    "edges",
-    (facts: ModalFacts) => edgeIdsFor(facts, reversedSurvivorsEdge),
-    snapshotFromEdge(reversedSurvivorsEdge, "after"),
-  ],
-] as const;
+    reversedSurvivorsEdge,
+  ),
+];
 
 for (const [
   name,
