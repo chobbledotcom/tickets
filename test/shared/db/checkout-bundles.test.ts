@@ -6,13 +6,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import {
+  CHECKOUT_BUNDLE_RETENTION_MS,
   openCheckoutBundle,
   sealCheckoutBundle,
 } from "#db/checkout-bundles.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { sql } from "#db/sql.ts";
-import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -78,11 +78,11 @@ describeWithEnv("checkout bundles", { db: true }, () => {
     expect(calls).toBe(1);
   });
 
-  test("prunes a bundle past the payments clock and keeps a younger one", async () => {
+  test("prunes a bundle past its checkout and retry windows, and keeps a younger one", async () => {
     const old = await sealCheckoutBundle(ORDER);
     const young = await sealCheckoutBundle(ORDER);
-    await ageBundle(old, PRUNE_PAYMENTS_RETENTION_MS + 60_000);
-    await ageBundle(young, PRUNE_PAYMENTS_RETENTION_MS - 60_000);
+    await ageBundle(old, CHECKOUT_BUNDLE_RETENTION_MS + 60_000);
+    await ageBundle(young, CHECKOUT_BUNDLE_RETENTION_MS - 60_000);
 
     await runDatabasePruning();
 

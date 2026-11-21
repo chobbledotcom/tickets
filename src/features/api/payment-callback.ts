@@ -118,6 +118,14 @@ const classifiedOutcome = async (
 ): Promise<CallbackOutcome> => {
   if (classified.kind === "unverifiable") return { kind: "unverifiable" };
   if (classified.kind === "unreadable") return { kind: "unreadable" };
+  if (classified.kind === "settled") {
+    return {
+      detail: "Session already settled, and its sealed order was pruned",
+      error: "This payment has already been processed.",
+      kind: "settled",
+      listingId: undefined,
+    };
+  }
   const { intent, verdict } = classified;
   const listingId = intent.items[0]?.e;
   const result = await processPaymentSession(session.id, {

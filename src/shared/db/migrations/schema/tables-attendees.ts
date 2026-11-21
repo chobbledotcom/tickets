@@ -414,8 +414,9 @@ export const attendeeTables = declaredTables([
     // The whole order of a Stripe or Square checkout, sealed under a fresh
     // key. Only the provider's copy of the checkout holds the token. The row
     // is keyed by the HMAC of the token. The data key is wrapped with the
-    // token, so a database dump cannot open any row. The payments clock prunes
-    // the row, which keeps it past every provider retry and replay.
+    // token, so a database dump cannot open any row. A settled session keeps
+    // only a receipt with no personal details. The prune deletes the row when
+    // the checkout window and the provider retry window are over.
     "checkout_bundles",
     /* jscpd:ignore-start -- static data, not code */
     {

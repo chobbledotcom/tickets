@@ -435,9 +435,9 @@ export const hasRequiredSessionMetadata = (
  * a malformed `b`) normalize to "".
  */
 export const extractSessionMetadata = (
-  metadata: SessionMetadata,
+  metadata: Readonly<Partial<Record<string, string>>>,
 ): ValidatedPaymentSession["metadata"] => {
-  const raw = (metadata as { [PACKED_FIELD]?: string })[PACKED_FIELD];
+  const raw = metadata[PACKED_FIELD];
   const packed = raw ? parsePackedFields(raw) : {};
   const get = (key: keyof SessionMetadata): string =>
     packed[key] || metadata[key] || "";

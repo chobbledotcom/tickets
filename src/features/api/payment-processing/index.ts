@@ -45,6 +45,7 @@ import {
   deletedListingSpec,
   refuseMismatch,
 } from "#routes/api/payment-processing/refunds.ts";
+import { keepOrderReceipt } from "#routes/api/payment-processing/settled-order.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import {
   datelessGhostBookings,
@@ -387,6 +388,9 @@ export const processPaymentSession: SessionProcessor = async (
     });
   }
 
+  // The session is settled, so its sealed order gives way to a receipt that
+  // holds no personal details.
+  await keepOrderReceipt(data);
   return result;
 };
 

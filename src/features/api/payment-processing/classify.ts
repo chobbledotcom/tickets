@@ -12,13 +12,14 @@ import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { reportLostBundle } from "#routes/api/payment-processing/lost-bundle.ts";
 import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
 import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
+import { isSessionSettled } from "#routes/api/payment-processing/settled-order.ts";
 import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import type {
   SessionValidation,
   SignedVerdict,
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { htmlResponse, publicPageResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { encodedAfter } from "#shared/encoded-after.ts";
@@ -31,6 +32,7 @@ import {
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import {
   paymentWaitingPage,
+  successPage,
   WAITING_PAGE_RELOAD_LIMIT,
   waitingPageStillReloads,
 } from "#templates/payment.tsx";
@@ -130,6 +132,7 @@ type SessionClass = SignedVerdict | { verdict: "ignore" };
  * prove is ours but cannot read must remain retryable. */
 export type SessionIntentResult =
   | { kind: "ready"; verdict: SignedVerdict; intent: BookingIntent }
+  | { kind: "settled" }
   | { kind: "unverifiable" }
   | { kind: "unreadable" };
 
@@ -161,9 +164,12 @@ export const classifySessionIntent = async (
   }
   if (order.status === "unreadable") {
     logUnreadableBooking("Signed payment's booking could not be read");
-  } else {
-    await reportLostBundle(session, order.status);
+    return { kind: "unreadable" };
   }
+  // A settled session's receipt goes with the prune. Only a session that is
+  // not settled is missing its order.
+  if (await isSessionSettled(session.id)) return { kind: "settled" };
+  await reportLostBundle(session, order.status);
   return { kind: "unreadable" };
 };
 
@@ -256,6 +262,16 @@ export const validatePaidSession = async (
       knownFacts,
       503,
     );
+  }
+  // A settled session whose receipt is gone: the booking stands, so the buyer
+  // sees the plain success page.
+  if (classified.kind === "settled") {
+    return {
+      ok: false,
+      response: await publicPageResponse(() =>
+        successPage({ paid: true, thankYouUrl: "", ticketUrl: null }),
+      ),
+    };
   }
   return {
     data: {

@@ -15,10 +15,7 @@ import {
   BookingIntentSchema,
 } from "#shared/booking-intent.ts";
 import { nowIso } from "#shared/now.ts";
-import {
-  extractSessionMetadata,
-  hasRequiredSessionMetadata,
-} from "#shared/payment-helpers.ts";
+import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type {
   SessionMetadata,
   ValidatedPaymentSession,
@@ -119,9 +116,7 @@ export const readSessionOrder = async ({
   if (metadata.bundle === "") return orderFrom(metadata);
   const bundle = await openCheckoutBundle(metadata.bundle);
   if (bundle.status !== "opened") return { status: `bundle_${bundle.status}` };
-  return hasRequiredSessionMetadata(bundle.record)
-    ? orderFrom(extractSessionMetadata(bundle.record))
-    : { status: "unreadable" };
+  return orderFrom(extractSessionMetadata(bundle.record));
 };
 
 /** Read the booking a session's order describes, or null when it cannot be
