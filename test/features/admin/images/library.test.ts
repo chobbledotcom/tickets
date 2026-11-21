@@ -207,7 +207,7 @@ describeWithEnv(
           ]);
 
           await expectFlashRedirect(
-            `/admin/images/${image.id}/edit`,
+            "/admin/images",
             "Image updated",
             true,
             cookie,
