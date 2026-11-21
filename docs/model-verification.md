@@ -250,6 +250,12 @@ The pull request workflow runs one `model-checks` job for each model, with a
 30-minute limit. A `model-plan` job lists the models
 from the registry. The required `checks` job runs last. It fails unless the
 `static` job and every model job passed.
+Each model job runs on a runner that `scripts/verify-models/runners.ts` names.
+A model that the file does not name runs on `ubicloud-standard-2`.
+A runner costs per minute in proportion to its cores. A larger runner pays only
+when the model finishes at least twice as fast. Timing runs showed that only
+`ModalFocus`, `SubscriptionRenewals`, and `SubscriptionLifecycle` pay.
+A test fails when the file names a model that the registry does not hold.
 The model jobs do not use devenv. The `setup-model-tools` action runs
 `scripts/ci/setup-model-tools.sh`, which installs Deno, Java, and Apalache.
 The script checks each download against a SHA-256 hash. A test holds the Deno

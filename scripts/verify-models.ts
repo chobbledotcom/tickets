@@ -6,7 +6,6 @@ import { makeScratchDir } from "#scripts/scratch.ts";
 import {
   CHECKER,
   checkArgs,
-  modelNames,
   modulesFor,
   plannedChecks,
   prepareArgs,
@@ -21,6 +20,7 @@ import {
   runPool,
   secondsSince,
 } from "#scripts/verify-models/run.ts";
+import { modelRuns } from "#scripts/verify-models/runners.ts";
 import { workerCount } from "#scripts/verify-models/workers.ts";
 
 const sources = join(projectRoot, "verification");
@@ -92,7 +92,7 @@ const [mode, module, work] = Deno.args;
 if (mode === undefined) {
   await checkAll(undefined);
 } else if (mode === "--list") {
-  console.log(JSON.stringify(modelNames(VERIFICATION_MODULES)));
+  console.log(JSON.stringify(modelRuns(VERIFICATION_MODULES)));
 } else if (mode === "--model" && module !== undefined) {
   await checkAll(module);
 } else if (mode === "--prepare" && module !== undefined && work !== undefined) {

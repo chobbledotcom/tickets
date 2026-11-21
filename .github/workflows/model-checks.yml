@@ -47,7 +47,7 @@ jobs:
   model-checks:
     needs: plan
     name: model-checks (${{ matrix.model }})
-    runs-on: ubicloud-standard-2
+    runs-on: ${{ matrix.runner }}
     # A wedged checker must fail loudly, so the job has a hard limit.
     timeout-minutes: 30
     defaults:
@@ -56,8 +56,9 @@ jobs:
     strategy:
       # One failed model must not hide the verdict of the others.
       fail-fast: false
+      # The plan job lists each model with its runner.
       matrix:
-        model: ${{ fromJSON(needs.plan.outputs.models) }}
+        include: ${{ fromJSON(needs.plan.outputs.models) }}
 
     steps:
       - name: Checkout repository
