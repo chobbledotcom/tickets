@@ -103,7 +103,10 @@ export const modelRules: ModelGuide = {
       values: [
         { name: "rank 0", value: "the window is absent" },
         { name: "rank 1", value: "the bottom window" },
-        { name: "open windows", value: "The top rank is the number of windows." },
+        {
+          name: "open windows",
+          value: "The top rank is the number of windows.",
+        },
       ],
       what: "A stack of windows a, b, and c stores one rank for each window. RankOf reads the rank of one window, and OpenWindows counts the windows that are open. RanksInRange requires each rank to be 0 to 3, and no rank to be above the number of open windows.",
     },
