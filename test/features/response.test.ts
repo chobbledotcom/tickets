@@ -27,8 +27,12 @@ import {
   withCookie,
   withHeaders,
 } from "#routes/response.ts";
+import { FormParams } from "#shared/form-data.ts";
 import { clearFormStash, takeForm } from "#shared/form-stash.ts";
-import { clearSavedFormData } from "#shared/forms/saved-data.ts";
+import {
+  clearSavedFormData,
+  setSavedFormData,
+} from "#shared/forms/saved-data.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { UpdatePageCheckError } from "#shared/update-guard.ts";
 import {
@@ -247,6 +251,15 @@ describeWithEnv("route responses", { db: true }, () => {
         const form = new URLSearchParams("name=Bob");
         const response = redirect("/admin/x", "Saved", true, { form });
         expect(parseFlashCookie(response)).toEqual({ success: "Saved" });
+      }));
+
+    test("stashes nothing for an info message even with a saved form", () =>
+      withRequestContext(() => {
+        setSavedFormData(new FormParams({ name: "Bob" }));
+        const response = infoRedirect("/admin/x", "No change needed");
+        expect(parseFlashCookie(response)).toEqual({
+          info: "No change needed",
+        });
       }));
   });
 

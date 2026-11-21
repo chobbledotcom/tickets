@@ -235,3 +235,27 @@ describe("the question bodies", () => {
     ).toBe(false);
   });
 });
+
+describe("a body field of the wrong type names the field", () => {
+  const updateSitePage = UpdateSitePageBodySchema;
+  const updateQuestion = ADMIN_API_RESOURCES.questions.updateBodySchema;
+  const cases = [
+    [updateSitePage, { content: 1 }, "content must be a string"],
+    [updateSitePage, { hidden: "yes" }, "hidden must be a boolean"],
+    [
+      updateSitePage,
+      { meta_description: 1 },
+      "meta_description must be a string",
+    ],
+    [updateSitePage, { meta_title: 1 }, "meta_title must be a string"],
+    [updateSitePage, { slug: 1 }, "slug must be a string"],
+    [updateQuestion, { assign_all: "yes" }, "assign_all must be a boolean"],
+    [updateQuestion, { text: 1 }, "text must be a string"],
+  ] as const;
+
+  for (const [schema, body, error] of cases) {
+    test(`an update refuses "${error}"`, () => {
+      expect(parseApiBody(schema, body)).toEqual({ error, ok: false });
+    });
+  }
+});
