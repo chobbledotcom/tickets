@@ -247,7 +247,7 @@ then sends a forced stop signal and allows five more seconds for exit.
 A timeout is a failure, even if the output contains a counterexample.
 The error retains the command output and names the work directory.
 The pull request workflow runs one `model-checks` job for each model, with a
-15-minute limit. A `model-plan` job lists the models
+30-minute limit. A `model-plan` job lists the models
 from the registry. The required `checks` job runs last. It fails unless the
 `static` job and every model job passed.
 
