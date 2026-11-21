@@ -236,18 +236,9 @@ export const optionByName = (
 export const submitUpload = async (
   dialog: HTMLDialogElement,
   name: string,
-  file?: { bytes: number[]; name: string; type: string },
 ): Promise<void> => {
   const form = dialog.querySelector<HTMLFormElement>(".md-image-upload")!;
   form.querySelector<HTMLInputElement>('input[name="name"]')!.value = name;
-  if (file) {
-    const input = form.querySelector<HTMLInputElement>('input[name="image"]')!;
-    Object.defineProperty(input, "files", {
-      value: [
-        new File([new Uint8Array(file.bytes)], file.name, { type: file.type }),
-      ],
-    });
-  }
   form.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
   await flush();
 };
