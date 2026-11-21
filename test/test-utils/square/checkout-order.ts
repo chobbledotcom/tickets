@@ -49,17 +49,13 @@ export const expectOrderMetadata = async (
   expected: ExpectedOrderMetadata,
 ): Promise<void> => {
   const metadata = extractSessionMetadata(wireMetadata(order.metadata));
-  const opened = await readSessionOrder({ metadata });
-  expect(opened.status).toBe("read");
-  if (opened.status !== "read") return;
-  expect({
-    email: opened.intent.email,
-    name: opened.intent.name,
-    phone: opened.intent.phone,
-  }).toEqual({
-    email: expected.email,
-    name: expected.name,
-    phone: expected.phone,
+  expect(await readSessionOrder({ metadata })).toMatchObject({
+    intent: {
+      email: expected.email,
+      items: expected.items,
+      name: expected.name,
+      phone: expected.phone,
+    },
+    status: "read",
   });
-  expect(opened.intent.items).toEqual(expected.items);
 };

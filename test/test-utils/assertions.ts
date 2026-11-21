@@ -190,18 +190,6 @@ export const expectAttendeeCounts = async (
   }
 };
 
-/** Assert `fn` throws an error of `errorClass` and (optionally) whose message
- *  matches `pattern`. Runs `fn` twice — once per assertion — so only use for
- *  idempotent predicates (validators, pure checks), not stateful operations. */
-export const expectThrows = (
-  fn: () => unknown,
-  errorClass: any,
-  pattern?: RegExp,
-): void => {
-  expect(fn).toThrow(errorClass);
-  if (pattern !== undefined) expect(fn).toThrow(pattern);
-};
-
 /** Await `promise` expecting it to reject, and return the thrown error's
  *  message string. Useful when you need to assert on a substring of the
  *  message (Deno's `rejects.toThrow` doesn't return the message). */
