@@ -72,7 +72,8 @@ const moveFor = (item: HTMLElement): { anchor: string; place: MovePlace } => {
     : { anchor: anchorOf(above), place: "after" };
 };
 
-/** Post the move form, with the CSRF token the item's arrow forms carry. */
+/** Post the move form, with the CSRF token the item's arrow forms carry. The
+ *  server sends the operator back to this page, with its filters. */
 const postMove = (
   list: HTMLElement,
   item: HTMLElement,
@@ -89,6 +90,10 @@ const postMove = (
   form.append(
     createHiddenInput("csrfToken", token.value),
     createHiddenInput("anchor", move.anchor),
+    createHiddenInput(
+      "returnUrl",
+      window.location.pathname + window.location.search,
+    ),
   );
   document.body.append(form);
   form.submit();

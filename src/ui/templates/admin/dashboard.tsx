@@ -39,6 +39,7 @@ import {
   typeFilterHref,
 } from "#templates/admin/listing-attribute-filters.ts";
 import {
+  LISTING_REORDER,
   ListingsTableBlock,
   listingTable,
   renderListingsTableSection,
@@ -330,10 +331,11 @@ export const adminListingsPage = (
   const isEditor = session.adminLevel === "editor";
   const layout = listingColumnLayout ?? listingTable.layout.defaultLayout;
   const tableOptions = isEditor
-    ? ({ table: "editor" } as const)
+    ? ({ reorder: LISTING_REORDER, table: "editor" } as const)
     : {
         columnKeys: layout.columnKeys,
         filters: layout.filters,
+        reorder: LISTING_REORDER,
         table: "staff" as const,
       };
   const activeListings = activeOnly(listings);

@@ -101,7 +101,7 @@
   "listings_table.duplicate_listing": "Duplicate Listing",
   "listings_table.creating_new_listing_based_on": "Creating a new listing based on {name}.",
   "listings_table.edit_listing_title": "Edit: {name}",
-  "listings_table.remove_image": "Remove Image",
+  "listings_table.remove_image": "Remove",
   "listings_table.remove_attachment": "Remove Attachment",
   "listings_table.current_attachment": "Current attachment: {name}",
   "listings_table.delete_listing_title": "Delete: {name}",
@@ -132,7 +132,6 @@
   "listings_table.images_none": "No pictures chosen yet.",
   "listings_table.choose_images": "Choose images",
   "listings_table.image_unavailable": "One of the chosen pictures is no longer available. Please choose again.",
-  "listings_table.remove_image": "Remove",
   "listings_table.remove_image_label": "Remove {name}",
   "listings_table.advanced_settings": "Advanced settings",
   "listings_table.running_totals": "Running totals",
@@ -404,5 +403,7 @@
   "listings_table.switch_daily_undated_none_fits": "No date has room for all {count} bookings. Nothing was saved. Make room on a date, then save again.",
   "listings_table.switch_daily_undated_no_dates": "This listing has no bookable dates, so there is no date to give these bookings.",
   "listings_table.switch_daily_undated_given_suffix": " — {count, plural, one {1 booking was given {date}.} other {# bookings were given {date}.}}",
-  "listings_table.switch_daily_undated_guard": "This listing has {count, plural, one {1 booking with no day} other {# bookings with no day}}. Give each booking a day before switching to Daily."
+  "listings_table.switch_daily_undated_guard": "This listing has {count, plural, one {1 booking with no day} other {# bookings with no day}}. Give each booking a day before switching to Daily.",
+  "listings_table.moved": "Listing moved",
+  "listings_table.order_column": "Order"
 }

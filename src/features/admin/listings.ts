@@ -1,6 +1,7 @@
 import {
   defineAdminRoutes,
   entityTabRoutes,
+  orderRoutes,
 } from "#routes/admin/route-tables.ts";
 import { idRouteFor } from "#routes/entity.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
@@ -33,6 +34,7 @@ import {
   listingDelete,
   listingReactivate,
 } from "./listings-lifecycle.ts";
+import { listingOrderHandlers } from "./listings-order.ts";
 import { handleAdminListingChildren } from "./listings-parents.ts";
 import {
   handleListingRecalculateGet,
@@ -77,6 +79,7 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/listing/:id/edit": handleAdminListingEditPost,
   "POST /admin/listing/:id/images": listingImageHandlers.set,
   "POST /admin/listing/:id/income": handleAdminListingIncomePost,
+  ...orderRoutes("/admin/listing/:id", listingOrderHandlers),
   "POST /admin/listing/:id/reactivate": idRouteFor(listingReactivate.post),
   "POST /admin/listings/recalculate/:listingId": handleListingRecalculatePost,
 });

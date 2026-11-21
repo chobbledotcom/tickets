@@ -32,6 +32,7 @@ const CANDIDATE_COLUMNS = [
   "durationDays",
   "minimumDaysBefore",
   "maximumDaysAfter",
+  "sortOrder",
   // The form sorts daily listings by their next bookable date, which reads the
   // three availability fields above — all inheritable, so the row carries the
   // inheritance flag and the site settings are applied before it is returned.

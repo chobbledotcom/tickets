@@ -346,6 +346,8 @@ export const AREAS_A_L = {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/listing/:id/income",
       },
+      listingMoveAfter: contentRoute("/admin/listing/:id/move-after"),
+      listingMoveBefore: contentRoute("/admin/listing/:id/move-before"),
       listingNew: contentRoute("/admin/listing/new"),
       listingNote: "/admin/listing/:id/note",
       listingNoteDelete: "/admin/listing/:id/note/:noteId/delete",

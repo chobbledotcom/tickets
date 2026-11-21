@@ -16,7 +16,10 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { markdownToPlainText } from "#shared/markdown-plain-text.ts";
-import type { TableColumn } from "#shared/tables/column.ts";
+import type {
+  ReorderColumnOptions,
+  TableColumn,
+} from "#shared/tables/column.ts";
 import {
   configurableTableLayouts,
   type ListingColumnKey,
@@ -28,6 +31,7 @@ import {
 } from "#shared/tables/definition.ts";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable, tableColumnText } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";
 import type { ListingWithCount } from "#types";
 
@@ -191,6 +195,8 @@ const editorListingTable = defineTable<
 
 type ListingRows<TKey extends ListingColumnKey> = {
   listings: ListingWithCount[];
+  /** The drag handle and arrows, on the listings page only. */
+  readonly reorder?: ReorderColumnOptions<ListingWithCount> | undefined;
   readonly columnKeys?: readonly TKey[] | undefined;
   readonly filters?: ReadonlyMap<TKey, string> | undefined;
 };
@@ -210,8 +216,17 @@ const renderListingTable = <TKey extends ListingColumnKey>(
     columnKeys: args.columnKeys ?? defaultColumnKeys,
     empty: emptyText,
     filters: args.filters,
+    reorder: args.reorder,
     rowAttrs: (listing) => (listing.active ? {} : { class: "inactive-row" }),
   });
+
+/** The reorder column of the listings page: each listing moves through its
+ *  own move routes, named by its id. */
+export const LISTING_REORDER: ReorderColumnOptions<ListingWithCount> = {
+  anchor: (listing) => String(listing.id),
+  header: translatedTableHeader("listings_table.order_column"),
+  path: (listing) => `/admin/listing/${listing.id}`,
+};
 
 /** Render the listings table (rows + header + scroll wrapper). */
 export const renderListingsTableSection = (

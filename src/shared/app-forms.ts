@@ -120,7 +120,8 @@ type OrderedConfig<Params, Context, Key> = AuthedBase<Params, Context> & {
 /** Build both move routes for any ordered admin collection. Each route moves
  * its row to just before or just after the row the `anchor` field names. The
  * arrows name the next row up or down, and a drop names the row it lands
- * next to. An anchor that is gone, or is the row itself, changes nothing. */
+ * next to. An anchor that is gone, or is the row itself, changes nothing.
+ * A `returnUrl` field brings the operator back to the filtered page. */
 export const createOrderedCollectionHandlers = <Params, Context, Key>(
   config: OrderedConfig<Params, Context, Key>,
 ): Record<MovePlace, ParamsRoute<Params>> => {
@@ -133,15 +134,22 @@ export const createOrderedCollectionHandlers = <Params, Context, Key>(
         anchor === undefined
           ? null
           : moveKey(keys, config.target(args), place, anchor);
+      const back = { form: args.form };
       if (order === null) {
         return redirect(
           config.redirectPath(args),
           t("common.reorder_stale"),
           false,
+          back,
         );
       }
       await config.arrange(order, args);
-      return redirect(config.redirectPath(args), config.movedMessage, true);
+      return redirect(
+        config.redirectPath(args),
+        config.movedMessage,
+        true,
+        back,
+      );
     });
   return { after: move("after"), before: move("before") };
 };

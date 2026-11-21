@@ -178,18 +178,23 @@ describe("sortable lists", () => {
     });
   }
 
-  test("posts the CSRF token the arrow forms carry", () => {
+  test("posts the CSRF token and the page to come back to", () => {
     const { document, handleOf, pointer, rows, submitted } = setUp();
+    window.history.replaceState(null, "", "/admin/listings?group=4");
     const handle = handleOf(rows[1]!);
 
     pointer(handle, "pointerdown");
     pointer(handle, "pointermove", { clientY: 5 });
     pointer(handle, "pointerup");
 
-    expect(submitted[0]!.fields.csrfToken).toBe(
-      requireElement<HTMLInputElement>(document, 'input[name="csrfToken"]')
-        .value,
-    );
+    expect(submitted[0]!.fields).toEqual({
+      anchor: "1",
+      csrfToken: requireElement<HTMLInputElement>(
+        document,
+        'input[name="csrfToken"]',
+      ).value,
+      returnUrl: "/admin/listings?group=4",
+    });
   });
 
   test("marks the row while it is dragged", () => {

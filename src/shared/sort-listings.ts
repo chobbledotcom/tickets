@@ -1,6 +1,10 @@
 /**
  * Unified listing sorting — deterministic ordering for all listing lists.
  *
+ * The place an operator dragged a listing to comes first. A listing nobody
+ * moved has place 0, so it shows before the moved ones. Listings in the same
+ * place fall back to the automatic order:
+ *
  * Tier 0: Standard listings with no date, sorted by name.
  * Tier 1: Standard listings with dates, sorted by date ASC then name.
  * Tier 2: Daily listings, sorted by next bookable date ASC then name.
@@ -55,6 +59,7 @@ const compareDaily = (
 const compareListings =
   (nextDates: Map<number, string | null>) =>
   (a: SortableListing, b: SortableListing): number => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
     const tierA = listingTier(a);
     const tierB = listingTier(b);
     if (tierA !== tierB) return tierA - tierB;
