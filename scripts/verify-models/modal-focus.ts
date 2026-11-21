@@ -1,15 +1,15 @@
 import {
   corruptOneFact,
+  integerFields,
   modelDataFor,
   type TlaFact,
-  tlaModule,
-  tlaRecords,
 } from "#scripts/verify-models/data.ts";
-import { modalTargets } from "#scripts/verify-models/modal-lifecycle-matrix.ts";
+import { matrixModule } from "#scripts/verify-models/modal-lifecycle-matrix.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
   dimmingFor,
   EMPTY_SCREEN,
+  type ModalFocus,
   type ModalScreen,
   type ScreenEvent,
   transitionScreen,
@@ -21,16 +21,29 @@ import {
 const KEYS = ["a", "b", "c"] as const;
 const at = { left: 0, top: 0 };
 
+/** A screen names its windows, bottom first, and who holds the focus. */
+const screenOf = (
+  focus: ModalFocus,
+  ...keys: readonly string[]
+): ModalScreen => ({
+  focus,
+  windows: keys.map((key) => ({ expandedPoint: null, key, point: at })),
+});
+
 type FocusEvent = Extract<
   ScreenEvent,
   { type: "open" | "raise" | "close" | "focus-page" }
 >;
 
+/** One event of this type for each key. */
+const eachKey = (type: "raise" | "close"): FocusEvent[] =>
+  KEYS.map((key) => ({ key, type }));
+
 /** Each key opens, rises, and closes. A press on the page comes last. */
 export const focusEvents: readonly FocusEvent[] = [
   ...KEYS.map((key): FocusEvent => ({ key, point: at, type: "open" })),
-  ...KEYS.map((key): FocusEvent => ({ key, type: "raise" })),
-  ...KEYS.map((key): FocusEvent => ({ key, type: "close" })),
+  ...eachKey("raise"),
+  ...eachKey("close"),
   { type: "focus-page" },
 ];
 
@@ -46,19 +59,15 @@ const SNAPSHOT_FIELDS = [
   "focus",
   "pageDim",
 ] as const;
-const snapshotFields = Object.fromEntries(
-  SNAPSHOT_FIELDS.map((field) => [field, "Int"]),
-) as Record<(typeof SNAPSHOT_FIELDS)[number], "Int">;
+const snapshotFields = integerFields(SNAPSHOT_FIELDS);
 const nodeFields = { ...snapshotFields, id: "Int" } as const;
 const eventFields = { event: "Int", key: "Str", kind: "Str" } as const;
 
 type FocusSnapshot = TlaFact<typeof snapshotFields>;
 type FocusNode = TlaFact<typeof nodeFields>;
-type FocusInput = TlaFact<typeof eventFields>;
-type FocusEdge = { event: number; source: number; target: number };
 export type FocusFacts = {
-  readonly edges: readonly FocusEdge[];
-  readonly events: readonly FocusInput[];
+  readonly edges: readonly { event: number; source: number; target: number }[];
+  readonly events: readonly TlaFact<typeof eventFields>[];
   readonly snapshots: readonly FocusNode[];
 };
 
@@ -101,14 +110,7 @@ export const focusDomain: readonly ModalScreen[] = stacksOf(KEYS).flatMap(
   (keys) =>
     keys.length === 0
       ? [EMPTY_SCREEN]
-      : (["window", "page"] as const).map((focus) => ({
-          focus,
-          windows: keys.map((key) => ({
-            expandedPoint: null,
-            key,
-            point: at,
-          })),
-        })),
+      : (["window", "page"] as const).map((focus) => screenOf(focus, ...keys)),
 );
 
 const snapshotKey = (screen: ModalScreen): string =>
@@ -148,28 +150,16 @@ export const focusFacts = (
   };
 };
 
-const moduleFor = (facts: FocusFacts): string =>
-  tlaModule("ModalFocusData", [
-    tlaRecords("Snapshots", nodeFields, facts.snapshots, "Seq"),
-    tlaRecords("Events", eventFields, facts.events),
-    `\\* @type: Seq(Seq(Int));\nTargets == <<\n${modalTargets(facts)
-      .map((row) => `<<${row.join(", ")}>>`)
-      .join(",\n")}\n>>`,
-  ]);
-
 const focusDataWith = (transform: (facts: FocusFacts) => FocusFacts) =>
-  modelDataFor(() => moduleFor(transform(focusFacts())));
+  modelDataFor(() =>
+    matrixModule(
+      "ModalFocusData",
+      { events: eventFields, snapshots: nodeFields },
+      transform(focusFacts()),
+    ),
+  );
 
 export const modalFocusModelData = focusDataWith((facts) => facts);
-
-/** A control names a screen by its windows, bottom first, and its focus. */
-const screenOf = (
-  focus: ModalScreen["focus"],
-  ...keys: readonly string[]
-): ModalScreen => ({
-  focus,
-  windows: keys.map((key) => ({ expandedPoint: null, key, point: at })),
-});
 
 const nodeOf = (facts: FocusFacts, screen: ModalScreen): FocusNode => {
   const expected = focusSnapshot(screen);
@@ -181,39 +171,50 @@ const nodeOf = (facts: FocusFacts, screen: ModalScreen): FocusNode => {
   );
 };
 
+/** A control changes the facts around one declared screen, its victim. */
+const corruptAt =
+  (
+    screen: ModalScreen,
+    corrupt: (facts: FocusFacts, victim: FocusNode) => Partial<FocusFacts>,
+  ) =>
+  (facts: FocusFacts): FocusFacts => ({
+    ...facts,
+    ...corrupt(facts, nodeOf(facts, screen)),
+  });
+
 /** Corrupt a domain record: both windows are bright while a window has the
  * focus. Initial safety must detect the second bright part. */
-export const twoBrightFocusFacts = (facts: FocusFacts): FocusFacts => {
-  const victim = nodeOf(facts, screenOf("window", "a", "b"));
-  return {
-    ...facts,
+export const twoBrightFocusFacts = corruptAt(
+  screenOf("window", "a", "b"),
+  (facts, victim) => ({
     snapshots: corruptOneFact(
       facts.snapshots,
       (row) => row.id === victim.id,
       "The focus control found no two-window state",
       (row) => ({ ...row, aDim: 0 }),
     ),
-  };
-};
+  }),
+);
 
 /** Corrupt one press on the page: the window keeps the focus, so the page stays
  * dim. The target is a declared state, so only the focus law can detect it. */
-export const stuckFocusFacts = (facts: FocusFacts): FocusFacts => {
-  const victim = nodeOf(facts, screenOf("window", "a"));
-  const press = requireValue(
-    facts.events.find(({ kind }) => kind === "focus-page"),
-    "The focus control found no press on the page",
-  );
-  return {
-    ...facts,
-    edges: corruptOneFact(
-      facts.edges,
-      (edge) => edge.source === victim.id && edge.event === press.event,
-      "The focus control found no press to corrupt",
-      (edge) => ({ ...edge, target: victim.id }),
-    ),
-  };
-};
+export const stuckFocusFacts = corruptAt(
+  screenOf("window", "a"),
+  (facts, victim) => {
+    const press = requireValue(
+      facts.events.find(({ kind }) => kind === "focus-page"),
+      "The focus control found no press on the page",
+    );
+    return {
+      edges: corruptOneFact(
+        facts.edges,
+        (edge) => edge.source === victim.id && edge.event === press.event,
+        "The focus control found no press to corrupt",
+        (edge) => ({ ...edge, target: victim.id }),
+      ),
+    };
+  },
+);
 
 export const twoBrightFocusData = focusDataWith(twoBrightFocusFacts);
 export const stuckFocusData = focusDataWith(stuckFocusFacts);

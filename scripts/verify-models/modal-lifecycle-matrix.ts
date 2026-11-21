@@ -1,3 +1,9 @@
+import {
+  type TlaFact,
+  type TlaRecordSchema,
+  tlaModule,
+  tlaRecords,
+} from "#scripts/verify-models/data.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /** The facts that the matrix reads: dense ids, and one edge for each source
@@ -57,3 +63,24 @@ export const modalTargets = (
     ),
   );
 };
+
+/** The checker data of a model: the screen rows, the event rows, and the
+ * matrix with one target for each source and event. */
+export const matrixModule = <
+  const Node extends TlaRecordSchema,
+  const Input extends TlaRecordSchema,
+>(
+  name: string,
+  schemas: { readonly events: Input; readonly snapshots: Node },
+  facts: TargetFacts & {
+    readonly events: readonly TlaFact<Input>[];
+    readonly snapshots: readonly TlaFact<Node>[];
+  },
+): string =>
+  tlaModule(name, [
+    tlaRecords("Snapshots", schemas.snapshots, facts.snapshots, "Seq"),
+    tlaRecords("Events", schemas.events, facts.events),
+    `\\* @type: Seq(Seq(Int));\nTargets == <<\n${modalTargets(facts)
+      .map((row) => `<<${row.join(", ")}>>`)
+      .join(",\n")}\n>>`,
+  ]);
