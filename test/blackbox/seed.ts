@@ -31,20 +31,28 @@ export const openApi = async (app: App, name = "seed"): Promise<Api> => {
   return createApi(app.target, key);
 };
 
-/** The record of a create that answered 201. Any other answer fails and shows
- * what the API said. */
-const created = <Schema extends v.GenericSchema>(
+/** The body of an answer with the `expected` status. Any other answer fails
+ * and shows what the API said. */
+const answered = <Schema extends v.GenericSchema>(
   what: string,
   answer: Answer,
+  expected: number,
   schema: Schema,
 ): v.InferOutput<Schema> => {
-  if (answer.status !== 201) {
+  if (answer.status !== expected) {
     throw new Error(
-      `Adding the ${what} answered ${answer.status}: ${JSON.stringify(answer.body)}`,
+      `${what} answered ${answer.status}: ${JSON.stringify(answer.body)}`,
     );
   }
   return v.parse(schema, answer.body);
 };
+
+/** The record of a create that answered 201. */
+const created = <Schema extends v.GenericSchema>(
+  what: string,
+  answer: Answer,
+  schema: Schema,
+): v.InferOutput<Schema> => answered(`Adding the ${what}`, answer, 201, schema);
 
 const ListingAnswer = v.object({
   listing: v.looseObject({ id: v.number(), slug: v.string() }),
@@ -108,12 +116,12 @@ export const addImage = async (
     }),
     ImageAnswer,
   ).image;
-  const linked = await api.put(`/api/admin/images/${id}`, { items: [item] });
-  if (linked.status !== 200) {
-    throw new Error(
-      `Showing image ${id} answered ${linked.status}: ${JSON.stringify(linked.body)}`,
-    );
-  }
+  answered(
+    `Showing image ${id}`,
+    await api.put(`/api/admin/images/${id}`, { items: [item] }),
+    200,
+    v.unknown(),
+  );
   return id;
 };
 

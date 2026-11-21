@@ -90,17 +90,19 @@ describe("driver forms", () => {
     const withButtons = FORM.replace(
       "</form>",
       `<button type="submit" formaction="/save/2/move" name="anchor" value="7">Up</button>
-       <button type="submit" formaction="/save/2/drop">Drop</button></form>`,
+       <button type="submit" formaction="/save/2/drop">Drop</button>
+       <button type="submit" formaction="/save/2/keep" name="go">Keep</button></form>`,
     );
     const { requests, target } = formServer(withButtons);
     const app = createApp(target);
 
     await app.submit("/edit", {}, "/save/2/move");
     await app.submit("/edit", {}, "/save/2/drop");
+    await app.submit("/edit", {}, "/save/2/keep");
 
     expect(
       await Promise.all(
-        [requests[1]!, requests[3]!].map(async (sent) => [
+        [requests[1]!, requests[3]!, requests[5]!].map(async (sent) => [
           new URL(sent.url).pathname,
           await sent.text(),
         ]),
@@ -108,6 +110,7 @@ describe("driver forms", () => {
     ).toEqual([
       ["/save/2/move", "csrfToken=token-1&title=Old+title&anchor=7"],
       ["/save/2/drop", "csrfToken=token-1&title=Old+title"],
+      ["/save/2/keep", "csrfToken=token-1&title=Old+title&go="],
     ]);
   });
 
