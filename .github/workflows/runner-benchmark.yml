@@ -1,0 +1,65 @@
+name: Runner benchmark
+
+# Scratch branch only. Time every model on every runner size, cold, twice.
+on:
+  push:
+    branches: [claude/runner-benchmark]
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubicloud-standard-2
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      models: ${{ steps.list.outputs.models }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up model tools
+        uses: $/.github/actions/setup-model-tools
+
+      - name: List the registered models
+        id: list
+        run: echo "models=$(deno task --quiet verify:models --list)" >> "$GITHUB_OUTPUT"
+
+  benchmark:
+    needs: plan
+    name: bench ${{ matrix.model }} ${{ matrix.runner }} ${{ matrix.rep }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ${{ fromJSON(needs.plan.outputs.models) }}
+        runner:
+          - ubicloud-standard-2
+          - ubicloud-standard-4
+          - ubicloud-standard-8
+          - ubicloud-standard-16
+        rep: [a, b]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up model tools
+        uses: $/.github/actions/setup-model-tools
+
+      - name: Check the machine safety model
+        env:
+          MODEL: ${{ matrix.model }}
+        run: deno task verify:models --model "$MODEL"

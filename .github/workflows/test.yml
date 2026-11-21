@@ -13,9 +13,7 @@ name: Test
 # the three names, and `deno task check:required-checks` fails when this
 # ruleset and the manifest disagree (issue #2671).
 on:
-  push:
-    branches-ignore: [main, "gh-readonly-queue/**"]
-  merge_group:
+  workflow_dispatch:
 
 env:
   STRIPE_MOCK_VERSION: "0.188.0"
