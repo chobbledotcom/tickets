@@ -265,6 +265,7 @@ export const questionTables = declaredTables([
         {
           columns: ["booking_row_id"],
           name: "idx_attendee_answers_booking_row_id",
+          where: sql`booking_row_id IS NOT NULL`,
         },
         { columns: ["answer_id"], name: "idx_attendee_answers_answer_id" },
         { columns: ["question_id"], name: "idx_attendee_answers_question_id" },

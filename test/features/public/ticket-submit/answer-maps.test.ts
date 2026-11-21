@@ -15,6 +15,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { freeTextQuestionsOn } from "#test-utils/db-helpers/question-seeds.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { ticketContext } from "#test-utils/ticket-ctx.ts";
 
 /** The submitted answers of a one-listing order: no answers at all unless
@@ -116,6 +117,34 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       expect(ava?.map((ref) => ref.q)).toEqual([7]);
       expect(ben?.map((ref) => ref.q)).toEqual([7]);
       expect(ava?.[0]?.s).not.toBe(ben?.[0]?.s);
+    });
+
+    test("looks the strings up once, whatever mix of answers the order holds", async () => {
+      const listing = await createTestListing({ maxAttendees: 5 });
+      const ctx = await ticketContext([listing.id]);
+      const typed = { questionId: 7, text: "Hello" };
+      const own = { ...typed, listingId: listing.id, text: "Ava" };
+      const lookups = (info: AnswerInfo) =>
+        countDatabaseCalls(5, () => computeTextAnswerRefs(ctx, info));
+
+      const [bookingOnly, lineOnly, both] = [
+        await lookups(
+          answerInfo(ctx, listing.id, { answerIds: [], textAnswers: [typed] }),
+        ),
+        await lookups({
+          ...answerInfo(ctx, listing.id),
+          lineTextAnswers: [own],
+        }),
+        await lookups({
+          ...answerInfo(ctx, listing.id, {
+            answerIds: [],
+            textAnswers: [typed],
+          }),
+          lineTextAnswers: [own],
+        }),
+      ];
+
+      expect([lineOnly, both]).toEqual([bookingOnly, bookingOnly]);
     });
   });
 });

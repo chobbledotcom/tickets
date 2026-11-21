@@ -65,6 +65,22 @@ describeWithEnv("db > migrations > question answer level", { db: true }, () => {
     );
   });
 
+  test("indexes only the answers for a booking row, and a row delete finds them by that index", async () => {
+    await removeAnswerLevel();
+
+    await questionAnswerLevel(context).up();
+
+    expect(await indexSql("idx_attendee_answers_booking_row_id")).toContain(
+      "WHERE booking_row_id IS NOT NULL",
+    );
+    const plan = await getDb().execute(
+      sql`EXPLAIN QUERY PLAN DELETE FROM attendee_answers WHERE booking_row_id = ${1}`,
+    );
+    expect(plan.rows.map((row) => String(row.detail)).join(" ")).toContain(
+      "idx_attendee_answers_booking_row_id",
+    );
+  });
+
   test("takes a booking row's answers with the row once the trigger is back", async () => {
     await removeAnswerLevel();
 
