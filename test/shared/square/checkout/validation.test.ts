@@ -16,6 +16,7 @@ import {
 import {
   configureSquare,
   expectNoLink,
+  linkResult,
   withSquareAnswer,
   withSquareClient,
 } from "#test-utils/square/fixtures.ts";
@@ -130,7 +131,7 @@ describeSquare(() => {
               quantity: "1",
             },
           ]);
-          expectOrderMetadata(args.order, {
+          await expectOrderMetadata(args.order, {
             email: "alice@example.com",
             items: [
               { e: 10, p: 3000, q: 2 },
@@ -151,32 +152,38 @@ describeSquare(() => {
       );
     });
 
-    test("throws PaymentUserError when items metadata exceeds Square limit", async () => {
+    test("takes an order too large for Square's metadata, because the metadata holds only a token", async () => {
       await configureSquare({ locationId: "L_multi_loc" });
-      await withSquareClient({}, async ({ checkoutCreate }) => {
-        // Generate enough items to exceed 255-char serialized metadata
-        const items = Array.from({ length: 30 }, (_, i) =>
-          checkoutItem({
-            listingId: i + 1,
-            name: `Listing ${i + 1}`,
-            slug: `listing-${i + 1}`,
-          }),
-        );
+      await withSquareClient(
+        linkResult("order_big", "https://square.link/big"),
+        async ({ checkoutCreate }) => {
+          const items = Array.from({ length: 30 }, (_, i) =>
+            checkoutItem({
+              listingId: i + 1,
+              name: `Listing ${i + 1}`,
+              slug: `listing-${i + 1}`,
+            }),
+          );
 
-        await expect(
-          squareApi.createPaymentLink(
+          await squareApi.createPaymentLink(
             checkoutIntent({
               email: "alice@example.com",
               items,
               name: "Alice",
             }),
             "https://tickets.example.com",
-          ),
-        ).rejects.toThrow(PaymentUserError);
+          );
 
-        // SDK should never have been called
-        expect(checkoutCreate.calls.length).toBe(0);
-      });
+          const { order } = checkoutCreate.calls[0]!
+            .args[0] as CreatePaymentLinkInput;
+          expect(Object.keys(order.metadata).toSorted()).toEqual([
+            "_origin",
+            "bundle",
+            "listing",
+            "price_proof",
+          ]);
+        },
+      );
     });
   });
 
