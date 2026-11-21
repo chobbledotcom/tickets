@@ -304,7 +304,12 @@ const corruptNodeData = (
 /** The windows in bottom-first order, all expanded at 0, with the top window
  * holding the focus. */
 const focusedStack = (...keys: string[]): ModalSnapshot =>
-  modalSnapshot(screenOf("window", keys.map((key) => expandedWindow(key, 0))));
+  modalSnapshot(
+    screenOf(
+      "window",
+      keys.map((key) => expandedWindow(key, 0)),
+    ),
+  );
 
 /** Corrupt a domain record: initial safety must detect duplicate stack ranks. */
 export const duplicateRankModalData = corruptNodeData(
