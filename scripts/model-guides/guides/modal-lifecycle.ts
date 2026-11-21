@@ -79,7 +79,7 @@ export const modalLifecycle: ModelGuide = {
           symbol: "transitionModals",
         },
       ],
-      rules: ["Init", "Empty", "Keys", "NodeIds", "EventIds", "DomainOK"],
+      rules: ["Init", "Empty", "Keys", "NodeIds", "DomainOK"],
       title: "Start with no window",
       values: [
         { name: "windows", value: "0" },
@@ -91,7 +91,7 @@ export const modalLifecycle: ModelGuide = {
         { name: "input rows", value: "12" },
         { name: "observed transitions", value: "852" },
       ],
-      what: "The model starts before the first open. Empty is the row with id 0 and every rank at zero. Keys names a, b, and c. NodeIds holds every discovered state id, and EventIds holds every selected event id. DomainOK checks that row 1 is Empty, that every row id matches its tuple position, and that every state has one target for each event.",
+      what: "The model starts before the first open. Empty is the row with id 0 and every rank at zero. Keys names a, b, and c. NodeIds holds every discovered state id. DomainOK checks that row 1 is Empty, that every row id matches its tuple position, and that every state has one target for each event.",
     },
     {
       code: [
@@ -111,7 +111,7 @@ export const modalLifecycle: ModelGuide = {
         "SavedLaw",
         "PointLaw",
         "ValidStack",
-        "Rank",
+        "RankOf",
       ],
       title: "Open a at pixel 2",
       values: [
@@ -121,7 +121,7 @@ export const modalLifecycle: ModelGuide = {
         { name: "bRank", value: "0" },
         { name: "cRank", value: "0" },
       ],
-      what: "Open on an absent key appends the window at the top. The point is the positioned point that the caller supplies. The application sends the open event through openAdminModal. The pixel 2 is an assumed input for the finite domain, not a measured browser value. The saved point stays -1 because the window is expanded. Rank reads the new stack position, and ValidStack requires unique consecutive ranks.",
+      what: "Open on an absent key appends the window at the top. The point is the positioned point that the caller supplies. The application sends the open event through openAdminModal. The pixel 2 is an assumed input for the finite domain, not a measured browser value. The saved point stays -1 because the window is expanded. RankOf reads the new stack position, and ValidStack requires unique consecutive ranks.",
     },
     {
       code: [
@@ -137,9 +137,9 @@ export const modalLifecycle: ModelGuide = {
       rules: [
         "Transition",
         "OrderLaw",
-        "Count",
+        "OpenWindows",
         "ValidStack",
-        "Rank",
+        "RankOf",
         "Snapshot",
         "SavedLaw",
       ],
@@ -156,7 +156,7 @@ export const modalLifecycle: ModelGuide = {
         { name: "aPoint", value: "-1 after close" },
         { name: "aSaved", value: "-1 after close" },
       ],
-      what: "Open b and open c append each window above the last. A close removes its key and shifts the later windows down by one. The survivors keep their relative order, so b stays below c. Snapshot reads the source and target rows from the observed state table. Count reads how many windows are live. A close clears the saved point.",
+      what: "Open b and open c append each window above the last. A close removes its key and shifts the later windows down by one. The survivors keep their relative order, so b stays below c. Snapshot reads the source and target rows from the observed state table. OpenWindows counts how many windows are live. A close clears the saved point.",
     },
     {
       code: [

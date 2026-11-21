@@ -4,6 +4,7 @@ import {
 } from "#scripts/model-guides/guides/booking.ts";
 import { attendeeCapacity } from "#scripts/model-guides/guides/capacity.ts";
 import { sharedGroupCapacity } from "#scripts/model-guides/guides/group-capacity.ts";
+import { modalFocus } from "#scripts/model-guides/guides/modal-focus.ts";
 import { modalLifecycle } from "#scripts/model-guides/guides/modal-lifecycle.ts";
 import {
   jointState,
@@ -43,6 +44,7 @@ const GUIDE_BY_MODULE = {
   InvoiceFlow: invoiceFlow,
   JointState: jointState,
   LargestRemainderSplit: largestRemainderSplit,
+  ModalFocus: modalFocus,
   ModalLifecycle: modalLifecycle,
   ModelRules: modelRules,
   NotificationFlagLease: notificationFlagLease,
