@@ -73,7 +73,9 @@ export const planFor = (
 };
 
 /** How long a run may take: three times its baseline time, plus 10 s. A mutant
- *  that makes a test loop is then cut off in seconds, not minutes. */
+ *  that makes a test loop is then cut off in seconds, not minutes. A run past
+ *  the limit is a frozen loop, not a verdict: the runner stops, names the
+ *  mutant, and scores nothing. */
 export const timeLimit = (run: PlannedRun): number => run.ms * 3 + 10_000;
 
 /** How the log names a run: its one file, or "the 12 fast files". */

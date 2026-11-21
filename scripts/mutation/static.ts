@@ -1,3 +1,19 @@
+/**
+ * The static gates: a Biome lint and then a `deno check`, cheapest first. A
+ * mutant either gate rejects is killed without a `deno test` run, because a
+ * build failure can never ship.
+ *
+ * Mutants go through the gates in isolated sibling copies, concurrently. The
+ * limit follows the CPU count, is capped at `MAX_STATIC_JOBS`, and
+ * `MUTATION_STATIC_JOBS` can lower it. A file with fewer than
+ * `PARALLEL_STATIC_MIN_MUTANTS` mutants stays serial to avoid copy overhead.
+ * The test runs start only after every gate result is reported, in mutant
+ * order.
+ *
+ * No mutant is judged by a clock: a slow check or a long queue never counts as
+ * a kill. A mutant is killed only when a gate rejects it or a test fails.
+ */
+
 import { dirname, join, relative, resolve, SEPARATOR } from "@std/path";
 import { throwCollectedErrors, withCleanup } from "#scripts/cleanup.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
