@@ -20,6 +20,13 @@ on:
 env:
   STRIPE_MOCK_VERSION: "0.188.0"
 
+# One run for each branch. A new push cancels the older run of the same branch,
+# because the older run tests a commit that is out of date. A merge queue run
+# never cancels: the queue needs every entry to finish and report.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 # Both jobs only read the checkout. Caching and artifact upload use the Actions
 # runtime token, not this one. The required-checks gate reads the branch
 # ruleset, which is public data, so `contents: read` carries it (issue

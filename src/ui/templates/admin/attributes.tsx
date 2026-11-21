@@ -3,6 +3,7 @@ import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
+import type { SubmittedValueProps } from "#shared/form-data.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
@@ -127,6 +128,7 @@ export const adminAttributePage = (
   session: AdminSession,
   error: string | undefined,
   data: AttributePageData,
+  values?: SubmittedValueProps["values"],
 ): string =>
   errorAdminPage(
     t("attributes.detail_title", {
@@ -145,7 +147,9 @@ export const adminAttributePage = (
           action={`/admin/attributes/${attribute.id}/edit`}
           submitLabel={t("attributes.update")}
         >
-          <Raw html={attributeNameForm.render({ name: attribute.name })} />
+          <Raw
+            html={attributeNameForm.render(values ?? { name: attribute.name })}
+          />
         </SaveForm>
       </WritableOnly>
 

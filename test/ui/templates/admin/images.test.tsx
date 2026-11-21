@@ -7,7 +7,9 @@ import {
   adminImageEditPage,
   adminImageNewPage,
   adminImagesPage,
+  type ImageEditContent,
   ItemImagesPanel,
+  imageEditBody,
 } from "#templates/admin/images.tsx";
 import {
   OWNER_SESSION,
@@ -59,57 +61,85 @@ const expectThumbnailRule = (html: string, count: number): void =>
     ),
   );
 
+/** The image library page for `images`, rendered with file storage on. */
+const libraryPage = (images: Image[]): string =>
+  withStorageEnabled(() => adminImagesPage(images, OWNER_SESSION));
+
+/** The full edit page for one image's content, rendered with storage on. */
+const editPage = (content: ImageEditContent): string =>
+  withStorageEnabled(() =>
+    adminImageEditPage({ ...content, session: OWNER_SESSION }),
+  );
+
 describe("admin image templates", () => {
   beforeAll(setupAdminPageTest);
 
-  test("renders the library table and hides edit actions in read-only mode", () => {
+  test("renders the library grid and hides edit actions in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    withStorageEnabled(() => {
-      const html = adminImagesPage([image(7, "Hero")], OWNER_SESSION);
-      expectIncludesAll(html, ["Hero", "/image/hero-thumb.webp"]);
-      assert(!html.includes('href="/admin/images/7/edit"'));
-      assert(!html.includes('href="/admin/images/new"'));
-    });
+    const html = libraryPage([image(7, "Hero")]);
+
+    expectIncludesAll(html, [
+      '<li class="image-library-item">',
+      '<h2 class="image-library-name">Hero</h2>',
+      "/image/hero-thumb.webp",
+    ]);
+    // Read-only sessions get no edit link, no new-image link, and so no item
+    // the modal can open.
+    expect(html).not.toMatch(
+      /href="\/admin\/images\/(?:7\/edit|new)"|data-image-edit-id/,
+    );
+  });
+
+  test("renders each library image as one real edit link", () => {
+    const html = libraryPage([image(7, "Hero")]);
+
+    expectIncludesAll(html, [
+      '<ul class="image-library-grid" data-image-library data-modal-loading="Loading…">',
+      '<a class="image-library-open" data-image-edit-id="7" data-image-edit-name="Hero" href="/admin/images/7/edit">',
+      '<h2 class="image-library-name">Hero</h2>',
+      '<img alt="Alt Hero" class="image-library-thumb" src="/image/hero-thumb.webp">',
+      '<p class="image-library-alt" tabindex="0">Alt Hero</p>',
+    ]);
+    // The library no longer renders a table row.
+    assert(!html.includes("<table"));
+  });
+
+  test("renders an image with no alt text without an alt box", () => {
+    const html = libraryPage([{ ...image(4, "No alt"), altText: "" }]);
+
+    assert(!html.includes("image-library-alt"));
   });
 
   test("renders the thumbnail from the image thumbnail filename", () => {
-    withStorageEnabled(() => {
-      const html = adminImagesPage([image(8, "Poster")], OWNER_SESSION);
-      assertStringIncludes(
-        html,
-        '<img alt="Alt Poster" class="image-library-thumb" src="/image/poster-thumb.webp">',
-      );
-      assert(!html.includes("/image/poster.webp"));
-      expectIncludesAll(html, [
-        '<a class="active" href="/admin/images">',
-        'href="/admin/guide#images"',
-      ]);
-    });
+    const html = libraryPage([image(8, "Poster")]);
+
+    assertStringIncludes(
+      html,
+      '<img alt="Alt Poster" class="image-library-thumb" src="/image/poster-thumb.webp">',
+    );
+    assert(!html.includes("/image/poster.webp"));
+    expectIncludesAll(html, [
+      '<a class="active" href="/admin/images">',
+      'href="/admin/guide#images"',
+    ]);
   });
 
   test("lazy-loads library thumbnails from the tenth image on the page", () => {
-    withStorageEnabled(() => {
-      const html = adminImagesPage(images(12), OWNER_SESSION);
+    const html = libraryPage(images(12));
 
-      expectThumbnailRule(html, 12);
-      expectIncludesAll(html, [
-        '<img alt="Alt Image 9" class="image-library-thumb" src="/image/image 9-thumb.webp">',
-        '<img alt="Alt Image 10" class="image-library-thumb" loading="lazy" src="/image/image 10-thumb.webp">',
-      ]);
-    });
+    expectThumbnailRule(html, 12);
+    expectIncludesAll(html, [
+      '<img alt="Alt Image 9" class="image-library-thumb" src="/image/image 9-thumb.webp">',
+      '<img alt="Alt Image 10" class="image-library-thumb" loading="lazy" src="/image/image 10-thumb.webp">',
+    ]);
   });
 
   test("loads every library thumbnail with the page at nine images", () => {
-    withStorageEnabled(() => {
-      expectThumbnailRule(adminImagesPage(images(9), OWNER_SESSION), 9);
-    });
+    expectThumbnailRule(libraryPage(images(9)), 9);
   });
 
   test("renders the empty-library message when there are no images", () => {
-    withStorageEnabled(() => {
-      const html = adminImagesPage([], OWNER_SESSION);
-      assertStringIncludes(html, "No images yet.");
-    });
+    assertStringIncludes(libraryPage([]), "No images yet.");
   });
 
   test("hides the image library table and actions when storage is disabled", () => {
@@ -153,18 +183,39 @@ describe("admin image templates", () => {
     });
   });
 
-  test("renders edit fields, linked item checkboxes, and delete action", () => {
-    const html = withStorageEnabled(() =>
-      adminImageEditPage({
-        image: image(3, "Poster"),
-        options: [
-          { active: true, id: 4, label: "Listing A", type: "listing" },
-          { active: true, id: 5, label: "Group B", type: "group" },
-        ],
-        selected: new Set(["group:5"]),
-        session: OWNER_SESSION,
-      }),
-    );
+  test("renders one edit body for the full page and the modal", () => {
+    const content = {
+      image: image(3, "Poster"),
+      options: [
+        { active: true, id: 4, label: "Listing A", type: "listing" as const },
+      ],
+      selected: new Set<string>(),
+    };
+    const body = String(imageEditBody(content));
+    const page = editPage(content);
+
+    // The page carries exactly the body the modal loads.
+    assertStringIncludes(page, body);
+    expectIncludesAll(body, [
+      '<div class="image-library-preview">',
+      '<form action="/admin/images/3/edit" autocomplete="off" method="POST">',
+      'name="csrfToken"',
+      'value="Poster"',
+      'value="listing:4"',
+    ]);
+    // The body carries no page heading of its own.
+    assert(!body.includes("Edit Poster"));
+  });
+
+  test("renders the edit form with its fields and delete action", () => {
+    const html = editPage({
+      image: image(3, "Poster"),
+      options: [
+        { active: true, id: 4, label: "Listing A", type: "listing" },
+        { active: true, id: 5, label: "Group B", type: "group" },
+      ],
+      selected: new Set(["group:5"]),
+    });
 
     expectIncludesAll(html, [
       "Edit Poster",
@@ -187,58 +238,74 @@ describe("admin image templates", () => {
     ]);
   });
 
-  test("groups news and page targets under their own labelled rows", () => {
-    const html = withStorageEnabled(() =>
-      adminImageEditPage({
+  test("renders each kind of linked item set", () => {
+    // News posts and pages get their own labelled rows.
+    expectIncludesAll(
+      editPage({
         image: image(8, "Shared"),
         options: [
           { active: true, id: 1, label: "A post", type: "news" },
           { active: true, id: 2, label: "A page", type: "page" },
         ],
         selected: new Set(["page:2"]),
-        session: OWNER_SESSION,
       }),
+      [
+        '<li class="checkboxes"><strong>News:</strong>',
+        '<li class="checkboxes"><strong>Pages:</strong>',
+        'value="news:1"',
+        'checked name="imageItems" type="checkbox" value="page:2"',
+      ],
     );
 
-    expectIncludesAll(html, [
-      '<li class="checkboxes"><strong>News:</strong>',
-      '<li class="checkboxes"><strong>Pages:</strong>',
-      'value="news:1"',
-      'checked name="imageItems" type="checkbox" value="page:2"',
-    ]);
-  });
-
-  test("renders a listings-only image as a single linked-listings line", () => {
-    const html = adminImageEditPage({
+    // An image linked to listings only names the listings it links.
+    const listingsOnly = editPage({
       image: image(6, "Solo"),
       options: [
         { active: true, id: 4, label: "Listing A", type: "listing" },
         { active: false, id: 7, label: "Retired listing", type: "listing" },
       ],
       selected: new Set(["listing:4"]),
-      session: OWNER_SESSION,
     });
-
-    assertStringIncludes(html, "<strong>Linked listings (1):</strong>");
-    assert(!html.includes("Linked items"));
-    const active = html.indexOf('value="listing:4"');
-    const retired = html.indexOf('value="listing:7"');
-    expect(active).toBeGreaterThan(-1);
-    expect(retired).toBeGreaterThan(active);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(listingsOnly, [
+      "<strong>Linked listings (1):</strong>",
       '<label class="muted"><input name="imageItems" type="checkbox" value="listing:7"',
+    ]);
+    assert(!listingsOnly.includes("Linked items"));
+    expect(listingsOnly.indexOf('value="listing:4"')).toBeLessThan(
+      listingsOnly.indexOf('value="listing:7"'),
+    );
+
+    // An image with no links says so.
+    assertStringIncludes(
+      editPage({
+        image: image(9, "Unlinked"),
+        options: [],
+        selected: new Set(),
+      }),
+      "No listings or groups yet.",
     );
   });
 
-  test("renders edit empty linked-item state", () => {
-    const html = adminImageEditPage({
-      image: image(9, "Unlinked"),
-      options: [],
-      selected: new Set(),
-      session: OWNER_SESSION,
-    });
-    assertStringIncludes(html, "No listings or groups yet.");
+  test("renders the edit body without a delete action in read-only mode", () => {
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const body = withStorageEnabled(() =>
+      String(
+        imageEditBody({
+          image: image(3, "Poster"),
+          options: [],
+          selected: new Set(),
+        }),
+      ),
+    );
+
+    expectIncludesAll(body, [
+      '<form action="/admin/images/3/edit"',
+      'value="Poster"',
+    ]);
+    // The delete route refuses a read-only session, so the body names no
+    // delete action.
+    assert(!body.includes('href="/admin/images/3/delete"'));
+    assert(!body.includes("Danger zone"));
   });
 
   test("renders the delete confirmation page", () => {
@@ -272,6 +339,23 @@ describe("admin image templates", () => {
       assert(!html.includes('name="imageIds"'));
       assert(!html.includes('type="file"'));
     }));
+
+  test("renders linked item images without edit links in read-only mode", () => {
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    withStorageEnabled(() => {
+      const html = String(
+        ItemImagesPanel({
+          action: "/admin/listing/1/images",
+          allImages: [image(1, "Current")],
+          linkedImages: [image(1, "Current")],
+          uploadAction: "/admin/listing/1/images/upload",
+        }),
+      );
+
+      expectIncludesAll(html, ["Current", "/image/current-thumb.webp"]);
+      assert(!html.includes('href="/admin/images/1/edit"'));
+    });
+  });
 
   test("renders empty item image selection and enabled upload form", () =>
     withStorageEnabled(() => {

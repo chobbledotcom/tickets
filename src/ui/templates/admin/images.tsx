@@ -4,6 +4,7 @@
 
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
@@ -116,7 +117,7 @@ const imageColumns: readonly TableColumn<Image>[] = [
     isReadOnly() ? (
       image.name
     ) : (
-      <a href={`/admin/images/${image.id}/edit`}>{image.name}</a>
+      <a href={adminPath("imageEdit", { id: image.id })}>{image.name}</a>
     ),
   ),
   translatedTableColumn(
@@ -127,6 +128,50 @@ const imageColumns: readonly TableColumn<Image>[] = [
 ];
 
 const imageTable = defineTable(imageColumns);
+
+/** One library grid item: the name and thumbnail as one real link, then the
+ *  alt text in a box that scrolls rather than growing. Read-only sessions get
+ *  the same item without the link, because the edit page refuses them. */
+const imageGridItem = (image: Image, position: number): JSX.Element => {
+  const name = <h2 class="image-library-name">{image.name}</h2>;
+  const picture = thumbnail(image, position);
+  return (
+    <li class="image-library-item">
+      {isReadOnly() ? (
+        <>
+          {name}
+          {picture}
+        </>
+      ) : (
+        <a
+          class="image-library-open"
+          data-image-edit-id={String(image.id)}
+          data-image-edit-name={image.name}
+          href={adminPath("imageEdit", { id: image.id })}
+        >
+          {name}
+          {picture}
+        </a>
+      )}
+      {image.altText === "" ? null : (
+        <p class="image-library-alt" tabindex="0">
+          {image.altText}
+        </p>
+      )}
+    </li>
+  );
+};
+
+/** The library uses the shared modal shell for image edits. */
+const imageGrid = (images: readonly Image[]): JSX.Element => (
+  <ul
+    class="image-library-grid"
+    data-image-library
+    data-modal-loading={t("images.edit.loading")}
+  >
+    {images.map((image, position) => imageGridItem(image, position))}
+  </ul>
+);
 
 /** Show the "no images" note when the list is empty, otherwise render it. */
 const imagesOrEmpty = (
@@ -158,7 +203,6 @@ export const adminImagesPage = successListPage<Image>(
   "terms.images",
   "/admin/images",
   (images, session) => ({
-    columns: imageColumns,
     empty: <p>{t("images.empty")}</p>,
     // The images page is editor-reachable, but the guide is staff-only, so
     // the footer gates the link by role — editors otherwise get a 403.
@@ -168,6 +212,7 @@ export const adminImagesPage = successListPage<Image>(
       session.adminLevel,
     ),
     items: images,
+    render: imageGrid,
     ...(isStorageEnabled() ? {} : { unavailable: storageDisabledNotice() }),
   }),
 );
@@ -181,56 +226,75 @@ export const adminImageNewPage = flashFormPage(
       : storageDisabledNotice(),
 );
 
-export const adminImageEditPage = ({
-  image,
-  options,
-  selected,
-  session,
-  error,
-}: {
+/** Everything the image edit form needs, whichever presentation shows it. */
+export type ImageEditContent = {
   image: Image;
   options: readonly ImageItemOption[];
   selected: ReadonlySet<string>;
+};
+
+/** The image's own delete action. A read-only session gets none, because the
+ *  delete route refuses it. */
+const imageDeleteZone = (image: Image): JSX.Element => (
+  <div class="prose">
+    <h2>{t("entity.danger_zone")}</h2>
+    <p>
+      <ActionButton
+        href={`/admin/images/${image.id}/delete`}
+        icon="trash-2"
+        variant="secondary"
+      >
+        {t("images.delete.link")}
+      </ActionButton>
+    </p>
+  </div>
+);
+
+/** The image edit form. The full page and the modal both render this body, so
+ *  their fields and their action URL cannot drift apart. */
+export const imageEditBody = ({
+  image,
+  options,
+  selected,
+}: ImageEditContent): JSX.Element => (
+  <>
+    <div class="image-library-preview">{thumbnail(image, 0)}</div>
+    <CsrfForm action={adminPath("imageEdit", { id: image.id })}>
+      <Raw html={renderFields(imageFields(), imageValue(image))} />
+      {options.length === 0 ? (
+        <p>{t("images.linked_items.empty")}</p>
+      ) : (
+        <LinkedItemsCheckboxes
+          groups={imageLinkedItemGroups(options, selected)}
+          name="imageItems"
+        />
+      )}
+      {SaveChangesButton()}
+    </CsrfForm>
+    {isReadOnly() ? null : imageDeleteZone(image)}
+  </>
+);
+
+/** What the full edit page shows: the form body, the viewer, and any message
+ *  from a rejected save. */
+export type ImageEditPageProps = ImageEditContent & {
   session: AdminSession;
   error?: string | undefined;
-}): string =>
+};
+
+export const adminImageEditPage = ({
+  session,
+  error,
+  ...content
+}: ImageEditPageProps): string =>
   errorAdminPage(
-    t("images.edit.heading", { name: image.name }),
+    t("images.edit.heading", { name: content.image.name }),
     "/admin/images",
   )(
     session,
     error,
-  )(
-    <>
-      <div class="image-library-preview">{thumbnail(image, 0)}</div>
-      <CsrfForm action={`/admin/images/${image.id}/edit`}>
-        <Raw html={renderFields(imageFields(), imageValue(image))} />
-        {options.length === 0 ? (
-          <p>{t("images.linked_items.empty")}</p>
-        ) : (
-          <LinkedItemsCheckboxes
-            groups={imageLinkedItemGroups(options, selected)}
-            name="imageItems"
-          />
-        )}
-        {SaveChangesButton()}
-      </CsrfForm>
-      {!isReadOnly() && (
-        <div class="prose">
-          <h2>{t("entity.danger_zone")}</h2>
-          <p>
-            <ActionButton
-              href={`/admin/images/${image.id}/delete`}
-              icon="trash-2"
-              variant="secondary"
-            >
-              {t("images.delete.link")}
-            </ActionButton>
-          </p>
-        </div>
-      )}
-    </>,
-  );
+  )(imageEditBody(content));
+
 export const adminImageDeletePage = entityDeletePage((image: Image) => ({
   action: `/admin/images/${image.id}/delete`,
   active: { section: "/admin/images" },
