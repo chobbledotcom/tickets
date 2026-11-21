@@ -1,0 +1,40 @@
+name: Cache scope
+
+# Scratch branches only. Does a cache that one branch saved restore on another?
+on:
+  push:
+    branches: ["claude/cache-scope-*"]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: probe ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubicloud-standard-2, ubuntu-latest]
+
+    steps:
+      - name: Restore the probe
+        id: restore
+        uses: actions/cache@v4.3.0
+        with:
+          path: probe
+          key: scope-${{ matrix.runner }}-${{ github.run_id }}
+          restore-keys: scope-${{ matrix.runner }}-
+
+      - name: Report and record
+        env:
+          REF: ${{ github.ref_name }}
+          RUN: ${{ github.run_id }}
+          HIT: ${{ steps.restore.outputs.cache-hit }}
+        run: |
+          echo "ref=$REF exact-hit='$HIT'"
+          echo "restored owners:"
+          cat probe/owner.txt 2>/dev/null || echo "(nothing restored)"
+          mkdir -p probe
+          echo "$REF $RUN" >> probe/owner.txt
