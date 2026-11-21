@@ -10,14 +10,14 @@ import {
   resolveListingDate,
   resolveListingDefaults,
 } from "#shared/listing-defaults.ts";
-import type { SortableListing } from "#types";
+import type { OrderedListing } from "#shared/sort-listings.ts";
 
 /** A candidate listing for the form: enough to sort it, name it, show
  *  whether it is active. The form shows nothing else, so this read skips the
  *  whole listing record — no money, day-price or image subqueries, and no
  *  encrypted columns beyond the name. Its availability values are the
  *  effective ones, so it sorts the same way a full listing record does. */
-export type GroupListingCandidate = SortableListing & {
+export type GroupListingCandidate = OrderedListing & {
   active: boolean;
 };
 

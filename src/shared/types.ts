@@ -569,7 +569,6 @@ export type SortableListing = Pick<
   | "maximumDaysAfter"
   | "minimumDaysBefore"
   | "name"
-  | "sortOrder"
 >;
 
 export type ListingWithCount = Listing & {

@@ -15,9 +15,13 @@ import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { compareOptionalDates } from "#shared/attendee-list-controls.ts";
 import { getNextBookableDate } from "#shared/dates.ts";
-import type { ListingWithCount, SortableListing } from "#types";
+import type { Listing, ListingWithCount, SortableListing } from "#types";
 
 export type { ListingWithCount };
+
+/** The values the order is built from: the place an operator chose, then
+ *  the values the automatic order reads. */
+export type OrderedListing = SortableListing & Pick<Listing, "sortOrder">;
 
 /** Tier assignment: no-date standard=0, dated standard=1, daily=2 */
 const listingTier = (listing: SortableListing): number => {
@@ -58,7 +62,7 @@ const compareDaily = (
  */
 const compareListings =
   (nextDates: Map<number, string | null>) =>
-  (a: SortableListing, b: SortableListing): number => {
+  (a: OrderedListing, b: OrderedListing): number => {
     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
     const tierA = listingTier(a);
     const tierB = listingTier(b);
@@ -73,7 +77,7 @@ const compareListings =
  * order is built from, so a narrow picker read sorts the same way a full
  * listing record does.
  */
-export const sortListings = <T extends SortableListing>(
+export const sortListings = <T extends OrderedListing>(
   listings: T[],
   holidays: Holiday[],
 ): T[] => {
