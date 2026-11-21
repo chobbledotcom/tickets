@@ -834,8 +834,9 @@ drop you state out loud.
 ### Mutation Testing
 
 `deno task mutation` mutates operators in the source and checks whether the
-tests fail. A mutant the tests still pass on is a real gap. How the runner works
-is in [Mutation testing](docs/mutation-testing.md).
+tests fail. A mutant the tests still pass on is a real gap. Run
+`deno task mutation --help` for the options. The module headers in
+`scripts/mutation/` describe how the runner works.
 
 ```bash
 deno task mutation src/shared/dates.ts test/shared/dates.test.ts

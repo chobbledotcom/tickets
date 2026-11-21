@@ -35,7 +35,10 @@ reports which mutants survived (were NOT caught by your tests).
 Options:
   --exhaustive     Try every operator replacement, not just one per operator.
   --harness        Build static assets and start stripe-mock first (needed for
-                   tests that import the app / Stripe; slower).
+                   tests that import the app / Stripe; slower). A mutant in a
+                   client-bundle source (anything bundled into
+                   src/ui/static/*.js) rebuilds just its bundle, so it needs
+                   this flag: the default run never rebuilds a bundle.
   --jobs <n>       Concurrent test-file batches per mutant (default: CPU-aware,
                    or MUTATION_JOBS when set).
                    Static gates use separate CPU-aware workers, capped at 4;

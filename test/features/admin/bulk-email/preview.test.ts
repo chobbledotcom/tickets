@@ -189,6 +189,19 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       );
     });
 
+    test("shows the picture in the message preview", async () => {
+      useResend();
+      const image = await makeImage("Poster");
+      const listing = await seedSingleAttendeeListing();
+      const html = await postPreviewHtml({
+        body: `![Poster](img#${image.id})`,
+        listingId: String(listing.id),
+        subject: "Big news",
+      });
+      // The page resolves the reference to the picture's address on the site.
+      assertStringIncludes(html, `src="/image/${image.filename}"`);
+    });
+
     test("keeps a reference inside code as code in the mailto draft", async () => {
       useResend();
       const image = await makeImage("Poster");
