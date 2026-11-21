@@ -125,7 +125,7 @@ src/features/api/payment-processing/pricing.ts::paidByItem.current~0h5qe1t  ?? �
 src/features/api/payment-processing/package-pricing.ts::packageBundleMismatch.count~0paa7g7  ?? → || audited:1cn80jx # stored per-package quantities are at least 1, so every present value is truthy
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.topLevel~1g6e18j  false → true audited:1cn80jx # orderEdgeDriftedFromFacts uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~0t0xtlh  ?? → || audited:1cn80jx # child id lists are arrays (always truthy), while a missing parent selects [] under either operator
-src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~08xyul5  false → true audited:0iv0v1d # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
+src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.childrenByParentId~0yu5hzn  false → true audited:0lnsxmz # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.packages.hideListings~0xzhsy5  false → true audited:1cn80jx # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts~1sr8ybw  ?? → || audited:1cn80jx # intent.allocations is an array or undefined, and arrays (including []) are truthy
 
