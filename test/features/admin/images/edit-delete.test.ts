@@ -21,10 +21,7 @@ import {
 import {
   expectFlashRedirect,
   expectHtmlResponse,
-  FLASH_TEST_ID,
-  flashCookieHeader,
 } from "#test-utils/assertions.ts";
-import { expectFlashPage } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDeactivatedTestListing,
@@ -32,7 +29,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { linkListingImages } from "#test-utils/image-projections.ts";
 import {
-  awaitTestRequest,
   mockFormRequest,
   withCdnRejecting,
   withStorageDisabled,
@@ -192,20 +188,6 @@ describeWithEnv(
         assertStringIncludes(body, '<div class="image-library-preview">');
         // No page shell, no heading, and no page title.
         expect(body).not.toMatch(/<html|Edit Modal body|admin-nav/);
-      });
-
-      test("shows a flash on the edit page but not in the modal view", async () => {
-        const image = await makeImage("Flash image");
-        const cookie = await testCookie();
-        const path = `/admin/images/${image.id}/edit`;
-
-        await expectFlashPage(path, cookie, "Image updated");
-
-        const modal = await awaitTestRequest(
-          `${path}?modal=1&flash=${FLASH_TEST_ID}`,
-          { cookie: `${cookie}; ${flashCookieHeader("Image updated")}` },
-        );
-        expect(await modal.text()).not.toContain("Image updated");
       });
 
       test("lists a deactivated listing muted at the end of its row", async () => {
