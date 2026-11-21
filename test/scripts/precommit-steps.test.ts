@@ -39,12 +39,15 @@ describe("precommit steps", () => {
       .map((step) => step.cmd[2]);
 
     expect(tasks.length).toBeGreaterThan(0);
-    // The checks job mirrors every step except the suite, which the test job
-    // runs.
+    // The static job mirrors every step except the suite and the model
+    // checks. The test job runs the suite. The model-checks job runs the
+    // model task once for each model.
     const suiteTask = "test:coverage";
-    expect(taskSteps(jobBody(workflow, "checks"))).toEqual(
-      tasks.filter((task) => task !== suiteTask),
+    const modelTask = "verify:models";
+    expect(taskSteps(jobBody(workflow, "static"))).toEqual(
+      tasks.filter((task) => task !== suiteTask && task !== modelTask),
     );
+    expect(taskSteps(jobBody(workflow, "model-checks"))).toEqual([modelTask]);
     expect(taskSteps(jobBody(workflow, "test"))).toEqual([suiteTask]);
   });
 
@@ -54,6 +57,6 @@ describe("precommit steps", () => {
     );
     const summary = await coverageStep?.summary?.("", "");
 
-    expect(summary === undefined || typeof summary === "string").toBe(true);
+    expect(["string", "undefined"]).toContain(typeof summary);
   });
 });
