@@ -28,7 +28,7 @@ export const modelRules: ModelGuide = {
     },
   ],
   claim:
-    "This page explains four small rules that the other models share. Each rule turns one kind of evidence into a yes or no answer.",
+    "This page explains the small rules that the other models share. Each rule turns one kind of evidence into a yes or no answer.",
   limits: [
     "The helper has no state of its own, no start state, and no step relation.",
     "It makes no claim about a business lifecycle.",
@@ -84,6 +84,31 @@ export const modelRules: ModelGuide = {
         { name: "safe", value: "the remembered verdict after the step" },
       ],
       what: "This rule moves the model to the target label and remembers the verdict. It does not refuse an unsafe move. The safety rule of the calling model must reject that move.",
+    },
+    {
+      code: [],
+      rules: ["RowIds", "RowAt", "TablesWellFormed"],
+      title: "A table and its matrix must agree",
+      values: [
+        { name: "row id 0", value: "tuple position 1" },
+        { name: "rows", value: "Every row stores its own id." },
+        { name: "targets", value: "One target for each state and event." },
+      ],
+      what: "A model keeps its observed states in a tuple of records. RowIds names the ids of the rows, and RowAt reads one row. TablesWellFormed checks that every row stores its own id. It also checks that each state has one target for each event, and that each target is a state id.",
+    },
+    {
+      code: [],
+      rules: ["RankOf", "OpenWindows", "RanksInRange"],
+      title: "A stack of three windows keeps valid ranks",
+      values: [
+        { name: "rank 0", value: "the window is absent" },
+        { name: "rank 1", value: "the bottom window" },
+        {
+          name: "open windows",
+          value: "The top rank is the number of windows.",
+        },
+      ],
+      what: "A stack of windows a, b, and c stores one rank for each window. RankOf reads the rank of one window, and OpenWindows counts the windows that are open. RanksInRange requires each rank to be 0 to 3, and no rank to be above the number of open windows.",
     },
   ],
   title: "The shared rules behind every model",

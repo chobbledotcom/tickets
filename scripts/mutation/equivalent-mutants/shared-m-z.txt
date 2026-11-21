@@ -190,8 +190,8 @@ src/ui/templates/admin/images.tsx::imageColumns~0lssgxj  thumbnail → "" audite
 src/ui/templates/admin/images.tsx::imageColumns~06lk820  name → "" audited:01pyjla # same as the thumbnail key above — the images table supplies no columnKeys, no hiddenKeys, and no filter
 src/ui/templates/admin/images.tsx::imageColumns~11ld3ik alt_text→""  audited:1cashdd   # same as the thumbnail key above — the images table supplies no columnKeys, no hiddenKeys, and no filter
 src/ui/templates/admin/images.tsx::imageEditBody~0yyu6ex  0 → 1 audited:01pyjla # the edit page renders one thumbnail, and LAZY_THUMBNAIL_FROM is 9, so every position below 9 gives the same eager tag
-src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated" audited:1nojjql # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
-src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated" audited:1nojjql # itemId destructure default: parsePositiveInt refuses both "" and "mutated", so the id guard drops the target either way
+src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated" audited:0qhp2w3 # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
+src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated" audited:0qhp2w3 # itemId destructure default: parsePositiveInt refuses both "" and "mutated", so the id guard drops the target either way
 
 # Attendee merge service (attendee-merge.ts) — `?? → ||` between
 # `targetAnswers.get(qid)` (a `{answerId, answerText}` object or undefined) and
@@ -442,7 +442,7 @@ src/shared/svg-ticket.ts::generateSvgTicket.qrSection~1lgmz55  =→+= audited:13
 
 # field-specs.ts: the two lookups of the access rule.
 src/shared/rest/field-specs.ts::closedReasonOrNull~1mg5p9w  ??→|| audited:02d9nni # find returns a lock name or undefined, and every lock name is a non-empty string
-src/shared/rest/field-specs.ts::closedFieldErrorOrNull~015lckf  Missing closed field→"" audited:02d9nni # the key comes from closed.has on the same map one line above, so the lookup never throws and no caller reads the message
 
 # validation/string.ts: the brand label exists only in the type system.
 src/shared/validation/string.ts::NonEmptyStringSchema~19qgdi8  NonEmptyString→"" audited:177e60r # valibot stores the brand label on the schema and no validation reads it, so no input behaves differently
+src/features/admin/images.ts::handleImageEditGet~07bwflp  ! → ∅ audited:0qhp2w3 # applyFlash only records the form id from the form search value, and neither the image edit form (it has no id) nor the layout reads that id for this page, so applying or skipping it gives the same page

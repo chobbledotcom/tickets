@@ -45,7 +45,7 @@ describe("pairEntriesByListing", () => {
 
   test("fails when a created row has no loaded listing", () => {
     expect(() => pairEntriesByListing([row(30)], [item(10)])).toThrow(
-      "Listing 30 was not loaded for a created booking",
+      "Missing map key 30",
     );
   });
 });

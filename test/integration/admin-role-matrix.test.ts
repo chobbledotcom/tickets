@@ -115,11 +115,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   ): Promise<number> => {
     const { handleRequest } = await import("#routes");
     const headers: Record<string, string> = {
-      cookie: requiredMapValue(
-        cookies,
-        adminLevel,
-        `No session for ${adminLevel}`,
-      ),
+      cookie: requiredMapValue(cookies, adminLevel),
       host: "localhost",
     };
     if (method === "GET") {

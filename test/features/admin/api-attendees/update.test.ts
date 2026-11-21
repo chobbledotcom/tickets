@@ -129,6 +129,20 @@ describeWithEnv(
       expect(await balanceOf(attendeeId)).toBe(-350);
     });
 
+    test("refuses a taxable adjustment and posts nothing", async () => {
+      const { attendeeId } = await bookOne();
+      await expectApiError(
+        updateBooking(attendeeId, {
+          adjustments: [
+            { amount: 250, description: "Delivery", taxable: true },
+          ],
+        }),
+        400,
+        "adjustments[0].taxable only applies when a booking is created",
+      );
+      expect(await balanceOf(attendeeId)).toBe(-500);
+    });
+
     test("lines change rows, add a listing, and drop an unnamed one", async () => {
       const { attendeeId, listing } = await bookOne();
       const other = await createTestListing({

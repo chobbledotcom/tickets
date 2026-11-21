@@ -112,9 +112,7 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
     return new Map(
       days.map((day) => [
         day,
-        maxAttendees -
-          Number(total) -
-          requiredMapValue(loads, day, `Day ${day} missing`),
+        maxAttendees - Number(total) - requiredMapValue(loads, day),
       ]),
     );
   })(caps);

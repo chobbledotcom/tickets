@@ -20,11 +20,7 @@ Given(
     listing: string,
     providerName: string,
   ): Promise<void> {
-    const provider = requiredMapValue(
-      PUBLIC_PAYMENT_PROVIDERS,
-      providerName,
-      `The refund story has no public ${providerName} journey`,
-    );
+    const provider = requiredMapValue(PUBLIC_PAYMENT_PROVIDERS, providerName);
     await buyPaidPlaceThroughPublicPage(
       this,
       who,

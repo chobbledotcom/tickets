@@ -225,7 +225,8 @@ const ATTENDEE_STATUS_DOCS = {
 /** The create body a caller copies: one booking line on a standard listing,
  * with the attendee's contact fields and the status by name. The line carries
  * an agreed per-unit `price` (minor units), the body records a `payment`
- * already received, and a named `adjustment` bills the delivery. The buyer's
+ * already received, and a named `adjustment` bills the delivery. A `taxable`
+ * adjustment counts in the order's tax. The buyer's
  * `answers` carry one entry per question: a choice answer names its answerId,
  * a free-text answer names its freeText. All amounts are minor units. An
  * optional `created` stamps the business time the booking happened, for a
@@ -233,7 +234,7 @@ const ATTENDEE_STATUS_DOCS = {
  * now. */
 const ADMIN_API_ATTENDEE_CREATE_BODY = {
   address: "12 Main Street, Springfield",
-  adjustments: [{ amount: 250, description: "Delivery" }],
+  adjustments: [{ amount: 250, description: "Delivery", taxable: true }],
   answers: [
     { answerId: 3, questionId: 2 },
     { freeText: "Vegetarian", questionId: 5 },
@@ -394,7 +395,7 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
     ),
     {
       description:
-        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened.",
+        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened. An adjustment with taxable: true is a charge that the tax counts, such as delivery. An update refuses taxable.",
       method: "POST",
       path: "/api/admin/attendees",
       request: json(ADMIN_API_ATTENDEE_CREATE_BODY),

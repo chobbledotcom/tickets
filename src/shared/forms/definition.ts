@@ -1,4 +1,4 @@
-import { reduce } from "#fp";
+import { reduce, requiredMapValue } from "#fp";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   type Field,
@@ -114,11 +114,8 @@ export const defineForm = <
     ),
   ] as FormSectionId<TFields>[];
 
-  const fieldByName = (name: TFields[number]["name"]): Field => {
-    const field = fieldMap.get(name);
-    if (!field) throw new Error(`Unknown field: ${name}`);
-    return field;
-  };
+  const fieldByName = (name: TFields[number]["name"]): Field =>
+    requiredMapValue(fieldMap, name);
 
   const validate = (
     form: FormParams,

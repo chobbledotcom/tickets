@@ -132,8 +132,7 @@ export const getServicingCosts = async (
   const adjustmentsByOriginal = sumAdjustmentsByOriginal(legs);
   const baseAmountById = new Map(legs.map((leg) => [leg.id, leg.amount]));
   const costAmount = (id: number): number =>
-    requiredMapValue(baseAmountById, id, `Transfer ${id} missing`) +
-    (adjustmentsByOriginal.get(id) ?? 0);
+    requiredMapValue(baseAmountById, id) + (adjustmentsByOriginal.get(id) ?? 0);
   // The records come in date order. Promise.all keeps that order, so the
   // list does not move while the memos open.
   return Promise.all(

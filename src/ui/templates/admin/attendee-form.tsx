@@ -245,6 +245,27 @@ const MoneySlotsFields = ({
   </>
 );
 
+/** The tax box of one charge slot, or null. It shows when the site charges
+ *  tax, and when the slot is already ticked, so a rejected save keeps the
+ *  tick. */
+const adjustmentTaxBox = (
+  data: AttendeeFormTemplateData,
+  slot: number,
+): JSX.Element | null => {
+  const taxable = data.parsed.adjustments[slot]?.taxable === true;
+  return data.taxEnabled || taxable ? (
+    <label class="small">
+      <input
+        checked={taxable}
+        name={`adjustmentTaxable${slot}`}
+        type="checkbox"
+        value="1"
+      />
+      {t("attendee_form.adjustment_taxable", { slot: slot + 1 })}
+    </label>
+  ) : null;
+};
+
 /** The form's sections in order: contact details, then the custom questions
  * and shared dates when they apply, then the listing registrations, then the
  * money an operator records now (create only). Each is a legend-led
@@ -345,6 +366,7 @@ const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
                       value={data.parsed.adjustments[slot]?.amount || ""}
                     />
                   </label>
+                  {adjustmentTaxBox(data, slot)}
                 </div>
               )}
             />

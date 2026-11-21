@@ -1,5 +1,5 @@
 ---------------------------- MODULE ModelRules ----------------------------
-EXTENDS Apalache
+EXTENDS Apalache, Integers, FiniteSets, Sequences
 \* A model describes possible application states and the events between them.
 \* A state is the set of current variable values, not necessarily a stored row.
 \* A rule states a condition that those values or an event must satisfy.
@@ -58,5 +58,51 @@ ChecksStillPass(previousChecksPassed, currentCheckPassed) ==
 AttemptedEdge(state, targetState, verdict, safe) ==
   /\ state' := targetState
   /\ safe' := ChecksStillPass(safe, verdict)
+
+\* A table of observed states is a tuple of records, one for each state. A row id
+\* starts at zero, so row id 0 is tuple position 1. A caller supplies its own
+\* table, its own matrix of targets, and its own laws over the rows.
+
+\* The ids of the rows of a table.
+\* @type: (Seq(a)) => Set(Int);
+RowIds(rows) == {index - 1 : index \in DOMAIN rows}
+
+\* The row with this id.
+\* @type: (Seq(a), Int) => a;
+RowAt(rows, id) == rows[id + 1]
+
+\* A table and its matrix of targets must agree. Each row stores its own id.
+\* Each state has one target for each event. Each target is the id of a state.
+\* @type: (Seq({ id: Int, a }), Seq(Seq(Int)), Set({ event: Int, b })) => Bool;
+TablesWellFormed(rows, targets, events) ==
+  LET eventIds == {e.event : e \in events}
+  IN /\ Len(rows) > 0 /\ events # {} /\ Len(targets) = Len(rows)
+     /\ Cardinality(eventIds) = Cardinality(events)
+     /\ eventIds = RowIds(targets[1])
+     /\ \A index \in DOMAIN rows : rows[index].id = index - 1
+     /\ \A source \in RowIds(rows) :
+          /\ Len(targets[source + 1]) = Cardinality(events)
+          /\ \A event \in eventIds :
+               targets[source + 1][event + 1] \in RowIds(rows)
+
+\* A stack of three windows a, b, and c stores one rank for each window. Rank 0
+\* means that the window is absent. Ranks run from the bottom, at 1, to the top.
+
+\* The rank of one window.
+\* @type: ({ aRank: Int, bRank: Int, cRank: Int, r }, Str) => Int;
+RankOf(s, key) ==
+  IF key = "a" THEN s.aRank ELSE IF key = "b" THEN s.bRank ELSE s.cRank
+
+\* The number of open windows.
+\* @type: ({ aRank: Int, bRank: Int, cRank: Int, r }) => Int;
+OpenWindows(s) == (IF s.aRank > 0 THEN 1 ELSE 0) +
+                  (IF s.bRank > 0 THEN 1 ELSE 0) + (IF s.cRank > 0 THEN 1 ELSE 0)
+
+\* Each rank is 0 to 3, and no rank is above the number of open windows.
+\* @type: ({ aRank: Int, bRank: Int, cRank: Int, r }) => Bool;
+RanksInRange(s) ==
+  \A key \in {"a", "b", "c"} :
+    /\ RankOf(s, key) \in {0, 1, 2, 3}
+    /\ RankOf(s, key) <= OpenWindows(s)
 
 =============================================================================

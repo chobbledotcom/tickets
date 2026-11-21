@@ -24,6 +24,8 @@ export interface AttendeeFormTemplateData extends SelectedQuestionAnswers {
   returnUrl?: string | undefined;
   saveError?: string | undefined;
   statuses: AttendeeStatus[];
+  /** True when the site charges tax. A charge then offers a tax box. */
+  taxEnabled: boolean;
   taxPreview?: TaxSavePreview;
   topWarnings: string[];
 }

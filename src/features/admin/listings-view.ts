@@ -188,11 +188,7 @@ export const loadGroupContext = async (
     // A capped group read earlier must still be capped now. A missing entry
     // means the two reads disagreed, and requiredMapValue surfaces that
     // loudly.
-    const remaining = requiredMapValue(
-      remainingMap,
-      group.id,
-      "Missing group remaining",
-    );
+    const remaining = requiredMapValue(remainingMap, group.id);
     if (tightest === undefined || remaining < tightest.remaining) {
       tightest = {
         ctx: { attendeeCount: group.maxAttendees - remaining, group },

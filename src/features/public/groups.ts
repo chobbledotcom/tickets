@@ -107,12 +107,8 @@ export const loadCartPackagesBySlugs = async (
       group.id,
       completePackageListings(
         group,
-        requiredMapValue(membersByGroup, group.id, "Missing package members"),
-        requiredMapValue(
-          memberIdsByGroup,
-          group.id,
-          "Missing package membership",
-        ),
+        requiredMapValue(membersByGroup, group.id),
+        requiredMapValue(memberIdsByGroup, group.id),
         holidays,
       ),
     ]),

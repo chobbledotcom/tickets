@@ -65,11 +65,7 @@ export const annotateOrderParents = async (
     orderToken,
     ...(parentByChild.has(booking.listingId)
       ? {
-          parentListingId: requiredMapValue(
-            parentByChild,
-            booking.listingId,
-            `Listing ${booking.listingId} missing`,
-          ),
+          parentListingId: requiredMapValue(parentByChild, booking.listingId),
         }
       : {}),
   }));

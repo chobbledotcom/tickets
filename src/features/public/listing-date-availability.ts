@@ -83,17 +83,9 @@ export const loadDailyDateAvailability = async (
       compatibleCounts.length === 0 ||
       compatibleCounts.every((count) =>
         minimumUnservable(
-          requiredMapValue(
-            remaining,
-            listing.id,
-            `Listing ${listing.id} remaining missing`,
-          ),
+          requiredMapValue(remaining, listing.id),
           listing.minQuantity,
-          requiredMapValue(
-            memberships,
-            listing.id,
-            `Listing ${listing.id} membership missing`,
-          ),
+          requiredMapValue(memberships, listing.id),
           childDateCapacityParts(children, memberships, {
             date,
             dayCounts,

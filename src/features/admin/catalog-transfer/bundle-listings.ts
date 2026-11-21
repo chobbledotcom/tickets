@@ -4,7 +4,7 @@
  */
 
 import { getListingsByGroupIds } from "#db/groups.ts";
-import { requiredMapValue, unique } from "#fp";
+import { unique } from "#fp";
 import { t } from "#i18n";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
@@ -19,6 +19,7 @@ import {
 } from "#shared/package-membership.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { closedFieldsFor } from "#shared/records/write-access.ts";
+import { requiredMapValueWithMessage } from "#shared/required-map-value.ts";
 import { closedFieldErrorOrNull } from "#shared/rest/field-specs.ts";
 import type { AdminLevel, ListingWithCount } from "#types";
 import type { FailureCollector } from "./bundle-names.ts";
@@ -90,7 +91,7 @@ const storedPlanJoinError = (
   siblingsByGroup: ReadonlyMap<number, ListingWithCount[]>,
 ): string | null => {
   for (const groupId of groupIds) {
-    const plan = requiredMapValue(
+    const plan = requiredMapValueWithMessage(
       siblingsByGroup,
       groupId,
       "Missing group listing membership",
@@ -114,7 +115,7 @@ const checkSitePackageJoins = (
     if (!("siteId" in pair.group)) continue;
     // The group a resolved reference names was loaded with the context, so
     // the row is present.
-    const group = requiredMapValue(
+    const group = requiredMapValueWithMessage(
       context.siteGroupById,
       pair.group.siteId,
       "Referenced group missing",
@@ -140,7 +141,7 @@ export const bundleListingOf = (
   listingPlans: readonly ListingPlan[],
 ): ListingPlan =>
   listingPlans[
-    requiredMapValue(
+    requiredMapValueWithMessage(
       context.listingIndexByName,
       ref.bundleKey,
       "Bundle listing missing",
@@ -174,13 +175,13 @@ export const parentIsHiddenPackageMember = (
   if ("siteId" in ref) {
     // Every stored parent the document names was loaded into the map, so an
     // absent key is a vanished row.
-    const groupIds = requiredMapValue(
+    const groupIds = requiredMapValueWithMessage(
       context.groupsByParentId,
       ref.siteId,
       "Parent groups missing",
     );
     for (const groupId of groupIds) {
-      const group = requiredMapValue(
+      const group = requiredMapValueWithMessage(
         context.siteGroupById,
         groupId,
         "Referenced group missing",
@@ -248,7 +249,7 @@ const addOnReachesParent = (
 ): boolean => {
   let parentGroupIds: readonly number[] = [];
   if ("siteId" in parent) {
-    parentGroupIds = requiredMapValue(
+    parentGroupIds = requiredMapValueWithMessage(
       context.groupsByParentId,
       parent.siteId,
       "Parent groups missing",

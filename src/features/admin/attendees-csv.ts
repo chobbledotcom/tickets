@@ -118,13 +118,7 @@ const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
       }
       const ids = answerMap.get(a.id) ?? [];
       const matched = ids.find((id) => q.answers.some((ans) => ans.id === id));
-      return matched
-        ? requiredMapValue(
-            answerText,
-            matched,
-            `Question ${q.id} answer ${matched} missing`,
-          )
-        : "";
+      return matched ? requiredMapValue(answerText, matched) : "";
     },
   }));
 };

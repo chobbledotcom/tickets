@@ -256,10 +256,7 @@ const reserveLineInPools = (
 ): void => {
   for (const groupId of groupIds) {
     if (charged.has(groupId)) {
-      charged.set(
-        groupId,
-        requiredMapValue(charged, groupId, `Group ${groupId} missing`) - 1,
-      );
+      charged.set(groupId, requiredMapValue(charged, groupId) - 1);
     }
   }
 };

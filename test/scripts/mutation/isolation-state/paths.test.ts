@@ -121,6 +121,7 @@ describe("mutation isolation paths", () => {
     expect(shouldCopySnapshotPath(".mutation-runs/run/work")).toBe(false);
     expect(shouldCopySnapshotPath(".jscpd-report/index.html")).toBe(false);
     expect(shouldCopySnapshotPath(".devenv/bash-bash")).toBe(false);
+    expect(shouldCopySnapshotPath(".devenv-state/state.json")).toBe(false);
     expect(shouldCopySnapshotPath(".container-work/deno-cache")).toBe(false);
     expect(shouldCopySnapshotPath(".diagnostics/trace.json")).toBe(false);
     expect(shouldCopySnapshotPath("coverage-test/lcov.info")).toBe(false);

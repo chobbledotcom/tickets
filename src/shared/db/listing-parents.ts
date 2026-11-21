@@ -293,11 +293,7 @@ export const edgeIncompatibilityAfterChange = async (
     children.map((listing) => listing.id),
     parents.map((listing) => listing.id),
     ({ self, otherId }) => {
-      const other = requiredMapValue(
-        byId,
-        otherId,
-        `Listing ${otherId} missing`,
-      );
+      const other = requiredMapValue(byId, otherId);
       // `updated` stays on its fixed side: parent of each child, child under each parent.
       return self === "parent"
         ? edgeFieldError(updated, other)

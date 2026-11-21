@@ -79,11 +79,7 @@ const overbookedListingIds = async (
     perListing.map((line) =>
       listingBookingFor(
         line,
-        requiredMapValue(
-          totalByListing,
-          line.listingId,
-          `Listing ${line.listingId} missing`,
-        ),
+        requiredMapValue(totalByListing, line.listingId),
         parsed,
       ),
     ),

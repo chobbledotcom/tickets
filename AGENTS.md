@@ -214,8 +214,10 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Copy the shared shape, not the nearest one**: When a helper already does
   the job, use it and delete the local copy in the same change. A record form
   POST uses `createIdEntityHandler` with `formGuard`. A lookup the boundary
-  cannot prove uses `requiredMapValue`. A whole-number form field parses with
-  `parseSignedInt` and names its rule with `validateWholeNumber`. A page opens
+  cannot prove uses `requiredMapValue`. A lookup in data that can arrive
+  broken, such as an uploaded file, uses `requiredMapValueWithMessage`. A
+  whole-number form field parses with `parseSignedInt` and names its rule with
+  `validateWholeNumber`. A page opens
   through `renderAdminPage` or `renderAdminPageSpec` at its own call site, not
   through a local wrapper. `src/features/admin/built-site-form.ts`,
   `src/features/admin/images.ts` and `src/ui/templates/fields/modifier.ts` are
@@ -833,8 +835,9 @@ drop you state out loud.
 ### Mutation Testing
 
 `deno task mutation` mutates operators in the source and checks whether the
-tests fail. A mutant the tests still pass on is a real gap. How the runner works
-is in [Mutation testing](docs/mutation-testing.md).
+tests fail. A mutant the tests still pass on is a real gap. Run
+`deno task mutation --help` for the options. The module headers in
+`scripts/mutation/` describe how the runner works.
 
 ```bash
 deno task mutation src/shared/dates.ts test/shared/dates.test.ts
@@ -861,12 +864,13 @@ distinguish it.
 head, before you merge a branch that changes `src/` files. Rerun it only when a
 later commit changes `src/` files.
 
-The runner stops a test batch that outlives the baseline by two orders of
-magnitude. The limit is 100 times the measured baseline, with a floor of 60
-seconds. The limit never drops below the baseline. Otherwise half the run
-deadline caps it. A batch past the limit is a frozen loop, not a verdict: the
-run stops, names the mutant and the limit, and scores nothing. No mutant is
-judged by a clock. A clock can only stop a run that a loop freeze already broke.
+The runner times each test file on its own. A file quicker than 2 seconds
+shares one run with the other quick files, and a slower file gets its own run.
+Each mutant runs the quickest run first and stops at the first failure. The
+limit for each run is three times its baseline time, plus 10 seconds. A run past
+the limit is a frozen loop, not a verdict: the run stops, names the mutant and
+the limit, and scores nothing. No mutant is judged by a clock. A clock can only stop
+a run that a loop freeze already broke.
 
 ### Fast Tests
 

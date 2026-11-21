@@ -170,11 +170,7 @@ export const loadPagePackages = async (
     buildPagePackage(
       entry.group,
       entry.memberListingIds,
-      requiredMapValue(
-        pricingByGroup,
-        entry.group.id,
-        "Missing package pricing",
-      ),
+      requiredMapValue(pricingByGroup, entry.group.id),
     ),
   );
 };

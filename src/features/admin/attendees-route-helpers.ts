@@ -136,11 +136,7 @@ export const loadAttendeeBooking: ListingAttendeeLoader = async (
   const loaded = await loadAttendeeForListing(listingId, attendeeId);
   if (loaded === null) return null;
   const bookings = await getPairBookings([{ attendeeId, listingId }]);
-  const booking = requiredMapValue(
-    bookings,
-    pairKey(attendeeId, listingId),
-    `Attendee ${attendeeId} has no booking read on listing ${listingId}`,
-  );
+  const booking = requiredMapValue(bookings, pairKey(attendeeId, listingId));
   return { ...loaded, attendee: { ...loaded.attendee, ...booking } };
 };
 

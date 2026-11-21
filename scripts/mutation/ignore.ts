@@ -239,6 +239,27 @@ export const suppresses = (
 };
 
 /**
+ * Split one file's mutants into those a confirmed entry suppresses and those
+ * the run must still test. An entry suppresses only while its proof is
+ * confirmed; an unconfirmed entry leaves its mutant in `active`.
+ */
+export const splitSuppressedMutants = (
+  mutants: readonly Mutant[],
+  ignore: IgnoreList,
+  unconfirmed: ReadonlySet<string>,
+  file: string,
+): { active: Mutant[]; suppressed: Mutant[] } => {
+  const suppressed = mutants.filter((mutant) =>
+    suppresses(ignore, unconfirmed, file, mutant),
+  );
+  const withheld = new Set(suppressed);
+  return {
+    active: mutants.filter((mutant) => !withheld.has(mutant)),
+    suppressed,
+  };
+};
+
+/**
  * Every entry in one registry file's text.
  *
  * A line that is neither blank nor a comment but does not parse raises, because

@@ -46,9 +46,7 @@ export const buildListModel = async (
   navRows: SitePageNavRow[],
 ): Promise<ListModel> => {
   const forest = buildForest(navRows, await getAllPageItems());
-  const roots = forest.rootIds.map((id) =>
-    requiredMapValue(forest.byId, id, `Site page ${id} missing`),
-  );
+  const roots = forest.rootIds.map((id) => requiredMapValue(forest.byId, id));
   const nested = navRows
     .filter((p) => forest.parentByChild.has(p.id))
     .map((p) => ({
@@ -56,12 +54,7 @@ export const buildListModel = async (
       // parentByChild only maps children whose parent is a real page in byId.
       parentName: requiredMapValue(
         forest.byId,
-        requiredMapValue(
-          forest.parentByChild,
-          p.id,
-          `Site page ${p.id} parent missing`,
-        ),
-        `Site page ${p.id} parent page missing`,
+        requiredMapValue(forest.parentByChild, p.id),
       ).name,
     }));
   return { nested, roots };

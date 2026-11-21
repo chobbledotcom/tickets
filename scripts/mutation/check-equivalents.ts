@@ -181,11 +181,7 @@ export const checkEquivalentMutants = async (
       problems.push(`duplicate (${entry.registry}): ${entry.key}`);
     }
     seen.add(entry.key);
-    const checked = requiredMapValue(
-      byPath,
-      entry.sourcePath,
-      `No mutants were generated for ${entry.sourcePath}`,
-    );
+    const checked = requiredMapValue(byPath, entry.sourcePath);
     if (!checked.keys.has(entry.key)) {
       problems.push(staleEntryProblem(entry, checked));
     }

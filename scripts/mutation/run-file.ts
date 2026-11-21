@@ -7,7 +7,8 @@ import {
   type MutantEvaluation,
 } from "./evaluate.ts";
 import { type StaticGate, type TestRunConfig, testEnv } from "./execution.ts";
-import { type IgnoreList, suppresses } from "./ignore.ts";
+import { type IgnoreList, splitSuppressedMutants } from "./ignore.ts";
+import { planFor, type TimedTest } from "./plan.ts";
 import { evaluateStaticMutants, type StaticEvaluation } from "./static.ts";
 import {
   type FrozenLoop,
@@ -59,8 +60,8 @@ export interface MutantLoopContext {
   /** The first frozen test batch this run found, named by its mutant. */
   frozen: { current: FrozenLoop | null };
   gates: StaticGate[];
-  /** Longest a test batch may run, measured from the baseline. */
-  testLimitMs: number;
+  /** Every test file's own baseline time: the source of each mutant's plan. */
+  timings: readonly TimedTest[];
   totalMutants: number;
   /** Entries whose proof predates the file's current text: they suppress
    * nothing, so their mutants surface as the survivors they are. */
@@ -124,24 +125,55 @@ export const runFileMutants = async (
   ctx: MutantLoopContext,
   deps: FileRunDeps = realDeps,
 ): Promise<void> => {
-  const { counts, gates, frozen, testLimitMs, totalMutants } = ctx;
+  const { counts, gates, frozen, timings, totalMutants } = ctx;
   const run: TestRunConfig = {
     batchJobs: opts.batchJobs,
     env: testEnv(),
-    limitMs: testLimitMs,
+    limitMs: null,
+    plan: (testFiles) => planFor(testFiles, timings),
     testFiles: opts.testFiles,
   };
-  const staticResults = await withTrackedOriginal(opts, plan, () =>
-    deps.evaluateStatic(plan, gates, {
-      abortSignal: opts.abortSignal,
-      jobs: opts.staticJobs,
-      root: projectRoot,
-      workerParent: opts.staticWorkerParent,
-    }),
+  // A confirmed equivalent needs no gate and no test: its proof says no input
+  // can tell it from the original. The audit can still disprove the entry.
+  const { active, suppressed } = splitSuppressedMutants(
+    plan.mutants,
+    opts.ignoreList,
+    ctx.unconfirmedKeys,
+    plan.file,
   );
-  for (const staticResult of staticResults) {
+  const staticResults =
+    active.length === 0
+      ? []
+      : await withTrackedOriginal(opts, plan, () =>
+          deps.evaluateStatic({ ...plan, mutants: active }, gates, {
+            abortSignal: opts.abortSignal,
+            jobs: opts.staticJobs,
+            root: projectRoot,
+            workerParent: opts.staticWorkerParent,
+          }),
+        );
+  const staticByMutant = new Map(
+    staticResults.map((result) => [result.mutant, result]),
+  );
+  for (const mutant of plan.mutants) {
     if (opts.isAborted()) break;
-    const { mutant } = staticResult;
+    if (suppressed.includes(mutant)) {
+      const result: MutantResult = {
+        detectedBy: null,
+        file: plan.file,
+        mutant,
+        status: "ignored",
+        timings: [],
+      };
+      opts.results.push(result);
+      counts.ignored += 1;
+      write(statusGlyph("ignored"));
+      reportProgress(result, counts, opts.results.length, totalMutants);
+      continue;
+    }
+    const staticResult = staticByMutant.get(mutant);
+    // No gate result means the run stopped before this mutant's gates finished.
+    if (staticResult === undefined) break;
     const evaluation = await runTestsForStaticSurvivor(
       plan,
       staticResult,
@@ -153,11 +185,7 @@ export const runFileMutants = async (
       frozen.current = { ...evaluation.frozen, file: plan.file, mutant };
     }
     if (opts.isAborted() || evaluation.status === "cancelled") break;
-    const status: Status =
-      evaluation.status === "survived" &&
-      suppresses(opts.ignoreList, ctx.unconfirmedKeys, plan.file, mutant)
-        ? "ignored"
-        : evaluation.status;
+    const status: Status = evaluation.status;
     const result = {
       detectedBy: evaluation.detectedBy,
       file: plan.file,

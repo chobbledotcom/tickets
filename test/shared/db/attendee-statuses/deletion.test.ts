@@ -12,13 +12,7 @@ import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { update } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-const createAttendeeWithStatus = async (statusId: number): Promise<number> => {
-  const attendee = await getDb().execute(
-    sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`,
-  );
-  return Number(attendee.lastInsertRowid);
-};
+import { createAttendeeWithStatus } from "./held.ts";
 
 const storedAttendeeStatus = async (attendeeId: number): Promise<number> => {
   const stored = await getDb().execute(

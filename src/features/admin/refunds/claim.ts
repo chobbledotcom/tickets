@@ -113,11 +113,7 @@ const settlementEntry = (
     {
       ...(books === undefined ? {} : { books }),
       claim: "release",
-      phase: requiredMapValue(
-        claim.phases,
-        sessionId,
-        "Refund settlement lost a payment-row phase",
-      ),
+      phase: requiredMapValue(claim.phases, sessionId),
       ...(review === undefined ? {} : { review }),
     },
   ];

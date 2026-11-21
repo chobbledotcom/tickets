@@ -11,7 +11,11 @@ import {
   TAX_STATE_KINDS,
   type TaxState,
 } from "#shared/tax/transitions.ts";
-import { NO_TAX, type TaxBasis, type TaxPolicy } from "#shared/tax/types.ts";
+import {
+  NO_TAX,
+  type TaxBasisInput,
+  type TaxPolicy,
+} from "#shared/tax/types.ts";
 
 /** Settings are not booking state: changing them never rewrites an assessment. */
 export type TaxMachineState = { booking: TaxState; setting: TaxPolicy };
@@ -42,7 +46,7 @@ export const TAX_POLICIES = [
 ] as const satisfies readonly { id: string; policy: TaxPolicy }[];
 
 /** Half-cent, allocation ties, signed discounts/surcharges and empty totals. */
-export const TAX_BASES: readonly { id: string; basis: TaxBasis }[] = [
+export const TAX_BASES: readonly { id: string; basis: TaxBasisInput }[] = [
   { basis: { lines: [{ gross: 3, listingId: 1 }], modifiers: [] }, id: "half" },
   {
     basis: {

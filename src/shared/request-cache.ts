@@ -162,7 +162,7 @@ export const requestBatchCache = <T>(
   ): void => {
     const fetched = slot.primaryRefill.fetch(() => fetchMany(missing));
     const answerFor = async (id: number): Promise<T> =>
-      requiredMapValue(await fetched, id, `Missing batch result for id ${id}`);
+      requiredMapValue(await fetched, id);
     for (const id of missing) {
       const value = answerFor(id);
       // A failed fetch must not stay remembered, or it would wedge the rest of
@@ -188,7 +188,7 @@ export const requestBatchCache = <T>(
         wanted.map(
           async (id): Promise<[number, T]> => [
             id,
-            await requiredMapValue(values, id, `Missing memo for id ${id}`),
+            await requiredMapValue(values, id),
           ],
         ),
       );
