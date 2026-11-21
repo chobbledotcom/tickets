@@ -12,6 +12,12 @@
  * test actually said, never by how long it took to say it. A test batch that
  * outlives the baseline by orders of magnitude stops the run with the cause
  * named. That clock never decides the mutant it stopped beside.
+ *
+ * Tests under `test/blackbox/` run in the integration stage, after the direct
+ * tests, and only for a mutant that the direct tests miss. A source with no
+ * mirror test can stand on them alone, and a survivor still fails the run. The
+ * precommit step also mutates the source that each deleted test mirrored (see
+ * `scripts/precommit/mutation-step.ts`).
  */
 
 import { shortHash } from "#scripts/checksum.ts";
@@ -58,6 +64,7 @@ import {
   writeStepSummary,
 } from "./summary.ts";
 import {
+  blackboxTestsOf,
   buildMutationTestMap,
   type MutationTestMap,
   requireDirectMutationTests,
@@ -322,6 +329,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
       plan.file,
       plan.mutants.length,
       plan.directTestFiles,
+      blackboxTestsOf(opts.testMap),
     );
     plans.push(plan);
   }
@@ -476,6 +484,7 @@ export const runMutationTesting = async (
       target.sourceFile,
       generateMutants(source, target.sourceFile, options.exhaustive).length,
       target.directTestFiles,
+      blackboxTestsOf(testMap),
     );
   }
   return options.useHarness

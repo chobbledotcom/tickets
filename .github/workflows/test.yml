@@ -137,6 +137,12 @@ jobs:
       - name: Check the presence-assertion registry
         run: deno task check:presence-assertions
 
+      # Holds every test file to its recorded count of imports from src
+      # internals, and the registry to the merge base on origin/main (see
+      # "Keep tests on the public surface" in AGENTS.md).
+      - name: Check the test-internals registry
+        run: deno task check:test-internals
+
       # A helper the branch adds is invisible to the base tree; running the
       # dump against it here is what exercises that import (issue #2740).
       - name: Check contract drift against the base tree
