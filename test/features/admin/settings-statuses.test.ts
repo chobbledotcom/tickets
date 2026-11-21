@@ -8,26 +8,15 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
-import { execute } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
 import {
   expectFlashRedirect,
   expectIncludesAll,
 } from "#test-utils/assertions.ts";
-import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { arrangeBusy, create, statusIdOf } from "./settings-statuses/held.ts";
 
 const PATH = "/admin/settings/statuses";
-
-const createStatus = async (
-  name: string,
-  extra: Record<string, string> = {},
-): Promise<number> => {
-  await adminFormPost(PATH, { name, ...extra });
-  const all = await attendeeStatuses.getAll();
-  return all.find((status) => status.name === name)!.id;
-};
 
 describeWithEnv("attendee statuses", { db: true }, () => {
   test("returns a new status to the list, not to its own page", async () => {
@@ -40,7 +29,7 @@ describeWithEnv("attendee statuses", { db: true }, () => {
   });
 
   test("sends the operator to the status's own page after an edit", async () => {
-    const id = await createStatus("Rename Me");
+    const id = await create("Rename Me");
 
     const { response } = await adminFormPost(`${PATH}/${id}/edit`, {
       name: "Renamed",
@@ -50,7 +39,7 @@ describeWithEnv("attendee statuses", { db: true }, () => {
   });
 
   test("names the field an operator must type to delete", async () => {
-    const id = await createStatus("Spare");
+    const id = await create("Spare");
 
     const html = await (await adminGet(`${PATH}/${id}/delete`)).text();
 
@@ -59,7 +48,7 @@ describeWithEnv("attendee statuses", { db: true }, () => {
 
   test("moves a status down, and the list shows the new order", async () => {
     const first = (await attendeeStatuses.getAll())[0]!;
-    await createStatus("Second");
+    await create("Second");
 
     const { response } = await adminFormPost(
       `${PATH}/${first.id}/move-down`,
@@ -81,40 +70,37 @@ describeWithEnv("attendee statuses", { db: true }, () => {
     const storedByName = async (name: string) =>
       (await attendeeStatuses.getAll()).find((one) => one.name === name);
 
-    test("stores a plain name as neither default and no deposit", async () => {
-      await createStatus("Plain", { reservationAmount: "25" });
+    for (const { fields, name, stored, status } of [
+      {
+        fields: { reservationAmount: "25" },
+        name: "stores a plain name as neither default and no deposit",
+        status: "Plain",
+        stored: {
+          isPaidDefault: false,
+          isPublicDefault: false,
+          isReservation: false,
+          reservationAmount: "0",
+        },
+      },
+      {
+        fields: { isPaidDefault: "1", isPublicDefault: "1" },
+        name: "stores the two defaults the operator ticks",
+        status: "Both Defaults",
+        stored: { isPaidDefault: true, isPublicDefault: true },
+      },
+      {
+        fields: { isReservation: "1", reservationAmount: "10%" },
+        name: "stores a reservation's deposit",
+        status: "Deposit",
+        stored: { isReservation: true, reservationAmount: "10%" },
+      },
+    ]) {
+      test(name, async () => {
+        await create(status, fields);
 
-      expect(await storedByName("Plain")).toMatchObject({
-        isPaidDefault: false,
-        isPublicDefault: false,
-        isReservation: false,
-        reservationAmount: "0",
+        expect(await storedByName(status)).toMatchObject(stored);
       });
-    });
-
-    test("stores the two defaults the operator ticks", async () => {
-      await createStatus("Both Defaults", {
-        isPaidDefault: "1",
-        isPublicDefault: "1",
-      });
-
-      expect(await storedByName("Both Defaults")).toMatchObject({
-        isPaidDefault: true,
-        isPublicDefault: true,
-      });
-    });
-
-    test("stores a reservation's deposit", async () => {
-      await createStatus("Deposit", {
-        isReservation: "1",
-        reservationAmount: "10%",
-      });
-
-      expect(await storedByName("Deposit")).toMatchObject({
-        isReservation: true,
-        reservationAmount: "10%",
-      });
-    });
+    }
 
     test("refuses a status with no name", async () => {
       const { response } = await adminFormPost(PATH, { name: "" });
@@ -128,19 +114,9 @@ describeWithEnv("attendee statuses", { db: true }, () => {
   });
 
   describe("deleting a status attendees hold", () => {
-    const arrangeBusy = async () => {
-      const otherId = await createStatus("Landing Status");
-      const busyId = await createStatus("Busy");
-      const { attendee } = await setupListingAndAttendee({ name: "Holder" });
-      await execute(
-        sql`UPDATE attendees SET status_id = ${busyId} WHERE id = ${attendee.id}`,
-      );
-      return { attendeeId: attendee.id, busyId, otherId };
-    };
-
     test("shows the count and a picker only when one attendee holds it", async () => {
       const { busyId } = await arrangeBusy();
-      const freeId = await createStatus("Free To Go");
+      const freeId = await create("Free To Go");
 
       const busy = await (await adminGet(`${PATH}/${busyId}/delete`)).text();
       const free = await (await adminGet(`${PATH}/${freeId}/delete`)).text();
@@ -162,10 +138,7 @@ describeWithEnv("attendee statuses", { db: true }, () => {
       });
 
       await expectFlashRedirect(PATH, "Status deleted")(response);
-      const rows = await execute(
-        sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
-      );
-      expect(Number(rows.rows[0]!.status_id)).toBe(otherId);
+      expect(await statusIdOf(attendeeId)).toBe(otherId);
       const names = (await attendeeStatuses.getAll()).map((one) => one.name);
       expect(names).not.toContain("Busy");
     });

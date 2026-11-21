@@ -136,22 +136,33 @@ describe("the roles that reach a record's page", () => {
   });
 });
 
+/** The path that each pattern serves, by pattern. */
+const servedPaths = (patterns: string[]) =>
+  Object.fromEntries(
+    patterns.map((pattern) => [pattern, oneServedPath(pattern)]),
+  );
+
 describe("one served path", () => {
   test("gives a numeric parameter an id and any other parameter a word", () => {
-    expect(oneServedPath("/admin/holidays/:id")).toBe("/admin/holidays/1");
-    expect(oneServedPath("/admin/attendees/:attendeeId/note/:noteId")).toBe(
-      "/admin/attendees/1/note/1",
-    );
-    expect(oneServedPath("/admin/backup/download/:filename")).toBe(
-      "/admin/backup/download/value",
-    );
-    expect(oneServedPath("/admin/ledger/:type/:ref")).toBe(
-      "/admin/ledger/value/value",
-    );
+    expect(
+      servedPaths([
+        "/admin/holidays/:id",
+        "/admin/attendees/:attendeeId/note/:noteId",
+        "/admin/backup/download/:filename",
+        "/admin/ledger/:type/:ref",
+      ]),
+    ).toEqual({
+      "/admin/attendees/:attendeeId/note/:noteId": "/admin/attendees/1/note/1",
+      "/admin/backup/download/:filename": "/admin/backup/download/value",
+      "/admin/holidays/:id": "/admin/holidays/1",
+      "/admin/ledger/:type/:ref": "/admin/ledger/value/value",
+    });
   });
 
   test("drops a trailing slash", () => {
-    expect(oneServedPath("/admin/")).toBe("/admin");
-    expect(oneServedPath("/admin/holidays")).toBe("/admin/holidays");
+    expect(servedPaths(["/admin/", "/admin/holidays"])).toEqual({
+      "/admin/": "/admin",
+      "/admin/holidays": "/admin/holidays",
+    });
   });
 });

@@ -6,26 +6,19 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getImagesForItem, insertImageRecord } from "#db/images.ts";
+import { getImagesForItem } from "#db/images.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { nonEmptyString } from "#shared/validation/string.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import { withStorageDisabled } from "#test-utils/mocks.ts";
 import { adminGet, adminMultipartPost } from "#test-utils/session.ts";
+import { storedImage } from "./fixtures.ts";
 
 const emptyListing = async (name: string) =>
   (await getAllListings()).find((listing) => listing.name === name);
-
-const storedImage = (name: string) =>
-  insertImageRecord({
-    filename: nonEmptyString(`${name}.webp`, "test filename"),
-    filenameThumb: nonEmptyString(`${name}-thumb.webp`, "test thumbnail"),
-    name,
-  });
 
 const createWithImages = (
   name: string,

@@ -18,6 +18,27 @@ const patternsOf = (area: {
 
 const areas = Object.entries(AREAS_A_L);
 
+/** The record block of an area: its detail page, its list page, whether it
+ *  has a new page, and the write that deletes it. */
+const recordOf = (
+  detail: string,
+  list: string,
+  newPage: boolean,
+  remove: string,
+) => ({ detail, list, newPage, remove });
+
+/** A route whose save lands on the named record page. */
+const savesTo = (afterSave: string, pattern: string) => ({
+  afterSave,
+  pattern,
+});
+
+/** A route that only staff can reach. */
+const staffRoute = (pattern: string) => ({
+  audience: STAFF_ADMIN_LEVELS,
+  pattern,
+});
+
 describe("the A-L admin areas", () => {
   test("declare every route as a real path under /admin/", () => {
     const stray = areas.flatMap(([name, area]) =>
@@ -62,12 +83,7 @@ describe("the A-L record areas", () => {
   test("declare attributes with moves and options, and no new page", () => {
     expect(AREAS_A_L.attributes).toStrictEqual({
       audience: ["owner"],
-      record: {
-        detail: "attribute",
-        list: "attributes",
-        newPage: false,
-        remove: "attributeDelete",
-      },
+      record: recordOf("attribute", "attributes", false, "attributeDelete"),
       segments: ["listing"],
       view: {
         attribute: "/admin/attributes/:id",
@@ -90,47 +106,31 @@ describe("the A-L record areas", () => {
   });
 
   test("land a built site save on the built site", () => {
-    expect(AREAS_A_L.builtSites.view.builtSites).toStrictEqual({
-      afterSave: "builtSite",
-      pattern: "/admin/built-sites",
-    });
-    expect(AREAS_A_L.builtSites.write.builtSiteEdit).toStrictEqual({
-      afterSave: "builtSite",
-      pattern: "/admin/built-sites/:id/edit",
-    });
+    expect(AREAS_A_L.builtSites.view.builtSites).toStrictEqual(
+      savesTo("builtSite", "/admin/built-sites"),
+    );
+    expect(AREAS_A_L.builtSites.write.builtSiteEdit).toStrictEqual(
+      savesTo("builtSite", "/admin/built-sites/:id/edit"),
+    );
   });
 
   test("declare groups with images, notes, and a staff delete", () => {
     expect(AREAS_A_L.groups).toStrictEqual({
       audience: CONTENT_ADMIN_LEVELS,
-      record: {
-        detail: "group",
-        list: "groups",
-        newPage: true,
-        remove: "groupDelete",
-      },
+      record: recordOf("group", "groups", true, "groupDelete"),
       view: {
         group: "/admin/groups/:id",
-        groups: { afterSave: "group", pattern: "/admin/groups" },
+        groups: savesTo("group", "/admin/groups"),
       },
       write: {
         groupAddListings: "/admin/groups/:id/add-listings",
-        groupDelete: {
-          audience: STAFF_ADMIN_LEVELS,
-          pattern: "/admin/groups/:id/delete",
-        },
-        groupEdit: { afterSave: "group", pattern: "/admin/groups/:id/edit" },
+        groupDelete: staffRoute("/admin/groups/:id/delete"),
+        groupEdit: savesTo("group", "/admin/groups/:id/edit"),
         groupImages: "/admin/groups/:id/images",
         groupImagesUpload: "/admin/groups/:id/images/upload",
         groupNew: "/admin/groups/new",
-        groupNote: {
-          audience: STAFF_ADMIN_LEVELS,
-          pattern: "/admin/groups/:id/note",
-        },
-        groupNoteDelete: {
-          audience: STAFF_ADMIN_LEVELS,
-          pattern: "/admin/groups/:id/note/:noteId/delete",
-        },
+        groupNote: staffRoute("/admin/groups/:id/note"),
+        groupNoteDelete: staffRoute("/admin/groups/:id/note/:noteId/delete"),
         groupRemoveListings: "/admin/groups/:id/remove-listings",
       },
     });
@@ -139,22 +139,14 @@ describe("the A-L record areas", () => {
   test("declare holidays that save to the holiday", () => {
     expect(AREAS_A_L.holidays).toStrictEqual({
       audience: ["owner"],
-      record: {
-        detail: "holiday",
-        list: "holidays",
-        newPage: true,
-        remove: "holidayDelete",
-      },
+      record: recordOf("holiday", "holidays", true, "holidayDelete"),
       view: {
         holiday: "/admin/holidays/:id",
-        holidays: { afterSave: "holiday", pattern: "/admin/holidays" },
+        holidays: savesTo("holiday", "/admin/holidays"),
       },
       write: {
         holidayDelete: { pattern: "/admin/holidays/:id/delete" },
-        holidayEdit: {
-          afterSave: "holiday",
-          pattern: "/admin/holidays/:id/edit",
-        },
+        holidayEdit: savesTo("holiday", "/admin/holidays/:id/edit"),
         holidayNew: "/admin/holidays/new",
       },
     });
@@ -178,12 +170,7 @@ describe("the A-L record areas", () => {
   test("declare invoices with no edit form", () => {
     expect(AREAS_A_L.invoices).toStrictEqual({
       audience: STAFF_ADMIN_LEVELS,
-      record: {
-        detail: "invoice",
-        list: "invoices",
-        newPage: true,
-        remove: "invoiceDelete",
-      },
+      record: recordOf("invoice", "invoices", true, "invoiceDelete"),
       view: { invoice: "/admin/invoices/:id", invoices: "/admin/invoices" },
       write: {
         invoiceCancel: "/admin/invoices/:id/cancel",

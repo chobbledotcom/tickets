@@ -14,51 +14,60 @@ import { adminFormPost } from "#test-utils/session.ts";
 
 const BASE = "/admin/site/news";
 
+/** Checks the redirect, then that the saved post holds the given fields. */
+const expectSavedPost = async (
+  response: Response,
+  id: number,
+  flash: string,
+  fields: Record<string, string>,
+) => {
+  expectRedirectWithFlash(`${BASE}/${id}/edit`, flash)(response);
+  expect(await records.news_posts.find(id)).toMatchObject(fields);
+};
+
+/** Checks the post's image order and the activity log entry. */
+const expectLinkedImages = async (
+  id: number,
+  name: string,
+  imageNames: string[],
+) => {
+  expect(await imageNamesForItem("news", id)).toEqual(imageNames);
+  expect(await loggedMessages()).toContain(
+    `Images updated for news '${name}'`,
+  );
+};
+
 describeWithEnv("admin news routes", { db: true, storage: "cdn" }, () => {
   describe("create", () => {
     test("keeps the snippet and the shared content fields", async () => {
-      const { response } = await adminFormPost(BASE, {
+      const form = {
         content: "Body text",
         metaDescription: "Meta description",
         metaTitle: "Meta title",
         name: "Opening day",
         snippet: "Doors open at ten.",
-      });
+      };
+
+      const { response } = await adminFormPost(BASE, form);
 
       const [card] = await getNewsPostCards();
-      const post = (await records.news_posts.find(card!.id))!;
-      expectRedirectWithFlash(
-        `${BASE}/${post.id}/edit`,
-        "News post created",
-      )(response);
-      expect(post).toMatchObject({
-        content: "Body text",
-        metaDescription: "Meta description",
-        metaTitle: "Meta title",
-        name: "Opening day",
-        snippet: "Doors open at ten.",
-      });
+      await expectSavedPost(response, card!.id, "News post created", form);
     });
   });
 
   describe("edit", () => {
     test("normalises the slug and keeps the snippet", async () => {
       const post = await createTestNewsPost("Before");
+      const form = { name: "After", snippet: "Half price." };
 
       const { response } = await adminFormPost(`${BASE}/${post.id}/edit`, {
-        name: "After",
+        ...form,
         slug: "  Spring Sale  ",
-        snippet: "Half price.",
       });
 
-      expectRedirectWithFlash(
-        `${BASE}/${post.id}/edit`,
-        "News post updated",
-      )(response);
-      expect(await records.news_posts.find(post.id)).toMatchObject({
-        name: "After",
+      await expectSavedPost(response, post.id, "News post updated", {
+        ...form,
         slug: "spring-sale",
-        snippet: "Half price.",
       });
     });
   });
@@ -77,13 +86,7 @@ describeWithEnv("admin news routes", { db: true, storage: "cdn" }, () => {
         `${BASE}/${post.id}/images`,
         "Images updated",
       )(response);
-      expect(await imageNamesForItem("news", post.id)).toEqual([
-        "Second",
-        "First",
-      ]);
-      expect(await loggedMessages()).toContain(
-        "Images updated for news 'Pictured post'",
-      );
+      await expectLinkedImages(post.id, "Pictured post", ["Second", "First"]);
     });
 
     test("answers not found for a post that does not exist", async () => {

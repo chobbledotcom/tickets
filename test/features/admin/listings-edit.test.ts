@@ -7,7 +7,7 @@
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getImagesForItem, insertImageRecord } from "#db/images.ts";
+import { getImagesForItem } from "#db/images.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 import { readOneRow } from "#db/read.ts";
@@ -15,7 +15,6 @@ import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import { adminLandingPath } from "#shared/admin-pages.ts";
-import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   expectIncludesAll,
   expectRedirect,
@@ -53,6 +52,12 @@ import {
   withSetting,
 } from "#test-utils/settings.ts";
 import type { AdminLevel } from "#types";
+import {
+  carriedTemplate,
+  pageAt,
+  rejectedCreate,
+  storedImage,
+} from "./listings-edit/fixtures.ts";
 
 const listingForm = (name: string, adminLevel: AdminLevel = "owner") =>
   buildCreateListingForm(
@@ -167,26 +172,6 @@ describeWithEnv("the new listing form", { db: true }, () => {
 const PICKER_HEADING = "Choose a listing type";
 const FORM_HEADING = "<h1>Add Listing</h1>";
 
-const pageAt = async (path: string): Promise<string> =>
-  await (await adminGet(path)).text();
-
-/** The template the page carries back into a re-submitted create. */
-const carriedTemplate = (html: string): string | null =>
-  /name="templateId"[^>]*value="([^"]*)"/.exec(html)?.[1] ?? null;
-
-/** A create that fails on its blank name, so the error page opens. */
-const rejectedCreate = async (
-  shape: Parameters<typeof testListingInput>[0],
-  extra: Record<string, string> = {},
-): Promise<string> => {
-  const { response } = await adminMultipartPost("/admin/listing", {
-    ...buildCreateListingForm(testListingInput({ ...shape, name: "" })),
-    ...extra,
-  });
-  expect(response.status).toBe(400);
-  return await response.text();
-};
-
 describeWithEnv("which new listing page opens", { db: true }, () => {
   test("offers the type picker until a template is named", async () => {
     const picker = await pageAt("/admin/listing/new");
@@ -272,33 +257,30 @@ describeWithEnv("a rejected create's template", { db: true }, () => {
   });
 });
 
+/** Checks that the create failed with the message and wrote no listing. */
+const expectRefused = async (response: Response, message: string) => {
+  expect(response.status).toBe(400);
+  assertStringIncludes(await response.text(), message);
+  expect(await getAllListings()).toEqual([]);
+};
+
 describeWithEnv("a one-off event create", { db: true }, () => {
-  const oneOff = (name: string, date: string) => ({
-    ...buildCreateListingForm(
-      testListingInput({ date, listingType: "standard", name }),
-    ),
-    templateId: "one-off-event",
-  });
+  const createOneOff = (name: string, date: string) =>
+    adminMultipartPost("/admin/listing", {
+      ...buildCreateListingForm(
+        testListingInput({ date, listingType: "standard", name }),
+      ),
+      templateId: "one-off-event",
+    });
 
   test("refuses a blank date and says why", async () => {
-    const { response } = await adminMultipartPost(
-      "/admin/listing",
-      oneOff("Undated", ""),
-    );
+    const { response } = await createOneOff("Undated", "");
 
-    expect(response.status).toBe(400);
-    assertStringIncludes(
-      await response.text(),
-      "A date is required for one-off events",
-    );
-    expect(await getAllListings()).toEqual([]);
+    await expectRefused(response, "A date is required for one-off events");
   });
 
   test("accepts the same form once the date is filled in", async () => {
-    const { response } = await adminMultipartPost(
-      "/admin/listing",
-      oneOff("Dated", "2026-09-01T10:00"),
-    );
+    const { response } = await createOneOff("Dated", "2026-09-01T10:00");
 
     expectRedirect(response);
     expect((await getAllListings()).map((one) => one.name)).toEqual(["Dated"]);
@@ -306,13 +288,6 @@ describeWithEnv("a one-off event create", { db: true }, () => {
 });
 
 describeWithEnv("a create's pictures", { db: true, storage: "cdn" }, () => {
-  const imageNamed = (name: string) =>
-    insertImageRecord({
-      filename: nonEmptyString(`${name}.webp`, "test filename"),
-      filenameThumb: nonEmptyString(`${name}-thumb.webp`, "test thumbnail"),
-      name,
-    });
-
   const createWith = (name: string, ids: number[], templateId: string) =>
     adminMultipartPost("/admin/listing", {
       ...buildCreateListingForm(testListingInput({ name })),
@@ -320,26 +295,32 @@ describeWithEnv("a create's pictures", { db: true, storage: "cdn" }, () => {
       templateId,
     });
 
-  const expectRefused = async (response: Response, message: string) => {
-    expect(response.status).toBe(400);
-    assertStringIncludes(await response.text(), message);
-    expect(await getAllListings()).toEqual([]);
+  /** Stores one image for each name, then posts a create that lists the
+   * images last first. The ids come back in the order that the form sent. */
+  const createWithStored = async (
+    name: string,
+    templateId: string,
+    imageNames: string[],
+  ) => {
+    const ids: number[] = [];
+    for (const imageName of imageNames) {
+      ids.unshift((await storedImage(imageName)).id);
+    }
+    const { response } = await createWith(name, ids, templateId);
+    return { ids, response };
   };
 
   test("attaches the chosen pictures in order", async () => {
-    const first = await imageNamed("First");
-    const second = await imageNamed("Second");
-
-    const { response } = await createWith(
+    const { ids, response } = await createWithStored(
       "Shipped",
-      [second.id, first.id],
       "physical-product",
+      ["First", "Second"],
     );
 
     expectRedirect(response);
     const [listing] = await getAllListings();
     const attached = await getImagesForItem("listing", listing!.id);
-    expect(attached.map((image) => image.id)).toEqual([second.id, first.id]);
+    expect(attached.map((image) => image.id)).toEqual(ids);
   });
 
   test("refuses a single id that the library does not hold", async () => {
@@ -352,13 +333,9 @@ describeWithEnv("a create's pictures", { db: true, storage: "cdn" }, () => {
   });
 
   test("refuses a single picture id from a form without the field", async () => {
-    const image = await imageNamed("Unshown");
-
-    const { response } = await createWith(
-      "Digital",
-      [image.id],
-      "online-digital",
-    );
+    const { response } = await createWithStored("Digital", "online-digital", [
+      "Unshown",
+    ]);
 
     await expectRefused(
       response,
@@ -367,18 +344,18 @@ describeWithEnv("a create's pictures", { db: true, storage: "cdn" }, () => {
   });
 
   test("re-renders the chosen pictures in order when the create fails", async () => {
-    const first = await imageNamed("First Preview");
-    const second = await imageNamed("Second Preview");
-
-    const { response } = await createWith("", [second.id, first.id], "custom");
+    const { ids, response } = await createWithStored("", "custom", [
+      "First Preview",
+      "Second Preview",
+    ]);
 
     expect(response.status).toBe(400);
-    const ids = [
+    const sent = [
       ...(await response.text()).matchAll(
         /name="imageIds" type="hidden" value="(\d+)"/g,
       ),
     ].map((match) => match[1]);
-    expect(ids).toEqual([String(second.id), String(first.id)]);
+    expect(sent).toEqual(ids.map(String));
   });
 });
 
@@ -458,6 +435,9 @@ describeWithEnv("duplicating required children", { db: true }, () => {
   });
 });
 
+const postIncome = (id: number, income: string) =>
+  adminFormPost(`/admin/listing/${id}/income`, { income });
+
 describeWithEnv("saving an edit that cannot complete", { db: true }, () => {
   test("serves the assign page at 400 when a confirmed switch is refused", async () => {
     const { rescuer } = await groupRescuedChildAddOn();
@@ -486,10 +466,7 @@ describeWithEnv("saving an edit that cannot complete", { db: true }, () => {
   test("reads the corrected income from the income box", async () => {
     const listing = await createTestListing({ name: "Wrong Income" });
 
-    const { response } = await adminFormPost(
-      `/admin/listing/${listing.id}/income`,
-      { income: "25.00" },
-    );
+    const { response } = await postIncome(listing.id, "25.00");
 
     expectRedirect(response);
     expect((await getListingWithCount(listing.id))!.income).toBe(2500);

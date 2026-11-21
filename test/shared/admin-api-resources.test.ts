@@ -44,6 +44,32 @@ const declaredTable = () =>
     ]),
   );
 
+type Declared = {
+  children: Record<string, { idParam: string; path: string }>;
+  custom: Record<string, { method: string; subpath: string }>;
+  label: string;
+  path: string;
+  serves: Record<string, boolean> | null;
+};
+
+/** A declared resource, with no child paths, custom routes, or serves flags
+ *  unless the case names them. */
+const declared = (
+  label: string,
+  path: string,
+  named: Partial<Declared> = {},
+): Declared => ({
+  children: {},
+  custom: {},
+  label,
+  path,
+  serves: null,
+  ...named,
+});
+
+/** A custom route of a resource. */
+const route = (method: string, subpath: string) => ({ method, subpath });
+
 describe("admin api resource table", () => {
   test("a holiday row keeps the fields the table does not name", () => {
     const row = v.parse(HolidayRowSchema, {
@@ -61,87 +87,39 @@ describe("admin api resource table", () => {
 
   test("declares every resource's label, path, routes, and children", () => {
     expect(declaredTable()).toEqual({
-      "attendee-statuses": {
-        children: {},
-        custom: {},
-        label: "Status",
-        path: "attendee-statuses",
-        serves: null,
-      },
-      attendees: {
-        children: {},
-        custom: {},
-        label: "Attendee",
-        path: "attendees",
+      "attendee-statuses": declared("Status", "attendee-statuses"),
+      attendees: declared("Attendee", "attendees", {
         serves: { create: true, update: true },
-      },
-      attributes: {
+      }),
+      attributes: declared("Attribute", "attributes", {
         children: { options: { idParam: "optionId", path: "options" } },
-        custom: {},
-        label: "Attribute",
-        path: "attributes",
-        serves: null,
-      },
-      "external-sources": {
+      }),
+      "external-sources": declared("Source", "external-sources", {
         children: { links: { idParam: "linkId", path: "links" } },
         custom: {
-          linkLookup: { method: "GET", subpath: "lookup" },
-          linkSearch: { method: "GET", subpath: "links" },
-          links: { method: "GET", subpath: ":sourceId/links" },
+          linkLookup: route("GET", "lookup"),
+          linkSearch: route("GET", "links"),
+          links: route("GET", ":sourceId/links"),
         },
-        label: "Source",
-        path: "external-sources",
-        serves: null,
-      },
-      groups: {
-        children: {},
-        custom: {},
-        label: "Group",
-        path: "groups",
-        serves: null,
-      },
-      holidays: {
-        children: {},
-        custom: {},
-        label: "Holiday",
-        path: "holidays",
-        serves: null,
-      },
-      images: {
-        children: {},
-        custom: {},
-        label: "Image",
-        path: "images",
-        serves: null,
-      },
-      listings: {
-        children: {},
+      }),
+      groups: declared("Group", "groups"),
+      holidays: declared("Holiday", "holidays"),
+      images: declared("Image", "images"),
+      listings: declared("Listing", "listings", {
         custom: {
-          attendees: { method: "GET", subpath: ":listingId/attendees" },
-          deactivate: { method: "POST", subpath: ":listingId/deactivate" },
-          delete: { method: "DELETE", subpath: ":listingId" },
-          reactivate: { method: "POST", subpath: ":listingId/reactivate" },
+          attendees: route("GET", ":listingId/attendees"),
+          deactivate: route("POST", ":listingId/deactivate"),
+          delete: route("DELETE", ":listingId"),
+          reactivate: route("POST", ":listingId/reactivate"),
         },
-        label: "Listing",
-        path: "listings",
-        serves: null,
-      },
-      questions: {
+      }),
+      questions: declared("Question", "questions", {
         children: { answers: { idParam: "answerId", path: "answers" } },
-        custom: {
-          bookings: { method: "GET", subpath: ":questionId/bookings" },
-        },
-        label: "Question",
-        path: "questions",
-        serves: null,
-      },
-      "site-pages": {
-        children: {},
+        custom: { bookings: route("GET", ":questionId/bookings") },
+      }),
+      "site-pages": declared("Page", "site-pages", {
         custom: FIXED_PAGE_ROUTES,
-        label: "Page",
-        path: "site-pages",
-        serves: null,
-      },
+      }),
     });
   });
 });
@@ -217,19 +195,14 @@ describe("the question bodies", () => {
     text: "Any allergies?",
   };
 
-  test("a create keeps the assign-all switch, display type, and text", () => {
-    expect(parseApiBody(questionBody().create, FULL_BODY)).toEqual({
-      ok: true,
-      value: FULL_BODY,
+  for (const [action, schema] of Object.entries(questionBody())) {
+    test(`a ${action} keeps the assign-all switch, display type, and text`, () => {
+      expect(parseApiBody(schema, FULL_BODY)).toEqual({
+        ok: true,
+        value: FULL_BODY,
+      });
     });
-  });
-
-  test("an update keeps the assign-all switch, display type, and text", () => {
-    expect(parseApiBody(questionBody().update, FULL_BODY)).toEqual({
-      ok: true,
-      value: FULL_BODY,
-    });
-  });
+  }
 
   test("a create answers a required message for missing or empty text", () => {
     const withoutText = { assign_all: false, display_type: "radio" };

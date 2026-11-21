@@ -58,19 +58,19 @@ describe("fields validators", () => {
       rejects(validateNonNegativePrice, "not-money");
     });
 
+    test("wholeNumberFieldShape declares a number input with parser and check", () => {
+      const shape = wholeNumberFieldShape("Capacity");
+      expect(shape.type).toBe("number");
+      expect(shape.parse("7")).toBe(7);
+      expect(shape.validate("1.5")).toBe("Capacity must be a whole number");
+    });
+
     test("validates whole numbers with the field label", () => {
       const validate = validateWholeNumber("Capacity");
       accepts(validate, "0");
       accepts(validate, "2");
       expect(validate("1.5")).toBe("Capacity must be a whole number");
       rejects(validate, "9007199254740993");
-    });
-
-    test("wholeNumberFieldShape declares a number input with parser and check", () => {
-      const shape = wholeNumberFieldShape("Capacity");
-      expect(shape.type).toBe("number");
-      expect(shape.parse("7")).toBe(7);
-      expect(shape.validate("1.5")).toBe("Capacity must be a whole number");
     });
   });
 

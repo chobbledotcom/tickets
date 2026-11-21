@@ -6,16 +6,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { appendImageToItem, getAllImages } from "#db/images.ts";
-import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   adminGet,
+  expectImageName,
   formRequest,
   imageNamesForItem,
-  imageUploadRequest,
   makeImage,
+  postImageUpload,
 } from "#test-utils/admin-images.ts";
 import {
   expectFlashRedirect,
@@ -35,6 +35,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import type { Image } from "#types";
 
 const NEWS_GATED =
   "This image is used by public site content — only site editors can manage it.";
@@ -57,18 +58,23 @@ describeWithEnv(
       });
     });
 
-    test("sends an upload with no file back to the upload form", async () => {
-      const response = await handleRequest(
+    /** Post the upload form with these fields and no image file. */
+    const postWithoutFile = async (
+      fields: Record<string, string>,
+    ): Promise<Response> =>
+      handleRequest(
         mockMultipartRequest(
           "/admin/images",
-          {
-            altText: "Missing file alt",
-            csrfToken: await testCsrfToken(),
-            name: "Missing file",
-          },
+          { ...fields, csrfToken: await testCsrfToken() },
           await testCookie(),
         ),
       );
+
+    test("sends an upload with no file back to the upload form", async () => {
+      const response = await postWithoutFile({
+        altText: "Missing file alt",
+        name: "Missing file",
+      });
 
       await expectFlashRedirect(
         "/admin/images/new",
@@ -79,26 +85,17 @@ describeWithEnv(
     });
 
     test("an upload creates the image, logs it, and opens its edit page", async () => {
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
       await withStorageMock(async () => {
-        const response = await handleRequest(
-          await imageUploadRequest(
-            "/admin/images",
-            cookie,
-            csrfToken,
-            "New library image",
-          ),
+        const response = await postImageUpload(
+          "/admin/images",
+          await testCookie(),
+          await testCsrfToken(),
+          "New library image",
         );
-        const location = response.headers.get("location") ?? "";
-        const path = new URL(location, "http://localhost").pathname;
-        expect(path).toMatch(/^\/admin\/images\/\d+\/edit$/);
+        const [image] = await getAllImages();
         await expectFlashRedirect(
-          path,
+          `/admin/images/${image?.id}/edit`,
           "Image created",
-          true,
-          cookie,
         )(response);
       });
 
@@ -157,11 +154,20 @@ describeWithEnv(
       });
     });
 
+    /** A stored image that the news post of that name uses. */
+    const imageOnNewsPost = async (
+      imageName: string,
+      postName: string,
+    ): Promise<Image> => {
+      const post = await createTestNewsPost(postName);
+      const image = await makeImage(imageName);
+      await appendImageToItem(image.id, { id: post.id, kind: "news" });
+      return image;
+    };
+
     describe("saving the edit form", () => {
       test("blocks a manager from an image a news post uses, with an error flash", async () => {
-        const post = await createTestNewsPost("Guarded post");
-        const image = await makeImage("Managed image");
-        await appendImageToItem(image.id, { id: post.id, kind: "news" });
+        const image = await imageOnNewsPost("Managed image", "Guarded post");
         const managerCookie = await createTestManagerSession();
 
         const response = await saveImageEdit(image.id, managerCookie, []);
@@ -172,56 +178,48 @@ describeWithEnv(
           false,
           managerCookie,
         )(response);
-        expect((await records.images.find(image.id))?.name).toBe(
-          "Managed image",
-        );
+        await expectImageName(image.id, "Managed image");
       });
 
-      test("keeps a manager's listing link and drops the news link it smuggled", async () => {
-        const post = await createTestNewsPost("Off-limits post");
-        const listing = await createTestListing({ name: "Allowed listing" });
-        const image = await makeImage("Free image");
-        const managerCookie = await createTestManagerSession();
+      for (const { asOwner, name, newsLinkedNames } of [
+        {
+          asOwner: false,
+          name: "keeps a manager's listing link and drops the news link it smuggled",
+          newsLinkedNames: [],
+        },
+        {
+          asOwner: true,
+          name: "keeps every link an owner submits",
+          newsLinkedNames: ["Renamed"],
+        },
+      ]) {
+        test(name, async () => {
+          const post = await createTestNewsPost("Linked post");
+          const listing = await createTestListing({ name: "Linked listing" });
+          const image = await makeImage("Free image");
+          const cookie = asOwner
+            ? await testCookie()
+            : await createTestManagerSession();
 
-        const response = await saveImageEdit(image.id, managerCookie, [
-          `listing:${listing.id}`,
-          `news:${post.id}`,
-        ]);
+          const response = await saveImageEdit(image.id, cookie, [
+            `listing:${listing.id}`,
+            `news:${post.id}`,
+          ]);
 
-        await expectFlashRedirect(
-          `/admin/images/${image.id}/edit`,
-          "Image updated",
-          true,
-          managerCookie,
-        )(response);
-        expect(await imageNamesForItem("listing", listing.id)).toEqual([
-          "Renamed",
-        ]);
-        expect(await imageNamesForItem("news", post.id)).toEqual([]);
-      });
-
-      test("keeps every link an owner submits", async () => {
-        const post = await createTestNewsPost("Open post");
-        const listing = await createTestListing({ name: "Open listing" });
-        const image = await makeImage("Owner image");
-        const cookie = await testCookie();
-
-        const response = await saveImageEdit(image.id, cookie, [
-          `listing:${listing.id}`,
-          `news:${post.id}`,
-        ]);
-
-        await expectFlashRedirect(
-          `/admin/images/${image.id}/edit`,
-          "Image updated",
-          true,
-          cookie,
-        )(response);
-        expect(await imageNamesForItem("listing", listing.id)).toEqual([
-          "Renamed",
-        ]);
-        expect(await imageNamesForItem("news", post.id)).toEqual(["Renamed"]);
-      });
+          await expectFlashRedirect(
+            `/admin/images/${image.id}/edit`,
+            "Image updated",
+            true,
+            cookie,
+          )(response);
+          expect(await imageNamesForItem("listing", listing.id)).toEqual([
+            "Renamed",
+          ]);
+          expect(await imageNamesForItem("news", post.id)).toEqual(
+            newsLinkedNames,
+          );
+        });
+      }
     });
   },
 );

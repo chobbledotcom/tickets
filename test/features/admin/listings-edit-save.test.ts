@@ -70,6 +70,11 @@ describe("edit save path > aggregates by role", () => {
 const DAY_1 = "2026-09-01";
 const DAY_2 = "2026-09-02";
 
+/** Caps the group at 10. createTestGroup's maxAttendees override does not
+ * survive the create form, so the cap is set the way the edit path sets it. */
+const capGroup = (id: number) =>
+  execute(update(tables.groups, { maxAttendees: 10 }).where({ id }));
+
 describeWithEnv("db > edit save path duration warnings", { db: true }, () => {
   test("warns with the earliest overflow day across every group", async () => {
     // The day-later group carries the smaller id, so iteration meets its
@@ -98,18 +103,8 @@ describeWithEnv("db > edit save path duration warnings", { db: true }, () => {
     await recomputeListingBookingRanges(target.id, 2);
     await bookAttendee(siblingLater, { date: DAY_2, quantity: 10 });
     await bookAttendee(siblingEarlier, { date: DAY_1, quantity: 10 });
-    // createTestGroup's maxAttendees override does not survive the create
-    // form, so the caps are set the way the edit path itself sets them.
-    await execute(
-      update(tables.groups, { maxAttendees: 10 }).where({
-        id: dayLaterOverflow.id,
-      }),
-    );
-    await execute(
-      update(tables.groups, { maxAttendees: 10 }).where({
-        id: dayEarlierOverflow.id,
-      }),
-    );
+    await capGroup(dayLaterOverflow.id);
+    await capGroup(dayEarlierOverflow.id);
 
     expect(await earliestGroupCapOverflow(target.id)).toBe(DAY_1);
   });
@@ -126,6 +121,17 @@ const stay = (overrides: ListingOverrides) =>
     name: "Retreat",
     ...overrides,
   });
+
+/** A one-day stay in the group, with six places booked on the date. */
+const bookedStay = async (
+  group: { id: number },
+  name: string,
+  date: string,
+) => {
+  const listing = await stay({ durationDays: 1, groupId: group.id, name });
+  await bookAttendee(listing, { date, quantity: 6 });
+  return listing;
+};
 
 const saveEdit = (
   listing: { id: number },
@@ -189,21 +195,9 @@ describeWithEnv("db > edit save path outcomes", { db: true }, () => {
 
   test("warns and logs when a longer stay overflows a group", async () => {
     const group = await createTestGroup({ maxAttendees: 0, name: "Shared" });
-    const stretched = await stay({
-      durationDays: 1,
-      groupId: group.id,
-      name: "Stretched",
-    });
-    const neighbour = await stay({
-      durationDays: 1,
-      groupId: group.id,
-      name: "Neighbour",
-    });
-    await bookAttendee(stretched, { date: DAY_1, quantity: 6 });
-    await bookAttendee(neighbour, { date: DAY_2, quantity: 6 });
-    await execute(
-      update(tables.groups, { maxAttendees: 10 }).where({ id: group.id }),
-    );
+    const stretched = await bookedStay(group, "Stretched", DAY_1);
+    await bookedStay(group, "Neighbour", DAY_2);
+    await capGroup(group.id);
 
     const { response } = await saveEdit(stretched, {
       ...buildUpdateListingForm({ durationDays: 3 }, stretched),

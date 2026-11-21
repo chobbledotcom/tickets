@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  type AttendeeStatusDeleteError,
+  type AttendeeStatusSaveError,
   attendeeStatusDeleteMessage,
   attendeeStatuses,
   attendeeStatusSaveMessage,
@@ -9,47 +11,55 @@ import {
   statusDeleteBlocker,
   statusDeleteProspects,
 } from "#db/attendee-statuses.ts";
-import { getDb } from "#db/client.ts";
 import { records } from "#db/record-table.ts";
-import { sql } from "#db/sql.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createAttendeeWithStatus } from "./held.ts";
 
 const flags = (isPublicDefault: boolean, isPaidDefault: boolean) => ({
   isPaidDefault,
   isPublicDefault,
 });
 
-const createAttendeeWithStatus = async (statusId: number): Promise<number> => {
-  const attendee = await getDb().execute(
-    sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`,
-  );
-  return Number(attendee.lastInsertRowid);
-};
+/** A refusal code and the exact message it reads as. */
+type Refusal<Code extends string> = readonly [Code, string];
 
-test("a refused status save reads as the exact message for its code", () => {
-  expect(attendeeStatusSaveMessage("paid_default_required")).toBe(
+const SAVE_MESSAGES: readonly Refusal<AttendeeStatusSaveError>[] = [
+  [
+    "paid_default_required",
     "Choose another paid default before clearing this one",
-  );
-  expect(attendeeStatusSaveMessage("public_default_required")).toBe(
+  ],
+  [
+    "public_default_required",
     "Choose another public default before clearing this one",
-  );
-});
+  ],
+];
 
-test("a refused status delete reads as the exact message for its code", () => {
-  expect(attendeeStatusDeleteMessage("last_status")).toBe(
-    "You must keep at least one status",
-  );
-  expect(attendeeStatusDeleteMessage("paid_default")).toBe(
-    "Choose another paid default before deleting this status",
-  );
-  expect(attendeeStatusDeleteMessage("public_default")).toBe(
+const DELETE_MESSAGES: readonly Refusal<AttendeeStatusDeleteError>[] = [
+  ["last_status", "You must keep at least one status"],
+  ["paid_default", "Choose another paid default before deleting this status"],
+  [
+    "public_default",
     "Choose another public default before deleting this status",
-  );
-  expect(attendeeStatusDeleteMessage("status_in_use")).toBe(
-    "Choose another status for its attendees before deleting",
-  );
-});
+  ],
+  ["status_in_use", "Choose another status for its attendees before deleting"],
+];
+
+/** Adds a status with the given name and place in the list. */
+const addStatus = (name: string, sortOrder: number) =>
+  records.attendee_statuses.insert({ name, sortOrder });
+
+for (const [code, message] of SAVE_MESSAGES) {
+  test(`a refused status save reads as the exact message for ${code}`, () => {
+    expect(attendeeStatusSaveMessage(code)).toBe(message);
+  });
+}
+
+for (const [code, message] of DELETE_MESSAGES) {
+  test(`a refused status delete reads as the exact message for ${code}`, () => {
+    expect(attendeeStatusDeleteMessage(code)).toBe(message);
+  });
+}
 
 test("the delete blocker is the last status first, then the public default, then the paid default", () => {
   expect(statusDeleteBlocker(flags(false, false), false)).toBe("last_status");
@@ -72,10 +82,7 @@ describeWithEnv("db > attendee status refusals", { db: true }, () => {
 
   test("a delete prospect lists the other statuses and the blocker of the default", async () => {
     const seed = (await attendeeStatuses.getAll())[0]!;
-    const other = await records.attendee_statuses.insert({
-      name: "Waitlist",
-      sortOrder: 1,
-    });
+    const other = await addStatus("Waitlist", 1);
 
     const ofSeed = await statusDeleteProspects(seed.id);
     expect(ofSeed.blocker).toBe("public_default");
@@ -87,14 +94,8 @@ describeWithEnv("db > attendee status refusals", { db: true }, () => {
   });
 
   test("a delete with a reassign target moves every held attendee and logs the count", async () => {
-    const busy = await records.attendee_statuses.insert({
-      name: "Busy",
-      sortOrder: 1,
-    });
-    const landing = await records.attendee_statuses.insert({
-      name: "Landing",
-      sortOrder: 2,
-    });
+    const busy = await addStatus("Busy", 1);
+    const landing = await addStatus("Landing", 2);
     await createAttendeeWithStatus(busy.id);
     await createAttendeeWithStatus(busy.id);
     expect(await heldAttendeeCount(busy.id)).toBe(2);
@@ -113,10 +114,7 @@ describeWithEnv("db > attendee status refusals", { db: true }, () => {
   });
 
   test("a delete that names the status itself as the target keeps everything", async () => {
-    const busy = await records.attendee_statuses.insert({
-      name: "Self target",
-      sortOrder: 1,
-    });
+    const busy = await addStatus("Self target", 1);
     await createAttendeeWithStatus(busy.id);
 
     expect(await attendeeStatusWrites.delete(busy.id, busy.id)).toEqual({

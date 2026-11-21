@@ -25,16 +25,9 @@ import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { arrangeBusy, create, statusIdOf } from "./held.ts";
 
 const PATH = "/admin/settings/statuses";
-
-const create = async (
-  name: string,
-  extra: Record<string, string> = {},
-): Promise<number> => {
-  await adminFormPost(PATH, { name, ...extra });
-  return (await attendeeStatuses.getAll()).find((one) => one.name === name)!.id;
-};
 
 const remove = (id: number, name: string, extra: Record<string, string> = {}) =>
   adminFormPost(`${PATH}/${id}/delete`, { confirmIdentifier: name, ...extra });
@@ -158,22 +151,6 @@ describeWithEnv("the delete confirmation", { db: true }, () => {
 });
 
 describeWithEnv("retiring a status attendees hold", { db: true }, () => {
-  /** One attendee sitting on a fresh `Busy` status, with one other status
-   *  to move to. */
-  const arrangeBusy = async (): Promise<{
-    busyId: number;
-    attendeeId: number;
-    otherId: number;
-  }> => {
-    const otherId = await create("Landing Status");
-    const busyId = await create("Busy");
-    const { attendee } = await setupListingAndAttendee({ name: "Holder" });
-    await execute(
-      sql`UPDATE attendees SET status_id = ${busyId} WHERE id = ${attendee.id}`,
-    );
-    return { attendeeId: attendee.id, busyId, otherId };
-  };
-
   test("the delete page shows the count and a required picker of other statuses", async () => {
     const { busyId } = await arrangeBusy();
 
@@ -253,10 +230,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     });
 
     await expectFlashRedirect(PATH, "Status deleted")(response);
-    const rows = await execute(
-      sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
-    );
-    expect(Number(rows.rows[0]!.status_id)).toBe(otherId);
+    expect(await statusIdOf(attendeeId)).toBe(otherId);
     assertArrayIncludes(await names(), ["Landing Status"]);
     assert(!(await names()).includes("Busy"));
     assertArrayIncludes(await activityMessages(), [
@@ -296,9 +270,6 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     assertArrayIncludes(await names(), ["Busy"]);
     expect(await attendeeStatusCount(busyId)).toBe(1);
-    const rows = await execute(
-      sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
-    );
-    expect(Number(rows.rows[0]!.status_id)).toBe(busyId);
+    expect(await statusIdOf(attendeeId)).toBe(busyId);
   });
 });
