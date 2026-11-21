@@ -14,13 +14,9 @@ on:
 permissions:
   contents: read
 
-# The models profile carries Apalache and Java. Every run step uses it, as the
-# model step in test.yml does. The plan job only lists names, so it overrides
-# the shell with the ci profile.
-defaults:
-  run:
-    shell: devenv --profile models shell bash -- -e {0}
-
+# The plan job runs in the ci devenv profile. The model jobs install their
+# tools with scripts/ci/setup-model-tools.sh, because the devenv setup takes
+# longer than most checks.
 jobs:
   plan:
     runs-on: ubicloud-standard-2
@@ -54,6 +50,9 @@ jobs:
     runs-on: ubicloud-standard-2
     # A wedged checker must fail loudly, so the job has a hard limit.
     timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     strategy:
       # One failed model must not hide the verdict of the others.
       fail-fast: false
@@ -66,10 +65,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up devenv
-        uses: $/.github/actions/setup-devenv
-        with:
-          profile: models
+      - name: Set up model tools
+        uses: $/.github/actions/setup-model-tools
 
       # The runner reads .verify-models-passes. A restored cache would hide
       # exactly the environment change this job exists to find.

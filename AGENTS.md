@@ -57,8 +57,9 @@ devenv shell -- deno --version
 SHA there, then run `devenv update`. CI uses the same environment through
 `.github/actions/setup-devenv`. CI jobs that never launch a browser evaluate it
 with `devenv --profile ci shell`. That profile leaves out Apalache and Java. The
-step that checks the machine safety models uses `devenv --profile models shell`.
-The default shell on a development machine carries both.
+model check jobs do not use devenv. They install Deno, Java, and Apalache with
+`scripts/ci/setup-model-tools.sh`. The default shell on a development machine
+carries both.
 
 ## stripe-mock
 
