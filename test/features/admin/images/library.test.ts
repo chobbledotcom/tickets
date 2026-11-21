@@ -94,7 +94,12 @@ describeWithEnv(
         const location = response.headers.get("location") ?? "";
         const path = new URL(location, "http://localhost").pathname;
         expect(path).toMatch(/^\/admin\/images\/\d+\/edit$/);
-        await expectFlashRedirect(path, "Image created", true, cookie)(response);
+        await expectFlashRedirect(
+          path,
+          "Image created",
+          true,
+          cookie,
+        )(response);
       });
 
       expect((await getAllImages()).map((image) => image.name)).toEqual([

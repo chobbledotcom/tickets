@@ -473,9 +473,7 @@ describeWithEnv("listings form", { db: true }, () => {
 
       test("a confirmed switch dates the booking and writes the groups", async () => {
         const group = await createTestGroup({ name: "Switch group" });
-        const { date, id, result } = await saveSwitch(true, [
-          String(group.id),
-        ]);
+        const { date, id, result } = await saveSwitch(true, [String(group.id)]);
 
         expect(result).toMatchObject({
           ok: true,

@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  attendeeStatuses,
   attendeeStatusDeleteMessage,
+  attendeeStatuses,
   attendeeStatusSaveMessage,
   attendeeStatusWrites,
   heldAttendeeCount,

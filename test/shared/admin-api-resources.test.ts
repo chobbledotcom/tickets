@@ -258,8 +258,7 @@ describe("the question bodies", () => {
     };
     expect(v.parse(QuestionRowSchema, row)).toEqual(row);
     expect(
-      v.safeParse(QuestionRowSchema, { ...row, display_type: "bogus" })
-        .success,
+      v.safeParse(QuestionRowSchema, { ...row, display_type: "bogus" }).success,
     ).toBe(false);
   });
 });

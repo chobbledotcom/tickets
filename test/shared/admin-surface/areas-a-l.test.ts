@@ -51,12 +51,12 @@ describe("the A-L admin areas", () => {
 
 describe("the A-L record areas", () => {
   test("close the refresh-payment and check-in writes in update mode", () => {
-    expect(
-      AREAS_A_L.attendees.write.attendeeRefreshPayment.readOnlyWrite,
-    ).toBe("read-only");
-    expect(
-      AREAS_A_L.attendees.write.listingAttendeeCheckin.readOnlyWrite,
-    ).toBe("read-only");
+    expect(AREAS_A_L.attendees.write.attendeeRefreshPayment.readOnlyWrite).toBe(
+      "read-only",
+    );
+    expect(AREAS_A_L.attendees.write.listingAttendeeCheckin.readOnlyWrite).toBe(
+      "read-only",
+    );
   });
 
   test("declare attributes with moves and options, and no new page", () => {
@@ -79,8 +79,7 @@ describe("the A-L record areas", () => {
         attributeMoveDown: "/admin/attributes/:id/move-down",
         attributeMoveUp: "/admin/attributes/:id/move-up",
         attributeOptionAdd: "/admin/attributes/:id/options",
-        attributeOptionDelete:
-          "/admin/attributes/:id/options/:optionId/delete",
+        attributeOptionDelete: "/admin/attributes/:id/options/:optionId/delete",
         attributeOptionEdit: "/admin/attributes/:id/options/:optionId/edit",
         attributeOptionMoveDown:
           "/admin/attributes/:id/options/:optionId/move-down",
