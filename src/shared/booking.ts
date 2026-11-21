@@ -30,11 +30,7 @@ export const createdBookingEntries = (
     .filter((attendee) => attendee.quantity > 0)
     .map((attendee) => ({
       attendee,
-      listing: requiredMapValue(
-        listingById,
-        attendee.listing_id,
-        `Listing ${attendee.listing_id} missing`,
-      ),
+      listing: requiredMapValue(listingById, attendee.listing_id),
     }));
 
 /** True when the listing still has spots for this quantity on this date (no

@@ -31,11 +31,7 @@ const buildAttendeeRows = (
     attendees.map((attendee) =>
       attendeeLineRow(
         attendee,
-        requiredMapValue(
-          listingMap,
-          attendee.listing_id,
-          `Listing ${attendee.listing_id} missing`,
-        ),
+        requiredMapValue(listingMap, attendee.listing_id),
       ),
     ),
   );

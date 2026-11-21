@@ -248,11 +248,7 @@ export const getRefundPaymentReferences = async <
       privateKey,
     );
     addReference(
-      requiredMapValue(
-        byAttendee,
-        Number(row.attendee_id),
-        `Payment reference attendee ${row.attendee_id} was not loaded`,
-      ),
+      requiredMapValue(byAttendee, Number(row.attendee_id)),
       row,
       payment,
       index,
@@ -269,11 +265,7 @@ export const getRefundPaymentReferences = async <
       return { kind: "legacy_unindexed" };
     }
     const references = await asRefundReferences(
-      requiredMapValue(
-        byAttendee,
-        attendee.id,
-        `Refund references for attendee ${attendee.id} were not loaded`,
-      ),
+      requiredMapValue(byAttendee, attendee.id),
     );
     if (
       attendee.currentPaymentId !== "" &&
@@ -308,7 +300,6 @@ export const getRefundPaymentReferencesForAttendee = async <
   requiredMapValue(
     await getRefundPaymentReferences([attendee], privateKey),
     attendee.id,
-    `Refund references for attendee ${attendee.id} were not loaded`,
   );
 
 /**

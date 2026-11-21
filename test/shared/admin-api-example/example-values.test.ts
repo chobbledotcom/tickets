@@ -64,7 +64,7 @@ describe("documented example values", () => {
   test("the attendee create carries a line, a payment, an adjustment, and two answers", () => {
     expect(bodiesOf("POST", "/api/admin/attendees").request).toEqual({
       address: "12 Main Street, Springfield",
-      adjustments: [{ amount: 250, description: "Delivery" }],
+      adjustments: [{ amount: 250, description: "Delivery", taxable: true }],
       answers: [
         { answerId: 3, questionId: 2 },
         { freeText: "Vegetarian", questionId: 5 },

@@ -327,12 +327,7 @@ export const foldChild = (
 const resolvedNode = (
   resolved: ReadonlyMap<string, TicketListing>,
   node: BookingNode,
-): TicketListing =>
-  requiredMapValue(
-    resolved,
-    node.nodeKey,
-    `Booking node ${node.nodeKey} missing`,
-  );
+): TicketListing => requiredMapValue(resolved, node.nodeKey);
 
 /** Fold one in-cart parent NODE's selected children into `state`: filter its child
  * nodes to those bookable for the resolved date/duration (availability read from
@@ -415,19 +410,10 @@ export const resolvedByNodeKey = (
       node.nodeKey,
       node.edgeRef.kind === "parent_child"
         ? requiredMapValue(
-            requiredMapValue(
-              childByParent,
-              node.edgeRef.parentId,
-              `Listing ${node.edgeRef.parentId} missing`,
-            ),
+            requiredMapValue(childByParent, node.edgeRef.parentId),
             node.listingId,
-            `Listing ${node.listingId} missing`,
           )
-        : requiredMapValue(
-            topById,
-            node.listingId,
-            `Listing ${node.listingId} missing`,
-          ),
+        : requiredMapValue(topById, node.listingId),
     );
   }
   return resolved;

@@ -123,11 +123,7 @@ export const exportListing = async (
   // Every membership row references an existing group (FK), and `groupNames`
   // covers all groups, so the name lookup always resolves.
   const groupMemberships: ListingMembership[] = memberships.map((m) => ({
-    group: requiredMapValue(
-      groupNames,
-      m.groupId,
-      `Group ${m.groupId} missing`,
-    ),
+    group: requiredMapValue(groupNames, m.groupId),
     ...overrideFields(
       m.packagePrice,
       m.quantity,
@@ -174,11 +170,7 @@ export const exportGroup = (
     // Every package row references an existing listing (FK), and `namesByListing`
     // covers exactly those ids, so the name lookup always resolves.
     const members: GroupMember[] = rows.map((row) => ({
-      listing: requiredMapValue(
-        namesByListing,
-        row.listingId,
-        `Listing ${row.listingId} missing`,
-      ),
+      listing: requiredMapValue(namesByListing, row.listingId),
       ...overrideFields(
         row.packagePrice,
         row.quantity,

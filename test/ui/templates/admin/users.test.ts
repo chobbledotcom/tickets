@@ -3,14 +3,17 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   adminUserDeletePage,
+  adminUserNewPage,
   adminUsersPage,
   type DisplayUser,
+  UserAgentsPanel,
 } from "#templates/admin/users.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+import type { LogisticsAgent } from "#types";
 
 /** Factory for a {@link DisplayUser} with common defaults. */
 const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
@@ -173,5 +176,118 @@ describe("adminUserDeletePage", () => {
       "Username does not match",
     );
     assertStringIncludes(html, "Username does not match");
+  });
+});
+
+const VANS: LogisticsAgent[] = [
+  { id: 1, name: "Van 1" },
+  { id: 2, name: "Van 2" },
+];
+
+const AGENT_HINT =
+  "Delivery agents see the run sheet only for the logistics agents ticked here. Ignored for owners and managers.";
+
+const panelHtml = (agents: LogisticsAgent[]): string =>
+  String(
+    UserAgentsPanel({
+      action: "/admin/users/7/agents",
+      agents,
+      selectedIds: new Set([2]),
+      user: displayUser({ adminLevel: "agent", id: 7, username: "driver" }),
+    }),
+  );
+
+describe("adminUsersPage agent names", () => {
+  beforeAll(setupAdminPageTest);
+
+  const agentRow = (agentNames: string[]) =>
+    adminUsersPage(
+      [displayUser({ adminLevel: "agent", agentNames, id: 4 })],
+      OWNER_SESSION,
+      { currentUserId: 1, inviteLink: "" },
+    );
+
+  test("joins several agent names with a comma and a space", () => {
+    assertStringIncludes(
+      agentRow(["Van 1", "Van 2"]),
+      "<small>Van 1, Van 2</small>",
+    );
+  });
+
+  test("shows the placeholder when an agent user has no agents", () => {
+    assertStringIncludes(agentRow([]), "<small>No agents assigned</small>");
+  });
+});
+
+describe("adminUserNewPage", () => {
+  beforeAll(setupAdminPageTest);
+
+  test("renders the invite form with its title, heading, and button", () => {
+    const html = adminUserNewPage(OWNER_SESSION, []);
+    expectIncludesAll(html, [
+      "<title>Invite User</title>",
+      "<h1>Invite User</h1>",
+      'action="/admin/users"',
+      "Create Invite",
+      '<a class="active" href="/admin/users/new">',
+    ]);
+  });
+
+  test("omits the agent selector when no agents exist", () => {
+    const html = adminUserNewPage(OWNER_SESSION, []);
+    assert(!html.includes("Assigned logistics agents"));
+    assert(!html.includes('name="agentIds"'));
+  });
+
+  test("renders the agent selector with its legend, hint, and class", () => {
+    const html = adminUserNewPage(OWNER_SESSION, VANS);
+    expectIncludesAll(html, [
+      '<fieldset class="checkboxes">',
+      "<legend>Assigned logistics agents</legend>",
+      `<small>${AGENT_HINT}</small>`,
+      'name="agentIds"',
+      "Van 1",
+      "Van 2",
+    ]);
+  });
+
+  test("renders the agent selector for exactly one agent", () => {
+    const html = adminUserNewPage(OWNER_SESSION, [VANS[0] as LogisticsAgent]);
+    expectIncludesAll(html, ['name="agentIds"', "Van 1"]);
+  });
+});
+
+describe("UserAgentsPanel", () => {
+  beforeAll(setupAdminPageTest);
+
+  test("renders the heading, selector, and save button when agents exist", () => {
+    const html = panelHtml(VANS);
+    expectIncludesAll(html, [
+      "<h2>Assigned agents for driver</h2>",
+      'action="/admin/users/7/agents"',
+      '<fieldset class="checkboxes">',
+      "<legend>Assigned logistics agents</legend>",
+      `<small>${AGENT_HINT}</small>`,
+      'checked name="agentIds" type="checkbox" value="2"',
+      "Save Agents",
+    ]);
+    assert(!html.includes("No logistics agents exist yet"));
+  });
+
+  test("renders the form for exactly one agent", () => {
+    const html = panelHtml([VANS[0] as LogisticsAgent]);
+    expectIncludesAll(html, ["Save Agents", 'name="agentIds"']);
+    assert(!html.includes("No logistics agents exist yet"));
+  });
+
+  test("links to Logistics when no agents exist", () => {
+    const html = panelHtml([]);
+    expectIncludesAll(html, [
+      "<h2>Assigned agents for driver</h2>",
+      "<em>No logistics agents exist yet. Add some under " +
+        '<a href="/admin/logistics">Logistics</a>.</em>',
+    ]);
+    assert(!html.includes("Save Agents"));
+    assert(!html.includes('name="agentIds"'));
   });
 });

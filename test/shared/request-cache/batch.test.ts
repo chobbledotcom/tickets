@@ -125,9 +125,7 @@ describe("requestBatchCache", () => {
       Promise.resolve(new Map([[1, 10]])),
     );
     await withRequestContext(async () => {
-      await expect(cache.getMany([1, 2])).rejects.toThrow(
-        "Missing batch result for id 2",
-      );
+      await expect(cache.getMany([1, 2])).rejects.toThrow("Missing map key 2");
     });
   });
 });

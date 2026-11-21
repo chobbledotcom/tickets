@@ -3,10 +3,12 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { createInvoice, nextInvoiceNumber } from "#db/invoices.ts";
 import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { INVOICE_BODY_TEMPLATE } from "#templates/invoice/defaults.ts";
 import {
   assertAdminHtmlWithCookie,
   expectFlashRedirect,
@@ -212,6 +214,57 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
 
     const created = await createInvoicePost(attendeeId, 2, "Invoice two.");
     expectRedirect(created, /^\/admin\/invoices\/2(\?|$)/);
+  });
+
+  test("previews a booking that owes the smallest amount", async () => {
+    const attendeeId = await createOwing(1);
+
+    const response = await previewInvoice(attendeeId, 1);
+
+    expect(response.status).toBe(200);
+    assertStringIncludes(
+      await pageText(response),
+      `Amount due: ${formatCurrency(1)}`,
+    );
+  });
+
+  test("refuses to preview for an unknown attendee", async () => {
+    await expectFlashRedirect(
+      "/admin/invoices/new",
+      "That attendee does not exist.",
+      false,
+    )(await previewInvoice(999_999, 1));
+  });
+
+  test("refuses to preview once the balance is paid", async () => {
+    const attendeeId = await createOwing(1500);
+    await settleAttendeeBalance(attendeeId, 1500, {
+      id: "invoice-paid-in-full",
+      occurredAt: CREATED,
+    });
+
+    await expectFlashRedirect(
+      "/admin/invoices/new",
+      "This booking has no outstanding balance to invoice.",
+      false,
+    )(await previewInvoice(attendeeId, 1));
+  });
+
+  test("a blank text field previews the built-in text", async () => {
+    const attendeeId = await createOwing(1500);
+
+    const html = await pageText(await previewInvoice(attendeeId, 1, ""));
+
+    expect(previewedBody(html)).toBe(INVOICE_BODY_TEMPLATE);
+  });
+
+  test("the preview says the site will not email without a provider", async () => {
+    const attendeeId = await createOwing(1500);
+
+    assertStringIncludes(
+      await pageText(await previewInvoice(attendeeId, 1)),
+      "The site will not email this invoice.",
+    );
   });
 
   test("refuses an invoice number that is taken", async () => {

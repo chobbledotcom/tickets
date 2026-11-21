@@ -156,11 +156,7 @@ export const assertRefundRowsHeld = async (
         !claimHeldBy(row.state.claim, {
           commandId: claim.commandId,
           heldSince: claim.heldSince,
-          phase: requiredMapValue(
-            claim.phases,
-            row.sessionId,
-            "Refund confirmation lost a payment-row phase",
-          ),
+          phase: requiredMapValue(claim.phases, row.sessionId),
         }),
     )
   ) {
@@ -246,11 +242,7 @@ export const settleAttendeeRows = ({
   rewriteRows([...rows.keys()], (row) =>
     settledRowState(
       row.state,
-      requiredMapValue(
-        rows,
-        row.sessionId,
-        "Refund settlement lost a payment row",
-      ),
+      requiredMapValue(rows, row.sessionId),
       { commandId, heldSince },
       nowIso(),
     ),

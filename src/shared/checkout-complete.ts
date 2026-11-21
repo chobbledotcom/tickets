@@ -28,6 +28,7 @@ import type { TxScope } from "#db/client.ts";
 import type { ModifierUsage } from "#db/modifier-usage.ts";
 import { tables } from "#db/select/tables.ts";
 import { update } from "#db/write.ts";
+import { sum, sumOf } from "#fp";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   type BookingLedgerContext,
@@ -102,10 +103,49 @@ export const postBookingLegsTx = async (
 
 /** One named one-off amount an API create records. `amount` is signed minor
  * units: positive bills the attendee (a charge), negative forgives part of the
- * debt (a writeoff). `description` is the label the Ledger tab shows. */
+ * debt (a writeoff). `description` is the label the Ledger tab shows. A
+ * `taxable` charge, such as delivery, counts in the order's tax. */
 export type CreateAdjustment = {
   amount: number;
   description: string;
+  taxable?: boolean;
+};
+
+/** The amounts of the taxable adjustments, in list order. These are the
+ * charges the tax basis carries. */
+export const taxableChargeAmounts = (
+  adjustments: readonly CreateAdjustment[],
+): number[] =>
+  adjustments.flatMap((adjustment) =>
+    adjustment.taxable === true ? [adjustment.amount] : [],
+  );
+
+/** What the attendee owes once the receipts are in. The order total holds the
+ * lines, the taxable adjustments and the tax. The payments come off it. The
+ * other adjustments add their signed amount. */
+export const remainingBalanceOf = (
+  order: PricedOrder,
+  receipts: CreateReceipts,
+): number =>
+  order.tax.total -
+  sum(receipts.payments) +
+  sumOf((adjustment: CreateAdjustment) => adjustment.amount)(
+    receipts.adjustments.filter((adjustment) => adjustment.taxable !== true),
+  );
+
+/** The adjustments with each taxable charge at the amount the tax assessment
+ * keeps as income. Tax added on top changes nothing. Tax inside the amount
+ * comes out of it, and the tax leg carries that share. */
+const adjustmentsAfterTax = (
+  adjustments: readonly CreateAdjustment[],
+  charges: readonly { gross: number }[],
+): CreateAdjustment[] => {
+  let next = 0;
+  return adjustments.map((adjustment) =>
+    adjustment.taxable === true
+      ? { ...adjustment, amount: charges[next++]!.gross }
+      : adjustment,
+  );
 };
 
 /** The money an API create records beyond the priced lines: payments already
@@ -240,7 +280,17 @@ export const apiCreateLedgerPoster =
     const group = await bookingEventGroup(ctx.eventId);
     await postBookingLegsTx(tx, attendeeId, [
       ...legs,
-      ...(await receiptLegs(ctx, receipts, () => Promise.resolve(group))),
+      ...(await receiptLegs(
+        ctx,
+        {
+          ...receipts,
+          adjustments: adjustmentsAfterTax(
+            receipts.adjustments,
+            order.tax.charges,
+          ),
+        },
+        () => Promise.resolve(group),
+      )),
     ]);
     // A free add posts no legs at all: the row still carries the group the
     // later refund reconciliation reads.

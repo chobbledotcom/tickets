@@ -239,7 +239,7 @@ describe("form field schema", () => {
       form.renderField("missing");
     };
 
-    expect(renderUnknownField).toThrow("Unknown field: missing");
+    expect(renderUnknownField).toThrow("Missing map key missing");
   });
 
   test("renders an omitted field value as blank", () => {

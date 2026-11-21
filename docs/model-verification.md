@@ -246,10 +246,10 @@ At the limit, the runner sends a stop signal. It allows five seconds for exit,
 then sends a forced stop signal and allows five more seconds for exit.
 A timeout is a failure, even if the output contains a counterexample.
 The error retains the command output and names the work directory.
-The required `checks` job has the same 120-minute limit as the nightly job.
-The uncached suite takes about 46 minutes with two workers. The job limit
-allows a memory-limited machine to run it with one worker and leaves time
-for setup and the other static checks.
+The pull request workflow runs one `model-checks` job for each model, with a
+30-minute limit. A `model-plan` job lists the models
+from the registry. The required `checks` job runs last. It fails unless the
+`static` job and every model job passed.
 
 The runner records each pass in `.verify-models-passes/`.
 The name of a record is a hash of the checker name and version, the command,
@@ -261,6 +261,10 @@ The runner still plans both proof obligations and every declared negative contro
 
 The `Model checks` workflow runs the same task without a pass cache each night.
 It finds a change to the checker environment or the machine.
+A plan job runs `deno task verify:models --list`, which prints the model names
+as JSON. The workflow starts one job for each name. Each job runs on its own
+runner and runs `deno task verify:models --model <name>`. The jobs run in
+parallel, and one failed model does not stop the others.
 
 If a check fails, the runner stops new work and awaits the active processes.
 It propagates the failure and retains the input and checker artifacts.

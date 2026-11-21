@@ -5,7 +5,7 @@
  */
 
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   IMAGE_LIBRARY_CHANGED,
   type ImageChoice,
@@ -93,7 +93,6 @@ const refusal = (html: string): Response => {
 
 /** Answer the upload with a refused page, then return the picker. */
 const refusedUpload = async (errorHtml: string): Promise<PickerParts> => {
-  installDom(ADMIN_TEMPLATES);
   const picker = parts();
   fetchStubHolder.stub = stubFetch(refusal(errorHtml));
   wireUploadForm(picker, () => undefined);
@@ -102,8 +101,11 @@ const refusedUpload = async (errorHtml: string): Promise<PickerParts> => {
 };
 
 describe("the image picker template", () => {
-  test("finds the server's template and one of its notes", () => {
+  beforeEach(() => {
     installDom(ADMIN_TEMPLATES);
+  });
+
+  test("finds the server's template and one of its notes", () => {
     const template = requireValue(pickerTemplateOrNull(), "picker template");
 
     expect(template.id).toBe("md-image-picker");
@@ -113,7 +115,6 @@ describe("the image picker template", () => {
   });
 
   test("builds one option button with its pressed state", () => {
-    installDom(ADMIN_TEMPLATES);
     let picked = 0;
     const button = optionButton(
       ALPHA,
@@ -136,7 +137,6 @@ describe("the image picker template", () => {
   });
 
   test("lists the options, or the empty note", () => {
-    installDom(ADMIN_TEMPLATES);
     const { template } = parts();
 
     const empty = imageOptionNodes(template, [], () => null as never);
@@ -149,7 +149,6 @@ describe("the image picker template", () => {
   });
 
   test("clones the picker's named parts", () => {
-    installDom(ADMIN_TEMPLATES);
     const picker = parts();
 
     expect(picker.content.className).toBe("md-image-picker");
@@ -160,7 +159,6 @@ describe("the image picker template", () => {
   });
 
   test("gives each picker its own window name", () => {
-    installDom(ADMIN_TEMPLATES);
     const [first, second] = [parts(), parts()];
 
     expect(first.key).toMatch(/^image-picker:\d+$/);
@@ -169,7 +167,6 @@ describe("the image picker template", () => {
   });
 
   test("puts a state and its content into the grid", () => {
-    installDom(ADMIN_TEMPLATES);
     const { grid } = parts();
 
     fillGrid(grid, "ready", [document.createElement("p")]);
@@ -178,7 +175,6 @@ describe("the image picker template", () => {
   });
 
   test("opens the picker in a window and raises it when open", () => {
-    installDom(ADMIN_TEMPLATES);
     const picker = parts();
 
     expect(isAdminModalOpen(picker.key)).toBe(false);
@@ -196,7 +192,6 @@ describe("the image picker template", () => {
   });
 
   test("shows the title that the caller names", () => {
-    installDom(ADMIN_TEMPLATES);
     const picker = parts();
 
     showPicker(picker, () => undefined, "Choose pictures");
@@ -208,7 +203,6 @@ describe("the image picker template", () => {
   });
 
   test("tells the caller once when the window closes", () => {
-    installDom(ADMIN_TEMPLATES);
     const picker = parts();
     let closes = 0;
     showPicker(picker, () => {
@@ -222,7 +216,6 @@ describe("the image picker template", () => {
   });
 
   test("keeps the window open during an upload and announces the change", async () => {
-    installDom(ADMIN_TEMPLATES);
     const picker = parts();
     const { promise: upload, resolve: resolveUpload } =
       Promise.withResolvers<Response>();
@@ -257,7 +250,6 @@ describe("the image picker template", () => {
   });
 
   test("keeps the grid and shows the upload failure note", async () => {
-    installDom(ADMIN_TEMPLATES);
     const picker = parts();
     fillGrid(picker.grid, "ready", [optionButton(ALPHA, 0, () => undefined)]);
     fetchStubHolder.stub = stubFetch(new Response("refused", { status: 500 }));
@@ -282,7 +274,6 @@ describe("the image picker template", () => {
   });
 
   test("refuses a redirect outside the image edit route", async () => {
-    installDom(ADMIN_TEMPLATES);
     const picker = parts();
     fetchStubHolder.stub = stubFetch(redirected("/admin/images/12/edits"));
     let called = false;
@@ -317,7 +308,6 @@ describe("the image picker template", () => {
   });
 
   test("replaces the failure note when a second upload is refused", async () => {
-    installDom(ADMIN_TEMPLATES);
     const picker = parts();
     fetchStubHolder.stub = stubFetch(
       refusal('<div class="error" role="alert">First refusal</div>'),
@@ -335,7 +325,6 @@ describe("the image picker template", () => {
   });
 
   test("sends the chosen file's bytes with its name", async () => {
-    installDom(ADMIN_TEMPLATES);
     const picker = parts();
     const form = picker.form;
     const file = new File([new Uint8Array([1, 2, 3])], "harbour.png", {

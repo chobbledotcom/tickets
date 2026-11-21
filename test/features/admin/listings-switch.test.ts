@@ -45,6 +45,15 @@ const setCapacity = (listingId: number, max: number) =>
     sql`UPDATE listings SET max_attendees = ${max} WHERE id = ${listingId}`,
   );
 
+/** A stored daily listing open on every day, up to thirty days ahead. */
+const dailyListing = (minimumDaysBefore: number) =>
+  createTestListing({
+    bookableDays: allDays,
+    listingType: "daily",
+    maximumDaysAfter: 30,
+    minimumDaysBefore,
+  });
+
 /** The booking rows of one listing, with their day windows. */
 const rawRows = async (
   listingId: number,
@@ -105,12 +114,7 @@ const firstDayAssignStep = async (
 
 describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
   test("wouldBeStartDates falls back to the stored fields the submission omits", async () => {
-    const stored = await createTestListing({
-      bookableDays: allDays,
-      listingType: "daily",
-      maximumDaysAfter: 30,
-      minimumDaysBefore: 2,
-    });
+    const stored = await dailyListing(2);
     // The input carries none of the calendar fields, so the stored row's
     // window and days stand in for everything the submission left out.
     const offered = await wouldBeStartDates(stored, inputFor({}));
@@ -119,12 +123,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
   });
 
   test("wouldBeStartDates uses the submitted fields when it carries them", async () => {
-    const stored = await createTestListing({
-      bookableDays: allDays,
-      listingType: "daily",
-      maximumDaysAfter: 30,
-      minimumDaysBefore: 0,
-    });
+    const stored = await dailyListing(0);
     const offered = await wouldBeStartDates(
       stored,
       await storedInputFor(stored.id, {
@@ -143,12 +142,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     // The stored row lets the visitor choose the span, so its own start
     // dates take a one-day stay.
     const stored = {
-      ...(await createTestListing({
-        bookableDays: allDays,
-        listingType: "daily",
-        maximumDaysAfter: 30,
-        minimumDaysBefore: 2,
-      })),
+      ...(await dailyListing(2)),
       customisableDays: true,
     };
     const submitted = {
@@ -177,6 +171,34 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
         await storedInputFor(stored.id, submitted),
       ),
     ).toEqual(expected);
+  });
+
+  test("wouldBeStartDates offers the days a submitted zero notice opens", async () => {
+    // Today and the next days stay offered. The stored five-day notice would
+    // hide them, so a submitted zero must win over it on every weekday.
+    const stored = await dailyListing(5);
+    const submitted = {
+      bookableDays: allDays,
+      customisableDays: false,
+      durationDays: 1,
+      maximumDaysAfter: 10,
+      minimumDaysBefore: 0,
+    };
+    const offered = await wouldBeStartDates(
+      stored,
+      await storedInputFor(stored.id, submitted),
+    );
+    const withStoredNotice = getBookableStartDates(
+      { ...stored, ...submitted, minimumDaysBefore: 5 },
+      await holidays.getAll(),
+    );
+    expect(offered).toEqual(
+      getBookableStartDates(
+        { ...stored, ...submitted },
+        await holidays.getAll(),
+      ),
+    );
+    expect(offered.length).toBeGreaterThan(withStoredNotice.length);
   });
 
   test("the probe judges each offered date with the production per-day cap SQL", async () => {
@@ -353,6 +375,9 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     expect(html).toContain('name="assignUndatedTo"');
     expect(html).toContain(
       `checked name="groupIds" type="checkbox" value="${group.id}"`,
+    );
+    expect(html).toContain(
+      `<a aria-current="page" class="active" href="/admin/listing/${listing.id}/edit">Edit</a>`,
     );
   });
 

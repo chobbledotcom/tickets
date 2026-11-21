@@ -18,6 +18,7 @@ const TAX_ENTRY_IDS = [
   "tax_at_checkout",
   "tax_and_existing_bookings",
   "tax_in_money_and_refunds",
+  "tax_on_extra_charges",
 ] as const;
 /* jscpd:ignore-end */
 

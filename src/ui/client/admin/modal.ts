@@ -14,17 +14,19 @@ import {
   modalSettingsSchema,
 } from "#shared/admin-modal.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { dimmingFor } from "#src/ui/client/admin/modal-focus.ts";
+import {
+  dimmingFor,
+  EMPTY_SCREEN,
+  type ModalScreen,
+  type ScreenEvent,
+  transitionScreen,
+} from "#src/ui/client/admin/modal-focus.ts";
 import {
   centredPosition,
   type ModalSize,
   type Point,
 } from "#src/ui/client/admin/modal-position.ts";
-import {
-  type ModalEvent,
-  type ModalState,
-  transitionModals,
-} from "#src/ui/client/admin/modal-state.ts";
+import type { ModalState } from "#src/ui/client/admin/modal-state.ts";
 import { cloneContent, requiredChild } from "#src/ui/client/dom.ts";
 import "#src/ui/client/window-globals.ts";
 
@@ -72,18 +74,16 @@ type Shell = {
  * It lives on the window, because the admin bundle and the markdown editor
  * bundle each carry a copy of this module. */
 export type AdminModalLifecycle = {
-  pageFocused: boolean;
+  screen: ModalScreen;
   shellCount: number;
   shells: Map<string, Shell>;
-  states: readonly ModalState[];
 };
 
 const getLifecycle = (): AdminModalLifecycle => {
   window.adminModalLifecycle ??= {
-    pageFocused: false,
+    screen: EMPTY_SCREEN,
     shellCount: 0,
     shells: new Map(),
-    states: [],
   };
   return window.adminModalLifecycle;
 };
@@ -97,9 +97,9 @@ const measure = (dialog: HTMLDialogElement): ModalSize =>
   dialog.getBoundingClientRect();
 
 const stateFor = (shell: Shell): ModalState => {
-  const { states } = getLifecycle();
+  const { windows } = getLifecycle().screen;
   return requireValue(
-    states.find((state) => state.key === shell.settings.key),
+    windows.find((state) => state.key === shell.settings.key),
     "The modal state is absent.",
   );
 };
@@ -107,16 +107,13 @@ const stateFor = (shell: Shell): ModalState => {
 /** Dims the page when a window has the focus, and every window but the one
  * that has it. The attribute is absent while no window is open. */
 const renderDimming = (): void => {
-  const { pageFocused, shells, states } = getLifecycle();
-  const dimming = dimmingFor(
-    states.map(({ key }) => key),
-    pageFocused,
-  );
+  const { screen, shells } = getLifecycle();
+  const dimming = dimmingFor(screen);
   for (const [key, { dialog }] of shells) {
     dialog.classList.toggle("is-dim", dimming.windows.has(key));
   }
   const { dataset } = document.documentElement;
-  if (states.length === 0) {
+  if (screen.windows.length === 0) {
     delete dataset.adminModalPageDim;
     return;
   }
@@ -124,23 +121,15 @@ const renderDimming = (): void => {
   if (dataset.adminModalPageDim !== value) dataset.adminModalPageDim = value;
 };
 
-const setPageFocused = (pageFocused: boolean): void => {
-  getLifecycle().pageFocused = pageFocused;
-  renderDimming();
-};
-
-const apply = (event: ModalEvent): void => {
+const apply = (event: ScreenEvent): void => {
   const lifecycle = getLifecycle();
   const { shells } = lifecycle;
-  const next = transitionModals(lifecycle.states, event);
-  if (next === lifecycle.states) return;
-  lifecycle.states = next;
-  for (const [index, state] of next.entries()) {
-    const shell = requiredMapValue(
-      shells,
-      state.key,
-      "The modal shell is absent.",
-    );
+  const next = transitionScreen(lifecycle.screen, event);
+  if (next === lifecycle.screen) return;
+  lifecycle.screen = next;
+  renderDimming();
+  for (const [index, state] of next.windows.entries()) {
+    const shell = requiredMapValue(shells, state.key);
     const { dialog, rendered } = shell;
     const zIndex = String(Z_INDEX_BASE + index);
     if (dialog.style.zIndex !== zIndex) dialog.style.zIndex = zIndex;
@@ -179,7 +168,6 @@ const removeShell = (shell: Shell): void => {
   shells.delete(key);
   shell.dialog.remove();
   apply({ key, type: "close" });
-  renderDimming();
   shell.onClose();
 };
 
@@ -194,11 +182,8 @@ const requestClose = (shell: Shell): void => {
 };
 
 /** Gives the focus to one window and raises it. */
-const focusWindow = (shell: Shell): void => {
-  getLifecycle().pageFocused = false;
+const focusWindow = (shell: Shell): void =>
   apply({ key: shell.settings.key, type: "raise" });
-  renderDimming();
-};
 
 const restore = (shell: Shell): void => {
   // Measure the expanded layout before the lifecycle clamps its saved point.
@@ -389,13 +374,11 @@ export const openAdminModal = (
   const shell = createShell(parsed, content, { canClose, onClose });
   shells.set(parsed.key, shell);
   shell.dialog.show();
-  getLifecycle().pageFocused = false;
   apply({
     key: parsed.key,
     point: centredPosition(measure(shell.dialog), viewportSize()),
     type: "open",
   });
-  renderDimming();
   // Fetched content and images can change the window size after it opens.
   shell.observer.observe(shell.dialog);
   shell.dialog.focus();
@@ -407,7 +390,7 @@ const focusPageOutsideWindows = (event: Event): void => {
   const inWindow = [...getLifecycle().shells.values()].some(({ dialog }) =>
     path.includes(dialog),
   );
-  if (!inWindow) setPageFocused(true);
+  if (!inWindow) apply({ type: "focus-page" });
 };
 
 export const initAdminModalShell = (): void => {

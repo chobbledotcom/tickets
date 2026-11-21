@@ -137,11 +137,7 @@ export const transfersByAccounts = async (
 export const transfersByAccount = async (
   account: AccountRef,
 ): Promise<Transfer[]> =>
-  requiredMapValue(
-    await transfersByAccounts([account]),
-    accountKey(account),
-    `Transfer read omitted requested account ${accountKey(account)}`,
-  );
+  requiredMapValue(await transfersByAccounts([account]), accountKey(account));
 
 /** Every leg of one business event (booking, refund, …). */
 export const transfersByEventGroup = (

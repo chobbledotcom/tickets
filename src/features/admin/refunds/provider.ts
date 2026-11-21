@@ -146,11 +146,7 @@ const recordWave = async (
     throw error;
   }
   for (const { attendeeId, authorities, references, whole } of postings) {
-    const result = requiredMapValue(
-      results,
-      attendeeId,
-      `Refund ledger omitted attendee ${attendeeId}`,
-    );
+    const result = requiredMapValue(results, attendeeId);
     const applied = applyRefundLedgerFindings(
       findings,
       attendeeId,

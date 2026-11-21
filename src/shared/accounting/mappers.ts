@@ -80,12 +80,15 @@ const refundKind = (kind: string): string =>
  * signed effect (negative = discount). `amountPaid` is the cash actually received
  * now (a deposit, or the full amount). `eventId` is any stable per-booking id
  * (for example the payment reference) — it is hashed into the references, never stored.
+ * `charges` are taxable one-off amounts the booking carries beside its lines.
+ * They count toward the tax, but their own legs post with the receipts.
  * `vat` is the booking's VAT facts. A booking without `vat` charges no tax.
  */
 export type BookingFacts = {
   readonly attendeeId: number;
   readonly occurredAt: string;
   readonly eventId: string;
+  readonly charges?: ReadonlyArray<{ gross: number }> | undefined;
   readonly lines: ReadonlyArray<{ listingId: number; gross: number }>;
   readonly modifiers: ReadonlyArray<{ modifierId: number; delta: number }>;
   readonly bookingFee: number;
@@ -151,14 +154,17 @@ const bookingLegSpecs = (
   // A discount larger than the ticket income nets below zero. There is no
   // taxable income then: no VAT leg and no included-tax share, and the legs
   // are exactly the facts as booked.
+  const charges = (facts.charges ?? []).map(({ gross }) => ({ gross }));
   const net =
     [...grossByListing.values()].reduce((total, gross) => total + gross, 0) +
+    charges.reduce((total, charge) => total + charge.gross, 0) +
     facts.modifiers.reduce((total, modifier) => total + modifier.delta, 0);
   const assessment =
     net < 0
       ? null
       : assessTax(
           {
+            charges,
             lines: taxBasisLines(grossByListing),
             modifiers: facts.modifiers.map((modifier) => ({ ...modifier })),
           },
@@ -215,6 +221,9 @@ const assertValidFacts = (facts: BookingFacts): void => {
   };
   for (const line of facts.lines) {
     requireAmount(`listing ${line.listingId} gross`, line.gross);
+  }
+  for (const [index, charge] of (facts.charges ?? []).entries()) {
+    requireAmount(`charge ${index} gross`, charge.gross);
   }
   for (const modifier of facts.modifiers) {
     if (!Number.isFinite(modifier.delta)) {

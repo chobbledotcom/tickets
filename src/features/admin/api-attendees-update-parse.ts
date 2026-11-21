@@ -82,6 +82,14 @@ export const parseUpdateBody = async (
   if (!statusId.ok) return statusId;
   const received = parseReceipts(body);
   if (!received.ok) return received;
+  const taxableAt = received.value.adjustments.findIndex(
+    (adjustment) => adjustment.taxable === true,
+  );
+  if (taxableAt >= 0) {
+    return errorResult(
+      `adjustments[${taxableAt}].taxable only applies when a booking is created`,
+    );
+  }
   const desired = await parseDesiredLines(body.lines, existing);
   if (!desired.ok) return desired;
   const answers =

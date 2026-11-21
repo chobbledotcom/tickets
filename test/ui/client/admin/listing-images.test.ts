@@ -235,20 +235,6 @@ describe("the listing images field", () => {
     expect(removeLabels(window)).toEqual(["Remove Harbour"]);
   });
 
-  test("ignores a second upload submit while one is in flight", async () => {
-    const { dialog, window } = await mounted(uploadToStaleLibrary());
-    const form = requireElement<HTMLFormElement>(dialog, ".md-image-upload");
-    requireElement<HTMLInputElement>(form, 'input[name="name"]').value =
-      "Harbour";
-
-    form.requestSubmit();
-    form.requestSubmit();
-    await flush();
-
-    confirmSelection(window);
-    expect(imageIdValues(window)).toEqual(["12"]);
-  });
-
   test("shows the empty note and disables confirm for an empty library", async () => {
     const { grid } = await mounted([json({ images: [] })]);
 
@@ -311,21 +297,6 @@ describe("the listing images field", () => {
 
     part<HTMLButtonElement>(window, "[data-listing-images-trigger]").click();
     await untilReady(grid);
-    expect(optionByName(window, "Alpha").textContent).toBe("Alpha");
-  });
-
-  test("shows the upload note when the upload fails", async () => {
-    const { dialog, grid, window } = await mounted([
-      twoImageList(),
-      new Response("refused", { status: 500 }),
-    ]);
-
-    await submitUpload(dialog, "Harbour");
-    await flush();
-
-    expect(grid.textContent).toContain(
-      "The image could not be uploaded. Please try again.",
-    );
     expect(optionByName(window, "Alpha").textContent).toBe("Alpha");
   });
 

@@ -116,12 +116,7 @@ const daysOfSpan = (
 const lowestOverDays = (
   byDay: ReadonlyMap<string, number>,
   days: string[],
-): number =>
-  Math.min(
-    ...days.map((day) =>
-      requiredMapValue(byDay, day, `No capacity read for ${day}`),
-    ),
-  );
+): number => Math.min(...days.map((day) => requiredMapValue(byDay, day)));
 
 /** Each capped group's lowest remaining over one span prefix — the pool
  *  figures a date-aware caller folds into a parent's combined capacity. A
@@ -142,11 +137,7 @@ const bookedByDayOf = (
   snapshot: CapacitySnapshot,
   listingId: number,
 ): ReadonlyMap<string, number> =>
-  requiredMapValue(
-    snapshot.bookedByDay,
-    listingId,
-    `Listing ${listingId} was not in the capacity reading`,
-  );
+  requiredMapValue(snapshot.bookedByDay, listingId);
 
 /** How many units one date-less listing still holds: its running total,
  * lowered by each capped group's remaining. A date-less listing's cap never
@@ -190,9 +181,7 @@ export const remainingFromSnapshot = <Listing extends ListingCapacityRow>(
       const booked = bookedByDayOf(snapshot, listing.id);
       const ownRemaining = Math.min(
         ...days.map(
-          (day) =>
-            listing.maxAttendees -
-            requiredMapValue(booked, day, `No booking total for ${day}`),
+          (day) => listing.maxAttendees - requiredMapValue(booked, day),
         ),
       );
       return [
@@ -234,8 +223,7 @@ export const perDayRemainingFromSnapshot = (
           new Map(
             snapshot.days.map((day) => [
               day,
-              listing.maxAttendees -
-                requiredMapValue(booked, day, `No booking total for ${day}`),
+              listing.maxAttendees - requiredMapValue(booked, day),
             ]),
           ),
         ];

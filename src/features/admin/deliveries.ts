@@ -83,33 +83,21 @@ const bookingsForDate = (
     const key = `${leg.attendeeId}|${leg.listingId}`;
     let booking = byBooking.get(key);
     if (!booking) {
-      const attendee = requiredMapValue(
-        lookups.attendeeById,
-        leg.attendeeId,
-        `Attendee ${leg.attendeeId} missing`,
-      );
+      const attendee = requiredMapValue(lookups.attendeeById, leg.attendeeId);
       booking = {
         address: attendee.address,
         attendeeId: leg.attendeeId,
         attendeeName: attendee.name,
         legs: [],
         listingId: leg.listingId,
-        listingName: requiredMapValue(
-          lookups.listingNameById,
-          leg.listingId,
-          `Listing ${leg.listingId} missing`,
-        ),
+        listingName: requiredMapValue(lookups.listingNameById, leg.listingId),
         phone: attendee.phone,
         ticketToken: attendee.ticket_token,
       };
       byBooking.set(key, booking);
     }
     booking.legs.push({
-      agentName: requiredMapValue(
-        lookups.agentNameById,
-        leg.agentId,
-        `Agent ${leg.agentId} missing`,
-      ),
+      agentName: requiredMapValue(lookups.agentNameById, leg.agentId),
       date: leg.date,
       done: leg.done,
       kind: leg.kind,

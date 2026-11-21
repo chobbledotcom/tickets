@@ -12,26 +12,31 @@
  * test actually said, never by how long it took to say it. A test batch that
  * outlives the baseline by orders of magnitude stops the run with the cause
  * named. That clock never decides the mutant it stopped beside.
+ *
+ * Tests under `test/blackbox/` run in the integration stage, after the direct
+ * tests, and only for a mutant that the direct tests miss. A source with no
+ * mirror test can stand on them alone, and a survivor still fails the run. The
+ * precommit step also mutates the source that each deleted test mirrored (see
+ * `scripts/precommit/mutation-step.ts`).
  */
 
 import { shortHash } from "#scripts/checksum.ts";
 import { dim, red, yellow } from "#scripts/precommit/colors.ts";
 import { write } from "#scripts/precommit/write.ts";
-import { projectRoot, rel } from "#scripts/project-root.ts";
+import { rel } from "#scripts/project-root.ts";
 import type { StaticAssetBuild } from "#scripts/static-assets/session.ts";
 import {
   offTerminationSignals,
   onTerminationSignals,
 } from "#scripts/termination-signals.ts";
 import { withTestHarness } from "#scripts/test-harness.ts";
-import { createFilePlan, type FileMutationPlan } from "./evaluate.ts";
 import {
-  createStaticGates,
-  runTests,
-  type StaticGate,
-  testEnv,
-  testRunLimitMs,
-} from "./execution.ts";
+  type BaselineFailure,
+  timeTestFiles,
+  verifyGroupedRuns,
+} from "./baseline.ts";
+import { createFilePlan, type FileMutationPlan } from "./evaluate.ts";
+import { createStaticGates, runTests, testEnv } from "./execution.ts";
 import { generateMutants } from "./generate.ts";
 import {
   ignoreListProblems,
@@ -39,6 +44,7 @@ import {
   mutantKey,
   unconfirmedEntries,
 } from "./ignore.ts";
+import { planFor, quickestFirst, type TimedTest } from "./plan.ts";
 import {
   type FileRunOptions,
   type MutantLoopContext,
@@ -47,6 +53,7 @@ import {
 import { publishRunSummary } from "./run-journal.ts";
 import { collectStateBuilderFiles } from "./state-graph.ts";
 import { defaultStaticJobs, staticWorkerParent } from "./static.ts";
+import { isUnmutatedTargetDirty } from "./static-probe.ts";
 import {
   formatSummaryLines,
   frozenLoopReport,
@@ -135,102 +142,90 @@ const unfinishedRunExit = (
   return ended.code;
 };
 
-/** How the baseline ended: a run it stopped, or the limit its measurements set
- *  for every later test batch. */
+/** How the baseline ended: a run it stopped, or every file's own timing. */
 type BaselineOutcome =
   | { code: number; status: "stopped" }
-  | { status: "passed"; testLimitMs: number };
+  | { status: "passed"; timings: TimedTest[] };
+
+/** A duration such as "1.5 s". */
+const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)} s`;
+
+/** Print why the baseline stopped, and what to do about it. */
+const reportBaselineFailures = (failures: readonly BaselineFailure[]): void => {
+  for (const failure of failures) {
+    console.error(dim(`\n${failure.message}`));
+    if (failure.output !== undefined && failure.output.trim() !== "") {
+      console.error(dim(failure.output));
+    }
+  }
+  console.error(red("\nBaseline tests did not pass."));
+  console.error(
+    "Mutation testing needs a green baseline. Fix the tests, or add --harness",
+  );
+  console.error(
+    "if these tests import the app / Stripe and need stripe-mock + built assets.",
+  );
+};
 
 /**
  * Run the baseline (unmutated) tests. Returns a stop code when the run must end
- * here (the guard stopped it, an interrupt, or a non-green baseline), or the
- * per-batch limit measured from its duration when mutation can proceed.
+ * here (the guard stopped it, an interrupt, or a non-green baseline), or every
+ * test file's own timing when mutation can proceed.
+ *
+ * Each file runs on its own, so its duration gives the fastest test that can
+ * catch a mutant. The files that share a plan are then checked together, where
+ * that plan holds more than one: a test that fails anyway would "kill" every
+ * mutant and prove nothing.
  */
 const establishBaseline = async (
   opts: RunMutantsOptions,
   plans: readonly FileMutationPlan[],
 ): Promise<BaselineOutcome> => {
-  const { abortSignal, batchJobs, deadline, testFiles } = opts;
-  console.log(dim("Running baseline (unmutated) tests…"));
-  // The baseline runs unmutated code, so the prebuilt state snapshot is valid
-  // for it even when some target feeds that state. It has no limit of its own:
-  // its duration is what measures every later batch.
-  const baseline = await runTests(
-    { batchJobs, env: testEnv(), limitMs: null, testFiles },
-    abortSignal,
-  );
+  const { abortSignal, batchJobs, integrationTestFiles, testFiles } = opts;
+  const options = { batchJobs, env: testEnv(), signal: abortSignal };
+  const deps = { runTest: runTests };
+  console.log(dim("Running baseline (unmutated) tests, one file at a time…"));
+  const measured = await timeTestFiles(testFiles, options, deps);
   // The guard can fire here too, and a run it stopped is a failure to report
   // rather than an operator changing their mind. Nothing else can cancel a
   // baseline, so the message below only ever reports tests that really failed.
   const stopped = unfinishedRunExit(opts, 0, plans);
   if (stopped !== null) return { code: stopped, status: "stopped" };
-  if (baseline.outcome !== "passed") {
-    if (baseline.failure) {
-      console.error(
-        dim(`\nFailing test batch: ${baseline.failure.batch.join(" ")}`),
-      );
-      if (baseline.failure.output.trim() !== "") {
-        console.error(dim(baseline.failure.output));
-      }
-    }
-    console.error(red(`\nBaseline tests did not pass (${baseline.outcome}).`));
-    console.error(
-      "Mutation testing needs a green baseline. Fix the tests, or add --harness",
-    );
-    console.error(
-      "if these tests import the app / Stripe and need stripe-mock + built assets.",
-    );
+  if (measured.status === "failed") {
+    reportBaselineFailures([measured.failure]);
     return { code: 1, status: "stopped" };
   }
-  // Every later batch gets this limit. A batch past it is a frozen loop, not a
-  // verdict: the run stops and names the mutant instead of scoring it.
-  const testLimitMs = testRunLimitMs(baseline.durationMs, deadline);
-  console.log(
-    dim(`Baseline passed in ${Math.round(baseline.durationMs)}ms.\n`),
+  const testSets = [
+    integrationTestFiles,
+    ...plans.map((plan) => plan.directTestFiles),
+  ].filter((files) => files.length > 0);
+  const groupFailures = await verifyGroupedRuns(
+    testSets,
+    measured.result.timings,
+    options,
+    deps,
   );
-  console.log(
-    dim(`Batch limit: ${testLimitMs}ms. A frozen loop stops the run.`),
-  );
-  console.log(dim(`Using up to ${batchJobs} concurrent test batch(es).`));
-  return { status: "passed", testLimitMs };
-};
-
-/**
- * Probe that the *unmutated* target passes every static gate before its mutants
- * run, and report loudly if not. A gate can only tell a mutation-introduced
- * diagnostic apart from a broken tool or an already-dirty target if the
- * unmutated file passes it. The file on disk is the original here (restored
- * after every mutant), so probe it once per file per gate — the type-check
- * probe also warms the module cache, so the file's per-mutant `deno check`s
- * re-type only the one changed file. A non-zero exit means that gate can't be
- * trusted — precommit typechecks and runs `lint:ci` before mutation, but a
- * standalone `deno task mutation` does not — so the caller aborts rather than
- * record every mutant as a bogus static kill. Probing the target itself (not a
- * fixed path) also means a run that mutates this very file never reprobes a
- * path that is currently holding a mutant.
- */
-const isUnmutatedTargetDirty = async (
-  plan: FileMutationPlan,
-  gates: StaticGate[],
-  signal: AbortSignal,
-): Promise<boolean> => {
-  if (plan.mutants.length === 0) return false;
-  for (const gate of gates) {
-    const exit = await gate.exit(plan.file, projectRoot, signal);
-    // A gate the guard or an interrupt killed exited non-zero because it was
-    // stopped, which says nothing about the file. Calling that a dirty target
-    // would send someone off to fix a file that was never the problem.
-    if (signal.aborted) return false;
-    if (exit === 0) continue;
-    console.error(
-      red(
-        `\nThe unmutated ${rel(plan.file)} does not pass the ${gate.label} gate.`,
-      ),
-    );
-    for (const line of gate.remedy) console.error(line);
-    return true;
+  const stoppedAfterGroups = unfinishedRunExit(opts, 0, plans);
+  if (stoppedAfterGroups !== null) {
+    return { code: stoppedAfterGroups, status: "stopped" };
   }
-  return false;
+  if (groupFailures.length > 0) {
+    reportBaselineFailures(groupFailures);
+    return { code: 1, status: "stopped" };
+  }
+  for (const test of measured.result.timings.toSorted(quickestFirst)) {
+    console.log(dim(`  ${seconds(test.ms).padStart(8)}  ${test.file}`));
+  }
+  const runs = Math.max(
+    1,
+    ...testSets.map((files) => planFor(files, measured.result.timings).length),
+  );
+  console.log(
+    dim(`Baseline passed in ${Math.round(measured.result.durationMs)}ms.`),
+  );
+  console.log(dim(`${runs} run(s) per mutant at most, cheapest first.`));
+  console.log(dim(`Using up to ${batchJobs} concurrent test batch(es).`));
+  return { status: "passed", timings: measured.result.timings };
 };
 
 /**
@@ -366,7 +361,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
       counts,
       frozen: { current: null },
       gates,
-      testLimitMs: baseline.testLimitMs,
+      timings: baseline.timings,
       totalMutants,
       unconfirmedKeys,
     };

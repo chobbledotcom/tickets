@@ -1,11 +1,10 @@
 import {
   corruptOneFact,
+  integerFields,
   modelDataFor,
   type TlaFact,
-  tlaModule,
-  tlaRecords,
 } from "#scripts/verify-models/data.ts";
-import { modalTargets } from "#scripts/verify-models/modal-lifecycle-matrix.ts";
+import { matrixModule } from "#scripts/verify-models/modal-lifecycle-matrix.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
   type ModalEvent,
@@ -50,9 +49,7 @@ const SNAPSHOT_FIELDS = [
   "bSaved",
   "cRank",
 ] as const;
-const snapshotFields = Object.fromEntries(
-  SNAPSHOT_FIELDS.map((field) => [field, "Int"]),
-) as Record<(typeof SNAPSHOT_FIELDS)[number], "Int">;
+const snapshotFields = integerFields(SNAPSHOT_FIELDS);
 export type ModalSnapshot = TlaFact<typeof snapshotFields>;
 
 const eventFields = {
@@ -177,16 +174,12 @@ export const modalLifecycleFacts = (
   return { edges, events, snapshots: [...snapshots.values()] };
 };
 
-const moduleFor = (facts: ModalFacts): string => {
-  const targets = modalTargets(facts);
-  return tlaModule("ModalLifecycleData", [
-    tlaRecords("Snapshots", nodeFields, facts.snapshots, "Seq"),
-    tlaRecords("Events", eventFields, facts.events),
-    `\\* @type: Seq(Seq(Int));\nTargets == <<\n${targets
-      .map((row) => `<<${row.join(", ")}>>`)
-      .join(",\n")}\n>>`,
-  ]);
-};
+const moduleFor = (facts: ModalFacts): string =>
+  matrixModule(
+    "ModalLifecycleData",
+    { events: eventFields, snapshots: nodeFields },
+    facts,
+  );
 export type ModalFacts = {
   readonly snapshots: readonly ModalNode[];
   readonly events: readonly ModalInput[];

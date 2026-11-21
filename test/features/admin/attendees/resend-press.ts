@@ -1,7 +1,9 @@
 /** Presses and fixtures the re-send test files share. */
 
 import { expect } from "@std/expect";
+import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
@@ -86,4 +88,39 @@ export const expectResendPress = async (
 export const isEmailRequest = (init: RequestInit): boolean => {
   const body = JSON.parse(init.body as string) as { to?: string[] };
   return Array.isArray(body.to);
+};
+
+/** Run the press with the activity write refused and each more trigger
+ * installed, check the flags its failure left, then drop every trigger so
+ * a later press can recover. Activity messages are encrypted at insert,
+ * so the trigger reads no words; the booking's own lines are already
+ * written, so any new line is the press's. */
+export const expectPressWithRefusedActivity = async (
+  attendeeId: number,
+  name: string,
+  expectedFlags: { email: number; webhooks: number },
+  moreTriggers: Readonly<Record<string, SqlStatement>> = {},
+): Promise<void> => {
+  const triggers: Record<string, SqlStatement> = {
+    reject_resend_activity: sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
+   WHEN NEW.attendee_id = ${sqlLiteral(attendeeId)}
+   BEGIN
+     SELECT RAISE(ABORT, 'activity rejected');
+   END`,
+    ...moreTriggers,
+  };
+  try {
+    for (const create of Object.values(triggers)) await execute(create);
+    // The refused activity write surfaces as the press's own rejection.
+    await expect(resend(attendeeId, name, "both")).rejects.toThrow(
+      "activity rejected",
+    );
+    expect(await readPendingNotificationFlags(attendeeId)).toEqual(
+      expectedFlags,
+    );
+  } finally {
+    for (const triggerName of Object.keys(triggers)) {
+      await execute(sql`DROP TRIGGER IF EXISTS ${sqlName(triggerName)}`);
+    }
+  }
 };

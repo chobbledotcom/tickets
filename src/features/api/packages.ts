@@ -176,11 +176,7 @@ export const handleGetPackage = withPackageContext(
             );
           return {
             name: e.listing.name,
-            quantity: requiredMapValue(
-              memberQuantities,
-              e.listing.id,
-              `Listing ${e.listing.id} missing`,
-            ),
+            quantity: requiredMapValue(memberQuantities, e.listing.id),
             slug: e.listing.slug,
             ...(children.length > 0 ? { children } : {}),
           };

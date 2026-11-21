@@ -165,11 +165,7 @@ export const withSubmittedPlan = (
     ...line,
     // The plan is parsed over the same delivered lines these selectors
     // render, so every rendered line has a submitted assignment.
-    assignment: requiredMapValue(
-      plan.perListing,
-      line.listingId,
-      `Listing ${line.listingId} assignment missing`,
-    ),
+    assignment: requiredMapValue(plan.perListing, line.listingId),
   }));
   return { ...data, lines, single: lines[0]!.assignment, split: plan.split };
 };

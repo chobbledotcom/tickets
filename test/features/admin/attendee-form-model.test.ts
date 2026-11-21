@@ -28,7 +28,7 @@ describe("toLedgerOrder", () => {
         }),
       ],
     });
-    const order = toLedgerOrder(parsed);
+    const order = toLedgerOrder(parsed, []);
     expect(order.lines[0]!.chargedUnitAmount).toBe(0);
     expect(order.lines[0]!.item.unitPrice).toBe(0);
   });

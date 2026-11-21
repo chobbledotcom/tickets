@@ -107,11 +107,7 @@ export const loadListingParentsSection = async (
       listing,
       candidate,
       parentIsChild,
-      requiredMapValue(
-        childrenOf,
-        candidate.id,
-        `Listing ${candidate.id} missing`,
-      ).length > 0,
+      requiredMapValue(childrenOf, candidate.id).length > 0,
     ),
     listing: candidate,
   }));
@@ -255,10 +251,8 @@ export const validateChildEdges = async (
       listingChildren.getIdsByKeys(childIds),
     ]);
   const children = childIds.map((childId) => ({
-    isParent:
-      requiredMapValue(childrenByParent, childId, `Listing ${childId} missing`)
-        .length > 0,
-    listing: requiredMapValue(byId, childId, `Listing ${childId} missing`),
+    isParent: requiredMapValue(childrenByParent, childId).length > 0,
+    listing: requiredMapValue(byId, childId),
   }));
   const error = await childEdgeError(
     parent,
@@ -313,11 +307,7 @@ const groupRemappedEdges = (
   groupChildEdges(
     [...idMap].flatMap(([sourceId, cloneId]) =>
       mapNotNullish((relatedId: number) => toEdge(cloneId, relatedId))(
-        requiredMapValue(
-          relatedIdsBySource,
-          sourceId,
-          `Listing ${sourceId} missing`,
-        ),
+        requiredMapValue(relatedIdsBySource, sourceId),
       ),
     ),
   );

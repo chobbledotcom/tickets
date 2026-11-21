@@ -34,6 +34,44 @@ export const dataFrom =
   async () =>
     select(await load())();
 
+/** A control names the producer export that supplies its facts. */
+type ControlDefinition<Name extends string> = readonly [
+  name: string,
+  phase: CheckPhase,
+  data: Name,
+];
+
+/** Declare a model whose facts come from the exports of one lazy producer. The
+ * declaration names each export. Nothing loads until the checker asks. */
+export const modelFrom = <
+  const Name extends string,
+  Producer extends Record<Name, ModelDataSource>,
+>(
+  load: () => Promise<Producer>,
+  declaration: {
+    readonly context: readonly string[];
+    readonly controls: readonly [
+      ControlDefinition<Name>,
+      ...ControlDefinition<Name>[],
+    ];
+    readonly data: Name;
+    readonly module: string;
+  },
+): Extract<VerificationModule, { readonly kind: "model" }> => {
+  const lazy = dataFrom(load);
+  return {
+    context: declaration.context,
+    controls: declaration.controls.map(([name, phase, data]) => ({
+      data: lazy((producer) => producer[data]),
+      name,
+      phase,
+    })) as [ModelControl, ...ModelControl[]],
+    data: lazy((producer) => producer[declaration.data]),
+    kind: "model",
+    module: declaration.module,
+  };
+};
+
 /** Review context is source code under the declared repository roots. */
 export const isReviewSourcePath = (path: string): boolean =>
   /^(?:src|scripts|verification)\/.+\.(?:[cm]?[jt]sx?|tla)$/.test(path) &&

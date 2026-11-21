@@ -124,9 +124,7 @@ const rowsToIdsByKeys = (
 ): Map<number, number[]> =>
   reduce(
     (acc: Map<number, number[]>, row: LinkRow) => {
-      requiredMapValue(acc, row.key_id, "Unexpected link key").push(
-        row.value_id,
-      );
+      requiredMapValue(acc, row.key_id).push(row.value_id);
       return acc;
     },
     new Map(keyIds.map((id) => [id, [] as number[]])),
@@ -208,11 +206,7 @@ export const linkTableSide: OverLinkTable<
       );
     },
     getIds: async (keyId, tx?) =>
-      requiredMapValue(
-        await linkSide.getIdsByKeys([keyId], tx),
-        keyId,
-        `Missing link result for ${keyColumn} ${keyId}`,
-      ),
+      requiredMapValue(await linkSide.getIdsByKeys([keyId], tx), keyId),
     getIdsByKeys: async (keyIds, tx?) => {
       if (tx === undefined) return readIdsByKeys(keyIds);
       if (keyIds.length === 0) return new Map();

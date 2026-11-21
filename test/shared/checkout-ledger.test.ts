@@ -37,6 +37,7 @@ describe("bookingFactsFromOrder", () => {
       amountPaid: 9800,
       attendeeId: 42,
       bookingFee: 300,
+      charges: [],
       eventId: "cs_test_1",
       lines: [{ gross: 10000, listingId: 1 }],
       modifiers: [{ delta: -500, modifierId: 7 }],
