@@ -164,8 +164,17 @@ request handler (`#routes`) and the message catalog (`#i18n`).
 - `app.logIn()` logs the owner in through the login form.
 - `app.cookieHeader()` returns the cookies. Pass them to `createApp` to replay
   an old session.
-- `test/blackbox/seed.ts` sets up a shop through the admin forms. `addListing`
-  is the first helper. Add a helper there when a second test needs one.
+- `app.target` is the target that the visitor sends to. `createApi(target, key)`
+  in `test/blackbox/api.ts` is a JSON client for the admin API. It sends the key
+  with every request and reads each answer as JSON.
+- `test/blackbox/seed.ts` sets up a shop through the admin API, as another
+  system does. `openApi(app)` makes a key on the keys page for the logged-in
+  owner and keeps the one copy that the page shows. `addListing` and
+  `addBooking` create records and give back their numbers. A seed helper
+  validates the answer with a valibot schema and fails with the text that the
+  API sent. Add a helper there when a second test needs one.
+- Do not write to the database to set up a test. If the API cannot make the
+  state that a test needs, that is a finding about the API. Raise it.
 
 ### What to assert
 

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createApp, inProcess } from "#test/blackbox/driver.ts";
-import { addListing } from "#test/blackbox/seed.ts";
+import { addListing, openApi } from "#test/blackbox/seed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** The number the quantity box of one listing shows as chosen. */
@@ -16,13 +16,13 @@ const chosenQuantity = (html: string, id: number): number => {
 
 describeWithEnv("booking page prefill", { db: true }, () => {
   const openShop = async () => {
-    const app = createApp(inProcess);
-    await app.logIn();
-    const listing = await addListing(app, {
-      maxAttendees: "50",
-      maxQuantity: "10",
+    const owner = createApp(inProcess);
+    await owner.logIn();
+    const listing = await addListing(await openApi(owner), {
+      max_attendees: 50,
+      max_quantity: 10,
       name: "Quiz Night",
-      unitPrice: "5.00",
+      unit_price: 500,
     });
     return { app: createApp(inProcess), listing };
   };
