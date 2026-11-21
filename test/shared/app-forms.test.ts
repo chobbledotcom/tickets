@@ -35,6 +35,10 @@ describeWithEnv("app form handlers", { db: true }, () => {
     return { handlers, swaps };
   };
 
+  /** Answers a move of one item in the given direction. */
+  const moved = async (direction: "down" | "up", id: number) =>
+    setup().handlers[direction](await request(), { id });
+
   test("moves an item up by swapping it with its previous neighbour", async () => {
     const { handlers, swaps } = setup();
     const response = await handlers.up(await request(), { id: 2 });
@@ -44,10 +48,7 @@ describeWithEnv("app form handlers", { db: true }, () => {
   });
 
   test("answers a move with a success flash carrying the moved message", async () => {
-    const { handlers } = setup();
-    const response = await handlers.down(await request(), { id: 2 });
-
-    expectFlash(response, "Thing moved", true);
+    expectFlash(await moved("down", 2), "Thing moved", true);
   });
 
   test("moves an item down by swapping it with its next neighbour", async () => {
