@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
@@ -45,7 +46,9 @@ describeStripe("Stripe VAT charges", () => {
           const metadata = extractSessionMetadata(
             wireMetadata(payload.metadata as Record<string, string>),
           );
-          expect(JSON.parse(metadata.tax_policy)).toEqual(policy);
+          expect((await extractIntent({ metadata }))?.taxPolicy).toEqual(
+            policy,
+          );
           expect(metadata.price_proof.startsWith(`${expected}.`)).toBe(true);
         } finally {
           create.restore();

@@ -60,7 +60,7 @@ const refuseRetryably = (why: string, category: LogCategory): "retry" => {
 };
 
 /** Build a validated session from a fetched checkout and its staged metadata.
- * The metadata was written by our own buildItemsMetadata, so it always carries
+ * The metadata was written by our own assembleCheckoutMetadata, so it always carries
  * the required fields. Returns a rejection when the checkout's charge or
  * resource id is malformed (the boundary validates both), so a paid charge the
  * boundary cannot read still reaches the refund path. */

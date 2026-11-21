@@ -1085,10 +1085,10 @@
   },
   "src/shared/payment-helpers.ts": {
     "contraction": 2,
-    "banned-modal": 8,
+    "banned-modal": 3,
     "wordy": 1,
-    "semicolon": 7,
-    "long-sentence": 15,
+    "semicolon": 2,
+    "long-sentence": 10,
     "participle": 1
   },
   "src/shared/payment-provider-status.ts": {
@@ -1096,8 +1096,8 @@
     "banned-modal": 1
   },
   "src/shared/payment-providers.ts": {
-    "long-sentence": 6,
-    "banned-modal": 5,
+    "long-sentence": 4,
+    "banned-modal": 4,
     "semicolon": 4
   },
   "src/shared/payment-review.ts": {

@@ -141,5 +141,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-10_subscriptions",
     () => import("./2026-11-10_subscriptions.ts"),
   ),
+  // The whole order of a Stripe or Square checkout rests in a sealed row, and
+  // the provider's metadata holds only the key that opens it.
+  entry(
+    "2026-11-21_checkout_bundles",
+    () => import("./2026-11-21_checkout_bundles.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

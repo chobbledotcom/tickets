@@ -9,7 +9,8 @@ import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { isSessionRejection } from "#payment/validated-session.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
-import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
+import { reportLostBundle } from "#routes/api/payment-processing/lost-bundle.ts";
+import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
 import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
 import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import type {
@@ -154,12 +155,16 @@ export const classifySessionIntent = async (
 ): Promise<SessionIntentResult> => {
   const verdict = await classifySession(session);
   if (verdict.verdict === "ignore") return { kind: "unverifiable" };
-  const intent = extractIntent(session);
-  if (intent === null) {
-    logUnreadableBooking("Signed payment's booking could not be read");
-    return { kind: "unreadable" };
+  const order = await readSessionOrder(session);
+  if (order.status === "read") {
+    return { intent: order.intent, kind: "ready", verdict };
   }
-  return { intent, kind: "ready", verdict };
+  if (order.status === "unreadable") {
+    logUnreadableBooking("Signed payment's booking could not be read");
+  } else {
+    await reportLostBundle(session, order.status);
+  }
+  return { kind: "unreadable" };
 };
 
 export const validatePaidSession = async (

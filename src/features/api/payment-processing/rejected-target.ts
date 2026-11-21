@@ -26,7 +26,7 @@ import type {
   SessionRejection,
 } from "#payment/validated-session.ts";
 import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
-import { extractIntentFromMetadata } from "#routes/api/payment-processing/metadata.ts";
+import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { loadRefundResume } from "#routes/api/payment-processing/placeholder-resume.ts";
 import {
   type RejectionHandler,
@@ -114,7 +114,7 @@ const resumeRejectedTarget = async (
   );
   if (search.target === null) return;
   const intent = requireValue(
-    extractIntentFromMetadata(rejection.metadata),
+    await extractIntent(rejection),
     `Resumed rejected session ${rejection.sessionId} lost its readable metadata`,
   );
   const authority = await readRejectedAuthority(returned, rejection.sessionId);
@@ -162,7 +162,7 @@ const storeRejectedTarget = async (
   rejection: MalformedRejection,
   returned: ReturnedRejectionReceipt,
 ): Promise<void> => {
-  const intent = extractIntentFromMetadata(rejection.metadata);
+  const intent = await extractIntent(rejection);
   if (intent === null) {
     // The metadata cannot name the booking lines, so there is nothing true
     // to store. Give the row back and keep today's behavior: the authority

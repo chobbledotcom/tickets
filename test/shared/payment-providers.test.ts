@@ -66,24 +66,13 @@ describe("payment provider registry", () => {
     });
   });
 
-  test("records each provider's label and checkout-metadata caps", () => {
+  test("records each provider's label and where its order rests", () => {
     expect(PAYMENT_PROVIDERS.square.label).toBe("Square");
-    expect(PAYMENT_PROVIDERS.square.metadata).toEqual({
-      maxEntries: 10,
-      maxValueLength: 255,
-      packs: true,
-    });
+    expect(PAYMENT_PROVIDERS.square.orderCarrier).toBe("sealed-bundle");
     expect(PAYMENT_PROVIDERS.stripe.label).toBe("Stripe");
-    expect(PAYMENT_PROVIDERS.stripe.metadata).toEqual({
-      maxEntries: 50,
-      maxValueLength: 500,
-      packs: false,
-    });
+    expect(PAYMENT_PROVIDERS.stripe.orderCarrier).toBe("sealed-bundle");
     expect(PAYMENT_PROVIDERS.sumup.label).toBe("SumUp");
-    expect(PAYMENT_PROVIDERS.sumup.metadata).toEqual({
-      maxValueLength: Number.POSITIVE_INFINITY,
-      packs: false,
-    });
+    expect(PAYMENT_PROVIDERS.sumup.orderCarrier).toBe("staged-row");
   });
 
   test("lists the providers in the order operators see them", () => {

@@ -70,7 +70,7 @@ export const cancelPageResponse = async (
   session: ValidatedPaymentSession,
   logFailure: (detail: string) => void,
 ): Promise<Response> => {
-  const intent = extractIntent(session);
+  const intent = await extractIntent(session);
   const listingId = intent?.items[0]?.e ?? 0;
   const listing = await getListingWithCount(listingId);
   if (!listing) {

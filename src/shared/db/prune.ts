@@ -141,6 +141,12 @@ const pruneStatements = (): PruneStatement[] => [
          )
        )`,
   ),
+  // A sealed order outlives every provider retry and replay, because the
+  // payments clock is never shorter than the retry window.
+  boundedDelete(
+    "checkout_bundles",
+    sql`created_at < ${isoBefore(PRUNE_PAYMENTS_RETENTION_MS)}`,
+  ),
   // A Square link stops taking payment at Square's native lifetime (180 days)
   // at the latest, whatever the expiry task did, so a handle row older than
   // that bound plus the webhook window can hold nothing worth ending. Younger

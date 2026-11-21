@@ -135,9 +135,8 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("metadata size limits", () => {
-    test("returns error when items metadata exceeds Stripe limit", async () => {
+    test("takes an order too large for Stripe's metadata, because the metadata holds only a token", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
-      // Generate enough items to exceed 500-char serialized metadata
       const items = Array.from({ length: 40 }, (_, i) =>
         checkoutItem({
           listingId: i + 1,
@@ -150,8 +149,7 @@ describeStripe("stripe-provider", () => {
         "http://localhost:3000",
       );
       expect(result).not.toBeNull();
-      expect(result).toHaveProperty("error");
-      expect((result as { error: string }).error).toMatch(/too many listings/i);
+      expect(result).not.toHaveProperty("error");
     });
 
     test("propagates non-PaymentUserError exceptions", async () => {

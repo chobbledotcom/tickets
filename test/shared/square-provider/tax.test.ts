@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
@@ -45,13 +46,12 @@ describeSquare(() => {
               0,
             );
             expect(sum).toBe(expected);
-            expect(
-              Object.keys(payload.order.metadata).length,
-            ).toBeLessThanOrEqual(10);
             const metadata = extractSessionMetadata(
               wireMetadata(payload.order.metadata),
             );
-            expect(JSON.parse(metadata.tax_policy)).toEqual(policy);
+            expect((await extractIntent({ metadata }))?.taxPolicy).toEqual(
+              policy,
+            );
             expect(metadata.price_proof.startsWith(`${expected}.`)).toBe(true);
           },
         ),

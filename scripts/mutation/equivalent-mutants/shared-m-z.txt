@@ -52,7 +52,6 @@ src/features/api/public-listing.ts::buildChildPublicListings~1eo8erl ??→||  au
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → || audited:0dtnttp # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
 src/shared/payment-helpers.ts::parsePackedFields~0lfi795  || → && audited:0dtnttp # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
-src/shared/payment-helpers.ts::enforceMetadataLimits.oversizedOptionRef~1ye3wov  ?? → || audited:0dtnttp # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # The SumUp machine has no split move. Representative tags label only the test
 # matrix, and `expected` ignores its tag for every plain or absent cell.
