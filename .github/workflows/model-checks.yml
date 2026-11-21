@@ -51,7 +51,7 @@ jobs:
   model-checks:
     needs: plan
     name: model-checks (${{ matrix.model }})
-    runs-on: ubicloud-standard-8
+    runs-on: ubicloud-standard-2
     # A wedged checker must fail loudly, so the job has a hard limit.
     timeout-minutes: 30
     strategy:
