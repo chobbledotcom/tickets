@@ -343,7 +343,7 @@ describe("documented attendee examples", () => {
   };
   const CREATE_BODY = {
     address: "12 Main Street, Springfield",
-    adjustments: [{ amount: 250, description: "Delivery" }],
+    adjustments: [{ amount: 250, description: "Delivery", taxable: true }],
     answers: [
       { answerId: 3, questionId: 2 },
       { freeText: "Vegetarian", questionId: 5 },
@@ -386,7 +386,7 @@ describe("documented attendee examples", () => {
     ];
 
     expect(descriptionsOf(routes)).toEqual([
-      "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened.",
+      "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened. An adjustment with taxable: true is a charge that the tax counts, such as delivery. An update refuses taxable.",
       "Update a booking. Every field is optional, and a field the body leaves out keeps its stored value. lines is the complete set of booking lines, and a stored line that no line names is removed. payments and adjustments are the complete lists, in the create's shape: a receipt that is already stored adds nothing, and a receipt already stored as different money is refused. A line change moves no money. The ticketToken and created fields name the booking, so an update refuses both.",
     ]);
   });
