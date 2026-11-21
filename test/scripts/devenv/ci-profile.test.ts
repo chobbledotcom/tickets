@@ -47,9 +47,11 @@ describe("CI devenv profile", () => {
     assertStringIncludes(
       workflow,
       [
-        "      - name: Check machine safety models",
+        "      - name: Check the machine safety model",
         "        shell: devenv --profile models shell bash -- -e {0}",
-        "        run: deno task verify:models",
+        "        env:",
+        "          MODEL: ${{ matrix.model }}",
+        '        run: deno task verify:models --model "$MODEL"',
       ].join("\n"),
     );
   });
