@@ -157,7 +157,7 @@ describe("fp collections", () => {
           map((value: string) => value.length),
           map((value: string) => value.toUpperCase()),
         );
-      void make;
+      expect(typeof make()).toBe("function");
     });
   });
 
