@@ -250,6 +250,16 @@ The pull request workflow runs one `model-checks` job for each model, with a
 30-minute limit. A `model-plan` job lists the models
 from the registry. The required `checks` job runs last. It fails unless the
 `static` job and every model job passed.
+Each model job runs on a runner that `scripts/verify-models/runners.ts` names.
+A model that the file does not name runs on `ubicloud-standard-2`.
+A runner costs per minute in proportion to its cores. A larger runner pays only
+when the model finishes at least twice as fast. Timing runs showed that only
+`ModalFocus`, `SubscriptionRenewals`, and `SubscriptionLifecycle` pay.
+A test fails when the file names a model that the registry does not hold.
+The model jobs do not use devenv. The `setup-model-tools` action runs
+`scripts/ci/setup-model-tools.sh`, which installs Deno, Java, and Apalache.
+The script checks each download against a SHA-256 hash. A test holds the Deno
+version and the Apalache release to the pins in `devenv.nix`.
 
 The runner records each pass in `.verify-models-passes/`.
 The name of a record is a hash of the checker name and version, the command,
@@ -259,8 +269,12 @@ The checker gives one verdict for one input, so a check with a record does not r
 The runner removes a record that no run used for 30 days.
 The runner still plans both proof obligations and every declared negative control.
 
-The `Model checks` workflow runs the same task without a pass cache each night.
+The `Model checks` workflow runs the same task each night and restores no pass cache.
 It finds a change to the checker environment or the machine.
+It saves the passes of each model that passes, under a key that the pull request
+workflow restores. A cache that a branch saves is not visible to other branches.
+A cache that the default branch saves is visible to all branches and to the merge queue.
+A new branch and a merge queue run therefore skip every model that has the same inputs as `main`.
 A plan job runs `deno task verify:models --list`, which prints the model names
 as JSON. The workflow starts one job for each name. Each job runs on its own
 runner and runs `deno task verify:models --model <name>`. The jobs run in

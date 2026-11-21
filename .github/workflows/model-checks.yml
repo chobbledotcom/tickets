@@ -1,9 +1,12 @@
 name: Model checks
 
 # A cached model check is a recorded verdict for the same inputs. This suite
-# deliberately runs with no pass cache, so it finds a change to the checker,
+# deliberately restores no pass cache, so it finds a change to the checker,
 # the runner environment, or the machine. It does not gate merges. Each model
 # runs as its own job on its own runner, and the jobs run in parallel.
+# A passing job saves its passes, and the pull request workflow restores them.
+# A cache that a branch saves is not visible to other branches, but a cache
+# that the default branch saves is.
 on:
   schedule:
     # Nightly at 04:11 UTC. The off-the-hour minute is not a peak for
@@ -14,13 +17,9 @@ on:
 permissions:
   contents: read
 
-# The models profile carries Apalache and Java. Every run step uses it, as the
-# model step in test.yml does. The plan job only lists names, so it overrides
-# the shell with the ci profile.
-defaults:
-  run:
-    shell: devenv --profile models shell bash -- -e {0}
-
+# The plan job runs in the ci devenv profile. The model jobs install their
+# tools with scripts/ci/setup-model-tools.sh, because the devenv setup takes
+# longer than most checks.
 jobs:
   plan:
     runs-on: ubicloud-standard-2
@@ -51,14 +50,18 @@ jobs:
   model-checks:
     needs: plan
     name: model-checks (${{ matrix.model }})
-    runs-on: ubicloud-standard-2
+    runs-on: ${{ matrix.runner }}
     # A wedged checker must fail loudly, so the job has a hard limit.
     timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     strategy:
       # One failed model must not hide the verdict of the others.
       fail-fast: false
+      # The plan job lists each model with its runner.
       matrix:
-        model: ${{ fromJSON(needs.plan.outputs.models) }}
+        include: ${{ fromJSON(needs.plan.outputs.models) }}
 
     steps:
       - name: Checkout repository
@@ -66,15 +69,22 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up devenv
-        uses: $/.github/actions/setup-devenv
-        with:
-          profile: models
+      - name: Set up model tools
+        uses: $/.github/actions/setup-model-tools
 
       # The runner reads .verify-models-passes. A restored cache would hide
       # exactly the environment change this job exists to find.
       - name: Assert the pass cache is empty
         run: test ! -e .verify-models-passes
+
+      # The key never matches an earlier entry, so nothing restores. The post
+      # step saves the passes under a key that the pull request restore keys
+      # match.
+      - name: Save the model passes
+        uses: actions/cache@v4.3.0
+        with:
+          path: .verify-models-passes
+          key: verify-models-${{ runner.os }}-${{ matrix.model }}-nightly-${{ github.run_id }}
 
       - name: Run the model checks
         env:

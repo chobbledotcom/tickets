@@ -157,6 +157,62 @@ const resolveBaseRef = async (run: RunCommand): Promise<string | null> => {
   return null;
 };
 
+/** The sources a test path mirrors, nearest first: `test/a/b/c.test.ts` names
+ * `src/a/b/c`, then `src/a/b`, then `src/a`, each as `.ts` and `.tsx`. */
+const mirroredSourceCandidates = (testPath: string): string[] => {
+  const parts = testPath
+    .replace(/^test\//, "")
+    .replace(/\.test\.tsx?$/, "")
+    .split("/");
+  return parts.flatMap((_, index) => {
+    const prefix = parts.slice(0, parts.length - index).join("/");
+    return [`src/${prefix}.ts`, `src/${prefix}.tsx`];
+  });
+};
+
+/** The nearest source that a deleted test mirrored and the branch still holds,
+ * or null when the test mirrored none. */
+const mirroredSourceOrNull = async (
+  run: RunCommand,
+  testPath: string,
+): Promise<string | null> => {
+  for (const candidate of mirroredSourceCandidates(testPath)) {
+    const held = await run(["git", "cat-file", "-e", `HEAD:${candidate}`]);
+    if (held.success) return candidate;
+  }
+  return null;
+};
+
+/**
+ * The sources that the tests this branch deletes used to prove. A deleted test
+ * changes no src file, so the changed-source rule alone would skip the mutation
+ * check at the moment a test leaves. The gate mutates each source that a
+ * deleted test mirrored, and the remaining tests must kill every mutant.
+ */
+const sourcesOfDeletedTests = async (
+  run: RunCommand,
+  base: string,
+): Promise<string[]> => {
+  const result = await run([
+    "git",
+    "diff",
+    "--name-only",
+    "--diff-filter=D",
+    `${base}...HEAD`,
+  ]);
+  if (!result.success) {
+    throw new Error(
+      `git diff --diff-filter=D ${base}...HEAD failed: ${result.stderr.trim()}`,
+    );
+  }
+  const found: string[] = [];
+  for (const test of partitionChanged(nonBlankLines(result.stdout)).tests) {
+    const source = await mirroredSourceOrNull(run, test);
+    if (source !== null) found.push(source);
+  }
+  return found;
+};
+
 /**
  * The src/test files this branch changes relative to its base ref, via
  * `base...HEAD` (the merge-base of base and HEAD, to HEAD) so only the branch's
@@ -186,8 +242,10 @@ export const changedFiles = async (
     throw new Error(`git diff ${base}...HEAD failed: ${result.stderr.trim()}`);
   }
   const changed = partitionChanged(nonBlankLines(result.stdout));
+  const changedSources = await withCodeChanges(run, base, changed.sources);
+  const mirrored = await sourcesOfDeletedTests(run, base);
   return {
-    sources: await withCodeChanges(run, base, changed.sources),
+    sources: [...new Set([...changedSources, ...mirrored])],
     tests: changed.tests,
   };
 };
