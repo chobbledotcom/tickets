@@ -32,9 +32,7 @@ const expectLinkedImages = async (
   imageNames: string[],
 ) => {
   expect(await imageNamesForItem("news", id)).toEqual(imageNames);
-  expect(await loggedMessages()).toContain(
-    `Images updated for news '${name}'`,
-  );
+  expect(await loggedMessages()).toContain(`Images updated for news '${name}'`);
 };
 
 describeWithEnv("admin news routes", { db: true, storage: "cdn" }, () => {
