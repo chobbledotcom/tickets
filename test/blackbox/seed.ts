@@ -76,6 +76,47 @@ export const addListing = async (
   return { id: listing.id, slug: listing.slug };
 };
 
+const GroupAnswer = v.object({ group: v.looseObject({ id: v.number() }) });
+
+/** Add a group and give back its number. */
+export const addGroup = async (api: Api, name: string): Promise<number> =>
+  created(
+    "group",
+    await api.post("/api/admin/groups", { max_attendees: 10, name }),
+    GroupAnswer,
+  ).group.id;
+
+const ImageAnswer = v.object({ image: v.looseObject({ id: v.number() }) });
+
+/** A real 1×1 PNG as base64 text, the smallest file an image create takes. */
+const ONE_PIXEL_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+
+/** Add an image to the library, show it on one record after the record's
+ * other images, and give back its number. The site needs image storage. */
+export const addImage = async (
+  api: Api,
+  name: string,
+  item: { item_id: number; item_type: string },
+): Promise<number> => {
+  const { id } = created(
+    "image",
+    await api.post("/api/admin/images", {
+      content_type: "image/png",
+      file: ONE_PIXEL_PNG,
+      name,
+    }),
+    ImageAnswer,
+  ).image;
+  const linked = await api.put(`/api/admin/images/${id}`, { items: [item] });
+  if (linked.status !== 200) {
+    throw new Error(
+      `Showing image ${id} answered ${linked.status}: ${JSON.stringify(linked.body)}`,
+    );
+  }
+  return id;
+};
+
 /** The fields of a new booking: who books, and how many places. */
 export interface BookingFields {
   email?: string;

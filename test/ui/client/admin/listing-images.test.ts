@@ -35,9 +35,12 @@ import {
 afterEach(cleanup);
 afterEach(restoreHeldStub);
 
-const sectionHtml = (stored: readonly ChosenImage[] = []): string =>
+const sectionHtml = (
+  stored: readonly ChosenImage[] = [],
+  movePath?: string,
+): string =>
   `<form action="/admin/listing" method="post">${String(
-    ListingImagesField({ selected: stored }),
+    ListingImagesField({ movePath, selected: stored }),
   )}</form>`;
 
 /** One stored picture as a rejected create renders it. */
@@ -145,6 +148,27 @@ describe("the listing images field", () => {
       "/image/seed-thumb.webp",
     );
     expectSelection(window, ["4"], ["Remove Seed"]);
+  });
+
+  test("keeps each saved picture's own card, and drops it by its remove button", () => {
+    const window = installDom(
+      ADMIN_TEMPLATES +
+        sectionHtml(
+          [storedImage(4, "Seed", ""), storedImage(5, "Other", "")],
+          "/admin/listing/1/images",
+        ),
+    );
+    initListingImages();
+
+    requireElement<HTMLButtonElement>(
+      window.document,
+      '.listing-images-remove[aria-label="Remove Seed"]',
+    ).click();
+
+    expect(imageIdValues(window)).toEqual(["5"]);
+    expect(
+      attributesOf(window, "[data-sortable-handle]", "data-sortable-path"),
+    ).toEqual(["/admin/listing/1/images/5"]);
   });
 
   test("refuses a stored picture whose id is not a positive number", () => {

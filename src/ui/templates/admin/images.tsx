@@ -36,7 +36,10 @@ import {
 } from "#templates/components/linked-items.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
+import {
+  translatedTableColumn,
+  translatedTableHeader,
+} from "#templates/components/translated-table-column.ts";
 import {
   type AdminSession,
   type Image,
@@ -365,7 +368,13 @@ export const ItemImagesPanel = ({
       {linkedImages.length === 0 ? (
         <p>{t("images.item.none")}</p>
       ) : (
-        renderTable(imageTable, linkedImages)
+        renderTable(imageTable, linkedImages, {
+          reorder: {
+            anchor: (image) => String(image.id),
+            header: translatedTableHeader("images.item.order_column"),
+            path: (image) => `${action}/${image.id}`,
+          },
+        })
       )}
       <h2>{t("images.item.select_existing")}</h2>
       <CsrfForm action={action}>

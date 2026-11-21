@@ -15,6 +15,7 @@ import {
 import {
   defineAdminRoutes,
   entityTabRoutes,
+  orderRoutes,
 } from "#routes/admin/route-tables.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import {
@@ -114,5 +115,6 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/groups/:id/edit": pages.editPost,
   "POST /admin/groups/:id/images": groupImageHandlers.set,
   "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
+  ...orderRoutes("/admin/groups/:id/images/:imageId", groupImageHandlers.order),
   "POST /admin/groups/:id/remove-listings": handleRemoveListingsPost,
 });

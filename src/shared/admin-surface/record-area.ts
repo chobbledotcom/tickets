@@ -212,6 +212,8 @@ const MOVE_TAILS = {
   MoveBefore: "move-before",
 } as const;
 const IMAGE_TAILS = {
+  ImageMoveAfter: "images/:imageId/move-after",
+  ImageMoveBefore: "images/:imageId/move-before",
   Images: "images",
   ImagesUpload: "images/upload",
 } as const;
@@ -219,7 +221,7 @@ const IMAGE_TAILS = {
 /** The two move writes of one ordered row, under its path. */
 export const moveWrites = writesWith(MOVE_TAILS);
 
-/** The image set and image upload writes of one record with an Images tab. */
+/** The image set, upload and move writes of one record with an Images tab. */
 export const imageWrites = writesWith(IMAGE_TAILS);
 
 /** The writes of one Site content record: its Actions tab and its images. */

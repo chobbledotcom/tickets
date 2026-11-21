@@ -59,6 +59,18 @@ type RemoveLabels = {
   text: string;
 };
 
+/** Make the drop button of one picture drop it. */
+const wireRemove = (
+  item: HTMLElement,
+  id: number,
+  remove: (id: number) => void,
+): void => {
+  requiredChild<HTMLButtonElement>(
+    item,
+    ".listing-images-remove",
+  ).addEventListener("click", () => remove(id));
+};
+
 /** One chosen picture: its thumbnail and the button that drops it. */
 const chosenItem = (
   choice: ChosenImage,
@@ -73,8 +85,8 @@ const chosenItem = (
   const button = createButton("listing-images-remove");
   button.textContent = labels.text;
   button.setAttribute("aria-label", labels.label(choice.name));
-  button.addEventListener("click", () => remove(choice.id));
   item.append(button);
+  wireRemove(item, choice.id, remove);
   return item;
 };
 
@@ -102,6 +114,16 @@ const setUpListingImages = (section: HTMLElement): void => {
     'input[name="imageIds"]',
   );
   let chosen = [...stored].map(choiceFromInput);
+  // The pictures the server rendered keep their card, with any drag handle
+  // and arrows on it. A picture chosen here gets a plain card.
+  const served = new Map(
+    [...list.querySelectorAll<HTMLElement>("[data-image-id]")].map(
+      (item): [number, HTMLElement] => [
+        storedId(requireValue(item.dataset.imageId, "served image id")),
+        item,
+      ],
+    ),
+  );
   const library = createImageLibrary();
   const picker = clonePicker(template);
   const { content, grid } = picker;
@@ -184,7 +206,9 @@ const setUpListingImages = (section: HTMLElement): void => {
   const render = (): void => {
     inputs.replaceChildren(...chosen.map(choiceInput));
     list.replaceChildren(
-      ...chosen.map((choice) => chosenItem(choice, remove, labels)),
+      ...chosen.map(
+        (choice) => served.get(choice.id) ?? chosenItem(choice, remove, labels),
+      ),
     );
     empty.hidden = chosen.length > 0;
     list.hidden = chosen.length === 0;
@@ -205,6 +229,7 @@ const setUpListingImages = (section: HTMLElement): void => {
     closeAdminModal(picker.key);
   });
   trigger.addEventListener("click", () => void open());
+  for (const [id, item] of served) wireRemove(item, id, remove);
   render();
 };
 

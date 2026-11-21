@@ -86,6 +86,31 @@ describe("driver forms", () => {
     ]);
   });
 
+  test("presses a button by its formaction, and sends its name and value", async () => {
+    const withButtons = FORM.replace(
+      "</form>",
+      `<button type="submit" formaction="/save/2/move" name="anchor" value="7">Up</button>
+       <button type="submit" formaction="/save/2/drop">Drop</button></form>`,
+    );
+    const { requests, target } = formServer(withButtons);
+    const app = createApp(target);
+
+    await app.submit("/edit", {}, "/save/2/move");
+    await app.submit("/edit", {}, "/save/2/drop");
+
+    expect(
+      await Promise.all(
+        [requests[1]!, requests[3]!].map(async (sent) => [
+          new URL(sent.url).pathname,
+          await sent.text(),
+        ]),
+      ),
+    ).toEqual([
+      ["/save/2/move", "csrfToken=token-1&title=Old+title&anchor=7"],
+      ["/save/2/drop", "csrfToken=token-1&title=Old+title"],
+    ]);
+  });
+
   test("fails and lists the forms when the page offers no form with that action", async () => {
     const { target } = formServer(
       `${FORM}<form action="/other"></form><form></form>`,

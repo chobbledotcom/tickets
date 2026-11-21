@@ -6,12 +6,11 @@
 
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { initSortable } from "#src/ui/client/admin/sortable.ts";
 import { type App, createApp, inProcess } from "#test/blackbox/driver.ts";
+import { fieldsOf, openSortablePage } from "#test/blackbox/sortable-page.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDomInstaller,
-  fireEvent,
   requireElement,
   requireElements,
 } from "#test-utils/happy-dom.ts";
@@ -31,74 +30,19 @@ const openStatuses = async (): Promise<App> => {
   return app;
 };
 
-/** One drag: the row picked up, then each pointer event after the press, as
- *  a type and the height the pointer is at. A height above the list is over
- *  the table head. */
-type Drag = {
-  row: number;
-  steps: readonly (readonly [string, number?])[];
-  button?: number;
-};
-
-/** The list page in the browser, with the drag script running. Every row
- *  reports a 20px band, stacked from the top. Each form the page submits is
- *  recorded, not sent. */
+/** The statuses page in the browser, with the drag script running. */
 const inBrowser = (
   dom: ReturnType<typeof createDomInstaller>,
   html: string,
 ) => {
-  const window = dom.installDom(html);
-  const { document } = window;
-  const rows = requireElements<HTMLElement>(
-    document,
-    "tbody[data-sortable] > tr",
-  );
-  rows.forEach((row, index) => {
-    row.getBoundingClientRect = () =>
-      ({ height: 20, top: index * 20 }) as DOMRect;
+  const page = openSortablePage(dom, html, {
+    selector: "tbody[data-sortable]",
   });
-  const header = requireElement<HTMLElement>(document, "thead th");
-  const underPointer = (_x: number, y: number): Element | null =>
-    y < 0
-      ? header
-      : (rows.find((_row, index) => y >= index * 20 && y < index * 20 + 20)
-          ?.firstElementChild ?? null);
-  Object.defineProperty(document, "elementFromPoint", { value: underPointer });
-  const sent: { action: string; fields: Record<string, string> }[] = [];
-  window.HTMLFormElement.prototype.submit = function (this: HTMLFormElement) {
-    sent.push({
-      action: new URL(this.action).pathname,
-      fields: Object.fromEntries(
-        [...this.querySelectorAll("input")].map((input) => [
-          input.name,
-          input.value,
-        ]),
-      ),
-    });
+  return {
+    ...page,
+    ids: (): string[] => shownIds(page.document.body.innerHTML),
+    rows: page.items,
   };
-  initSortable();
-  const drag = ({ row, steps, button = 0 }: Drag): void => {
-    const handle = requireElement<HTMLElement>(
-      rows[row]!,
-      "[data-sortable-handle]",
-    );
-    handle.setPointerCapture = () => {};
-    const pointer = (type: string, clientY?: number, pressed = 0): void => {
-      fireEvent(
-        handle,
-        new window.PointerEvent(type, {
-          bubbles: true,
-          button: pressed,
-          pointerId: 1,
-          ...(clientY === undefined ? {} : { clientY }),
-        }),
-      );
-    };
-    pointer("pointerdown", undefined, button);
-    for (const [type, clientY] of steps) pointer(type, clientY);
-  };
-  const ids = (): string[] => shownIds(document.body.innerHTML);
-  return { document, drag, ids, rows, sent };
 };
 
 describeWithEnv("drag to reorder", { db: true }, () => {
@@ -108,12 +52,12 @@ describeWithEnv("drag to reorder", { db: true }, () => {
   for (const [title, drag, order] of [
     [
       "a drop at the top stores the row first",
-      { row: 2, steps: [["pointermove", 5], ["pointerup"]] },
+      { item: 2, steps: [["pointermove", 5], ["pointerup"]] },
       [2, 0, 1],
     ],
     [
       "a drop lower down stores the row after the one now above it",
-      { row: 0, steps: [["pointermove", 35], ["pointerup"]] },
+      { item: 0, steps: [["pointermove", 35], ["pointerup"]] },
       [1, 0, 2],
     ],
   ] as const) {
@@ -136,26 +80,26 @@ describeWithEnv("drag to reorder", { db: true }, () => {
   for (const [title, drag] of [
     [
       "a cancelled drag",
-      { row: 0, steps: [["pointermove", 45], ["pointercancel"]] },
+      { item: 0, steps: [["pointermove", 45], ["pointercancel"]] },
     ],
     [
       "a release in the same place",
       {
-        row: 1,
+        item: 1,
         steps: [["pointermove", 25], ["pointermove", 500], ["pointerup"]],
       },
     ],
     [
-      "a pointer over the table head",
-      { row: 2, steps: [["pointermove", -10], ["pointerup"]] },
+      "a pointer off the list",
+      { item: 2, steps: [["pointermove", -10], ["pointerup"]] },
     ],
     [
       "a move after the drag ended",
-      { row: 1, steps: [["pointercancel"], ["pointermove", 5]] },
+      { item: 1, steps: [["pointercancel"], ["pointermove", 5]] },
     ],
     [
       "a press with another button",
-      { button: 2, row: 0, steps: [["pointermove", 45]] },
+      { button: 2, item: 0, steps: [["pointermove", 45]] },
     ],
   ] as const) {
     test(`${title} keeps the rows and sends nothing`, async () => {
@@ -178,14 +122,9 @@ describeWithEnv("drag to reorder", { db: true }, () => {
     const page = inBrowser(dom, (await (await openStatuses()).get(LIST)).html);
     window.history.replaceState(null, "", `${LIST}?shown=all`);
     const arrow = requireElement<HTMLFormElement>(page.rows[2]!, "form");
-    const carried = Object.fromEntries(
-      [...arrow.querySelectorAll("input")].map((input) => [
-        input.name,
-        input.value,
-      ]),
-    );
+    const carried = fieldsOf(arrow);
 
-    page.drag({ row: 2, steps: [["pointermove", 5], ["pointerup"]] });
+    page.drag({ item: 2, steps: [["pointermove", 5], ["pointerup"]] });
 
     expect(page.sent[0]!.fields).toEqual({
       ...carried,
@@ -201,7 +140,7 @@ describeWithEnv("drag to reorder", { db: true }, () => {
       "[data-sortable-handle]",
     );
 
-    page.drag({ row: 1, steps: [] });
+    page.drag({ item: 1, steps: [] });
 
     expect({
       dragging: page.rows[1]!.classList.contains("is-dragging"),

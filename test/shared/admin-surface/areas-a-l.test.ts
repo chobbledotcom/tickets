@@ -126,6 +126,8 @@ describe("the A-L record areas", () => {
         groupAddListings: "/admin/groups/:id/add-listings",
         groupDelete: staffRoute("/admin/groups/:id/delete"),
         groupEdit: savesTo("group", "/admin/groups/:id/edit"),
+        groupImageMoveAfter: "/admin/groups/:id/images/:imageId/move-after",
+        groupImageMoveBefore: "/admin/groups/:id/images/:imageId/move-before",
         groupImages: "/admin/groups/:id/images",
         groupImagesUpload: "/admin/groups/:id/images/upload",
         groupNew: "/admin/groups/new",

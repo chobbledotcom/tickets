@@ -5,10 +5,13 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
-import { type CrudHandlers, recordRoutes } from "#routes/admin/route-tables.ts";
+import {
+  type CrudHandlers,
+  orderRoutes,
+  recordRoutes,
+} from "#routes/admin/route-tables.ts";
 import { SITE_FORM, SITE_MULTIPART } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
-import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   adminDestination,
   type RecordAreaId,
@@ -18,6 +21,7 @@ import type { RecordSurface } from "#shared/rest/record.ts";
 import {
   createItemImageHandlers,
   type ImagePanelRecord,
+  type ItemImageHandlers,
 } from "./item-images.ts";
 
 type SavedContent = {
@@ -80,7 +84,7 @@ export const contentImageHandlers = <T>(
 export const contentRecordRoutes = <Area extends RecordAreaId>(
   area: Area,
   handlers: CrudHandlers,
-  images: { set: RouteHandlerFn; upload: RouteHandlerFn },
+  images: ItemImageHandlers,
   entityPage: {
     renderTab: (request: Request, id: number, tab: string) => Promise<Response>;
   },
@@ -90,5 +94,6 @@ export const contentRecordRoutes = <Area extends RecordAreaId>(
     ...recordRoutes(area, handlers, entityPage),
     [`POST ${list}/:id/images`]: images.set,
     [`POST ${list}/:id/images/upload`]: images.upload,
+    ...orderRoutes(`${list}/:id/images/:imageId`, images.order),
   };
 };

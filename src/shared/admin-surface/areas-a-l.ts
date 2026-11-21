@@ -341,6 +341,12 @@ export const AREAS_A_L = {
       listingDelete: "/admin/listing/:id/delete",
       listingDuplicate: contentRoute("/admin/listing/:id/duplicate"),
       listingEdit: contentRoute("/admin/listing/:id/edit"),
+      listingImageMoveAfter: contentRoute(
+        "/admin/listing/:id/images/:imageId/move-after",
+      ),
+      listingImageMoveBefore: contentRoute(
+        "/admin/listing/:id/images/:imageId/move-before",
+      ),
       listingImages: contentRoute("/admin/listing/:id/images"),
       listingIncome: {
         audience: OWNER_AUDIENCE,
