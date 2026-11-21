@@ -57,6 +57,7 @@ import {
   writeStepSummary,
 } from "./summary.ts";
 import {
+  blackboxTestsOf,
   buildMutationTestMap,
   type MutationTestMap,
   requireDirectMutationTests,
@@ -333,6 +334,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
       plan.file,
       plan.mutants.length,
       plan.directTestFiles,
+      blackboxTestsOf(opts.testMap),
     );
     plans.push(plan);
   }
@@ -487,6 +489,7 @@ export const runMutationTesting = async (
       target.sourceFile,
       generateMutants(source, target.sourceFile, options.exhaustive).length,
       target.directTestFiles,
+      blackboxTestsOf(testMap),
     );
   }
   return options.useHarness

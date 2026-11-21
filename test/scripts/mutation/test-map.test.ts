@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  blackboxTestsOf,
   buildMutationTestMap,
   directTestMapFor,
   requireDirectMutationTests,
@@ -213,17 +214,22 @@ describe("mutation test map", () => {
   });
 
   test("requires mutable sources to have a mirror-located direct test", () => {
-    expect(() => requireDirectMutationTests("src/shared/a.ts", 1, [])).toThrow(
+    expect(() =>
+      requireDirectMutationTests("src/shared/a.ts", 1, [], []),
+    ).toThrow(
       "No direct test mirrors src/shared/a.ts. " +
-        "Move its test to the matching path under test/.",
+        "Move its test to the matching path under test/, or cover it in test/blackbox/.",
     );
   });
 
   test("accepts a single direct test file", () => {
     expect(
-      requireDirectMutationTests("src/shared/a.ts", 3, [
-        "test/shared/a.test.ts",
-      ]),
+      requireDirectMutationTests(
+        "src/shared/a.ts",
+        3,
+        ["test/shared/a.test.ts"],
+        [],
+      ),
     ).toBe(undefined);
   });
 
@@ -238,9 +244,57 @@ describe("mutation test map", () => {
   });
 
   test("allows sources without operators to omit a direct test", () => {
-    expect(requireDirectMutationTests("src/shared/types.ts", 0, [])).toBe(
+    expect(requireDirectMutationTests("src/shared/types.ts", 0, [], [])).toBe(
       undefined,
     );
+  });
+
+  test("selects every black-box test, and no driver or helper file", () => {
+    expect(
+      selectMutationTests(
+        ["src/shared/a.ts"],
+        [
+          "test/shared/a.test.ts",
+          "test/blackbox/logout.test.ts",
+          "test/blackbox/driver.ts",
+          "test/blackbox/nested/flow.test.tsx",
+        ],
+        [],
+      ),
+    ).toEqual([
+      "test/shared/a.test.ts",
+      "test/blackbox/logout.test.ts",
+      "test/blackbox/nested/flow.test.tsx",
+    ]);
+  });
+
+  test("runs black-box tests in the integration stage, after the direct tests", () => {
+    const map = buildMutationTestMap(
+      ["src/shared/a.ts"],
+      ["test/shared/a.test.ts", "test/blackbox/logout.test.ts"],
+    );
+    expect(map.targets[0]?.directTestFiles).toEqual(["test/shared/a.test.ts"]);
+    expect(map.integrationTestFiles).toEqual(["test/blackbox/logout.test.ts"]);
+    expect(blackboxTestsOf(map)).toEqual(["test/blackbox/logout.test.ts"]);
+  });
+
+  test("leaves the other integration tests out of the black-box list", () => {
+    const map = buildMutationTestMap(
+      ["src/shared/a.ts"],
+      ["test/shared/a.test.ts", "test/integration/flow.test.ts"],
+    );
+    expect(blackboxTestsOf(map)).toEqual([]);
+  });
+
+  test("lets a source stand on the black-box tests alone", () => {
+    expect(
+      requireDirectMutationTests(
+        "src/shared/a.ts",
+        3,
+        [],
+        ["test/blackbox/logout.test.ts"],
+      ),
+    ).toBe(undefined);
   });
 
   test("leaves an unrelated test file out of the strict map", () => {

@@ -72,6 +72,17 @@ a selected source nor lives in an integration folder or `specs/`. The gate
 demands a 100% kill rate, so the cost stays bounded to the source files you
 actually changed.
 
+## Black-box tests and deleted tests
+
+Tests under `test/blackbox/` run in the integration stage. They run only for a
+mutant that the direct tests miss. A source with no mirror test can stand on
+them alone. The run still fails on a survivor.
+
+The `precommit:mutation` scope also includes the source that each deleted test
+mirrored. A deleted test changes no `src/` file. Without this rule the gate
+skips the check at the moment a test leaves. A renamed test is not a
+deletion. See [Black-box tests](e2e-tests.md#black-box-tests).
+
 ## Static gates
 
 Before it runs the mapped tests, the runner puts every mutant through two cheap

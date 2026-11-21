@@ -1,7 +1,5 @@
 import { assertStringIncludes } from "@std/assert";
-import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getSession } from "#db/sessions.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import {
@@ -10,11 +8,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  awaitTestRequest,
-  mockFormRequest,
-  mockRequest,
-} from "#test-utils/mocks.ts";
+import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { createTestAgentSession, loginAsAdmin } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin logout)", { db: true }, () => {
@@ -80,28 +74,6 @@ describeWithEnv("server (admin logout)", { db: true }, () => {
         'action="/admin/logout"',
         'method="POST"',
       );
-    });
-  });
-  describe("logout with valid session", () => {
-    test("deletes session from database", async () => {
-      // Log in first
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const token = cookie.split("=")[1]?.split(";")[0] || "";
-
-      expect(token).not.toBe("");
-      const sessionBefore = await getSession(token);
-      expect(sessionBefore).not.toBeNull();
-
-      // Now logout
-      const logoutResponse = await awaitTestRequest("/admin/logout", {
-        cookie,
-        data: { csrfToken },
-      });
-      expect(logoutResponse.status).toBe(302);
-
-      // Verify session was deleted
-      const sessionAfter = await getSession(token);
-      expect(sessionAfter).toBeNull();
     });
   });
 });

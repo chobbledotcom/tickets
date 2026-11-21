@@ -191,6 +191,17 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   the ratchet (`deno task check:coverage-exclusions`) fails on an entry a
   branch adds. Answer a coverage gap by restructuring the code. See
   docs/designing-systems.md#readable-by-the-coverage-merge.
+- **Keep tests on the public surface**: A test reaches the app through its HTTP
+  handler, its forms, and its JSON API. It imports no other `src/` module,
+  except a module that carries the `// effects: pure` line. Write new tests in
+  `test/blackbox/` with `test/blackbox/driver.ts`. That folder holds no import
+  of a `src/` module that is not pure. Every other test file has a recorded
+  count in `scripts/check-test-internals/registry.json`. A count can fall but
+  never rise, and a new file starts at zero. A split or a move can carry the
+  count that the same branch frees. Run `deno task check:test-internals
+  --update` after a fall. When a branch deletes a test, the mutation gate
+  mutates the `src/` file that the test mirrored. The remaining tests must kill
+  every mutant. See [Black-box tests](docs/e2e-tests.md#black-box-tests).
 - **Hardest first, no need to ask**: When the only open question is the order to
   build several things in, build the more difficult one first.
 - **Always the complete version**: Choose the complete, correct version, even
@@ -371,6 +382,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   - `deno task check:file-lengths`
   - `deno task check:call-chains`
   - `deno task check:imports`
+  - `deno task check:test-internals`
   - `deno task check:comment-ste`
   - `deno task typecheck`
   - `deno task check:ste` whenever the change touches Markdown
@@ -692,6 +704,10 @@ automatic.
   `scripts/check-presence-assertions/registry.json`, and the count only
   falls. Assert the value, shape, or invariant instead. Pass `--update`
   after a fix. The update refuses a rise
+- `deno task check:test-internals` — hold every test file to its recorded count
+  of imports from `src/` modules that are not pure, and hold the registry to the
+  merge base on `origin/main`. Pass `--update` after a fall. The update refuses
+  a rise
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
 - `deno task check:merged-tree <pr-number | branch> [base]` — trial-merge the
