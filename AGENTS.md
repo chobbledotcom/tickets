@@ -34,6 +34,21 @@ To start the shell on every entry to this directory, add the hook to your shell
 All `deno ...` commands in this file assume you are already inside
 `devenv shell`. Non-interactive agents must prefix them with `devenv shell`.
 
+### Without devenv
+
+If `devenv shell` cannot start, for example because the network blocks the
+nixpkgs download, run `bin/setup-deno`. The script installs the pinned Deno
+from npm, builds `stripe-mock` with Go, and installs the dependencies. Both
+binaries go to `.bin/`. Then put them on your PATH:
+
+```bash
+bin/setup-deno
+export PATH="$PWD/.bin:$PATH"
+```
+
+This shell has no Apalache or Java, so `deno task verify:models` does not run
+in it. Hosted CI still uses devenv and decides.
+
 ## Runtime Environment
 
 - **Production**: Bunny Edge Scripting (Deno-based runtime on Bunny CDN)

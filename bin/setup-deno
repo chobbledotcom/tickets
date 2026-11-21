@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Set up the pinned Deno, Biome and stripe-mock without devenv, for a machine
+# where `devenv shell` cannot start (for example, a sandbox whose network
+# blocks the nixpkgs archive download). devenv stays the standard environment.
+#
+# - Deno comes from the official npm package, at the version that devenv.nix
+#   pins. npm registries are open on most sandboxes where GitHub is not.
+# - Biome comes from its official npm package, at the version that the
+#   biome.json schema names.
+# - stripe-mock is built with Go, at the version that the test harness pins.
+# - The dependencies install with the CI command, scripts/ci/deno-install.sh.
+#
+# The binaries go to .bin/, which git ignores. After the script, run:
+#   export PATH="$PWD/.bin:$PATH"
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+bin="$root/.bin"
+mkdir -p "$bin"
+
+# Read one quoted version from a file, or stop with the pattern that failed.
+pinned() {
+  local file="$1" pattern="$2" version
+  version="$(sed -n "s/.*${pattern} *= *\"\([0-9.]*\)\".*/\1/p" "$root/$file" | head -n 1)"
+  if [ -z "$version" ]; then
+    echo "error: $file holds no $pattern version." >&2
+    exit 1
+  fi
+  echo "$version"
+}
+
+deno_version="$(pinned devenv.nix denoVersion)"
+biome_version="$(sed -n 's#.*biomejs.dev/schemas/\([0-9.]*\)/schema.json.*#\1#p' "$root/biome.json")"
+if [ -z "$biome_version" ]; then
+  echo "error: biome.json names no schema version." >&2
+  exit 1
+fi
+stripe_mock_version="$(pinned scripts/stripe-mock/install.ts "export const STRIPE_MOCK_VERSION")"
+
+# The npm platform suffix of this machine, such as "linux-x64".
+platform() {
+  local os arch
+  case "$(uname -s)" in
+    Linux) os="linux" ;;
+    Darwin) os="darwin" ;;
+    *) echo "error: no npm binaries for $(uname -s)." >&2; exit 1 ;;
+  esac
+  case "$(uname -m)" in
+    x86_64 | amd64) arch="x64" ;;
+    aarch64 | arm64) arch="arm64" ;;
+    *) echo "error: no npm binaries for $(uname -m)." >&2; exit 1 ;;
+  esac
+  echo "${os}-${arch}"
+}
+
+# Install the binary `name` from the npm package `package` at `version`,
+# unless .bin/ already holds that version.
+install_npm_binary() {
+  local name="$1" package="$2" version="$3" work
+  if [ -x "$bin/$name" ] && "$bin/$name" --version | grep -q "${version}"; then
+    echo "${name} ${version} is already in .bin/."
+    return
+  fi
+  work="$(mktemp -d)"
+  echo "Download ${package}@${version} from npm."
+  (cd "$work" && npm pack "${package}@${version}" --silent >/dev/null)
+  tar -xzf "$work"/*.tgz -C "$work"
+  install -m 0755 "$work/package/${name}" "$bin/${name}"
+  rm -rf "$work"
+  "$bin/$name" --version | head -n 1
+}
+
+install_deno() {
+  local package="@deno/$(platform)"
+  case "$package" in @deno/linux-*) package="${package}-glibc" ;; esac
+  install_npm_binary deno "$package" "$deno_version"
+}
+
+install_biome() {
+  install_npm_binary biome "@biomejs/cli-$(platform)" "$biome_version"
+}
+
+install_stripe_mock() {
+  if [ -x "$bin/stripe-mock" ]; then
+    echo "stripe-mock is already in .bin/."
+    return
+  fi
+  if ! command -v go >/dev/null; then
+    echo "Go is not installed. The test harness will try to download stripe-mock ${stripe_mock_version} from GitHub."
+    return
+  fi
+  echo "Build stripe-mock ${stripe_mock_version} with Go."
+  GOBIN="$bin" go install "github.com/stripe/stripe-mock@v${stripe_mock_version}"
+}
+
+install_deno
+install_biome
+install_stripe_mock
+(cd "$root" && PATH="$bin:$PATH" bash scripts/ci/deno-install.sh)
+
+echo
+echo "Done. Put the tools on your PATH:"
+echo "  export PATH=\"$bin:\$PATH\""
