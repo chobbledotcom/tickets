@@ -20,6 +20,7 @@ import {
 /** Example question response: the question and its answers in display order,
  *  each answer with its stored selection total. */
 const ADMIN_API_EXAMPLE_QUESTION = {
+  answer_level: "booking",
   answers: [
     {
       active: true,

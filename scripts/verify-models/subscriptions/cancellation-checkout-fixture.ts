@@ -77,6 +77,7 @@ export const checkoutMetadata = (
     email: "model@example.invalid",
     items:
       shape === "unreadable" ? "{" : JSON.stringify([{ e: 1, p: 600, q: 1 }]),
+    line_text_answer_ids: "",
     modifiers: "",
     name: "Synthetic subscriber",
     phone: "",

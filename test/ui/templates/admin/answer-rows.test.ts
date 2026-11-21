@@ -13,34 +13,32 @@ import {
 } from "#templates/admin/answer-rows.ts";
 import { AttendeeAnswersTable } from "#templates/admin/attendee-detail.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { testQuestion } from "#test-utils/factories.ts";
 
 const questions: QuestionWithAnswers[] = [
-  {
+  testQuestion({
     answers: [
       { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Small" },
       { active: true, id: 11, questionId: 1, sortOrder: 1, text: "Large" },
     ],
-    assignAll: false,
     displayType: "radio",
     id: 1,
     text: "Shirt size?",
-  },
-  {
+  }),
+  testQuestion({
     answers: [
       { active: true, id: 20, questionId: 2, sortOrder: 0, text: "Vegan" },
     ],
-    assignAll: false,
     displayType: "radio",
     id: 2,
     text: "Meal?",
-  },
-  {
+  }),
+  testQuestion({
     answers: [],
-    assignAll: false,
     displayType: "free_text",
     id: 3,
     text: "Allergies?",
-  },
+  }),
 ];
 
 const selected = (

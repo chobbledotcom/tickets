@@ -23,6 +23,7 @@ import {
   explicitStandaloneIds,
   type PagePackage,
 } from "#booking/page-packages.ts";
+import { shownListingIds } from "#booking/tree.ts";
 import { t } from "#i18n";
 import { daysAgo } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -51,6 +52,7 @@ import {
   splitChildQuestions,
 } from "./day-config.ts";
 import { TicketPageForm, TicketPageHeader } from "./form.tsx";
+import { pageAnswerLines } from "./line-questions.tsx";
 import { buildPageListingRows } from "./listing-rows.ts";
 import { ticketPageHeadExtra } from "./og-tags.ts";
 import type { TicketPageOptions } from "./types.ts";
@@ -311,16 +313,13 @@ export const ticketPage = ({
         <TicketPageForm
           actionUrl={actionUrl}
           addOns={addOns}
+          answerLines={pageAnswerLines(listings, tree, childrenByParentId)}
           cartConflicts={cartConflicts(
             cartDateItems,
             listings,
             packages,
             childrenByParentId,
-            new Set(
-              tree.nodes
-                .filter((node) => node.visibility === "SHOWN")
-                .map((node) => node.listingId),
-            ),
+            shownListingIds(tree.nodes),
           )}
           dates={dates}
           dayCountPriceFor={dayCountPriceFor}

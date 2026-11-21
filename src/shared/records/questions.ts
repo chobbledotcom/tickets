@@ -34,7 +34,8 @@ const questionTextCap = (text: string): Result<string> =>
     : okResult(text);
 
 /** The one question rule: a text the form can hold, and no display-type
- *  conversion that can orphan the stored answers. A free-text question
+ *  conversion that can orphan the stored answers. The answer level is set
+ *  once, on create, and only for a free-text question. A free-text question
  *  stays free-text. A choice question switches only between radio and
  *  select. */
 export const questionRule = (
@@ -43,12 +44,30 @@ export const questionRule = (
 ): Result<QuestionInput> => {
   const capped = questionTextCap(input.text);
   if (!capped.ok) return capped;
-  if (stored === null) return okResult({ ...input, text: capped.value });
+  if (stored === null) {
+    // Only a free-text question can ask more than once for a booking.
+    const answerLevel =
+      input.displayType === "free_text"
+        ? (input.answerLevel ?? "booking")
+        : "booking";
+    return okResult({ ...input, answerLevel, text: capped.value });
+  }
+  if (
+    input.answerLevel !== undefined &&
+    input.answerLevel !== stored.answerLevel
+  ) {
+    return errorResult(t("questions.answer_level.locked"));
+  }
   const displayType =
     stored.displayType === "free_text" || input.displayType === "free_text"
       ? stored.displayType
       : requireQuestionDisplayType(input.displayType);
-  return okResult({ ...input, displayType, text: capped.value });
+  return okResult({
+    ...input,
+    answerLevel: stored.answerLevel,
+    displayType,
+    text: capped.value,
+  });
 };
 
 export const questionRecord = defineRecord<

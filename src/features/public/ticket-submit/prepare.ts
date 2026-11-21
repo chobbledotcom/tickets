@@ -8,11 +8,16 @@
 
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { buildOrderLines } from "#booking/order-lines.ts";
-import { isMemberNodeOf } from "#booking/tree.ts";
+import { isMemberNodeOf, shownListingIds } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { answerModifierQuantities } from "#db/modifier-resolve.ts";
+import {
+  type AnswerLine,
+  isListingLevel,
+  parseLineTextAnswers,
+} from "#db/questions/line-answers.ts";
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
-import { requiredMapValue, sum } from "#fp";
+import { requiredMapValue, sum, uniqueBy } from "#fp";
 import { resolveDayCount } from "#routes/public/booking-dates.ts";
 import {
   type AnswerInfo,
@@ -49,6 +54,19 @@ import {
   priceSubmissionBeforeContact,
   type SubmissionPricingParams,
 } from "./pricing.ts";
+
+/** The booked listings the buyer can see, once each. */
+const namedLines = (
+  items: readonly CheckoutItem[],
+  namedListingIds: ReadonlySet<number>,
+): AnswerLine[] =>
+  uniqueBy((line: AnswerLine) => line.id)(
+    items.flatMap((item) =>
+      namedListingIds.has(item.listingId)
+        ? [{ id: item.listingId, name: item.name }]
+        : [],
+    ),
+  );
 
 /** A parsed-and-priced submission, or the message explaining why it could not
  * be priced. `prepareOrder` runs every step shared by the booking submit and
@@ -110,11 +128,7 @@ export const prepareOrder = async (
     selectedNodes.some(isMemberNodeOf(pkg.groupId)),
   );
   const standIns = ctxStandInNames({ ...ctx, packages: selectedPackages });
-  const shownSelectedIds = new Set(
-    selectedNodes
-      .filter((node) => node.visibility === "SHOWN")
-      .map((node) => node.listingId),
-  );
+  const shownSelectedIds = shownListingIds(selectedNodes);
   const dayErrorStandIns = new Map(
     [...standIns.byListingId].filter(
       ([listingId]) => !shownSelectedIds.has(listingId),
@@ -210,13 +224,23 @@ export const prepareOrder = async (
   });
   const answersResult = parseQuestionAnswers({ optional: false })(
     form,
-    activeQuestions,
+    activeQuestions.filter((question) => !isListingLevel(question)),
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
+  // A concealed package member has no field, so it owes no answer.
+  const lineAnswersResult = parseLineTextAnswers(form, {
+    lines: namedLines(items, namedListingIds),
+    questionListingMap: foldedCtx.questionListingMap,
+    questions: activeQuestions,
+  });
+  if (!lineAnswersResult.ok) {
+    return { error: lineAnswersResult.error, ok: false };
+  }
 
   const info: AnswerInfo = {
     activeQuestions,
     answerIds: answersResult.answerIds,
+    lineTextAnswers: lineAnswersResult.value,
     selectedListingIds,
     textAnswers: answersResult.textAnswers,
   };

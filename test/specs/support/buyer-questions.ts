@@ -48,11 +48,12 @@ const ownerWritesQuestion = (
   world: TicketsWorld,
   text: string,
   displayType: "radio" | "free_text",
+  answerLevel: "booking" | "listing" = "booking",
 ): Promise<TestBrowser> =>
   withAdminPage(world, "/admin/questions", async (browser) => {
     await fillInAndSend(
       browser,
-      { displayType: displayType, text },
+      { answerLevel, displayType: displayType, text },
       "Add question",
     );
     const id = browser.currentUrl.match(/\/admin\/questions\/(\d+)/)?.[1];
@@ -111,6 +112,19 @@ export const ownerAsksWrittenQuestion = async (
   if (listingName) await ownerAssignsQuestionTo(world, listingName);
 };
 
+/** A written question that asks once for each listing a buyer books, asked of
+ * each named listing's buyers. */
+export const ownerAsksQuestionForEachListing = async (
+  world: TicketsWorld,
+  text: string,
+  listingNames: readonly string[],
+): Promise<void> => {
+  await ownerWritesQuestion(world, text, "free_text", "listing");
+  for (const listingName of listingNames) {
+    await ownerAssignsQuestionTo(world, listingName);
+  }
+};
+
 /** The booking page a visitor sees for this listing, opened by somebody who
  * was never signed in. */
 export const visitorOpensBooking: ReadAboutOneThing<TestBrowser> = async (
@@ -137,23 +151,70 @@ type BooksAnsweringAQuestion = (
   answer: string,
 ) => Promise<void>;
 
+/** The buyer's contact details and the given choices, sent as an order. */
+const sendOrder = async (
+  browser: TestBrowser,
+  choices: Record<string, string>,
+): Promise<void> => {
+  await fillInAndSend(
+    browser,
+    { email: "buyer@example.com", name: "Casey Buyer", ...choices },
+    "Continue",
+  );
+  assertStringIncludes(browser.pageText, "Thank you for your order");
+};
+
 export const visitorBooksAnswering: BooksAnsweringAQuestion = async (
   world,
   listingName,
   answer,
 ) => {
   const browser = await visitorOpensBooking(world, listingName);
-  await fillInAndSend(
-    browser,
-    {
-      email: "buyer@example.com",
-      name: "Casey Buyer",
-      [`quantity${listingNamed(world, listingName).id}`]: "1",
-      [questionFieldOn(world, browser)]: answer,
-    },
-    "Continue",
+  await sendOrder(browser, {
+    [`quantity${listingNamed(world, listingName).id}`]: "1",
+    [questionFieldOn(world, browser)]: answer,
+  });
+};
+
+/** A visitor books one place of each named listing in one order, typing each
+ * answer into the field the served page offers under that listing. */
+export const visitorBooksEachListingAnswering = async (
+  world: TicketsWorld,
+  answers: readonly (readonly [listingName: string, answer: string])[],
+): Promise<void> => {
+  const listings = answers.map(([name]) => listingNamed(world, name));
+  const browser = await openAsNewcomer(
+    `/ticket/${listings.map((listing) => listing.slug).join("+")}`,
   );
-  assertStringIncludes(browser.pageText, "Thank you for your order");
+  const fields = answers.flatMap(([, answer], index) => {
+    const listingId = listings[index]!.id;
+    const field = `question${askedQuestion(world).id}_listing${listingId}`;
+    assertStringIncludes(browser.currentHtml, `name="${field}"`);
+    return [
+      [`quantity${listingId}`, "1"],
+      [field, answer],
+    ];
+  });
+  await sendOrder(browser, Object.fromEntries(fields));
+};
+
+/** What the owner's page for the booking on a listing says about the
+ * question, for each listing the booking holds. */
+export const answersOnTheBookingPage: ReadAboutOneThing = async (
+  world,
+  listingName,
+) => {
+  const browser = await adminBrowser(world);
+  await browser.visit(
+    `/admin/listing/${listingIdNamed(world, listingName)}/attendees`,
+  );
+  const attendeeId = browser.currentHtml.match(
+    /\/admin\/attendees\/(\d+)/,
+  )?.[1];
+  await browser.visit(
+    `/admin/attendees/${requiredWorldValue(attendeeId, "the booking in the list")}`,
+  );
+  return browser.pageText;
 };
 
 /** What the owner's list download says this booking answered. The download is

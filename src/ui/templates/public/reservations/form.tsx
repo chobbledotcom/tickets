@@ -5,6 +5,7 @@
 import type { AttributeWithOptions } from "#db/attributes.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
+import type { AnswerLine } from "#db/questions/line-answers.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -181,6 +182,7 @@ export const TicketPageForm = ({
   isSingleListing,
   questions,
   questionListingMap,
+  answerLines,
   terms,
   prefill,
   addOns,
@@ -205,6 +207,8 @@ export const TicketPageForm = ({
   isSingleListing: boolean;
   questions: QuestionWithAnswers[] | undefined;
   questionListingMap: QuestionListingMap | undefined;
+  /** The booked listings a question can ask once for each of. */
+  answerLines: readonly AnswerLine[];
   terms: string | null | undefined;
   prefill?: BookingPrefill | undefined;
   addOns: AddOnOption[] | undefined;
@@ -243,7 +247,7 @@ export const TicketPageForm = ({
 
       {questions &&
         questions.length > 0 &&
-        renderQuestions(questions, questionListingMap)}
+        renderQuestions(questions, questionListingMap, answerLines)}
       {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
       {promoCodesEnabled && <PromoCodeField prefilled={prefill?.promo} />}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}

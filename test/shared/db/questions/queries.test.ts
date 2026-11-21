@@ -73,6 +73,7 @@ describeWithEnv("custom questions", { db: true }, () => {
 
     test("includes assign-all questions for every listing", async () => {
       const q = await createQuestionWithAnswers("Universal Q", ["Yes"], {
+        answerLevel: "booking",
         assignAll: true,
       });
 

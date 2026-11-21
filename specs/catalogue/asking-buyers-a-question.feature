@@ -62,6 +62,22 @@ Feature: An owner decides what buyers are asked
       Given the owner asks buyers to write "Anything we should know?"
       Then the owner is offered no way to add answer choices
 
+  @rule:catalogue.a-question-can-ask-once-for-each-listing
+  @surface:admin
+  @surface:public
+  Rule: A written question can ask once for each listing
+    A parent booking several things in one order can answer for each of them.
+    The question shows one box under each listing, and the owner reads each
+    answer beside the listing it belongs to.
+
+    @case:buyer-questions.a-name-for-each-listing
+    Scenario: A parent names a pupil for each of two things
+      Given the site sells a Pottery
+      And the site sells a Kiln
+      And the owner asks Pottery and Kiln buyers to write "Pupil name" for each listing they book
+      When a visitor books the Pottery and the Kiln together, writing "Ava" for the Pottery and "Ben" for the Kiln
+      Then the owner reads "Ava" for the Pottery and "Ben" for the Kiln on that booking
+
   @rule:catalogue.taking-a-question-away-needs-its-exact-text
   Rule: Taking a question away needs its exact text
     Deleting a question is deliberate: the owner types the question's text to

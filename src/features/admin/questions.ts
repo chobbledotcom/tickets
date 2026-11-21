@@ -9,6 +9,7 @@ import { getAllListings } from "#db/listings/records.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
 import {
   type QuestionWithAnswers,
+  requireQuestionAnswerLevel,
   requireQuestionDisplayType,
 } from "#db/question-types.ts";
 import {
@@ -81,7 +82,11 @@ const pages = recordPages(questionRecord, {
   renderDelete: adminQuestionDeletePage,
   renderEditError: renderQuestionEditError,
   renderList,
-  toInput: ({ displayType, text }) => ({
+  toInput: ({ answerLevel, displayType, text }) => ({
+    // A form that never names a level asks once for the booking.
+    answerLevel: answerLevel
+      ? requireQuestionAnswerLevel(answerLevel)
+      : undefined,
     displayType: requireQuestionDisplayType(displayType),
     text,
   }),

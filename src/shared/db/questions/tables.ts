@@ -5,12 +5,16 @@
  */
 
 import { listWithChildOrders } from "#db/ordered-collection.ts";
-import type { QuestionDisplayType } from "#db/question-types.ts";
+import type {
+  QuestionAnswerLevel,
+  QuestionDisplayType,
+} from "#db/question-types.ts";
 
 /** The writable fields one question row write carries. The `sort_order`
  * column is not one of them: only the ordered-row helpers write it, so a
  * generic write cannot break the order. */
 export type QuestionInput = {
+  answerLevel?: QuestionAnswerLevel | undefined;
   assignAll?: boolean;
   displayType: QuestionDisplayType;
   text: string;

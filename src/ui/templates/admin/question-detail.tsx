@@ -25,6 +25,7 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import type { ListingWithCount } from "#types";
 import { errorFlash } from "./admin-page.tsx";
+import { answerLevelLabel } from "./answer-level.ts";
 import { WritableOnly } from "./writable-only.tsx";
 
 /** Where one of a question's answers is edited, deleted, or recalculated. */
@@ -115,6 +116,7 @@ export const QuestionEditPanel = ({
             values?.text ?? question.text,
           )}
         />
+        <input name="answerLevel" type="hidden" value={question.answerLevel} />
         {question.displayType === "free_text" ? (
           // Free-text questions cannot become choice questions (a conversion
           // orphans any stored text answers), so lock the type.
@@ -138,6 +140,11 @@ export const QuestionEditPanel = ({
       <div class="prose">
         <p>
           <em>{t("questions.edit.free_text_note")}</em>
+        </p>
+        <p>
+          {t("questions.edit.answer_level_note", {
+            level: answerLevelLabel(question.answerLevel),
+          })}
         </p>
       </div>
     )}

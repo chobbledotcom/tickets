@@ -27,6 +27,16 @@ Do not ask one tool to solve three different problems:
 A strict schema cannot stop a stale form overwriting a newer choice. A
 transaction cannot make incomplete provider facts complete. Design all three.
 
+## Keep the plan for each stage short
+
+A job can need a stack of stages. Plan one stage at a time.
+
+- Write at most 10 bullet points of planning for one stage.
+- Keep each line of a plan to 80 characters or fewer.
+- Plan only the stage that you build next.
+- Do not plan a later stage again while you build an earlier stage.
+- Plan a later stage when you reach it.
+
 ## Required order
 
 ### 1. State the current-system value

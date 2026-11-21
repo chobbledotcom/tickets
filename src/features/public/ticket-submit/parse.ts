@@ -27,6 +27,7 @@ import {
   quantityFieldName,
   standaloneListingIds,
 } from "#booking/tree.ts";
+import type { TextAnswer } from "#db/question-types.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { byId, requiredMapValue } from "#fp";
 import {
@@ -39,6 +40,7 @@ import {
   REGISTRATION_CLOSED_SUBMIT_MESSAGE,
   type TicketCtx,
 } from "#routes/public/types.ts";
+import type { StoredTextAnswerRef } from "#shared/booking-intent.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { getTicketFieldsSetting } from "#shared/listing-fields.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -233,31 +235,52 @@ export const applyQrTokenOverride = async (
   }
 };
 
-/** Compute listing-answer map if answers exist */
-
-export const computeListingTextAnswerIdMap = async (
-  ctx: TicketCtx,
-  info: AnswerInfo,
-): Promise<CheckoutIntent["listingTextAnswerIds"]> => {
-  if (info.textAnswers.length === 0) return;
-  const stringIds = await getOrCreateStringIds(
-    info.textAnswers.map((answer) => answer.text),
-  );
-  return Object.fromEntries(
-    Object.entries(
-      listingAnswerMaps(info, ctx.questionListingMap).textAnswers,
-    ).map(([listingId, answers]) => [
+/** Files each listing's text answers under their stored string ids. */
+const refsByListing = (
+  stringIds: ReadonlyMap<string, number>,
+  byListing: Record<string, TextAnswer[]>,
+): Record<string, StoredTextAnswerRef[]> =>
+  Object.fromEntries(
+    Object.entries(byListing).map(([listingId, answers]) => [
       listingId,
-      // These answers are a subset of the texts handed to getOrCreateStringIds,
-      // which returns an id for every input text or throws — so `s` is always a
-      // real id here, never the undefined that JSON.stringify would silently
-      // drop from the signed metadata.
+      // Every text went to getOrCreateStringIds, which returns an id for each
+      // or throws, so `s` is never the undefined that JSON.stringify would
+      // silently drop from the signed metadata.
       answers.map((answer) => ({
         q: answer.questionId,
         s: requiredMapValue(stringIds, answer.text),
       })),
     ]),
   );
+
+/** The stored strings of every text answer, from one lookup. The strings are
+ * created only now, so a rejected order leaves none behind. A listing's own
+ * answer files under that listing alone. */
+export const computeTextAnswerRefs = async (
+  ctx: TicketCtx,
+  info: AnswerInfo,
+): Promise<
+  Pick<CheckoutIntent, "lineTextAnswerIds" | "listingTextAnswerIds">
+> => {
+  const typed = [...info.textAnswers, ...info.lineTextAnswers];
+  if (typed.length === 0) return {};
+  const stringIds = await getOrCreateStringIds(typed.map((a) => a.text));
+  const byListing = listingAnswerMaps(info, ctx.questionListingMap);
+  return {
+    ...(info.lineTextAnswers.length === 0
+      ? {}
+      : {
+          lineTextAnswerIds: refsByListing(
+            stringIds,
+            byListing.lineTextAnswers,
+          ),
+        }),
+    ...(info.textAnswers.length === 0
+      ? {}
+      : {
+          listingTextAnswerIds: refsByListing(stringIds, byListing.textAnswers),
+        }),
+  };
 };
 
 export const computeListingAnswerMap = (

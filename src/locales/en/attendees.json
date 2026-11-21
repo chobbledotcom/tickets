@@ -22,6 +22,7 @@
   "attendee_detail.tel": "tel",
   "attendee_detail.whatsapp": "whatsapp",
   "attendee_detail.answers": "Answers",
+  "attendee_detail.line_answers": "Answers for each listing",
   "attendee_detail.answer_changed": "Changed. At booking: \"{answer}\".",
   "attendee_detail.answer_changed_from_blank": "Changed. At booking: no answer.",
   "attendee_detail.answer_changes_price": "Warning: This answer changes the price. The price was not updated.",

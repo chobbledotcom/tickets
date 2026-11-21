@@ -181,6 +181,9 @@ export type SessionMetadata = ContactInfo & {
   day_count: string;
   answer_ids: string;
   text_answer_ids: string;
+  /** JSON per-listing free-text refs for questions that ask once for each
+   * booked listing ("" when none). */
+  line_text_answer_ids: string;
   site_token_index: string;
   /** Attendee id when this session settles an outstanding balance ("" if not). */
   balance_attendee_id: string;

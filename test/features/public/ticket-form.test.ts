@@ -25,6 +25,7 @@ const question = (
   id: number,
   displayType: QuestionWithAnswers["displayType"],
 ): QuestionWithAnswers => ({
+  answerLevel: "booking",
   answers:
     displayType === "free_text"
       ? []
@@ -47,6 +48,7 @@ const question = (
 const answerInfo = (over: Partial<AnswerInfo>): AnswerInfo => ({
   activeQuestions: [],
   answerIds: [],
+  lineTextAnswers: [],
   selectedListingIds: new Set(),
   textAnswers: [],
   ...over,
@@ -140,6 +142,7 @@ describe("ticket form answer grouping", () => {
 
   test("skips an inactive-only choice question so answer ids stay aligned", () => {
     const inactiveOnly: QuestionWithAnswers = {
+      answerLevel: "booking",
       answers: [
         { active: false, id: 10, questionId: 1, sortOrder: 0, text: "Gone" },
       ],

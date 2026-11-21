@@ -4,6 +4,7 @@ import type { SessionMetadata } from "#shared/payments.ts";
 import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import type { Attendee } from "#types";
 import { assertJson } from "./assertions.ts";
+import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
 import { stubWebhookVerify } from "./settings.ts";
 
@@ -139,6 +140,23 @@ export const expectWebhookProcessed = async (
     expect(json.processed).toBe(true);
   });
 };
+
+/** The webhook of a paid order, processed. The metadata is signed for `total`,
+ * and the ids of the event, the payment, and the session follow `name`. */
+export const expectSignedOrderProcessed = (
+  name: string,
+  total: number,
+  metadata: Parameters<typeof signedMeta>[0],
+): Promise<void> =>
+  expectWebhookProcessed(
+    checkoutSessionEvent({
+      amountTotal: total,
+      eventId: `evt_${name}`,
+      metadata: signedMeta(metadata, total),
+      paymentIntent: `pi_${name}`,
+      sessionId: `cs_${name}`,
+    }),
+  );
 
 /** Quantity-0 placeholders on a listing that also has booked attendees. */
 const getKeptPlaceholders = async (listingId: number): Promise<Attendee[]> => {

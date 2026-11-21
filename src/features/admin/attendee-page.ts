@@ -22,6 +22,7 @@ import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
 import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-dates.ts";
 import { loadAttendeeLedgerPanel } from "#routes/admin/attendee-ledger-panel.ts";
+import { loadLineAnswerRows } from "#routes/admin/attendee-line-answers.ts";
 import { loadLogisticsPanel } from "#routes/admin/attendee-logistics-tab.ts";
 import {
   buildEditFormFromAttendee,
@@ -61,6 +62,7 @@ import { withReturnUrl } from "#shared/return-url-field.tsx";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
+  AttendeeLineAnswersTable,
 } from "#templates/admin/attendee-detail.tsx";
 import { AttendeeFormPanel } from "#templates/admin/attendee-form.tsx";
 import {
@@ -309,6 +311,9 @@ const overview: TabDef<AttendeePageEntity> = overviewTab([
   }),
   customSection(async ({ attendee, existing }) =>
     AttendeeAnswersTable(await loadQuestionsForExisting(attendee.id, existing)),
+  ),
+  customSection(async ({ attendee }) =>
+    AttendeeLineAnswersTable(await loadLineAnswerRows(attendee.id)),
   ),
   {
     kind: "custom",

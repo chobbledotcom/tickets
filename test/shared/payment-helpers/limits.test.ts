@@ -64,27 +64,29 @@ describe("payment-helpers", () => {
       );
     });
 
-    test("throws PaymentUserError when text_answer_ids exceeds limit", () => {
-      const longTextAnswerIds = JSON.stringify(
-        Object.fromEntries(
-          Array.from({ length: 20 }, (_, i) => [
-            String(i),
-            Array.from({ length: 10 }, (_, j) => ({ q: j, s: j })),
-          ]),
-        ),
-      );
-      const metadata = {
-        email: "john@example.com",
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: "John",
-        text_answer_ids: longTextAnswerIds,
-      };
-      expectThrows(
-        () => enforceMetadataLimits(metadata, 255),
-        PaymentUserError,
-        /too many options/i,
-      );
-    });
+    for (const field of ["text_answer_ids", "line_text_answer_ids"] as const) {
+      test(`throws PaymentUserError when ${field} exceeds limit`, () => {
+        const longAnswerIds = JSON.stringify(
+          Object.fromEntries(
+            Array.from({ length: 20 }, (_, i) => [
+              String(i),
+              Array.from({ length: 10 }, (_, j) => ({ q: j, s: j })),
+            ]),
+          ),
+        );
+        const metadata = {
+          email: "john@example.com",
+          items: '[{"e":1,"q":1,"p":0}]',
+          name: "John",
+          [field]: longAnswerIds,
+        };
+        expectThrows(
+          () => enforceMetadataLimits(metadata, 255),
+          PaymentUserError,
+          /too many options/i,
+        );
+      });
+    }
 
     test("throws PaymentUserError when modifiers exceeds limit", () => {
       const longModifiers = JSON.stringify(

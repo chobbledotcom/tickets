@@ -141,6 +141,7 @@ describe("order answer lines from staged question data", () => {
     answers: { id: number; text: string }[],
     opts: { assignAll?: boolean; displayType?: "radio" | "free_text" } = {},
   ) => ({
+    answerLevel: "booking" as const,
     answers: answers.map((a) =>
       testAnswer({ id: a.id, questionId: id, text: a.text }),
     ),

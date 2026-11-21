@@ -130,6 +130,7 @@ describeWithEnv("Admin API - Questions", { db: true }, () => {
         expect(question).toEqual({
           // Each child create answers the whole question; the new answer
           // is the list's last.
+          answer_level: "booking",
           answers: [small.question.answers[0], large.question.answers.at(-1)],
           assign_all: false,
           display_type: "radio",

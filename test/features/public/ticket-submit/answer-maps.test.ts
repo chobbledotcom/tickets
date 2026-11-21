@@ -8,13 +8,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { AnswerInfo } from "#routes/public/ticket-form.ts";
 import {
   computeListingAnswerMap,
-  computeListingTextAnswerIdMap,
+  computeTextAnswerRefs,
 } from "#routes/public/ticket-submit/parse.ts";
 import type { TicketCtx } from "#routes/public/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { freeTextQuestionsOn } from "#test-utils/db-helpers/question-seeds.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { ticketContext } from "#test-utils/ticket-ctx.ts";
 
 /** The submitted answers of a one-listing order: no answers at all unless
@@ -28,6 +29,7 @@ const answerInfo = (
   },
 ): AnswerInfo => ({
   activeQuestions: ctx.questions,
+  lineTextAnswers: [],
   selectedListingIds: new Set([listingId]),
   ...chosen,
 });
@@ -66,14 +68,14 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       ]);
       const ctx = await ticketContext([listing.id]);
 
-      const map = await computeListingTextAnswerIdMap(
+      const { listingTextAnswerIds } = await computeTextAnswerRefs(
         ctx,
         answerInfo(ctx, listing.id, {
           answerIds: [],
           textAnswers: [{ questionId: question.id, text: "Hello" }],
         }),
       );
-      const entry = map?.[String(listing.id)]?.[0];
+      const entry = listingTextAnswerIds?.[String(listing.id)]?.[0];
       expect(entry?.q).toBe(question.id);
       expect(entry?.s).toBeGreaterThan(0);
     });
@@ -83,8 +85,66 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       const ctx = await ticketContext([listing.id]);
 
       expect(
-        await computeListingTextAnswerIdMap(ctx, answerInfo(ctx, listing.id)),
-      ).toBe(undefined);
+        await computeTextAnswerRefs(ctx, answerInfo(ctx, listing.id)),
+      ).toEqual({
+        lineTextAnswerIds: undefined,
+        listingTextAnswerIds: undefined,
+      });
+    });
+
+    test("files each listing's own answers under that listing alone", async () => {
+      const [first, second] = [
+        await createTestListing({ maxAttendees: 5 }),
+        await createTestListing({ maxAttendees: 5 }),
+      ];
+      const ctx = await ticketContext([first.id, second.id]);
+
+      const { lineTextAnswerIds } = await computeTextAnswerRefs(ctx, {
+        ...answerInfo(ctx, first.id),
+        lineTextAnswers: [
+          { listingId: first.id, questionId: 7, text: "Ava" },
+          { listingId: second.id, questionId: 7, text: "Ben" },
+        ],
+      });
+
+      expect(Object.keys(lineTextAnswerIds ?? {}).sort()).toEqual(
+        [String(first.id), String(second.id)].sort(),
+      );
+      const [ava, ben] = [
+        lineTextAnswerIds?.[String(first.id)],
+        lineTextAnswerIds?.[String(second.id)],
+      ];
+      expect(ava?.map((ref) => ref.q)).toEqual([7]);
+      expect(ben?.map((ref) => ref.q)).toEqual([7]);
+      expect(ava?.[0]?.s).not.toBe(ben?.[0]?.s);
+    });
+
+    test("looks the strings up once, whatever mix of answers the order holds", async () => {
+      const listing = await createTestListing({ maxAttendees: 5 });
+      const ctx = await ticketContext([listing.id]);
+      const typed = { questionId: 7, text: "Hello" };
+      const own = { ...typed, listingId: listing.id, text: "Ava" };
+      const lookups = (info: AnswerInfo) =>
+        countDatabaseCalls(5, () => computeTextAnswerRefs(ctx, info));
+
+      const [bookingOnly, lineOnly, both] = [
+        await lookups(
+          answerInfo(ctx, listing.id, { answerIds: [], textAnswers: [typed] }),
+        ),
+        await lookups({
+          ...answerInfo(ctx, listing.id),
+          lineTextAnswers: [own],
+        }),
+        await lookups({
+          ...answerInfo(ctx, listing.id, {
+            answerIds: [],
+            textAnswers: [typed],
+          }),
+          lineTextAnswers: [own],
+        }),
+      ];
+
+      expect([lineOnly, both]).toEqual([bookingOnly, bookingOnly]);
     });
   });
 });

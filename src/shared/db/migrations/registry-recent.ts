@@ -141,5 +141,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-10_subscriptions",
     () => import("./2026-11-10_subscriptions.ts"),
   ),
+  // A free-text question can ask once for each booked listing. The answer of
+  // one listing names its booking row.
+  entry(
+    "2026-11-20_question_answer_level",
+    () => import("./2026-11-20_question_answer_level.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

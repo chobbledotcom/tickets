@@ -194,9 +194,6 @@ const answerIdsField =
       ? { [name]: JSON.stringify(byListing) }
       : {};
 
-const listingAnswerIdsField = answerIdsField("answer_ids");
-const listingTextAnswerIdsField = answerIdsField("text_answer_ids");
-
 /** Convert single-listing answerIds to the per-listing format used in metadata */
 export const singleListingAnswerIds = (
   listingId: number,
@@ -336,6 +333,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "address"
       | "special_instructions"
       | "dayCount"
+      | "lineTextAnswerIds"
       | "listingAnswerIds"
       | "listingTextAnswerIds"
       | "siteTokenIndex"
@@ -359,8 +357,9 @@ export const buildMetadata = (
   items: JSON.stringify(intent.items),
   name: intent.name,
   ...optionalFields(intent),
-  ...listingAnswerIdsField(intent.listingAnswerIds),
-  ...listingTextAnswerIdsField(intent.listingTextAnswerIds),
+  ...answerIdsField("answer_ids")(intent.listingAnswerIds),
+  ...answerIdsField("text_answer_ids")(intent.listingTextAnswerIds),
+  ...answerIdsField("line_text_answer_ids")(intent.lineTextAnswerIds),
   ...(intent.siteTokenIndex ? { site_token_index: intent.siteTokenIndex } : {}),
   ...(intent.balanceAttendeeId
     ? { balance_attendee_id: String(intent.balanceAttendeeId) }
@@ -493,14 +492,12 @@ export const enforceMetadataLimits = (
     );
   }
 
-  // Every option-ref field grows with the number of listings / options /
-  // modifiers / package-picks selected, so any of them can outrun the per-value
-  // cap. Check them uniformly, so a new ref field is one more list entry rather
-  // than another near-identical OR-clause. `allocations` is the newest — it
-  // grows with every package pick.
+  // Every option-ref field grows with the order, so any can outrun the
+  // per-value cap. Check them uniformly: a new ref field is one more entry.
   const OPTION_REF_FIELDS = [
     "answer_ids",
     "text_answer_ids",
+    "line_text_answer_ids",
     "modifiers",
     "allocations",
   ] as const;
@@ -567,6 +564,7 @@ export const extractSessionMetadata = (
     day_count: get("day_count"),
     email: get("email"),
     items: get("items"),
+    line_text_answer_ids: get("line_text_answer_ids"),
     modifiers: get("modifiers"),
     name: metadata.name,
     phone: get("phone"),

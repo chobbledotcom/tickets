@@ -11,6 +11,7 @@ const question = (
   text: string,
   answers: { id: number; text: string }[],
 ): QuestionWithAnswers => ({
+  answerLevel: "booking",
   answers: answers.map((a, i) => ({
     active: true,
     id: a.id,
@@ -35,6 +36,7 @@ const DIET_Q = question(2, "Dietary Requirements", [
 ]);
 
 const NOTES_Q: QuestionWithAnswers = {
+  answerLevel: "booking",
   answers: [],
   assignAll: false,
   displayType: "free_text",

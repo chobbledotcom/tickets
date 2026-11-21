@@ -85,6 +85,23 @@ const textRefsWithStringId = (
   return resolved;
 };
 
+/** Each booked listing's text refs that have a usable string id. */
+const resolvedRefsByListing = (
+  listings: readonly ListingWithCount[],
+  refsByListing: Record<string, TextAnswerRef[]> | undefined,
+): Record<string, { questionId: number; stringId: number }[]> =>
+  Object.fromEntries(
+    listings
+      .map((listing): [string, { questionId: number; stringId: number }[]] => [
+        String(listing.id),
+        textRefsWithStringId(
+          refsByListing?.[String(listing.id)] ?? [],
+          listing.id,
+        ),
+      ])
+      .filter(([, refs]) => refs.length > 0),
+  );
+
 /** What one promo-code modifier did to the charged price. */
 export type ModifierApplication = { delta: number; modifierId: number };
 
@@ -184,16 +201,14 @@ export const paidBookingTail = async ({
   // The answers, keyed by one placeholder attendee the batch resolves from
   // the ticket token it inserts. The buyer's typed answers ride the same
   // sets, with the loud drop for a ref that lost its string id.
-  const textRefsByListing: Record<
-    string,
-    { questionId: number; stringId: number }[]
-  > = {};
-  for (const listing of listings) {
-    const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];
-    const resolvedRefs = textRefsWithStringId(refs, listing.id);
-    if (resolvedRefs.length === 0) continue;
-    textRefsByListing[String(listing.id)] = resolvedRefs;
-  }
+  const textRefsByListing = resolvedRefsByListing(
+    listings,
+    intent.listingTextAnswerIds,
+  );
+  const lineRefsByListing = resolvedRefsByListing(
+    listings,
+    intent.lineTextAnswerIds,
+  );
   const answers = await prepareAttendeeAnswerSave(
     groupListingAnswerSets(
       listings.map((listing) => ({
@@ -203,6 +218,7 @@ export const paidBookingTail = async ({
       intent.listingAnswerIds ?? {},
       {},
       textRefsByListing,
+      lineRefsByListing,
     ),
   );
 

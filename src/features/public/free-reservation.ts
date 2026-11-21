@@ -122,6 +122,8 @@ export const createFreeReservation = async ({
               })),
               listingAnswers.answerIds,
               listingAnswers.textAnswers,
+              {},
+              listingAnswers.lineTextAnswers,
             ),
           ),
           finalBookings.map((booking) => booking.listingId),
