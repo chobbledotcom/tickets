@@ -78,4 +78,22 @@ describe("runInternalsCheck", () => {
       '\n3 test-internals issue(s) found. See "Keep tests on the public surface" in AGENTS.md.',
     ]);
   });
+
+  test("passes and says so when every file holds its recorded count", async () => {
+    output.lines.length = 0;
+    const context = await loadContext(source);
+    const quiet = {
+      ...context,
+      skippedTrees: [...context.skippedTrees, `${F}/tests/blackbox/`],
+    };
+    const code = await runInternalsCheck(quiet)(
+      [`${F}/tests`],
+      { [`${F}/tests/orders.ts`]: 1 },
+      output,
+    );
+    expect(code).toBe(0);
+    expect(output.lines).toEqual([
+      "No test file imports more src internals than its recorded count.",
+    ]);
+  });
 });

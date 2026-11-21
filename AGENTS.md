@@ -34,6 +34,22 @@ To start the shell on every entry to this directory, add the hook to your shell
 All `deno ...` commands in this file assume you are already inside
 `devenv shell`. Non-interactive agents must prefix them with `devenv shell`.
 
+### Without Nix
+
+Some machines cannot run `devenv shell`. A sandbox whose network policy blocks
+the pinned nixpkgs download is one example. On such a Linux machine, install
+the pinned Deno, Biome, and stripe-mock without Nix:
+
+```bash
+bash scripts/devenv/setup-without-nix.sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The script reads each version from the file that pins it. It is safe to run
+again. It leaves out Apalache, Java, Chromium, and the Git hook. Afterwards,
+run `deno ...` commands directly, without `devenv shell`. Do not use the script
+to work around another failure of devenv. Report that failure instead.
+
 ## Runtime Environment
 
 - **Production**: Bunny Edge Scripting (Deno-based runtime on Bunny CDN)

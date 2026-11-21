@@ -1,6 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ratchetFindings } from "#scripts/check-test-internals/ratchet.ts";
+import {
+  RATCHET_GUIDE,
+  ratchetFindings,
+} from "#scripts/check-test-internals/ratchet.ts";
+
+describe("RATCHET_GUIDE", () => {
+  test("names the rule in AGENTS.md", () => {
+    expect(RATCHET_GUIDE).toBe(
+      '"Keep tests on the public surface" in AGENTS.md',
+    );
+  });
+});
 
 describe("ratchetFindings", () => {
   test("compares nothing when the base holds no registry", () => {
