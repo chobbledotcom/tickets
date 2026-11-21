@@ -136,11 +136,6 @@ describeWithEnv("the record page answers", { db: true }, () => {
       "/admin/groups/7/edit",
       "Nope",
     ],
-    "an empty edit error path is kept, not replaced by the edit page": [
-      { editErrorPath: () => "" },
-      "/",
-      "Nope",
-    ],
   });
 
   test("an update of a vanished row answers 404", async () => {

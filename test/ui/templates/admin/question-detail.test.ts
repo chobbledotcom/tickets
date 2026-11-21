@@ -37,6 +37,22 @@ describe("QuestionEditPanel", () => {
     ]);
   });
 
+  test("shows the submitted values and the error in place of the stored ones", () => {
+    const html = String(
+      QuestionEditPanel({
+        error: "Question text is required",
+        question,
+        values: { displayType: "select", text: "Typed but not saved" },
+      }),
+    );
+    expectIncludesAll(html, [
+      "Question text is required",
+      ">Typed but not saved</textarea>",
+      '<option selected value="select">Select box</option>',
+    ]);
+    assert(!html.includes(">T-shirt size?</textarea>"));
+  });
+
   test("locks the type on a free-text question's edit form", () => {
     const html = String(
       QuestionEditPanel({

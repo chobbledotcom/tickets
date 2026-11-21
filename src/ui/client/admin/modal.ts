@@ -61,6 +61,7 @@ type Shell = {
   dialog: HTMLDialogElement;
   drag: Drag | null;
   dragMoved: boolean;
+  observer: ResizeObserver;
   onClose: () => void;
   rendered: ModalState | null;
   settings: ModalSettings;
@@ -174,6 +175,7 @@ const removeShell = (shell: Shell): void => {
   const { key } = shell.settings;
   // A native close event can arrive after the same key opens a new window.
   if (shells.get(key) !== shell) return;
+  shell.observer.disconnect();
   shells.delete(key);
   shell.dialog.remove();
   apply({ key, type: "close" });
@@ -346,6 +348,7 @@ const createShell = (
     dialog,
     drag: null,
     dragMoved: false,
+    observer: new window.ResizeObserver(clampOpenShells),
     onClose,
     rendered: null,
     settings,
@@ -393,6 +396,8 @@ export const openAdminModal = (
     type: "open",
   });
   renderDimming();
+  // Fetched content and images can change the window size after it opens.
+  shell.observer.observe(shell.dialog);
   shell.dialog.focus();
   return shell.content;
 };

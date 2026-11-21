@@ -140,6 +140,26 @@ const models = (modules: readonly VerificationModule[]): ModelModule[] =>
     (module: VerificationModule): module is ModelModule =>
       module.kind === "model",
   );
+
+/** The names of the registered models, in registry order. */
+export const modelNames = (modules: readonly VerificationModule[]): string[] =>
+  models(modules).map((model) => model.module);
+
+/** The modules to check: every module, or the helpers and one named model. */
+export const modulesFor = (
+  modules: readonly VerificationModule[],
+  only: string | undefined,
+): VerificationModule[] =>
+  only === undefined
+    ? [...modules]
+    : [
+        ...modules.filter((module) => module.kind === "helper"),
+        requireValue(
+          models(modules).find((model) => model.module === only),
+          `No registered model has the name ${only}.`,
+        ),
+      ];
+
 /** Every check that the models declare, each with a work directory of its own. */
 export const plannedChecks = (
   modules: readonly VerificationModule[],

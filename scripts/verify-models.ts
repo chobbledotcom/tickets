@@ -6,6 +6,8 @@ import { makeScratchDir } from "#scripts/scratch.ts";
 import {
   CHECKER,
   checkArgs,
+  modelNames,
+  modulesFor,
   plannedChecks,
   prepareArgs,
   prepareModel,
@@ -41,14 +43,14 @@ const prepareInProcess =
     console.log(`Prepared ${module} (${secondsSince(started)} seconds).`);
   };
 
-const checkAll = async (): Promise<void> => {
+const checkAll = async (only: string | undefined): Promise<void> => {
   if ((await checkVerification()) !== 0) {
     throw new Error(
       "The TLA source declarations failed their standards check.",
     );
   }
   const work = await makeScratchDir("machine-proofs-");
-  const checks = plannedChecks(VERIFICATION_MODULES, work);
+  const checks = plannedChecks(modulesFor(VERIFICATION_MODULES, only), work);
   const cores = navigator.hardwareConcurrency;
   const workers = workerCount(cores, Deno.systemMemoryInfo().available);
   console.log(`Run ${workers} workers on ${cores} cores.`);
@@ -88,9 +90,15 @@ const checkAll = async (): Promise<void> => {
 
 const [mode, module, work] = Deno.args;
 if (mode === undefined) {
-  await checkAll();
+  await checkAll(undefined);
+} else if (mode === "--list") {
+  console.log(JSON.stringify(modelNames(VERIFICATION_MODULES)));
+} else if (mode === "--model" && module !== undefined) {
+  await checkAll(module);
 } else if (mode === "--prepare" && module !== undefined && work !== undefined) {
   await prepareModel(VERIFICATION_MODULES, module, sources, work);
 } else {
-  throw new Error("Usage: verify-models.ts [--prepare <module> <directory>]");
+  throw new Error(
+    "Usage: verify-models.ts [--list | --model <module> | --prepare <module> <directory>]",
+  );
 }

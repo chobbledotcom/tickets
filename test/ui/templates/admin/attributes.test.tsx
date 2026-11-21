@@ -79,6 +79,21 @@ describe("adminAttributesPage (writable list)", () => {
   const html = (): string =>
     adminAttributesPage([ATTRIBUTE, ATTRIBUTE_B], OWNER_SESSION);
 
+  test("shows the submitted name in place of the stored one", () => {
+    const html = adminAttributePage(
+      ATTRIBUTE,
+      OWNER_SESSION,
+      "Attribute name is required",
+      { listingCounts: COUNTS, listings: [] },
+      { name: "Typed but not saved" },
+    );
+    expectIncludesAll(html, [
+      "Attribute name is required",
+      'value="Typed but not saved"',
+    ]);
+    assert(!html.includes('value="Colour"'));
+  });
+
   test("marks the attributes nav link active", () => {
     assertStringIncludes(html(), 'class="active" href="/admin/attributes"');
   });

@@ -14,6 +14,7 @@ import { AdminModalTemplate } from "#templates/admin/modal.tsx";
 import {
   closeDialogs,
   createDomInstaller,
+  fireEvent,
   requireElement,
   requireElements,
 } from "#test-utils/happy-dom.ts";
@@ -44,7 +45,13 @@ export const OTHER_SETTINGS = {
   title: "Second",
 };
 
-export type OpenWindow = { dialog: HTMLDialogElement; window: Window };
+type OpenWindow = { dialog: HTMLDialogElement; window: Window };
+
+type DragPage = OpenWindow & {
+  bar: HTMLElement;
+  capture: { captured: number[]; released: number[] };
+  start: { left: number; top: number };
+};
 
 export const page = (html = TEMPLATE): Window => {
   const window = installDom(html);
@@ -98,3 +105,84 @@ export const pointer = (
     clientY: y,
     pointerId: options.pointerId ?? 7,
   });
+
+export const placed = (dialog: HTMLElement): { left: number; top: number } => ({
+  left: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-left")),
+  top: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-top")),
+});
+
+/** Give the shell a size to clamp against. A DOM without a layout answers
+ *  every rectangle with zeroes. */
+export const setSize = (
+  window: Window,
+  width: number,
+  height: number,
+): void => {
+  for (const dialog of dialogsIn(window)) {
+    Object.defineProperty(dialog, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ height, width }),
+    });
+  }
+};
+
+const captureOn = (
+  bar: HTMLElement,
+): { captured: number[]; released: number[] } => {
+  const captured: number[] = [];
+  const released: number[] = [];
+  Object.defineProperty(bar, "setPointerCapture", {
+    value: (id: number) => captured.push(id),
+  });
+  Object.defineProperty(bar, "releasePointerCapture", {
+    value: (id: number) => released.push(id),
+  });
+  return { captured, released };
+};
+
+export const dragPage = (width = 300, height = 200): DragPage => {
+  const window = page();
+  const dialog = open(window);
+  setSize(window, width, height);
+  const bar = requireElement<HTMLElement>(dialog, ".admin-modal-bar");
+  return {
+    bar,
+    capture: captureOn(bar),
+    dialog,
+    start: placed(dialog),
+    window,
+  };
+};
+
+export const pressTitleBar = ({ bar, start, window }: DragPage): void => {
+  fireEvent(bar, pointer(window, "pointerdown", start.left, start.top));
+};
+
+export const movePointer = (
+  { bar, window }: DragPage,
+  x: number,
+  y: number,
+): void => {
+  fireEvent(bar, pointer(window, "pointermove", x, y));
+};
+
+export const releasePointer = ({ bar, window }: DragPage): void => {
+  fireEvent(bar, pointer(window, "pointerup", 0, 0));
+};
+
+export const click = (target: Element, window: Window): void => {
+  fireEvent(target, new window.MouseEvent("click", { bubbles: true }));
+};
+
+type DomEvent = InstanceType<Window["Event"]>;
+
+export const fire = (
+  target: { dispatchEvent(event: unknown): unknown },
+  window: Window,
+  type: string,
+  options: { cancelable?: boolean } = {},
+): DomEvent => {
+  const event = new window.Event(type, options);
+  fireEvent(target, event);
+  return event;
+};

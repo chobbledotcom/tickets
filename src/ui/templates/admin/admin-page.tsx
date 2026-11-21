@@ -63,7 +63,7 @@ const openWithNotices = (
  *  returns a function taking (session, error) and producing a page-body
  *  receiver. Renders an error Flash when error is set; otherwise no Flash.
  *  Used by the holiday/logistics edit pages. */
-const errorFlash = (error?: string): JSX.Element | null =>
+export const errorFlash = (error?: string): JSX.Element | null =>
   error === undefined ? null : <Flash error={error} />;
 
 /** Wrap an entity edit panel with its optional rejected-form error. */
