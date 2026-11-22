@@ -18,9 +18,13 @@ import {
   classifySessionIntent,
   type SessionIntentResult,
 } from "#routes/api/payment-processing/classify.ts";
-import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
+import {
+  isHeldResult,
+  processPaymentSession,
+} from "#routes/api/payment-processing/index.ts";
 import { failureDetail } from "#routes/api/payment-processing/refunds.ts";
 import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
+import type { SettledStanding } from "#routes/api/payment-processing/settled-order.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type {
   ValidatedPaymentSession,
@@ -100,16 +104,23 @@ const processedOutcome = (
     error: result.error,
     listingId,
   };
-  // A transient lock, not a money answer: nobody decided anything yet.
-  if (result.status === 409 && result.refunded === undefined) {
-    return { ...failure, kind: "held" };
-  }
+  if (isHeldResult(result)) return { ...failure, kind: "held" };
   // A return was required and did not go through. Guarded on a payment
   // reference so a session with nothing to return cannot ask forever.
   if (result.refunded === false && session.paymentReference) {
     return { ...failure, kind: "unsettled" };
   }
   return { ...failure, kind: "settled" };
+};
+
+/** What the log says about a settled session whose sealed order was pruned,
+ * by where the session stands. */
+const SETTLED_DETAIL: Record<SettledStanding["kind"], string> = {
+  booked: "Session already booked, and its sealed order was pruned",
+  handled:
+    "Session already ended with a final outcome, and its sealed order was pruned",
+  recorded:
+    "Session already recorded in the ledger, and its sealed order was pruned",
 };
 
 const classifiedOutcome = async (
@@ -120,7 +131,7 @@ const classifiedOutcome = async (
   if (classified.kind === "unreadable") return { kind: "unreadable" };
   if (classified.kind === "settled") {
     return {
-      detail: "Session already settled, and its sealed order was pruned",
+      detail: SETTLED_DETAIL[classified.standing.kind],
       error: "This payment has already been processed.",
       kind: "settled",
       listingId: undefined,

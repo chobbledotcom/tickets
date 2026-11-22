@@ -6,73 +6,30 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { hmacHash } from "#crypto/hashing.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { openCheckoutBundle } from "#db/checkout-bundles.ts";
 import { execute } from "#db/client.ts";
 import { getNoteRows } from "#db/notes/queries.ts";
 import { sql } from "#db/sql.ts";
-import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import {
   redirectRequest,
   runWebhook,
   setupWithListing,
   webhookRequest,
 } from "#test/integration/webhook-price-signature/helpers.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
+import {
+  expectReceiptOnly,
+  openBundleOf,
+  pruneBundleOf,
+  sealedSession,
+  stubSessionRead,
+} from "#test-utils/sealed-order.ts";
 
 describeWithEnv("a settled sealed checkout order", { db: true }, () => {
   const errors = setupErrorSpy();
-
-  const sealedSession = async (
-    listingId: number,
-    id: string,
-    charged = 1000,
-  ) => ({
-    amount_total: charged,
-    id,
-    metadata: await assembleCheckoutMetadata(
-      "stripe",
-      checkoutIntent({
-        items: [checkoutItem({ listingId, unitPrice: 1000 })],
-        name: "Sealed Buyer",
-        phone: "07700900000",
-        thankYouUrl: "https://example.com/thanks",
-      }),
-      1000,
-    ),
-  });
-
-  const openBundleOf = (session: { metadata: Record<string, string> }) =>
-    openCheckoutBundle(session.metadata.bundle!);
-
-  const pruneBundleOf = async (session: { metadata: Record<string, string> }) =>
-    execute(
-      sql`DELETE FROM checkout_bundles WHERE token_index = ${await hmacHash(session.metadata.bundle!)}`,
-    );
-
-  const expectReceiptOnly = async (session: {
-    metadata: Record<string, string>;
-  }) => {
-    const opened = await openBundleOf(session);
-    expect(opened.status).toBe("opened");
-    if (opened.status !== "opened") return;
-    const text = JSON.stringify(opened.record);
-    for (const personal of [
-      "Sealed Buyer",
-      "buyer@example.com",
-      "07700900000",
-    ]) {
-      expect(text).not.toContain(personal);
-    }
-    expect(opened.record.thank_you_url).toBe("https://example.com/thanks");
-    expect(JSON.parse(opened.record.items!)).toHaveLength(1);
-  };
 
   test("a booked session keeps only a receipt with no personal details", async () => {
     const listing = await setupWithListing();
@@ -156,12 +113,7 @@ describeWithEnv("a settled sealed checkout order", { db: true }, () => {
     await runWebhook(session, async () => {
       await webhookRequest();
     });
-    using _retrieve = stubRetrieveCheckoutSession({
-      amountTotal: 1000,
-      metadata: session.metadata,
-      paymentIntent: `pi_${session.id}`,
-      sessionId: session.id,
-    });
+    using _retrieve = stubSessionRead(session);
 
     const page = await redirectRequest(session.id);
 
@@ -176,12 +128,7 @@ describeWithEnv("a settled sealed checkout order", { db: true }, () => {
       await webhookRequest();
     });
     await pruneBundleOf(session);
-    using _retrieve = stubRetrieveCheckoutSession({
-      amountTotal: 1000,
-      metadata: session.metadata,
-      paymentIntent: `pi_${session.id}`,
-      sessionId: session.id,
-    });
+    using _retrieve = stubSessionRead(session);
 
     const page = await redirectRequest(session.id);
 
