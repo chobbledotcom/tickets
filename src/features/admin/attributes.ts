@@ -314,7 +314,7 @@ const optionOrder = orderedListRoutes(ORDERED_LISTS.attributeOption, {
 
 const attributeOrder = orderedListRoutes(ORDERED_LISTS.attribute, {
   order: attributesOrder,
-  rows: () => idRows(getAttributeIdsOrdered()),
+  rows: async () => idRows(await getAttributeIdsOrdered()),
 });
 
 const handleListingAttributesPost = createListingChoicePost({

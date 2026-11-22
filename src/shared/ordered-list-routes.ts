@@ -126,6 +126,5 @@ export const orderedListRoutes = <RowPath extends string, Row, Key>(
 };
 
 /** The rows of a list read as bare ids. */
-export const idRows = async (
-  ids: Promise<readonly number[]>,
-): Promise<IdRow[]> => (await ids).map((id) => ({ id }));
+export const idRows = (ids: readonly number[]): IdRow[] =>
+  ids.map((id) => ({ id }));
