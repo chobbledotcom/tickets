@@ -32,8 +32,7 @@ export type EndpointDoc = {
   method: string;
   path: string;
   description: string;
-  /** The fields the request body takes. Absent on a route with no body and
-   *  on one whose body the server reads by hand. */
+  /** The fields the request body takes. Absent on a route with no body. */
   fields?: readonly FieldDocRow[];
   request?: string;
   response: string;

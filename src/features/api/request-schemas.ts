@@ -1,4 +1,6 @@
 import * as v from "valibot";
+import type { ExtraField } from "#shared/admin-api-example/field-docs.ts";
+import { listOfObjects, TEXT } from "#shared/admin-api-example/value-forms.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 /**
@@ -41,3 +43,34 @@ export const PackageChildrenSchema = v.nullish(
 export type ApiChildSelection = v.InferOutput<
   ReturnType<typeof v.object<typeof childSelectionEntries>>
 >;
+
+/** The fields a public booking body takes. The listing's contact setting
+ *  decides which of the four contact keys it must carry, beside the name. A
+ *  listing booked per date also needs `date`. */
+const PUBLIC_BOOKING_FIELDS = {
+  address: { value: TEXT },
+  children: { value: listOfObjects(Object.keys(childSelectionEntries)) },
+  date: { value: { form: "date" } },
+  email: { value: TEXT },
+  name: { required: true, value: TEXT },
+  phone: { value: TEXT },
+  quantity: {
+    required: true,
+    value: { form: "whole_number", min: 1 },
+  },
+  special_instructions: { value: TEXT },
+} as const satisfies Record<string, ExtraField>;
+
+/** The body keys of POST /api/listings/:slug/book. A pay-more listing takes
+ *  `customPrice`, a price in minor units. */
+export const LISTING_BOOKING_FIELDS = {
+  ...PUBLIC_BOOKING_FIELDS,
+  customPrice: { value: { form: "price" } },
+} as const satisfies Record<string, ExtraField>;
+
+/** The body keys of POST /api/packages/:slug/book. A bundle with customisable
+ *  days takes `dayCount`. Each `children` entry names its `parent` member. */
+export const PACKAGE_BOOKING_FIELDS = {
+  ...PUBLIC_BOOKING_FIELDS,
+  dayCount: { value: { form: "whole_number", min: 1 } },
+} as const satisfies Record<string, ExtraField>;
