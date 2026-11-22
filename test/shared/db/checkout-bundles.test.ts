@@ -22,10 +22,18 @@ const onlyRow = () =>
     sql`SELECT token_index, sealed FROM checkout_bundles`,
   );
 
-/** Move every stored bundle far past any clock. */
-const ageEveryBundle = () =>
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
+
+/** How long the prune keeps a bundle: the payments clock of 90 days. */
+const KEPT_FOR_MS = 90 * DAY_MS;
+
+const isoAgo = (ageMs: number) => new Date(Date.now() - ageMs).toISOString();
+
+/** Make the bundles sealed in the last hour `ageMs` old. */
+const ageNewBundles = (ageMs: number) =>
   execute(
-    sql`UPDATE checkout_bundles SET created_at = ${"1926-01-01T00:00:00.000Z"}`,
+    sql`UPDATE checkout_bundles SET created_at = ${isoAgo(ageMs)} WHERE created_at > ${isoAgo(60 * MINUTE_MS)}`,
   );
 
 describeWithEnv("checkout bundles", { db: true }, () => {
@@ -75,10 +83,11 @@ describeWithEnv("checkout bundles", { db: true }, () => {
     expect(calls).toBe(1);
   });
 
-  test("prunes an old bundle and keeps a new one", async () => {
+  test("prunes a bundle past the payments clock, and keeps a younger one", async () => {
     const old = await sealCheckoutBundle(ORDER);
-    await ageEveryBundle();
+    await ageNewBundles(KEPT_FOR_MS + MINUTE_MS);
     const young = await sealCheckoutBundle(ORDER);
+    await ageNewBundles(KEPT_FOR_MS - MINUTE_MS);
 
     await runDatabasePruning();
 

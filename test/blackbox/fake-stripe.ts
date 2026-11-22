@@ -22,6 +22,13 @@ export interface FakeCheckout {
   paymentIntent: string;
 }
 
+/** One refund that the app asked for: the amount in minor units, and the
+ * payment that it returns. */
+export interface FakeRefund {
+  amount: number;
+  paymentIntent: string;
+}
+
 /** One call the fake answers: method, path, and the answer to give. The
  * path's first group, when it has one, is passed as `id`. */
 type FakeRoute = readonly [
@@ -41,8 +48,11 @@ export interface FakeStripe {
     checkout: FakeCheckout,
     changes?: { charged?: number; metadata?: Record<string, string> },
   ): Promise<{ body: string; signature: string }>;
-  /** How many refunds the app asked for. */
-  refundCount(): number;
+  /** The buyer pays at Stripe. No callback is sent, so the app learns of the
+   * payment only when it reads the checkout. */
+  pay(checkout: FakeCheckout): void;
+  /** Every refund that the app asked for, oldest first. */
+  readonly refunds: FakeRefund[];
 }
 
 /** Read the metadata fields of a form body: `metadata[name]=value`. */
@@ -112,7 +122,7 @@ const signatureFor = async (body: string): Promise<string> => {
 export const startFakeStripe = async (): Promise<FakeStripe> => {
   const checkouts: FakeCheckout[] = [];
   const paidAs = new Map<string, number>();
-  let refunds = 0;
+  const refunds: FakeRefund[] = [];
 
   const intentJson = (id: string) => {
     const captured = requireValue(
@@ -161,14 +171,18 @@ export const startFakeStripe = async (): Promise<FakeStripe> => {
   };
 
   const refund = async (request: Request): Promise<Response> => {
-    refunds++;
     const form = new URLSearchParams(await request.text());
-    return Response.json({
+    const asked: FakeRefund = {
       amount: Number(form.get("amount")),
+      paymentIntent: String(form.get("payment_intent")),
+    };
+    refunds.push(asked);
+    return Response.json({
+      amount: asked.amount,
       currency: "gbp",
-      id: `re_blackbox_${refunds}`,
+      id: `re_blackbox_${refunds.length}`,
       object: "refund",
-      payment_intent: form.get("payment_intent"),
+      payment_intent: asked.paymentIntent,
       status: "succeeded",
     });
   };
@@ -253,6 +267,9 @@ export const startFakeStripe = async (): Promise<FakeStripe> => {
       });
       return { body, signature: await signatureFor(body) };
     },
-    refundCount: () => refunds,
+    pay: (checkout) => {
+      paidAs.set(checkout.paymentIntent, checkout.amountTotal);
+    },
+    refunds,
   };
 };

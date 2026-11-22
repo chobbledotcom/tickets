@@ -103,6 +103,10 @@ export const rosterOf = async (
     .attendees.map(({ name, quantity }) => [name, quantity]);
 };
 
+/** The page that a buyer who gives up at Stripe is sent back to. */
+export const cancelPage = (checkout: FakeCheckout) =>
+  createApp(inProcess).get(`/payment/cancel?session_id=${checkout.id}`);
+
 /** The page that a buyer who comes back from Stripe sees. */
 export const returnPage = (checkout: FakeCheckout) =>
   createApp(inProcess).get(`/payment/success?session_id=${checkout.id}`);
