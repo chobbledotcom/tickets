@@ -15,14 +15,43 @@ const packed = (fields: Record<string, unknown>) =>
   });
 
 describe("reading a packed `b` entry", () => {
-  test("merges the packed fields back to the top level", () => {
+  test("merges every packed field back to the top level", () => {
+    const fields = {
+      balance_attendee_id: "42",
+      date: "2026-07-01",
+      day_count: "3",
+      phone: "555",
+      reservation_amount: "10%",
+      site_token_index: "hashed-index",
+      tax_policy: '{"mode":"none"}',
+    };
+
+    const extracted = extractSessionMetadata(packed(fields));
+
+    expect(extracted).toMatchObject({ ...fields, email: "a@b.com" });
+  });
+
+  test("an empty packed field leaves the top-level value in place", () => {
     const extracted = extractSessionMetadata(
-      packed({ date: "2026-07-01", phone: "555" }),
+      wireMetadata({
+        b: JSON.stringify({ phone: "" }),
+        email: "a@b.com",
+        items: "[]",
+        name: "Al",
+        phone: "555",
+      }),
     );
 
     expect(extracted.phone).toBe("555");
-    expect(extracted.date).toBe("2026-07-01");
-    expect(extracted.email).toBe("a@b.com");
+  });
+
+  test("does not read a field that the packed entry never carried", () => {
+    const extracted = extractSessionMetadata(
+      packed({ address: "12 Some Street", name: "Mallory" }),
+    );
+
+    expect(extracted.address).toBe("");
+    expect(extracted.name).toBe("Al");
   });
 
   test("reads a malformed `b` as no packed fields, and never throws", () => {
