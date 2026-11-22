@@ -1,18 +1,17 @@
 /** The sealed order of a card checkout: only the provider's copy of the token
- * opens it, a dump alone reads nothing, and the payments clock prunes it. */
+ * opens it, a dump alone reads nothing, and the prune removes it once its
+ * checkout window and the retry window are over. */
 
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  CHECKOUT_BUNDLE_RETENTION_MS,
   openCheckoutBundle,
   sealCheckoutBundle,
 } from "#db/checkout-bundles.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { sql } from "#db/sql.ts";
-import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
@@ -24,12 +23,19 @@ const onlyRow = () =>
     sql`SELECT token_index, sealed FROM checkout_bundles`,
   );
 
-const isoAgo = (ageMs: number) => new Date(nowMs() - ageMs).toISOString();
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
+
+/** How long the prune keeps a bundle: the 60 minutes in which the checkout
+ * can be paid, then the 3 days in which the provider can retry. */
+const KEPT_FOR_MS = 60 * MINUTE_MS + 3 * DAY_MS;
+
+const isoAgo = (ageMs: number) => new Date(Date.now() - ageMs).toISOString();
 
 /** Make the bundles sealed in the last hour `ageMs` old. */
 const ageNewBundles = (ageMs: number) =>
   execute(
-    sql`UPDATE checkout_bundles SET created_at = ${isoAgo(ageMs)} WHERE created_at > ${isoAgo(3_600_000)}`,
+    sql`UPDATE checkout_bundles SET created_at = ${isoAgo(ageMs)} WHERE created_at > ${isoAgo(60 * MINUTE_MS)}`,
   );
 
 describeWithEnv("checkout bundles", { db: true }, () => {
@@ -81,9 +87,9 @@ describeWithEnv("checkout bundles", { db: true }, () => {
 
   test("prunes a bundle past its checkout and retry windows, and keeps a younger one", async () => {
     const old = await sealCheckoutBundle(ORDER);
-    await ageNewBundles(CHECKOUT_BUNDLE_RETENTION_MS + 60_000);
+    await ageNewBundles(KEPT_FOR_MS + MINUTE_MS);
     const young = await sealCheckoutBundle(ORDER);
-    await ageNewBundles(CHECKOUT_BUNDLE_RETENTION_MS - 60_000);
+    await ageNewBundles(KEPT_FOR_MS - MINUTE_MS);
 
     await runDatabasePruning();
 
