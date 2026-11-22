@@ -1589,6 +1589,7 @@
   "test/shared/payment-helpers/dispatch.test.ts": 3,
   "test/shared/payment-helpers/metadata.test.ts": 1,
   "test/shared/payment-helpers/provider-line-copy.test.ts": 1,
+  "test/shared/payment-helpers/sealed-order.test.ts": 6,
   "test/shared/payment-helpers/tax.test.ts": 3,
   "test/shared/payment-provider-status.test.ts": 3,
   "test/shared/payment-providers.test.ts": 1,
