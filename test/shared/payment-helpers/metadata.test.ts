@@ -2,13 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   buildMetadata,
-  extractSessionMetadata,
-  hasRequiredSessionMetadata,
   singleListingAnswerIds,
   toBookingItems,
   toModifierRefs,
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
+import {
+  extractSessionMetadata,
+  hasRequiredSessionMetadata,
+} from "#shared/session-metadata.ts";
 import { wireMetadata } from "#test-utils/payment-session.ts";
 
 describe("payment-helpers", () => {
@@ -28,8 +30,10 @@ describe("payment-helpers", () => {
     });
 
     test("toModifierRefs returns undefined for no modifiers", () => {
-      expect(toModifierRefs(undefined)).toBeUndefined();
-      expect(toModifierRefs([])).toBeUndefined();
+      expect([toModifierRefs(undefined), toModifierRefs([])]).toStrictEqual([
+        undefined,
+        undefined,
+      ]);
     });
 
     test("buildMetadata serializes modifier references and round-trips them", () => {
@@ -66,7 +70,7 @@ describe("payment-helpers", () => {
         items: [{ e: 1, p: 1000, q: 1 }],
         name: "Alice",
       });
-      expect(metadata.modifiers).toBeUndefined();
+      expect(metadata).not.toHaveProperty("modifiers");
       expect(extractSessionMetadata(wireMetadata(metadata)).modifiers).toBe("");
     });
 
@@ -441,9 +445,11 @@ describe("payment-helpers", () => {
     });
 
     test("singleListingAnswerIds returns undefined for empty or missing", () => {
-      expect(singleListingAnswerIds(1, [])).toBeUndefined();
-      expect(singleListingAnswerIds(1, undefined)).toBeUndefined();
-      expect(singleListingAnswerIds(1)).toBeUndefined();
+      expect([
+        singleListingAnswerIds(1, []),
+        singleListingAnswerIds(1, undefined),
+        singleListingAnswerIds(1),
+      ]).toStrictEqual([undefined, undefined, undefined]);
     });
   });
 });

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
-import { extractSessionMetadata } from "#shared/payment-helpers.ts";
+import { extractSessionMetadata } from "#shared/session-metadata.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";

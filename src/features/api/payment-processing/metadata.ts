@@ -15,14 +15,14 @@ import {
   BookingIntentSchema,
 } from "#shared/booking-intent.ts";
 import { nowIso } from "#shared/now.ts";
-import {
-  extractSessionMetadata,
-  hasRequiredSessionMetadata,
-} from "#shared/payment-helpers.ts";
 import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import {
+  extractSessionMetadata,
+  hasRequiredSessionMetadata,
+} from "#shared/session-metadata.ts";
 import { NO_TAX } from "#shared/tax/types.ts";
 
 /**

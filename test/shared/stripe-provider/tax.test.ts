@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
-import { extractSessionMetadata } from "#shared/payment-helpers.ts";
+import { extractSessionMetadata } from "#shared/session-metadata.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { wireMetadata } from "#test-utils/payment-session.ts";

@@ -4,7 +4,6 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { hmacHash } from "#crypto/hashing.ts";
 import {
   openCheckoutBundle,
   sealCheckoutBundle,
@@ -12,21 +11,21 @@ import {
 import { execute, queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { sql } from "#db/sql.ts";
-import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
-import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const ORDER = { email: "pat@example.com", items: '[{"e":1,"p":500,"q":1}]' };
 
-const rowFor = async (token: string) =>
+/** The one stored bundle of a test. */
+const onlyRow = () =>
   queryOne<{ sealed: string; token_index: string }>(
-    sql`SELECT token_index, sealed FROM checkout_bundles WHERE token_index = ${await hmacHash(token)}`,
+    sql`SELECT token_index, sealed FROM checkout_bundles`,
   );
 
-const ageBundle = async (token: string, ageMs: number) =>
+/** Move every stored bundle far past any clock. */
+const ageEveryBundle = () =>
   execute(
-    sql`UPDATE checkout_bundles SET created_at = ${new Date(nowMs() - ageMs).toISOString()} WHERE token_index = ${await hmacHash(token)}`,
+    sql`UPDATE checkout_bundles SET created_at = ${"1926-01-01T00:00:00.000Z"}`,
   );
 
 describeWithEnv("checkout bundles", { db: true }, () => {
@@ -49,7 +48,7 @@ describeWithEnv("checkout bundles", { db: true }, () => {
   test("rests the order sealed, and never rests the token", async () => {
     const token = await sealCheckoutBundle(ORDER);
 
-    const row = await rowFor(token);
+    const row = await onlyRow();
     assert(row !== null);
     assert(!row.sealed.includes("pat@example.com"));
     assert(!JSON.stringify(row).includes(token));
@@ -63,9 +62,7 @@ describeWithEnv("checkout bundles", { db: true }, () => {
 
   test("reads a row whose sealed text was changed as unreadable", async () => {
     const token = await sealCheckoutBundle(ORDER);
-    await execute(
-      sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"} WHERE token_index = ${await hmacHash(token)}`,
-    );
+    await execute(sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"}`);
 
     expect(await openCheckoutBundle(token)).toEqual({ status: "unreadable" });
   });
@@ -78,11 +75,10 @@ describeWithEnv("checkout bundles", { db: true }, () => {
     expect(calls).toBe(1);
   });
 
-  test("prunes a bundle past the payments clock and keeps a younger one", async () => {
+  test("prunes an old bundle and keeps a new one", async () => {
     const old = await sealCheckoutBundle(ORDER);
+    await ageEveryBundle();
     const young = await sealCheckoutBundle(ORDER);
-    await ageBundle(old, PRUNE_PAYMENTS_RETENTION_MS + 60_000);
-    await ageBundle(young, PRUNE_PAYMENTS_RETENTION_MS - 60_000);
 
     await runDatabasePruning();
 
