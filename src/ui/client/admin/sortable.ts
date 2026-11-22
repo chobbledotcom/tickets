@@ -2,12 +2,13 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /**
- * Drag to reorder any list marked `data-sortable`. Each item carries a
- * `data-sortable-handle` with its own anchor and path. A drag moves the item
- * in the page. The drop posts the same move that the arrows post. It names
- * the item now above, or the item now below. The server stores the order,
- * and the page reloads with it. Pointer Events cover the mouse, touch, and
- * pen.
+ * Drag to reorder any list marked `data-sortable`. A drag starts on an
+ * item's `data-sortable-handle`, and moves the item in the page. A list
+ * marked `data-sortable-drop="local"` keeps the new order in the page, and
+ * tells its own script with a `SORTABLE_MOVED` event. Any other list posts
+ * the drop as the same move that the arrows post. It names the item now
+ * above, or the item now below. The server stores the order, and the page
+ * reloads with it. Pointer Events cover the mouse, touch, and pen.
  */
 
 import type { MovePlace } from "#shared/reorder.ts";
@@ -18,14 +19,18 @@ import {
   requiredChild,
 } from "#src/ui/client/dom.ts";
 
-/** The direct child of `list` that holds `node`. */
-const itemHolding = (list: HTMLElement, node: Element): HTMLElement =>
-  requireValue(
-    [...list.children].find((child) => child.contains(node)) as
-      | HTMLElement
-      | undefined,
-    "sortable item",
-  );
+/** The event a `local` list sends after a drop changes its order. */
+export const SORTABLE_MOVED = "sortable-moved";
+
+/** The direct child of `list` that holds `node`. Null when the node is not
+ *  inside an item, such as the gap between two cards. */
+const itemHoldingOrNull = (
+  list: HTMLElement,
+  node: Element,
+): HTMLElement | null =>
+  ([...list.children].find((child) => child.contains(node)) as
+    | HTMLElement
+    | undefined) ?? null;
 
 /** The handle inside one item. */
 const handleOf = (item: Element): HTMLElement =>
@@ -38,10 +43,8 @@ const itemUnderPointer = (
   event: PointerEvent,
 ): HTMLElement | null => {
   const node = document.elementFromPoint(event.clientX, event.clientY);
-  if (node === null || !list.contains(node) || dragged.contains(node)) {
-    return null;
-  }
-  return itemHolding(list, node);
+  if (node === null || dragged.contains(node)) return null;
+  return itemHoldingOrNull(list, node);
 };
 
 /** Put the dragged item before or after the item under the pointer. The half
@@ -77,23 +80,16 @@ const moveFor = (item: HTMLElement): { anchor: string; place: MovePlace } => {
     : { anchor: anchorOf(above), place: "after" };
 };
 
-/** The form an arrow of the item sends. A row has the arrow's own form. A
- *  card has arrow buttons in the form that holds the card. */
-const arrowFormOf = (item: HTMLElement): HTMLFormElement =>
-  item.querySelector("form") ??
-  requireValue(item.closest("form"), "form that holds the sortable item");
-
-/** Post a copy of the form an arrow of the item sends, so the drop sends the
- *  same fields an arrow sends. Only the address and the anchor change. The
- *  server sends the operator back to this page, with its filters. */
-const postMove = (
-  item: HTMLElement,
-  move: { anchor: string; place: MovePlace },
-): void => {
+/** Post a copy of the arrow form of the item, so the drop sends the same
+ *  fields an arrow sends. Only the address and the anchor change. The server
+ *  sends the operator back to this page, with its filters. */
+const postMove = (item: HTMLElement): void => {
+  const move = moveFor(item);
   const path = requireValue(handleOf(item).dataset.sortablePath, "path");
-  const form = arrowFormOf(item).cloneNode(true) as HTMLFormElement;
+  const form = requiredChild<HTMLFormElement>(item, "form").cloneNode(
+    true,
+  ) as HTMLFormElement;
   form.action = `${path}/move-${move.place}`;
-  // An arrow button carries its anchor itself, so its form has no field.
   form.querySelector('input[name="anchor"]')?.remove();
   form.append(
     createHiddenInput("anchor", move.anchor),
@@ -107,45 +103,58 @@ const postMove = (
   form.submit();
 };
 
-/** Wire one handle: press to pick the item up, move to drag, release to post
- *  the move. A cancelled drag puts the item back. */
-const setUpHandle = (list: HTMLElement, handle: HTMLElement): void => {
-  handle.hidden = false;
-  handle.addEventListener("pointerdown", (down) => {
-    if (down.button !== 0) return;
-    down.preventDefault();
-    const item = itemHolding(list, handle);
-    const before = item.nextElementSibling;
-    const onMove = (event: PointerEvent): void => moveBeside(list, item, event);
-    const onUp = (): void => finish(true);
-    const onCancel = (): void => finish(false);
-    const finish = (commit: boolean): void => {
-      handle.removeEventListener("pointermove", onMove);
-      handle.removeEventListener("pointerup", onUp);
-      handle.removeEventListener("pointercancel", onCancel);
-      item.classList.remove("is-dragging");
-      if (item.nextElementSibling === before) return;
-      if (commit) {
-        postMove(item, moveFor(item));
-      } else {
-        list.insertBefore(item, before);
-      }
-    };
-    handle.setPointerCapture(down.pointerId);
-    item.classList.add("is-dragging");
-    handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", onUp);
-    handle.addEventListener("pointercancel", onCancel);
-  });
+/** Where a list keeps a dropped order: on the server, or in the page. */
+type DropMode = "local" | "post";
+
+const DROP: Record<DropMode, (list: HTMLElement, item: HTMLElement) => void> = {
+  local: (list) => list.dispatchEvent(new Event(SORTABLE_MOVED)),
+  post: (_list, item) => postMove(item),
 };
 
-/** Enhance every sortable list on the page. */
+const dropModeOf = (list: HTMLElement): DropMode =>
+  list.dataset.sortableDrop === "local" ? "local" : "post";
+
+/** Pick up the item whose handle the press is on, and follow the pointer
+ *  until it lets go. The document hears the pointer, because a move in the
+ *  page takes the pointer away from the handle. A cancelled drag puts the
+ *  item back. */
+const startDrag = (list: HTMLElement, down: PointerEvent): void => {
+  if (down.button !== 0) return;
+  const path = down.composedPath();
+  const handle = [
+    ...list.querySelectorAll<HTMLElement>("[data-sortable-handle]"),
+  ].find((each) => path.includes(each));
+  if (handle === undefined) return;
+  down.preventDefault();
+  const item = requireValue(itemHoldingOrNull(list, handle), "sortable item");
+  const before = item.nextElementSibling;
+  const onMove = (event: PointerEvent): void => moveBeside(list, item, event);
+  const onUp = (): void => finish(true);
+  const onCancel = (): void => finish(false);
+  const finish = (commit: boolean): void => {
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onCancel);
+    item.classList.remove("is-dragging");
+    if (item.nextElementSibling === before) return;
+    if (commit) {
+      DROP[dropModeOf(list)](list, item);
+    } else {
+      list.insertBefore(item, before);
+    }
+  };
+  item.classList.add("is-dragging");
+  document.addEventListener("pointermove", onMove);
+  document.addEventListener("pointerup", onUp);
+  document.addEventListener("pointercancel", onCancel);
+};
+
+/** Enhance every sortable list on the page. The list hears each press, so a
+ *  handle added later works too. `data-sortable-ready` shows the handles and
+ *  hides the arrows, which are for a page without scripts. */
 export const initSortable = (): void => {
   forEachMatch<HTMLElement>("[data-sortable]", (list) => {
-    for (const handle of list.querySelectorAll<HTMLElement>(
-      "[data-sortable-handle]",
-    )) {
-      setUpHandle(list, handle);
-    }
+    list.dataset.sortableReady = "";
+    list.addEventListener("pointerdown", (down) => startDrag(list, down));
   });
 };

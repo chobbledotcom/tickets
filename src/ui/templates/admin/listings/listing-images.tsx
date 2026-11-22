@@ -5,6 +5,7 @@ import type { ChosenImage } from "#shared/images/picker.ts";
 import type { ReorderColumnOptions } from "#shared/tables/column.ts";
 import { Icon, SaveChangesButton } from "#templates/components/actions.tsx";
 import {
+  DragHandle,
   neighbourAnchors,
   ReorderArrows,
 } from "#templates/components/reorder.tsx";
@@ -14,8 +15,10 @@ import {
  *  images control fills them from the shared image picker. The hidden inputs
  *  carry the name and thumbnail for the browser's chosen list. The server
  *  renders the same pictures so the form still shows them before the bundle
- *  runs. On a saved listing, `reorder` gives each stored picture the drag
- *  handle and the arrows, from the listing's ordered images. */
+ *  runs. Each picture has a drag handle, which moves it in the form, and
+ *  Save stores the order. The browser copies the handle in the template onto
+ *  each picture it adds. On a saved listing, `reorder` also gives each
+ *  stored picture the arrows, for a page without scripts. */
 export const ListingImagesField = ({
   reorder,
   saveChanges = false,
@@ -25,7 +28,8 @@ export const ListingImagesField = ({
   saveChanges?: boolean;
   selected: readonly ChosenImage[];
 }): JSX.Element => {
-  const column = isReadOnly() ? undefined : reorder;
+  const sortable = !isReadOnly();
+  const column = sortable ? reorder : undefined;
   return (
     <div
       class="listing-images"
@@ -37,6 +41,11 @@ export const ListingImagesField = ({
       data-listing-images
     >
       <p class="muted">{t("listings_table.images_hint")}</p>
+      <template data-listing-images-handle>
+        <span class="listing-images-order">
+          <DragHandle />
+        </span>
+      </template>
       <div data-listing-images-inputs>
         {selected.map((image) => (
           <input
@@ -54,18 +63,24 @@ export const ListingImagesField = ({
       <ul
         class="listing-images-selected"
         data-listing-images-selected
-        {...(column === undefined ? {} : { "data-sortable": "grid" })}
+        {...(sortable
+          ? { "data-sortable": "grid", "data-sortable-drop": "local" }
+          : {})}
       >
         {selected.map((image, index) => (
           <li class="listing-images-item" data-image-id={String(image.id)}>
-            {column && (
+            {sortable && (
               <span class="listing-images-order">
-                <ReorderArrows
-                  {...neighbourAnchors(selected, index, column.anchor)}
-                  anchor={column.anchor(image)}
-                  path={column.path(image)}
-                  setting="inForm"
-                />
+                {column ? (
+                  <ReorderArrows
+                    {...neighbourAnchors(selected, index, column.anchor)}
+                    anchor={column.anchor(image)}
+                    path={column.path(image)}
+                    setting="inForm"
+                  />
+                ) : (
+                  <DragHandle />
+                )}
               </span>
             )}
             {image.thumb === "" ? null : (
