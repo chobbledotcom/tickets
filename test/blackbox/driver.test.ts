@@ -78,6 +78,14 @@ describe("driver forms", () => {
     expect(await requests[1]!.text()).toBe("csrfToken=token-1");
   });
 
+  test("returns the headers of the answer", async () => {
+    const { target } = scripted(
+      () => new Response("x", { headers: { "x-answer": "kept" } }),
+    );
+    const got = await createApp(target).get("/");
+    expect(got.headers.get("x-answer")).toBe("kept");
+  });
+
   test("sends multipart when the form asks for it", async () => {
     const multipart = FORM.replace(
       'method="POST"',
