@@ -260,5 +260,4 @@ src/shared/db/select/expression.ts::and.needed~0czjub7  ?? → || audited:18f8an
 src/shared/db/select/expression.ts::and~0es27cz  1 → 0 audited:18f8anp # With one needed condition, joinedBy returns that condition itself. The mutant records it as a list of itself, and the flatMap gives the same list for an unrecorded condition.
 src/shared/db/attributes.ts::buildAttributeGroups.group~1mkbbbm  ?? → || audited:107v3ak # Map.get answers a group object or undefined, and an object is never falsy
 src/shared/db/attributes.ts::attributeFromRows~0ce2746  ?? → || audited:107v3ak # the first grouped attribute is an object or undefined, and an object is never falsy
-src/shared/db/attributes.ts::getAttributeId~0x5aivb  ?? → || audited:107v3ak # attribute ids are autoincrement integers from 1, so the id is never the falsy 0
 src/shared/db/attendee-statuses.ts::writtenStatus~18ifnw3  The status write gave back no row → "" audited:0b6zj6c # an insert or update with a returning clause always gives back its row inside the write transaction, so requireValue never throws
