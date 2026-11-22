@@ -3,7 +3,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { extractSessionMetadata } from "#shared/payment-helpers.ts";
+import { extractSessionMetadata } from "#shared/session-metadata.ts";
 import { wireMetadata } from "#test-utils/payment-session.ts";
 
 const packed = (fields: Record<string, unknown>) =>

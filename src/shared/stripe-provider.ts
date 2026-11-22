@@ -16,7 +16,6 @@ import { refundWithOneReread } from "#payment/refund-attempt.ts";
 import { requireProviderRefundAuthorization } from "#payment/refund-provider-authorization.ts";
 import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
 import { validatedPaymentSession } from "#payment/validated-session.ts";
-import { hasRequiredSessionMetadata } from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
   RetrieveSessionResult,
@@ -24,6 +23,7 @@ import type {
   WebhookSessionResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
+import { hasRequiredSessionMetadata } from "#shared/session-metadata.ts";
 import {
   type StripeCheckoutSession,
   StripeCheckoutSessionSchema,

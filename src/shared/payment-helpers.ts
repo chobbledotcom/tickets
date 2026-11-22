@@ -3,7 +3,6 @@
  * Eliminates duplication between stripe.ts/square.ts and their provider adapters.
  */
 
-import * as v from "valibot";
 import { signedEdgeFor } from "#booking/signed-metadata.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { sealCheckoutBundle } from "#db/checkout-bundles.ts";
@@ -31,12 +30,9 @@ import { signPrice } from "#shared/payment-signature.ts";
 import type {
   CheckoutIntent,
   CheckoutSessionResult,
-  SessionMetadata,
-  ValidatedPaymentSession,
   WebhookEvent,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
-import { stringRecordSchema } from "#shared/validation/stored-json.ts";
 import type { ContactInfo, PaymentProviderType } from "#types";
 
 /**
@@ -362,108 +358,6 @@ export const withCheckoutError = async (
     if (err instanceof PaymentUserError) return { error: err.message };
     throw err;
   }
-};
-
-/**
- * A Square checkout made before sealed orders packed its small fields into one
- * `b` entry, to fit Square's ten entries. Such a checkout can still be paid,
- * so the webhook reads the entry back. Nothing writes it any more.
- */
-const PACKED_KEYS = [
-  "phone",
-  "date",
-  "day_count",
-  "reservation_amount",
-  "tax_policy",
-  "balance_attendee_id",
-  "site_token_index",
-] as const;
-
-/** The single metadata key the packed small fields are stored under. */
-const PACKED_FIELD = "b";
-
-/** The packed fields that a `b` entry holds. Only text values count. */
-const collectPackedFields = (
-  readValue: (key: (typeof PACKED_KEYS)[number]) => unknown,
-): Record<string, string> => {
-  const result: Record<string, string> = {};
-  for (const key of PACKED_KEYS) {
-    const value = readValue(key);
-    if (typeof value === "string" && value !== "") result[key] = value;
-  }
-  return result;
-};
-
-/**
- * Recover the packed small fields from a `b` JSON blob.
- *
- * Defensive by design: a malformed blob, a non-object, or a non-string field
- * is treated as "no packed data" rather than throwing, so a corrupt `b` reaching
- * the webhook degrades each packed field to absent instead of crashing the
- * handler before the price signature can even be checked.
- */
-const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return {};
-    const source = parsed as Record<string, unknown>;
-    return collectPackedFields((key) => source[key]);
-  } catch {
-    return {};
-  }
-};
-
-/**
- * Validate that every metadata value is text and required fields are present.
- */
-export const hasRequiredSessionMetadata = (
-  metadata: Record<string, string | undefined> | null | undefined,
-): metadata is SessionMetadata => {
-  if (!v.is(stringRecordSchema, metadata)) return false;
-  return !!metadata.bundle || (!!metadata.name && !!metadata.items);
-};
-
-/**
- * Normalize validated session metadata into the canonical SessionMetadata shape.
- *
- * This is the single boundary where the provider wire format becomes the logical
- * shape the rest of the app (and the price-signature check) reads: any small
- * fields packed into `b` are merged back to the top level first, so every
- * consumer sees one consistent shape regardless of how it was stored. Must only
- * be called after hasRequiredSessionMetadata narrows the type — name is
- * guaranteed non-empty by that guard. Fields omitted at creation (or absent from
- * a malformed `b`) normalize to "".
- */
-export const extractSessionMetadata = (
-  metadata: Readonly<Partial<Record<string, string>>>,
-): ValidatedPaymentSession["metadata"] => {
-  const raw = metadata[PACKED_FIELD];
-  const packed = raw ? parsePackedFields(raw) : {};
-  const get = (key: keyof SessionMetadata): string =>
-    packed[key] || metadata[key] || "";
-  return {
-    _origin: get("_origin"),
-    address: get("address"),
-    allocations: get("allocations"),
-    answer_ids: get("answer_ids"),
-    balance_attendee_id: get("balance_attendee_id"),
-    bundle: get("bundle"),
-    date: get("date"),
-    day_count: get("day_count"),
-    email: get("email"),
-    items: get("items"),
-    listing: get("listing"),
-    modifiers: get("modifiers"),
-    name: get("name"),
-    phone: get("phone"),
-    price_proof: get("price_proof"),
-    reservation_amount: get("reservation_amount"),
-    site_token_index: get("site_token_index"),
-    special_instructions: get("special_instructions"),
-    tax_policy: get("tax_policy"),
-    text_answer_ids: get("text_answer_ids"),
-    thank_you_url: get("thank_you_url"),
-  };
 };
 
 const UNREADABLE_WEBHOOK: WebhookVerifyResult = {

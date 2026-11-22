@@ -6,11 +6,11 @@ import { ErrorCode } from "#shared/logger.ts";
 import {
   cachedClientFactory,
   createWithClient,
-  hasRequiredSessionMetadata,
   PaymentUserError,
   parseWebhookPayload,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
+import { hasRequiredSessionMetadata } from "#shared/session-metadata.ts";
 import {
   debugMessages,
   useDebugLogSpy,
