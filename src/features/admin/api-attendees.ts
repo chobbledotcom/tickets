@@ -2,16 +2,11 @@
  * POST /api/admin/attendees — create a booking through the admin JSON API.
  *
  * The create mirrors the manual-add form. It can overbook. A line can carry
- * an agreed per-unit `price`. The body can record `payments` already received.
- * It can carry named `adjustments` (one-off charges or writeoffs). It can
- * carry the buyer's `answers` to the booking's questions. The ledger posts
- * every leg at creation, so the projected balance is right from birth. It
- * never emails the buyer. The operator re-sends from the admin page. The
- * attendee rows, their listing lines, the ledger legs, and the answers commit
- * together. A caller-chosen `ticketToken` makes a retried create a no-op. A
- * body can also name an external source and the attendee's id there. The link
- * commits with the attendee, and a retry with the same id answers with the
- * stored attendee.
+ * an agreed per-unit `price`. The body can record `payments`, named
+ * `adjustments`, and the buyer's `answers`. The ledger posts every leg at
+ * creation. It never emails the buyer. The attendee rows, lines, ledger legs,
+ * answers, and external link commit together. A caller `ticketToken` or an
+ * external id makes a retried create a no-op.
  */
 
 import { logActivity } from "#db/activity-log.ts";
