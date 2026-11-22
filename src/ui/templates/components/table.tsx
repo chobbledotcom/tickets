@@ -319,7 +319,7 @@ const reorderColumn = <TRow, TContext = undefined>(
     />
   ),
   class: "reorder",
-  header: () => t("common.reorder_column"),
+  header: () => "",
   key: "__reorder__",
 });
 

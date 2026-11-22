@@ -7,14 +7,23 @@
   display: none;
   cursor: grab;
   touch-action: none;
-  border: none;
-  background: none;
   padding: 0 0.25rem;
   margin: 0;
   color: inherit;
   font-size: 1.1em;
   line-height: 1;
   opacity: 0;
+}
+
+/* The handle is a bare glyph. The element selector outranks the general
+   button rules, in every state. */
+button.reorder-handle,
+button.reorder-handle:hover,
+button.reorder-handle:active,
+button.reorder-handle:focus {
+  border: none;
+  background: none;
+  box-shadow: none;
 }
 
 [data-sortable-ready] .reorder-handle {
