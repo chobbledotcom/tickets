@@ -34,7 +34,7 @@ const collectPackedFields = (
   const result: Record<string, string> = {};
   for (const key of PACKED_KEYS) {
     const value = readValue(key);
-    if (typeof value === "string" && value !== "") result[key] = value;
+    if (typeof value === "string") result[key] = value;
   }
   return result;
 };

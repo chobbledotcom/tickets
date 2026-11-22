@@ -286,7 +286,7 @@ src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@1  + → 
 src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@2  + → "" audited:1pu8a2r # same single-token producer for the redirect URL's encoded token list
 
 src/features/admin/listing-qr.ts::createQrFormValidator.validate.error~1ukv6yx  ?? → || audited:0k09do1 # qrPriceError answers null or a non-empty price error string; the empty string never reaches this operand
-src/features/api/payment-processing/cancel.ts::retryHrefFor.disclosureGroupIds~1sr8ybw  ?? → || audited:1hjmd1r # intent.allocations is an array or undefined, and every array is truthy
+src/features/api/payment-processing/cancel.ts::retryHrefFor.disclosureGroupIds~1sr8ybw  ?? → || audited:18f17y8 # intent.allocations is an array or undefined, and every array is truthy
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.hasOwnUnits~1sr8ybw  ?? → || audited:1cn80jx # intent.allocations is an array or undefined, and every array is truthy
 src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChildFromFacts.allocations~1sr8ybw  ?? → || audited:1cn80jx # allocationsByParent.get answers an array or undefined, and every array is truthy
 src/features/api/payment-success.ts::processSessionAndRedirect.bookingGroupIds~1sr8ybw  ?? → || audited:1pu8a2r # intent.allocations is an array or undefined, and every array is truthy
@@ -386,3 +386,8 @@ src/features/admin/invoices.ts::withInvoiceForm.submitted~0wbopww  ?? → || aud
 src/features/admin/invoices.ts::withInvoiceForm.submitted~0wbopww   → "mutated" audited:1xflyo4 # the fallback applies only when the form has no body field, and then submitted feeds only the length check that a short word never trips; the template comes from missingText
 src/features/admin/attributes.ts::renderAttributePage~1hfgugd  ?? → || audited:1ps1lwj # submitted.error is a refused edit's message or undefined, and a refusal message is never the empty string, so both operators pick the same text
 src/features/admin/built-sites.ts::extractBuiltSiteInput~027ez9p  && → || audited:1t2kkfd # values.updates is null when the select is omitted and a tier otherwise, because validateUpdateTier refuses every other word, so both operators carry the key for the same inputs
+
+# Sealed checkout orders (payment-processing).
+src/features/api/payment-processing/metadata.ts::businessTime~1e2tdds  ?? → || audited:147hlk6 # createdAt is absent or an ISO time that a provider adapter builds with isoFromUnixSeconds or toCanonicalIso, and neither gives the empty string
+src/features/api/payment-processing/session-standing.ts::sessionStanding.row~1pgpjxc  A session-standing read gives one row → "" audited:0mf9744 # unreachable: the read selects scalar subqueries with no FROM, so it always returns one row and requireValue never raises this message
+src/features/api/payment-processing/session-standing.ts::sessionStanding.failure~1jakk4m  ?? → || audited:0mf9744 # failure_data is null, the empty string, or sealed text, and null and the empty string both become "" under either operator
