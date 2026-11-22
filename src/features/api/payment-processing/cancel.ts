@@ -22,6 +22,7 @@ import { publicPageResponse } from "#routes/response.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
 
 /** The retry link for a cancelled checkout. Returns null whenever the target
@@ -70,8 +71,11 @@ export const cancelPageResponse = async (
   session: ValidatedPaymentSession,
   logFailure: (detail: string) => void,
 ): Promise<Response> => {
+  // A sealed order is pruned after its windows close. The signed listing hint
+  // still names the page, and with no order there is no path to retry.
   const intent = await extractIntent(session);
-  const listingId = intent?.items[0]?.e ?? 0;
+  const listingId =
+    intent?.items[0]?.e ?? parsePositiveInt(session.metadata.listing) ?? 0;
   const listing = await getListingWithCount(listingId);
   if (!listing) {
     logFailure(
@@ -81,8 +85,7 @@ export const cancelPageResponse = async (
   }
   // A package checkout retries against the bundle's own page, not a member's
   // standalone page (which can hide members or use override prices/quantities).
-  // A null intent reads listing id 0, which never resolves — so reaching here
-  // proves the intent parsed.
-  const retryHref = await retryHrefFor(intent!, listing);
+  const retryHref =
+    intent === null ? null : await retryHrefFor(intent, listing);
   return publicPageResponse(() => paymentCancelPage(listing, retryHref));
 };
