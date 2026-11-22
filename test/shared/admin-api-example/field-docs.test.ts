@@ -296,6 +296,8 @@ describe("documented request fields", () => {
       "answers",
       "created",
       "email",
+      "external_id",
+      "external_source_id",
       "lines",
       "name",
       "notifications",
@@ -316,6 +318,8 @@ describe("documented request fields", () => {
 
     expect(keysOf(rows)).not.toContain("created");
     expect(keysOf(rows)).not.toContain("ticketToken");
+    expect(keysOf(rows)).not.toContain("external_id");
+    expect(keysOf(rows)).not.toContain("external_source_id");
     expect(rows.filter((row) => row.required)).toEqual([]);
     expect(rowOf(rows, "lines").value).toEqual({
       form: "list_of",
