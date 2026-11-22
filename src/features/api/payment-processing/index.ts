@@ -372,7 +372,7 @@ export const isHeldResult = (result: PaymentResult): boolean =>
 /** Whether a result is the session's final answer: a booking or a handled
  * outcome. A refund that did not go through stays retryable, and a held
  * answer belongs to another delivery. */
-const settlesSession = (result: PaymentResult): boolean =>
+export const settlesSession = (result: PaymentResult): boolean =>
   result.success || (result.refunded !== false && !isHeldResult(result));
 
 /** Process a session this delivery has just reserved, and record or release

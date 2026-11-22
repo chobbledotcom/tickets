@@ -1,5 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import {
+  isHeldResult,
+  settlesSession,
+} from "#routes/api/payment-processing/index.ts";
+import { callbackAnswerFor } from "#routes/api/payment-processing/missing-order.ts";
+import { standingOf } from "#routes/api/payment-processing/session-standing.ts";
+import { sealedOrderDataWithFault } from "#scripts/verify-models/sealed-order.ts";
 import { members, records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
 
@@ -101,6 +108,86 @@ describe("sealed order checker data", () => {
         rowBefore: "none",
       }),
     ]);
+  });
+
+  test("a standing decision that reads a refunded session as open reaches the facts", async () => {
+    const faulty = sealedOrderDataWithFault({
+      standing: (facts) =>
+        facts.failure === null ? standingOf(facts) : { kind: "open" },
+    });
+
+    const lost = records(await faulty(), "DeliveryFacts").filter(
+      (fact) => fact.bundle === "gone" && fact.rowBefore === "failed",
+    );
+
+    expect(lost).toEqual([
+      delivery({
+        alarms: true,
+        answer: "unreadable",
+        bundle: "gone",
+        ledgerAfter: "unrecorded",
+        ledgerBefore: "unrecorded",
+        rowAfter: "failed",
+        rowBefore: "failed",
+      }),
+      delivery({
+        alarms: true,
+        answer: "unreadable",
+        bundle: "gone",
+        ledgerAfter: "recorded",
+        ledgerBefore: "recorded",
+        rowAfter: "failed",
+        rowBefore: "failed",
+      }),
+    ]);
+  });
+
+  test("an answer table that reports a ledger-only session as lost reaches the facts", async () => {
+    const faulty = sealedOrderDataWithFault({
+      answerFor: (kind) =>
+        kind === "recorded"
+          ? { outcome: { kind: "unreadable" }, reportsLostOrder: true }
+          : callbackAnswerFor(kind),
+    });
+
+    const facts = records(await faulty(), "DeliveryFacts");
+
+    expect(facts).toContainEqual(
+      delivery({
+        alarms: true,
+        answer: "unreadable",
+        bundle: "gone",
+        ledgerAfter: "recorded",
+        ledgerBefore: "recorded",
+        rowAfter: "none",
+        rowBefore: "none",
+      }),
+    );
+  });
+
+  test("a settle rule that counts a held callback as settled reaches the facts", async () => {
+    const faulty = sealedOrderDataWithFault({
+      settles: (result) => settlesSession(result) || isHeldResult(result),
+    });
+
+    expect(records(await faulty(), "ReceiptFacts")).toEqual([
+      { rowBefore: "reserved" },
+      { rowBefore: "finalized" },
+      { rowBefore: "failed" },
+    ]);
+  });
+
+  test("a callback answer that the model does not hold stops the producer", async () => {
+    const faulty = sealedOrderDataWithFault({
+      answerFor: () => ({
+        outcome: { kind: "unverifiable" },
+        reportsLostOrder: false,
+      }),
+    });
+
+    await expect(faulty()).rejects.toThrow(
+      'The sealed order model holds no answer "unverifiable".',
+    );
   });
 
   test("writes a receipt only after a final row", async () => {

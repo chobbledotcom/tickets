@@ -41,7 +41,7 @@ export const sealedOrder: ModelGuide = {
     },
     {
       meaning:
-        "One prepared delivery outcome from the producer. It is not an observed callback or SQL race.",
+        "One delivery outcome from the producer. For a lost order, the producer runs the two production decisions that answer it. For a readable order, the producer transcribes the replay code. No fact is an observed callback or SQL race.",
       term: "fact",
     },
   ],

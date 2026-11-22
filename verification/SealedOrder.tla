@@ -23,13 +23,19 @@ EXTENDS Apalache, Integers, ModelRules, SealedOrderData
 \* alarm.
 \* scripts/verify-models/sealed-order.ts builds SealedOrderData. It keys the
 \* bundle states on BundleRead in src/shared/db/checkout-bundles.ts and the
-\* answers on CallbackOutcome in src/features/api/payment-callback.ts. It
-\* transcribes the delivery branches of classifySessionIntent in
-\* src/features/api/payment-processing/classify.ts, of the answer table in
-\* src/features/api/payment-processing/missing-order.ts, and of
+\* answers on CallbackOutcome in src/features/api/payment-callback.ts.
+\* For a delivery with no readable order, the producer executes two
+\* production decisions: standingOf in
+\* src/features/api/payment-processing/session-standing.ts and
+\* callbackAnswerFor in src/features/api/payment-processing/missing-order.ts.
+\* The rows that get a receipt come from settlesSession in
+\* src/features/api/payment-processing/index.ts, run on one result for each
+\* row state. Those facts are observed decisions.
+\* For a delivery that reads an order or a receipt, the producer transcribes
 \* handleReservationConflict and replaySessionFromLedger in
-\* src/features/api/payment-processing/index.ts. These are transcribed
-\* facts, not observed callback results or SQL race results.
+\* src/features/api/payment-processing/index.ts.
+\* Those facts are transcribed. No fact is an observed callback result or an
+\* SQL race result.
 \* The proof checks Init against Safety, then checks that each Next step
 \* from any state that satisfies Safety keeps Safety. This is induction. It
 \* does not prove all production inputs, durable atomicity or completion.
