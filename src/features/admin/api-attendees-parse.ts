@@ -23,6 +23,7 @@ import {
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import type { CreateAdjustment } from "#shared/checkout-complete.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { parseArray, requireStrings } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
@@ -116,10 +117,9 @@ const optionalContactField = (
 export const parseContact = (
   body: Record<string, unknown>,
 ): Result<ContactInfo> => {
-  const name = body.name;
-  if (typeof name !== "string" || name === "") {
-    return errorResult("name is required");
-  }
+  const required = requireStrings(body, ["name"]);
+  if (!required.ok) return required;
+  const { name } = required.value;
   const nameError = validateName(name);
   if (nameError) return errorResult(nameError);
   const email = optionalContactField(body.email, "email", validateEmail);
@@ -394,22 +394,18 @@ export const parseAnswers = async (
  * from the database once and shared across the lines. */
 const parseLines = async (linesRaw: unknown[]): Promise<Result<ApiLine[]>> => {
   const listingsById = await getListingsById();
-  const lines: ApiLine[] = [];
-  for (const [index, rawLine] of linesRaw.entries()) {
-    const parsed = parseLine(rawLine, listingsById, index);
-    if (!parsed.ok) return parsed;
-    lines.push(parsed.value);
-  }
-  return okResult(lines);
+  return parseArray("lines", (rawLine, index) =>
+    parseLine(rawLine, listingsById, index),
+  )(linesRaw);
 };
 
 /** The raw lines of a body, or the refusal for a `lines` value that is not a
  *  non-empty array. */
 export const readLinesArray = (linesRaw: unknown): Result<unknown[]> => {
-  if (!Array.isArray(linesRaw)) return errorResult("lines must be an array");
-  return linesRaw.length === 0
+  const lines = parseArray("lines", okResult)(linesRaw);
+  return lines.ok && lines.value.length === 0
     ? errorResult("Add at least one booking line")
-    : okResult(linesRaw);
+    : lines;
 };
 
 /** The validated lines of a body whose `lines` is a non-empty array. Two
