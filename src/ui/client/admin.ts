@@ -39,6 +39,7 @@ import { initRunningTotal } from "./admin/running-total.ts";
 import { initSchemaAtlas } from "./admin/schema-atlas.ts";
 import { initSelectOnClick } from "./admin/select-on-click.ts";
 import { initShareButtons } from "./admin/share-button.ts";
+import { initSortable } from "./admin/sortable.ts";
 import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts";
 import { forEachMatch } from "./dom.ts";
 
@@ -77,3 +78,4 @@ initTicketQuantityRequired();
 forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
 initSchemaAtlas();
 initImageLibrary();
+initSortable();

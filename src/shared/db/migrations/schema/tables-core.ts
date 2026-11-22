@@ -5,6 +5,7 @@ import {
   datedRowColumns,
   itemLinkColumns,
   recurringOfferColumns,
+  sortOrderColumn,
 } from "./columns.ts";
 import {
   checked,
@@ -131,6 +132,9 @@ export const coreTables = declaredTables([
         // transfers ledger (gross credits to revenue:<listingId>) at read time.
         ["booked_quantity", wholeNumberStartingAtZero],
         ["tickets_count", wholeNumberStartingAtZero],
+        // The place an operator dragged the listing to. A new listing starts
+        // at 0, so it shows first, in the automatic order.
+        sortOrderColumn,
       ],
       indexes: [
         {

@@ -16,6 +16,7 @@ import {
 } from "#routes/admin/questions/forms.ts";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
 import { warningDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
@@ -124,7 +125,7 @@ export const adminQuestionsPage = (
     guideLabel: "Questions guide",
     items: questions,
     newFormId: "new-question",
-    orderLabel: t("questions.order_column"),
+    reorder: ORDERED_LISTS.question.column(),
     session,
     title: t("questions.title"),
   });

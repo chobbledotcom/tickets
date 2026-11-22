@@ -95,16 +95,16 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       const firstId = await createAttributeViaRoute("Alpha");
       const secondId = await createAttributeViaRoute("Beta");
 
-      // Moving the top attribute up is harmless.
       await expectFlashRedirect(
         "/admin/attributes",
         "Attribute moved",
-      )((await adminFormPost(`/admin/attributes/${firstId}/move-up`)).response);
-      expect(
-        (await getAllAttributesWithOptions()).map((item) => item.name),
-      ).toEqual(["Alpha", "Beta"]);
-
-      await adminFormPost(`/admin/attributes/${secondId}/move-up`);
+      )(
+        (
+          await adminFormPost(`/admin/attributes/${secondId}/move-before`, {
+            anchor: String(firstId),
+          })
+        ).response,
+      );
       expect(
         (await getAllAttributesWithOptions()).map((item) => item.name),
       ).toEqual(["Beta", "Alpha"]);
@@ -233,7 +233,11 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
         ).response,
       );
       expectStatus(404)(
-        (await adminFormPost("/admin/attributes/999999/move-up")).response,
+        (
+          await adminFormPost("/admin/attributes/999999/move-before", {
+            anchor: "1",
+          })
+        ).response,
       );
     });
   });

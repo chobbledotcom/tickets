@@ -111,7 +111,7 @@ export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
   },
   {
     description:
-      "List one source's links. Add ?external_id= to find the links that hold that external id, or ?link_type= and ?link_id= to find the links of one record. One external id can name several records. The external id is found through its blind index, so nothing is decrypted to search.",
+      "List one source's links. Add ?external_id= to find the links that hold that external id, or ?link_type= and ?link_id= to find the links of one record. The external id is found through its blind index, so nothing is decrypted to search.",
     method: "GET",
     path: LINKS_BASE,
     response: json({ links: [ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK] }),
@@ -123,7 +123,7 @@ export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
       confirm_identifier: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK.external_id,
     },
     desc: [
-      "Link one record to its id at a source. link_type is attendee, listing, or group. Leave external_id out when the other system has not named the record yet. One external id can name several records, such as an invoice that covers a group. The record must exist and the source must not hold that record under that id twice.",
+      "Link one record to its id at a source. link_type is attendee, listing, or group. Leave external_id out when the other system has not named the record yet. The record must exist. One source holds one external id for one record: a second link with that external id answers 409 and names the record that holds it.",
       "Change one link. The body carries all three fields, and the same checks as a create run against them.",
       "Delete one link (requires the link reference confirmation: its external id, or the record it names when the id is absent)",
     ],

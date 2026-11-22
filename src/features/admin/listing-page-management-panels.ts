@@ -10,6 +10,7 @@ import {
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import type { AssignPageContext } from "#routes/admin/listings-switch.ts";
 import { imageChoicesOf } from "#shared/images/picker.ts";
+import { IMAGE_ORDERS } from "#shared/ordered-lists.ts";
 import { ListingAttributesPanel } from "#templates/admin/attributes.tsx";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
@@ -67,6 +68,7 @@ export const loadListingImagesPanel: ListingPanelLoader = async ({
   const selected = await getImagesForItem("listing", listing.id);
   return ListingImagesPanel({
     action: `/admin/listing/${listing.id}/images`,
+    reorder: IMAGE_ORDERS.listing.column(listing.id),
     selected: imageChoicesOf(selected),
   });
 };

@@ -218,13 +218,14 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/questions/:id/move-down", () => {
+  describe("POST /admin/questions/:id/move-after", () => {
     test("moves the question and returns to the list saying so", async () => {
       const firstId = await createQuestion("First question?");
-      await createQuestion("Second question?");
+      const secondId = await createQuestion("Second question?");
 
       const { response } = await adminFormPost(
-        `/admin/questions/${firstId}/move-down`,
+        `/admin/questions/${firstId}/move-after`,
+        { anchor: String(secondId) },
       );
 
       await expectFlashRedirect("/admin/questions", "Question moved")(response);

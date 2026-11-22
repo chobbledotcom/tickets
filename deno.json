@@ -52,6 +52,7 @@
     "check:coverage-exclusions": "env -u LD_LIBRARY_PATH deno run --allow-read=. --allow-sys --allow-run=git scripts/check-coverage-exclusions.ts",
     "check:cpd-counts": "env -u LD_LIBRARY_PATH deno run -A scripts/check-cpd-counts.ts",
     "check:test-quality": "env -u LD_LIBRARY_PATH deno run --allow-read=. --allow-env=GITHUB_ACTIONS --allow-run=git scripts/check-test-quality.ts",
+    "check:test-internals": "env -u LD_LIBRARY_PATH deno run --allow-read=. --allow-write=scripts/check-test-internals/registry.json --allow-sys --allow-ffi --allow-env --allow-run=git scripts/check-test-internals.ts",
     "check:presence-assertions": "deno run --allow-read=test,scripts --allow-write=scripts/check-presence-assertions/registry.json scripts/counts-check.ts presence-assertions",
     "check:comments": "deno run --allow-read=src scripts/check-comments.ts",
     "check:comment-ste": "deno run --allow-read=src,scripts/check-comments/ste-baseline.json --allow-write=scripts/check-comments/ste-baseline.json scripts/check-comments-ste.ts",

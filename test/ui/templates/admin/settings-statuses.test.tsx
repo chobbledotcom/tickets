@@ -54,10 +54,16 @@ describe("attendee status templates", () => {
       '<span class="badge">Public default</span><span class="badge">Paid</span><span class="badge">Reservation: 25%</span>',
     ]);
     assert(!html.includes("Reservation: 0"));
-    assertStringIncludes(html, 'action="/admin/settings/statuses/7/move-down"');
-    assert(!html.includes('action="/admin/settings/statuses/7/move-up"'));
-    assertStringIncludes(html, 'action="/admin/settings/statuses/8/move-up"');
-    assert(!html.includes('action="/admin/settings/statuses/8/move-down"'));
+    assertStringIncludes(
+      html,
+      'action="/admin/settings/statuses/7/move-after"',
+    );
+    assert(!html.includes('action="/admin/settings/statuses/7/move-before"'));
+    assertStringIncludes(
+      html,
+      'action="/admin/settings/statuses/8/move-before"',
+    );
+    assert(!html.includes('action="/admin/settings/statuses/8/move-after"'));
     expectIncludesAll(html, ['title="Move down"', 'title="Move up"']);
   });
 

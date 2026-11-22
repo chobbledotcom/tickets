@@ -12,6 +12,7 @@ import {
   optionalTextField,
   parseAndValidate,
   parseApiBody,
+  parseArray,
   parseOptionalArray,
   parseUpdateSlug,
   requireDateString,
@@ -124,6 +125,24 @@ test("parseOptionalArray names a refused entry's index", () => {
         : { error: `items[${index}] must be a number`, ok: false },
     ),
   ).toEqual({ error: "items[1] must be a number", ok: false });
+});
+
+test("parseArray refuses an absent or non-array value", () => {
+  const parse = (raw: unknown) =>
+    parseArray("lines", (item) => okResult(item))(raw);
+  expect(parse(undefined)).toEqual({
+    error: "lines must be an array",
+    ok: false,
+  });
+  expect(parse("a")).toEqual({ error: "lines must be an array", ok: false });
+  expect(parse([1])).toEqual({ ok: true, value: [1] });
+});
+
+test("parseOptionalArray leaves an absent value alone and refuses a non-array", () => {
+  const parse = (raw: unknown) =>
+    parseOptionalArray(raw, "items", (item) => okResult(item));
+  expect(parse(undefined)).toEqual({ ok: true, value: undefined });
+  expect(parse({})).toEqual({ error: "items must be an array", ok: false });
 });
 
 /** One body schema, so every parseApiBody case reads one shape. */

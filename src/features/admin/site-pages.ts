@@ -1,5 +1,6 @@
 import { records } from "#db/record-table.ts";
-import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import { imageOrderRoutes } from "./item-images.ts";
 
 /**
  * Admin CRUD for user-created content Pages, under Site → Pages. Owner +
@@ -28,21 +29,17 @@ import { formGuard, SITE_FORM } from "#routes/auth.ts";
 import {
   createEntityHandler,
   createIdEntityHandler,
-  type IdParam,
   throughParent,
 } from "#routes/entity.ts";
 import { errorRedirect } from "#routes/response.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
+import { idRows, orderedListRoutes } from "#shared/ordered-list-routes.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import { sitePageRecord } from "#shared/records/site-pages.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { eligibleChildPages } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
-import {
-  type SitePageItemTarget,
-  sitePageItemTargets,
-  targetOfPageItem,
-} from "#shared/site-pages/target.ts";
+import type { SitePageItemTarget } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import {
   adminSitePageDeletePage,
@@ -122,28 +119,15 @@ const itemSaved = (page: SitePage, flashKey: string, logMessage: string) => ({
   path: itemsPath(page.id),
 });
 
-const pageTarget = sitePageItemTargets.of("page");
 const pageFormHandler = createIdEntityHandler<SitePage>(
   records.site_pages.find,
 )(formGuard(SITE_FORM));
 
 // ─── Root reorder ───────────────────────────────────────────────
 
-const rootPageOrder = createOrderedCollectionHandlers({
-  auth: SITE_FORM,
-  keys: async () =>
-    (await loadPageForest()).forest.rootIds.map((id) =>
-      sitePageItemTargets.key(pageTarget(id)),
-    ),
-  movedMessage: t("site.pages.moved"),
-  redirectPath: () => LIST_PATH,
-  swap: (first, second) =>
-    sitePageOrder.swap({
-      first: sitePageItemTargets.fromKey(first).id,
-      second: sitePageItemTargets.fromKey(second).id,
-    }),
-  target: ({ params }: { params: IdParam }) =>
-    sitePageItemTargets.key(pageTarget(params.id)),
+const rootPageOrder = orderedListRoutes(ORDERED_LISTS.sitePage, {
+  order: sitePageOrder,
+  rows: async () => idRows((await loadPageForest()).forest.rootIds),
 });
 
 // ─── Item manager ───────────────────────────────────────────────
@@ -233,37 +217,26 @@ const handleRemoveItem = pageItemHandler(async ({ page, ref }) =>
   ),
 );
 
-const pageItemOrder = createOrderedCollectionHandlers({
-  auth: SITE_FORM,
-  keys: async ({ params }) =>
-    (await getItemsForPage(params.id)).map((item) =>
-      sitePageItemTargets.key(targetOfPageItem(item)),
-    ),
-  loadContext: async ({ itemId, itemType }: ItemRouteParams) =>
-    isSitePageItemType(itemType) ? { id: itemId, kind: itemType } : null,
-  movedMessage: t("site.pages.moved"),
-  redirectPath: ({ params }) => itemsPath(params.id),
-  swap: (first, second, { params }) => {
-    const firstRef = sitePageItemTargets.fromKey(first);
-    const secondRef = sitePageItemTargets.fromKey(second);
-    return sitePageItemOrder.swap({
-      first: [firstRef.kind, firstRef.id],
-      scope: params.id,
-      second: [secondRef.kind, secondRef.id],
-    });
-  },
-  target: ({ context }) => sitePageItemTargets.key(context),
+const pageItemOrder = orderedListRoutes(ORDERED_LISTS.sitePageItem, {
+  arrange: (items, pageId) =>
+    sitePageItemOrder.arrange({
+      keys: items.map((item) => [item.type, item.id] as const),
+      scope: pageId,
+    }),
+  rows: async (pageId) =>
+    (await getItemsForPage(pageId)).map((item) => ({
+      id: item.itemId,
+      type: item.itemType,
+    })),
 });
 
 // ─── Routes ─────────────────────────────────────────────────────
 
 export const adminHandlers = defineAdminRoutes({
   ...contentRecordRoutes("sitePages", pages, images, sitePageEntityPage),
+  ...imageOrderRoutes("page"),
   "POST /admin/site/pages/:id/items": handleAddItem,
-  ...orderRoutes(
-    "/admin/site/pages/:id/items/:itemType/:itemId",
-    pageItemOrder,
-  ),
+  ...pageItemOrder,
   "POST /admin/site/pages/:id/items/:itemType/:itemId/remove": handleRemoveItem,
-  ...orderRoutes("/admin/site/pages/:id", rootPageOrder),
+  ...rootPageOrder,
 });
