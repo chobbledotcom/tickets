@@ -1,5 +1,6 @@
 /** The sealed order of a card checkout: only the provider's copy of the token
- * opens it, a dump alone reads nothing, and the payments clock prunes it. */
+ * opens it, and a dump alone reads nothing. Its prune is checked in
+ * test/shared/db/prune/checkout-bundles.test.ts. */
 
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
@@ -9,7 +10,6 @@ import {
   sealCheckoutBundle,
 } from "#db/checkout-bundles.ts";
 import { execute, queryOne } from "#db/client.ts";
-import { runDatabasePruning } from "#db/prune.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -22,20 +22,6 @@ const onlyRow = () =>
     sql`SELECT token_index, sealed FROM checkout_bundles`,
   );
 
-const MINUTE_MS = 60 * 1000;
-const DAY_MS = 24 * 60 * MINUTE_MS;
-
-/** How long the prune keeps a bundle: the payments clock of 90 days. */
-const KEPT_FOR_MS = 90 * DAY_MS;
-
-const isoAgo = (ageMs: number) => new Date(Date.now() - ageMs).toISOString();
-
-/** Make the bundles sealed in the last hour `ageMs` old. */
-const ageNewBundles = (ageMs: number) =>
-  execute(
-    sql`UPDATE checkout_bundles SET created_at = ${isoAgo(ageMs)} WHERE created_at > ${isoAgo(60 * MINUTE_MS)}`,
-  );
-
 describeWithEnv("checkout bundles", { db: true }, () => {
   test("opens what was sealed, with the token alone", async () => {
     const token = await sealCheckoutBundle(ORDER);
@@ -44,6 +30,15 @@ describeWithEnv("checkout bundles", { db: true }, () => {
       record: ORDER,
       status: "opened",
     });
+  });
+
+  test("refuses to seal a record that holds a value that is not text", async () => {
+    const record = { items: 7 } as unknown as Record<string, string>;
+
+    await expect(sealCheckoutBundle(record)).rejects.toThrow(
+      "Invalid value for stored JSON in checkout bundle",
+    );
+    expect(await onlyRow()).toBeNull();
   });
 
   test("gives each order its own token", async () => {
@@ -81,17 +76,5 @@ describeWithEnv("checkout bundles", { db: true }, () => {
     const calls = await countDatabaseCalls(1, () => openCheckoutBundle(token));
 
     expect(calls).toBe(1);
-  });
-
-  test("prunes a bundle past the payments clock, and keeps a younger one", async () => {
-    const old = await sealCheckoutBundle(ORDER);
-    await ageNewBundles(KEPT_FOR_MS + MINUTE_MS);
-    const young = await sealCheckoutBundle(ORDER);
-    await ageNewBundles(KEPT_FOR_MS - MINUTE_MS);
-
-    await runDatabasePruning();
-
-    expect(await openCheckoutBundle(old)).toEqual({ status: "missing" });
-    expect((await openCheckoutBundle(young)).status).toBe("opened");
   });
 });
