@@ -9,6 +9,7 @@ const page = (
   html = "",
   location: string | null = null,
 ): Page => ({
+  headers: new Headers(),
   html,
   location,
   status,

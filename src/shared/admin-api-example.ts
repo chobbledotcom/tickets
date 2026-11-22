@@ -400,7 +400,7 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
     ),
     {
       description:
-        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened. An adjustment with taxable: true is a charge that the tax counts, such as delivery. An update refuses taxable.",
+        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. Set notifications to false for an imported booking: it owes no email and fires no webhook. When notifications is absent, the booking owes its email and fires the listing's webhooks. An optional created stamps the business time the booking happened. An adjustment with taxable: true is a charge that the tax counts, such as delivery. An update refuses taxable.",
       fields: ATTENDEE_FIELD_DOCS.create,
       method: "POST",
       path: "/api/admin/attendees",

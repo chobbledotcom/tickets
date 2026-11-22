@@ -16,7 +16,10 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { markdownToPlainText } from "#shared/markdown-plain-text.ts";
-import type { TableColumn } from "#shared/tables/column.ts";
+import type {
+  ReorderColumnOptions,
+  TableColumn,
+} from "#shared/tables/column.ts";
 import {
   configurableTableLayouts,
   type ListingColumnKey,
@@ -191,6 +194,8 @@ const editorListingTable = defineTable<
 
 type ListingRows<TKey extends ListingColumnKey> = {
   listings: ListingWithCount[];
+  /** The drag handle and arrows, on the listings page only. */
+  readonly reorder?: ReorderColumnOptions<ListingWithCount> | undefined;
   readonly columnKeys?: readonly TKey[] | undefined;
   readonly filters?: ReadonlyMap<TKey, string> | undefined;
 };
@@ -210,6 +215,7 @@ const renderListingTable = <TKey extends ListingColumnKey>(
     columnKeys: args.columnKeys ?? defaultColumnKeys,
     empty: emptyText,
     filters: args.filters,
+    reorder: args.reorder,
     rowAttrs: (listing) => (listing.active ? {} : { class: "inactive-row" }),
   });
 

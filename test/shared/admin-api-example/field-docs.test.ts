@@ -298,6 +298,7 @@ describe("documented request fields", () => {
       "email",
       "lines",
       "name",
+      "notifications",
       "payments",
       "phone",
       "special_instructions",

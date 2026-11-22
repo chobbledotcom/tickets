@@ -31,6 +31,7 @@ export const ATTENDEE_WRITE_FIELDS = {
     ]),
   },
   name: { required: true, value: TEXT },
+  notifications: { only: "create", value: { form: "switch" } },
   payments: { value: listOfObjects(["amount"]) },
   phone: { value: TEXT },
   special_instructions: { value: TEXT },

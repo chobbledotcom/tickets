@@ -78,6 +78,14 @@ describe("driver forms", () => {
     expect(await requests[1]!.text()).toBe("csrfToken=token-1");
   });
 
+  test("returns the headers of the answer", async () => {
+    const { target } = scripted(
+      () => new Response("x", { headers: { "x-answer": "kept" } }),
+    );
+    const got = await createApp(target).get("/");
+    expect(got.headers.get("x-answer")).toBe("kept");
+  });
+
   test("sends multipart when the form asks for it", async () => {
     const multipart = FORM.replace(
       'method="POST"',
@@ -89,6 +97,34 @@ describe("driver forms", () => {
     expect([...data.entries()]).toEqual([
       ["csrfToken", "token-1"],
       ["title", "Pic"],
+    ]);
+  });
+
+  test("presses a button by its formaction, and sends its name and value", async () => {
+    const withButtons = FORM.replace(
+      "</form>",
+      `<button type="submit" formaction="/save/2/move" name="anchor" value="7">Up</button>
+       <button type="submit" formaction="/save/2/drop">Drop</button>
+       <button type="submit" formaction="/save/2/keep" name="go">Keep</button></form>`,
+    );
+    const { requests, target } = formServer(withButtons);
+    const app = createApp(target);
+
+    await app.submit("/edit", {}, "/save/2/move");
+    await app.submit("/edit", {}, "/save/2/drop");
+    await app.submit("/edit", {}, "/save/2/keep");
+
+    expect(
+      await Promise.all(
+        [requests[1]!, requests[3]!, requests[5]!].map(async (sent) => [
+          new URL(sent.url).pathname,
+          await sent.text(),
+        ]),
+      ),
+    ).toEqual([
+      ["/save/2/move", "csrfToken=token-1&title=Old+title&anchor=7"],
+      ["/save/2/drop", "csrfToken=token-1&title=Old+title"],
+      ["/save/2/keep", "csrfToken=token-1&title=Old+title&go="],
     ]);
   });
 

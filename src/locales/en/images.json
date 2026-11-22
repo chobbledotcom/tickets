@@ -33,7 +33,8 @@
   "images.picker.loading": "Loading…",
   "images.picker.load_failed": "The image library could not load. Please try again.",
   "images.picker.upload_failed": "The image could not be uploaded. Please try again.",
-  "images.storage_off":"File storage is not configured.",
+  "images.storage_off": "File storage is not configured.",
   "images.updated": "Image updated",
-  "images.guide_link": "Image library guide"
+  "images.guide_link": "Image library guide",
+  "images.item.moved": "Image moved"
 }

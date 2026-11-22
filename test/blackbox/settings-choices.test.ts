@@ -1,23 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import type { App, Page } from "#test/blackbox/driver.ts";
 import {
-  type App,
-  createApp,
-  type Fields,
-  inProcess,
-  type Page,
-} from "#test/blackbox/driver.ts";
+  followed,
+  loggedIn,
+  redirectOf,
+  type SettingsForm,
+  send,
+  sendLoggedOut,
+  sendWithWrongToken,
+} from "#test/blackbox/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** One radio choice on a settings page, with its own form. */
-interface Choice {
-  action: string;
-  field: string;
+interface Choice extends SettingsForm {
   formId: string;
   /** The choice that a new site starts with, and the one it can change to. */
   other: string;
-  page: string;
   questionKey: string;
   /** The message after a save of `value`. */
   saved: (value: string) => string;
@@ -101,27 +101,6 @@ const boxTicked = (html: string, field: string): boolean => {
   return isTicked(box);
 };
 
-const loggedIn = async (): Promise<App> => {
-  const app = createApp(inProcess);
-  await app.logIn();
-  return app;
-};
-
-/** The owner sends the choice's form with these fields. */
-const send = (app: App, choice: Choice, fields: Fields): Promise<Page> =>
-  app.submit(choice.page, fields, choice.action);
-
-/** The address that a save redirects to. */
-const redirectOf = (sent: Page): string => {
-  expect(sent.status).toBe(302);
-  if (sent.location === null) throw new Error("The save named no address.");
-  return sent.location;
-};
-
-/** The page that a save redirects to, where its message shows. */
-const followed = (app: App, sent: Page): Promise<Page> =>
-  app.get(redirectOf(sent));
-
 const pick = (app: App, choice: Choice, value: string): Promise<Page> =>
   send(app, choice, { [choice.field]: value });
 
@@ -160,29 +139,14 @@ for (const choice of CHOICES) {
 
     test("a form with a wrong token is refused and changes nothing", async () => {
       const app = await loggedIn();
-      const refused = await send(app, choice, {
-        csrfToken: "invalid-csrf-token",
-        [choice.field]: choice.other,
-      });
+      const refused = await sendWithWrongToken(app, choice, choice.other);
       expect(refused.status).toBe(403);
       expect(refused.html).toContain("Invalid CSRF token");
       expect(await chosenNow(app, choice)).toBe(choice.start);
     });
 
     test("a visitor who is not logged in is sent to the login and changes nothing", async () => {
-      const response = await inProcess(
-        new Request(`http://localhost${choice.action}`, {
-          body: new URLSearchParams({
-            [choice.field]: choice.other,
-          }).toString(),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            host: "localhost",
-            origin: "http://localhost",
-          },
-          method: "POST",
-        }),
-      );
+      const response = await sendLoggedOut(choice, choice.other);
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin");
       expect(await chosenNow(await loggedIn(), choice)).toBe(choice.start);

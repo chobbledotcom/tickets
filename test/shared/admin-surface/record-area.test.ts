@@ -4,9 +4,9 @@ import {
   childWrites,
   contentWrites,
   imageWrites,
-  moveWrites,
   recordArea,
 } from "#shared/admin-surface/record-area.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 
 const STAFF = ["owner", "manager"] as const;
 const OWNER = ["owner"] as const;
@@ -168,18 +168,17 @@ describe("recordArea", () => {
 describe("the shared write sets", () => {
   test("name each write under the record's own path", () => {
     expect({
-      child: childWrites("answer", "/admin/questions/:id/answers", "answerId"),
+      child: childWrites(ORDERED_LISTS.answer),
       content: contentWrites("page", "/admin/pages/:id"),
       image: imageWrites("post", "/admin/posts/:id"),
-      move: moveWrites("row", "/admin/rows/:id"),
     }).toStrictEqual({
       // Add a child, then edit, delete, and move one under its own path.
       child: {
         answerAdd: "/admin/questions/:id/answers",
         answerDelete: "/admin/questions/:id/answers/:answerId/delete",
         answerEdit: "/admin/questions/:id/answers/:answerId/edit",
-        answerMoveDown: "/admin/questions/:id/answers/:answerId/move-down",
-        answerMoveUp: "/admin/questions/:id/answers/:answerId/move-up",
+        answerMoveAfter: "/admin/questions/:id/answers/:answerId/move-after",
+        answerMoveBefore: "/admin/questions/:id/answers/:answerId/move-before",
       },
       // A content record gets its actions and its images.
       content: {
@@ -190,10 +189,6 @@ describe("the shared write sets", () => {
       image: {
         postImages: "/admin/posts/:id/images",
         postImagesUpload: "/admin/posts/:id/images/upload",
-      },
-      move: {
-        rowMoveDown: "/admin/rows/:id/move-down",
-        rowMoveUp: "/admin/rows/:id/move-up",
       },
     });
   });

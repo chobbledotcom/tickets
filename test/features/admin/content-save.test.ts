@@ -59,7 +59,7 @@ describeWithEnv("content save", { db: true, storage: "cdn" }, () => {
     );
   });
 
-  test("binds the record routes and both image writes", async () => {
+  test("binds the record routes and the image writes", async () => {
     await expectAreaRoutes(
       () => import("#routes/admin/news.ts"),
       [
@@ -72,6 +72,8 @@ describeWithEnv("content save", { db: true, storage: "cdn" }, () => {
         "POST /admin/site/news/:id/delete",
         "POST /admin/site/news/:id/edit",
         "POST /admin/site/news/:id/images",
+        "POST /admin/site/news/:id/images/:imageId/move-after",
+        "POST /admin/site/news/:id/images/:imageId/move-before",
         "POST /admin/site/news/:id/images/upload",
       ],
     );
