@@ -109,8 +109,8 @@ describe("adminAttributesPage (writable list)", () => {
   test("renders the reorder column and move controls when writable", () => {
     // The reorder flag is on: the Order header and the move arrows both show.
     assertStringIncludes(html(), '<th class="col-reorder">Order</th>');
-    assertStringIncludes(html(), "/admin/attributes/1/move-down");
-    assertStringIncludes(html(), "/admin/attributes/2/move-up");
+    assertStringIncludes(html(), "/admin/attributes/1/move-after");
+    assertStringIncludes(html(), "/admin/attributes/2/move-before");
   });
 
   test("links to the listings guide section", () => {
@@ -387,8 +387,11 @@ describe("attribute option arrows", () => {
       listingCounts: new Map(),
       listings: [],
     });
-    assert(!html.includes("/options/10/move-up"));
-    expectIncludesAll(html, ["/options/10/move-down", "/options/11/move-up"]);
-    assert(!html.includes("/options/11/move-down"));
+    assert(!html.includes("/options/10/move-before"));
+    expectIncludesAll(html, [
+      "/options/10/move-after",
+      "/options/11/move-before",
+    ]);
+    assert(!html.includes("/options/11/move-after"));
   });
 });

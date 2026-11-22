@@ -18,6 +18,10 @@ import type {
   RecordAreaPatterns,
 } from "#shared/admin-surface/ids.ts";
 import { ADMIN_SECTIONS } from "#shared/admin-surface/sections.ts";
+import {
+  fillRoutePattern,
+  isNumericRouteParam,
+} from "#shared/route-pattern.ts";
 import type { AdminLevel } from "#types";
 
 export type {
@@ -64,9 +68,9 @@ export const adminPath = <Id extends AdminDestinationId>(
   id: Id,
   params: AdminPathParams<Id>,
 ): string =>
-  adminDestination(id).pattern.replace(
-    /:(\w+)/g,
-    (_, name: keyof AdminPathParams<Id>) => String(params[name]),
+  fillRoutePattern(
+    adminDestination(id).pattern,
+    (name) => params[name as keyof AdminPathParams<Id>],
   );
 
 /** The route declared at a path or under an id. A route table key is a path.
@@ -144,11 +148,9 @@ export const afterSavePath = (
  * the rest take a word. That is enough for the router to match the route and
  * for a guard to run. A caller asks this before it looks any record up. */
 export const oneServedPath = (pattern: string): string =>
-  pattern
-    .replace(/:(\w+)/g, (_, name: string) =>
-      name === "id" || name.endsWith("Id") ? "1" : "value",
-    )
-    .replace(/\/$/, "");
+  fillRoutePattern(pattern, (name) =>
+    isNumericRouteParam(name) ? "1" : "value",
+  ).replace(/\/$/, "");
 
 export const adminDestinationAllowed = (
   id: AdminDestinationId,

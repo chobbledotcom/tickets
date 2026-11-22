@@ -5,6 +5,7 @@
 import { logActivity } from "#db/activity-log.ts";
 import {
   appendImageToItem,
+  arrangeItemImages,
   getAllImages,
   getImagesForItem,
   imageUseTargets,
@@ -22,6 +23,12 @@ import { createEntityHandler, withEntity } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { IdRow } from "#shared/ordered-list.ts";
+import {
+  type OrderedListRoutes,
+  orderedListRoutes,
+} from "#shared/ordered-list-routes.ts";
+import { IMAGE_ORDERS } from "#shared/ordered-lists.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { ItemImagesPanel } from "#templates/admin/images.tsx";
 import type { ImageUseItemType } from "#types";
@@ -56,6 +63,7 @@ export const loadItemImagesPanel = async (
     action: `${path}/images`,
     allImages,
     linkedImages,
+    reorder: IMAGE_ORDERS[itemType].column(itemId),
     uploadAction: `${path}/images/upload`,
   });
 };
@@ -80,12 +88,40 @@ const withStorageBackedItem =
       ? action(item, itemId)
       : Promise.resolve(storageDisabledResponse(config, itemId));
 
-export const createItemImageHandlers = <T>(
-  config: ItemImageConfig<T>,
-): {
+/** The image handlers of one kind of record: save the chosen images, and
+ *  upload one. */
+export type ItemImageHandlers = {
   set: RouteHandlerFn;
   upload: RouteHandlerFn;
-} => {
+};
+
+/** How one kind of record reads and stores the order of its images. */
+const imageOrderStore = (itemType: ImageUseItemType) => ({
+  arrange: (images: readonly IdRow[], itemId: number): Promise<void> =>
+    arrangeItemImages(
+      imageUseTargets.of(itemType)(itemId),
+      images.map((image) => image.id),
+    ),
+  rows: (itemId: number) => getImagesForItem(itemType, itemId),
+});
+
+/** The row path of one kind of record's ordered images. */
+type ImageRowPath<Kind extends ImageUseItemType> =
+  (typeof IMAGE_ORDERS)[Kind]["rowPath"];
+
+/** The routes that move one image of a record before or after another. The
+ *  arrows and a drop use them. */
+export const imageOrderRoutes = <Kind extends ImageUseItemType>(
+  kind: Kind,
+): OrderedListRoutes<ImageRowPath<Kind>> =>
+  orderedListRoutes<ImageRowPath<ImageUseItemType>, IdRow, number>(
+    IMAGE_ORDERS[kind],
+    imageOrderStore(kind),
+  );
+
+export const createItemImageHandlers = <T>(
+  config: ItemImageConfig<T>,
+): ItemImageHandlers => {
   const itemHandler = createEntityHandler<RouteParams, T>(({ id }) =>
     config.load(Number(id)),
   );

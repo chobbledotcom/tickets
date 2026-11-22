@@ -144,6 +144,77 @@ Execution is equally strict:
 The full list, with what each writes where, is in
 [AGENTS.md](../AGENTS.md#scripts).
 
+## Black-box tests
+
+A black-box test knows the app only through its addresses, its pages, and its
+forms. It lives in `test/blackbox/` and uses the driver in
+`test/blackbox/driver.ts`. It imports no `src/` module except a module that
+carries the `// effects: pure` line. Two modules are free for every test: the
+request handler (`#routes`) and the message catalog (`#i18n`).
+
+### The driver
+
+- `createApp(inProcess)` makes a visitor with no cookies. `createApp(overHttp(origin))`
+  sends the same requests to a running app.
+- `app.get(path)` returns the status, the HTML, and the redirect address. The
+  driver never follows a redirect.
+- `app.submit(path, fields, form)` opens `path`, reads the form that the page
+  offers, replaces the named fields, and sends the form as a browser sends it.
+  The hidden fields and the token come from the page.
+- `app.logIn()` logs the owner in through the login form.
+- `app.cookieHeader()` returns the cookies. Pass them to `createApp` to replay
+  an old session.
+- `app.target` is the target that the visitor sends to. `createApi(target, key)`
+  in `test/blackbox/api.ts` is a JSON client for the admin API. It sends the key
+  with every request and reads each answer as JSON.
+- `test/blackbox/seed.ts` sets up a shop through the admin API, as another
+  system does. `openApi(app)` makes a key on the keys page for the logged-in
+  owner and keeps the one copy that the page shows. `addListing` and
+  `addBooking` create records and give back their numbers. A seed helper
+  validates the answer with a valibot schema and fails with the text that the
+  API sent. Add a helper there when a second test needs one.
+- Do not write to the database to set up a test. If the API cannot make the
+  state that a test needs, that is a finding about the API. Raise it.
+
+### What to assert
+
+Assert what a visitor can see: a page, a redirect, a refusal, a download, a
+sent message. Do not read a table. "The session row is gone" is a claim about
+storage. "The old cookie no longer opens the admin" is the claim that matters.
+Prove the premise too: show that the cookie worked before the logout.
+
+### The ratchet
+
+`deno task check:test-internals` counts the `src/` modules that each test file
+imports and that are not pure. Type-only imports are free. The registry at
+`scripts/check-test-internals/registry.json` records one count for each file.
+
+- A count can fall but never rise. Run `deno task check:test-internals --update`
+  after a fall.
+- A file that the registry does not hold starts at zero.
+- A split or a move can carry the count that the same branch frees in other
+  files. The check compares the registry with the merge base on `origin/main`.
+- The fixture layer (`test/test-utils`, `test/specs`) counts too, so the
+  imports cannot move into a helper.
+- To make a module free, add the line `// effects: pure` to it. `deno task
+  check:effects` proves that the module reaches no database, network, or clock.
+
+### Deleting a test
+
+A deleted test changes no `src/` file, so the gate mutates the `src/` file that
+the test mirrored. Black-box tests run in the integration stage, after the
+direct tests. A source can stand on black-box tests alone. Every mutant must
+still die. Coverage alone does not show that a test is safe to delete. A unit
+test of a pure parser can kill mutants that no page test reaches.
+
+### Where the requests go
+
+The default is a fresh database for each test, and it costs about 6 ms. A test
+must not assume that the site is empty or that it owns the clock. This keeps
+the door open to run many tests against one running instance. Do that only for
+tests that create their own uniquely named data and never change a setting for
+the whole site.
+
 ## Migrating a test to a story
 
 A migration is a **replacement**, and the risk is always the same: the story

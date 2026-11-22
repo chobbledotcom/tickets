@@ -326,6 +326,25 @@ describeWithEnv("sortListings", { db: true }, () => {
     ]);
   });
 
+  test("puts the place an operator chose before the automatic order", () => {
+    const daily = testListing({ id: 1, listingType: "daily", name: "Daily" });
+    const dated = testListing({
+      date: "2026-06-15T14:00:00.000Z",
+      id: 2,
+      name: "Dated",
+      sortOrder: 2,
+    });
+    const undated = testListing({ id: 3, name: "Undated", sortOrder: 1 });
+
+    expect(
+      sortListings([undated, dated, daily], []).map((one) => one.name),
+    ).toEqual(["Daily", "Undated", "Dated"]);
+  });
+
+  test("keeps the automatic order among listings in the same place", () => {
+    expectAlphaBeforeBravo({ sortOrder: 4 });
+  });
+
   test("preserves ListingWithCount fields", () => {
     const listing = testListingWithCount({
       attendeeCount: 42,

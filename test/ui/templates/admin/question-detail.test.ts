@@ -156,14 +156,14 @@ describe("QuestionAnswersSection", () => {
     assertStringIncludes(html, '<td class="col-quantity">0</td>');
   });
 
-  test("renders move-up and move-down buttons", () => {
+  test("renders move-before and move-after buttons", () => {
     const html = String(
       QuestionAnswersSection({ answerCounts: new Map(), question }),
     );
-    assertStringIncludes(html, "/answers/10/move-down");
-    assert(!html.includes("/answers/10/move-up"));
-    assertStringIncludes(html, "/answers/11/move-up");
-    assert(!html.includes("/answers/11/move-down"));
+    assertStringIncludes(html, "/answers/10/move-after");
+    assert(!html.includes("/answers/10/move-before"));
+    assertStringIncludes(html, "/answers/11/move-before");
+    assert(!html.includes("/answers/11/move-after"));
     // The answers table carries the reorder Order column header when writable.
     assertStringIncludes(html, '<th class="col-reorder">Order</th>');
   });
@@ -181,7 +181,10 @@ describe("QuestionAnswersSection", () => {
     const html = String(
       QuestionAnswersSection({ answerCounts: new Map(), question: q }),
     );
-    expectIncludesAll(html, ["/answers/11/move-up", "/answers/11/move-down"]);
+    expectIncludesAll(html, [
+      "/answers/11/move-before",
+      "/answers/11/move-after",
+    ]);
   });
 
   test("hides the write controls in read-only mode", () => {

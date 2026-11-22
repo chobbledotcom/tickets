@@ -18,7 +18,10 @@ import type {
 } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import type { AttendeeCreationWork } from "#db/attendees/create-batch.ts";
-import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
+import {
+  PENDING_NOTIFICATION,
+  type PendingNotificationFlag,
+} from "#db/attendees/notification-flags.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeRawByToken } from "#db/attendees/queries.ts";
 import type { TextAnswer } from "#db/question-types.ts";
@@ -165,8 +168,15 @@ const retriedAttendeeResponse = async (
  *  loser, whose idempotent answer is the booking the winner stored. Any other
  *  failure is re-raised. */
 const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
-  const { adjustments, created, lines, payments, statusId, ticketToken } =
-    parsed;
+  const {
+    adjustments,
+    created,
+    lines,
+    notifications,
+    payments,
+    statusId,
+    ticketToken,
+  } = parsed;
   const bookings: ListingBooking[] = lines.map((line) => ({
     date: line.date,
     ...(line.date === null ? {} : { durationDays: line.durationDays }),
@@ -202,7 +212,9 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
         allowOverbook: true,
         bookings,
         email: parsed.email,
-        emailPending: emailPendingFor(lines),
+        emailPending: notifications
+          ? emailPendingFor(lines)
+          : PENDING_NOTIFICATION.none,
         name: parsed.name,
         phone: parsed.phone,
         remainingBalance,
@@ -227,8 +239,14 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
   const attendee = result.attendees[0]!;
   const listingsById = byId(lines.map((line) => line.listing));
   // Notification behaviour matches a manual admin add: the buyer email waits
-  // for the admin page's Re-send action, and the listings' webhooks fire.
-  queueManualAddWebhooks(createdBookingEntries(result.attendees, listingsById));
+  // for the admin page's Re-send action, and the listings' webhooks fire. An
+  // imported booking (notifications: false) sends no webhook and owes no
+  // email, so neither flag is left up.
+  if (notifications) {
+    queueManualAddWebhooks(
+      createdBookingEntries(result.attendees, listingsById),
+    );
+  }
   await logActivity(
     `Attendee '${parsed.name}' added via API`,
     lines[0]!.listing.id,

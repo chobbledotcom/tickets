@@ -18,7 +18,7 @@ describe("reading a list into its rows", () => {
       <tr><th>Name</th><th>Order</th></tr>
       <tr>
         <td><a href="${LIST}/7">Confirmed</a></td>
-        <td><form action="${LIST}/7/move-down"><button>▼</button></form></td>
+        <td><form action="${LIST}/7/move-after"><button>▼</button></form></td>
       </tr>
       <tr>
         <td><a href="${LIST}/9">Fish &amp; Chips</a></td>
@@ -42,10 +42,10 @@ describe("reading a list into its rows", () => {
 
   test("hands each row its own markup and nothing of its neighbours'", () => {
     const [confirmed, fish] = rowsOnList(PAGE, INTO_ONE);
-    assertStringIncludes(confirmed!.row, "move-down");
+    assertStringIncludes(confirmed!.row, "move-after");
     assert(!confirmed!.row.includes("badge"));
     assertStringIncludes(fish!.row, "badge");
-    assert(!fish!.row.includes("move-down"));
+    assert(!fish!.row.includes("move-after"));
   });
 
   test("does not read markup after the table as the last row's", () => {
@@ -55,9 +55,9 @@ describe("reading a list into its rows", () => {
       <table>
         <tr><td><a href="${LIST}/7">Confirmed</a></td></tr>
       </table>
-      <form action="${LIST}/7/move-up"><button>▲</button></form>
+      <form action="${LIST}/7/move-before"><button>▲</button></form>
     `;
-    assert(!rowsOnList(page, INTO_ONE)[0]!.row.includes("move-up"));
+    assert(!rowsOnList(page, INTO_ONE)[0]!.row.includes("move-before"));
   });
 
   test("keeps a final row the page never closes, as a browser would", () => {

@@ -178,14 +178,24 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/statuses/:id/move", () => {
-    test("move at the boundary is a no-op", async () => {
+    test("a move with no anchor changes nothing and says the list changed", async () => {
       const seed = await seedStatus();
-      const { response } = await adminFormPost(`${PATH}/${seed.id}/move-up`);
-      await expectFlashRedirect(PATH, "Status moved")(response);
+      const before = await attendeeStatuses.getAll();
+      const { response } = await adminFormPost(
+        `${PATH}/${seed.id}/move-before`,
+      );
+      await expectFlashRedirect(
+        PATH,
+        "That list changed since you opened it. Please try the move again.",
+        false,
+      )(response);
+      expect(await attendeeStatuses.getAll()).toEqual(before);
     });
 
     test("returns 404 moving a missing status", async () => {
-      const { response } = await adminFormPost(`${PATH}/9999/move-up`);
+      const { response } = await adminFormPost(`${PATH}/9999/move-before`, {
+        anchor: "1",
+      });
       expect(response.status).toBe(404);
     });
   });

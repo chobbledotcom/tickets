@@ -164,9 +164,9 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       name: "B",
       sortOrder: 6,
     });
-    await attendeeStatusOrder.swap({ first: a.id, second: b.id });
-    expect((await getAttendeeStatus(a.id))?.sortOrder).toBe(6);
-    expect((await getAttendeeStatus(b.id))?.sortOrder).toBe(5);
+    await attendeeStatusOrder.arrange({ keys: [b.id, a.id] });
+    expect((await getAttendeeStatus(b.id))?.sortOrder).toBe(0);
+    expect((await getAttendeeStatus(a.id))?.sortOrder).toBe(1);
   });
 
   test("update changes fields and invalidates the cache", async () => {

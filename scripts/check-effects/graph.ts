@@ -8,6 +8,7 @@ import {
   resolveSpecifier,
   topLevelImports,
 } from "#scripts/check-imports/rules.ts";
+import { lineColumnAt } from "#scripts/line-column.ts";
 import { parseProgram } from "#scripts/parse-program.ts";
 import { walkNodes } from "#scripts/walk-nodes.ts";
 
@@ -47,14 +48,19 @@ const walkFileNodes = (
   walkNodes(parseProgram(file, content), visit);
 };
 
-/** Every literal dynamic-import specifier in one parsed module. A
- * dynamic import with a computed specifier loads nothing this graph can
- * name. */
-const dynamicImportSpecifiers = (
+/** One literal dynamic import and the line it sits on. */
+export interface DynamicImport {
+  readonly line: number;
+  readonly specifier: string;
+}
+
+/** Every literal dynamic import in one parsed module. A dynamic import with a
+ * computed specifier loads nothing this graph can name. */
+export const dynamicImports = (
   file: string,
   content: string,
-): readonly string[] => {
-  const specifiers: string[] = [];
+): readonly DynamicImport[] => {
+  const found: DynamicImport[] = [];
   walkFileNodes(file, content, (node) => {
     const source = node.source;
     if (
@@ -62,12 +68,16 @@ const dynamicImportSpecifiers = (
       typeof source === "object" &&
       source !== null &&
       "value" in source &&
-      typeof source.value === "string"
+      typeof source.value === "string" &&
+      typeof node.start === "number"
     ) {
-      specifiers.push(source.value);
+      found.push({
+        line: lineColumnAt(content, node.start).line,
+        specifier: source.value,
+      });
     }
   });
-  return specifiers;
+  return found;
 };
 
 /** The local files one module's runtime imports load. A type-only
@@ -85,7 +95,7 @@ const importsOf = (
     .map((line) => line.specifier);
   const specifiers = [
     ...staticSpecifiers,
-    ...dynamicImportSpecifiers(file, content),
+    ...dynamicImports(file, content).map((entry) => entry.specifier),
   ];
   return specifiers
     .map((specifier) => resolveSpecifierToFile(specifier, file, aliases))

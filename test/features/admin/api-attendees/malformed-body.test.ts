@@ -50,9 +50,11 @@ describeWithEnv(
       );
       // An empty name is the same refusal as a missing one: the row never
       // stores a nameless booking.
-      await assertJson(createBooking(listing.id, { name: "" }), 400, (body) =>
-        expect(body.error).toBe("name is required"),
-      );
+      for (const name of ["", "   ", 7]) {
+        await assertJson(createBooking(listing.id, { name }), 400, (body) =>
+          expect(body.error).toBe("name is required"),
+        );
+      }
     });
 
     test("lines that miss a listing, a whole quantity, or a daily date", async () => {

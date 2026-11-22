@@ -78,11 +78,14 @@ describe("site page templates", () => {
       "<h2>Top-level pages</h2>",
       '<a href="/admin/site/pages/1/edit">First root</a>',
       "<code>/page/first</code>",
-      'action="/admin/site/pages/1/move-down"',
+      'action="/admin/site/pages/1/move-after"',
     ]);
-    assert(!html.includes('action="/admin/site/pages/1/move-up"'));
-    assertStringIncludes(html, 'action="/admin/site/pages/2/move-up"');
-    assert(!html.includes('action="/admin/site/pages/2/move-down"'));
+    assert(!html.includes('action="/admin/site/pages/1/move-before"'));
+    expectIncludesAll(html, [
+      'action="/admin/site/pages/2/move-before"',
+      '<input name="anchor" type="hidden" value="1">',
+    ]);
+    assert(!html.includes('action="/admin/site/pages/2/move-after"'));
     expectIncludesAll(html, [
       "<h2>Nested pages</h2>",
       '<a href="/admin/site/pages/3/edit">Child page</a></td><td>First root</td>',
@@ -167,17 +170,22 @@ describe("site page templates", () => {
       "<td>Listing</td><td>Summer show</td>",
       "<td>Group</td><td>Weekend bundle</td>",
       "<td>Page</td><td>Child page</td>",
-      'action="/admin/site/pages/7/items/listing/11/move-down"',
+      'action="/admin/site/pages/7/items/listing/11/move-after"',
     ]);
     assert(
-      !html.includes('action="/admin/site/pages/7/items/listing/11/move-up"'),
+      !html.includes(
+        'action="/admin/site/pages/7/items/listing/11/move-before"',
+      ),
     );
     expectIncludesAll(html, [
-      'action="/admin/site/pages/7/items/group/12/move-up"',
-      'action="/admin/site/pages/7/items/group/12/move-down"',
+      'action="/admin/site/pages/7/items/group/12/move-before"',
+      '<input name="anchor" type="hidden" value="listing:11">',
+      'action="/admin/site/pages/7/items/group/12/move-after"',
+      '<input name="anchor" type="hidden" value="page:13">',
+      'data-sortable-anchor="group:12" data-sortable-handle data-sortable-path="/admin/site/pages/7/items/group/12"',
     ]);
     assert(
-      !html.includes('action="/admin/site/pages/7/items/page/13/move-down"'),
+      !html.includes('action="/admin/site/pages/7/items/page/13/move-after"'),
     );
     expectIncludesAll(html, [
       'action="/admin/site/pages/7/items/page/13/remove"',

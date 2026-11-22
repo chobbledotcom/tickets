@@ -10,7 +10,7 @@ export const gettingStartedSections = (): GuideSection[] => [
     titleKey: "getting_started",
   },
   {
-    entries: [faq("what_is_dashboard")],
+    entries: [faq("what_is_dashboard"), faq("change_list_order")],
     id: "dashboard",
     titleKey: "dashboard",
   },

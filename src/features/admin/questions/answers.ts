@@ -4,10 +4,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { getAllModifiers } from "#db/modifiers.ts";
-import {
-  insertScopedOrderedRow,
-  scopedCollectionSwap,
-} from "#db/ordered-collection.ts";
+import { insertScopedOrderedRow } from "#db/ordered-collection.ts";
 import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
 import {
   ANSWER_AGGREGATE_FIELDS,
@@ -33,7 +30,6 @@ import {
   createVerifiedFormRoute,
   verifiedDelete,
 } from "#routes/admin/confirmation.ts";
-import { orderRoutes } from "#routes/admin/route-tables.ts";
 import { formGuard, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { createEntityHandler, throughParent } from "#routes/entity.ts";
 import {
@@ -44,11 +40,10 @@ import {
   redirectToDetail,
 } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
-import {
-  createAuthedFormRoute,
-  createOrderedCollectionHandlers,
-} from "#shared/app-forms.ts";
+import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { orderedListRoutes } from "#shared/ordered-list-routes.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
@@ -348,22 +343,11 @@ const handleAnswerRecalculatePost = answerHandlers.post(
     }),
 );
 
-const answerOrder: {
-  down: ParamsRoute<AnswerRouteParams>;
-  up: ParamsRoute<AnswerRouteParams>;
-} = createOrderedCollectionHandlers({
-  auth: formPolicyFor(
-    adminDestinationAt("/admin/questions/:id/answers/:answerId/move-up"),
-  ),
-  keys: ({ context }) => context.question.answers.map((answer) => answer.id),
-  loadContext: loadQuestionAndAnswer,
-  movedMessage: "Answer moved",
-  redirectPath: ({ context }) => `/admin/questions/${context.question.id}`,
-  swap: scopedCollectionSwap(
-    answersOrder,
-    ({ context }: { context: AnswerContext }) => context.question.id,
-  ),
-  target: ({ context }) => context.answer.id,
+const answerOrder = orderedListRoutes(ORDERED_LISTS.answer, {
+  order: answersOrder,
+  // A question that is gone has no answers to move.
+  rows: async (questionId) =>
+    (await getQuestionWithAnswers(questionId))?.answers ?? null,
 });
 
 /** The answer routes, ready to spread into the question route table. */
@@ -375,7 +359,7 @@ export const answerRoutes = {
   "POST /admin/questions/:id/answers": handleAddAnswer,
   "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerPost,
   "POST /admin/questions/:id/answers/:answerId/edit": handleEditAnswerPost,
-  ...orderRoutes("/admin/questions/:id/answers/:answerId", answerOrder),
+  ...answerOrder,
   "POST /admin/questions/:id/answers/:answerId/recalculate":
     handleAnswerRecalculatePost,
 };
