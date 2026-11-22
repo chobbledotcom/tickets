@@ -4,9 +4,14 @@
  * the first run stored. */
 
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
-import { attendeeIdForExternalIdOrNull } from "#db/external-sources/attendee-link.ts";
+import { holderOfExternalIdOrNull } from "#db/external-sources/attendee-link.ts";
+import {
+  externalIdHeldRefusal,
+  type LinkRefusal,
+} from "#db/external-sources/queries.ts";
 import type { ExternalSource } from "#db/external-sources/types.ts";
 import { records } from "#db/record-table.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { Attendee } from "#types";
@@ -37,12 +42,31 @@ export const parseExternalLink = async (
   return okResult({ externalId: externalId.value, source });
 };
 
-/** The attendee that the link's source already holds under its external id, or
- *  null when the id is new. */
-export const attendeeForExternalLinkOrNull = async ({
+/** What a body's external id names in its source. It names nothing yet, or
+ *  the attendee that an earlier create stored. It is refused when another kind
+ *  of record holds the id. */
+export type ExternalIdHolder =
+  | { kind: "free" }
+  | { attendee: Attendee; kind: "attendee" }
+  | { kind: "refused"; refusal: LinkRefusal };
+
+export const holderOfExternalLink = async ({
   externalId,
   source,
-}: ApiExternalLink): Promise<Attendee | null> => {
-  const attendeeId = await attendeeIdForExternalIdOrNull(source.id, externalId);
-  return attendeeId === null ? null : getAttendeeRaw(attendeeId);
+}: ApiExternalLink): Promise<ExternalIdHolder> => {
+  const holder = await holderOfExternalIdOrNull(source.id, externalId);
+  if (holder === null) return { kind: "free" };
+  if (holder.linkType !== "attendee") {
+    return {
+      kind: "refused",
+      refusal: externalIdHeldRefusal(holder.linkType, holder.linkId),
+    };
+  }
+  return {
+    attendee: requireValue(
+      await getAttendeeRaw(holder.linkId),
+      `Attendee ${holder.linkId} is missing`,
+    ),
+    kind: "attendee",
+  };
 };

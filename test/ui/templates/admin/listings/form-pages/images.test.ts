@@ -34,7 +34,7 @@ const expectNoImageInDuplicateAndNew = (
     adminDuplicateListingPage(listing, [], OWNER_SESSION),
     adminListingNewPage([], OWNER_SESSION),
   ]) {
-    expectExcludesAll(html, ['name="image"']);
+    expectExcludesAll(html, ['name="imageIds"']);
   }
 };
 

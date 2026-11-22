@@ -9,6 +9,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
+  createLink,
   createSource,
   linksPath,
   SOURCE_BODY,
@@ -142,6 +143,25 @@ describeWithEnv(
       );
       expect(await rosterAttendeeIds(listingId)).toEqual([retry.attendee.id]);
       expect(await linksFor(sourceId, "INV-4")).toHaveLength(1);
+    });
+
+    test("an external id that a listing already holds is refused with a 409", async () => {
+      const { listingId, sourceId } = await setup("Held Fair");
+      await createLink(sourceId, {
+        external_id: "INV-7",
+        link_id: listingId,
+        link_type: "listing",
+      });
+      const response = await bookLinked(listingId, sourceId, "INV-7");
+      expect({
+        error: (await response.json()).error,
+        status: response.status,
+        stored: await rosterAttendeeIds(listingId),
+      }).toEqual({
+        error: `This source already links that external id to listing ${listingId}`,
+        status: 409,
+        stored: [],
+      });
     });
 
     test("a create with no external id writes no link", async () => {

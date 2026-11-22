@@ -16,7 +16,10 @@ import type {
 } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import type { AttendeeCreationWork } from "#db/attendees/create-batch.ts";
-import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
+import {
+  PENDING_NOTIFICATION,
+  type PendingNotificationFlag,
+} from "#db/attendees/notification-flags.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeRawByToken } from "#db/attendees/queries.ts";
 import { linkNewAttendee } from "#db/external-sources/attendee-link.ts";
@@ -52,7 +55,7 @@ import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { Attendee } from "#types";
 import {
   type ApiExternalLink,
-  attendeeForExternalLinkOrNull,
+  holderOfExternalLink,
 } from "./api-attendees-external.ts";
 import {
   type ApiAnswer,
@@ -159,29 +162,27 @@ const existingAttendeeResponse = async (
     ),
   });
 
-/** The existing attendee for a retried create, or null when the create is
- *  new. A caller token and an external id each name the attendee. The unique
- *  ticket_token_index and the guarded link insert are the backstop for a
- *  race. Two concurrent creates can both see the retry keys as fresh. */
-const retriedAttendeeOrNull = async ({
+/** The answer for a retried create, or null when the create is new. A caller
+ *  token and an external id each name the attendee. An external id that
+ *  another kind of record holds is a refusal. The unique ticket_token_index
+ *  and the guarded link insert are the backstop for a race. Two concurrent
+ *  creates can both see the retry keys as fresh. */
+const retriedAttendeeResponse = async ({
   externalLink,
   ticketToken,
-}: ParsedApiCreate): Promise<Attendee | null> => {
+}: ParsedApiCreate): Promise<Response | null> => {
   if (ticketToken !== undefined) {
     const byToken = await getAttendeeRawByToken(ticketToken);
-    if (byToken !== null) return byToken;
+    if (byToken !== null) return existingAttendeeResponse(byToken);
   }
-  return externalLink === undefined
-    ? null
-    : attendeeForExternalLinkOrNull(externalLink);
-};
-
-/** The existing attendee's answer for a retried create, or null when fresh. */
-const retriedAttendeeResponse = async (
-  parsed: ParsedApiCreate,
-): Promise<Response | null> => {
-  const existing = await retriedAttendeeOrNull(parsed);
-  return existing === null ? null : existingAttendeeResponse(existing);
+  if (externalLink === undefined) return null;
+  const holder = await holderOfExternalLink(externalLink);
+  if (holder.kind === "attendee") {
+    return existingAttendeeResponse(holder.attendee);
+  }
+  return holder.kind === "refused"
+    ? apiErrorResponse(holder.refusal.message, holder.refusal.status)
+    : null;
 };
 
 /** The link write for one created attendee. It rides the create transaction,
@@ -205,8 +206,15 @@ const linkCreationWork =
  *  guarded link insert then refuses the loser, whose idempotent answer is the
  *  booking the winner stored. Any other failure is re-raised. */
 const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
-  const { adjustments, created, lines, payments, statusId, ticketToken } =
-    parsed;
+  const {
+    adjustments,
+    created,
+    lines,
+    notifications,
+    payments,
+    statusId,
+    ticketToken,
+  } = parsed;
   const { externalLink } = parsed;
   const bookings: ListingBooking[] = lines.map((line) => ({
     date: line.date,
@@ -245,7 +253,9 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
         allowOverbook: true,
         bookings,
         email: parsed.email,
-        emailPending: emailPendingFor(lines),
+        emailPending: notifications
+          ? emailPendingFor(lines)
+          : PENDING_NOTIFICATION.none,
         name: parsed.name,
         phone: parsed.phone,
         remainingBalance,
@@ -268,8 +278,14 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
   const attendee = result.attendees[0]!;
   const listingsById = byId(lines.map((line) => line.listing));
   // Notification behaviour matches a manual admin add: the buyer email waits
-  // for the admin page's Re-send action, and the listings' webhooks fire.
-  queueManualAddWebhooks(createdBookingEntries(result.attendees, listingsById));
+  // for the admin page's Re-send action, and the listings' webhooks fire. An
+  // imported booking (notifications: false) sends no webhook and owes no
+  // email, so neither flag is left up.
+  if (notifications) {
+    queueManualAddWebhooks(
+      createdBookingEntries(result.attendees, listingsById),
+    );
+  }
   await logActivity(
     `Attendee '${parsed.name}' added via API`,
     lines[0]!.listing.id,

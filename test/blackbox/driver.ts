@@ -21,14 +21,16 @@ export type Target = (request: Request) => Promise<Response>;
 
 /** What a visitor sees after one request. A redirect is not followed. */
 export interface Page {
+  headers: Headers;
   html: string;
   /** The address that a redirect names, or null. */
   location: string | null;
   status: number;
 }
 
-/** The fields to send, by name. They replace what the form holds. */
-export type Fields = Record<string, string>;
+/** The fields to send, by name. They replace what the form holds. A null
+ * leaves the field out, as a browser does for a box that is not ticked. */
+export type Fields = Record<string, string | null>;
 
 export interface App {
   /** The `cookie` header value that the visitor now sends. */
@@ -119,13 +121,15 @@ const withFields = (
   entries: [string, string][],
   fields: Fields,
 ): [string, string][] => {
-  const replaced = entries.map(([name, value]): [string, string] => [
-    name,
-    fields[name] ?? value,
-  ]);
+  const replaced = entries.map(([name, value]): [string, string | null] => {
+    const field = fields[name];
+    return [name, field === undefined ? value : field];
+  });
   const known = new Set(entries.map(([name]) => name));
   const added = Object.entries(fields).filter(([name]) => !known.has(name));
-  return [...replaced, ...added];
+  return [...replaced, ...added].filter(
+    (entry): entry is [string, string] => entry[1] !== null,
+  );
 };
 
 /** A visitor with no cookies, or with the cookie header `cookie`. */
@@ -150,6 +154,7 @@ export const createApp = (target: Target, cookie = ""): App => {
     );
     rememberCookies(jar, response);
     return {
+      headers: response.headers,
       html: await response.text(),
       location: response.headers.get("location"),
       status: response.status,

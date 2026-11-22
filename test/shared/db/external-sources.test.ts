@@ -122,7 +122,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
       linkId: listing.id,
       linkType: "listing",
     });
-    if (!created.ok) throw new Error(created.error);
+    if (!created.ok) throw new Error(created.error.message);
 
     const stored = await queryOne<{
       external_id: string | null;
@@ -221,27 +221,40 @@ describeWithEnv("db > external sources", { db: true }, () => {
     });
 
     expect(refused).toEqual({
-      error: "No listing has id 999999",
+      error: { message: "No listing has id 999999", status: 400 },
       ok: false,
     });
   });
 
-  test("lets one external id name several records", async () => {
+  test("refuses a second record under one external id and names the first", async () => {
     const source = await createTestExternalSource("Invoices");
     const first = await addListingLink(
       source.id,
       "INV-1001",
       "Watercolour day",
     );
-    const second = await addListingLink(source.id, "INV-1001", "Pottery day");
+    const listing = await createTestListing({ name: "Pottery day" });
 
+    const refused = await createExternalSourceLink(source.id, {
+      externalId: "INV-1001",
+      linkId: listing.id,
+      linkType: "listing",
+    });
+
+    expect(refused).toEqual({
+      error: {
+        message: `This source already links that external id to listing ${first.linkId}`,
+        status: 409,
+      },
+      ok: false,
+    });
     const found = await withTestSession(() =>
       listExternalSourceLinks(source.id, {
         externalId: "INV-1001",
         kind: "external",
       }),
     );
-    expect(found.map((link) => link.id)).toEqual([first.id, second.id]);
+    expect(found.map((link) => link.id)).toEqual([first.id]);
   });
 
   test("refuses the same record twice with one external id", async () => {
@@ -255,7 +268,10 @@ describeWithEnv("db > external sources", { db: true }, () => {
     });
 
     expect(refused).toEqual({
-      error: "This source already links that record to that external id",
+      error: {
+        message: `This source already links that external id to listing ${first.linkId}`,
+        status: 409,
+      },
       ok: false,
     });
   });

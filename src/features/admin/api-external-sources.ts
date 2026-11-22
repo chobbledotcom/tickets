@@ -299,7 +299,9 @@ const withLinkWrite = async (
 const handleLinkCreate = underSource(({ body, source }) =>
   withLinkWrite(body, async (write) => {
     const created = await createExternalSourceLink(source.id, write);
-    if (!created.ok) return apiErrorResponse(created.error);
+    if (!created.ok) {
+      return apiErrorResponse(created.error.message, created.error.status);
+    }
     await logLink("added to", created.value, source);
     return jsonResponse(
       { link: toLinkResponse(created.value, source.urlPattern) },
@@ -311,7 +313,9 @@ const handleLinkCreate = underSource(({ body, source }) =>
 const handleLinkUpdate = withExistingLink(({ body, link, source }) =>
   withLinkWrite(body, async (write) => {
     const updated = await updateExternalSourceLink(link, write);
-    if (!updated.ok) return apiErrorResponse(updated.error);
+    if (!updated.ok) {
+      return apiErrorResponse(updated.error.message, updated.error.status);
+    }
     const stored = await requireExternalSourceLink(source.id, link.id);
     await logLink("updated in", stored, source);
     return jsonResponse({ link: toLinkResponse(stored, source.urlPattern) });

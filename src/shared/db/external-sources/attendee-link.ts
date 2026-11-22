@@ -17,31 +17,30 @@ import { insertInto } from "#db/write.ts";
 import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
 import { externalLinkIndex } from "./queries.ts";
+import type { ExternalLinkKind } from "./types.ts";
 
-/** Another create stored an attendee under this external id first. */
+/** Another write linked a record to this external id first. */
 export class ExternalIdTaken extends namedError("ExternalIdTaken") {}
 
-/** The attendee that one source already links to one external id, or null when
- *  no attendee holds that id. Null is the normal answer for a first create. */
-export const attendeeIdForExternalIdOrNull = async (
+/** The record that one source already links to one external id, or null when
+ *  no record holds it. Null is the normal answer for a first create. */
+export const holderOfExternalIdOrNull = async (
   sourceId: number,
   externalId: string,
-): Promise<number | null> => {
-  const link = await readOneRow(
+): Promise<{ linkId: number; linkType: ExternalLinkKind } | null> =>
+  readOneRow(
     from(tables.external_source_links)
       .where({
         externalIdIndex: await externalLinkIndex(sourceId, externalId),
-        linkType: "attendee",
         sourceId,
       })
+      .sortedBy("id")
       .limit(1)
-      .pick("linkId"),
+      .pick("linkId", "linkType"),
   );
-  return link === null ? null : link.linkId;
-};
 
 /** Link a new attendee to its external id in the create transaction. One
- *  statement stores the link only while no attendee holds the id, so two
+ *  statement stores the link only while no record holds the id, so two
  *  creates that race cannot both succeed. The loser throws and its whole
  *  create rolls back. */
 export const linkNewAttendee = async (
@@ -66,7 +65,6 @@ export const linkNewAttendee = async (
         SELECT 1 FROM external_source_links AS takenLink
          WHERE takenLink.source_id = ${sourceId}
            AND takenLink.external_id_index = ${index}
-           AND takenLink.link_type = ${"attendee"}
       )`),
     },
   );
