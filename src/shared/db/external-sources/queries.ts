@@ -157,6 +157,15 @@ export const requireExternalSourceLink = async (
 /** Why a link write is refused, and the status the API answers with. */
 export type LinkRefusal = { message: string; status: 400 | 409 };
 
+/** The refusal for an external id that the source already links to a record. */
+export const externalIdHeldRefusal = (
+  linkType: ExternalLinkKind,
+  linkId: number,
+): LinkRefusal => ({
+  message: `This source already links that external id to ${linkType} ${linkId}`,
+  status: 409,
+});
+
 /** The stored facts that refuse a link write, read in one round trip. The
  *  conflict is the oldest other link at this source that holds the same
  *  external id. A write with no external id has none: the index is empty. */
@@ -231,10 +240,12 @@ const prepareLinkWrite = async (
     });
   }
   if (stored.conflict_id !== null) {
-    return errorResult({
-      message: `This source already links that external id to ${stored.conflict_type} ${stored.conflict_id}`,
-      status: 409,
-    });
+    return errorResult(
+      externalIdHeldRefusal(
+        requireValue(stored.conflict_type, "A held external id has no type"),
+        stored.conflict_id,
+      ),
+    );
   }
   return okResult(input);
 };

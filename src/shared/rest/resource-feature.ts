@@ -19,6 +19,13 @@ import {
 const featureName = (key: AdminFeatureKey): string =>
   t(ADMIN_FEATURES_BY_KEY[key].labelKey).toLowerCase();
 
+/** The refusal for a request that needs a feature while it is off. */
+export const featureOffResponse = (key: AdminFeatureKey): Response =>
+  apiErrorResponse(
+    t("features.api_disabled", { feature: featureName(key) }),
+    403,
+  );
+
 /** The routes of one resource, each one refused while the feature of the
  *  resource is off. A resource of no feature keeps its routes as they are. */
 export const gatedByFeature = (
@@ -33,9 +40,6 @@ export const gatedByFeature = (
       (request, params) =>
         settings.features[feature]
           ? handler(request, params)
-          : apiErrorResponse(
-              t("features.api_disabled", { feature: featureName(feature) }),
-              403,
-            ),
+          : featureOffResponse(feature),
   );
 };

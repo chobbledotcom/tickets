@@ -20,6 +20,8 @@ export const ATTENDEE_WRITE_FIELDS = {
   answers: { value: listOfObjects(["answerId", "freeText", "questionId"]) },
   created: { only: "create", value: { form: "time" } },
   email: { value: TEXT },
+  external_id: { only: "create", value: TEXT },
+  external_source_id: { only: "create", value: { form: "number" } },
   lines: {
     required: true,
     value: listOfObjects([
