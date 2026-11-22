@@ -7,12 +7,17 @@
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { sessionAnswerOf } from "#payment/row-state.ts";
 import { isSessionRejection } from "#payment/validated-session.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
+import { formatPaymentError } from "#routes/api/payment-processing/index.ts";
 import { reportLostBundle } from "#routes/api/payment-processing/lost-bundle.ts";
 import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
 import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
-import { isSessionSettled } from "#routes/api/payment-processing/settled-order.ts";
+import {
+  type SettledStanding,
+  sessionStanding,
+} from "#routes/api/payment-processing/settled-order.ts";
 import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import type {
   SessionValidation,
@@ -132,7 +137,7 @@ type SessionClass = SignedVerdict | { verdict: "ignore" };
  * prove is ours but cannot read must remain retryable. */
 export type SessionIntentResult =
   | { kind: "ready"; verdict: SignedVerdict; intent: BookingIntent }
-  | { kind: "settled" }
+  | { kind: "settled"; standing: SettledStanding }
   | { kind: "unverifiable" }
   | { kind: "unreadable" };
 
@@ -168,9 +173,31 @@ export const classifySessionIntent = async (
   }
   // A settled session's receipt goes with the prune. Only a session that is
   // not settled is missing its order.
-  if (await isSessionSettled(session.id)) return { kind: "settled" };
+  const standing = await sessionStanding(session.id);
+  if (standing.kind !== "open") return { kind: "settled", standing };
   await reportLostBundle(session, order.status);
   return { kind: "unreadable" };
+};
+
+/** The return page for a settled session whose receipt is gone. A booking
+ * shows success. A final outcome repeats its stored message. A ledger-only
+ * session says it was handled. */
+const settledReturnPage = (standing: SettledStanding): Promise<Response> => {
+  switch (standing.kind) {
+    case "booked":
+      return publicPageResponse(() =>
+        successPage({ paid: true, thankYouUrl: "", ticketUrl: null }),
+      );
+    case "handled": {
+      const answer = sessionAnswerOf(standing.failure);
+      return paymentErrorResponse(
+        formatPaymentError({ ...answer, success: false }),
+        answer.status,
+      );
+    }
+    case "recorded":
+      return paymentErrorResponse(t("payment.error.already_handled"), 200);
+  }
 };
 
 export const validatePaidSession = async (
@@ -263,14 +290,10 @@ export const validatePaidSession = async (
       503,
     );
   }
-  // A settled session whose receipt is gone: the booking stands, so the buyer
-  // sees the plain success page.
   if (classified.kind === "settled") {
     return {
       ok: false,
-      response: await publicPageResponse(() =>
-        successPage({ paid: true, thankYouUrl: "", ticketUrl: null }),
-      ),
+      response: await settledReturnPage(classified.standing),
     };
   }
   return {
