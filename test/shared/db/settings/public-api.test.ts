@@ -38,6 +38,18 @@ describeWithEnv("db > settings public API", { db: true }, () => {
     expect(settings.calendarFeedsGroupBy).toBe("listings");
   });
 
+  test("reads a stored calendar grouping it does not know as attendees", async () => {
+    await settings.setRaw("calendar_feeds_group_by", "listings");
+    settings.invalidateCache();
+    await settings.loadKeys(["calendar_feeds_group_by"]);
+    expect(settings.calendarFeedsGroupBy).toBe("listings");
+
+    await settings.setRaw("calendar_feeds_group_by", "unknown");
+    settings.invalidateCache();
+    await settings.loadKeys(["calendar_feeds_group_by"]);
+    expect(settings.calendarFeedsGroupBy).toBe("attendees");
+  });
+
   describe("email templates", () => {
     const templateKey = TEMPLATE_KEYS["confirmation:subject"];
     const subject = "Your updated ticket";

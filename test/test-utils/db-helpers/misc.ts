@@ -3,7 +3,6 @@ import type { NewsPostWriteInput } from "#db/news-posts.ts";
 import type { SitePageWriteInput } from "#db/site-pages.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import type { NewsPost, SitePage } from "#types";
-import { createTestListing } from "./listings.ts";
 
 export const createTestInvite = async (
   username: string,
@@ -25,14 +24,6 @@ export const createTestInvite = async (
     );
   }
   return { cookie, csrfToken, inviteCode: codeMatch[1] };
-};
-
-export const getEmbeddableTicketResponse = async (): Promise<Response> => {
-  const listing = await createTestListing({
-    maxAttendees: 50,
-    thankYouUrl: "https://example.com",
-  });
-  return awaitTestRequest(`/ticket/${listing.slug}`);
 };
 
 /** Assert that the admin password can be verified against the stored hash,
