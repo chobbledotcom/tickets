@@ -45,18 +45,14 @@ const ArrowForm = ({
   </CsrfForm>
 );
 
-/** The drag handle and the arrows for one row. `titles`, when given, adds a
- * tooltip per arrow. The handle stays hidden until the admin bundle runs, so
- * a page without scripts offers the arrows only. */
+/** The drag handle and the arrows for one row. The handle stays hidden until
+ * the admin bundle runs, so a page without scripts offers the arrows only. */
 export const ReorderArrows = ({
   above,
   anchor,
   below,
   path,
-  titles,
-}: ReorderProps & {
-  titles?: Readonly<Record<MovePlace, string>> | undefined;
-}): JSX.Element => (
+}: ReorderProps): JSX.Element => (
   <>
     <button
       class="reorder-handle"
@@ -75,7 +71,7 @@ export const ReorderArrows = ({
         anchor={above}
         path={path}
         place="before"
-        title={titles?.before}
+        title={t("common.reorder_up")}
       />
     )}{" "}
     {below !== undefined && (
@@ -83,7 +79,7 @@ export const ReorderArrows = ({
         anchor={below}
         path={path}
         place="after"
-        title={titles?.after}
+        title={t("common.reorder_down")}
       />
     )}
   </>

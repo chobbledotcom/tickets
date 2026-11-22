@@ -4,6 +4,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { SubmittedValueProps } from "#shared/form-data.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
@@ -92,7 +93,7 @@ export const adminAttributesPage = (
     guideLabel: t("attributes.guide_link"),
     items: attributes,
     newFormId: "new-attribute",
-    orderLabel: t("attributes.order_column"),
+    reorder: ORDERED_LISTS.attribute.column(),
     session,
     title: t("attributes.title"),
   });
@@ -174,9 +175,7 @@ export const adminAttributePage = (
         items: attribute.options,
         label: (option) => option.text,
         labelHeader: t("attributes.option_column"),
-        orderLabel: t("attributes.order_column"),
-        path: (option) =>
-          `/admin/attributes/${attribute.id}/options/${option.id}`,
+        reorder: ORDERED_LISTS.attributeOption.column(attribute.id),
       })}
 
       <h2>{t("attributes.listings.heading")}</h2>

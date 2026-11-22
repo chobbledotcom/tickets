@@ -1,9 +1,5 @@
-import {
-  defineAdminRoutes,
-  orderRoutes,
-  recordRoutes,
-} from "#routes/admin/route-tables.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 
 /**
  * Admin routes for managing attendee statuses (owner-only).
@@ -22,12 +18,12 @@ import {
   heldAttendeeCount,
   statusDeleteProspects,
 } from "#db/attendee-statuses.ts";
-import { flatCollectionArrange } from "#db/ordered-collection.ts";
-import { formPolicyFor, pageGuardFor } from "#routes/auth.ts";
+import { pageGuardFor } from "#routes/auth.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
-import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
+import { orderedListRoutes } from "#shared/ordered-list-routes.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import { statusRecord } from "#shared/records/statuses.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import {
@@ -36,8 +32,6 @@ import {
   statusPages,
 } from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
-
-const LIST_PATH = adminPattern("statuses");
 
 /** The status form boundary: read the submitted fields into the record's
  * input shape. The record's rule runs after this. */
@@ -75,16 +69,9 @@ const pages = recordPages(statusRecord, {
   updateSavePath: (id) => `/admin/settings/statuses/${id}`,
 });
 
-const statusOrder = createOrderedCollectionHandlers({
-  arrange: flatCollectionArrange(attendeeStatusOrder),
-  auth: formPolicyFor(
-    adminDestinationAt("/admin/settings/statuses/:id/move-before"),
-  ),
-  keys: async () => (await statusRecord.getAll()).map((status) => status.id),
-  loadContext: ({ id }: { id: number }) => getAttendeeStatus(id),
-  movedMessage: "Status moved",
-  redirectPath: () => LIST_PATH,
-  target: ({ context }) => context.id,
+const statusOrder = orderedListRoutes(ORDERED_LISTS.status, {
+  order: attendeeStatusOrder,
+  rows: () => statusRecord.getAll(),
 });
 
 /** The delete page, with the reassign choice a status attendees hold needs:
@@ -121,5 +108,5 @@ export const adminHandlers = defineAdminRoutes({
   ...recordRoutes("settingsStatuses", pages, attendeeStatusPage),
   "GET /admin/settings/statuses/:id/delete": (request, { id }) =>
     statusDeleteGet(request, id),
-  ...orderRoutes("/admin/settings/statuses/:id", statusOrder),
+  ...statusOrder,
 });

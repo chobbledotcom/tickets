@@ -16,6 +16,12 @@ import { withEnv } from "#test-utils/env.ts";
 
 type Item = { count: number; id: number; name: string };
 
+const REORDER = {
+  anchor: (item: Item) => String(item.id),
+  header: "Order",
+  path: (item: Item) => `/things/${item.id}`,
+};
+
 const ITEMS: Item[] = [
   { count: 3, id: 1, name: "First" },
   { count: 5, id: 2, name: "Second" },
@@ -41,8 +47,7 @@ const countTable = (items: Item[]): string =>
       items,
       label: (item) => item.name,
       labelHeader: "Thing",
-      orderLabel: "Order",
-      path: (item) => `/things/${item.id}`,
+      reorder: REORDER,
     }),
   );
 
@@ -58,7 +63,7 @@ const listPage = (items: Item[], error?: string): string =>
     guideLabel: "Things guide",
     items,
     newFormId: "new-thing",
-    orderLabel: "Order",
+    reorder: REORDER,
     session: OWNER_SESSION,
     title: "Things",
   });
