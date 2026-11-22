@@ -101,11 +101,12 @@ describe("the derived record area writes", () => {
       answerAdd: "/admin/questions/:id/answers",
       answerDelete: "/admin/questions/:id/answers/:answerId/delete",
       attributeOptionEdit: "/admin/attributes/:id/options/:optionId/edit",
-      attributeOptionMoveUp: "/admin/attributes/:id/options/:optionId/move-up",
+      attributeOptionMoveBefore:
+        "/admin/attributes/:id/options/:optionId/move-before",
       groupImagesUpload: "/admin/groups/:id/images/upload",
       newsActions: "/admin/site/news/:id/actions",
       sitePageImages: "/admin/site/pages/:id/images",
-      statusMoveDown: "/admin/settings/statuses/:id/move-down",
+      statusMoveAfter: "/admin/settings/statuses/:id/move-after",
     } as const;
     type Id = keyof typeof expected;
     const ids = Object.keys(expected) as Id[];

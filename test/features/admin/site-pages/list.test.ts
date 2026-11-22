@@ -48,10 +48,10 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       // Roots exist, so the all-empty message must not show.
       assert(!html.includes("No pages yet"));
       // The first row can only move down; the last row can only move up.
-      assertStringIncludes(html, `${BASE}/${first.id}/move-down`);
-      assert(!html.includes(`${BASE}/${first.id}/move-up`));
-      assertStringIncludes(html, `${BASE}/${last.id}/move-up`);
-      assert(!html.includes(`${BASE}/${last.id}/move-down`));
+      assertStringIncludes(html, `${BASE}/${first.id}/move-after`);
+      assert(!html.includes(`${BASE}/${first.id}/move-before`));
+      assertStringIncludes(html, `${BASE}/${last.id}/move-before`);
+      assert(!html.includes(`${BASE}/${last.id}/move-after`));
     });
 
     test("list shows root and nested pages with reorder arrows", async () => {
@@ -66,9 +66,11 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         "Top-level pages",
         "Nested pages",
         "/page/root-a",
-        // Two roots ⇒ both arrows render (first has "down", second has "up").
-        "move-down",
-        "move-up",
+        // Two roots ⇒ both arrows render (first has "after", second has
+        // "before"), with the drag handle beside them.
+        "move-after",
+        "move-before",
+        "data-sortable-handle",
       ]);
     });
 
@@ -95,9 +97,14 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
 
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
 
-      assert(!html.includes('class="col-reorder"'));
-      assert(!html.includes("move-down"));
-      assert(!html.includes("move-up"));
+      for (const fragment of [
+        'class="col-reorder"',
+        "move-after",
+        "move-before",
+        "data-sortable",
+      ]) {
+        assert(!html.includes(fragment), fragment);
+      }
     });
   });
 });

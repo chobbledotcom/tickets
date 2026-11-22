@@ -34,6 +34,22 @@ To start the shell on every entry to this directory, add the hook to your shell
 All `deno ...` commands in this file assume you are already inside
 `devenv shell`. Non-interactive agents must prefix them with `devenv shell`.
 
+### Without Nix
+
+Some machines cannot run `devenv shell`. A sandbox whose network policy blocks
+the pinned nixpkgs download is one example. On such a Linux machine, install
+the pinned Deno, Biome, and stripe-mock without Nix:
+
+```bash
+bash scripts/devenv/setup-without-nix.sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The script reads each version from the file that pins it. It is safe to run
+again. It leaves out Apalache, Java, Chromium, and the Git hook. Afterwards,
+run `deno ...` commands directly, without `devenv shell`. Do not use the script
+to work around another failure of devenv. Report that failure instead.
+
 ## Runtime Environment
 
 - **Production**: Bunny Edge Scripting (Deno-based runtime on Bunny CDN)
@@ -57,8 +73,9 @@ devenv shell -- deno --version
 SHA there, then run `devenv update`. CI uses the same environment through
 `.github/actions/setup-devenv`. CI jobs that never launch a browser evaluate it
 with `devenv --profile ci shell`. That profile leaves out Apalache and Java. The
-step that checks the machine safety models uses `devenv --profile models shell`.
-The default shell on a development machine carries both.
+model check jobs do not use devenv. They install Deno, Java, and Apalache with
+`scripts/ci/setup-model-tools.sh`. The default shell on a development machine
+carries both.
 
 ## stripe-mock
 
@@ -191,6 +208,17 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   the ratchet (`deno task check:coverage-exclusions`) fails on an entry a
   branch adds. Answer a coverage gap by restructuring the code. See
   docs/designing-systems.md#readable-by-the-coverage-merge.
+- **Keep tests on the public surface**: A test reaches the app through its HTTP
+  handler, its forms, and its JSON API. It imports no other `src/` module,
+  except a module that carries the `// effects: pure` line. Write new tests in
+  `test/blackbox/` with `test/blackbox/driver.ts`. That folder holds no import
+  of a `src/` module that is not pure. Every other test file has a recorded
+  count in `scripts/check-test-internals/registry.json`. A count can fall but
+  never rise, and a new file starts at zero. A split or a move can carry the
+  count that the same branch frees. Run `deno task check:test-internals
+  --update` after a fall. When a branch deletes a test, the mutation gate
+  mutates the `src/` file that the test mirrored. The remaining tests must kill
+  every mutant. See [Black-box tests](docs/e2e-tests.md#black-box-tests).
 - **Hardest first, no need to ask**: When the only open question is the order to
   build several things in, build the more difficult one first.
 - **Always the complete version**: Choose the complete, correct version, even
@@ -373,6 +401,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   - `deno task check:file-lengths`
   - `deno task check:call-chains`
   - `deno task check:imports`
+  - `deno task check:test-internals`
   - `deno task check:comment-ste`
   - `deno task typecheck`
   - `deno task check:ste` whenever the change touches Markdown
@@ -694,6 +723,10 @@ automatic.
   `scripts/check-presence-assertions/registry.json`, and the count only
   falls. Assert the value, shape, or invariant instead. Pass `--update`
   after a fix. The update refuses a rise
+- `deno task check:test-internals` — hold every test file to its recorded count
+  of imports from `src/` modules that are not pure, and hold the registry to the
+  merge base on `origin/main`. Pass `--update` after a fall. The update refuses
+  a rise
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
 - `deno task check:merged-tree <pr-number | branch> [base]` — trial-merge the

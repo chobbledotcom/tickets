@@ -26,19 +26,14 @@ describeWithEnv("custom questions > ordering", { db: true }, () => {
       expect(await answersOrder.next({ scope: q.id })).toBe(2);
     });
   });
-  describe("swapAnswerOrder", () => {
-    test("swaps sort_order of two answers", async () => {
+  describe("answer order", () => {
+    test("arranges the answers of one question", async () => {
       const { a1, a2, q } = await createQuestionWithAnswerPair("Q", [
         "First",
         "Second",
       ]);
-      await answersOrder.swap({
-        first: a1.id,
-        scope: q.id,
-        second: a2.id,
-      });
+      await answersOrder.arrange({ keys: [a2.id, a1.id], scope: q.id });
       const updated = await getQuestionWithAnswers(q.id);
-      // After swap, "Second" should come first (sort_order 0) and "First" second (sort_order 1)
       expect(updated!.answers[0]!.text).toBe("Second");
       expect(updated!.answers[1]!.text).toBe("First");
     });
@@ -57,10 +52,10 @@ describeWithEnv("custom questions > ordering", { db: true }, () => {
       expectQuestionTexts(all, ["Q1", "Q2"]);
     });
 
-    test("swapQuestionOrder reorders the global question list", async () => {
+    test("arranging questions reorders the global question list", async () => {
       const { q1, q2 } = await createOrderedQuestionPair("A", "B");
 
-      await questionsOrder.swap({ first: q1.id, second: q2.id });
+      await questionsOrder.arrange({ keys: [q2.id, q1.id] });
 
       const all = await getAllQuestionsWithAnswers();
       expectQuestionTexts(all, ["Q2", "Q1"]);

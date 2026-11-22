@@ -46,7 +46,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
     const order = async (): Promise<string[]> =>
       (await sitePages.getAll()).map((r) => r.slug);
 
-    test("moves roots up and down; boundary is a no-op", async () => {
+    test("moves roots before and after their neighbours", async () => {
       await create("r1");
       await create("r2");
       await create("r3");
@@ -54,19 +54,25 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
 
       // Move the middle page up (index 1 → 0): r2, r1, r3.
       const r2 = await findPage("r2");
-      const up = await adminFormPost(`${BASE}/${r2.id}/move-up`, {});
+      const r1 = await findPage("r1");
+      const up = await adminFormPost(`${BASE}/${r2.id}/move-before`, {
+        anchor: String(r1.id),
+      });
       expectFlash(up.response, "Order updated", true);
       expect(await order()).toEqual(["r2", "r1", "r3"]);
 
-      // Move r1 (now index 1) down: r2, r3, r1.
-      const r1 = await findPage("r1");
-      await adminFormPost(`${BASE}/${r1.id}/move-down`, {});
+      // Move r1 (now index 1) after r3: r2, r3, r1.
+      const r3 = await findPage("r3");
+      await adminFormPost(`${BASE}/${r1.id}/move-after`, {
+        anchor: String(r3.id),
+      });
       expect(await order()).toEqual(["r2", "r3", "r1"]);
 
-      // Moving the top page up is a no-op (boundary).
-      const top = (await sitePages.getAll())[0]!;
-      await adminFormPost(`${BASE}/${top.id}/move-up`, {});
-      expect(await order()).toEqual(["r2", "r3", "r1"]);
+      // Drop r1 before r2, two places up: r1, r2, r3.
+      await adminFormPost(`${BASE}/${r1.id}/move-before`, {
+        anchor: String(r2.id),
+      });
+      expect(await order()).toEqual(["r1", "r2", "r3"]);
     });
   });
 });

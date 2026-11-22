@@ -6,7 +6,7 @@ import { sqlText } from "#test-utils/sql-text.ts";
 
 test("keeps the complete core schema declaration exact", async () => {
   expect(await jsonHash(sqlText(coreTables))).toBe(
-    "236952aa4c4b99d1f21e3a39d54df24dd31a8d84138e77712d9b367dbb241a66",
+    "a7c79aad4ac0c84ed5fdf8065b7d7eb76f7e2f04d7848c403430b5f380d053a9",
   );
 });
 

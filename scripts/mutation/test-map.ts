@@ -12,11 +12,17 @@ export interface MutationTestMap {
   targets: SourceTestTarget[];
 }
 
-const isIntegrationTest = inProjectFolders([
-  "specs",
-  "test/e2e",
-  "test/integration",
-]);
+/** The black-box tree: tests that know the app only through the driver. */
+const isBlackboxFolder = inProjectFolders(["test/blackbox"]);
+
+/** A black-box test file. The folder also holds the driver and its seeding
+ * helpers, which are not tests. */
+export const isBlackboxTest = (path: string): boolean =>
+  isBlackboxFolder(path) && /\.test\.tsx?$/.test(path);
+
+const isIntegrationTest = (path: string): boolean =>
+  isBlackboxFolder(path) ||
+  inProjectFolders(["specs", "test/e2e", "test/integration"])(path);
 const isSharedSpecCode = inProjectFolders([
   "test/specs/steps",
   "test/specs/support",
@@ -47,7 +53,8 @@ const ownsTest = (prefix: string, testFile: string): boolean => {
  * Selection is by the mirror path alone: a source whose test sits elsewhere is
  * reported as missing its direct suite (see `requireDirectMutationTests`) so
  * the test gets moved, rather than quietly running whatever reaches the source
- * through a shared helper. */
+ * through a shared helper. Every black-box test is selected too. It runs in the
+ * integration stage, so it only runs for a mutant that the direct tests miss. */
 export const selectMutationTests = (
   sourceFiles: string[],
   allTestFiles: string[],
@@ -60,10 +67,16 @@ export const selectMutationTests = (
       prefixes.some((prefix) => ownsTest(prefix, testFile)),
   )(allTestFiles);
   const changedIntegration = filter(isIntegrationTest)(changedTestFiles);
+  const blackbox = filter(isBlackboxTest)(allTestFiles);
   const affectedFeatures = changedTestFiles.some(isSharedSpecCode)
     ? filter(isFeaturePath)(allTestFiles)
     : [];
-  return unique([...direct, ...changedIntegration, ...affectedFeatures]);
+  return unique([
+    ...direct,
+    ...changedIntegration,
+    ...blackbox,
+    ...affectedFeatures,
+  ]);
 };
 
 interface OwnedTest {
@@ -127,15 +140,29 @@ export const buildMutationTestMap = (
   };
 };
 
+/** The black-box tests of a test map. */
+export const blackboxTestsOf = (map: MutationTestMap): string[] =>
+  filter(isBlackboxTest)(map.integrationTestFiles);
+
+/** A source with mutants needs a mirror test, or the black-box tests. A source
+ * that only the black-box tests cover must have every mutant killed by them:
+ * the run fails on a survivor, as it does for any other source. */
 export const requireDirectMutationTests = (
   sourceFile: string,
   mutantCount: number,
   directTestFiles: string[],
+  blackboxTestFiles: string[],
 ): void => {
-  if (mutantCount === 0 || directTestFiles.length > 0) return;
+  if (
+    mutantCount === 0 ||
+    directTestFiles.length > 0 ||
+    blackboxTestFiles.length > 0
+  ) {
+    return;
+  }
   throw new Error(
     `No direct test mirrors ${relativeToProject(sourceFile)}. ` +
-      "Move its test to the matching path under test/.",
+      "Move its test to the matching path under test/, or cover it in test/blackbox/.",
   );
 };
 

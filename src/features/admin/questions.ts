@@ -6,7 +6,6 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { getAllListings } from "#db/listings/records.ts";
-import { flatCollectionSwap } from "#db/ordered-collection.ts";
 import {
   type QuestionWithAnswers,
   requireQuestionDisplayType,
@@ -22,17 +21,12 @@ import { records } from "#db/record-table.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
-import {
-  defineAdminRoutes,
-  orderRoutes,
-  recordRoutes,
-} from "#routes/admin/route-tables.ts";
-import { formPolicyFor } from "#routes/auth.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { entityFormById } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
-import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { orderedListRoutes } from "#shared/ordered-list-routes.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import { questionRecord } from "#shared/records/questions.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import {
@@ -43,7 +37,7 @@ import {
 import type { AdminSession } from "#types";
 import { createListingChoicePost } from "./listing-choice-post.ts";
 import { questionPage, renderQuestionEditError } from "./question-page.tsx";
-import { answerRoutes, type QuestionIdParams } from "./questions/answers.ts";
+import { answerRoutes } from "./questions/answers.ts";
 import { questionTextForm } from "./questions/forms.ts";
 
 /** The list renderer also resolves each question's listing ids to their
@@ -115,15 +109,9 @@ const handleQuestionListings = entityFormById(
   },
 );
 
-const questionOrder = createOrderedCollectionHandlers({
-  auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/move-up")),
-  keys: async () =>
-    (await getAllQuestionsWithAnswers()).map((question) => question.id),
-  loadContext: ({ id }: QuestionIdParams) => getQuestionWithAnswers(id),
-  movedMessage: "Question moved",
-  redirectPath: () => "/admin/questions",
-  swap: flatCollectionSwap(questionsOrder),
-  target: ({ context }) => context.id,
+const questionOrder = orderedListRoutes(ORDERED_LISTS.question, {
+  order: questionsOrder,
+  rows: () => getAllQuestionsWithAnswers(),
 });
 
 const handleListingQuestionsPost = createListingChoicePost({
@@ -142,5 +130,5 @@ export const adminHandlers = defineAdminRoutes({
   ...answerRoutes,
   "POST /admin/listing/:id/questions": handleListingQuestionsPost,
   "POST /admin/questions/:id/listings": handleQuestionListings,
-  ...orderRoutes("/admin/questions/:id", questionOrder),
+  ...questionOrder,
 });

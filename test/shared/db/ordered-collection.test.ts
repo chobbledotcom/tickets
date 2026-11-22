@@ -2,11 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { execute, queryAll, queryOne, withTransaction } from "#db/client.ts";
-import {
-  defineOrderedCollection,
-  flatCollectionSwap,
-  scopedCollectionSwap,
-} from "#db/ordered-collection.ts";
+import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
@@ -69,7 +65,7 @@ const insertPageItem = (
   );
 
 describeWithEnv("db > ordered collection", { db: true }, () => {
-  test("appends and swaps a flat scalar-key collection", async () => {
+  test("appends and arranges a flat scalar-key collection", async () => {
     const first = await insertStatus(4);
     const second = await insertStatus(0);
 
@@ -77,9 +73,27 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     expect(await statusOrder(second)).toBe(5);
     expect(await statuses.next({})).toBe(6);
 
-    await flatCollectionSwap(statuses)(first, second);
-    expect(await statusOrder(first)).toBe(5);
-    expect(await statusOrder(second)).toBe(4);
+    await statuses.arrange({ keys: [second, first] });
+    expect(await statusOrder(second)).toBe(0);
+    expect(await statusOrder(first)).toBe(1);
+  });
+
+  test("arranges from the collection's starting order", async () => {
+    const first = await insertAnswer(50, 7);
+    const second = await insertAnswer(50, 3);
+    const third = await insertAnswer(50, 9);
+
+    await oneBasedAnswers.arrange({ keys: [third, first, second], scope: 50 });
+
+    expect(
+      await queryAll<{ id: number; sort_order: number }>(
+        sql`SELECT id, sort_order FROM answers WHERE question_id = ${50} ORDER BY sort_order`,
+      ),
+    ).toEqual([
+      { id: third, sort_order: 1 },
+      { id: first, sort_order: 2 },
+      { id: second, sort_order: 3 },
+    ]);
   });
 
   test("computes and appends order inside one scope", async () => {
@@ -119,16 +133,18 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     });
   }
 
-  test("swaps composite keys without changing the same id in another scope", async () => {
+  test("arranges composite keys without changing the same id in another scope", async () => {
     await insertPageItem(1, "listing", 7, 10);
     await insertPageItem(1, "group", 7, 20);
     await insertPageItem(2, "listing", 7, 30);
 
-    await scopedCollectionSwap(pageItems, (pageId: number) => pageId)(
-      ["listing", 7],
-      ["group", 7],
-      1,
-    );
+    await pageItems.arrange({
+      keys: [
+        ["group", 7],
+        ["listing", 7],
+      ],
+      scope: 1,
+    });
 
     const rows = await queryAll<{
       item_type: string;
@@ -138,8 +154,8 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
       sql`SELECT page_id, item_type, sort_order FROM site_page_items ORDER BY page_id, item_type`,
     );
     expect(rows).toEqual([
-      { item_type: "group", page_id: 1, sort_order: 10 },
-      { item_type: "listing", page_id: 1, sort_order: 20 },
+      { item_type: "group", page_id: 1, sort_order: 0 },
+      { item_type: "listing", page_id: 1, sort_order: 1 },
       { item_type: "listing", page_id: 2, sort_order: 30 },
     ]);
   });
@@ -159,7 +175,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     ).toEqual({ sort_order: 6 });
   });
 
-  test("invalidates table caches after a swap", async () => {
+  test("invalidates table caches after an arrange", async () => {
     const first = await insertStatus(4);
     const second = await insertStatus(5);
     let invalidations = 0;
@@ -168,27 +184,25 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     });
 
     try {
-      await statuses.swap({ first, second });
+      await statuses.arrange({ keys: [second, first] });
       expect(invalidations).toBe(1);
     } finally {
       unregister();
     }
   });
 
-  test("does not swap across scopes or when a row is stale", async () => {
+  test("leaves a key in another scope alone", async () => {
     const first = await insertAnswer(1, 10);
     const otherScope = await insertAnswer(2, 20);
 
-    await answers.swap({ first, scope: 1, second: otherScope });
-    await answers.swap({ first, scope: 1, second: 999_999 });
-    await answers.swap({ first, scope: 1, second: first });
+    await answers.arrange({ keys: [otherScope, first], scope: 1 });
 
     expect(
       await queryAll<{ id: number; sort_order: number }>(
         sql`SELECT id, sort_order FROM answers ORDER BY id`,
       ),
     ).toEqual([
-      { id: first, sort_order: 10 },
+      { id: first, sort_order: 1 },
       { id: otherScope, sort_order: 20 },
     ]);
   });
@@ -202,12 +216,12 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
       const id = Number(result.lastInsertRowid);
       expect(await statuses.next({ transaction })).toBe(9);
       await statuses.append({ key: id, transaction });
-      await statuses.swap({ first, second: id, transaction });
+      await statuses.arrange({ keys: [id, first], transaction });
       return id;
     });
 
-    expect(await statusOrder(first)).toBe(9);
-    expect(await statusOrder(second)).toBe(8);
+    expect(await statusOrder(second)).toBe(0);
+    expect(await statusOrder(first)).toBe(1);
   });
 
   test("reads the next order inside a scope of two columns", async () => {

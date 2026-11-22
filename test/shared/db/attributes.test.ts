@@ -7,7 +7,6 @@ import {
   deleteAttribute,
   deleteAttributeOption,
   getAllAttributesWithOptions,
-  getAttributeId,
   getAttributeListingUse,
   getAttributeWithOptions,
   getSelectedAttributesForListings,
@@ -49,11 +48,10 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "In person",
     ]);
 
-    await attributesOrder.swap({ first: first.id, second: second.id });
-    await attributeOptionsOrder.swap({
-      first: first.options[0]!.id,
+    await attributesOrder.arrange({ keys: [second.id, first.id] });
+    await attributeOptionsOrder.arrange({
+      keys: [first.options[1]!.id, first.options[0]!.id],
       scope: first.id,
-      second: first.options[1]!.id,
     });
 
     const attributes = await getAllAttributesWithOptions();
@@ -203,13 +201,6 @@ describeWithEnv("db > attributes", { db: true }, () => {
     ]);
     expect(await attributeOptionIdsIn([123_456])).toEqual([]);
     expect(await attributeOptionIdsIn([])).toEqual([]);
-  });
-
-  test("finds an attribute id, or null for a missing attribute", async () => {
-    const attribute = await createTestAttribute("Lookup");
-
-    expect(await getAttributeId(attribute.id)).toBe(attribute.id);
-    expect(await getAttributeId(999_999)).toBeNull();
   });
 
   test("lists the submitted option ids the site does not have", async () => {

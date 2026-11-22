@@ -278,6 +278,13 @@ const imageUseOrder = defineOrderedCollection({
   table: "image_uses",
 });
 
+/** Store the order of one record's images. */
+export const arrangeItemImages = (
+  target: ImageUseTarget,
+  imageIds: readonly number[],
+): Promise<void> =>
+  imageUseOrder.arrange({ keys: imageIds, scope: [target.kind, target.id] });
+
 /**
  * The insert that links an image to a record, ignoring a link already there.
  * It only lands while the image and record still exist, so a stale request can
