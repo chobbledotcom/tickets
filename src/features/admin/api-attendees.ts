@@ -9,8 +9,6 @@
  * never emails the buyer. The operator re-sends from the admin page. The
  * attendee rows, their listing lines, the ledger legs, and the answers commit
  * together. A caller-chosen `ticketToken` makes a retried create a no-op.
- * `notifications: false` marks an imported booking: no owed email flag and no
- * webhook.
  */
 
 import { logActivity } from "#db/activity-log.ts";
