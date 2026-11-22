@@ -9,37 +9,22 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
 import { getNoteRows } from "#db/notes/queries.ts";
 import { sql } from "#db/sql.ts";
-import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import {
   runWebhook,
   setupWithListing,
   webhookRequest,
 } from "#test/integration/webhook-price-signature/helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import {
+  pruneBundleOf,
+  sealedSession,
+  tokenOf,
+} from "#test-utils/sealed-order.ts";
 
 describeWithEnv("webhook for a sealed checkout order", { db: true }, () => {
   const errors = setupErrorSpy();
-
-  const sealedSession = async (listingId: number, id: string) => ({
-    amount_total: 1000,
-    id,
-    metadata: await assembleCheckoutMetadata(
-      "stripe",
-      checkoutIntent({
-        items: [checkoutItem({ listingId, unitPrice: 1000 })],
-        name: "Sealed Buyer",
-      }),
-      1000,
-    ),
-  });
-
-  const loseBundleOf = async (session: { metadata: Record<string, string> }) =>
-    execute(
-      sql`DELETE FROM checkout_bundles WHERE token_index = ${await hmacHash(session.metadata.bundle!)}`,
-    );
 
   test("books the order that the token opens, and a replay books nothing more", async () => {
     const listing = await setupWithListing();
@@ -61,7 +46,7 @@ describeWithEnv("webhook for a sealed checkout order", { db: true }, () => {
   test("a lost order stays retryable, books nothing, and sends no refund", async () => {
     const listing = await setupWithListing();
     const session = await sealedSession(listing.id, "cs_sealed_lost");
-    await loseBundleOf(session);
+    await pruneBundleOf(session);
 
     await runWebhook(session, async (refund) => {
       const response = await webhookRequest();
@@ -76,7 +61,7 @@ describeWithEnv("webhook for a sealed checkout order", { db: true }, () => {
   test("a lost order leaves one note and one activity line, however often it is retried", async () => {
     const listing = await setupWithListing();
     const session = await sealedSession(listing.id, "cs_sealed_lost_twice");
-    await loseBundleOf(session);
+    await pruneBundleOf(session);
 
     await runWebhook(session, async () => {
       await webhookRequest();
@@ -95,7 +80,7 @@ describeWithEnv("webhook for a sealed checkout order", { db: true }, () => {
     const listing = await setupWithListing();
     const session = await sealedSession(listing.id, "cs_sealed_unreadable");
     await execute(
-      sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"} WHERE token_index = ${await hmacHash(session.metadata.bundle!)}`,
+      sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"} WHERE token_index = ${await hmacHash(tokenOf(session))}`,
     );
 
     await runWebhook(session, async (refund) => {
