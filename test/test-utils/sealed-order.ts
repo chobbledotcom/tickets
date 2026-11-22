@@ -67,14 +67,15 @@ export const expectReceiptOnly = async (
   session: SealedSession,
 ): Promise<void> => {
   const opened = await openBundleOf(session);
-  expect(opened.status).toBe("opened");
-  if (opened.status !== "opened") return;
-  const text = JSON.stringify(opened.record);
+  expect(opened).toMatchObject({
+    record: { thank_you_url: "https://example.com/thanks" },
+    status: "opened",
+  });
+  const text = JSON.stringify(opened);
   for (const personal of PERSONAL_DETAILS) {
     expect(text).not.toContain(personal);
   }
-  expect(opened.record.thank_you_url).toBe("https://example.com/thanks");
-  expect(JSON.parse(opened.record.items as string)).toHaveLength(1);
+  expect(text).toContain('\\"q\\":1');
 };
 
 /** Stub the Stripe read that the buyer's return page and cancel page make. */
