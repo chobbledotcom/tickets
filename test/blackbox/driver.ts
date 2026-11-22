@@ -21,6 +21,7 @@ export type Target = (request: Request) => Promise<Response>;
 
 /** What a visitor sees after one request. A redirect is not followed. */
 export interface Page {
+  headers: Headers;
   html: string;
   /** The address that a redirect names, or null. */
   location: string | null;
@@ -153,6 +154,7 @@ export const createApp = (target: Target, cookie = ""): App => {
     );
     rememberCookies(jar, response);
     return {
+      headers: response.headers,
       html: await response.text(),
       location: response.headers.get("location"),
       status: response.status,
