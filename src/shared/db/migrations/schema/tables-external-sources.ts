@@ -57,9 +57,8 @@ export const externalSourceTables = declaredTables([
           name: "idx_external_source_links_lookup",
         },
         {
-          // One external id can name several records: an invoice that covers a
-          // group, a diary entry that runs over two listings. The same source
-          // still cannot hold the same record under the same id twice.
+          // The same source cannot hold the same record under the same id
+          // twice. The link write also refuses a second record under one id.
           columns: ["source_id", "external_id_index", "link_type", "link_id"],
           name: "idx_external_source_links_external",
           unique: true,
