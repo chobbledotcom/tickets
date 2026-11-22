@@ -3,13 +3,13 @@ import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import {
   assembleCheckoutMetadata,
   buildMetadata,
-  extractSessionMetadata,
 } from "#shared/payment-helpers.ts";
 import {
   parsePriceProof,
   signPrice,
   verifyPrice,
 } from "#shared/payment-signature.ts";
+import { extractSessionMetadata } from "#shared/session-metadata.ts";
 import { NO_TAX, type TaxPolicy } from "#shared/tax/types.ts";
 import { checkoutIntent } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

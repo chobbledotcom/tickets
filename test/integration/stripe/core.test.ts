@@ -8,7 +8,7 @@ import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
-} from "#shared/payment-helpers.ts";
+} from "#shared/session-metadata.ts";
 import type { StripeCheckoutSessionCreateParams } from "#shared/stripe/client.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";

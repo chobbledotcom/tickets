@@ -4,7 +4,7 @@
 
 import { expect } from "@std/expect";
 import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
-import { extractSessionMetadata } from "#shared/payment-helpers.ts";
+import { extractSessionMetadata } from "#shared/session-metadata.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import { wireMetadata } from "#test-utils/payment-session.ts";
 

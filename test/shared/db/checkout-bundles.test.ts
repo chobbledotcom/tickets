@@ -4,7 +4,6 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { hmacHash } from "#crypto/hashing.ts";
 import {
   CHECKOUT_BUNDLE_RETENTION_MS,
   openCheckoutBundle,
@@ -19,14 +18,18 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const ORDER = { email: "pat@example.com", items: '[{"e":1,"p":500,"q":1}]' };
 
-const rowFor = async (token: string) =>
+/** The one stored bundle of a test. */
+const onlyRow = () =>
   queryOne<{ sealed: string; token_index: string }>(
-    sql`SELECT token_index, sealed FROM checkout_bundles WHERE token_index = ${await hmacHash(token)}`,
+    sql`SELECT token_index, sealed FROM checkout_bundles`,
   );
 
-const ageBundle = async (token: string, ageMs: number) =>
+const isoAgo = (ageMs: number) => new Date(nowMs() - ageMs).toISOString();
+
+/** Make the bundles sealed in the last hour `ageMs` old. */
+const ageNewBundles = (ageMs: number) =>
   execute(
-    sql`UPDATE checkout_bundles SET created_at = ${new Date(nowMs() - ageMs).toISOString()} WHERE token_index = ${await hmacHash(token)}`,
+    sql`UPDATE checkout_bundles SET created_at = ${isoAgo(ageMs)} WHERE created_at > ${isoAgo(3_600_000)}`,
   );
 
 describeWithEnv("checkout bundles", { db: true }, () => {
@@ -49,7 +52,7 @@ describeWithEnv("checkout bundles", { db: true }, () => {
   test("rests the order sealed, and never rests the token", async () => {
     const token = await sealCheckoutBundle(ORDER);
 
-    const row = await rowFor(token);
+    const row = await onlyRow();
     assert(row !== null);
     assert(!row.sealed.includes("pat@example.com"));
     assert(!JSON.stringify(row).includes(token));
@@ -63,9 +66,7 @@ describeWithEnv("checkout bundles", { db: true }, () => {
 
   test("reads a row whose sealed text was changed as unreadable", async () => {
     const token = await sealCheckoutBundle(ORDER);
-    await execute(
-      sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"} WHERE token_index = ${await hmacHash(token)}`,
-    );
+    await execute(sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"}`);
 
     expect(await openCheckoutBundle(token)).toEqual({ status: "unreadable" });
   });
@@ -80,9 +81,9 @@ describeWithEnv("checkout bundles", { db: true }, () => {
 
   test("prunes a bundle past its checkout and retry windows, and keeps a younger one", async () => {
     const old = await sealCheckoutBundle(ORDER);
+    await ageNewBundles(CHECKOUT_BUNDLE_RETENTION_MS + 60_000);
     const young = await sealCheckoutBundle(ORDER);
-    await ageBundle(old, CHECKOUT_BUNDLE_RETENTION_MS + 60_000);
-    await ageBundle(young, CHECKOUT_BUNDLE_RETENTION_MS - 60_000);
+    await ageNewBundles(CHECKOUT_BUNDLE_RETENTION_MS - 60_000);
 
     await runDatabasePruning();
 
