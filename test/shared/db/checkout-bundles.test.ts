@@ -33,7 +33,7 @@ describeWithEnv("checkout bundles", { db: true }, () => {
   });
 
   test("refuses to seal a record that holds a value that is not text", async () => {
-    const record = { items: 7 } as unknown as Record<string, string>;
+    const record = JSON.parse('{"items":7}');
 
     await expect(sealCheckoutBundle(record)).rejects.toThrow(
       "Invalid value for stored JSON in checkout bundle",
