@@ -87,7 +87,8 @@ export const boxText = (html: string, field: string): string => {
   const area = html.match(
     new RegExp(`<textarea\\b[^>]*name="${field}"[^>]*>([\\s\\S]*?)</textarea>`),
   );
-  if (area !== null) return decodeEntities((area[1] ?? "").replace(/^\n/, ""));
+  if (area !== null)
+    return decodeEntities(area.slice(1).join("").replace(/^\n/, ""));
   const input = html.match(new RegExp(`<input\\b[^>]*name="${field}"[^>]*>`));
   if (input === null) throw new Error(`The page shows no box "${field}".`);
   return decodeEntities(input[0].match(/\svalue="([^"]*)"/)?.[1] ?? "");
