@@ -44,6 +44,7 @@ import {
   type ListingWithCount,
   MAX_DURATION_DAYS,
 } from "#types";
+import type { AttendeeBody } from "./api-attendee-body.ts";
 
 /** One validated booking line: its listing, the quantities the caller chose,
  * and the optional per-unit price override (minor units) they agreed. */
@@ -113,9 +114,7 @@ const optionalContactField = (
 };
 
 /** The contact block's refusal, or the validated contact fields. */
-export const parseContact = (
-  body: Record<string, unknown>,
-): Result<ContactInfo> => {
+export const parseContact = (body: AttendeeBody): Result<ContactInfo> => {
   const name = body.name;
   if (typeof name !== "string" || name === "") {
     return errorResult("name is required");
@@ -245,9 +244,7 @@ export const resolveStatusId = (
 };
 
 /** One JSON body read: the parsed value, or the field refusal. */
-type BodyRead<Parsed> = (
-  body: Record<string, unknown>,
-) => Promise<Result<Parsed>>;
+type BodyRead<Parsed> = (body: AttendeeBody) => Promise<Result<Parsed>>;
 
 /** The status and retry token a body asks for, or the refusal. */
 const parseStatusAndToken: BodyRead<{

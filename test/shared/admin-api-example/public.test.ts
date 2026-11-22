@@ -32,7 +32,8 @@ describe("documented public endpoints", () => {
         path: "/api/listings/:slug/availability",
       },
       {
-        description: "Create a booking",
+        description:
+          "Create a booking. The name is always required. The listing's contact fields setting decides which of email, phone, address and special_instructions are required too. A listing booked per date also needs date.",
         method: "POST",
         path: "/api/listings/:slug/book",
       },
@@ -44,7 +45,7 @@ describe("documented public endpoints", () => {
       },
       {
         description:
-          "Book whole package bundles (optional: date for dated bundles, dayCount for customisable ones, children choosing each parent member's add-ons)",
+          "Book whole package bundles (optional: date for dated bundles, dayCount for customisable ones, children choosing each parent member's add-ons). The name is always required. The package's contact fields setting decides which of email, phone, address and special_instructions are required too.",
         method: "POST",
         path: "/api/packages/:slug/book",
       },
@@ -122,5 +123,80 @@ describe("documented public endpoints", () => {
         slug: "camping-weekend",
       },
     });
+  });
+
+  test("name the fields of each booking body, and no booking has an update", () => {
+    const listing = documented(
+      PUBLIC_API_ENDPOINTS,
+      "POST",
+      "/api/listings/:slug/book",
+    ).fields!;
+    const bundle = documented(
+      PUBLIC_API_ENDPOINTS,
+      "POST",
+      "/api/packages/:slug/book",
+    ).fields!;
+
+    expect(listing.map((row) => row.key)).toEqual([
+      "address",
+      "children",
+      "customPrice",
+      "date",
+      "email",
+      "name",
+      "phone",
+      "quantity",
+      "special_instructions",
+    ]);
+    expect(bundle.map((row) => row.key)).toEqual([
+      "address",
+      "children",
+      "date",
+      "dayCount",
+      "email",
+      "name",
+      "phone",
+      "quantity",
+      "special_instructions",
+    ]);
+    expect(listing.filter((row) => row.required).map((row) => row.key)).toEqual(
+      ["name", "quantity"],
+    );
+    expect(bundle.filter((row) => row.required).map((row) => row.key)).toEqual([
+      "name",
+      "quantity",
+    ]);
+  });
+
+  test("document a children entry with the keys the server reads", () => {
+    const children = documented(
+      PUBLIC_API_ENDPOINTS,
+      "POST",
+      "/api/packages/:slug/book",
+    ).fields!.find((row) => row.key === "children");
+
+    expect(children?.value).toEqual({
+      form: "list_of",
+      of: {
+        form: "object",
+        names: ["customPrice", "parent", "quantity", "slug"],
+      },
+    });
+  });
+
+  test("every key of a booking example is a documented field", () => {
+    for (const path of [
+      "/api/listings/:slug/book",
+      "/api/packages/:slug/book",
+    ]) {
+      const endpoint = documented(PUBLIC_API_ENDPOINTS, "POST", path);
+      const keys = endpoint.fields!.map((row) => row.key);
+
+      expect(
+        Object.keys(JSON.parse(endpoint.request!)).filter(
+          (key) => !keys.includes(key),
+        ),
+      ).toEqual([]);
+    }
   });
 });

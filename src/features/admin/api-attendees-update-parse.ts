@@ -13,6 +13,7 @@ import { parseReceipts } from "#shared/booking-inputs.ts";
 import type { CreateReceipts } from "#shared/checkout-complete.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { Attendee, ContactInfo } from "#types";
+import type { AttendeeBody } from "./api-attendee-body.ts";
 import { namedLines } from "./api-attendee-lines.ts";
 import {
   type ApiAnswer,
@@ -71,7 +72,7 @@ const parseDesiredLines = async (
 /** Parse and validate an update body. Nothing is written when any field is
  *  refused. */
 export const parseUpdateBody = async (
-  body: Record<string, unknown>,
+  body: AttendeeBody,
   { attendee, existing }: AttendeeToUpdate,
 ): Promise<Result<ParsedApiUpdate>> => {
   const fixed = FIXED_FIELDS.find((field) => body[field] !== undefined);

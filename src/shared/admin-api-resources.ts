@@ -171,6 +171,12 @@ const sitePageBodies = apiBodyPair(sitePageFields, {
 /** The body a site-page update accepts: every writable field optional. */
 export const UpdateSitePageBodySchema = sitePageBodies.update;
 
+/** The body a fixed-page update accepts: the content, which a silent body
+ *  leaves as stored. A fixed page has no other writable field. */
+export const FixedPageBodySchema = apiBodyPair({
+  content: sitePageFields.content,
+}).update;
+
 /** The body a site-page create accepts. A new page is always a root page, so
  *  the create body carries no parent. The server stores the form's defaults
  *  for a silent field (empty text, a visible page), so only the name and the
