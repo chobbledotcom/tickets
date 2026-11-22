@@ -165,7 +165,7 @@ describe("QuestionAnswersSection", () => {
     assertStringIncludes(html, "/answers/11/move-before");
     assert(!html.includes("/answers/11/move-after"));
     // The answers table carries the reorder Order column header when writable.
-    assertStringIncludes(html, '<th class="col-reorder">Order</th>');
+    assertStringIncludes(html, '<th class="col-reorder"></th>');
   });
 
   test("renders both move buttons for middle answer", () => {

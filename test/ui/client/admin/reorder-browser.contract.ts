@@ -1,7 +1,8 @@
 /**
  * Browser contract for drag to reorder, in a real browser on the served
  * pages. A page with scripts shows the drag handles and hides the arrows,
- * which are for a page without scripts. The listings page stores a drop at
+ * which are for a page without scripts. A handle is a bare glyph, and the
+ * column has no heading. The listings page stores a drop at
  * once. A listing's Images tab moves the pictures in its form, and Save
  * stores them, so pictures that are not saved yet can move too.
  *
@@ -68,12 +69,23 @@ describeWithBrowser(
             `tbody[data-sortable] > tr:has([data-sortable-path="/admin/listing/${id}"])`,
           );
         await row(alpha.id).waitFor();
-        expect(
-          await page
+        const handle = row(alpha.id).locator(HANDLE);
+        await handle.hover();
+        expect({
+          arrowShown: await page
             .locator('tbody[data-sortable] form[action$="/move-after"]')
             .first()
             .isVisible(),
-        ).toBe(false);
+          handle: await handle.evaluate((button) => {
+            const style = getComputedStyle(button);
+            return [style.borderStyle, style.backgroundColor];
+          }),
+          header: await page.locator("th.col-reorder").textContent(),
+        }).toEqual({
+          arrowShown: false,
+          handle: ["none", "rgba(0, 0, 0, 0)"],
+          header: "",
+        });
 
         const errors = await pageErrorsDuring(page, async () => {
           await Promise.all([
