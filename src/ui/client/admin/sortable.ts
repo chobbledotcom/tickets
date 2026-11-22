@@ -12,7 +12,11 @@
 
 import type { MovePlace } from "#shared/reorder.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { forEachMatch, requiredChild } from "#src/ui/client/dom.ts";
+import {
+  createHiddenInput,
+  forEachMatch,
+  requiredChild,
+} from "#src/ui/client/dom.ts";
 
 /** The direct child of `list` that holds `node`. */
 const itemHolding = (list: HTMLElement, node: Element): HTMLElement =>
@@ -70,7 +74,8 @@ const moveFor = (item: HTMLElement): { anchor: string; place: MovePlace } => {
 };
 
 /** Post a copy of one of the item's own arrow forms, so the drop sends the
- *  same fields an arrow sends. Only the address and the anchor change. */
+ *  same fields an arrow sends. Only the address and the anchor change. The
+ *  server sends the operator back to this page, with its filters. */
 const postMove = (
   item: HTMLElement,
   move: { anchor: string; place: MovePlace },
@@ -82,6 +87,12 @@ const postMove = (
   form.action = `${path}/move-${move.place}`;
   requiredChild<HTMLInputElement>(form, 'input[name="anchor"]').value =
     move.anchor;
+  form.append(
+    createHiddenInput(
+      "returnUrl",
+      window.location.pathname + window.location.search,
+    ),
+  );
   form.hidden = true;
   document.body.append(form);
   form.submit();

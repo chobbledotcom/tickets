@@ -174,8 +174,9 @@ describeWithEnv("drag to reorder", { db: true }, () => {
     });
   }
 
-  test("the drop sends every field the row's arrow form carries", async () => {
+  test("the drop sends every field the row's arrow form carries, and the page to come back to", async () => {
     const page = inBrowser(dom, (await (await openStatuses()).get(LIST)).html);
+    window.history.replaceState(null, "", `${LIST}?shown=all`);
     const arrow = requireElement<HTMLFormElement>(page.rows[2]!, "form");
     const carried = Object.fromEntries(
       [...arrow.querySelectorAll("input")].map((input) => [
@@ -186,7 +187,11 @@ describeWithEnv("drag to reorder", { db: true }, () => {
 
     page.drag({ row: 2, steps: [["pointermove", 5], ["pointerup"]] });
 
-    expect(page.sent[0]!.fields).toEqual({ ...carried, anchor: page.ids()[1] });
+    expect(page.sent[0]!.fields).toEqual({
+      ...carried,
+      anchor: page.ids()[1],
+      returnUrl: `${LIST}?shown=all`,
+    });
   });
 
   test("shows the handles and marks the row while it is dragged", async () => {

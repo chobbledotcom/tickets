@@ -59,6 +59,13 @@ const SAMPLES: Record<keyof typeof ORDERED_LISTS, Sample> = {
     path: "/admin/attributes/2/options/5",
     row: { id: 5 },
   },
+  listing: {
+    anchor: "5",
+    listPath: "/admin/listings",
+    moved: "Listing moved",
+    path: "/admin/listing/5",
+    row: { id: 5 },
+  },
   question: {
     anchor: "5",
     listPath: "/admin/questions",

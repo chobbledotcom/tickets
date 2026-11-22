@@ -163,6 +163,7 @@ export const AdminListingSchema = v.strictObject({
       "months_per_unit",
       "profit",
       "recurring_price",
+      "sort_order",
       "tickets_count",
       "unit_price",
     ],
