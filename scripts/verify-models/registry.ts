@@ -254,6 +254,8 @@ export const VERIFICATION_MODULES = [
       "src/features/api/payment-processing/classify.ts",
       "src/features/api/payment-processing/index.ts",
       "src/features/api/payment-processing/lost-bundle.ts",
+      "src/features/api/payment-processing/missing-order.ts",
+      "src/features/api/payment-processing/session-standing.ts",
       "src/features/api/payment-processing/settled-order.ts",
       "src/shared/db/checkout-bundles.ts",
     ],

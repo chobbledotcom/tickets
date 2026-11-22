@@ -25,7 +25,8 @@ EXTENDS Apalache, Integers, ModelRules, SealedOrderData
 \* bundle states on BundleRead in src/shared/db/checkout-bundles.ts and the
 \* answers on CallbackOutcome in src/features/api/payment-callback.ts. It
 \* transcribes the delivery branches of classifySessionIntent in
-\* src/features/api/payment-processing/classify.ts and of
+\* src/features/api/payment-processing/classify.ts, of the answer table in
+\* src/features/api/payment-processing/missing-order.ts, and of
 \* handleReservationConflict and replaySessionFromLedger in
 \* src/features/api/payment-processing/index.ts. These are transcribed
 \* facts, not observed callback results or SQL race results.

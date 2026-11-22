@@ -130,7 +130,14 @@ export const sealedOrder: ModelGuide = {
           path: "src/features/api/payment-processing/classify.ts",
           symbol: "classifySessionIntent",
         },
-        { path: SETTLED_ORDER, symbol: "sessionStanding" },
+        {
+          path: "src/features/api/payment-processing/session-standing.ts",
+          symbol: "sessionStanding",
+        },
+        {
+          path: "src/features/api/payment-processing/missing-order.ts",
+          symbol: "missingOrderCallback",
+        },
         { path: PRODUCER, symbol: "settledAlarmData" },
         { path: PRODUCER, symbol: "lostOrderRefundData" },
       ],

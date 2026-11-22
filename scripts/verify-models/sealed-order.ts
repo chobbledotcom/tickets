@@ -1,6 +1,6 @@
 import type { BundleRead } from "#db/checkout-bundles.ts";
 import type { CallbackOutcome } from "#routes/api/payment-callback.ts";
-import type { SessionStanding } from "#routes/api/payment-processing/settled-order.ts";
+import type { SessionStanding } from "#routes/api/payment-processing/session-standing.ts";
 import {
   corruptedDataFor,
   type ModelDataSource,
@@ -67,7 +67,7 @@ type Delivery = {
   readonly rowBefore: RowState;
 };
 
-/** `sessionStanding` in settled-order.ts: a booking row, a final-outcome
+/** `sessionStanding` in session-standing.ts: a booking row, a final-outcome
  * row, a ledger leg, or none of these. */
 const standingOf = (
   row: RowState,
@@ -78,8 +78,9 @@ const standingOf = (
   return ledger === "recorded" ? "recorded" : "open";
 };
 
-/** Which standings `classifySessionIntent` answers as settled. The `Record`
- * keys on the production union, so a new standing is a type error here. */
+/** Which standings the answer table in missing-order.ts answers as settled.
+ * The `Record` keys on the production union, so a new standing is a type
+ * error here. */
 const SETTLED_STANDING: Record<SessionStanding["kind"], boolean> = {
   booked: true,
   handled: true,
@@ -90,9 +91,9 @@ const SETTLED_STANDING: Record<SessionStanding["kind"], boolean> = {
 const settled = (row: RowState, ledger: LedgerState): boolean =>
   SETTLED_STANDING[standingOf(row, ledger)];
 
-/** A delivery that finds no readable order. `classifySessionIntent` answers
- * a settled session as settled. Any other session raises the lost-order
- * alarm through `reportLostBundle`, refuses retryably, and refunds nothing. */
+/** A delivery that finds no readable order. `missingOrderCallback` answers a
+ * settled session as settled. Its open row raises the lost-order alarm
+ * through `reportLostBundle`, refuses retryably, and refunds nothing. */
 const missingOrderDelivery = (row: RowState, ledger: LedgerState): Delivery => {
   const known = settled(row, ledger);
   return {
