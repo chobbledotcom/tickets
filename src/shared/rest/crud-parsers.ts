@@ -245,23 +245,28 @@ export const withRequiredText: RequiredTextReader = (body, run) => {
 };
 
 /**
+ * Read a required JSON-array field. A non-array answers `label must be an
+ * array`. Otherwise every element runs through `parseItem` with its index. The
+ * first rejection fails the whole parse.
+ */
+export const parseArray =
+  <T>(label: string, parseItem: (item: unknown, index: number) => Result<T>) =>
+  (raw: unknown): Result<T[]> =>
+    Array.isArray(raw)
+      ? parseEach(parseItem)(raw)
+      : errorResult(`${label} must be an array`);
+
+/**
  * Parse an optional JSON-array field with partial-update semantics, failing
  * closed. `undefined` answers ok with `undefined`, so the caller leaves
- * existing data untouched. A non-array answers an error. Otherwise every
- * element runs through `parseItem` with its index. The first rejection fails
- * the whole parse.
+ * existing data untouched. Any other value parses as {@link parseArray}.
  */
 export const parseOptionalArray = <T>(
   raw: unknown,
   label: string,
   parseItem: (item: unknown, index: number) => Result<T>,
 ): Result<T[] | undefined> =>
-  parseOptionalResult(raw, (value) => {
-    if (!Array.isArray(value)) {
-      return errorResult(`${label} must be an array`);
-    }
-    return parseEach(parseItem)(value);
-  });
+  parseOptionalResult(raw, parseArray(label, parseItem));
 
 /** Parse one write body with the schema the resource table declares, so the
  *  server, the client, and the docs read one shape. The first valibot issue
