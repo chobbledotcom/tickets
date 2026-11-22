@@ -126,7 +126,7 @@ const pageFormHandler = createIdEntityHandler<SitePage>(
 
 const rootPageOrder = orderedListRoutes(ORDERED_LISTS.sitePage, {
   order: sitePageOrder,
-  rows: () => idRows(loadPageForest().then(({ forest }) => forest.rootIds)),
+  rows: async () => idRows((await loadPageForest()).forest.rootIds),
 });
 
 // ─── Item manager ───────────────────────────────────────────────
