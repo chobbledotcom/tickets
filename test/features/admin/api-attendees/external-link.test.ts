@@ -153,75 +153,102 @@ describeWithEnv(
     });
 
     describe("refusals", () => {
-      /** Post the body, expect the refusal, and expect no attendee stored. */
-      const refused = async (
+      /** Post the body. The answer is the refusal and the attendees stored. */
+      const refusal = async (
         body: (sourceId: number) => Record<string, unknown>,
-        status: number,
-        message: string,
         features = featureSetting("externalSources"),
-      ): Promise<void> => {
+      ) => {
         const { listingId, sourceId } = await setup("Refusal Fair");
-        await withSetting(features, () =>
-          assertJson(createBooking(listingId, body(sourceId)), status, (r) =>
-            expect(r.error).toBe(message),
-          ),
+        const response = await withSetting(features, () =>
+          createBooking(listingId, body(sourceId)),
         );
-        expect(await rosterAttendeeIds(listingId)).toEqual([]);
+        return {
+          error: (await response.json()).error,
+          status: response.status,
+          stored: await rosterAttendeeIds(listingId),
+        };
       };
+
+      /** The answer of a refusal that stores nothing. */
+      const refusedWith = (status: number, error: string) => ({
+        error,
+        status,
+        stored: [],
+      });
 
       const together = "external_source_id and external_id go together";
 
-      test("an id without a source", () =>
-        refused(() => ({ external_id: "INV-5" }), 400, together));
+      test("an id without a source", async () => {
+        expect(await refusal(() => ({ external_id: "INV-5" }))).toEqual(
+          refusedWith(400, together),
+        );
+      });
 
-      test("a source without an id", () =>
-        refused(
-          (sourceId) => ({ external_source_id: sourceId }),
-          400,
-          together,
-        ));
+      test("a source without an id", async () => {
+        expect(
+          await refusal((sourceId) => ({ external_source_id: sourceId })),
+        ).toEqual(refusedWith(400, together));
+      });
 
-      test("a source id that is not a whole number", () =>
-        refused(
-          () => ({ external_id: "INV-5", external_source_id: "1" }),
-          400,
-          "external_source_id must be a whole number of 1 or more",
-        ));
+      test("a source id that is not a whole number", async () => {
+        expect(
+          await refusal(() => ({
+            external_id: "INV-5",
+            external_source_id: "1",
+          })),
+        ).toEqual(
+          refusedWith(
+            400,
+            "external_source_id must be a whole number of 1 or more",
+          ),
+        );
+      });
 
-      test("an empty external id", () =>
-        refused(
-          (sourceId) => ({ external_id: "", external_source_id: sourceId }),
-          400,
-          "external_id is required",
-        ));
+      test("an empty external id", async () => {
+        expect(
+          await refusal((sourceId) => ({
+            external_id: "",
+            external_source_id: sourceId,
+          })),
+        ).toEqual(refusedWith(400, "external_id is required"));
+      });
 
-      test("an external id that is too long", () =>
-        refused(
-          (sourceId) => ({
+      test("an external id that is too long", async () => {
+        expect(
+          await refusal((sourceId) => ({
             external_id: "x".repeat(251),
             external_source_id: sourceId,
-          }),
-          400,
-          "external_id must be 250 characters or fewer",
-        ));
+          })),
+        ).toEqual(
+          refusedWith(400, "external_id must be 250 characters or fewer"),
+        );
+      });
 
-      test("a source that does not exist", () =>
-        refused(
-          () => ({ external_id: "INV-5", external_source_id: 9999 }),
-          400,
-          "Unknown external source",
-        ));
+      test("a source that does not exist", async () => {
+        expect(
+          await refusal(() => ({
+            external_id: "INV-5",
+            external_source_id: 9999,
+          })),
+        ).toEqual(refusedWith(400, "Unknown external source"));
+      });
 
-      test("answers 403 while the external sources feature is off", () =>
-        refused(
-          (sourceId) => ({
-            external_id: "INV-6",
-            external_source_id: sourceId,
-          }),
-          403,
-          "The external sources feature is disabled. Turn it on in Settings, then try again.",
-          featureSetting(),
-        ));
+      test("answers 403 while the external sources feature is off", async () => {
+        expect(
+          await refusal(
+            (sourceId) => ({
+              external_id: "INV-6",
+              external_source_id: sourceId,
+            }),
+            featureSetting(),
+          ),
+        ).toEqual(
+          refusedWith(
+            403,
+            "The external sources feature is disabled. Turn it on in Settings, then try again.",
+          ),
+        );
+      });
     });
   },
 );
