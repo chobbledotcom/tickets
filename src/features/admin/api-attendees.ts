@@ -8,7 +8,10 @@
  * every leg at creation, so the projected balance is right from birth. It
  * never emails the buyer. The operator re-sends from the admin page. The
  * attendee rows, their listing lines, the ledger legs, and the answers commit
- * together. A caller-chosen `ticketToken` makes a retried create a no-op.
+ * together. A caller-chosen `ticketToken` makes a retried create a no-op. A
+ * body can also name an external source and the attendee's id there. The link
+ * commits with the attendee, and a retry with the same id answers with the
+ * stored attendee.
  */
 
 import { logActivity } from "#db/activity-log.ts";
@@ -21,6 +24,7 @@ import type { AttendeeCreationWork } from "#db/attendees/create-batch.ts";
 import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeRawByToken } from "#db/attendees/queries.ts";
+import { linkNewAttendee } from "#db/external-sources/attendee-link.ts";
 import type { TextAnswer } from "#db/question-types.ts";
 import { recordAttendeeAnswersSql } from "#db/questions/attendee-answers/at-booking.ts";
 import {
@@ -47,9 +51,14 @@ import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
 import { ATTENDEE_FEATURE_KEYS } from "#shared/records/attendee-answer-keys.ts";
 import { withoutHiddenKeys } from "#shared/records/write-access.ts";
 import { answerParsed } from "#shared/rest/crud-parsers.ts";
+import { featureOffResponse } from "#shared/rest/resource-feature.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { Attendee } from "#types";
+import {
+  type ApiExternalLink,
+  attendeeForExternalLinkOrNull,
+} from "./api-attendees-external.ts";
 import {
   type ApiAnswer,
   type ApiLine,
@@ -57,6 +66,7 @@ import {
   type ParsedApiCreate,
   parseCreateBody,
 } from "./api-attendees-parse.ts";
+import { logLinkActivity } from "./api-external-sources.ts";
 
 /** One attendee booking row as the admin API answers with it: the decrypted
  * roster row minus the sealed PII blob and its blind index. Storage details go
@@ -144,29 +154,65 @@ const answersCreationWork = async (
   };
 };
 
-/** The existing booking for a retried token, or null when the token is fresh.
- *  The unique ticket_token_index is the backstop for a race. Two concurrent
- *  creates can both see the token as fresh. */
-const retriedAttendeeResponse = async (
-  token: string,
-): Promise<Response | null> => {
-  const existing = await getAttendeeRawByToken(token);
-  if (existing === null) return null;
-  return jsonResponse({
+/** The answer for an attendee that already exists, as the API reads it now. */
+const existingAttendeeResponse = async (
+  existing: Attendee,
+): Promise<Response> =>
+  jsonResponse({
     attendee: toApiAttendee(
       await decryptAttendeeFields(existing, await requireRequestPrivateKey()),
     ),
   });
+
+/** The existing attendee for a retried create, or null when the create is
+ *  new. A caller token and an external id each name the attendee. The unique
+ *  ticket_token_index and the guarded link insert are the backstop for a
+ *  race. Two concurrent creates can both see the retry keys as fresh. */
+const retriedAttendeeOrNull = async ({
+  externalLink,
+  ticketToken,
+}: ParsedApiCreate): Promise<Attendee | null> => {
+  if (ticketToken !== undefined) {
+    const byToken = await getAttendeeRawByToken(ticketToken);
+    if (byToken !== null) return byToken;
+  }
+  return externalLink === undefined
+    ? null
+    : attendeeForExternalLinkOrNull(externalLink);
 };
 
+/** The existing attendee's answer for a retried create, or null when fresh. */
+const retriedAttendeeResponse = async (
+  parsed: ParsedApiCreate,
+): Promise<Response | null> => {
+  const existing = await retriedAttendeeOrNull(parsed);
+  return existing === null ? null : existingAttendeeResponse(existing);
+};
+
+/** The link write for one created attendee. It rides the create transaction,
+ *  so a failing link rolls the booking back. A body with no external source
+ *  adds no work. */
+const linkCreationWork =
+  (externalLink: ApiExternalLink | undefined): AttendeeCreationWork =>
+  async (tx, attendeeId) => {
+    if (externalLink === undefined) return;
+    await linkNewAttendee(
+      tx,
+      externalLink.source.id,
+      externalLink.externalId,
+      attendeeId,
+    );
+  };
+
 /** Run the atomic create for a validated body and answer with the attendee.
- *  A concurrent create under the same caller token can win between the
- *  fresh-token check and the insert. The unique token index then refuses the
- *  loser, whose idempotent answer is the booking the winner stored. Any other
- *  failure is re-raised. */
+ *  A concurrent create under the same caller token or external id can win
+ *  between the fresh-key check and the insert. The unique token index or the
+ *  guarded link insert then refuses the loser, whose idempotent answer is the
+ *  booking the winner stored. Any other failure is re-raised. */
 const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
   const { adjustments, created, lines, payments, statusId, ticketToken } =
     parsed;
+  const { externalLink } = parsed;
   const bookings: ListingBooking[] = lines.map((line) => ({
     date: line.date,
     ...(line.date === null ? {} : { durationDays: line.durationDays }),
@@ -190,9 +236,11 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
     parsed.answers,
     lineListingIds(lines),
   );
+  const linkWork = linkCreationWork(externalLink);
   const creationWork: AttendeeCreationWork = async (tx, attendeeId) => {
     await apiCreateLedgerPoster(order, receipts)(tx, attendeeId);
     await answerWork(tx, attendeeId);
+    await linkWork(tx, attendeeId);
   };
   let result: CreateAttendeeResult;
   try {
@@ -215,10 +263,8 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
       creationWork,
     );
   } catch (error) {
-    if (ticketToken !== undefined) {
-      const retried = await retriedAttendeeResponse(ticketToken);
-      if (retried !== null) return retried;
-    }
+    const retried = await retriedAttendeeResponse(parsed);
+    if (retried !== null) return retried;
     throw error;
   }
   if (!result.success) {
@@ -234,6 +280,13 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
     lines[0]!.listing.id,
     attendee.id,
   );
+  if (externalLink !== undefined) {
+    await logLinkActivity(
+      "added to",
+      externalLink.externalId,
+      externalLink.source,
+    );
+  }
   return jsonResponse({ attendee: toApiAttendee(attendee) }, 201);
 };
 
@@ -242,13 +295,16 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
 export const handleCreateAttendee: RouteHandlerFn = (request) =>
   withAuth(request, ADMIN_API, async (_session, body) =>
     answerParsed(parseCreateBody(body), async (parsedValue) => {
-      // A caller-supplied token makes a retry a no-op: the booking already
-      // exists under it, so nothing is written and the existing attendee is
-      // returned.
-      if (parsedValue.ticketToken !== undefined) {
-        const retried = await retriedAttendeeResponse(parsedValue.ticketToken);
-        if (retried !== null) return retried;
+      if (
+        parsedValue.externalLink !== undefined &&
+        !settings.features.externalSources
+      ) {
+        return featureOffResponse("externalSources");
       }
-      return createFromParsed(parsedValue);
+      // A caller token or external id makes a retry a no-op. The booking
+      // exists under it, so nothing is written. The existing attendee is
+      // returned.
+      const retried = await retriedAttendeeResponse(parsedValue);
+      return retried ?? createFromParsed(parsedValue);
     }),
   );

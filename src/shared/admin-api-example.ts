@@ -395,7 +395,7 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
     ),
     {
       description:
-        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened. An adjustment with taxable: true is a charge that the tax counts, such as delivery. An update refuses taxable.",
+        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. The body can name an external_source_id and an external_id, both or neither. The attendee and its link then save in one transaction, and a retry with the same external_id answers with the stored attendee. This needs the external sources feature. An optional created stamps the business time the booking happened. An adjustment with taxable: true is a charge that the tax counts, such as delivery. An update refuses taxable.",
       method: "POST",
       path: "/api/admin/attendees",
       request: json(ADMIN_API_ATTENDEE_CREATE_BODY),

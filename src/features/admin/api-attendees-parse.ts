@@ -45,6 +45,11 @@ import {
   MAX_DURATION_DAYS,
 } from "#types";
 
+import {
+  type ApiExternalLink,
+  parseExternalLink,
+} from "./api-attendees-external.ts";
+
 /** One validated booking line: its listing, the quantities the caller chose,
  * and the optional per-unit price override (minor units) they agreed. */
 export type ApiLine = {
@@ -73,6 +78,9 @@ export type ParsedApiCreate = ContactInfo & {
   /** The business time the booking happened, when the caller stamps a
    * historical one. Absent means now at insert. */
   created: string | undefined;
+  /** The external source and id the attendee is stored under, when the body
+   * names one. */
+  externalLink: ApiExternalLink | undefined;
   lines: ApiLine[];
   payments: number[];
   statusId: number;
@@ -443,6 +451,8 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   if (!statusAndToken.ok) return statusAndToken;
   const created = parseCreated(body.created);
   if (!created.ok) return created;
+  const externalLink = await parseExternalLink(body);
+  if (!externalLink.ok) return externalLink;
   const receipts = parseReceipts(body);
   if (!receipts.ok) return receipts;
 
@@ -457,6 +467,7 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
     adjustments: receipts.value.adjustments,
     answers: answers.value,
     created: created.value,
+    externalLink: externalLink.value,
     lines,
     payments: receipts.value.payments,
     statusId: statusAndToken.value.statusId,
