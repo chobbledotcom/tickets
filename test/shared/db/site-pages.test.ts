@@ -90,7 +90,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         ).sortOrder;
       const orders = [await make("o-a"), await make("o-b"), await make("o-c")];
       // Distinct + strictly increasing ⇒ the pages are reliably reorderable
-      // (equal orders would make the move-up/down swap a no-op).
+      // (equal orders would leave the read order to the row id).
       expect(new Set(orders).size).toBe(3);
       expect(orders[0]).toBeLessThan(orders[1]!);
       expect(orders[1]).toBeLessThan(orders[2]!);
@@ -173,10 +173,10 @@ describeWithEnv("db > site-pages", { db: true }, () => {
   });
 
   describe("root reorder", () => {
-    test("ordered rows exchange two pages' sort_order", async () => {
+    test("ordered rows take the order they are arranged in", async () => {
       const a = await makePage("first", { sortOrder: 0 });
       const b = await makePage("second", { sortOrder: 1 });
-      await sitePageOrder.swap({ first: a.id, second: b.id });
+      await sitePageOrder.arrange({ keys: [b.id, a.id] });
       sitePages.invalidate();
       expect((await sitePages.getAll()).map((r) => r.slug)).toEqual([
         "second",
@@ -184,15 +184,14 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ]);
     });
 
-    test("ordered rows are a no-op when either row is missing", async () => {
-      // A stale reorder click racing a delete must not 500 (binding an
-      // undefined sort_order) — the swap simply does nothing.
-      const a = await makePage("survivor", { sortOrder: 0 });
-      await sitePageOrder.swap({ first: a.id, second: 9999 });
-      await sitePageOrder.swap({ first: 9999, second: a.id });
+    test("an arrange naming a deleted page still orders the rest", async () => {
+      // A stale reorder racing a delete must not fail: the gone page simply
+      // matches no row.
+      const a = await makePage("survivor", { sortOrder: 4 });
+      await sitePageOrder.arrange({ keys: [9999, a.id] });
       sitePages.invalidate();
       const row = (await sitePages.getAll()).find((r) => r.slug === "survivor");
-      expect(row?.sortOrder).toBe(0);
+      expect(row?.sortOrder).toBe(1);
     });
 
     test("cache stats identify the site pages cache by name", () => {

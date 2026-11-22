@@ -11,6 +11,7 @@ import type {
   AdminAudience,
   AdminDestinationSpec,
 } from "#shared/admin-surface/definitions.ts";
+import type { OrderedListSpec } from "#shared/ordered-list.ts";
 
 /** The names and switches one record area is built from. */
 type AreaSpec = {
@@ -207,14 +208,10 @@ const writesWith =
       ]),
     ) as SuffixWrites<Prefix, Path, Suffixes>;
 
-const MOVE_TAILS = { MoveDown: "move-down", MoveUp: "move-up" } as const;
 const IMAGE_TAILS = {
   Images: "images",
   ImagesUpload: "images/upload",
 } as const;
-
-/** The move-down and move-up writes of one ordered row, under its path. */
-export const moveWrites = writesWith(MOVE_TAILS);
 
 /** The image set and image upload writes of one record with an Images tab. */
 export const imageWrites = writesWith(IMAGE_TAILS);
@@ -222,24 +219,28 @@ export const imageWrites = writesWith(IMAGE_TAILS);
 /** The writes of one Site content record: its Actions tab and its images. */
 export const contentWrites = writesWith({ Actions: "actions", ...IMAGE_TAILS });
 
-/** The writes on one child row: edit, delete, and move. */
-const childRowWrites = writesWith({
-  Delete: "delete",
-  Edit: "edit",
-  ...MOVE_TAILS,
-});
+/** The path that a child row sits under: the row path without its own
+ *  param. */
+type ChildCollectionPath<RowPath extends string> =
+  RowPath extends `${infer Base}/:id/${infer Segment}/:${string}`
+    ? `${Base}/:id/${Segment}`
+    : never;
 
-/** The five writes of one ordered child collection: add a child under the
- * collection path, then edit, delete, and move one child under its own. */
+/** The writes of one ordered child collection, read off its ordered list.
+ * Add a child under the collection path. Edit, delete and move one child
+ * under its own path. */
 export const childWrites = <
-  const Prefix extends string,
-  const Path extends string,
-  const Param extends string,
+  const Name extends string,
+  const RowPath extends `${string}/:id/${string}/:${string}`,
 >(
-  prefix: Prefix,
-  path: Path,
-  param: Param,
+  list: Pick<
+    OrderedListSpec<Name, RowPath, unknown, unknown>,
+    "name" | "rowPath" | "writes"
+  >,
 ) => ({
-  ...({ [`${prefix}Add`]: path } as { readonly [K in `${Prefix}Add`]: Path }),
-  ...childRowWrites(prefix, `${path}/:${param}`),
+  ...({
+    [`${list.name}Add`]: list.rowPath.slice(0, list.rowPath.lastIndexOf("/")),
+  } as { readonly [K in `${Name}Add`]: ChildCollectionPath<RowPath> }),
+  ...writesWith({ Delete: "delete", Edit: "edit" })(list.name, list.rowPath),
+  ...list.writes,
 });

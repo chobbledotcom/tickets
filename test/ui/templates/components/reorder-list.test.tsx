@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { TableColumn } from "#shared/tables/column.ts";
@@ -15,6 +15,12 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 type Item = { count: number; id: number; name: string };
+
+const REORDER = {
+  anchor: (item: Item) => String(item.id),
+  header: "Order",
+  path: (item: Item) => `/things/${item.id}`,
+};
 
 const ITEMS: Item[] = [
   { count: 3, id: 1, name: "First" },
@@ -41,9 +47,7 @@ const countTable = (items: Item[]): string =>
       items,
       label: (item) => item.name,
       labelHeader: "Thing",
-      moveAction: (item) => (direction) =>
-        `/things/${item.id}/move-${direction}`,
-      orderLabel: "Order",
+      reorder: REORDER,
     }),
   );
 
@@ -59,7 +63,7 @@ const listPage = (items: Item[], error?: string): string =>
     guideLabel: "Things guide",
     items,
     newFormId: "new-thing",
-    orderLabel: "Order",
+    reorder: REORDER,
     session: OWNER_SESSION,
     title: "Things",
   });
@@ -92,11 +96,17 @@ describe("reorder list components", () => {
       '<th class="col-reorder">Order</th><th>Thing</th><th class="col-quantity">Uses</th>',
       '<a href="/things/1/edit">First</a>',
       '<td class="col-quantity">3</td>',
-      'action="/things/1/move-down"',
+      '<tbody data-sortable="">',
+      'data-sortable-anchor="1" data-sortable-handle data-sortable-path="/things/1"',
+      'action="/things/1/move-after"',
+      '<input name="anchor" type="hidden" value="2">',
     ]);
-    assert(!html.includes('action="/things/1/move-up"'));
-    assertStringIncludes(html, 'action="/things/2/move-up"');
-    assert(!html.includes('action="/things/2/move-down"'));
+    assert(!html.includes('action="/things/1/move-before"'));
+    expectIncludesAll(html, [
+      'action="/things/2/move-before"',
+      '<input name="anchor" type="hidden" value="1">',
+    ]);
+    assert(!html.includes('action="/things/2/move-after"'));
   });
 
   test("keeps count rows but removes links and moves when read-only", () => {
@@ -110,6 +120,7 @@ describe("reorder list components", () => {
     assert(!html.includes('href="/things/1/edit"'));
     assert(!html.includes('class="col-reorder"'));
     assert(!html.includes("/move-"));
+    assert(!html.includes("data-sortable"));
   });
 
   test("renders the writable list page form, empty note, error, and guide", () => {
@@ -134,8 +145,9 @@ describe("reorder list components", () => {
     expectIncludesAll(html, [
       '<th>Name</th><th class="col-quantity">Uses</th>',
       '<td>First</td><td class="col-quantity">3</td>',
-      'action="/things/1/move-down"',
-      'action="/things/2/move-up"',
+      'action="/things/1/move-after"',
+      'action="/things/2/move-before"',
+      'data-sortable-path="/things/2"',
     ]);
     assert(!html.includes("Nothing here"));
   });

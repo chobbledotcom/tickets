@@ -9,8 +9,11 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import type { Window } from "happy-dom";
 import type { ChosenImage } from "#shared/images/picker.ts";
+import { IMAGE_ORDERS } from "#shared/ordered-lists.ts";
+import type { ReorderColumnOptions } from "#shared/tables/column.ts";
 import { initListingImages } from "#src/ui/client/admin/listing-images.ts";
 import { ListingImagesField } from "#templates/admin/listings/listing-images.tsx";
+import { withEnv } from "#test-utils/env.ts";
 import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
 import { requireElement } from "#test-utils/happy-dom.ts";
 import {
@@ -35,9 +38,12 @@ import {
 afterEach(cleanup);
 afterEach(restoreHeldStub);
 
-const sectionHtml = (stored: readonly ChosenImage[] = []): string =>
+const sectionHtml = (
+  stored: readonly ChosenImage[] = [],
+  reorder?: ReorderColumnOptions<ChosenImage>,
+): string =>
   `<form action="/admin/listing" method="post">${String(
-    ListingImagesField({ selected: stored }),
+    ListingImagesField({ reorder, selected: stored }),
   )}</form>`;
 
 /** One stored picture as a rejected create renders it. */
@@ -145,6 +151,41 @@ describe("the listing images field", () => {
       "/image/seed-thumb.webp",
     );
     expectSelection(window, ["4"], ["Remove Seed"]);
+  });
+
+  test("keeps each saved picture's own card, and drops it by its remove button", () => {
+    const window = installDom(
+      ADMIN_TEMPLATES +
+        sectionHtml(
+          [storedImage(4, "Seed", ""), storedImage(5, "Other", "")],
+          IMAGE_ORDERS.listing.column(1),
+        ),
+    );
+    initListingImages();
+
+    requireElement<HTMLButtonElement>(
+      window.document,
+      '.listing-images-remove[aria-label="Remove Seed"]',
+    ).click();
+
+    expect(imageIdValues(window)).toEqual(["5"]);
+    expect(
+      attributesOf(window, "[data-sortable-handle]", "data-sortable-path"),
+    ).toEqual(["/admin/listing/1/images/5"]);
+  });
+
+  test("offers no handles or arrows on saved pictures when the site is read-only", () => {
+    using _readOnly = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = sectionHtml(
+      [storedImage(4, "Seed", ""), storedImage(5, "Other", "")],
+      IMAGE_ORDERS.listing.column(1),
+    );
+
+    expect(
+      ["data-sortable", "move-before", "move-after"].filter((part) =>
+        html.includes(part),
+      ),
+    ).toEqual([]);
   });
 
   test("refuses a stored picture whose id is not a positive number", () => {

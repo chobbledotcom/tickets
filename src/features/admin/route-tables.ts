@@ -121,17 +121,6 @@ export const crudRoutes = <Base extends string>(
     [`GET ${base}/new`]: crud.newGet,
   }) as CrudRoutes<Base>;
 
-/** Bind an ordered collection's two move routes under the path of the row
- * they move, ready to spread into the route table. */
-export const orderRoutes = <Base extends string, Handler>(
-  base: Base,
-  order: { down: Handler; up: Handler },
-): Record<`POST ${Base}/move-down` | `POST ${Base}/move-up`, Handler> =>
-  ({
-    [`POST ${base}/move-down`]: order.down,
-    [`POST ${base}/move-up`]: order.up,
-  }) as Record<`POST ${Base}/move-down` | `POST ${Base}/move-up`, Handler>;
-
 /** The routes a record area's list and record page serve. The new page route
  * is absent when the area declares none. */
 export type RecordRoutes<Area extends RecordAreaId> =

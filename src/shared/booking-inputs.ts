@@ -119,11 +119,12 @@ export const parseAdjustments = (raw: unknown): Result<CreateAdjustment[]> =>
 /** The money a body records: the payments received and the named adjustments,
  *  or the first refusal. The create and the update read it the same way. */
 export const parseReceipts = (
-  body: Record<string, unknown>,
+  rawPayments: unknown,
+  rawAdjustments: unknown,
 ): Result<CreateReceipts> => {
-  const payments = parsePayments(body.payments);
+  const payments = parsePayments(rawPayments);
   if (!payments.ok) return payments;
-  const adjustments = parseAdjustments(body.adjustments);
+  const adjustments = parseAdjustments(rawAdjustments);
   if (!adjustments.ok) return adjustments;
   return okResult({
     adjustments: adjustments.value,

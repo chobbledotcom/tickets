@@ -15,6 +15,7 @@ import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { Attendee } from "#types";
+import type { AttendeeBody } from "./api-attendee-body.ts";
 import { requiredExternalId } from "./api-external-sources.ts";
 
 /** The source a create body names, and the attendee's id there. */
@@ -23,7 +24,7 @@ export type ApiExternalLink = { externalId: string; source: ExternalSource };
 /** The link a create body asks for: both fields, or neither. The source read
  *  pins to the primary, so a source created just before is always found. */
 export const parseExternalLink = async (
-  body: Record<string, unknown>,
+  body: AttendeeBody,
 ): Promise<Result<ApiExternalLink | undefined>> => {
   const { external_id: rawId, external_source_id: sourceId } = body;
   if (rawId === undefined && sourceId === undefined) return okResult(undefined);

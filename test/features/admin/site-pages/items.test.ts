@@ -229,16 +229,16 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
 
       // Move the middle item up (index 1 → 0): l2, l1, l3.
       const up = await adminFormPost(
-        `${BASE}/${page.id}/items/listing/${l2.id}/move-up`,
-        {},
+        `${BASE}/${page.id}/items/listing/${l2.id}/move-before`,
+        { anchor: `listing:${l1.id}` },
       );
       expectFlash(up.response, "Order updated", true);
       expect(await ids()).toEqual([l2.id, l1.id, l3.id]);
 
-      // Move l1 (now index 1) down: l2, l3, l1.
+      // Move l1 (now index 1) after l3: l2, l3, l1.
       await adminFormPost(
-        `${BASE}/${page.id}/items/listing/${l1.id}/move-down`,
-        {},
+        `${BASE}/${page.id}/items/listing/${l1.id}/move-after`,
+        { anchor: `listing:${l3.id}` },
       );
       expect(await ids()).toEqual([l2.id, l3.id, l1.id]);
 
@@ -257,8 +257,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
     test("item move route 404s on a bad type", async () => {
       const page = await seedPage("bad-move-ref");
       const { response } = await adminFormPost(
-        `${BASE}/${page.id}/items/bogus/1/move-up`,
-        {},
+        `${BASE}/${page.id}/items/bogus/1/move-before`,
+        { anchor: "listing:1" },
       );
       expect(response.status).toBe(404);
     });

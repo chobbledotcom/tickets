@@ -11,9 +11,9 @@ import {
 import {
   childWrites,
   imageWrites,
-  moveWrites,
   recordArea,
 } from "#shared/admin-surface/record-area.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import {
   ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
@@ -26,6 +26,19 @@ const contentRoute = <const Pattern extends string>(pattern: Pattern) => ({
   audience: CONTENT_ADMIN_LEVELS,
   pattern,
 });
+
+/** Writes open to content admins in an area whose default is staff. */
+const contentRoutes = <const Writes extends Readonly<Record<string, string>>>(
+  writes: Writes,
+) =>
+  Object.fromEntries(
+    Object.entries(writes).map(([id, pattern]) => [id, contentRoute(pattern)]),
+  ) as {
+    readonly [Id in keyof Writes]: {
+      audience: typeof CONTENT_ADMIN_LEVELS;
+      pattern: Writes[Id];
+    };
+  };
 
 /** The admin areas from `apiKeys` through `listings`. */
 export const AREAS_A_L = {
@@ -91,12 +104,8 @@ export const AREAS_A_L = {
   attributes: recordArea({
     audience: OWNER_AUDIENCE,
     extraWrites: {
-      ...moveWrites("attribute", "/admin/attributes/:id"),
-      ...childWrites(
-        "attributeOption",
-        "/admin/attributes/:id/options",
-        "optionId",
-      ),
+      ...ORDERED_LISTS.attribute.writes,
+      ...childWrites(ORDERED_LISTS.attributeOption),
     },
     name: "attributes",
     newPage: false,
@@ -250,6 +259,7 @@ export const AREAS_A_L = {
     extraWrites: {
       groupAddListings: "/admin/groups/:id/add-listings",
       ...imageWrites("group", "/admin/groups/:id"),
+      ...ORDERED_LISTS.groupImage.writes,
       groupNote: {
         audience: STAFF_ADMIN_LEVELS,
         pattern: "/admin/groups/:id/note",
@@ -341,11 +351,13 @@ export const AREAS_A_L = {
       listingDelete: "/admin/listing/:id/delete",
       listingDuplicate: contentRoute("/admin/listing/:id/duplicate"),
       listingEdit: contentRoute("/admin/listing/:id/edit"),
+      ...contentRoutes(ORDERED_LISTS.listingImage.writes),
       listingImages: contentRoute("/admin/listing/:id/images"),
       listingIncome: {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/listing/:id/income",
       },
+      ...contentRoutes(ORDERED_LISTS.listing.writes),
       listingNew: contentRoute("/admin/listing/new"),
       listingNote: "/admin/listing/:id/note",
       listingNoteDelete: "/admin/listing/:id/note/:noteId/delete",
