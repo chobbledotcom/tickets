@@ -1,12 +1,14 @@
 /**
  * The order of a record's images, set on its Images tab with the arrows or a
  * drop. A listing shows its images as cards inside the Images form, so each
- * arrow is a button of that form. A group shows them in a table, with an
- * arrow form on each row. Both reach the same move routes.
+ * arrow is a button of that form, and a drop moves the card in the form for
+ * Save to store. A group shows them in a table, with an arrow form on each
+ * row, and a drop posts the same move as an arrow.
  */
 
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
+import { SORTABLE_MOVED } from "#src/ui/client/admin/sortable.ts";
 import { type App, createApp, inProcess } from "#test/blackbox/driver.ts";
 import {
   addGroup,
@@ -16,7 +18,7 @@ import {
 } from "#test/blackbox/seed.ts";
 import { openSortablePage } from "#test/blackbox/sortable-page.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createDomInstaller } from "#test-utils/happy-dom.ts";
+import { createDomInstaller, requireElement } from "#test-utils/happy-dom.ts";
 
 /** The image ids in the order a page shows them, read off the handles. */
 const shownIds = (html: string): number[] =>
@@ -88,7 +90,7 @@ describeWithEnv("image order", { db: true, storage: "local" }, () => {
     });
   }
 
-  test("a drop on the left half of a card stores the image before it", async () => {
+  test("a drop on the left half of a card puts the image before it in the form, and posts nothing", async () => {
     const record = await withImages("listing");
     const [a, b, c] = record.images;
     const page = openSortablePage(
@@ -99,20 +101,36 @@ describeWithEnv("image order", { db: true, storage: "local" }, () => {
         selector: '[data-sortable="grid"]',
       },
     );
+    const list = requireElement<HTMLElement>(
+      page.document,
+      '[data-sortable="grid"]',
+    );
+    let moves = 0;
+    list.addEventListener(SORTABLE_MOVED, () => {
+      moves += 1;
+    });
 
     page.drag({ item: 2, steps: [["pointermove", 5], ["pointerup"]] });
-    const { action, fields } = page.sent[0]!;
-    await record.app.submit(record.tab, { anchor: fields.anchor! }, action);
 
-    expect([action, fields.anchor]).toEqual([
-      `${record.tab}/${c}/move-before`,
-      String(a),
-    ]);
-    expect(shownIds((await record.app.get(record.tab)).html)).toEqual([
-      c,
-      a,
-      b,
-    ]);
+    expect({
+      moves,
+      sent: page.sent,
+      shown: shownIds(page.document.body.innerHTML),
+    }).toEqual({ moves: 1, sent: [], shown: [c, a, b] });
+  });
+
+  test("a drop on the right half of a card puts the image after it", async () => {
+    const record = await withImages("listing");
+    const [a, b, c] = record.images;
+    const page = openSortablePage(
+      dom,
+      (await record.app.get(record.tab)).html,
+      { across: true, selector: '[data-sortable="grid"]' },
+    );
+
+    page.drag({ item: 0, steps: [["pointermove", 55], ["pointerup"]] });
+
+    expect(shownIds(page.document.body.innerHTML)).toEqual([b, c, a]);
   });
 
   test("the listing's cards are a sortable grid inside the Images form", async () => {
@@ -121,7 +139,7 @@ describeWithEnv("image order", { db: true, storage: "local" }, () => {
     const html = (await record.app.get(record.tab)).html;
 
     expect(html).toMatch(
-      /<form[^>]*action="\/admin\/listing\/\d+\/images"[\s\S]*data-sortable="grid"[\s\S]*formaction="[^"]*\/move-before"[\s\S]*<\/form>/,
+      /<form[^>]*action="\/admin\/listing\/\d+\/images"[\s\S]*data-sortable="grid" data-sortable-drop="local"[\s\S]*formaction="[^"]*\/move-before"[\s\S]*<\/form>/,
     );
   });
 });
