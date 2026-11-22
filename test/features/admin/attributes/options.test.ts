@@ -114,8 +114,10 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
       assertArrayIncludes(await activityMessages(), [
         "Attribute option 'In-person' updated in Format",
       ]);
+      const first = before.options[0]!;
       const moved = await adminFormPost(
-        `/admin/attributes/${id}/options/${second.id}/move-up`,
+        `/admin/attributes/${id}/options/${second.id}/move-before`,
+        { anchor: String(first.id) },
       );
       await expectFlashRedirect(
         `/admin/attributes/${id}`,
@@ -129,9 +131,10 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         "Online",
       ]);
 
-      // Moving it back down restores the original order.
+      // Moving it back after the first restores the original order.
       await adminFormPost(
-        `/admin/attributes/${id}/options/${second.id}/move-down`,
+        `/admin/attributes/${id}/options/${second.id}/move-after`,
+        { anchor: String(first.id) },
       );
       const restored = (await getAttributeWithOptions(id))!;
       expect(restored.options.map((option) => option.text)).toEqual([

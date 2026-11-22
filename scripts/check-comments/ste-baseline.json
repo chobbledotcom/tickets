@@ -1154,11 +1154,6 @@
     "semicolon": 6,
     "wordy": 1
   },
-  "src/shared/reorder.ts": {
-    "long-sentence": 1,
-    "banned-modal": 1,
-    "contraction": 4
-  },
   "src/shared/request-cache.ts": {
     "long-sentence": 7,
     "banned-modal": 5,

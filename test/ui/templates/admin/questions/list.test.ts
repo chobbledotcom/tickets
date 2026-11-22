@@ -118,11 +118,11 @@ describe("adminQuestionsPage", () => {
       OWNER_SESSION,
     );
     // First question: down button, but no up button.
-    assertStringIncludes(html, "/admin/questions/1/move-down");
-    assert(!html.includes("/admin/questions/1/move-up"));
+    assertStringIncludes(html, "/admin/questions/1/move-after");
+    assert(!html.includes("/admin/questions/1/move-before"));
     // Last question: up button, but no down button.
-    assertStringIncludes(html, "/admin/questions/2/move-up");
-    assert(!html.includes("/admin/questions/2/move-down"));
+    assertStringIncludes(html, "/admin/questions/2/move-before");
+    assert(!html.includes("/admin/questions/2/move-after"));
   });
 
   test("renders error message when provided", () => {

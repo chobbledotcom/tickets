@@ -8,13 +8,13 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
   /** Two rows' worth of identical arrows — the shape this exists for, where
    * the button's own words cannot tell one row from another. */
   const arrows = (secondArrow: string, method = ' method="POST"') => `
-    <form action="/rows/1/move-up" method="POST"><input name="csrf" value="tok">
+    <form action="/rows/1/move-before" method="POST"><input name="csrf" value="tok">
       <button type="submit">▲</button></form>
-    <form action="/rows/2/move-up"${method}><input name="csrf" value="tok2">
+    <form action="/rows/2/move-before"${method}><input name="csrf" value="tok2">
       ${secondArrow}</form>
   `;
 
-  const SECOND_ROW = "/rows/2/move-up";
+  const SECOND_ROW = "/rows/2/move-before";
   const pressable = '<button type="submit">▲</button>';
 
   /** The two ways a row's own arrow can be one nobody could press: nothing on
@@ -95,7 +95,7 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
     // No form declares this address; the second row's button aims there, which
     // is the address a person pressing it really lands on.
     browser.currentHtml = `
-      <form action="/rows/1/move-up" method="POST"><input name="csrf" value="tok">
+      <form action="/rows/1/move-before" method="POST"><input name="csrf" value="tok">
         <button type="submit">▲</button></form>
       <form action="/rows/2/edit" method="POST"><input name="csrf" value="tok2">
         <button type="submit" name="go" value="up" formaction="${SECOND_ROW}">▲</button></form>
@@ -202,8 +202,8 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
     const browser = new TestBrowser();
     browser.currentHtml = arrows(pressable);
 
-    await expect(browser.submitFormAt("/rows/3/move-up")).rejects.toThrow(
-      'No form on this page posts to "/rows/3/move-up"',
+    await expect(browser.submitFormAt("/rows/3/move-before")).rejects.toThrow(
+      'No form on this page posts to "/rows/3/move-before"',
     );
   });
 
@@ -237,7 +237,7 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
       const browser = new TestBrowser();
       browser.currentHtml = arrows(pressable);
 
-      expect(browser.offersAWayToPost("/rows/3/move-up")).toBe(false);
+      expect(browser.offersAWayToPost("/rows/3/move-before")).toBe(false);
     });
   });
 });

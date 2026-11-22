@@ -11,9 +11,9 @@ import {
 import {
   childWrites,
   imageWrites,
-  moveWrites,
   recordArea,
 } from "#shared/admin-surface/record-area.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import {
   ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
@@ -91,12 +91,8 @@ export const AREAS_A_L = {
   attributes: recordArea({
     audience: OWNER_AUDIENCE,
     extraWrites: {
-      ...moveWrites("attribute", "/admin/attributes/:id"),
-      ...childWrites(
-        "attributeOption",
-        "/admin/attributes/:id/options",
-        "optionId",
-      ),
+      ...ORDERED_LISTS.attribute.writes,
+      ...childWrites(ORDERED_LISTS.attributeOption),
     },
     name: "attributes",
     newPage: false,
