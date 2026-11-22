@@ -440,7 +440,7 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   if (!statusAndToken.ok) return statusAndToken;
   const created = parseCreated(body.created);
   if (!created.ok) return created;
-  const receipts = parseReceipts(body);
+  const receipts = parseReceipts(body.payments, body.adjustments);
   if (!receipts.ok) return receipts;
 
   const linesResult = await parseCheckedLines(linesArray.value);

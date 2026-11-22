@@ -81,7 +81,7 @@ export const parseUpdateBody = async (
   if (!contact.ok) return contact;
   const statusId = await parseStatusId(body.status, attendee);
   if (!statusId.ok) return statusId;
-  const received = parseReceipts(body);
+  const received = parseReceipts(body.payments, body.adjustments);
   if (!received.ok) return received;
   const taxableAt = received.value.adjustments.findIndex(
     (adjustment) => adjustment.taxable === true,
