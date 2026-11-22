@@ -39,11 +39,16 @@ export type ReturnPageTools = {
   readonly refuse: (message: string, status: number) => Promise<Response>;
 };
 
+/** The provider callback's answer for one standing: the outcome, and whether
+ * the admin must be told of a lost order first. */
+export type CallbackAnswer = {
+  readonly outcome: CallbackOutcome;
+  readonly reportsLostOrder: boolean;
+};
+
 type AnswerTable = {
   readonly [Kind in StandingKind]: {
-    readonly callback: (
-      missing: MissingOrder<Kind>,
-    ) => Promise<CallbackOutcome>;
+    readonly callback: CallbackAnswer;
     readonly returnPage: (
       missing: MissingOrder<Kind>,
       tools: ReturnPageTools,
@@ -52,18 +57,23 @@ type AnswerTable = {
 };
 
 /** A settled session's callback: acknowledged, with the standing in the log. */
-const settledCallback = (detail: string) => (): Promise<CallbackOutcome> =>
-  Promise.resolve({
+const settledCallback = (detail: string): CallbackAnswer => ({
+  outcome: {
     detail,
     error: "This payment has already been processed.",
     kind: "settled",
     listingId: undefined,
-  });
+  },
+  reportsLostOrder: false,
+});
 
-/** Raise the lost-order alarm. The note and the activity line land once for
- * the session, however often a surface asks. */
-const raiseLostOrder = (missing: MissingOrder<"open">): Promise<void> =>
-  reportLostBundle(missing.session, missing.reason);
+/** Tell the admin of the lost order. The note and the activity line land
+ * once for the session, however often a surface asks. */
+const raiseLostOrder = ({
+  reason,
+  session,
+}: Pick<MissingOrder, "reason" | "session">): Promise<void> =>
+  reportLostBundle(session, reason);
 
 const MISSING_ORDER_ANSWERS: AnswerTable = {
   booked: {
@@ -88,10 +98,7 @@ const MISSING_ORDER_ANSWERS: AnswerTable = {
     },
   },
   open: {
-    callback: async (missing) => {
-      await raiseLostOrder(missing);
-      return { kind: "unreadable" };
-    },
+    callback: { outcome: { kind: "unreadable" }, reportsLostOrder: true },
     returnPage: async (missing, tools) => {
       await raiseLostOrder(missing);
       return tools.refuse(t("payment.error.verification_failed"), 503);
@@ -112,10 +119,18 @@ const rowFor = <Kind extends StandingKind>(
   missing: MissingOrder<Kind>,
 ): AnswerTable[Kind] => MISSING_ORDER_ANSWERS[missing.standing.kind];
 
+/** What the provider callback answers for a standing. */
+export const callbackAnswerFor = (kind: StandingKind): CallbackAnswer =>
+  MISSING_ORDER_ANSWERS[kind].callback;
+
 /** The provider callback's answer to a session with no readable order. */
-export const missingOrderCallback = <Kind extends StandingKind>(
-  missing: MissingOrder<Kind>,
-): Promise<CallbackOutcome> => rowFor(missing).callback(missing);
+export const missingOrderCallback = async (
+  missing: MissingOrder,
+): Promise<CallbackOutcome> => {
+  const answer = callbackAnswerFor(missing.standing.kind);
+  if (answer.reportsLostOrder) await raiseLostOrder(missing);
+  return answer.outcome;
+};
 
 /** The buyer's return page answer to a session with no readable order. */
 export const missingOrderReturnPage = <Kind extends StandingKind>(

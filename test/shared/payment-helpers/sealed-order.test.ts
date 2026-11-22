@@ -1,32 +1,15 @@
 /** What a card provider stores for a checkout: a token, a listing, and a
- * proof. The order itself rests sealed in our database, so no provider cap can
- * refuse it. SumUp stages its own row, so its record is whole. */
+ * proof. SumUp stages its own row, so its record is whole. The reading of a
+ * sealed order is checked beside its reader, in
+ * test/features/api/payment-processing/metadata/sealed-order.test.ts. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { sealCheckoutBundle } from "#db/checkout-bundles.ts";
-import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
-import type { BookingItem } from "#shared/booking-intent.ts";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
-import { extractSessionMetadata } from "#shared/session-metadata.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { wireMetadata } from "#test-utils/payment-session.ts";
-
-const CARD_PROVIDERS = ["stripe", "square"] as const;
-
-const withProof = async (
-  intent: CheckoutIntent,
-  provider: "stripe" | "square" | "sumup",
-) => {
-  const total = priceCheckout(intent).total;
-  const wire = await assembleCheckoutMetadata(provider, intent, total);
-  return { metadata: extractSessionMetadata(wireMetadata(wire)), total, wire };
-};
+import { CARD_PROVIDERS, withProof } from "#test-utils/sealed-checkout.ts";
 
 describeWithEnv("sealed checkout order", { db: true }, () => {
   for (const provider of CARD_PROVIDERS) {
@@ -76,110 +59,7 @@ describeWithEnv("sealed checkout order", { db: true }, () => {
 
       expect(first.metadata.bundle).not.toBe(second.metadata.bundle);
     });
-
-    test(`${provider} opens the whole order from its token`, async () => {
-      const intent = checkoutIntent({
-        address: "12 Some Street",
-        date: "2026-08-01",
-        dayCount: 3,
-        phone: "07700900000",
-        reservationAmount: "10%",
-        special_instructions: "Leave at the front desk",
-      });
-      const { metadata } = await withProof(intent, provider);
-
-      const order = await readSessionOrder({ metadata });
-
-      expect(order).toMatchObject({
-        intent: {
-          address: "12 Some Street",
-          date: "2026-08-01",
-          dayCount: 3,
-          email: "buyer@example.com",
-          name: "Buyer",
-          phone: "07700900000",
-          reservationAmount: "10%",
-          special_instructions: "Leave at the front desk",
-        },
-        status: "read",
-      });
-    });
-
-    test(`${provider} carries an order no provider cap would take`, async () => {
-      const listingIds = Array.from({ length: 80 }, (_, index) => index + 1);
-      const intent = checkoutIntent({
-        items: listingIds.map((listingId) => checkoutItem({ listingId })),
-        listingAnswerIds: Object.fromEntries(
-          listingIds.map((id) => [String(id), [id, id + 1000, id + 2000]]),
-        ),
-        thankYouUrl: `https://example.com/${"thanks/".repeat(200)}`,
-      });
-      const { metadata } = await withProof(intent, provider);
-
-      const order = await readSessionOrder({ metadata });
-
-      expect(order.status).toBe("read");
-      if (order.status !== "read") return;
-      expect(order.intent.items).toHaveLength(80);
-      expect(order.intent.thankYouUrl).toBe(intent.thankYouUrl);
-      expect(Object.keys(order.intent.listingAnswerIds!)).toHaveLength(80);
-    });
-
-    test(`${provider} keeps each package line's edge tag`, async () => {
-      const intent = checkoutIntent({
-        allocations: [{ childId: 91, parentId: 11, qty: 2 }],
-        items: [
-          checkoutItem({
-            listingId: 11,
-            packageGroupId: 42,
-            quantity: 2,
-            unitPrice: 1234,
-          }),
-          checkoutItem({ listingId: 91, quantity: 2, unitPrice: 0 }),
-        ],
-      });
-      const { metadata } = await withProof(intent, provider);
-
-      const order = await readSessionOrder({ metadata });
-
-      expect(order.status).toBe("read");
-      if (order.status !== "read") return;
-      const lines: BookingItem[] = order.intent.items;
-      expect(lines.find((line) => line.e === 11)).toEqual({
-        e: 11,
-        k: "p",
-        p: 2468,
-        q: 2,
-        r: 42,
-      });
-      expect(lines.find((line) => line.e === 91)).toEqual({
-        e: 91,
-        p: 0,
-        q: 2,
-      });
-    });
   }
-
-  test("a missing token reads as a lost order, never as no booking", async () => {
-    const { metadata } = await withProof(checkoutIntent(), "stripe");
-
-    expect(
-      await readSessionOrder({
-        metadata: { ...metadata, bundle: "never-sealed" },
-      }),
-    ).toEqual({
-      status: "bundle_missing",
-    });
-  });
-
-  test("a sealed record that holds no buyer or lines reads as no booking", async () => {
-    const bundle = await sealCheckoutBundle({ email: "only@example.com" });
-    const { metadata } = await withProof(checkoutIntent(), "stripe");
-
-    expect(
-      await readSessionOrder({ metadata: { ...metadata, bundle } }),
-    ).toEqual({ status: "unreadable" });
-  });
 
   test("sumup keeps the whole record, proof included, in its own staged row", async () => {
     const { metadata, total } = await withProof(

@@ -26,6 +26,26 @@ export type SessionStanding =
   | { kind: "recorded" }
   | { kind: "open" };
 
+/** What a standing read found: the booking that the payment row names, the
+ * final outcome that it holds, and whether the ledger holds a leg. */
+export type StandingFacts = {
+  readonly attendeeId: number | null;
+  readonly failure: StoredPaymentFailure | null;
+  readonly recorded: boolean;
+};
+
+/** Where a session stands, from what its payment row and its ledger hold. A
+ * booking outranks a final outcome, and the payment row outranks the ledger. */
+export const standingOf = ({
+  attendeeId,
+  failure,
+  recorded,
+}: StandingFacts): SessionStanding => {
+  if (attendeeId !== null) return { kind: "booked" };
+  if (failure !== null) return { failure, kind: "handled" };
+  return recorded ? { kind: "recorded" } : { kind: "open" };
+};
+
 /** Read where a session stands, from its payment row and its ledger groups.
  * The ledger outlives the payment row, so a late replay still reads as
  * settled. */
@@ -50,8 +70,9 @@ export const sessionStanding = async (
                 WHERE transfer.event_group IN (${sqlList(eventGroups)})) AS recorded`,
   );
   const row = requireValue(read, "A session-standing read gives one row");
-  if (row.attendee_id !== null) return { kind: "booked" };
-  const failure = await parseSessionFailure(row.failure_data ?? "");
-  if (failure !== null) return { failure, kind: "handled" };
-  return row.recorded === 1 ? { kind: "recorded" } : { kind: "open" };
+  return standingOf({
+    attendeeId: row.attendee_id,
+    failure: await parseSessionFailure(row.failure_data ?? ""),
+    recorded: row.recorded === 1,
+  });
 };

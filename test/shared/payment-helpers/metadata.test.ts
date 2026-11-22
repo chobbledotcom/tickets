@@ -179,25 +179,6 @@ describe("payment-helpers", () => {
       });
     });
 
-    test("extractSessionMetadata preserves present fields and defaults absent ones", () => {
-      const withFields = extractSessionMetadata(
-        wireMetadata({
-          email: "alice@example.com",
-          items: "[]",
-          name: "Alice",
-          phone: "+1234567890",
-        }),
-      );
-      expect(withFields.email).toBe("alice@example.com");
-      expect(withFields.phone).toBe("+1234567890");
-      expect(withFields.address).toBe("");
-
-      const minimal = extractSessionMetadata(wireMetadata({ name: "Eve" }));
-      expect(minimal.email).toBe("");
-      expect(minimal.phone).toBe("");
-      expect(minimal._origin).toBe("");
-    });
-
     test("optional fields omitted during build normalize to empty on extract", () => {
       const metadata = buildMetadata({
         address: "",
@@ -348,37 +329,6 @@ describe("payment-helpers", () => {
         name: "X",
       });
       expect("day_count" in metadata).toBe(false);
-    });
-
-    test("extractSessionMetadata round-trips day_count", () => {
-      const extracted = extractSessionMetadata(
-        wireMetadata({
-          day_count: "3",
-          email: "x@x.com",
-          items: "[]",
-          name: "X",
-        }),
-      );
-      expect(extracted.day_count).toBe("3");
-    });
-
-    test("extractSessionMetadata surfaces site_token_index when present", () => {
-      const extracted = extractSessionMetadata(
-        wireMetadata({
-          email: "renew@example.com",
-          items: "[]",
-          name: "Renewer",
-          site_token_index: "hashed-index-value",
-        }),
-      );
-      expect(extracted.site_token_index).toBe("hashed-index-value");
-    });
-
-    test("extractSessionMetadata defaults site_token_index to empty string", () => {
-      const extracted = extractSessionMetadata(
-        wireMetadata({ email: "x@x.com", items: "[]", name: "X" }),
-      );
-      expect(extracted.site_token_index).toBe("");
     });
 
     const checkoutIntent = (

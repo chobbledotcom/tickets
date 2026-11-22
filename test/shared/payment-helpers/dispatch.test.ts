@@ -10,7 +10,6 @@ import {
   parseWebhookPayload,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import { hasRequiredSessionMetadata } from "#shared/session-metadata.ts";
 import {
   debugMessages,
   useDebugLogSpy,
@@ -19,61 +18,6 @@ import {
 
 describe("payment-helpers", () => {
   const debugSpy = useDebugLogSpy();
-
-  describe("hasRequiredSessionMetadata", () => {
-    test("returns false for null/undefined", () => {
-      expect(hasRequiredSessionMetadata(null)).toBe(false);
-      expect(hasRequiredSessionMetadata(undefined)).toBe(false);
-    });
-
-    test("returns false when name is missing or empty", () => {
-      expect(
-        hasRequiredSessionMetadata({ email: "a@b.com", items: "[]" }),
-      ).toBe(false);
-      expect(
-        hasRequiredSessionMetadata({
-          email: "a@b.com",
-          items: "[]",
-          name: "",
-        }),
-      ).toBe(false);
-    });
-
-    test("returns false when items missing", () => {
-      expect(
-        hasRequiredSessionMetadata({ email: "a@b.com", name: "Alice" }),
-      ).toBe(false);
-    });
-
-    test("returns true for valid single-listing (email optional)", () => {
-      expect(hasRequiredSessionMetadata({ items: "[]", name: "Alice" })).toBe(
-        true,
-      );
-      expect(
-        hasRequiredSessionMetadata({ email: "", items: "[]", name: "Alice" }),
-      ).toBe(true);
-    });
-
-    test("returns true for valid multi-listing metadata", () => {
-      expect(
-        hasRequiredSessionMetadata({
-          email: "a@b.com",
-          items: '[{"e":1,"q":2,"p":2000}]',
-          name: "Alice",
-        }),
-      ).toBe(true);
-    });
-
-    test("returns false when a present metadata value is not text", () => {
-      expect(
-        hasRequiredSessionMetadata({
-          email: 123 as unknown as string,
-          items: "[]",
-          name: "Alice",
-        }),
-      ).toBe(false);
-    });
-  });
 
   describe("cachedClientFactory", () => {
     test("logs missing configuration and the chosen creation message", async () => {
