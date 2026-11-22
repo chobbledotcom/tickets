@@ -31,7 +31,6 @@ import {
 } from "#shared/tables/definition.ts";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable, tableColumnText } from "#templates/components/table.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";
 import type { ListingWithCount } from "#types";
 
@@ -219,14 +218,6 @@ const renderListingTable = <TKey extends ListingColumnKey>(
     reorder: args.reorder,
     rowAttrs: (listing) => (listing.active ? {} : { class: "inactive-row" }),
   });
-
-/** The reorder column of the listings page: each listing moves through its
- *  own move routes, named by its id. */
-export const LISTING_REORDER: ReorderColumnOptions<ListingWithCount> = {
-  anchor: (listing) => String(listing.id),
-  header: translatedTableHeader("listings_table.order_column"),
-  path: (listing) => `/admin/listing/${listing.id}`,
-};
 
 /** Render the listings table (rows + header + scroll wrapper). */
 export const renderListingsTableSection = (

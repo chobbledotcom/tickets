@@ -86,20 +86,15 @@ const ARROW: Record<ReorderSetting, (props: ArrowProps) => JSX.Element> = {
   inForm: ArrowButton,
 };
 
-/** The drag handle and the arrows for one row. `titles`, when given, adds a
- * tooltip per arrow. The handle stays hidden until the admin bundle runs, so
- * a page without scripts offers the arrows only. */
+/** The drag handle and the arrows for one row. The handle stays hidden until
+ * the admin bundle runs, so a page without scripts offers the arrows only. */
 export const ReorderArrows = ({
   above,
   anchor,
   below,
   path,
   setting = "alone",
-  titles,
-}: ReorderProps & {
-  setting?: ReorderSetting;
-  titles?: Readonly<Record<MovePlace, string>> | undefined;
-}): JSX.Element => {
+}: ReorderProps & { setting?: ReorderSetting }): JSX.Element => {
   const Arrow = ARROW[setting];
   return (
     <>
@@ -120,11 +115,16 @@ export const ReorderArrows = ({
           anchor={above}
           path={path}
           place="before"
-          title={titles?.before}
+          title={t("common.reorder_up")}
         />
       )}{" "}
       {below !== undefined && (
-        <Arrow anchor={below} path={path} place="after" title={titles?.after} />
+        <Arrow
+          anchor={below}
+          path={path}
+          place="after"
+          title={t("common.reorder_down")}
+        />
       )}
     </>
   );

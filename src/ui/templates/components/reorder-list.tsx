@@ -43,66 +43,61 @@ const itemsOrEmptyReorderTable = <T,>(
  *  there are no items. Shared by the question answers table and the attribute
  *  options table, which differ only in their headers, empty text, edit/move
  *  routes, and count. */
-export const reorderCountTable = <T extends { id: number }>(opts: {
-  labelHeader: string;
-  countHeader: string;
-  orderLabel: string;
+/** The rows of a reorderable table, the note when there are none, and the
+ *  reorder column from the rows' ordered list. */
+type ReorderRows<T> = {
   items: T[];
   emptyText: string;
-  /** The item's own path, which its move routes hang off. */
-  path: (item: T) => string;
-  editHref: (item: T) => string;
-  label: (item: T) => Child;
-  count: (item: T) => Child;
-}): JSX.Element =>
-  itemsOrEmptyReorderTable(
-    opts.items,
-    opts.emptyText,
+  reorder: ReorderColumnOptions<T>;
+};
+
+export const reorderCountTable = <T,>(
+  opts: ReorderRows<T> & {
+    labelHeader: string;
+    countHeader: string;
+    editHref: (item: T) => string;
+    label: (item: T) => Child;
+    count: (item: T) => Child;
+  },
+): JSX.Element =>
+  itemsOrEmptyReorderTable(opts.items, opts.emptyText, opts.reorder, [
     {
-      anchor: (item) => String(item.id),
-      header: opts.orderLabel,
-      path: opts.path,
+      cell: (item: T) =>
+        isReadOnly() ? (
+          opts.label(item)
+        ) : (
+          <a href={opts.editHref(item)}>{opts.label(item)}</a>
+        ),
+      header: opts.labelHeader,
+      key: "label",
     },
-    [
-      {
-        cell: (item: T) =>
-          isReadOnly() ? (
-            opts.label(item)
-          ) : (
-            <a href={opts.editHref(item)}>{opts.label(item)}</a>
-          ),
-        header: opts.labelHeader,
-        key: "label",
-      },
-      {
-        cell: (item: T) => opts.count(item),
-        class: "quantity" as const,
-        header: opts.countHeader,
-        key: "count",
-      },
-    ],
-  );
+    {
+      cell: (item: T) => opts.count(item),
+      class: "quantity" as const,
+      header: opts.countHeader,
+      key: "count",
+    },
+  ]);
 
 /** A reorderable admin collection page: the "add new item" form (owner-only),
  *  then either an empty note or the reorderable table of items, then the guide
  *  footer — all inside the standard error-flash admin shell. Shared by the
  *  questions and attributes list pages, which differ only in their labels,
  *  columns, and per-row cells. */
-export const reorderableListPage = <T extends { id: number }>(opts: {
-  title: string;
-  basePath: string;
-  session: AdminSession;
-  error: string | undefined;
-  newFormId: string;
-  addFormHtml: string;
-  addLabel: string;
-  items: T[];
-  emptyText: string;
-  orderLabel: string;
-  columns: readonly TableColumn<T>[];
-  guideHref: string;
-  guideLabel: Child;
-}): string =>
+export const reorderableListPage = <T,>(
+  opts: ReorderRows<T> & {
+    title: string;
+    basePath: string;
+    session: AdminSession;
+    error: string | undefined;
+    newFormId: string;
+    addFormHtml: string;
+    addLabel: string;
+    columns: readonly TableColumn<T>[];
+    guideHref: string;
+    guideLabel: Child;
+  },
+): string =>
   errorAdminPage(opts.title, opts.basePath)(opts.session, opts.error)(
     <>
       <WritableOnly>
@@ -115,11 +110,7 @@ export const reorderableListPage = <T extends { id: number }>(opts: {
       {itemsOrEmptyReorderTable(
         opts.items,
         opts.emptyText,
-        {
-          anchor: (item: T) => String(item.id),
-          header: opts.orderLabel,
-          path: (item: T) => `${opts.basePath}/${item.id}`,
-        },
+        opts.reorder,
         opts.columns,
       )}
 

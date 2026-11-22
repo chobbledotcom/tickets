@@ -316,11 +316,10 @@ const reorderColumn = <TRow, TContext = undefined>(
       {...neighbourAnchors(rows, index, options.anchor)}
       anchor={options.anchor(row)}
       path={options.path(row)}
-      titles={options.titles}
     />
   ),
   class: "reorder",
-  header: options.header,
+  header: () => t("common.reorder_column"),
   key: "__reorder__",
 });
 

@@ -1,5 +1,5 @@
 import { records } from "#db/record-table.ts";
-import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin CRUD for user-created content Pages, under Site → Pages. Owner +
@@ -15,9 +15,7 @@ import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
 
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getListingOfferFlags } from "#db/listings/catalog.ts";
-import { flatCollectionArrange } from "#db/ordered-collection.ts";
 import { readExists } from "#db/read.ts";
-import type { RecordTargetKey } from "#db/record-target.ts";
 import {
   addPageItem,
   getItemsForPage,
@@ -30,21 +28,17 @@ import { formGuard, SITE_FORM } from "#routes/auth.ts";
 import {
   createEntityHandler,
   createIdEntityHandler,
-  type IdParam,
   throughParent,
 } from "#routes/entity.ts";
 import { errorRedirect } from "#routes/response.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
+import { idRows, orderedListRoutes } from "#shared/ordered-list-routes.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import { sitePageRecord } from "#shared/records/site-pages.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { eligibleChildPages } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
-import {
-  type SitePageItemTarget,
-  sitePageItemTargets,
-  targetOfPageItem,
-} from "#shared/site-pages/target.ts";
+import type { SitePageItemTarget } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import {
   adminSitePageDeletePage,
@@ -130,13 +124,9 @@ const pageFormHandler = createIdEntityHandler<SitePage>(
 
 // ─── Root reorder ───────────────────────────────────────────────
 
-const rootPageOrder = createOrderedCollectionHandlers({
-  arrange: flatCollectionArrange(sitePageOrder),
-  auth: SITE_FORM,
-  keys: async () => (await loadPageForest()).forest.rootIds,
-  movedMessage: t("site.pages.moved"),
-  redirectPath: () => LIST_PATH,
-  target: ({ params }: { params: IdParam }) => params.id,
+const rootPageOrder = orderedListRoutes(ORDERED_LISTS.sitePage, {
+  order: sitePageOrder,
+  rows: () => idRows(loadPageForest().then(({ forest }) => forest.rootIds)),
 });
 
 // ─── Item manager ───────────────────────────────────────────────
@@ -226,28 +216,17 @@ const handleRemoveItem = pageItemHandler(async ({ page, ref }) =>
   ),
 );
 
-/** The key one page item goes by in the page's order. */
-type SitePageItemKey = RecordTargetKey<SitePageItemType>;
-
-const pageItemOrder = createOrderedCollectionHandlers({
-  arrange: (keys: readonly SitePageItemKey[], { params }) =>
+const pageItemOrder = orderedListRoutes(ORDERED_LISTS.sitePageItem, {
+  arrange: (items, pageId) =>
     sitePageItemOrder.arrange({
-      keys: keys.map((key) => {
-        const ref = sitePageItemTargets.fromKey(key);
-        return [ref.kind, ref.id] as const;
-      }),
-      scope: params.id,
+      keys: items.map((item) => [item.type, item.id] as const),
+      scope: pageId,
     }),
-  auth: SITE_FORM,
-  keys: async ({ params }) =>
-    (await getItemsForPage(params.id)).map((item) =>
-      sitePageItemTargets.key(targetOfPageItem(item)),
-    ),
-  loadContext: async ({ itemId, itemType }: ItemRouteParams) =>
-    isSitePageItemType(itemType) ? { id: itemId, kind: itemType } : null,
-  movedMessage: t("site.pages.moved"),
-  redirectPath: ({ params }) => itemsPath(params.id),
-  target: ({ context }) => sitePageItemTargets.key(context),
+  rows: async (pageId) =>
+    (await getItemsForPage(pageId)).map((item) => ({
+      id: item.itemId,
+      type: item.itemType,
+    })),
 });
 
 // ─── Routes ─────────────────────────────────────────────────────
@@ -255,10 +234,7 @@ const pageItemOrder = createOrderedCollectionHandlers({
 export const adminHandlers = defineAdminRoutes({
   ...contentRecordRoutes("sitePages", pages, images, sitePageEntityPage),
   "POST /admin/site/pages/:id/items": handleAddItem,
-  ...orderRoutes(
-    "/admin/site/pages/:id/items/:itemType/:itemId",
-    pageItemOrder,
-  ),
+  ...pageItemOrder,
   "POST /admin/site/pages/:id/items/:itemType/:itemId/remove": handleRemoveItem,
-  ...orderRoutes("/admin/site/pages/:id", rootPageOrder),
+  ...rootPageOrder,
 });

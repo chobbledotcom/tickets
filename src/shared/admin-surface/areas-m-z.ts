@@ -11,9 +11,9 @@ import {
 import {
   childWrites,
   contentWrites,
-  moveWrites,
   recordArea,
 } from "#shared/admin-surface/record-area.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import {
   CONTENT_ADMIN_LEVELS,
   DOOR_ADMIN_LEVELS,
@@ -73,10 +73,10 @@ export const AREAS_M_Z = {
   questions: recordArea({
     audience: OWNER_AUDIENCE,
     extraWrites: {
-      ...childWrites("answer", "/admin/questions/:id/answers", "answerId"),
+      ...childWrites(ORDERED_LISTS.answer),
       answerRecalculate: "/admin/questions/:id/answers/:answerId/recalculate",
       questionListings: "/admin/questions/:id/listings",
-      ...moveWrites("question", "/admin/questions/:id"),
+      ...ORDERED_LISTS.question.writes,
     },
     name: "questions",
     newPage: false,
@@ -180,7 +180,7 @@ export const AREAS_M_Z = {
     audience: OWNER_AUDIENCE,
     basePath: "/admin/settings/statuses",
     extraWrites: {
-      ...moveWrites("status", "/admin/settings/statuses/:id"),
+      ...ORDERED_LISTS.status.writes,
     },
     listAfterSave: false,
     name: "statuses",
@@ -205,14 +205,11 @@ export const AREAS_M_Z = {
     basePath: "/admin/site/pages",
     extraWrites: {
       ...contentWrites("sitePage", "/admin/site/pages/:id"),
-      ...moveWrites(
-        "sitePageItem",
-        "/admin/site/pages/:id/items/:itemType/:itemId",
-      ),
+      ...ORDERED_LISTS.sitePageItem.writes,
       sitePageItemRemove:
         "/admin/site/pages/:id/items/:itemType/:itemId/remove",
       sitePageItems: "/admin/site/pages/:id/items",
-      ...moveWrites("sitePage", "/admin/site/pages/:id"),
+      ...ORDERED_LISTS.sitePage.writes,
     },
     name: "sitePages",
     prefix: "sitePage",

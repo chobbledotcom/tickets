@@ -13,6 +13,7 @@ import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ExclusivePair } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import { statusRecord } from "#shared/records/statuses.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
@@ -28,10 +29,7 @@ import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
 import { idOptions, SelectField } from "#templates/components/select-field.tsx";
-import {
-  translatedTableColumn,
-  translatedTableHeader,
-} from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
 
 const LIST_PATH = adminPattern("statuses");
@@ -256,15 +254,7 @@ export const statusPages = defineRecordPages(statusRecord, {
       </GuideFooter>
     ),
     intro: <ProseIntro html={t("statuses.attendee_statuses_description")} />,
-    reorder: {
-      anchor: (status) => String(status.id),
-      header: translatedTableHeader("statuses.order_header"),
-      path: (status) => `${LIST_PATH}/${status.id}`,
-      titles: {
-        after: t("statuses.move_down_title"),
-        before: t("statuses.move_up_title"),
-      },
-    },
+    reorder: ORDERED_LISTS.status.column(),
   },
   renderFields: renderStatusFields,
 });

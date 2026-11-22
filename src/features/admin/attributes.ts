@@ -6,18 +6,13 @@ import {
   attributeOptionsOrder,
   attributesOrder,
   deleteAttributeOption,
-  getAttributeId,
   getAttributeIdsOrdered,
   getAttributeListingUse,
   getAttributeWithOptions,
   listingAttributeOptions,
 } from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
-import {
-  flatCollectionArrange,
-  insertScopedOrderedRow,
-  scopedCollectionArrange,
-} from "#db/ordered-collection.ts";
+import { insertScopedOrderedRow } from "#db/ordered-collection.ts";
 import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
@@ -28,7 +23,6 @@ import {
 import {
   defineAdminRoutes,
   listCrudRoutes,
-  orderRoutes,
 } from "#routes/admin/route-tables.ts";
 import { formGuard, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import {
@@ -40,12 +34,11 @@ import {
 import { adminRedirect, htmlResponse } from "#routes/response.ts";
 import type { AdminPathParams } from "#shared/admin-surface/ids.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
-import {
-  createAuthedFormRoute,
-  createOrderedCollectionHandlers,
-} from "#shared/app-forms.ts";
+import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { SubmittedValueProps } from "#shared/form-data.ts";
+import { idRows, orderedListRoutes } from "#shared/ordered-list-routes.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import { attributeRecord } from "#shared/records/attributes.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import {
@@ -312,29 +305,16 @@ const handleEditOptionPost = createAuthedFormRoute<
   },
 });
 
-const optionOrder = createOrderedCollectionHandlers({
-  arrange: scopedCollectionArrange(
-    attributeOptionsOrder,
-    ({ context }: { context: AttributeOptionContext }) => context.attribute.id,
-  ),
-  auth: formPolicyFor(
-    adminDestinationAt("/admin/attributes/:id/options/:optionId/move-before"),
-  ),
-  keys: ({ context }) => context.attribute.options.map((item) => item.id),
-  loadContext: loadAttributeOption,
-  movedMessage: "Option moved",
-  redirectPath: ({ context }) => `/admin/attributes/${context.attribute.id}`,
-  target: ({ context }) => context.option.id,
+const optionOrder = orderedListRoutes(ORDERED_LISTS.attributeOption, {
+  order: attributeOptionsOrder,
+  // An attribute that is gone has no options to move.
+  rows: async (attributeId) =>
+    (await getAttributeWithOptions(attributeId))?.options ?? null,
 });
 
-const attributeOrder = createOrderedCollectionHandlers({
-  arrange: flatCollectionArrange(attributesOrder),
-  auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/move-before")),
-  keys: getAttributeIdsOrdered,
-  loadContext: ({ id }: { id: number }) => getAttributeId(id),
-  movedMessage: "Attribute moved",
-  redirectPath: () => "/admin/attributes",
-  target: ({ context }) => context,
+const attributeOrder = orderedListRoutes(ORDERED_LISTS.attribute, {
+  order: attributesOrder,
+  rows: () => idRows(getAttributeIdsOrdered()),
 });
 
 const handleListingAttributesPost = createListingChoicePost({
@@ -354,10 +334,10 @@ export const adminHandlers = defineAdminRoutes({
   "GET /admin/attributes/:id": handleAttributeGet,
   "GET /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionGet,
   "GET /admin/attributes/:id/options/:optionId/edit": handleEditOptionGet,
-  ...orderRoutes("/admin/attributes/:id", attributeOrder),
+  ...attributeOrder,
   "POST /admin/attributes/:id/options": handleAddOption,
   "POST /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionPost,
   "POST /admin/attributes/:id/options/:optionId/edit": handleEditOptionPost,
-  ...orderRoutes("/admin/attributes/:id/options/:optionId", optionOrder),
+  ...optionOrder,
   "POST /admin/listing/:id/attributes": handleListingAttributesPost,
 });

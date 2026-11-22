@@ -10,7 +10,6 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
-import type { MovePlace } from "#shared/reorder.ts";
 import type { ColumnKind } from "#templates/components/table-columns.ts";
 
 type TableHeader = Child | (() => Child);
@@ -76,14 +75,10 @@ export type TableColumn<
   readonly description?: string | (() => string);
 };
 
-/** The standard reorder column declaration: prepended to a table when the
- *  operator can re-order rows (attributes, questions, statuses, site pages).
- *  `path` is the row's own path, which its two move routes hang off.
- *  `anchor` is the key the move routes name the row by. Hidden entirely in
- *  read-only mode. */
+/** The reorder column of one ordered list, from its declaration. `path` is
+ *  the row's own path, which its two move routes hang off. `anchor` is the
+ *  key the move routes name the row by. */
 export type ReorderColumnOptions<TRow> = {
   readonly anchor: (row: TRow) => string;
   readonly path: (row: TRow) => string;
-  readonly header: TableHeader;
-  readonly titles?: Readonly<Record<MovePlace, string>>;
 };

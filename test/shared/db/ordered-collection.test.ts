@@ -2,11 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { execute, queryAll, queryOne, withTransaction } from "#db/client.ts";
-import {
-  defineOrderedCollection,
-  flatCollectionArrange,
-  scopedCollectionArrange,
-} from "#db/ordered-collection.ts";
+import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
@@ -77,7 +73,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     expect(await statusOrder(second)).toBe(5);
     expect(await statuses.next({})).toBe(6);
 
-    await flatCollectionArrange(statuses)([second, first]);
+    await statuses.arrange({ keys: [second, first] });
     expect(await statusOrder(second)).toBe(0);
     expect(await statusOrder(first)).toBe(1);
   });
@@ -142,13 +138,13 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     await insertPageItem(1, "group", 7, 20);
     await insertPageItem(2, "listing", 7, 30);
 
-    await scopedCollectionArrange(pageItems, (pageId: number) => pageId)(
-      [
+    await pageItems.arrange({
+      keys: [
         ["group", 7],
         ["listing", 7],
       ],
-      1,
-    );
+      scope: 1,
+    });
 
     const rows = await queryAll<{
       item_type: string;

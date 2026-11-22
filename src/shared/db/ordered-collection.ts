@@ -50,33 +50,6 @@ export interface OrderedCollection<
   }): Promise<number[]>;
 }
 
-type FlatArrange<Key extends Columns> = (
-  keys: readonly ColumnValues<Key>[],
-) => Promise<void>;
-
-export const flatCollectionArrange =
-  <Key extends Columns>(
-    collection: OrderedCollection<Key, undefined>,
-  ): FlatArrange<Key> =>
-  (keys) =>
-    collection.arrange({ keys });
-
-type ScopedArrange<Key extends Columns, Context> = (
-  keys: readonly ColumnValues<Key>[],
-  context: Context,
-) => Promise<void>;
-
-export const scopedCollectionArrange =
-  <Key extends Columns, Scope extends Columns, Context>(
-    collection: OrderedCollection<Key, Scope>,
-    scopeOf: (context: Context) => ColumnValues<Scope>,
-  ): ScopedArrange<Key, Context> =>
-  (keys, context) =>
-    collection.arrange({
-      keys,
-      scope: scopeOf(context),
-    } as unknown as ArrangeOperation<Key, Scope>);
-
 interface OrderedCollectionConfig<
   Key extends Columns,
   Scope extends Columns | undefined,

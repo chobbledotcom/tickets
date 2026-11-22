@@ -15,6 +15,7 @@ import {
 import { adminPath } from "#shared/admin-surface.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { SubmittedValueProps } from "#shared/form-data.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import {
   LinkedItemsCheckboxes,
@@ -176,8 +177,7 @@ export const QuestionAnswersSection = ({
         items: question.answers,
         label: (a) => a.text,
         labelHeader: t("questions.answer_column"),
-        orderLabel: t("questions.order_column"),
-        path: (a) => `/admin/questions/${question.id}/answers/${a.id}`,
+        reorder: ORDERED_LISTS.answer.column(question.id),
       })}
     </>
   );

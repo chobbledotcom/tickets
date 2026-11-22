@@ -72,9 +72,7 @@ const config: AdminResourcePagesConfig<SyntheticResource> = {
     intro: <p data-list-intro="true">Manage synthetic widgets.</p>,
     reorder: {
       anchor: ({ id }) => String(id),
-      header: "Order",
       path: ({ id }) => `/admin/widgets/${id}`,
-      titles: { after: "Move down", before: "Move up" },
     },
   },
   renderFields: (current) => (
