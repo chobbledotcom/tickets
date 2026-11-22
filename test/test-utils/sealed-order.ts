@@ -42,7 +42,8 @@ export const sealedSession = async (
   ),
 });
 
-const tokenOf = (session: SealedSession): string =>
+/** The token that the session's metadata carries. */
+export const tokenOf = (session: SealedSession): string =>
   session.metadata.bundle as string;
 
 export const openBundleOf = (session: SealedSession) =>

@@ -7,24 +7,22 @@
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { sessionAnswerOf } from "#payment/row-state.ts";
 import { isSessionRejection } from "#payment/validated-session.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
-import { formatPaymentError } from "#routes/api/payment-processing/index.ts";
-import { reportLostBundle } from "#routes/api/payment-processing/lost-bundle.ts";
 import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
-import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
 import {
-  type SettledStanding,
-  sessionStanding,
-} from "#routes/api/payment-processing/settled-order.ts";
+  type MissingOrder,
+  missingOrderReturnPage,
+} from "#routes/api/payment-processing/missing-order.ts";
+import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
+import { sessionStanding } from "#routes/api/payment-processing/session-standing.ts";
 import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import type {
   SessionValidation,
   SignedVerdict,
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
-import { htmlResponse, publicPageResponse } from "#routes/response.ts";
+import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { encodedAfter } from "#shared/encoded-after.ts";
@@ -37,7 +35,6 @@ import {
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import {
   paymentWaitingPage,
-  successPage,
   WAITING_PAGE_RELOAD_LIMIT,
   waitingPageStillReloads,
 } from "#templates/payment.tsx";
@@ -57,18 +54,23 @@ const logRedirectError = paymentSessionErrorLogger("redirect");
 
 /** The refusal for one refused checkout: a message page that, when the
  * refuser saw a browser request, also carries the facts this branch knows. */
-const refusalPage = async (
+const refusalResponse = async (
   request: Request | undefined,
   message: string,
   facts: { provider?: string; sessionId?: string; status?: string } = {},
   status = 400,
-): Promise<SessionValidation> => ({
-  ok: false,
-  response: await paymentErrorResponse(
+): Promise<Response> =>
+  paymentErrorResponse(
     message,
     status,
     await staffPaymentDiagnostics(request, facts),
-  ),
+  );
+
+const refusalPage = async (
+  ...args: Parameters<typeof refusalResponse>
+): Promise<SessionValidation> => ({
+  ok: false,
+  response: await refusalResponse(...args),
 });
 
 /** A session that cannot be read: log why and return the shared refusal. */
@@ -137,7 +139,7 @@ type SessionClass = SignedVerdict | { verdict: "ignore" };
  * prove is ours but cannot read must remain retryable. */
 export type SessionIntentResult =
   | { kind: "ready"; verdict: SignedVerdict; intent: BookingIntent }
-  | { kind: "settled"; standing: SettledStanding }
+  | { kind: "missing"; missing: MissingOrder }
   | { kind: "unverifiable" }
   | { kind: "unreadable" };
 
@@ -171,33 +173,15 @@ export const classifySessionIntent = async (
     logUnreadableBooking("Signed payment's booking could not be read");
     return { kind: "unreadable" };
   }
-  // A settled session's receipt goes with the prune. Only a session that is
-  // not settled is missing its order.
-  const standing = await sessionStanding(session.id);
-  if (standing.kind !== "open") return { kind: "settled", standing };
-  await reportLostBundle(session, order.status);
-  return { kind: "unreadable" };
-};
-
-/** The return page for a settled session whose receipt is gone. A booking
- * shows success. A final outcome repeats its stored message. A ledger-only
- * session says it was handled. */
-const settledReturnPage = (standing: SettledStanding): Promise<Response> => {
-  switch (standing.kind) {
-    case "booked":
-      return publicPageResponse(() =>
-        successPage({ paid: true, thankYouUrl: "", ticketUrl: null }),
-      );
-    case "handled": {
-      const answer = sessionAnswerOf(standing.failure);
-      return paymentErrorResponse(
-        formatPaymentError({ ...answer, success: false }),
-        answer.status,
-      );
-    }
-    case "recorded":
-      return paymentErrorResponse(t("payment.error.already_handled"), 200);
-  }
+  // Each surface answers a missing order from where the session stands.
+  return {
+    kind: "missing",
+    missing: {
+      reason: order.status,
+      session,
+      standing: await sessionStanding(session.id),
+    },
+  };
 };
 
 export const validatePaidSession = async (
@@ -290,10 +274,13 @@ export const validatePaidSession = async (
       503,
     );
   }
-  if (classified.kind === "settled") {
+  if (classified.kind === "missing") {
     return {
       ok: false,
-      response: await settledReturnPage(classified.standing),
+      response: await missingOrderReturnPage(classified.missing, {
+        refuse: (message, status) =>
+          refusalResponse(request, message, knownFacts, status),
+      }),
     };
   }
   return {
