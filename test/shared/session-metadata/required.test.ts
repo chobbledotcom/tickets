@@ -50,13 +50,11 @@ describe("hasRequiredSessionMetadata", () => {
   });
 
   test("returns false when a present metadata value is not text", () => {
-    expect(
-      hasRequiredSessionMetadata({
-        email: 123 as unknown as string,
-        items: "[]",
-        name: "Alice",
-      }),
-    ).toBe(false);
+    const fromProvider = JSON.parse(
+      '{"email":123,"items":"[]","name":"Alice"}',
+    );
+
+    expect(hasRequiredSessionMetadata(fromProvider)).toBe(false);
   });
 
   test("returns true for a sealed order token with no buyer or lines", () => {

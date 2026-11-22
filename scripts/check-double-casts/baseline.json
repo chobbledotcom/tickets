@@ -33,7 +33,6 @@
   "test/shared/i18n/loading.test.ts": 1,
   "test/shared/listing-defaults.test.ts": 1,
   "test/shared/listings-actions.test.ts": 2,
-  "test/shared/payment-helpers/dispatch.test.ts": 1,
   "test/shared/payment/provider-fetch.test.ts": 2,
   "test/shared/payment/provider-reference.test.ts": 1,
   "test/shared/payment/refund-provider-authorization.test.ts": 1,
