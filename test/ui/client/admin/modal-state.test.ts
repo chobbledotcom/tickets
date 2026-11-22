@@ -169,7 +169,7 @@ describe("pure modal lifecycle", () => {
         type: "resize",
         viewport,
       }),
-    ).toThrow("Missing modal size: b");
+    ).toThrow("Missing map key b");
     expect(stack).toEqual([a, b, c]);
   });
 });

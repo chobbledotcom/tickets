@@ -25,6 +25,15 @@ export const attemptFields = {
 
 export type ModelDataSource = () => Promise<string>;
 
+/** A record schema whose fields are all integers. */
+export const integerFields = <const Names extends readonly string[]>(
+  names: Names,
+): Record<Names[number], "Int"> =>
+  Object.fromEntries(names.map((name) => [name, "Int"])) as Record<
+    Names[number],
+    "Int"
+  >;
+
 /** A data source that builds one fixed data module. Every model generator
  *  uses it, so no generator re-declares the curried factory. */
 export const modelDataFor =

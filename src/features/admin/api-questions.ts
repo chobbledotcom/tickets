@@ -131,11 +131,7 @@ const hydrateAnswerStatsWith =
         {
           answers: question.answers.map((answer) => ({
             ...snakeCaseKeys(answer),
-            times_selected: requiredMapValue(
-              byAnswer,
-              answer.id,
-              `Missing selection total for answer ${answer.id}`,
-            ),
+            times_selected: requiredMapValue(byAnswer, answer.id),
           })),
         },
       ]),

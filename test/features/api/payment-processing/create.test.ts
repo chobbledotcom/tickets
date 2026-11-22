@@ -57,7 +57,7 @@ test("fails when a promo code has no pricing application", () => {
   const listing: ListingWithCount = testListingWithCount();
 
   expect(() => promoActivityLines([spec], [], listing)).toThrow(
-    "Modifier application 1 was not loaded for promo code activity",
+    "Missing map key 1",
   );
 });
 

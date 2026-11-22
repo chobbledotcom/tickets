@@ -215,11 +215,7 @@ const appendModifierListingLinks = (
   rows: ModifierListingLinkRow[],
 ): Map<number, number[]> => {
   for (const row of rows) {
-    requiredMapValue(
-      links,
-      row.modifier_id,
-      `Modifier ${row.modifier_id} missing`,
-    ).push(row.listing_id);
+    requiredMapValue(links, row.modifier_id).push(row.listing_id);
   }
   return links;
 };

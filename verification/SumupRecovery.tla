@@ -1,5 +1,5 @@
 -------------------------- MODULE SumupRecovery --------------------------
-EXTENDS Integers, ModelRules, SumupRecoveryData
+EXTENDS Apalache, Integers, ModelRules, SumupRecoveryData
 
 \* \in means set membership. \cup combines sets and \ removes members.
 \* /\ requires all listed conditions. \/ permits either alternative.
@@ -181,15 +181,15 @@ Safety ==
 
 \* Start with a retained staged row, no provider id and no prior evidence.
 Init ==
-  /\ recoveryState = NoCheckoutIdState
-  /\ hasCheckoutId = FALSE
-  /\ checkoutIdAgrees = TRUE
-  /\ rowRetained = TRUE
-  /\ pruningAgeReached = FALSE
-  /\ riskyDeletionSeen = FALSE
-  /\ checkHistorySafe = TRUE
-  /\ owedStateSeen = FALSE
-  /\ firstTerminalState = "none"
+  /\ recoveryState := NoCheckoutIdState
+  /\ hasCheckoutId := FALSE
+  /\ checkoutIdAgrees := TRUE
+  /\ rowRetained := TRUE
+  /\ pruningAgeReached := FALSE
+  /\ riskyDeletionSeen := FALSE
+  /\ checkHistorySafe := TRUE
+  /\ owedStateSeen := FALSE
+  /\ firstTerminalState := "none"
 
 \* Only a retained row can take a move with the same state and id-presence shape.
 \* Apply every supplied output without a safety precondition. ChecksStillPass retains
@@ -200,19 +200,19 @@ RecoveryStep ==
   /\ \E move \in RecoveryMoves :
        /\ move.sourceState = recoveryState
        /\ move.sourceHasCheckoutId = hasCheckoutId
-       /\ recoveryState' = move.targetState
-       /\ hasCheckoutId' = move.targetHasCheckoutId
-       /\ checkoutIdAgrees' = move.targetCheckoutIdAgrees
-       /\ checkHistorySafe' = ChecksStillPass(checkHistorySafe, CheckPreservesWork(move))
-       /\ owedStateSeen' =
+       /\ recoveryState' := move.targetState
+       /\ hasCheckoutId' := move.targetHasCheckoutId
+       /\ checkoutIdAgrees' := move.targetCheckoutIdAgrees
+       /\ checkHistorySafe' := ChecksStillPass(checkHistorySafe, CheckPreservesWork(move))
+       /\ owedStateSeen' :=
             (owedStateSeen \/ recoveryState = "owed" \/ move.targetState = "owed")
-       /\ firstTerminalState' = FirstTerminalResult(move.targetState)
+       /\ firstTerminalState' := FirstTerminalResult(move.targetState)
        /\ UNCHANGED <<rowRetained, pruningAgeReached, riskyDeletionSeen>>
 
 \* Age can mark the prune threshold as reached at any time. It changes no row.
 \* This deliberate abstraction checks safe deletion without a clock proof.
 Age ==
-  /\ pruningAgeReached' = TRUE
+  /\ pruningAgeReached' := TRUE
   /\ UNCHANGED <<recoveryState, hasCheckoutId, checkoutIdAgrees, rowRetained,
                  riskyDeletionSeen, checkHistorySafe, owedStateSeen, firstTerminalState>>
 
@@ -223,8 +223,8 @@ Prune ==
   /\ rowRetained
   /\ pruningAgeReached
   /\ recoveryState \in PrunableStates
-  /\ rowRetained' = FALSE
-  /\ riskyDeletionSeen' = (riskyDeletionSeen \/ recoveryState \in RiskStates)
+  /\ rowRetained' := FALSE
+  /\ riskyDeletionSeen' := (riskyDeletionSeen \/ recoveryState \in RiskStates)
   /\ UNCHANGED <<recoveryState, hasCheckoutId, checkoutIdAgrees, pruningAgeReached,
                  checkHistorySafe, owedStateSeen, firstTerminalState>>
 

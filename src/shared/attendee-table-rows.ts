@@ -36,7 +36,7 @@ export const withPairBookings =
       const key = pairKey(row.attendee.id, row.listings[0]!.id);
       return {
         ...row,
-        booking: requiredMapValue(bookings, key, `No booking read for ${key}`),
+        booking: requiredMapValue(bookings, key),
       };
     });
 

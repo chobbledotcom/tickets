@@ -1,10 +1,13 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-/** Non-modal admin windows. The pure lifecycle owns order and positions.
- * This module owns native dialogs, focus, pointer capture, and page events. */
+/** Non-modal admin windows. The pure lifecycle owns order and positions, and
+ * the pure focus rule owns what is dim. This module owns native dialogs,
+ * focus, pointer capture, and page events. One thing has the focus: a window
+ * or the page. A press or focus outside the windows moves the focus to the
+ * page and closes nothing. */
 
 import * as v from "valibot";
-import { once, requiredMapValue } from "#fp";
+import { requiredMapValue } from "#fp";
 import {
   ADMIN_MODAL_TEMPLATE_ID,
   type ModalSettings,
@@ -12,20 +15,39 @@ import {
 } from "#shared/admin-modal.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
+  dimmingFor,
+  EMPTY_SCREEN,
+  type ModalScreen,
+  type ScreenEvent,
+  transitionScreen,
+} from "#src/ui/client/admin/modal-focus.ts";
+import {
   centredPosition,
   type ModalSize,
   type Point,
 } from "#src/ui/client/admin/modal-position.ts";
-import {
-  type ModalEvent,
-  type ModalState,
-  transitionModals,
-} from "#src/ui/client/admin/modal-state.ts";
+import type { ModalState } from "#src/ui/client/admin/modal-state.ts";
 import { cloneContent, requiredChild } from "#src/ui/client/dom.ts";
+import "#src/ui/client/window-globals.ts";
 
 // The stylesheet uses the same query.
 const FULL_SCREEN_QUERY = "(max-width: 768px), (pointer: coarse)";
+// The stylesheet's page dim sits at one below this number.
 const Z_INDEX_BASE = 1000;
+
+/** What a window asks of its opener. A window that is already open keeps the
+ * hooks it opened with.
+ *
+ *  - `canClose` is asked when the close control or Escape closes the window.
+ *    A false answer keeps it open. A close from code does not ask.
+ *  - `onClose` runs once after the window is gone, however it closed. */
+export type ModalHooks = {
+  canClose?: () => boolean;
+  onClose?: () => void;
+};
+
+const ALWAYS_CLOSABLE = (): boolean => true;
+const NOTHING_TO_DO = (): void => undefined;
 
 type Drag = {
   offset: Point;
@@ -35,23 +57,36 @@ type Drag = {
 
 type Shell = {
   bar: HTMLElement;
+  canClose: () => boolean;
   content: HTMLElement;
   controls: HTMLElement;
   dialog: HTMLDialogElement;
   drag: Drag | null;
   dragMoved: boolean;
+  observer: ResizeObserver;
+  onClose: () => void;
   rendered: ModalState | null;
   settings: ModalSettings;
   title: HTMLElement;
 };
 
-const getLifecycle = once(
-  (): {
-    shells: Map<string, Shell>;
-    states: readonly ModalState[];
-    shellCount: number;
-  } => ({ shellCount: 0, shells: new Map(), states: [] }),
-);
+/** The state that every window shares: the stack, the focus, and the shells.
+ * It lives on the window, because the admin bundle and the markdown editor
+ * bundle each carry a copy of this module. */
+export type AdminModalLifecycle = {
+  screen: ModalScreen;
+  shellCount: number;
+  shells: Map<string, Shell>;
+};
+
+const getLifecycle = (): AdminModalLifecycle => {
+  window.adminModalLifecycle ??= {
+    screen: EMPTY_SCREEN,
+    shellCount: 0,
+    shells: new Map(),
+  };
+  return window.adminModalLifecycle;
+};
 
 const viewportSize = (): ModalSize => ({
   height: window.innerHeight,
@@ -62,25 +97,39 @@ const measure = (dialog: HTMLDialogElement): ModalSize =>
   dialog.getBoundingClientRect();
 
 const stateFor = (shell: Shell): ModalState => {
-  const { states } = getLifecycle();
+  const { windows } = getLifecycle().screen;
   return requireValue(
-    states.find((state) => state.key === shell.settings.key),
+    windows.find((state) => state.key === shell.settings.key),
     "The modal state is absent.",
   );
 };
 
-const apply = (event: ModalEvent): void => {
+/** Dims the page when a window has the focus, and every window but the one
+ * that has it. The attribute is absent while no window is open. */
+const renderDimming = (): void => {
+  const { screen, shells } = getLifecycle();
+  const dimming = dimmingFor(screen);
+  for (const [key, { dialog }] of shells) {
+    dialog.classList.toggle("is-dim", dimming.windows.has(key));
+  }
+  const { dataset } = document.documentElement;
+  if (screen.windows.length === 0) {
+    delete dataset.adminModalPageDim;
+    return;
+  }
+  const value = String(dimming.page);
+  if (dataset.adminModalPageDim !== value) dataset.adminModalPageDim = value;
+};
+
+const apply = (event: ScreenEvent): void => {
   const lifecycle = getLifecycle();
   const { shells } = lifecycle;
-  const next = transitionModals(lifecycle.states, event);
-  if (next === lifecycle.states) return;
-  lifecycle.states = next;
-  for (const [index, state] of next.entries()) {
-    const shell = requiredMapValue(
-      shells,
-      state.key,
-      "The modal shell is absent.",
-    );
+  const next = transitionScreen(lifecycle.screen, event);
+  if (next === lifecycle.screen) return;
+  lifecycle.screen = next;
+  renderDimming();
+  for (const [index, state] of next.windows.entries()) {
+    const shell = requiredMapValue(shells, state.key);
     const { dialog, rendered } = shell;
     const zIndex = String(Z_INDEX_BASE + index);
     if (dialog.style.zIndex !== zIndex) dialog.style.zIndex = zIndex;
@@ -102,7 +151,10 @@ const apply = (event: ModalEvent): void => {
   }
 };
 
+// One listener serves every bundle's windows. It asks the shared state, so a
+// copy of this module that opened no window still answers for them.
 const warnBeforeLeave = (event: BeforeUnloadEvent): void => {
+  if (getLifecycle().shells.size === 0) return;
   event.preventDefault();
   event.returnValue = "";
 };
@@ -112,12 +164,11 @@ const removeShell = (shell: Shell): void => {
   const { key } = shell.settings;
   // A native close event can arrive after the same key opens a new window.
   if (shells.get(key) !== shell) return;
+  shell.observer.disconnect();
   shells.delete(key);
   shell.dialog.remove();
   apply({ key, type: "close" });
-  if (shells.size === 0) {
-    window.removeEventListener("beforeunload", warnBeforeLeave);
-  }
+  shell.onClose();
 };
 
 const closeShell = (shell: Shell): void => {
@@ -125,6 +176,14 @@ const closeShell = (shell: Shell): void => {
   shell.dialog.close();
   removeShell(shell);
 };
+
+const requestClose = (shell: Shell): void => {
+  if (shell.canClose()) closeShell(shell);
+};
+
+/** Gives the focus to one window and raises it. */
+const focusWindow = (shell: Shell): void =>
+  apply({ key: shell.settings.key, type: "raise" });
 
 const restore = (shell: Shell): void => {
   // Measure the expanded layout before the lifecycle clamps its saved point.
@@ -222,15 +281,15 @@ const clampOpenShells = (): void => {
 };
 
 const wireEvents = (shell: Shell): void => {
-  const { dialog, bar, settings } = shell;
+  const { dialog, bar } = shell;
   requiredChild(dialog, ".admin-modal-close").addEventListener("click", () =>
-    closeShell(shell),
+    requestClose(shell),
   );
   requiredChild(dialog, ".admin-modal-minimise").addEventListener("click", () =>
     toggleCollapsed(shell),
   );
   dialog.addEventListener("pointerdown", (event) => {
-    apply({ key: settings.key, type: "raise" });
+    focusWindow(shell);
     startDrag(shell, event);
   });
   dialog.addEventListener("pointermove", (event) => dragMove(shell, event));
@@ -240,13 +299,18 @@ const wireEvents = (shell: Shell): void => {
     if (shell.drag?.pointerId === event.pointerId) clearDrag(shell);
   });
   dialog.addEventListener("click", (event) => restoreOnBarClick(shell, event));
-  dialog.addEventListener("focusin", () =>
-    apply({ key: settings.key, type: "raise" }),
-  );
+  dialog.addEventListener("focusin", () => focusWindow(shell));
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") requestClose(shell);
+  });
   dialog.addEventListener("close", () => removeShell(shell));
 };
 
-const createShell = (settings: ModalSettings, content: HTMLElement): Shell => {
+const createShell = (
+  settings: ModalSettings,
+  content: HTMLElement,
+  { canClose, onClose }: Required<ModalHooks>,
+): Shell => {
   const template = requiredChild<HTMLTemplateElement>(
     document,
     `template#${ADMIN_MODAL_TEMPLATE_ID}`,
@@ -263,11 +327,14 @@ const createShell = (settings: ModalSettings, content: HTMLElement): Shell => {
   requiredChild(dialog, ".admin-modal-body").append(content);
   const shell: Shell = {
     bar: requiredChild(dialog, ".admin-modal-bar"),
+    canClose,
     content,
     controls: requiredChild(dialog, ".admin-modal-controls"),
     dialog,
     drag: null,
     dragMoved: false,
+    observer: new window.ResizeObserver(clampOpenShells),
+    onClose,
     rendered: null,
     settings,
     title,
@@ -277,22 +344,34 @@ const createShell = (settings: ModalSettings, content: HTMLElement): Shell => {
   return shell;
 };
 
+/** Whether the window with this key is open now. */
+export const isAdminModalOpen = (key: string): boolean =>
+  getLifecycle().shells.get(key)?.dialog.open === true;
+
+/** Closes the window with this key without asking `canClose`. A key that is
+ * not open is a window that already closed, so it does nothing. */
+export const closeAdminModal = (key: string): void => {
+  const shell = getLifecycle().shells.get(key);
+  if (shell !== undefined) closeShell(shell);
+};
+
 export const openAdminModal = (
   settings: unknown,
   content: HTMLElement,
+  { canClose = ALWAYS_CLOSABLE, onClose = NOTHING_TO_DO }: ModalHooks = {},
 ): HTMLElement => {
   const { shells } = getLifecycle();
   const parsed = v.parse(modalSettingsSchema, settings);
   const existing = shells.get(parsed.key);
   if (existing !== undefined) {
     if (existing.dialog.open) {
-      apply({ key: parsed.key, type: "raise" });
+      focusWindow(existing);
       existing.dialog.focus();
       return existing.content;
     }
     removeShell(existing);
   }
-  const shell = createShell(parsed, content);
+  const shell = createShell(parsed, content, { canClose, onClose });
   shells.set(parsed.key, shell);
   shell.dialog.show();
   apply({
@@ -300,11 +379,25 @@ export const openAdminModal = (
     point: centredPosition(measure(shell.dialog), viewportSize()),
     type: "open",
   });
+  // Fetched content and images can change the window size after it opens.
+  shell.observer.observe(shell.dialog);
   shell.dialog.focus();
-  window.addEventListener("beforeunload", warnBeforeLeave);
   return shell.content;
+};
+
+const focusPageOutsideWindows = (event: Event): void => {
+  const path = event.composedPath();
+  const inWindow = [...getLifecycle().shells.values()].some(({ dialog }) =>
+    path.includes(dialog),
+  );
+  if (!inWindow) apply({ type: "focus-page" });
 };
 
 export const initAdminModalShell = (): void => {
   window.addEventListener("resize", clampOpenShells);
+  window.addEventListener("beforeunload", warnBeforeLeave);
+  // A press on the page gives the page the focus and nothing more. The
+  // capture phase sees it even when a page control stops its own events.
+  document.addEventListener("pointerdown", focusPageOutsideWindows, true);
+  document.addEventListener("focusin", focusPageOutsideWindows);
 };

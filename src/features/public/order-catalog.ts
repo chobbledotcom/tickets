@@ -107,11 +107,7 @@ export const judgeOrderOptions = (
         holidays,
         isPackage: true,
         parents: pkg.members.map((member) =>
-          requiredMapValue(
-            catalog.parentInfoById,
-            member.id,
-            `Package member ${member.id} left the catalog`,
-          ),
+          requiredMapValue(catalog.parentInfoById, member.id),
         ),
         quantities: pkg.quantities,
       }),
@@ -164,11 +160,7 @@ export const loadOrderCatalog = async (): Promise<OrderCatalog> => {
       group,
       members,
       quantities: packageMemberMaps(
-        requiredMapValue(
-          priceRowsByGroupId,
-          group.id,
-          `Package prices missing for group ${group.id}`,
-        ),
+        requiredMapValue(priceRowsByGroupId, group.id),
       ).quantities,
     }),
   );

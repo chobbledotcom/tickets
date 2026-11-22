@@ -20,6 +20,13 @@ on:
 env:
   STRIPE_MOCK_VERSION: "0.188.0"
 
+# One run for each branch. A new push cancels the older run of the same branch,
+# because the older run tests a commit that is out of date. A merge queue run
+# never cancels: the queue needs every entry to finish and report.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 # Both jobs only read the checkout. Caching and artifact upload use the Actions
 # runtime token, not this one. The required-checks gate reads the branch
 # ruleset, which is public data, so `contents: read` carries it (issue
@@ -35,20 +42,22 @@ defaults:
   run:
     shell: devenv --profile ci shell bash -- -e {0}
 
-# Five jobs that run side by side. The static checks and the suite mirror
-# `getSteps()` in scripts/precommit/steps.ts; the suite holds both sides to
-# that claim (test/scripts/precommit-steps.test.ts), so a step added there
-# must land in the job that runs it here. Nothing in the suite reads what the
-# static checks produce, so running them beside the suite instead of ahead of
-# it takes their time off the critical path. The specs job runs the Cucumber
-# journeys, which no precommit step runs, so the journeys pass or fail as
-# hosted evidence too (issue #2761). The lockfile job checks the action pins.
+# The jobs run side by side. The static checks, the model checks, and the
+# suite mirror `getSteps()` in scripts/precommit/steps.ts; the suite holds both
+# sides to that claim (test/scripts/precommit-steps.test.ts), so a step added
+# there must land in the job that runs it here. Nothing in the suite reads what
+# the static checks produce, so running them beside the suite instead of ahead
+# of it takes their time off the critical path. The model checks run as one job
+# for each model, and `model-plan` lists the models from the registry. The
+# `checks` job is the required status check. It runs last and fails unless the
+# static checks and every model job passed, so the name that the ruleset knows
+# still gates the merge. The specs job runs the Cucumber journeys, which no
+# precommit step runs, so the journeys pass or fail as hosted evidence too
+# (issue #2761). The lockfile job checks the action pins.
 jobs:
-  checks:
+  static:
     runs-on: ubicloud-standard-4
-    # The uncached model suite takes about 46 minutes with two workers.
-    # A memory-limited runner can use one worker, so allow two hours.
-    timeout-minutes: 120
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -128,6 +137,12 @@ jobs:
       - name: Check the presence-assertion registry
         run: deno task check:presence-assertions
 
+      # Holds every test file to its recorded count of imports from src
+      # internals, and the registry to the merge base on origin/main (see
+      # "Keep tests on the public surface" in AGENTS.md).
+      - name: Check the test-internals registry
+        run: deno task check:test-internals
+
       # A helper the branch adds is invisible to the base tree; running the
       # dump against it here is what exercises that import (issue #2740).
       - name: Check contract drift against the base tree
@@ -156,22 +171,97 @@ jobs:
       - name: Check TLA model standards
         run: deno task check:tla
 
+      - name: Check model walkthroughs
+        run: deno task check:model-guides
+
+      - name: Build edge bundle
+        run: deno task build:edge
+
+  model-plan:
+    runs-on: ubicloud-standard-2
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      models: ${{ steps.list.outputs.models }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up model tools
+        uses: $/.github/actions/setup-model-tools
+
+      # The registry is the one list of models, so a new model gets a job
+      # without a workflow edit.
+      - name: List the registered models
+        id: list
+        run: echo "models=$(deno task --quiet verify:models --list)" >> "$GITHUB_OUTPUT"
+
+  model-checks:
+    needs: model-plan
+    name: model-checks (${{ matrix.model }})
+    runs-on: ${{ matrix.runner }}
+    # A wedged checker must fail loudly, so the job has a hard limit.
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      # One failed model must not hide the verdict of the others.
+      fail-fast: false
+      # The plan job lists each model with its runner.
+      matrix:
+        include: ${{ fromJSON(needs.model-plan.outputs.models) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up model tools
+        uses: $/.github/actions/setup-model-tools
+
       # A pass names its inputs, so a restored pass is safe.
       - name: Restore the model passes
         uses: actions/cache@v4.3.0
         with:
           path: .verify-models-passes
-          key: verify-models-${{ runner.os }}-${{ github.sha }}
+          key: verify-models-${{ runner.os }}-${{ matrix.model }}-${{ github.sha }}
           restore-keys: |
-            verify-models-${{ runner.os }}-
+            verify-models-${{ runner.os }}-${{ matrix.model }}-
 
-      # Only the models profile carries Apalache and Java.
-      - name: Check machine safety models
-        shell: devenv --profile models shell bash -- -e {0}
-        run: deno task verify:models
+      - name: Check the machine safety model
+        env:
+          MODEL: ${{ matrix.model }}
+        run: deno task verify:models --model "$MODEL"
 
-      - name: Build edge bundle
-        run: deno task build:edge
+  # The required status check. A skipped or cancelled job is not a pass, so
+  # this job runs on every outcome and reads each result.
+  checks:
+    needs: [static, model-plan, model-checks]
+    if: ${{ always() }}
+    runs-on: ubicloud-standard-2
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Require every check job to pass
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "::error::A check job finished with the result $result."
+              exit 1
+            fi
+          done
 
   test:
     runs-on: ubicloud-standard-8

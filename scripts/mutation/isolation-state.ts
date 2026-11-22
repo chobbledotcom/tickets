@@ -22,6 +22,8 @@ import { splitParts } from "#shared/split.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
+/** Holds the child's and the supervisor's pid and the run's status, so a stray
+ *  run is easy to find and stop. It stays until the next run starts. */
 export const MUTATION_RECORD_FILE = "run.json";
 const MUTATION_RUN_ID_PREFIX = "mutation-";
 export const MUTATION_CLAIM_FILE = "claim";
@@ -42,6 +44,7 @@ const SKIPPED_TOP_LEVEL_NAMES = new Set([
   ".deno-cache",
   ".deno_cache",
   ".devenv",
+  ".devenv-state",
   ".diagnostics",
   ".direnv",
   ".do",
@@ -63,6 +66,11 @@ const SKIPPED_TOP_LEVEL_NAMES = new Set([
 
 const SKIPPED_TOP_LEVEL_PREFIXES = ["coverage", ".jscpd", "docs-output"];
 
+/** Files left out of the copy: secrets, local databases and caches, and the
+ *  browser-asset build's own records. Dirty source and test edits and the built
+ *  browser assets do come along. A suite that reads the assets at module load
+ *  (`src/features/assets.ts` is one) would die at import inside the copy
+ *  without them. */
 const SKIPPED_FILE_NAMES = new Set([
   ".build-tag",
   ".db-key",

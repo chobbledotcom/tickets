@@ -2,165 +2,34 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import type { Window } from "happy-dom";
 import * as v from "valibot";
+import { closeAdminModal, openAdminModal } from "#src/ui/client/admin/modal.ts";
 import {
-  initAdminModalShell,
-  openAdminModal,
-} from "#src/ui/client/admin/modal.ts";
-import { AdminModalTemplate } from "#templates/admin/modal.tsx";
-import {
-  closeDialogs,
-  createDomInstaller,
   fireEvent,
   requireElement,
   requireElements,
 } from "#test-utils/happy-dom.ts";
-import { withRequestContext } from "#test-utils/request-context.ts";
-
-const TEMPLATE = await withRequestContext(() => String(AdminModalTemplate()));
-
-const { installDom, cleanup } = createDomInstaller(["Element"]);
-
-const SETTINGS = {
-  collapsedTitle: "First, small",
-  key: "first",
-  title: "First",
-};
-
-const OTHER_SETTINGS = {
-  collapsedTitle: "Second, small",
-  key: "second",
-  title: "Second",
-};
-
-type Open = { dialog: HTMLDialogElement; window: Window };
-
-type DragPage = Open & {
-  bar: HTMLElement;
-  capture: { captured: number[]; released: number[] };
-  start: { left: number; top: number };
-};
-
-const page = (html = TEMPLATE): Window => {
-  const window = installDom(html);
-  initAdminModalShell();
-  return window;
-};
-
-const dialogsIn = (window: Window): HTMLDialogElement[] =>
-  requireElements<HTMLDialogElement>(window.document, "dialog.admin-modal");
-
-/** Read the raised dialog from focus, not DOM insertion order. */
-const open = (
-  window: Window,
-  settings: unknown = SETTINGS,
-): HTMLDialogElement => {
-  openAdminModal(settings, document.createElement("div"));
-  return requireElement<HTMLDialogElement>(window.document, "dialog:focus");
-};
-
-const oneWindow = (): Open => {
-  const window = page();
-  return { dialog: open(window), window };
-};
-
-const placed = (dialog: HTMLElement): { left: number; top: number } => ({
-  left: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-left")),
-  top: Number.parseFloat(dialog.style.getPropertyValue("--admin-modal-top")),
-});
-
-const stackOf = (window: Window): number[] =>
-  dialogsIn(window).map((dialog) => Number(dialog.style.zIndex));
-
-/** Give the shell a size to clamp against. A DOM without a layout answers
- *  every rectangle with zeroes. */
-const setSize = (window: Window, width: number, height: number): void => {
-  for (const dialog of dialogsIn(window)) {
-    Object.defineProperty(dialog, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({ height, width }),
-    });
-  }
-};
-
-const pointer = (
-  window: Window,
-  type: string,
-  x: number,
-  y: number,
-  options: { button?: number; pointerId?: number } = {},
-): unknown =>
-  new window.PointerEvent(type, {
-    bubbles: true,
-    button: options.button ?? 0,
-    clientX: x,
-    clientY: y,
-    pointerId: options.pointerId ?? 7,
-  });
-
-const captureOn = (
-  bar: HTMLElement,
-): { captured: number[]; released: number[] } => {
-  const captured: number[] = [];
-  const released: number[] = [];
-  Object.defineProperty(bar, "setPointerCapture", {
-    value: (id: number) => captured.push(id),
-  });
-  Object.defineProperty(bar, "releasePointerCapture", {
-    value: (id: number) => released.push(id),
-  });
-  return { captured, released };
-};
-
-const dragPage = (width = 300, height = 200): DragPage => {
-  const window = page();
-  const dialog = open(window);
-  setSize(window, width, height);
-  const bar = requireElement<HTMLElement>(dialog, ".admin-modal-bar");
-  return {
-    bar,
-    capture: captureOn(bar),
-    dialog,
-    start: placed(dialog),
-    window,
-  };
-};
-
-const pressTitleBar = ({ bar, start, window }: DragPage): void => {
-  fireEvent(bar, pointer(window, "pointerdown", start.left, start.top));
-};
-
-const movePointer = ({ bar, window }: DragPage, x: number, y: number): void => {
-  fireEvent(bar, pointer(window, "pointermove", x, y));
-};
-
-const releasePointer = ({ bar, window }: DragPage): void => {
-  fireEvent(bar, pointer(window, "pointerup", 0, 0));
-};
-
-const click = (target: Element, window: Window): void => {
-  fireEvent(target, new window.MouseEvent("click", { bubbles: true }));
-};
-
-type DomEvent = InstanceType<Window["Event"]>;
-
-const fire = (
-  target: { dispatchEvent(event: unknown): unknown },
-  window: Window,
-  type: string,
-  options: { cancelable?: boolean } = {},
-): DomEvent => {
-  const event = new window.Event(type, options);
-  fireEvent(target, event);
-  return event;
-};
+import {
+  cleanupModals,
+  click,
+  dialogsIn,
+  dragPage,
+  fire,
+  movePointer,
+  OTHER_SETTINGS,
+  oneWindow,
+  open,
+  page,
+  placed,
+  pointer,
+  pressTitleBar,
+  releasePointer,
+  SETTINGS,
+  stackOf,
+} from "#test-utils/modal-dom.ts";
 
 describe("the admin modal shell", () => {
-  afterEach(async () => {
-    closeDialogs(document, "dialog.admin-modal");
-    await cleanup();
-  });
+  afterEach(cleanupModals);
 
   test("opens a window with its title, its controls, and the content", () => {
     const window = page();
@@ -443,25 +312,28 @@ describe("the admin modal shell", () => {
     expect(last.defaultPrevented).toBe(false);
   });
 
-  test("keeps a window on the screen after the viewport changes", () => {
-    const ready = dragPage();
-    const { dialog, window } = ready;
-    pressTitleBar(ready);
-    setSize(window, 200, 100);
+  test("returns the existing content without replacing it on duplicate open", () => {
+    const window = page();
+    const content = document.createElement("div");
+    content.textContent = "Fetched images";
+    expect(openAdminModal(SETTINGS, content)).toBe(content);
+    const replacement = document.createElement("div");
+    expect(openAdminModal(SETTINGS, replacement)).toBe(content);
+    expect(dialogsIn(window)).toHaveLength(1);
+    expect(content.isConnected).toBe(true);
+    expect(content.textContent).toBe("Fetched images");
+    expect(replacement.isConnected).toBe(false);
+  });
 
-    Object.defineProperty(window, "innerWidth", {
-      configurable: true,
-      value: 400,
-    });
-    Object.defineProperty(window, "innerHeight", {
-      configurable: true,
-      value: 300,
-    });
-    fire(window, window, "resize");
-
-    movePointer(ready, 5000, 5000);
-    expect(placed(dialog)).toEqual({ left: 200, top: 200 });
-    releasePointer(ready);
-    fire(window, window, "resize");
+  test("closes by key synchronously and preserves an immediately reopened shell", () => {
+    const window = page();
+    const first = open(window);
+    closeAdminModal(SETTINGS.key);
+    expect(first.open).toBe(false);
+    expect(first.isConnected).toBe(false);
+    const second = open(window);
+    fireEvent(first, new window.Event("close"));
+    expect(second.open).toBe(true);
+    expect(dialogsIn(window)).toEqual([second]);
   });
 });

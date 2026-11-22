@@ -179,18 +179,9 @@ const aboveMaximumRefusal = (
 ): { error: string; status: number } | null => {
   // Both maps cover the judged line: the sum map carries every intent line's
   // listing, and the allocated map carries every folded child.
-  const summedQuantity = requiredMapValue(
-    quantities,
-    listing.id,
-    `Listing ${listing.id} missing`,
-  );
+  const summedQuantity = requiredMapValue(quantities, listing.id);
   const judgedQuantity = foldedDailyChildIds.has(listing.id)
-    ? summedQuantity -
-      requiredMapValue(
-        allocatedByChildId,
-        listing.id,
-        `Listing ${listing.id} missing`,
-      )
+    ? summedQuantity - requiredMapValue(allocatedByChildId, listing.id)
     : summedQuantity;
   if (judgedQuantity <= listing.maxQuantity) return null;
   return {

@@ -121,15 +121,6 @@ describeWithEnv("the record page routes", { db: true }, () => {
     expectRedirect(await editAs(pages), editUrl);
   });
 
-  test("a refused edit goes to the page its error path names", async () => {
-    const pages = pagesFor(
-      { editErrorPath: (id) => `/admin/holidays/${id}/rejected` },
-      { update: refusedWrite },
-    );
-
-    expectRedirect(await editAs(pages), "/admin/holidays/7/rejected");
-  });
-
   test("a page with no edit route answers the edit POST with 404", async () => {
     const pages = pagesFor({ skip: ["edit"] });
 

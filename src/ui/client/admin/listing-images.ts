@@ -8,6 +8,7 @@
 
 import type { ChosenImage, ImageOption } from "#shared/images/picker.ts";
 import { requireValue } from "#shared/required-value.ts";
+import { closeAdminModal } from "#src/ui/client/admin/modal.ts";
 import {
   createButton,
   createHiddenInput,
@@ -16,13 +17,13 @@ import {
   requiredChild,
 } from "#src/ui/client/dom.ts";
 import {
-  clonePickerDialog,
+  clonePicker,
   fillGrid,
   imageOptionNodes,
   noteFrom,
   optionButton,
   pickerTemplateOrNull,
-  wireDialogClose,
+  showPicker,
   wireUploadForm,
 } from "./image-picker-template.ts";
 import { createImageLibrary } from "./markdown-editor-image-view.ts";
@@ -102,12 +103,14 @@ const setUpListingImages = (section: HTMLElement): void => {
   );
   let chosen = [...stored].map(choiceFromInput);
   const library = createImageLibrary();
-  const picker = clonePickerDialog(template, section);
-  const { dialog, grid } = picker;
-  const confirm = requiredChild<HTMLButtonElement>(dialog, ".md-image-confirm");
+  const picker = clonePicker(template);
+  const { content, grid } = picker;
+  const confirm = requiredChild<HTMLButtonElement>(
+    content,
+    ".md-image-confirm",
+  );
   confirm.hidden = false;
-  const heading = requiredChild<HTMLHeadingElement>(dialog, "h2");
-  heading.textContent = requireValue(
+  const heading = requireValue(
     section.dataset.imagePickerHeading,
     "image picker heading",
   );
@@ -124,7 +127,7 @@ const setUpListingImages = (section: HTMLElement): void => {
     text: removeText,
   };
 
-  // The dialog marks pictures in a draft. The form changes only when the
+  // The window marks pictures in a draft. The form changes only when the
   // operator confirms, so a close leaves the stored selection as it was.
   let draft: ChosenImage[] = [];
   let loaded: ImageOption[] = [];
@@ -166,10 +169,10 @@ const setUpListingImages = (section: HTMLElement): void => {
     return true;
   };
 
+  // A second press on the trigger raises the window and keeps its draft.
   const open = async (): Promise<void> => {
+    if (!showPicker(picker, () => trigger.focus(), heading)) return;
     draft = [...chosen];
-    fillGrid(grid, "loading", [noteFrom(template, "loading")]);
-    dialog.showModal();
     await reload();
   };
 
@@ -199,9 +202,8 @@ const setUpListingImages = (section: HTMLElement): void => {
   confirm.addEventListener("click", () => {
     chosen = [...draft];
     render();
-    dialog.close();
+    closeAdminModal(picker.key);
   });
-  wireDialogClose(dialog, () => trigger.focus());
   trigger.addEventListener("click", () => void open());
   render();
 };

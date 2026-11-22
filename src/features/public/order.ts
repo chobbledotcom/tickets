@@ -253,14 +253,7 @@ const handleOrder = withEvaluatedOrder(async (catalog, evaluation) => {
       {
         anyNeedsDate: evaluation.anyNeedsDate,
         // The evaluator judges every option, and cards render only options.
-        labelFor: (key) =>
-          stateLabel(
-            requiredMapValue(
-              evaluation.states,
-              key,
-              `Order option ${key} missing`,
-            ),
-          ),
+        labelFor: (key) => stateLabel(requiredMapValue(evaluation.states, key)),
       },
       await publicNavProps(null),
       settings.websiteTitle,

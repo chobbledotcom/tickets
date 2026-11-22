@@ -27,7 +27,7 @@ import { ProseIntro } from "#templates/components/prose-intro.tsx";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 import {
   advancedSectionHasValues,
-  listingFormPageState,
+  listingFormState,
   TEMPLATE_SEEDS,
 } from "./form-sections.tsx";
 import {
@@ -77,7 +77,7 @@ const createListingFormPage = ({
   );
 
 const createListingPageFromForm = (
-  form: ReturnType<typeof listingFormPageState>,
+  form: ReturnType<typeof listingFormState>,
   session: AdminSession,
   template: ReturnType<typeof inferTemplate>,
   title: string,
@@ -255,12 +255,7 @@ export const adminListingNewPage = (
   const template =
     LISTING_TEMPLATES.find((tmpl) => tmpl.id === templateId) ?? null;
   const seeds = templateId ? (TEMPLATE_SEEDS[templateId] ?? {}) : {};
-  const form = listingFormPageState(
-    session,
-    groups,
-    selectedGroupIds,
-    !!template,
-  );
+  const form = listingFormState(session, groups, selectedGroupIds, template);
   const useDefaultsChecked = submitted
     ? submitted.useDefaults === "1"
     : form.showUseDefaults && !template;
@@ -312,13 +307,9 @@ export const adminDuplicateListingPage = (
   values.name = "";
   const builderEnabled = isBuilderEnabled();
   const template = inferTemplate(listing);
-  const form = listingFormPageState(
-    session,
-    groups,
-    selectedGroupIds,
-    !!template,
-    { nameAutofocus: true },
-  );
+  const form = listingFormState(session, groups, selectedGroupIds, template, {
+    nameAutofocus: true,
+  });
   return createListingPageFromForm(
     form,
     session,

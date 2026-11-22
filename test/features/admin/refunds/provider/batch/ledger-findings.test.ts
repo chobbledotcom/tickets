@@ -128,7 +128,7 @@ describeWithEnv(
           claim,
           record: () => Promise.resolve(new Map()),
         }),
-      ).rejects.toThrow("Refund ledger omitted attendee 52");
+      ).rejects.toThrow("Missing map key 52");
       expect(claim.released).toEqual([[sessionId]]);
     });
   },

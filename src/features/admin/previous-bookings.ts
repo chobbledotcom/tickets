@@ -63,11 +63,7 @@ const previousBookingRow = (
   attendeeId: booked.id,
   created: booked.created,
   items: booked.bookings.map((line) => ({
-    name: requiredMapValue(
-      listingNameById,
-      line.listing_id,
-      `Listing ${line.listing_id} missing`,
-    ),
+    name: requiredMapValue(listingNameById, line.listing_id),
     quantity: line.quantity,
   })),
   statusName: statusNameById.get(booked.status_id ?? -1) ?? null,

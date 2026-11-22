@@ -2,7 +2,12 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ModelDataSource } from "#scripts/verify-models/data.ts";
-import { plannedChecks, prepareModel } from "#scripts/verify-models/jobs.ts";
+import {
+  modelNames,
+  modulesFor,
+  plannedChecks,
+  prepareModel,
+} from "#scripts/verify-models/jobs.ts";
 import type {
   ModelControl,
   VerificationModule,
@@ -230,4 +235,37 @@ describe("model fact preparation", () => {
         prepareModel(modules, "SharedRules", root, join(root, "checks")),
       ).rejects.toThrow("No registered model has the name SharedRules.");
     }));
+});
+
+describe("model selection", () => {
+  const helper: VerificationModule = {
+    context: [],
+    kind: "helper",
+    module: "SharedRules",
+  };
+  const first = modelWith("First", () => Promise.resolve("clean"), [
+    () => Promise.resolve("corrupt"),
+  ]);
+  const second = modelWith("Second", () => Promise.resolve("clean"), [
+    () => Promise.resolve("corrupt"),
+  ]);
+  const modules = [helper, first, second];
+
+  test("lists the models and leaves out helpers", () => {
+    expect(modelNames(modules)).toEqual(["First", "Second"]);
+  });
+
+  test("keeps every module when no model is named", () => {
+    expect(modulesFor(modules, undefined)).toEqual(modules);
+  });
+
+  test("keeps the helpers and the one named model", () => {
+    expect(modulesFor(modules, "Second")).toEqual([helper, second]);
+  });
+
+  test("rejects a name that no model has", () => {
+    expect(() => modulesFor(modules, "SharedRules")).toThrow(
+      "No registered model has the name SharedRules.",
+    );
+  });
 });

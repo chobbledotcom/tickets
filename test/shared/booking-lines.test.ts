@@ -103,7 +103,7 @@ describe("checkoutBookingLines", () => {
 
   test("names a listing that was not loaded", () => {
     expect(() => checkoutBookingLines([item(42)], new Map())).toThrow(
-      "Listing 42 was not loaded for checkout",
+      "Missing map key 42",
     );
   });
 

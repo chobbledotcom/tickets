@@ -59,6 +59,7 @@ type SpecificFields = {
   external_order_enabled: boolean;
   calendar_feeds_enabled: boolean;
   calendar_feeds_group_by: string;
+  listing_mode: "text" | "image";
   contact_form_enabled: boolean;
   custom_css_bunny_fonts: boolean;
   order_enabled: boolean;
@@ -89,6 +90,7 @@ export const data: SettingsData = {
   currency: "GBP",
   custom_css_bunny_fonts: false,
   external_order_enabled: false,
+  listing_mode: "text",
   order_enabled: false,
   orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
   payment_provider: null,

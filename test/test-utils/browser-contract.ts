@@ -6,9 +6,9 @@
  */
 
 import { afterAll, beforeAll } from "@std/testing/bdd";
-import { type Browser, chromium, type Page } from "playwright";
+import { type Browser, chromium, type Locator, type Page } from "playwright";
 import {
-  browserLaunchOptions,
+  defineScreenshotBrowserLauncher,
   withStrictBrowserTimeouts,
 } from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
@@ -18,12 +18,18 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import type { DescribeEnvOptions } from "#test-utils/internal.ts";
 import { testCookie } from "#test-utils/session.ts";
 
+const launchBrowser = defineScreenshotBrowserLauncher(
+  chromium,
+  chromiumExecutable,
+);
+
 /** The browser contract a describe runs on: the app's loopback address and
  * the browser. The fields answer only inside a test or hook, once the
  * contract is open. */
 export type BrowserContract = {
   readonly baseUrl: string;
   readonly browser: Browser;
+  withPage<T>(run: (page: Page) => Promise<T>): Promise<T>;
 };
 
 /** describeWithEnv plus the contract browser: the body runs once the
@@ -43,9 +49,7 @@ export const describeWithBrowser = (
     let closeSuite: () => Promise<void> = () => Promise.resolve();
     beforeAll(async () => {
       const server = defineLoopbackServer(denoServeHandler)();
-      const browser = await chromium.launch(
-        browserLaunchOptions(true, await chromiumExecutable()),
-      );
+      const browser = await launchBrowser();
       open.baseUrl = server.baseUrl;
       open.browser = browser;
       closeSuite = async () => {
@@ -66,6 +70,12 @@ export const describeWithBrowser = (
           throw new Error("The contract browser is not open");
         }
         return open.browser;
+      },
+      withPage: <T>(run: (page: Page) => Promise<T>): Promise<T> => {
+        if (open.browser === undefined) {
+          throw new Error("The contract browser is not open");
+        }
+        return withSignedInPage(open.browser, open.baseUrl, run);
       },
     });
   });
@@ -105,4 +115,15 @@ export const withSignedInPage = async <T>(
   } finally {
     await context.close();
   }
+};
+
+/** Waits for the window's animations to end. A window rises in when it opens,
+ * and it fades when it dims or brightens. Its box and filter are off until
+ * then. */
+export const settled = async (dialog: Locator): Promise<void> => {
+  await dialog.evaluate(async (element) => {
+    await Promise.all(
+      element.getAnimations().map((animation) => animation.finished),
+    );
+  });
 };

@@ -128,13 +128,7 @@ export const cyclicGroups = (edges: Map<string, Set<string>>): string[][] => {
   const importsOf = nodes.map((node) =>
     [...(edges.get(node) ?? [])]
       .filter((target) => index.has(target))
-      .map((target) =>
-        requiredMapValue(
-          index,
-          target,
-          `Module index has no entry for ${target}`,
-        ),
-      ),
+      .map((target) => requiredMapValue(index, target)),
   );
   const importersOf = nodes.map(() => [] as number[]);
   for (const [from, targets] of importsOf.entries()) {

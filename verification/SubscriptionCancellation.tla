@@ -1,5 +1,5 @@
 ---------------------- MODULE SubscriptionCancellation ----------------------
-EXTENDS Integers, FiniteSets, ModelRules, SubscriptionRules, SubscriptionCancellationData
+EXTENDS Apalache, Integers, FiniteSets, ModelRules, SubscriptionRules, SubscriptionCancellationData
 
 \* A booking row links an attendee (a buyer) to a listing (a ticket). A plan
 \* keeps the provider subscription id, price, tax, and period on that row.
@@ -214,29 +214,29 @@ Safety == TypeOK /\ allAttemptsSafe
 
 \* Init is before applying observations, not a pretend empty application row.
 Init ==
-  /\ scenario = "none" /\ scenarioKind = "none" /\ scenarioIndex = 0
-  /\ attempt = 0 /\ allAttemptsSafe = Coverage
+  /\ scenario := "none" /\ scenarioKind := "none" /\ scenarioIndex := 0
+  /\ attempt := 0 /\ allAttemptsSafe := Coverage
 
 \* Integer choice permits every fact, not only the first. Paged row lookup
 \* bounds the checker's symbolic choices without removing an observed attempt.
 OwnerStep ==
   \E index \in OwnersIndices :
     LET o == OwnersAt(index) IN
-    /\ scenarioKind' = "owner" /\ scenarioIndex' = index
-    /\ scenario' = o.scenario /\ attempt' = o.attempt
-    /\ allAttemptsSafe' = ChecksStillPass(allAttemptsSafe, SafeOwner(o))
+    /\ scenarioKind' := "owner" /\ scenarioIndex' := index
+    /\ scenario' := o.scenario /\ attempt' := o.attempt
+    /\ allAttemptsSafe' := ChecksStillPass(allAttemptsSafe, SafeOwner(o))
 WriteStep ==
   \E index \in WritesIndices :
     LET w == WritesAt(index) IN
-    /\ scenarioKind' = "write" /\ scenarioIndex' = index
-    /\ scenario' = w.scenario /\ attempt' = w.attempt
-    /\ allAttemptsSafe' = ChecksStillPass(allAttemptsSafe, SafeWrite(w))
+    /\ scenarioKind' := "write" /\ scenarioIndex' := index
+    /\ scenario' := w.scenario /\ attempt' := w.attempt
+    /\ allAttemptsSafe' := ChecksStillPass(allAttemptsSafe, SafeWrite(w))
 CheckoutStep ==
   \E index \in CheckoutsIndices :
     LET c == CheckoutsAt(index) IN
-    /\ scenarioKind' = "checkout" /\ scenarioIndex' = index
-    /\ scenario' = c.scenario /\ attempt' = c.attempt
-    /\ allAttemptsSafe' = ChecksStillPass(allAttemptsSafe, SafeCheckout(c))
+    /\ scenarioKind' := "checkout" /\ scenarioIndex' := index
+    /\ scenario' := c.scenario /\ attempt' := c.attempt
+    /\ allAttemptsSafe' := ChecksStillPass(allAttemptsSafe, SafeCheckout(c))
 
 \* Next permits an owner attempt, a guarded write, a checkout delivery, or a
 \* pause. No fairness rule requires a retry. This is safety, not completion.

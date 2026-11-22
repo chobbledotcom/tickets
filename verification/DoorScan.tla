@@ -1,5 +1,5 @@
 ----------------------------- MODULE DoorScan -----------------------------
-EXTENDS Integers, ModelRules, DoorScanData
+EXTENDS Apalache, Integers, ModelRules, DoorScanData
 
 \* A listing is an item that a customer can book, such as an event. A booking
 \* records the places a customer owns on one or more listings. A ticket is
@@ -98,9 +98,9 @@ Safety ==
 \* Init starts with no admitted places and no failed verdict. It is an
 \* abstract fresh ticket, not an observed read of an existing booking.
 Init ==
-  /\ listing1Admitted = 0
-  /\ listing2Admitted = 0
-  /\ allFactsSafe = TRUE
+  /\ listing1Admitted := 0
+  /\ listing2Admitted := 0
+  /\ allFactsSafe := TRUE
 
 \* \E selects a fact whose before count matches its listing's current count.
 \* A prime denotes the next value. The named listing takes fact.after and
@@ -114,11 +114,11 @@ AdmitStep ==
   \E fact \in AdmitFacts :
     /\ (fact.listing = "one" => listing1Admitted = fact.before)
     /\ (fact.listing = "two" => listing2Admitted = fact.before)
-    /\ listing1Admitted' =
+    /\ listing1Admitted' :=
          IF fact.listing = "one" THEN fact.after ELSE listing1Admitted
-    /\ listing2Admitted' =
+    /\ listing2Admitted' :=
          IF fact.listing = "two" THEN fact.after ELSE listing2Admitted
-    /\ allFactsSafe' = ChecksStillPass(allFactsSafe, SafeAdmission(fact))
+    /\ allFactsSafe' := ChecksStillPass(allFactsSafe, SafeAdmission(fact))
 
 \* Next defines the permitted count changes. An enabled fact is one whose
 \* conditions match the current count. UNCHANGED permits no value change.

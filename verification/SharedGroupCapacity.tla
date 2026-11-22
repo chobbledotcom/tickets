@@ -1,5 +1,5 @@
 ------------------------- MODULE SharedGroupCapacity -------------------------
-EXTENDS Integers, SharedGroupCapacityData
+EXTENDS Apalache, Integers, SharedGroupCapacityData
 
 \* A listing is an item that a customer can book, such as an event or a
 \* session on a chosen date. A session is one occurrence of an activity.
@@ -107,11 +107,11 @@ Safety ==
 \* Facts omit those IDs because only their capacity results matter here.
 Init ==
   \E fact \in GroupFacts :
-    /\ remaining = fact.remaining
-    /\ staticCap = fact.staticCap
-    /\ dateLess = fact.dateLess
-    /\ hasStaticCap = fact.hasStaticCap
-    /\ sold = 0
+    /\ remaining := fact.remaining
+    /\ staticCap := fact.staticCap
+    /\ dateLess := fact.dateLess
+    /\ hasStaticCap := fact.hasStaticCap
+    /\ sold := 0
 
 \* One sale must match the initial pool: current free places plus places
 \* already sold equal fact.remaining. The context flags and cap must match.
@@ -129,8 +129,8 @@ SellStep ==
     /\ fact.allowed
     /\ remaining >= PARENT_CHILD_GROUP_UNITS
     /\ sold < fact.fits
-    /\ remaining' = remaining - PARENT_CHILD_GROUP_UNITS
-    /\ sold' = sold + 1
+    /\ remaining' := remaining - PARENT_CHILD_GROUP_UNITS
+    /\ sold' := sold + 1
     /\ UNCHANGED <<staticCap, dateLess, hasStaticCap>>
 
 \* Next defines the permitted changes. UNCHANGED permits no value change.

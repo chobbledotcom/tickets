@@ -57,7 +57,7 @@ describe("withPairBookings", () => {
       withPairBookings(new Map())([
         attendeeLineRow(testAttendee({ id: 4 }), GALA),
       ]),
-    ).toThrow(`No booking read for ${pairKey(4, GALA.id)}`);
+    ).toThrow(`Missing map key ${pairKey(4, GALA.id)}`);
   });
 });
 

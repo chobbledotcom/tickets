@@ -58,11 +58,7 @@ export const toCalendarAttendees = <
 ): CalendarAttendee[] => {
   const listingById = mapById(identity<L>)(listings);
   return attendees.map((a) => {
-    const listing = requiredMapValue(
-      listingById,
-      a.listing_id,
-      `Listing ${a.listing_id} missing`,
-    );
+    const listing = requiredMapValue(listingById, a.listing_id);
     return { ...a, ...listingDetails(listing) };
   });
 };

@@ -212,11 +212,7 @@ const foldGroupDayRows = (
 export const getGroupDayPrices = async (
   groupId: number,
 ): Promise<Map<number, Map<number, number>>> =>
-  requiredMapValue(
-    await getGroupDayPricesByGroupIds([groupId]),
-    groupId,
-    `Group ${groupId} missing`,
-  );
+  requiredMapValue(await getGroupDayPricesByGroupIds([groupId]), groupId);
 
 /** Per-day member overrides for several groups in one query (the API list
  * endpoint's bulk hydration), keyed by group id. Every requested group is

@@ -238,6 +238,18 @@ describe("the delete page of a status attendees hold", () => {
     assert(!html.includes(t("statuses.delete_reassign_warning")));
   });
 
+  test("renders a non-dangerous delete button for every kind of retire", () => {
+    for (const retire of [
+      null,
+      { count: 1, others: [OTHER_STATUS] },
+      { blocked: "Choose another paid default before deleting this status" },
+    ]) {
+      const html = render(retire);
+      assertStringIncludes(html, "Delete status");
+      assert(!html.includes('class="danger"'));
+    }
+  });
+
   test("renders a rejected submit's error", () => {
     const html = render(null, "No one may hold nothing");
 

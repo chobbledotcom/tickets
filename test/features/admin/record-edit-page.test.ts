@@ -23,7 +23,7 @@ const holidayPageWith = (navActive?: string) =>
     deleteLabelKey: "holidays.delete.submit",
     edit: (holiday) =>
       Promise.resolve(Raw({ html: `<p>Editing ${holiday.name}</p>` })),
-    ...(navActive ? { navActive } : {}),
+    ...(navActive === undefined ? {} : { navActive }),
   });
 
 /** Renders the page's `tab` for record `id` as the owner. */
@@ -80,6 +80,12 @@ describeWithEnv("a record edit page", { db: true }, () => {
 
     assertStringIncludes(html, '<a href="/admin/holidays">');
     expect(html).not.toContain('<a class="active" href="/admin/holidays">');
+  });
+
+  test("marks no nav section when the given section is empty", async () => {
+    const { html } = await holidayPage("Lammas", "", "");
+
+    expect(html).not.toContain('<a class="active" href="/admin/');
   });
 
   test("answers 404 for a record that is not there", async () => {

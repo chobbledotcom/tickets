@@ -125,11 +125,9 @@ const readReference = async (
   reference: TaggedRefundPaymentReference,
   providers: ReadonlyMap<PaymentProviderType, RefundEngineProvider>,
 ): Promise<PreparedEvidence> => {
-  const read = await requiredMapValue(
-    providers,
-    reference.provider,
-    `Refund readiness lost provider ${reference.provider}`,
-  ).readCharge(reference.reference);
+  const read = await requiredMapValue(providers, reference.provider).readCharge(
+    reference.reference,
+  );
   return read.status === "found"
     ? {
         kind: "prepared",
@@ -207,18 +205,10 @@ const readyCandidates = (
   candidates.map((candidate) => ({
     attendee: candidate.attendee,
     references: candidate.references.map((reference) => {
-      const prepared = requiredMapValue(
-        preparedByIndex,
-        reference.index,
-        `Refund readiness lost payment reference ${reference.index}`,
-      );
+      const prepared = requiredMapValue(preparedByIndex, reference.index);
       return readyReference(
         prepared,
-        requiredMapValue(
-          providers,
-          reference.provider,
-          `Refund readiness lost provider ${reference.provider}`,
-        ),
+        requiredMapValue(providers, reference.provider),
         reference,
       );
     }),

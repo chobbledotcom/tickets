@@ -129,11 +129,7 @@ export const buildOrderLines = (
       if (quantity <= 0) return [];
       // Every folded listing beyond the emitted lines is some parent's
       // child, so its node is always present here.
-      const child = requiredMapValue(
-        childById,
-        listingId,
-        `Listing ${listingId} missing`,
-      );
+      const child = requiredMapValue(childById, listingId);
       return [
         checkoutItem(
           child.listing,

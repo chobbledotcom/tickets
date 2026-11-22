@@ -225,7 +225,8 @@ const ATTENDEE_STATUS_DOCS = {
 /** The create body a caller copies: one booking line on a standard listing,
  * with the attendee's contact fields and the status by name. The line carries
  * an agreed per-unit `price` (minor units), the body records a `payment`
- * already received, and a named `adjustment` bills the delivery. The buyer's
+ * already received, and a named `adjustment` bills the delivery. A `taxable`
+ * adjustment counts in the order's tax. The buyer's
  * `answers` carry one entry per question: a choice answer names its answerId,
  * a free-text answer names its freeText. All amounts are minor units. An
  * optional `created` stamps the business time the booking happened, for a
@@ -233,7 +234,7 @@ const ATTENDEE_STATUS_DOCS = {
  * now. */
 const ADMIN_API_ATTENDEE_CREATE_BODY = {
   address: "12 Main Street, Springfield",
-  adjustments: [{ amount: 250, description: "Delivery" }],
+  adjustments: [{ amount: 250, description: "Delivery", taxable: true }],
   answers: [
     { answerId: 3, questionId: 2 },
     { freeText: "Vegetarian", questionId: 5 },
@@ -246,6 +247,16 @@ const ADMIN_API_ATTENDEE_CREATE_BODY = {
   phone: "+1 555 0123",
   special_instructions: "Vegetarian",
   status: "Confirmed",
+};
+
+/** The body an attendee update carries: every field is optional, and a field
+ * the body leaves out keeps its stored value. Payments and adjustments are the
+ * complete lists, so the example repeats the create's payment and adds one. */
+const ADMIN_API_ATTENDEE_UPDATE_BODY = {
+  adjustments: [{ amount: 250, description: "Delivery" }],
+  payments: [{ amount: 9000 }, { amount: 1500 }],
+  phone: "+1 555 0199",
+  status: "Paid",
 };
 
 /** Example attendee booking row, exactly as the attendees endpoint answers
@@ -303,6 +314,10 @@ const attendeeExample = (access: WriteAccess): Record<string, unknown> =>
   withoutKeys(
     new Set(featureClosedKeys(ATTENDEE_FEATURE_KEYS, access.features)),
   )(ADMIN_API_EXAMPLE_ATTENDEE);
+
+/** The answer of an attendee write: the stored attendee row. */
+const attendeeAnswer = (access: WriteAccess) =>
+  json({ attendee: attendeeExample(access) });
 
 /** The documented listing routes. Each listing answer leaves out the keys
  *  whose feature is off, as the server does. */
@@ -380,11 +395,19 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
     ),
     {
       description:
-        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened.",
+        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened. An adjustment with taxable: true is a charge that the tax counts, such as delivery. An update refuses taxable.",
       method: "POST",
       path: "/api/admin/attendees",
       request: json(ADMIN_API_ATTENDEE_CREATE_BODY),
-      response: json({ attendee: attendeeExample(access) }),
+      response: attendeeAnswer(access),
+    },
+    {
+      description:
+        "Update a booking. Every field is optional, and a field the body leaves out keeps its stored value. lines is the complete set of booking lines, and a stored line that no line names is removed. payments and adjustments are the complete lists, in the create's shape: a receipt that is already stored adds nothing, and a receipt already stored as different money is refused. A line change moves no money. The ticketToken and created fields name the booking, so an update refuses both.",
+      method: "PUT",
+      path: "/api/admin/attendees/:attendeeId",
+      request: json(ADMIN_API_ATTENDEE_UPDATE_BODY),
+      response: attendeeAnswer(access),
     },
     ...shown(ADMIN_API_RESOURCES.questions, QUESTION_ENDPOINTS),
     ...shown(ADMIN_API_RESOURCES["site-pages"], SITE_PAGE_ENDPOINTS),

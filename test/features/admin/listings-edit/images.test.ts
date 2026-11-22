@@ -6,27 +6,44 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getImagesForItem, insertImageRecord } from "#db/images.ts";
+import { getImagesForItem } from "#db/images.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { nonEmptyString } from "#shared/validation/string.ts";
-import { expectRedirect } from "#test-utils/assertions.ts";
+import { listingWithImages } from "#test-utils/admin-images.ts";
+import {
+  expectRedirect,
+  expectRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import { withStorageDisabled } from "#test-utils/mocks.ts";
-import { adminGet, adminMultipartPost } from "#test-utils/session.ts";
+import {
+  adminFormPost,
+  adminGet,
+  adminMultipartPost,
+} from "#test-utils/session.ts";
+import { storedImage } from "./fixtures.ts";
 
 const emptyListing = async (name: string) =>
   (await getAllListings()).find((listing) => listing.name === name);
 
-const storedImage = (name: string) =>
-  insertImageRecord({
-    filename: nonEmptyString(`${name}.webp`, "test filename"),
-    filenameThumb: nonEmptyString(`${name}-thumb.webp`, "test thumbnail"),
-    name,
-  });
-
+/** A listing with two linked pictures, in the order given. */
+const listingWithTwoPictures = async (
+  listingName: string,
+  firstPicture: string,
+  secondPicture: string,
+) => {
+  const { images, listing } = await listingWithImages(listingName, [
+    firstPicture,
+    secondPicture,
+  ]);
+  return {
+    first: requireValue(images[0], "the first picture"),
+    listing,
+    second: requireValue(images[1], "the second picture"),
+  };
+};
 const createWithImages = (
   name: string,
   imageIds: readonly number[],
@@ -146,6 +163,70 @@ describeWithEnv(
       const html = await response.text();
       assert(html.includes("data-listing-images"));
       assert(!html.includes('name="imageIds"'));
+    });
+  },
+);
+
+describeWithEnv(
+  "the Images tab on a saved listing",
+  { db: true, storage: "cdn" },
+  () => {
+    test("renders the saved pictures in the shared picker field", async () => {
+      const {
+        listing,
+        first: second,
+        second: first,
+      } = await listingWithTwoPictures("Pictured", "Second", "First");
+
+      const html = await (
+        await adminGet(`/admin/listing/${listing.id}/images`)
+      ).text();
+
+      assertStringIncludes(html, "data-listing-images");
+      assertStringIncludes(html, "Choose images");
+      assertStringIncludes(html, "Save Changes");
+      assertStringIncludes(
+        html,
+        `action="/admin/listing/${listing.id}/images"`,
+      );
+      assertStringIncludes(html, `data-image-thumb="/image/second-thumb.webp"`);
+      const secondPosition = html.indexOf(`value="${second.id}"`);
+      const firstPosition = html.indexOf(`value="${first.id}"`);
+      expect(secondPosition).toBeGreaterThan(-1);
+      expect(firstPosition).toBeGreaterThan(secondPosition);
+      assert(!html.includes('name="imageIds" type="checkbox"'));
+      assert(!html.includes(`/admin/listing/${listing.id}/images/upload`));
+    });
+
+    test("writes the order the picker posts", async () => {
+      const { listing, first, second } = await listingWithTwoPictures(
+        "Reordered",
+        "Order first",
+        "Order second",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/images`,
+        { imageIds: [String(second.id), String(first.id)] },
+      );
+
+      expectRedirectWithFlash(
+        `/admin/listing/${listing.id}/images`,
+        "Images updated",
+      )(response);
+      expect(
+        (await getImagesForItem("listing", listing.id)).map(
+          (image) => image.id,
+        ),
+      ).toEqual([second.id, first.id]);
+    });
+
+    test("clears every link when the picker sends no pictures", async () => {
+      const { listing } = await listingWithImages("Cleared", ["Remove me"]);
+
+      await adminFormPost(`/admin/listing/${listing.id}/images`, {});
+
+      expect(await getImagesForItem("listing", listing.id)).toEqual([]);
     });
   },
 );

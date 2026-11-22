@@ -8,10 +8,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest, t } from "#i18n";
 import {
+  verifiedDelete,
   verifyIdentifier,
   verifyIdentifierOrJsonError,
   verifyOrRedirect,
 } from "#routes/admin/confirmation.ts";
+import type { AuthSession } from "#routes/auth.ts";
+import type { AuthedHandlerArgs } from "#shared/app-forms.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -114,6 +117,47 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         verifyIdentifierOrJsonError("Test", { not: "a string" }) ?? "",
         "does not match",
       );
+    });
+  });
+
+  describe("verifiedDelete", () => {
+    const stepArgs = (context: string): AuthedHandlerArgs<unknown, string> => ({
+      context,
+      form: new FormParams({}),
+      params: undefined,
+      session: {} as AuthSession,
+    });
+
+    test("deletes the record, then redirects with a success flash", async () => {
+      const deleted: string[] = [];
+      const step = verifiedDelete<string>(
+        (context) => {
+          deleted.push(context);
+          return Promise.resolve();
+        },
+        (context) => `/admin/${context}`,
+        () => "Thing deleted.",
+      );
+
+      const response = await step(stepArgs("things"));
+
+      expect(deleted).toEqual(["things"]);
+      expect(response.status).toBe(302);
+      assertStringIncludes(
+        response.headers.get("location") ?? "",
+        "/admin/things",
+      );
+      expectFlash(response, "Thing deleted.", true);
+    });
+
+    test("takes a plain text flash message as well as a getter", async () => {
+      const step = verifiedDelete<string>(
+        () => Promise.resolve(),
+        () => "/admin/things",
+        "Gone.",
+      );
+
+      expectFlash(await step(stepArgs("things")), "Gone.", true);
     });
   });
 });

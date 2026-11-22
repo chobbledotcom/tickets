@@ -243,11 +243,7 @@ export const rebuildLegacyPaymentReferences = async (
       privateKey,
     );
     referenceWrites.push(referenceWrite(row.payment_session_id, stored));
-    const piiPaymentId = requiredMapValue(
-      piiPaymentIds,
-      row.attendee_id,
-      `Rebuild read no PII payment id for attendee ${row.attendee_id}`,
-    );
+    const piiPaymentId = requiredMapValue(piiPaymentIds, row.attendee_id);
     if (payment.reference !== piiPaymentId) {
       continue;
     }

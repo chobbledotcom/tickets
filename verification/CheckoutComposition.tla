@@ -1,5 +1,5 @@
 ---------------------------- MODULE CheckoutComposition ----------------------------
-EXTENDS Integers, ModelRules, CheckoutCompositionData
+EXTENDS Apalache, Integers, ModelRules, CheckoutCompositionData
 
 \* This module defines a mathematical model. EXTENDS imports integer rules,
 \* shared checks and generated facts. == defines a name, not an assignment.
@@ -164,15 +164,14 @@ Safety ==
 
 \* Select any supplied order at its first pass with no final check or failure.
 \* \E means at least one fact supplies the choice. These are checker choices,
-\* not a workflow that executes checkout. The primes in this existing Init
-\* relation denote next values, not ordinary unprimed start-state conditions.
+\* not a workflow that executes checkout. Unprimed assignments set initial values.
 \* An order with no modifiers starts at its final-check index.
 Init ==
   \E orderFact \in Orders :
-    /\ current' = orderFact.orderTag
-    /\ passIndex' = 1
-    /\ feeApplied' = FALSE
-    /\ allFactsSafe' = TRUE
+    /\ current := orderFact.orderTag
+    /\ passIndex := 1
+    /\ feeApplied := FALSE
+    /\ allFactsSafe := TRUE
 
 \* Select the fact for the current tag and next pass index. Unprimed names
 \* denote current values. Primed names denote next values. /\ requires all
@@ -184,10 +183,9 @@ PassStep ==
   \E passFact \in Passes :
     /\ passFact.orderTag = current
     /\ passFact.passIndex = passIndex
-    /\ current' = current
-    /\ passIndex' = passIndex + 1
-    /\ feeApplied' = feeApplied
-    /\ allFactsSafe' = ChecksStillPass(allFactsSafe, SafePass(passFact))
+    /\ UNCHANGED <<current, feeApplied>>
+    /\ passIndex' := passIndex + 1
+    /\ allFactsSafe' := ChecksStillPass(allFactsSafe, SafePass(passFact))
 
 \* Only the position after all passes, with no prior final check, admits this
 \* step. Retain SafeOrder and mark the check complete. Tag and index stay fixed.
@@ -197,10 +195,9 @@ FeeStep ==
     /\ orderFact.orderTag = current
     /\ passIndex = orderFact.numPasses + 1
     /\ ~feeApplied
-    /\ current' = current
-    /\ passIndex' = passIndex
-    /\ feeApplied' = TRUE
-    /\ allFactsSafe' = ChecksStillPass(allFactsSafe, SafeOrder(orderFact))
+    /\ UNCHANGED <<current, passIndex>>
+    /\ feeApplied' := TRUE
+    /\ allFactsSafe' := ChecksStillPass(allFactsSafe, SafeOrder(orderFact))
 
 \* Next defines permitted actions. \/ offers a pass or a final check.
 \* UNCHANGED also permits no change. No rule forces every pass or the final

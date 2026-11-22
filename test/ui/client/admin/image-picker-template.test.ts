@@ -1,36 +1,38 @@
 /**
  * The shared image picker template
  * (`src/ui/client/admin/image-picker-template.ts`): the direct test mirror
- * for the clone, the grid, the close paths, and the upload POST.
+ * for the clone, the window, the grid, and the upload POST.
  */
 
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   IMAGE_LIBRARY_CHANGED,
   type ImageChoice,
 } from "#shared/images/picker.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
-  clonePickerDialog,
+  clonePicker,
   fillGrid,
   imageOptionNodes,
   noteFrom,
   optionButton,
-  type PickerDialogParts,
+  type PickerParts,
   pickerTemplateOrNull,
-  wireDialogClose,
+  showPicker,
   wireUploadForm,
 } from "#src/ui/client/admin/image-picker-template.ts";
+import { isAdminModalOpen } from "#src/ui/client/admin/modal.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { requireElement } from "#test-utils/happy-dom.ts";
+import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import {
+  ADMIN_TEMPLATES,
   cleanup,
   installDom,
   PICKER_CSRF_TOKEN,
-  PICKER_TEMPLATE,
 } from "#test-utils/markdown-editor-dom.ts";
 import {
+  closeControl,
   fetchStubHolder,
   flush,
   redirected,
@@ -47,24 +49,38 @@ const ALPHA = {
   thumb: "/image/alpha-thumb.webp",
 };
 
-/** The real template and one cloned dialog. */
-const parts = (): PickerDialogParts & { template: HTMLTemplateElement } => {
-  const template = requireValue(pickerTemplateOrNull(), "picker template");
-  return { ...clonePickerDialog(template, document.body), template };
+/** The real template and one cloned picker, on the page so that its form
+ * can submit. */
+const parts = (): PickerParts => {
+  const picker = clonePicker(
+    requireValue(pickerTemplateOrNull(), "picker template"),
+  );
+  document.body.append(picker.content);
+  return picker;
 };
 
-const nameInput = (dialog: PickerDialogParts): HTMLInputElement =>
-  requireElement<HTMLInputElement>(dialog.form, 'input[name="name"]');
+const nameInput = (picker: PickerParts): HTMLInputElement =>
+  requireElement<HTMLInputElement>(picker.form, 'input[name="name"]');
 
-/** Fill the dialog's grid with one option and submit the upload form. */
-const submit = async (
-  dialog: PickerDialogParts,
-  name = "Harbour",
-): Promise<void> => {
-  nameInput(dialog).value = name;
-  dialog.form.requestSubmit();
+/** Fill the picker's name and submit the upload form. */
+const submit = async (picker: PickerParts, name = "Harbour"): Promise<void> => {
+  nameInput(picker).value = name;
+  picker.form.requestSubmit();
   await flush();
 };
+
+/** The picker's open window. */
+const windowOf = (picker: PickerParts): HTMLDialogElement =>
+  requireElement<HTMLDialogElement>(
+    document,
+    `dialog[data-modal-key="${picker.key}"]`,
+  );
+
+const pressEscape = (target: HTMLElement): void =>
+  fireEvent(
+    target,
+    new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+  );
 
 /** The image edit page's refusal, carrying the given body. */
 const refusal = (html: string): Response => {
@@ -76,18 +92,20 @@ const refusal = (html: string): Response => {
 };
 
 /** Answer the upload with a refused page, then return the picker. */
-const refusedUpload = async (errorHtml: string): Promise<PickerDialogParts> => {
-  installDom(PICKER_TEMPLATE);
-  const dialog = parts();
+const refusedUpload = async (errorHtml: string): Promise<PickerParts> => {
+  const picker = parts();
   fetchStubHolder.stub = stubFetch(refusal(errorHtml));
-  wireUploadForm(dialog, () => undefined);
-  await submit(dialog);
-  return dialog;
+  wireUploadForm(picker, () => undefined);
+  await submit(picker);
+  return picker;
 };
 
 describe("the image picker template", () => {
+  beforeEach(() => {
+    installDom(ADMIN_TEMPLATES);
+  });
+
   test("finds the server's template and one of its notes", () => {
-    installDom(PICKER_TEMPLATE);
     const template = requireValue(pickerTemplateOrNull(), "picker template");
 
     expect(template.id).toBe("md-image-picker");
@@ -97,7 +115,6 @@ describe("the image picker template", () => {
   });
 
   test("builds one option button with its pressed state", () => {
-    installDom(PICKER_TEMPLATE);
     let picked = 0;
     const button = optionButton(
       ALPHA,
@@ -120,7 +137,6 @@ describe("the image picker template", () => {
   });
 
   test("lists the options, or the empty note", () => {
-    installDom(PICKER_TEMPLATE);
     const { template } = parts();
 
     const empty = imageOptionNodes(template, [], () => null as never);
@@ -132,18 +148,25 @@ describe("the image picker template", () => {
     expect((nodes[0] as HTMLElement).textContent).toBe("Alpha");
   });
 
-  test("clones the dialog's named parts", () => {
-    installDom(PICKER_TEMPLATE);
-    const dialog = parts();
+  test("clones the picker's named parts", () => {
+    const picker = parts();
 
-    expect(dialog.dialog.className).toBe("md-image-dialog");
-    expect(dialog.grid.className).toBe("md-image-grid");
-    expect(dialog.name.name).toBe("name");
-    expect(dialog.submit.type).toBe("submit");
+    expect(picker.content.className).toBe("md-image-picker");
+    expect(picker.grid.className).toBe("md-image-grid");
+    expect(picker.name.name).toBe("name");
+    expect(picker.submit.type).toBe("submit");
+    expect(picker.title).toBe("Choose an image");
+  });
+
+  test("gives each picker its own window name", () => {
+    const [first, second] = [parts(), parts()];
+
+    expect(first.key).toMatch(/^image-picker:\d+$/);
+    expect(second.key).toMatch(/^image-picker:\d+$/);
+    expect(second.key).not.toBe(first.key);
   });
 
   test("puts a state and its content into the grid", () => {
-    installDom(PICKER_TEMPLATE);
     const { grid } = parts();
 
     fillGrid(grid, "ready", [document.createElement("p")]);
@@ -151,30 +174,49 @@ describe("the image picker template", () => {
     expect(grid.children).toHaveLength(1);
   });
 
-  test("closes from the close button and the backdrop", () => {
-    installDom(PICKER_TEMPLATE);
-    const dialog = parts();
+  test("opens the picker in a window and raises it when open", () => {
+    const picker = parts();
+
+    expect(isAdminModalOpen(picker.key)).toBe(false);
+    expect(showPicker(picker, () => undefined)).toBe(true);
+    const dialog = windowOf(picker);
+    expect(dialog.open).toBe(true);
+    expect(
+      requireElement<HTMLElement>(dialog, ".admin-modal-title").textContent,
+    ).toBe("Choose an image");
+    expect(dialog.contains(picker.content)).toBe(true);
+
+    // A second call opens nothing: the caller keeps what the window shows.
+    expect(showPicker(picker, () => undefined)).toBe(false);
+    expect(document.querySelectorAll("dialog.admin-modal")).toHaveLength(1);
+  });
+
+  test("shows the title that the caller names", () => {
+    const picker = parts();
+
+    showPicker(picker, () => undefined, "Choose pictures");
+
+    expect(
+      requireElement<HTMLElement>(windowOf(picker), ".admin-modal-title")
+        .textContent,
+    ).toBe("Choose pictures");
+  });
+
+  test("tells the caller once when the window closes", () => {
+    const picker = parts();
     let closes = 0;
-    wireDialogClose(dialog.dialog, () => {
+    showPicker(picker, () => {
       closes += 1;
     });
 
-    dialog.dialog.showModal();
-    requireElement<HTMLButtonElement>(
-      dialog.dialog,
-      ".md-preview-close",
-    ).click();
-    expect(dialog.dialog.open).toBe(false);
+    closeControl(windowOf(picker)).click();
 
-    dialog.dialog.showModal();
-    dialog.dialog.click();
-    expect(dialog.dialog.open).toBe(false);
-    expect(closes).toBe(2);
+    expect(closes).toBe(1);
+    expect(isAdminModalOpen(picker.key)).toBe(false);
   });
 
-  test("keeps the dialog open during an upload and announces the change", async () => {
-    installDom(PICKER_TEMPLATE);
-    const dialog = parts();
+  test("keeps the window open during an upload and announces the change", async () => {
+    const picker = parts();
     const { promise: upload, resolve: resolveUpload } =
       Promise.withResolvers<Response>();
     fetchStubHolder.stub = stubFetch(() => upload);
@@ -183,126 +225,108 @@ describe("the image picker template", () => {
     document.addEventListener(IMAGE_LIBRARY_CHANGED, () => {
       changes += 1;
     });
-    wireUploadForm(dialog, (choice) => {
+    wireUploadForm(picker, (choice) => {
       uploaded.push(choice);
     });
-    wireDialogClose(dialog.dialog, () => undefined);
-    dialog.dialog.showModal();
+    showPicker(picker, () => undefined);
+    const dialog = windowOf(picker);
 
-    await submit(dialog);
-    expect(dialog.submit.disabled).toBe(true);
-    requireElement<HTMLButtonElement>(
-      dialog.dialog,
-      ".md-preview-close",
-    ).click();
-    expect(dialog.dialog.open).toBe(true);
-    dialog.dialog.click();
-    expect(dialog.dialog.open).toBe(true);
-    const cancel = new Event("cancel", { cancelable: true });
-    dialog.dialog.dispatchEvent(cancel);
-    expect(cancel.defaultPrevented).toBe(true);
+    await submit(picker);
+    expect(picker.submit.disabled).toBe(true);
+    closeControl(dialog).click();
+    expect(dialog.open).toBe(true);
+    pressEscape(dialog);
+    expect(dialog.open).toBe(true);
 
     resolveUpload(redirected("/admin/images/12/edit"));
     await flush();
 
     expect(uploaded).toEqual([{ id: 12, name: "Harbour" }]);
     expect(changes).toBe(1);
-    expect(nameInput(dialog).value).toBe("");
-    expect(dialog.submit.disabled).toBe(false);
-    requireElement<HTMLButtonElement>(
-      dialog.dialog,
-      ".md-preview-close",
-    ).click();
-    expect(dialog.dialog.open).toBe(false);
+    expect(nameInput(picker).value).toBe("");
+    expect(picker.submit.disabled).toBe(false);
+    closeControl(dialog).click();
+    expect(dialog.open).toBe(false);
   });
 
   test("keeps the grid and shows the upload failure note", async () => {
-    installDom(PICKER_TEMPLATE);
-    const dialog = parts();
-    fillGrid(dialog.grid, "ready", [optionButton(ALPHA, 0, () => undefined)]);
+    const picker = parts();
+    fillGrid(picker.grid, "ready", [optionButton(ALPHA, 0, () => undefined)]);
     fetchStubHolder.stub = stubFetch(new Response("refused", { status: 500 }));
-    wireUploadForm(dialog, () => undefined);
-    const bodySubmits: Event[] = [];
-    document.body.addEventListener("submit", (event) => {
-      bodySubmits.push(event);
-    });
+    wireUploadForm(picker, () => undefined);
     const seen: { event: Event | null } = { event: null };
-    dialog.form.addEventListener("submit", (event) => {
+    picker.form.addEventListener("submit", (event) => {
       seen.event = event;
     });
 
-    await submit(dialog);
+    await submit(picker);
 
     expect(seen.event?.defaultPrevented).toBe(true);
-    expect(bodySubmits).toEqual([]);
-    expect(dialog.grid.dataset.state).toBe("ready");
-    expect(dialog.grid.querySelector(".md-image-option")?.textContent).toBe(
+    expect(picker.grid.dataset.state).toBe("ready");
+    expect(picker.grid.querySelector(".md-image-option")?.textContent).toBe(
       "Alpha",
     );
-    expect(dialog.grid.textContent).toContain(
+    expect(picker.grid.textContent).toContain(
       "The image could not be uploaded. Please try again.",
     );
-    expect(dialog.submit.disabled).toBe(false);
-    expect({ ...dialog.dialog.dataset }).toEqual({});
+    expect(picker.submit.disabled).toBe(false);
+    expect({ ...picker.content.dataset }).toEqual({});
   });
 
   test("refuses a redirect outside the image edit route", async () => {
-    installDom(PICKER_TEMPLATE);
-    const dialog = parts();
+    const picker = parts();
     fetchStubHolder.stub = stubFetch(redirected("/admin/images/12/edits"));
     let called = false;
-    wireUploadForm(dialog, () => {
+    wireUploadForm(picker, () => {
       called = true;
     });
 
-    await submit(dialog);
+    await submit(picker);
 
     expect(called).toBe(false);
-    expect(dialog.grid.textContent).toContain(
+    expect(picker.grid.textContent).toContain(
       "The image could not be uploaded. Please try again.",
     );
   });
 
   test("shows the server's refusal reason", async () => {
-    const dialog = await refusedUpload(
+    const picker = await refusedUpload(
       '<div class="error" role="alert">Image name is required</div>',
     );
 
-    expect(dialog.grid.textContent).toBe("Image name is required");
+    expect(picker.grid.textContent).toBe("Image name is required");
   });
 
   test("uses the generic note for an empty server refusal", async () => {
-    const dialog = await refusedUpload(
+    const picker = await refusedUpload(
       '<div class="error" role="alert"> </div>',
     );
 
-    expect(dialog.grid.textContent).toBe(
+    expect(picker.grid.textContent).toBe(
       "The image could not be uploaded. Please try again.",
     );
   });
 
   test("replaces the failure note when a second upload is refused", async () => {
-    installDom(PICKER_TEMPLATE);
-    const dialog = parts();
+    const picker = parts();
     fetchStubHolder.stub = stubFetch(
       refusal('<div class="error" role="alert">First refusal</div>'),
       refusal('<div class="error" role="alert">Second refusal</div>'),
     );
-    wireUploadForm(dialog, () => undefined);
+    wireUploadForm(picker, () => undefined);
 
-    await submit(dialog);
-    await submit(dialog);
+    await submit(picker);
+    await submit(picker);
 
     expect(
-      dialog.grid.querySelectorAll('[data-note="uploadFailed"]').length,
+      picker.grid.querySelectorAll('[data-note="uploadFailed"]').length,
     ).toBe(1);
-    expect(dialog.grid.textContent).toBe("Second refusal");
+    expect(picker.grid.textContent).toBe("Second refusal");
   });
 
   test("sends the chosen file's bytes with its name", async () => {
-    installDom(PICKER_TEMPLATE);
-    const dialog = parts();
-    const form = dialog.form;
+    const picker = parts();
+    const form = picker.form;
     const file = new File([new Uint8Array([1, 2, 3])], "harbour.png", {
       type: "image/png",
     });
@@ -320,9 +344,9 @@ describe("the image picker template", () => {
       sentRequest.method = init?.method;
       return redirected("/admin/images/12/edit");
     });
-    wireUploadForm(dialog, () => undefined);
+    wireUploadForm(picker, () => undefined);
 
-    await submit(dialog);
+    await submit(picker);
 
     expect(sentRequest.method).toBe("POST");
     expect(sentRequest.body?.get("csrfToken")).toBe(PICKER_CSRF_TOKEN);

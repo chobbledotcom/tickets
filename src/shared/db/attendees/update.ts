@@ -150,7 +150,7 @@ const loadsAtBoundaries = (intervals: DayInterval[]): Map<string, number> => {
   const loads = new Map<string, number>();
   let running = 0;
   for (const day of [...deltas.keys()].sort()) {
-    running += requiredMapValue(deltas, day, `Day ${day} missing`);
+    running += requiredMapValue(deltas, day);
     loads.set(day, running);
   }
   return loads;
@@ -186,10 +186,7 @@ const firstOverCapacityDay = (
       rangeIdx++;
     }
     if (day >= maxEnd) continue;
-    if (
-      base + requiredMapValue(loads, day, `Day ${day} missing`) >
-      groupLimit
-    ) {
+    if (base + requiredMapValue(loads, day) > groupLimit) {
       return day;
     }
   }

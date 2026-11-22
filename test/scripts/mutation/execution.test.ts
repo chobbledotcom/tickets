@@ -8,7 +8,6 @@ import {
   runTests,
   type StaticGateDeps,
   testEnv,
-  testRunLimitMs,
   toStatus,
 } from "#scripts/mutation/execution.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -188,6 +187,7 @@ describe("mutation test execution", () => {
     expect(captured.commands[0]?.options.args).toEqual([
       "test",
       "--no-check",
+      "--fail-fast",
       "--allow-all",
       "--parallel",
       "--preload",
@@ -204,6 +204,7 @@ describe("mutation test execution", () => {
       [
         "test",
         "--no-check",
+        "--fail-fast",
         "--allow-all",
         "--parallel",
         "--preload",
@@ -385,29 +386,7 @@ describe("mutation test execution", () => {
   });
 });
 
-describe("the per-batch limit", () => {
-  test("measures the limit two orders of magnitude above the baseline", () => {
-    expect(testRunLimitMs(2_000, 3_600_000)).toBe(200_000);
-  });
-
-  test("never sets the limit below the floor", () => {
-    // A 200ms baseline would give a 20s limit, too close to process start-up
-    // jitter on a busy machine.
-    expect(testRunLimitMs(200, 3_600_000)).toBe(60_000);
-  });
-
-  test("caps the limit at half the run deadline", () => {
-    // 100 x a 20-minute baseline would be 33 hours, far past the one-hour
-    // deadline this guard exists to precede.
-    expect(testRunLimitMs(1_200_000, 3_600_000)).toBe(1_800_000);
-  });
-
-  test("stays at least as long as the baseline", () => {
-    // A baseline longer than half the deadline is still a real unmutated run,
-    // so a mutant batch may take that long without being called frozen.
-    expect(testRunLimitMs(2_400_000, 3_600_000)).toBe(2_400_000);
-  });
-
+describe("the batch clock", () => {
   test("stops a batch that outlives the limit and keeps the cause", async () => {
     const result = await runTests(
       { ...config, limitMs: 0 },

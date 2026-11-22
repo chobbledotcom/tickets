@@ -53,7 +53,7 @@ type ViewMachine = {
 const atlasStateLabel = (
   id: string,
   labels: ReadonlyMap<string, string>,
-): string => requiredMapValue(labels, id, `Schema atlas has no state ${id}`);
+): string => requiredMapValue(labels, id);
 
 /** Resolve every catalog key once, server-side: the client script receives
  * finished words and does no translation work. */

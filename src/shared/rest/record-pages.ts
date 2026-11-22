@@ -132,9 +132,6 @@ export type RecordPagesConfig<
   savePath?: (id: number) => string;
   /** The page an update lands on, when it differs from the create landing. */
   updateSavePath?: (id: number) => string;
-  /** The page a refused edit returns to when it cannot render in place.
-   * Defaults to the collection's `/edit` page. */
-  editErrorPath?: (id: number) => string;
   /** A pre-render delete guard, shown on the confirmation page. */
   deleteGuard?: (row: FullRowOf<Shape>, id: number) => Promise<string | null>;
   /** The choice the delete command reads from the submitted form. */
@@ -367,10 +364,7 @@ export const recordPages = <
   ): Response | Promise<Response> =>
     config.renderEditError
       ? config.renderEditError(id, session, form, message)
-      : errorRedirect(
-          config.editErrorPath?.(id) ?? editPath.replace(/:[^/]+/, String(id)),
-          message,
-        );
+      : errorRedirect(editPath.replace(/:[^/]+/, String(id)), message);
 
   const editVerdict = (
     editPath: string,

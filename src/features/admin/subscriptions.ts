@@ -47,7 +47,7 @@ const subscriberRows = async (
     attendeeId: row.attendeeId,
     bookingId: row.id,
     interval: row.recurringInterval,
-    name: requiredMapValue(names, row.attendeeId, "Subscriber not found"),
+    name: requiredMapValue(names, row.attendeeId),
     price: row.recurringPrice,
     status: row.subscriptionStatus,
     stripeId: row.subscriptionId,
@@ -55,7 +55,7 @@ const subscriberRows = async (
     ticket:
       row.quantity === 0 && !tickets.has(row.listingId)
         ? t("subscriptions.ticket_removed")
-        : requiredMapValue(tickets, row.listingId, "Ticket not found"),
+        : requiredMapValue(tickets, row.listingId),
   }));
 };
 

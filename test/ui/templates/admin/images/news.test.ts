@@ -169,7 +169,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       );
       // The edit succeeds (no news use to protect)…
       await expectFlashRedirect(
-        `/admin/images/${image.id}/edit`,
+        "/admin/images",
         "Image updated",
         true,
         managerCookie,

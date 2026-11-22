@@ -1,6 +1,7 @@
 /* Popup chrome, and the shared admin modal shell built on it. A shell window
    is non-modal: the page behind it stays usable, and the window never covers
-   the page. */
+   the page. One thing has the focus, a window or the page, and everything
+   else is dim. */
 
 @use "mixins" as *;
 
@@ -70,7 +71,7 @@ dialog::backdrop {
 }
 
 /* The shell window. A drag or a resize sets the two custom properties; the
-   full-screen rule below ignores them. */
+   full-screen rule below ignores them. It rises in like any popup. */
 .admin-modal {
   position: fixed;
   left: var(--admin-modal-left, 0);
@@ -85,11 +86,42 @@ dialog::backdrop {
   border-radius: var(--space-s);
   @include surface-colors;
   overscroll-behavior: contain;
-  animation: none;
+  transition: filter 0.25s ease-out;
 }
 
 .admin-modal[open] {
   display: flex;
+}
+
+/* The dim. The client sets `data-admin-modal-page-dim` on the page while a
+   window is open: "true" when a window has the focus, "false" when the page
+   has it. A window without the focus carries `is-dim`. The page's dim sits
+   just under the windows, which start at z-index 1000, and never takes a
+   click. It dims at the speed a window rises, like the popup backdrop. */
+html[data-admin-modal-page-dim]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background-color: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease-out;
+}
+
+html[data-admin-modal-page-dim="true"]::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-admin-modal-page-dim]::before {
+    animation: backdrop-in 0.25s ease-out;
+  }
+}
+
+/* The same half dark as the page's dim. */
+.admin-modal.is-dim {
+  filter: brightness(0.5);
 }
 
 /* The title bar is the drag surface. It spans the padded content box, so the

@@ -34,6 +34,22 @@ To start the shell on every entry to this directory, add the hook to your shell
 All `deno ...` commands in this file assume you are already inside
 `devenv shell`. Non-interactive agents must prefix them with `devenv shell`.
 
+### Without Nix
+
+Some machines cannot run `devenv shell`. A sandbox whose network policy blocks
+the pinned nixpkgs download is one example. On such a Linux machine, install
+the pinned Deno, Biome, and stripe-mock without Nix:
+
+```bash
+bash scripts/devenv/setup-without-nix.sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The script reads each version from the file that pins it. It is safe to run
+again. It leaves out Apalache, Java, Chromium, and the Git hook. Afterwards,
+run `deno ...` commands directly, without `devenv shell`. Do not use the script
+to work around another failure of devenv. Report that failure instead.
+
 ## Runtime Environment
 
 - **Production**: Bunny Edge Scripting (Deno-based runtime on Bunny CDN)
@@ -57,8 +73,9 @@ devenv shell -- deno --version
 SHA there, then run `devenv update`. CI uses the same environment through
 `.github/actions/setup-devenv`. CI jobs that never launch a browser evaluate it
 with `devenv --profile ci shell`. That profile leaves out Apalache and Java. The
-step that checks the machine safety models uses `devenv --profile models shell`.
-The default shell on a development machine carries both.
+model check jobs do not use devenv. They install Deno, Java, and Apalache with
+`scripts/ci/setup-model-tools.sh`. The default shell on a development machine
+carries both.
 
 ## stripe-mock
 
@@ -137,9 +154,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   - the CI runners, the network, and the machine
 
   Report the exact command, the exact error, and why you think it is
-  infrastructure. When `agent-report-infra` is on PATH, run
-  `agent-report-infra "<summary>"` and put the details on stdin. A failure in
-  your own change is still yours to fix.
+  infrastructure. A failure in your own change is still yours to fix.
 
   Two other rules stop at an infrastructure failure. "A red check is not
   automatically yours" says to trace a failure and re-run it. When you suspect
@@ -193,6 +208,17 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   the ratchet (`deno task check:coverage-exclusions`) fails on an entry a
   branch adds. Answer a coverage gap by restructuring the code. See
   docs/designing-systems.md#readable-by-the-coverage-merge.
+- **Keep tests on the public surface**: A test reaches the app through its HTTP
+  handler, its forms, and its JSON API. It imports no other `src/` module,
+  except a module that carries the `// effects: pure` line. Write new tests in
+  `test/blackbox/` with `test/blackbox/driver.ts`. That folder holds no import
+  of a `src/` module that is not pure. Every other test file has a recorded
+  count in `scripts/check-test-internals/registry.json`. A count can fall but
+  never rise, and a new file starts at zero. A split or a move can carry the
+  count that the same branch frees. Run `deno task check:test-internals
+  --update` after a fall. When a branch deletes a test, the mutation gate
+  mutates the `src/` file that the test mirrored. The remaining tests must kill
+  every mutant. See [Black-box tests](docs/e2e-tests.md#black-box-tests).
 - **Hardest first, no need to ask**: When the only open question is the order to
   build several things in, build the more difficult one first.
 - **Always the complete version**: Choose the complete, correct version, even
@@ -215,8 +241,10 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Copy the shared shape, not the nearest one**: When a helper already does
   the job, use it and delete the local copy in the same change. A record form
   POST uses `createIdEntityHandler` with `formGuard`. A lookup the boundary
-  cannot prove uses `requiredMapValue`. A whole-number form field parses with
-  `parseSignedInt` and names its rule with `validateWholeNumber`. A page opens
+  cannot prove uses `requiredMapValue`. A lookup in data that can arrive
+  broken, such as an uploaded file, uses `requiredMapValueWithMessage`. A
+  whole-number form field parses with `parseSignedInt` and names its rule with
+  `validateWholeNumber`. A page opens
   through `renderAdminPage` or `renderAdminPageSpec` at its own call site, not
   through a local wrapper. `src/features/admin/built-site-form.ts`,
   `src/features/admin/images.ts` and `src/ui/templates/fields/modifier.ts` are
@@ -373,6 +401,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   - `deno task check:file-lengths`
   - `deno task check:call-chains`
   - `deno task check:imports`
+  - `deno task check:test-internals`
   - `deno task check:comment-ste`
   - `deno task typecheck`
   - `deno task check:ste` whenever the change touches Markdown
@@ -694,6 +723,10 @@ automatic.
   `scripts/check-presence-assertions/registry.json`, and the count only
   falls. Assert the value, shape, or invariant instead. Pass `--update`
   after a fix. The update refuses a rise
+- `deno task check:test-internals` — hold every test file to its recorded count
+  of imports from `src/` modules that are not pure, and hold the registry to the
+  merge base on `origin/main`. Pass `--update` after a fall. The update refuses
+  a rise
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
 - `deno task check:merged-tree <pr-number | branch> [base]` — trial-merge the
@@ -834,8 +867,9 @@ drop you state out loud.
 ### Mutation Testing
 
 `deno task mutation` mutates operators in the source and checks whether the
-tests fail. A mutant the tests still pass on is a real gap. How the runner works
-is in [Mutation testing](docs/mutation-testing.md).
+tests fail. A mutant the tests still pass on is a real gap. Run
+`deno task mutation --help` for the options. The module headers in
+`scripts/mutation/` describe how the runner works.
 
 ```bash
 deno task mutation src/shared/dates.ts test/shared/dates.test.ts
@@ -862,12 +896,13 @@ distinguish it.
 head, before you merge a branch that changes `src/` files. Rerun it only when a
 later commit changes `src/` files.
 
-The runner stops a test batch that outlives the baseline by two orders of
-magnitude. The limit is 100 times the measured baseline, with a floor of 60
-seconds. The limit never drops below the baseline. Otherwise half the run
-deadline caps it. A batch past the limit is a frozen loop, not a verdict: the
-run stops, names the mutant and the limit, and scores nothing. No mutant is
-judged by a clock. A clock can only stop a run that a loop freeze already broke.
+The runner times each test file on its own. A file quicker than 2 seconds
+shares one run with the other quick files, and a slower file gets its own run.
+Each mutant runs the quickest run first and stops at the first failure. The
+limit for each run is three times its baseline time, plus 10 seconds. A run past
+the limit is a frozen loop, not a verdict: the run stops, names the mutant and
+the limit, and scores nothing. No mutant is judged by a clock. A clock can only stop
+a run that a loop freeze already broke.
 
 ### Fast Tests
 

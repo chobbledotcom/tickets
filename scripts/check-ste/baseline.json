@@ -116,8 +116,14 @@
     "semicolon \";\" in % - Optional Botpoison public key (sent to the browser). The contact form works without it; setting it together with % adds proof-of-work spam protection as a progressive enhancement. The owner still enables the form under Site → Contact and sets a business email.": 1
   },
   "docs/model-verification.md": {},
-  "docs/mutation-testing.md": {
-    "semicolon \";\" in In-place mutation inside the copied checkout is what makes mutations bind through % import-map aliases. The operator tables and AST walk are vendored from Mutasaurus (MIT); its own execution model writes a temp copy but runs the original tests, so every mutant falsely \"survives\" on an alias-based project — see %.": 1
+  "docs/payment-aggregate-lessons.md": {
+    "semicolon \";\" in The payment-aggregate rewrite (PRs #1962 and #1973) was closed without merging. Origin: % at the time it was retired; the file is deleted, and this document keeps the record. Before it closed, the branch went through repeated adversarial review and a coverage audit. The full record — around forty-five findings, each tied to a file and line on that branch — is in % at commit % on % (also reachable as %). The table-hardening slice is at % (%). None of that branch's code is on main, so the findings are not jobs here — they are the failure map for the redo that docs/plan.md plans.": 1,
+    "semicolon \";\" in Each of these was found, and most were confirmed, on the rewrite. They are worth reading in full at the commit above before re-attempting the aggregate; in one line each:": 1,
+    "semicolon \";\" in One stuck item must never block the queue behind it: a saved owner decision the provider kept refusing halted every checkout, completion and refund; one unredactable payment halted all payment-history redaction and the pruning behind it.": 1,
+    "banned-modal \"may\" in Deferred work must run from facts saved when the money moved, not from live rows an owner may have edited since — quantity, currency, recipient, and the booking itself all drifted between capture and completion.": 1,
+    "present-perfect \"have edited\" in Deferred work must run from facts saved when the money moved, not from live rows an owner may have edited since — quantity, currency, recipient, and the booking itself all drifted between capture and completion.": 1,
+    "banned-modal \"could\" in Money-adjacent actions must be exact about their targets: a \"refresh\" that could refund, a refund list that included charge-less payments, and a confirmed refund that never reached the ledger all moved or lost money on paper.": 1,
+    "semicolon \";\" in Recorded so nobody re-raises them here: SumUp amounts convert once at checkout creation (no stored retry); emails send inline reading the config at send time (no queue to go stale); the attendee merge already fences live payment rows (%); Square's % is already optional in %; the success redirect already clears session tokens, and a revisit renders without them.": 4
   },
   "docs/pr-workflow.md": {
     "semicolon \";\" in Add the following sections to the feature plan. Use tables where there is more than one case. Write % when a section truly does not apply; do not omit it.": 1,

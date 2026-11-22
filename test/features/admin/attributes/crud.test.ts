@@ -183,14 +183,23 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       ).toEqual(["First renamed", "Second"]);
     });
 
-    test("an empty name is refused back to the attribute page", async () => {
+    test("an empty name is refused on the attribute page, not with the stored name", async () => {
       const id = await createAttributeViaRoute("Required fields");
 
-      await expectFlashRedirect(
-        `/admin/attributes/${id}`,
+      const html = await expectHtmlResponse(
+        (await adminFormPost(`/admin/attributes/${id}/edit`)).response,
+        400,
         "Attribute name is required",
-        false,
-      )((await adminFormPost(`/admin/attributes/${id}/edit`)).response);
+      );
+
+      expect(inputNamed(html, "name")).not.toContain("Required fields");
+      expect((await getAttributeWithOptions(id))?.name).toBe("Required fields");
+    });
+
+    test("a refused edit of a missing attribute answers 404", async () => {
+      expectStatus(404)(
+        (await adminFormPost("/admin/attributes/999999/edit")).response,
+      );
     });
 
     test("does not update an attribute when enabling the feature fails", async () => {

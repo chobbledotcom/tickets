@@ -105,6 +105,13 @@ const STEPS = [
     cmd: ["task", "check:presence-assertions"],
     name: "check:presence-assertions",
   },
+  // The test-internals check holds every test file to its recorded count of
+  // imports from src internals, and holds the registry to the merge base on
+  // origin/main (see "Keep tests on the public surface" in AGENTS.md).
+  {
+    cmd: ["task", "check:test-internals"],
+    name: "check:test-internals",
+  },
   // The dump module must also run against the base tree: a helper the branch
   // adds is invisible to origin/main, and only this diff exercises that
   // import (issue #2740).
@@ -141,6 +148,7 @@ const STEPS = [
     name: "check:required-checks",
   },
   { cmd: ["task", "check:tla"], name: "check:tla" },
+  { cmd: ["task", "check:model-guides"], name: "check:model-guides" },
   { cmd: ["task", "verify:models"], name: "verify:models" },
   { cmd: ["task", "build:edge"], name: "build:edge" },
   {

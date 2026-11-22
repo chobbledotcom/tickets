@@ -1,0 +1,26 @@
+name: Set up model tools
+description: >-
+  Install Deno, Java, and Apalache without devenv, then install the Deno
+  dependencies. A model check needs only these tools, and the devenv setup
+  takes longer than most checks.
+runs:
+  using: composite
+  steps:
+    # shell: bash on every step — the job does not enter a devenv shell.
+    - name: Install the model tools
+      id: tools
+      shell: bash
+      run: bash scripts/ci/setup-model-tools.sh
+
+    - name: Cache Deno dependencies
+      uses: actions/cache@v4.3.0
+      with:
+        path: ~/.cache/deno
+        key: deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.deno-version }}-${{ hashFiles('deno.lock', 'deno.json', 'e2e-payments/deno.json') }}
+        restore-keys: |
+          deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.deno-version }}-
+
+    # The install policy lives in scripts/ci/deno-install.sh.
+    - name: Install Deno dependencies
+      shell: bash
+      run: bash scripts/ci/deno-install.sh

@@ -128,11 +128,7 @@ const reachableModules = (
       continue;
     }
     seen.add(specifier);
-    const module = requiredMapValue(
-      bySpecifier,
-      specifier,
-      `Module list lost the entry for ${specifier}`,
-    );
+    const module = requiredMapValue(bySpecifier, specifier);
     const runtimeImports = codeSpecifiers(module.dependencies, followDynamic);
     for (const resolved of runtimeImports) {
       if (!seen.has(resolved)) queue.push(resolved);

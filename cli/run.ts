@@ -95,6 +95,7 @@ const execute = async (
       command.entry,
       command.routeKey,
       command.id,
+      command.query,
     );
   }
   const body = await validatedBody(

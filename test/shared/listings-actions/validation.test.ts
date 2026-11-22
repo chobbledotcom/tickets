@@ -39,7 +39,7 @@ describeWithEnv("validateListingInput boundaries", { db: true }, () => {
         }),
       ),
     ).resolves.toBe(
-      `Maximum price must be at least ${formatCurrency(100)} more than the ticket price`,
+      `Maximum price must be at least ${formatCurrency(100)} more than the price`,
     );
   });
 
@@ -101,7 +101,7 @@ describeWithEnv("validateListingInput boundaries", { db: true }, () => {
         undefined,
         { siblingsByGroup: new Map() },
       ),
-    ).rejects.toThrow("Missing group listing membership");
+    ).rejects.toThrow(`Missing map key ${group.id}`);
   });
 
   test("refuses a contact field it does not know, and only that field", async () => {

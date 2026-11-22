@@ -9,7 +9,11 @@
  * alone.
  */
 
-import type { Counts, PerFileFinding } from "#scripts/check-runner.ts";
+import {
+  type Counts,
+  findingsPastRecord,
+  type PerFileFinding,
+} from "#scripts/check-runner.ts";
 import {
   findWeakPattern,
   type TestQualityFinding,
@@ -38,35 +42,22 @@ export const findIssues = (
   file: string,
   content: string,
   accepted: Counts,
-): PerFileFinding[] => {
-  const findings = presenceFindings(file, content);
-  const recorded = accepted[file] ?? 0;
-  if (findings.length === 0) {
-    return file in accepted
-      ? [
-          {
-            fix: "delete the entry in scripts/check-presence-assertions/registry.json",
-            line: 1,
-            problem: "holds no presence-only assertion",
-            rule: "stale-entry",
-          },
-        ]
-      : [];
-  }
-  if (findings.length < recorded) {
-    return [
-      {
-        fix: `run \`${UPDATE_COMMAND}\` to record the count`,
-        line: 1,
-        problem: `holds ${findings.length} presence-only assertions, fewer than the recorded ${recorded}`,
-        rule: "improved",
-      },
-    ];
-  }
-  return findings.slice(recorded).map((finding) => ({
-    fix: FIX,
-    line: finding.line,
-    problem: PROBLEM,
-    rule: RULE,
-  }));
-};
+): PerFileFinding[] =>
+  findingsPastRecord(
+    file,
+    presenceFindings(file, content),
+    accepted,
+    {
+      clean: "holds no presence-only assertion",
+      fewer: (count, recorded) =>
+        `holds ${count} presence-only assertions, fewer than the recorded ${recorded}`,
+      registry: "scripts/check-presence-assertions/registry.json",
+      updateCommand: UPDATE_COMMAND,
+    },
+    (finding) => ({
+      fix: FIX,
+      line: finding.line,
+      problem: PROBLEM,
+      rule: RULE,
+    }),
+  );

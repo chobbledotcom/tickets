@@ -6,10 +6,12 @@ import {
   adminDestination,
   adminDestinationAllowed,
   adminDestinationAt,
+  adminPageAudience,
   adminPath,
   adminPattern,
   adminRecordPath,
   afterSavePath,
+  oneServedPath,
 } from "#shared/admin-surface.ts";
 
 describe("the pattern a route declares", () => {
@@ -125,5 +127,42 @@ describe("generated CRUD save paths", () => {
     expect(afterSavePath(adminDestination("statusEdit"), "statuses", 9)).toBe(
       "/admin/settings/statuses/9",
     );
+  });
+});
+
+describe("the roles that reach a record's page", () => {
+  test("include the roles of the page itself and of the routes beneath it", () => {
+    expect(adminPageAudience(adminDestination("holiday"))).toEqual(["owner"]);
+  });
+});
+
+/** The path that each pattern serves, by pattern. */
+const servedPaths = (patterns: string[]) =>
+  Object.fromEntries(
+    patterns.map((pattern) => [pattern, oneServedPath(pattern)]),
+  );
+
+describe("one served path", () => {
+  test("gives a numeric parameter an id and any other parameter a word", () => {
+    expect(
+      servedPaths([
+        "/admin/holidays/:id",
+        "/admin/attendees/:attendeeId/note/:noteId",
+        "/admin/backup/download/:filename",
+        "/admin/ledger/:type/:ref",
+      ]),
+    ).toEqual({
+      "/admin/attendees/:attendeeId/note/:noteId": "/admin/attendees/1/note/1",
+      "/admin/backup/download/:filename": "/admin/backup/download/value",
+      "/admin/holidays/:id": "/admin/holidays/1",
+      "/admin/ledger/:type/:ref": "/admin/ledger/value/value",
+    });
+  });
+
+  test("drops a trailing slash", () => {
+    expect(servedPaths(["/admin/", "/admin/holidays"])).toEqual({
+      "/admin/": "/admin",
+      "/admin/holidays": "/admin/holidays",
+    });
   });
 });
