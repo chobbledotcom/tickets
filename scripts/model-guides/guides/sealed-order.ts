@@ -106,7 +106,7 @@ export const sealedOrder: ModelGuide = {
         { name: "bundle before", value: "order" },
         { name: "bundle after", value: "receipt" },
       ],
-      what: "After the outcome, a separate write replaces the order with a receipt. A crash can leave the order in place. The early-receipt control also writes a receipt on an open row, and the checker finds a receipt with no ledger leg.",
+      what: "After the outcome, a separate write replaces the order with a receipt. A crash can leave the order in place, and a replay of the final row then writes the receipt again. The early-receipt control also writes a receipt on an open row, and the checker finds a receipt with no ledger leg.",
     },
     {
       code: [
@@ -130,7 +130,7 @@ export const sealedOrder: ModelGuide = {
           path: "src/features/api/payment-processing/classify.ts",
           symbol: "classifySessionIntent",
         },
-        { path: SETTLED_ORDER, symbol: "isSessionSettled" },
+        { path: SETTLED_ORDER, symbol: "sessionStanding" },
         { path: PRODUCER, symbol: "settledAlarmData" },
         { path: PRODUCER, symbol: "lostOrderRefundData" },
       ],

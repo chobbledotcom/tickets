@@ -79,7 +79,7 @@ TypeOK ==
 FinalRows == {"finalized", "failed"}
 
 \* A session is settled when its row holds a final result or its ledger holds
-\* a leg. This is the read that isSessionSettled makes.
+\* a leg. This is the read that sessionStanding makes.
 \* @type: (Str, Str) => Bool;
 Settled(rowState, ledgerState) ==
   rowState \in FinalRows \/ ledgerState = "recorded"
@@ -198,8 +198,9 @@ RowGoes(fromRows) ==
 ReleaseReserved == RowGoes({"reserved"})
 
 \* After the outcome, keepOrderReceipt replaces the order with a receipt. It
-\* is a separate write, so a crash can leave the order in place. A supplied
-\* fact names each row state after which production writes the receipt.
+\* is a separate write, so a crash can leave the order in place. A replay of
+\* the final row writes it again. A supplied fact names each row state after
+\* which production writes the receipt.
 KeepReceipt ==
   \E fact \in ReceiptFacts :
     /\ fact.rowBefore = row

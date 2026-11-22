@@ -1,5 +1,6 @@
 import type { BundleRead } from "#db/checkout-bundles.ts";
 import type { CallbackOutcome } from "#routes/api/payment-callback.ts";
+import type { SessionStanding } from "#routes/api/payment-processing/settled-order.ts";
 import {
   corruptedDataFor,
   type ModelDataSource,
@@ -66,10 +67,28 @@ type Delivery = {
   readonly rowBefore: RowState;
 };
 
-/** `isSessionSettled` in settled-order.ts: the row holds a booking or a
- * final outcome, or the ledger holds a leg. */
+/** `sessionStanding` in settled-order.ts: a booking row, a final-outcome
+ * row, a ledger leg, or none of these. */
+const standingOf = (
+  row: RowState,
+  ledger: LedgerState,
+): SessionStanding["kind"] => {
+  if (row === "finalized") return "booked";
+  if (row === "failed") return "handled";
+  return ledger === "recorded" ? "recorded" : "open";
+};
+
+/** Which standings `classifySessionIntent` answers as settled. The `Record`
+ * keys on the production union, so a new standing is a type error here. */
+const SETTLED_STANDING: Record<SessionStanding["kind"], boolean> = {
+  booked: true,
+  handled: true,
+  open: false,
+  recorded: true,
+};
+
 const settled = (row: RowState, ledger: LedgerState): boolean =>
-  row === "finalized" || row === "failed" || ledger === "recorded";
+  SETTLED_STANDING[standingOf(row, ledger)];
 
 /** A delivery that finds no readable order. `classifySessionIntent` answers
  * a settled session as settled. Any other session raises the lost-order
@@ -152,8 +171,9 @@ const DELIVERIES: readonly Delivery[] = ROW_STATES.flatMap((row) =>
 );
 
 /** The row states after which `processPaymentSession` replaces the order
- * with a receipt: a booking or a final handled outcome. A retryable failure
- * releases the row and keeps the whole order. */
+ * with a receipt: a booking or a final handled outcome, on the fresh path
+ * and on a replay. A retryable failure releases the row and keeps the whole
+ * order. */
 const RECEIPT_ROWS: readonly RowState[] = ["finalized", "failed"];
 
 const receiptFields = { rowBefore: "Str" } as const;
