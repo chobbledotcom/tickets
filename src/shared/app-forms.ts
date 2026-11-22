@@ -1,4 +1,3 @@
-import { t } from "#i18n";
 import {
   type AuthPolicy,
   type AuthSession,
@@ -6,17 +5,12 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash, requireCsrfFormWithMessage } from "#routes/csrf.ts";
-import {
-  notFoundResponse,
-  publicPageResponse,
-  redirect,
-} from "#routes/response.ts";
+import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms/validation.ts";
-import { type MovePlace, moveKey } from "#shared/reorder.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 
 export type FormValidator<TValues> = {
@@ -102,49 +96,6 @@ export const authedHandlerWithStep = <TParams, TContext>(
   handle: AuthedHandleStep<TParams, TContext>,
 ): ParamsRoute<TParams> =>
   createAuthedHandler<TParams, TContext>({ ...config, handle });
-
-type OrderedConfig<Params, Context, Key> = AuthedBase<Params, Context> & {
-  /** Store the whole new order. */
-  arrange: (
-    keys: readonly Key[],
-    args: AuthedHandlerArgs<Params, Context>,
-  ) => Promise<void>;
-  keys: (
-    args: AuthedHandlerArgs<Params, Context>,
-  ) => readonly Key[] | Promise<readonly Key[]>;
-  movedMessage: string;
-  redirectPath: (args: AuthedHandlerArgs<Params, Context>) => string;
-  target: (args: AuthedHandlerArgs<Params, Context>) => Key;
-};
-
-/** Build both move routes for any ordered admin collection. Each route moves
- * its row to just before or just after the row the `anchor` field names. The
- * arrows name the next row up or down, and a drop names the row it lands
- * next to. An anchor that is gone, or is the row itself, changes nothing. */
-export const createOrderedCollectionHandlers = <Params, Context, Key>(
-  config: OrderedConfig<Params, Context, Key>,
-): Record<MovePlace, ParamsRoute<Params>> => {
-  const move = (place: MovePlace): ParamsRoute<Params> =>
-    authedHandlerWithStep(config, async (args) => {
-      const keys = await config.keys(args);
-      const anchorText = args.form.getString("anchor");
-      const anchor = keys.find((key) => String(key) === anchorText);
-      const order =
-        anchor === undefined
-          ? null
-          : moveKey(keys, config.target(args), place, anchor);
-      if (order === null) {
-        return redirect(
-          config.redirectPath(args),
-          t("common.reorder_stale"),
-          false,
-        );
-      }
-      await config.arrange(order, args);
-      return redirect(config.redirectPath(args), config.movedMessage, true);
-    });
-  return { after: move("after"), before: move("before") };
-};
 
 // ── createAuthedFormRoute: adds schema validation on top ──────────────
 

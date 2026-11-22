@@ -9,7 +9,11 @@ import {
   sitePageForm,
   sitePageToValues,
 } from "#routes/admin/site-pages-form.ts";
-import type { TableColumn } from "#shared/tables/column.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
+import type {
+  ReorderColumnOptions,
+  TableColumn,
+} from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
@@ -69,18 +73,11 @@ const PageNameLink = ({
 );
 
 const pageReorderTable = <T,>(opts: {
-  anchor: (row: T) => string;
-  base: (row: T) => string;
   columns: TableColumn<T>[];
+  reorder: ReorderColumnOptions<T>;
   rows: T[];
 }): JSX.Element =>
-  renderTable(defineTable(opts.columns), opts.rows, {
-    reorder: {
-      anchor: opts.anchor,
-      header: translatedTableHeader("site.pages.order_column"),
-      path: opts.base,
-    },
-  });
+  renderTable(defineTable(opts.columns), opts.rows, { reorder: opts.reorder });
 
 const pageColumns = <T,>(
   pageOf: (row: T) => SitePageNavRow,
@@ -135,8 +132,6 @@ export const adminSitePagesListPage = (
               all-empty case above) guarantees at least one root to list. */}
         <h2>{t("site.pages.roots_heading")}</h2>
         {pageReorderTable({
-          anchor: (page) => String(page.id),
-          base: (page) => `${LIST}/${page.id}`,
           columns: [
             ownPageColumns.name,
             {
@@ -146,6 +141,7 @@ export const adminSitePagesListPage = (
             },
             ownPageColumns.actions,
           ],
+          reorder: ORDERED_LISTS.sitePage.column(),
           rows: model.roots,
         })}
         {model.nested.length > 0 && (
@@ -224,8 +220,6 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
         </p>
       ) : (
         pageReorderTable({
-          anchor: (item) => `${item.type}:${item.id}`,
-          base: itemBase,
           columns: [
             {
               cell: (item) => t(`site.pages.type.${item.type}`),
@@ -247,6 +241,7 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
               key: "actions",
             },
           ],
+          reorder: ORDERED_LISTS.sitePageItem.column(page.id),
           rows: items,
         })
       )}
