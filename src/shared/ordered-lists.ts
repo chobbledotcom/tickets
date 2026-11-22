@@ -35,6 +35,11 @@ const ID_LISTS = {
     moved: "attributes.option_moved",
     rowPath: "/admin/attributes/:id/options/:optionId",
   },
+  listing: {
+    listPath: "/admin/listings",
+    moved: "listings_table.moved",
+    rowPath: "/admin/listing/:id",
+  },
   question: {
     listPath: "/admin/questions",
     moved: "questions.moved",

@@ -27,6 +27,19 @@ const contentRoute = <const Pattern extends string>(pattern: Pattern) => ({
   pattern,
 });
 
+/** Writes open to content admins in an area whose default is staff. */
+const contentRoutes = <const Writes extends Readonly<Record<string, string>>>(
+  writes: Writes,
+) =>
+  Object.fromEntries(
+    Object.entries(writes).map(([id, pattern]) => [id, contentRoute(pattern)]),
+  ) as {
+    readonly [Id in keyof Writes]: {
+      audience: typeof CONTENT_ADMIN_LEVELS;
+      pattern: Writes[Id];
+    };
+  };
+
 /** The admin areas from `apiKeys` through `listings`. */
 export const AREAS_A_L = {
   apiKeys: {
@@ -342,8 +355,7 @@ export const AREAS_A_L = {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/listing/:id/income",
       },
-      listingMoveAfter: contentRoute("/admin/listing/:id/move-after"),
-      listingMoveBefore: contentRoute("/admin/listing/:id/move-before"),
+      ...contentRoutes(ORDERED_LISTS.listing.writes),
       listingNew: contentRoute("/admin/listing/new"),
       listingNote: "/admin/listing/:id/note",
       listingNoteDelete: "/admin/listing/:id/note/:noteId/delete",
