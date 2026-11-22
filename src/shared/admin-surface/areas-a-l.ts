@@ -259,6 +259,7 @@ export const AREAS_A_L = {
     extraWrites: {
       groupAddListings: "/admin/groups/:id/add-listings",
       ...imageWrites("group", "/admin/groups/:id"),
+      ...ORDERED_LISTS.groupImage.writes,
       groupNote: {
         audience: STAFF_ADMIN_LEVELS,
         pattern: "/admin/groups/:id/note",
@@ -350,6 +351,7 @@ export const AREAS_A_L = {
       listingDelete: "/admin/listing/:id/delete",
       listingDuplicate: contentRoute("/admin/listing/:id/duplicate"),
       listingEdit: contentRoute("/admin/listing/:id/edit"),
+      ...contentRoutes(ORDERED_LISTS.listingImage.writes),
       listingImages: contentRoute("/admin/listing/:id/images"),
       listingIncome: {
         audience: OWNER_AUDIENCE,

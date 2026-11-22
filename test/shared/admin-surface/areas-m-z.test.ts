@@ -55,6 +55,8 @@ const PATHS = {
   newsActions: "/admin/site/news/:id/actions",
   newsDelete: "/admin/site/news/:id/delete",
   newsEdit: "/admin/site/news/:id/edit",
+  newsImageMoveAfter: "/admin/site/news/:id/images/:imageId/move-after",
+  newsImageMoveBefore: "/admin/site/news/:id/images/:imageId/move-before",
   newsImages: "/admin/site/news/:id/images",
   newsImagesUpload: "/admin/site/news/:id/images/upload",
   newsNew: "/admin/site/news/new",
@@ -130,6 +132,8 @@ const PATHS = {
   sitePageActions: "/admin/site/pages/:id/actions",
   sitePageDelete: "/admin/site/pages/:id/delete",
   sitePageEdit: "/admin/site/pages/:id/edit",
+  sitePageImageMoveAfter: "/admin/site/pages/:id/images/:imageId/move-after",
+  sitePageImageMoveBefore: "/admin/site/pages/:id/images/:imageId/move-before",
   sitePageImages: "/admin/site/pages/:id/images",
   sitePageImagesUpload: "/admin/site/pages/:id/images/upload",
   sitePageItemMoveAfter:

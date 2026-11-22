@@ -21,7 +21,10 @@ import {
   defineTable,
   type TableDefinition,
 } from "#shared/tables/definition.ts";
-import { ReorderArrows } from "#templates/components/reorder.tsx";
+import {
+  neighbourAnchors,
+  ReorderArrows,
+} from "#templates/components/reorder.tsx";
 import {
   type ColumnKind,
   colClass,
@@ -308,20 +311,13 @@ export const renderListPartTable = <TItem, TContext = undefined>(
 const reorderColumn = <TRow, TContext = undefined>(
   options: ReorderColumnOptions<TRow>,
 ): TableColumn<TRow, TContext> => ({
-  cell: (row, _ctx, index, rows) => {
-    const anchorAt = (at: number): string | undefined => {
-      const neighbour = rows[at];
-      return neighbour === undefined ? undefined : options.anchor(neighbour);
-    };
-    return (
-      <ReorderArrows
-        above={anchorAt(index - 1)}
-        anchor={options.anchor(row)}
-        below={anchorAt(index + 1)}
-        path={options.path(row)}
-      />
-    );
-  },
+  cell: (row, _ctx, index, rows) => (
+    <ReorderArrows
+      {...neighbourAnchors(rows, index, options.anchor)}
+      anchor={options.anchor(row)}
+      path={options.path(row)}
+    />
+  ),
   class: "reorder",
   header: () => t("common.reorder_column"),
   key: "__reorder__",

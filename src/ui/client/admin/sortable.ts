@@ -44,8 +44,9 @@ const itemUnderPointer = (
   return itemHolding(list, node);
 };
 
-/** Put the dragged item before or after the item under the pointer, by which
- *  half of that item the pointer is over. */
+/** Put the dragged item before or after the item under the pointer. The half
+ *  of that item the pointer is over decides. A list compares the upper and
+ *  lower halves. A `grid` of cards that wraps compares the left and right. */
 const moveBeside = (
   list: HTMLElement,
   dragged: HTMLElement,
@@ -54,8 +55,11 @@ const moveBeside = (
   const over = itemUnderPointer(list, dragged, event);
   if (over === null) return;
   const box = over.getBoundingClientRect();
-  const upperHalf = event.clientY < box.top + box.height / 2;
-  list.insertBefore(dragged, upperHalf ? over : over.nextElementSibling);
+  const firstHalf =
+    list.dataset.sortable === "grid"
+      ? event.clientX < box.left + box.width / 2
+      : event.clientY < box.top + box.height / 2;
+  list.insertBefore(dragged, firstHalf ? over : over.nextElementSibling);
 };
 
 const anchorOf = (item: Element): string =>
@@ -73,7 +77,13 @@ const moveFor = (item: HTMLElement): { anchor: string; place: MovePlace } => {
     : { anchor: anchorOf(above), place: "after" };
 };
 
-/** Post a copy of one of the item's own arrow forms, so the drop sends the
+/** The form an arrow of the item sends. A row has the arrow's own form. A
+ *  card has arrow buttons in the form that holds the card. */
+const arrowFormOf = (item: HTMLElement): HTMLFormElement =>
+  item.querySelector("form") ??
+  requireValue(item.closest("form"), "form that holds the sortable item");
+
+/** Post a copy of the form an arrow of the item sends, so the drop sends the
  *  same fields an arrow sends. Only the address and the anchor change. The
  *  server sends the operator back to this page, with its filters. */
 const postMove = (
@@ -81,13 +91,12 @@ const postMove = (
   move: { anchor: string; place: MovePlace },
 ): void => {
   const path = requireValue(handleOf(item).dataset.sortablePath, "path");
-  const form = requiredChild<HTMLFormElement>(item, "form").cloneNode(
-    true,
-  ) as HTMLFormElement;
+  const form = arrowFormOf(item).cloneNode(true) as HTMLFormElement;
   form.action = `${path}/move-${move.place}`;
-  requiredChild<HTMLInputElement>(form, 'input[name="anchor"]').value =
-    move.anchor;
+  // An arrow button carries its anchor itself, so its form has no field.
+  form.querySelector('input[name="anchor"]')?.remove();
   form.append(
+    createHiddenInput("anchor", move.anchor),
     createHiddenInput(
       "returnUrl",
       window.location.pathname + window.location.search,

@@ -86,6 +86,13 @@
   object-fit: cover;
 }
 
+/* A saved picture's drag handle and arrows, in one row above its picture. */
+.listing-images-order {
+  display: flex;
+  align-items: center;
+  gap: var(--space-s);
+}
+
 .listing-images-remove {
   width: auto;
   padding: 0.2rem 0.5rem;

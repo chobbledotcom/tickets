@@ -79,13 +79,14 @@ const arrangeStep = <RowPath extends string, Row>(
         });
 };
 
-export const orderedListRoutes = <
-  Name extends string,
-  RowPath extends string,
-  Row,
-  Key,
->(
-  spec: OrderedListSpec<Name, RowPath, Row, Key>,
+/** The parts of a list's declaration that its move routes read. */
+type MovedList<RowPath extends string, Row, Key> = Pick<
+  OrderedListSpec<string, RowPath, Row, Key>,
+  "keyOf" | "listPathFor" | "moved" | "paramsOf" | "parentOf" | "rowPath"
+>;
+
+export const orderedListRoutes = <RowPath extends string, Row, Key>(
+  spec: MovedList<RowPath, Row, Key>,
   store: OrderedListStore<RowPath, Row>,
 ): OrderedListRoutes<RowPath> => {
   const auth = formPolicyFor(adminDestinationAt(`${spec.rowPath}/move-before`));
