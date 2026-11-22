@@ -1,5 +1,6 @@
 import { records } from "#db/record-table.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import { imageOrderRoutes } from "./item-images.ts";
 
 /**
  * Admin CRUD for user-created content Pages, under Site → Pages. Owner +
@@ -233,6 +234,7 @@ const pageItemOrder = orderedListRoutes(ORDERED_LISTS.sitePageItem, {
 
 export const adminHandlers = defineAdminRoutes({
   ...contentRecordRoutes("sitePages", pages, images, sitePageEntityPage),
+  ...imageOrderRoutes("page"),
   "POST /admin/site/pages/:id/items": handleAddItem,
   ...pageItemOrder,
   "POST /admin/site/pages/:id/items/:itemType/:itemId/remove": handleRemoveItem,

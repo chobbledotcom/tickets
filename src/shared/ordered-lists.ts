@@ -9,7 +9,7 @@ import {
   type OrderedListSpec,
   orderedListSpec,
 } from "#shared/ordered-list.ts";
-import type { SitePageItemType } from "#types";
+import type { ImageUseItemType, SitePageItemType } from "#types";
 
 /** The paths and message of a list whose rows go by their own id. */
 type IdListPaths = {
@@ -35,10 +35,25 @@ const ID_LISTS = {
     moved: "attributes.option_moved",
     rowPath: "/admin/attributes/:id/options/:optionId",
   },
+  groupImage: {
+    listPath: "/admin/groups/:id/images",
+    moved: "images.item.moved",
+    rowPath: "/admin/groups/:id/images/:imageId",
+  },
   listing: {
     listPath: "/admin/listings",
     moved: "listings_table.moved",
     rowPath: "/admin/listing/:id",
+  },
+  listingImage: {
+    listPath: "/admin/listing/:id/images",
+    moved: "images.item.moved",
+    rowPath: "/admin/listing/:id/images/:imageId",
+  },
+  newsImage: {
+    listPath: "/admin/site/news/:id/images",
+    moved: "images.item.moved",
+    rowPath: "/admin/site/news/:id/images/:imageId",
   },
   question: {
     listPath: "/admin/questions",
@@ -49,6 +64,11 @@ const ID_LISTS = {
     listPath: "/admin/site/pages",
     moved: "site.pages.moved",
     rowPath: "/admin/site/pages/:id",
+  },
+  sitePageImage: {
+    listPath: "/admin/site/pages/:id/images",
+    moved: "images.item.moved",
+    rowPath: "/admin/site/pages/:id/images/:imageId",
   },
   status: {
     listPath: "/admin/settings/statuses",
@@ -93,3 +113,11 @@ export const ORDERED_LISTS = {
     rowPath: "/admin/site/pages/:id/items/:itemType/:itemId",
   }),
 } as const;
+
+/** The ordered images of each kind of record that has an Images tab. */
+export const IMAGE_ORDERS = {
+  group: ORDERED_LISTS.groupImage,
+  listing: ORDERED_LISTS.listingImage,
+  news: ORDERED_LISTS.newsImage,
+  page: ORDERED_LISTS.sitePageImage,
+} as const satisfies Record<ImageUseItemType, object>;

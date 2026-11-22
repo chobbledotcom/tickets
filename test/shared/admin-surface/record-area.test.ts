@@ -183,14 +183,10 @@ describe("the shared write sets", () => {
       // A content record gets its actions and its images.
       content: {
         pageActions: "/admin/pages/:id/actions",
-        pageImageMoveAfter: "/admin/pages/:id/images/:imageId/move-after",
-        pageImageMoveBefore: "/admin/pages/:id/images/:imageId/move-before",
         pageImages: "/admin/pages/:id/images",
         pageImagesUpload: "/admin/pages/:id/images/upload",
       },
       image: {
-        postImageMoveAfter: "/admin/posts/:id/images/:imageId/move-after",
-        postImageMoveBefore: "/admin/posts/:id/images/:imageId/move-before",
         postImages: "/admin/posts/:id/images",
         postImagesUpload: "/admin/posts/:id/images/upload",
       },

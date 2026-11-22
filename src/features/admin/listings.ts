@@ -21,7 +21,7 @@ import { orderedListRoutes } from "#shared/ordered-list-routes.ts";
 import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import { listingNoteFeature } from "./catalog-notes.ts";
-import { createItemImageHandlers } from "./item-images.ts";
+import { createItemImageHandlers, imageOrderRoutes } from "./item-images.ts";
 import { listingPage } from "./listing-page.ts";
 import {
   handleAdminListingDuplicateGet,
@@ -87,10 +87,7 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/listing/:id/delete": handleAdminListingDelete,
   "POST /admin/listing/:id/edit": handleAdminListingEditPost,
   "POST /admin/listing/:id/images": listingImageHandlers.set,
-  ...orderRoutes(
-    "/admin/listing/:id/images/:imageId",
-    listingImageHandlers.order,
-  ),
+  ...imageOrderRoutes("listing"),
   "POST /admin/listing/:id/income": handleAdminListingIncomePost,
   ...listingOrderRoutes,
   "POST /admin/listing/:id/reactivate": idRouteFor(listingReactivate.post),

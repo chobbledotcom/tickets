@@ -12,7 +12,10 @@ import { renderFields } from "#shared/forms/rendering.tsx";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { LAZY_THUMBNAIL_FROM } from "#shared/images/picker.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
-import type { TableColumn } from "#shared/tables/column.ts";
+import type {
+  ReorderColumnOptions,
+  TableColumn,
+} from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import {
   errorAdminPage,
@@ -36,10 +39,7 @@ import {
 } from "#templates/components/linked-items.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import {
-  translatedTableColumn,
-  translatedTableHeader,
-} from "#templates/components/translated-table-column.ts";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import {
   type AdminSession,
   type Image,
@@ -57,6 +57,8 @@ export type ImageItemOption = {
 
 export type ItemImagePanelProps = {
   action: string;
+  /** The drag handle and arrows of the record's ordered images. */
+  reorder: ReorderColumnOptions<Image>;
   uploadAction: string;
   linkedImages: Image[];
   allImages: Image[];
@@ -351,6 +353,7 @@ export const ItemImagesPanel = ({
   linkedImages,
   allImages,
   error,
+  reorder,
 }: ItemImagePanelProps): JSX.Element => {
   if (!isStorageEnabled()) {
     return (
@@ -368,13 +371,7 @@ export const ItemImagesPanel = ({
       {linkedImages.length === 0 ? (
         <p>{t("images.item.none")}</p>
       ) : (
-        renderTable(imageTable, linkedImages, {
-          reorder: {
-            anchor: (image) => String(image.id),
-            header: translatedTableHeader("images.item.order_column"),
-            path: (image) => `${action}/${image.id}`,
-          },
-        })
+        renderTable(imageTable, linkedImages, { reorder })
       )}
       <h2>{t("images.item.select_existing")}</h2>
       <CsrfForm action={action}>

@@ -22,10 +22,13 @@ import {
 import { createEntityHandler, withEntity } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
-import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { MovePlace } from "#shared/reorder.ts";
-import type { ParamsRoute } from "#shared/response-steps.ts";
+import type { IdRow } from "#shared/ordered-list.ts";
+import {
+  type OrderedListRoutes,
+  orderedListRoutes,
+} from "#shared/ordered-list-routes.ts";
+import { IMAGE_ORDERS } from "#shared/ordered-lists.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { ItemImagesPanel } from "#templates/admin/images.tsx";
 import type { ImageUseItemType } from "#types";
@@ -60,6 +63,7 @@ export const loadItemImagesPanel = async (
     action: `${path}/images`,
     allImages,
     linkedImages,
+    reorder: IMAGE_ORDERS[itemType].column(itemId),
     uploadAction: `${path}/images/upload`,
   });
 };
@@ -84,39 +88,36 @@ const withStorageBackedItem =
       ? action(item, itemId)
       : Promise.resolve(storageDisabledResponse(config, itemId));
 
-/** The route of one image on a record: the record's id and the image's. */
-type ItemImageParams = { id: number; imageId: number };
-
-/** The image handlers of one kind of record: save the chosen images, upload
- *  one, and move one before or after another. */
+/** The image handlers of one kind of record: save the chosen images, and
+ *  upload one. */
 export type ItemImageHandlers = {
   set: RouteHandlerFn;
   upload: RouteHandlerFn;
-  order: Record<MovePlace, ParamsRoute<ItemImageParams>>;
 };
 
-/** Move one image of a record before or after another of its images, by the
- *  arrows or by a drop. */
-const imageOrderHandlers = <T>(
-  config: ItemImageConfig<T>,
-  auth: AuthPolicy<"form">,
-) =>
-  createOrderedCollectionHandlers({
-    arrange: (imageIds: readonly number[], { params }) =>
-      arrangeItemImages(
-        imageUseTargets.of(config.itemType)(params.id),
-        imageIds,
-      ),
-    auth,
-    keys: async ({ params }) =>
-      (await getImagesForItem(config.itemType, params.id)).map(
-        (image) => image.id,
-      ),
-    loadContext: ({ id }: ItemImageParams) => config.load(id),
-    movedMessage: t("images.item.moved"),
-    redirectPath: ({ params }) => config.path(params.id),
-    target: ({ params }) => params.imageId,
-  });
+/** How one kind of record reads and stores the order of its images. */
+const imageOrderStore = (itemType: ImageUseItemType) => ({
+  arrange: (images: readonly IdRow[], itemId: number): Promise<void> =>
+    arrangeItemImages(
+      imageUseTargets.of(itemType)(itemId),
+      images.map((image) => image.id),
+    ),
+  rows: (itemId: number) => getImagesForItem(itemType, itemId),
+});
+
+/** The row path of one kind of record's ordered images. */
+type ImageRowPath<Kind extends ImageUseItemType> =
+  (typeof IMAGE_ORDERS)[Kind]["rowPath"];
+
+/** The routes that move one image of a record before or after another. The
+ *  arrows and a drop use them. */
+export const imageOrderRoutes = <Kind extends ImageUseItemType>(
+  kind: Kind,
+): OrderedListRoutes<ImageRowPath<Kind>> =>
+  orderedListRoutes<ImageRowPath<ImageUseItemType>, IdRow, number>(
+    IMAGE_ORDERS[kind],
+    imageOrderStore(kind),
+  );
 
 export const createItemImageHandlers = <T>(
   config: ItemImageConfig<T>,
@@ -163,8 +164,7 @@ export const createItemImageHandlers = <T>(
       });
     },
   );
-  const formPolicy = config.auth?.form ?? CONTENT_FORM;
-  const set = itemHandler(formGuard(formPolicy))(
+  const set = itemHandler(formGuard(config.auth?.form ?? CONTENT_FORM))(
     async (item, _session, form, _request, { id }) => setItem(form, item, id),
   );
   const upload: RouteHandlerFn = (request, { id }) =>
@@ -176,5 +176,5 @@ export const createItemImageHandlers = <T>(
           config.load(Number(id)),
         ),
     );
-  return { order: imageOrderHandlers(config, formPolicy), set, upload };
+  return { set, upload };
 };

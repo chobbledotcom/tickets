@@ -15,7 +15,6 @@ import {
 import {
   defineAdminRoutes,
   entityTabRoutes,
-  orderRoutes,
 } from "#routes/admin/route-tables.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import {
@@ -40,7 +39,7 @@ import {
 import { groupNoteFeature } from "./catalog-notes.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { groupPage } from "./group-page.ts";
-import { createItemImageHandlers } from "./item-images.ts";
+import { createItemImageHandlers, imageOrderRoutes } from "./item-images.ts";
 import {
   parsePackageMembers,
   validatePackageMemberForm,
@@ -115,6 +114,6 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/groups/:id/edit": pages.editPost,
   "POST /admin/groups/:id/images": groupImageHandlers.set,
   "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
-  ...orderRoutes("/admin/groups/:id/images/:imageId", groupImageHandlers.order),
+  ...imageOrderRoutes("group"),
   "POST /admin/groups/:id/remove-listings": handleRemoveListingsPost,
 });

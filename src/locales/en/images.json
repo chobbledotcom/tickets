@@ -36,6 +36,5 @@
   "images.storage_off": "File storage is not configured.",
   "images.updated": "Image updated",
   "images.guide_link": "Image library guide",
-  "images.item.moved": "Image moved",
-  "images.item.order_column": "Order"
+  "images.item.moved": "Image moved"
 }

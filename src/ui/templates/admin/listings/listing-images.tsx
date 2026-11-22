@@ -2,6 +2,7 @@ import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { ChosenImage } from "#shared/images/picker.ts";
+import type { ReorderColumnOptions } from "#shared/tables/column.ts";
 import { Icon, SaveChangesButton } from "#templates/components/actions.tsx";
 import {
   neighbourAnchors,
@@ -13,19 +14,18 @@ import {
  *  images control fills them from the shared image picker. The hidden inputs
  *  carry the name and thumbnail for the browser's chosen list. The server
  *  renders the same pictures so the form still shows them before the bundle
- *  runs. On a saved listing, `movePath` gives each stored picture the drag
- *  handle and the arrows, which move it through its own move routes. */
+ *  runs. On a saved listing, `reorder` gives each stored picture the drag
+ *  handle and the arrows, from the listing's ordered images. */
 export const ListingImagesField = ({
-  movePath,
+  reorder,
   saveChanges = false,
   selected,
 }: {
-  movePath?: string | undefined;
+  reorder?: ReorderColumnOptions<ChosenImage> | undefined;
   saveChanges?: boolean;
   selected: readonly ChosenImage[];
 }): JSX.Element => {
-  const moves = movePath !== undefined && !isReadOnly();
-  const anchorOf = (image: ChosenImage): string => String(image.id);
+  const column = isReadOnly() ? undefined : reorder;
   return (
     <div
       class="listing-images"
@@ -54,16 +54,16 @@ export const ListingImagesField = ({
       <ul
         class="listing-images-selected"
         data-listing-images-selected
-        {...(moves ? { "data-sortable": "grid" } : {})}
+        {...(column === undefined ? {} : { "data-sortable": "grid" })}
       >
         {selected.map((image, index) => (
           <li class="listing-images-item" data-image-id={String(image.id)}>
-            {moves && (
+            {column && (
               <span class="listing-images-order">
                 <ReorderArrows
-                  {...neighbourAnchors(selected, index, anchorOf)}
-                  anchor={anchorOf(image)}
-                  path={`${movePath}/${image.id}`}
+                  {...neighbourAnchors(selected, index, column.anchor)}
+                  anchor={column.anchor(image)}
+                  path={column.path(image)}
                   setting="inForm"
                 />
               </span>
@@ -102,13 +102,15 @@ export const ListingImagesField = ({
  * field's action row, which the shared SaveForm cannot place. */
 export const ListingImagesPanel = ({
   action,
+  reorder,
   selected,
 }: {
   action: string;
+  reorder: ReorderColumnOptions<ChosenImage>;
   selected: readonly ChosenImage[];
 }): JSX.Element => (
   <CsrfForm action={action}>
-    <ListingImagesField movePath={action} saveChanges selected={selected} />
+    <ListingImagesField reorder={reorder} saveChanges selected={selected} />
   </CsrfForm>
 );
 /* jscpd:ignore-end */

@@ -5,11 +5,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
-import {
-  type CrudHandlers,
-  orderRoutes,
-  recordRoutes,
-} from "#routes/admin/route-tables.ts";
+import { type CrudHandlers, recordRoutes } from "#routes/admin/route-tables.ts";
 import { SITE_FORM, SITE_MULTIPART } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import {
@@ -94,6 +90,5 @@ export const contentRecordRoutes = <Area extends RecordAreaId>(
     ...recordRoutes(area, handlers, entityPage),
     [`POST ${list}/:id/images`]: images.set,
     [`POST ${list}/:id/images/upload`]: images.upload,
-    ...orderRoutes(`${list}/:id/images/:imageId`, images.order),
   };
 };

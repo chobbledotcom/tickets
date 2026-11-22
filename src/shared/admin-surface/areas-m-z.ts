@@ -54,6 +54,7 @@ export const AREAS_M_Z = {
     basePath: "/admin/site/news",
     extraWrites: {
       ...contentWrites("news", "/admin/site/news/:id"),
+      ...ORDERED_LISTS.newsImage.writes,
     },
     name: "news",
     prefix: "news",
@@ -205,6 +206,7 @@ export const AREAS_M_Z = {
     basePath: "/admin/site/pages",
     extraWrites: {
       ...contentWrites("sitePage", "/admin/site/pages/:id"),
+      ...ORDERED_LISTS.sitePageImage.writes,
       ...ORDERED_LISTS.sitePageItem.writes,
       sitePageItemRemove:
         "/admin/site/pages/:id/items/:itemType/:itemId/remove",
