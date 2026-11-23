@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllCacheStats,
-  invalidateCachesForTable,
   invalidateCachesForWrite,
   registerCache,
   registerCacheReset,
@@ -206,38 +205,6 @@ describe("cache-registry", () => {
     });
   });
 
-  describe("invalidateCachesForTable", () => {
-    test("fires an ungated invalidator", () => {
-      let calls = 0;
-      track(
-        registerTableInvalidation(["listings"], () => {
-          calls++;
-        }),
-      );
-      invalidateCachesForTable("listings");
-      expect(calls).toBe(1);
-    });
-
-    test("fires a column-gated invalidator too, treating the write as unconditional (INSERT semantics)", () => {
-      let calls = 0;
-      track(
-        registerTableInvalidation(
-          ["listings"],
-          () => {
-            calls++;
-          },
-          { whenColumns: ["price"] },
-        ),
-      );
-      invalidateCachesForTable("listings");
-      expect(calls).toBe(1);
-    });
-
-    test("is a no-op for a table with no registrations", () => {
-      expect(() => invalidateCachesForTable("untouched")).not.toThrow();
-    });
-  });
-
   describe("registerDependencies", () => {
     test("registers the own table unconditionally, even for an update touching unrelated columns", () => {
       let calls = 0;
@@ -294,8 +261,8 @@ describe("cache-registry", () => {
           calls++;
         }),
       );
-      invalidateCachesForTable("listings");
-      invalidateCachesForTable("listing_attendees");
+      invalidateCachesForWrite("listings", { updatedColumns: null });
+      invalidateCachesForWrite("listing_attendees", { updatedColumns: null });
       expect(calls).toBe(2);
     });
 
@@ -312,8 +279,8 @@ describe("cache-registry", () => {
         },
       );
       unregister();
-      invalidateCachesForTable("listings");
-      invalidateCachesForTable("listing_attendees");
+      invalidateCachesForWrite("listings", { updatedColumns: null });
+      invalidateCachesForWrite("listing_attendees", { updatedColumns: null });
       invalidateCachesForWrite("listing_prices", {
         updatedColumns: new Set(["amount"]),
       });

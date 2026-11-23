@@ -17,7 +17,7 @@ import { sql } from "#db/sql.ts";
 import { createUser } from "#db/users.ts";
 import {
   getAllCacheStats,
-  invalidateCachesForTable,
+  invalidateCachesForWrite,
   resetAllCaches,
 } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -222,7 +222,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
   test("getSession caches the DB result so a second read skips the DB", async () => {
     await createSession("dbcache", "csrf-db", Date.now() + 60000, null, 1);
-    invalidateCachesForTable("sessions"); // drop the pre-cache; the DB row remains
+    invalidateCachesForWrite("sessions", { updatedColumns: null }); // drop the pre-cache; the DB row remains
 
     // The miss reads the DB and caches it; the second read must not.
     expect((await getSession("dbcache"))?.csrfToken).toBe("csrf-db");
@@ -263,7 +263,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
     await createSession("reset-me", "csrf-reset", Date.now() + 60000, null, 1);
     await executeWithoutCacheInvalidation(sql`DELETE FROM sessions`); // DB empty; cache still holds it
 
-    invalidateCachesForTable("sessions");
+    invalidateCachesForWrite("sessions", { updatedColumns: null });
 
     // With the cache cleared, the read falls through to the (empty) DB.
     expect(await getSession("reset-me")).toBeNull();
@@ -307,7 +307,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
   });
 
   test("unique invalid tokens cannot grow the session cache without bound", async () => {
-    invalidateCachesForTable("sessions");
+    invalidateCachesForWrite("sessions", { updatedColumns: null });
 
     // The bound this test pins is the session cache's documented contract:
     // at most 1,000 entries (SESSION_CACHE_MAX_ENTRIES in sessions.ts).
@@ -324,7 +324,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
   });
 
   test("registers a 'sessions' cache stat reflecting cached entries", async () => {
-    invalidateCachesForTable("sessions");
+    invalidateCachesForWrite("sessions", { updatedColumns: null });
     const before = getAllCacheStats().find((s) => s.name === "sessions");
     expect(before?.entries).toBe(0);
 

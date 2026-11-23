@@ -9,7 +9,7 @@ import { holidays } from "#db/holidays.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { invalidateUsersCache } from "#db/users.ts";
-import { invalidateCachesForTable } from "#shared/cache-registry.ts";
+import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import {
   TEST_ADMIN_PASSWORD,
@@ -26,7 +26,7 @@ export const invalidateAllCaches = (): void => {
   invalidateListingsCache();
   groups.invalidate();
   holidays.invalidate();
-  invalidateCachesForTable("sessions");
+  invalidateCachesForWrite("sessions", { updatedColumns: null });
 };
 
 /** Run the setup wizard and log in, landing on the admin dashboard. */

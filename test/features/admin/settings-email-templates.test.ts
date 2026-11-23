@@ -14,11 +14,10 @@
 
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { resetLiquidEngines } from "#shared/liquid-engine.ts";
 import {
   expectFlash,
   expectRedirectWithFlash,
@@ -53,9 +52,6 @@ const SAVING_EACH_EMAIL = [
 ] as const;
 
 describeWithEnv("admin email templates", { db: true }, () => {
-  beforeEach(resetLiquidEngines);
-  afterEach(resetLiquidEngines);
-
   const postTemplateFormTo = async (
     path: string,
     fields: Record<string, string>,

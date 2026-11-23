@@ -154,11 +154,6 @@ export const invalidateCachesForWrite = (
   }
 };
 
-/** Fire every cache invalidator registered against `table` (no-op if none).
- * The write narrows nothing, so column-gated entries fire too. */
-export const invalidateCachesForTable = (table: string): void =>
-  invalidateCachesForWrite(table, { updatedColumns: null });
-
 /** A table that a cache depends on, and the columns that matter. */
 export type DependsOnEntry =
   | string

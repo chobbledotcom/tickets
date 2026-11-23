@@ -1,8 +1,9 @@
+// test-groups: run-alone - the entry counts below need a stash that no other suite fills.
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { clearFormStash, stashForm, takeForm } from "#shared/form-stash.ts";
+import { stashForm, takeForm } from "#shared/form-stash.ts";
 import {
   FORM_STASH_MAX_BYTES,
   FORM_STASH_MAX_ENTRIES,
@@ -48,8 +49,16 @@ const fillToCountCap = (): string[] => {
   return tokens;
 };
 
+/** Empties the stash by its own rules: every entry expires, and the next
+ * stash sweeps the expired entries. */
+const emptyStash = (): void => {
+  using time = new FakeTime();
+  time.tick(FORM_STASH_TTL_MS * 3);
+  takeForm(stashRequired("sweep=1"));
+};
+
 describe("form stash", () => {
-  afterEach(() => clearFormStash());
+  afterEach(emptyStash);
 
   test("round-trips a stashed body under its token", () => {
     const token = stashRequired("name=Alice&email=a%40b.com");
@@ -148,7 +157,6 @@ describe("form stash", () => {
   });
 
   test("reports its occupancy and capacity to the cache registry", () => {
-    clearFormStash();
     stashRequired("name=Eve");
     expect(formStashStat()).toEqual({
       capacity: FORM_STASH_MAX_ENTRIES,
