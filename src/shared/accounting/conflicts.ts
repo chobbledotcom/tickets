@@ -9,7 +9,7 @@
  *   original's inverse, so the one-void-per-original slot is never wasted.
  */
 
-import { legIdentityDiff } from "#shared/ledger/reconcile.ts";
+import { legIdentityDiff } from "#shared/ledger/leg-identity.ts";
 import { isInverseOf } from "#shared/ledger/reverse.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 

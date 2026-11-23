@@ -9,20 +9,6 @@ export const LIBRARY_PATHS = [
   "shared/jsx/jsx-runtime.ts", // JSX compiler runtime
   "shared/jsx/jsx-dev-runtime.ts", // JSX dev runtime
   "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
-  // The transfer ledger (src/shared/ledger + src/shared/accounting) is built
-  // ahead of the payment aggregate that consumes it, so some exports have no
-  // production caller. A module leaves this list when its last unconsumed
-  // export gains a caller.
-  "shared/ledger/reconcile.ts", // reconcileExternal, reconcileLegs
-  "shared/accounting/queries.ts", // whole-account reads
-  // The site-pages feature is being wired in incrementally,
-  // foundation-first: the pure core + DB layer landed before the admin CRUD /
-  // public route / recursive-nav slices that consume them, so — like the
-  // ledger modules above — their exports have no production caller yet. Each
-  // module loses its exemption as the slice that consumes it lands.
-  "shared/site-pages/core.ts",
-  "shared/db/site-pages.ts",
-  "shared/db/site-page-items.ts",
 ];
 
 /** Index modules that only re-export from sub-modules */
@@ -93,6 +79,10 @@ export const ALLOWED_DUPLICATE_TYPE_SHAPES: {
  * Format: "file:exportName"
  */
 export const ALLOWED_TEST_HOOKS: string[] = [
+  // Whole-ledger reads. Tests assert money movements with them; production
+  // reads the ledger by account, by event, or by page.
+  "shared/accounting/queries.ts:allTransfers",
+  "shared/accounting/queries.ts:accountBalance",
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",
   // Reset cached I18N_REPLACEMENTS replacer + compiled formats between tests
