@@ -15,6 +15,7 @@ import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { compareOptionalDates } from "#shared/attendee-list-controls.ts";
 import { getNextBookableDate } from "#shared/dates.ts";
+import { idSet } from "#shared/fp-records.ts";
 import type { Listing, ListingWithCount, SortableListing } from "#types";
 
 export type { ListingWithCount };
@@ -114,5 +115,4 @@ export const loadListingsAndGroupNames = (): Promise<
  * shape the pages filter their loaded listings with. */
 export const groupMemberIds = async (
   groupId: number,
-): Promise<ReadonlySet<number>> =>
-  new Set((await getListingsByGroupId(groupId)).map((listing) => listing.id));
+): Promise<ReadonlySet<number>> => idSet(await getListingsByGroupId(groupId));

@@ -5,8 +5,8 @@ import type { ActivityLogEntry } from "#db/activity-log.ts";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
   type ActivityLogRefs,
+  ActivityLogTable,
   adminGlobalActivityLogPage,
-  adminListingActivityLogPage,
 } from "#templates/admin/activity-log.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -35,24 +35,6 @@ const logEntry = (overrides: Partial<ActivityLogEntry>): ActivityLogEntry => ({
 });
 
 describe("activity log templates", () => {
-  describe("adminListingActivityLogPage", () => {
-    test("renders activity log entries", () => {
-      const listing = testListingWithCount();
-      const entries = [
-        logEntry({ listingId: 1, message: "Ticket reserved" }),
-        logEntry({ id: 2, listingId: 1, message: "Payment received" }),
-      ];
-      const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
-      expectIncludesAll(html, ["Ticket reserved", "Payment received", "Log"]);
-    });
-
-    test("renders empty state when no entries", () => {
-      const listing = testListingWithCount();
-      const html = adminListingActivityLogPage(listing, [], OWNER_SESSION);
-      assertStringIncludes(html, "No activity recorded yet");
-    });
-  });
-
   describe("adminGlobalActivityLogPage", () => {
     test("renders global activity log with entries", () => {
       const entries = [logEntry({ message: "System started" })];
@@ -118,6 +100,43 @@ describe("activity log templates", () => {
         // The original error message is still shown after the link
         "Square signature verification failed",
       ]);
+    });
+
+    test("puts a space between the Square settings link and the message", () => {
+      const message = formatErrorMessage({
+        code: ErrorCode.SQUARE_SIGNATURE,
+        detail: "mismatch",
+      });
+      const html = adminGlobalActivityLogPage(
+        [logEntry({ message })],
+        false,
+        OWNER_SESSION,
+        emptyRefs(),
+      );
+      assertStringIncludes(html, `</a> ${message}`);
+    });
+
+    test("shows no truncation message when the caller does not say", () => {
+      const html = adminGlobalActivityLogPage(
+        [logEntry({ message: "Action" })],
+        undefined,
+        OWNER_SESSION,
+        emptyRefs(),
+      );
+      assert(!html.includes("Showing the most recent 200 entries"));
+    });
+
+    test("links to the activity log section of the guide", () => {
+      const html = adminGlobalActivityLogPage(
+        [],
+        false,
+        OWNER_SESSION,
+        emptyRefs(),
+      );
+      assertStringIncludes(
+        html,
+        '<a class="guide-link" href="/admin/guide#activity-log">',
+      );
     });
 
     test("does not add the Square settings link to unrelated messages", () => {
@@ -290,7 +309,8 @@ describe("activity log templates", () => {
           message: "Ticket reserved",
         }),
       ];
-      const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
+      const html = String(ActivityLogTable({ entries }));
+      assertStringIncludes(html, "Ticket reserved");
       assert(!html.includes("<th>Attendee</th>"));
       assert(!html.includes('href="/admin/attendees/7"'));
     });

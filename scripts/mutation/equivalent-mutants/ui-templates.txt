@@ -180,3 +180,6 @@ src/ui/templates/admin/built-sites/support-message.tsx::SupportMessagePanel~0xks
 # string and a boolean, so `??` and `||` pick the same fallback on every input.
 src/ui/templates/admin/bulk-email.tsx::bulkEmailComposePage~0qxp0yv  ?? → || audited:1qie383 # `draft?.body ?? ""`: the body is a string, and its only falsy value "" is also the fallback, so ?? and || agree
 src/ui/templates/admin/bulk-email.tsx::bulkEmailComposePage.checked~0aepv7o  ?? → || audited:1qie383 # `draft?.marketing ?? false`: the flag is a boolean, and false equals the fallback, so ?? and || agree
+
+# activity log page (ui/templates/admin/activity-log.tsx) — the route that the nav marks.
+src/ui/templates/admin/activity-log.tsx::activityLogPage.active~0wlvs02  /admin/log → "" audited:1i6vfn0 # No nav link or section names /admin/log, and none names the empty route, so the nav marks nothing for either value. The page renders the same HTML for every role.

@@ -14,7 +14,7 @@ import {
   receiptContext,
   receiptLegs,
 } from "#shared/checkout-complete.ts";
-import { legIdentityDiff } from "#shared/ledger/reconcile.ts";
+import { legIdentityDiff } from "#shared/ledger/leg-identity.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 

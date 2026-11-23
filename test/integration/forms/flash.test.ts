@@ -8,12 +8,7 @@ import {
   setFlashFormId,
 } from "#shared/flash-context.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import {
-  Flash,
-  renderError,
-  renderSuccess,
-  requestFlash,
-} from "#shared/forms/flash.tsx";
+import { Flash, requestFlash } from "#shared/forms/flash.tsx";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -33,14 +28,9 @@ const csrfFormInFlash = (
     return String(CsrfForm(props));
   });
 
-describe("renderError", () => {
-  test("returns empty string when no error", () => {
-    expect(renderError()).toBe("");
-    expect(renderError(undefined)).toBe("");
-  });
-
+describe("a flash message as HTML", () => {
   test("renders error with role alert", () => {
-    const html = renderError("Something went wrong");
+    const html = String(Flash({ error: "Something went wrong" }));
     expectIncludesAll(html, [
       "Something went wrong",
       'class="error"',
@@ -48,21 +38,8 @@ describe("renderError", () => {
     ]);
   });
 
-  test("escapes HTML in error message", () => {
-    const html = renderError("<script>alert(1)</script>");
-    assertStringIncludes(html, "&lt;script&gt;");
-    assert(!html.includes("<script>"));
-  });
-});
-
-describe("renderSuccess", () => {
-  test("returns empty string when no message", () => {
-    expect(renderSuccess()).toBe("");
-    expect(renderSuccess(undefined)).toBe("");
-  });
-
   test("renders success message with role alert", () => {
-    const html = renderSuccess("Changes saved");
+    const html = String(Flash({ success: "Changes saved" }));
     expectIncludesAll(html, [
       "Changes saved",
       'class="success"',
@@ -70,11 +47,13 @@ describe("renderSuccess", () => {
     ]);
   });
 
-  test("escapes HTML in success message", () => {
-    const html = renderSuccess("<script>alert(1)</script>");
-    assertStringIncludes(html, "&lt;script&gt;");
-    assert(!html.includes("<script>"));
-  });
+  for (const level of ["error", "success"] as const) {
+    test(`escapes HTML in the ${level} message`, () => {
+      const html = String(Flash({ [level]: "<script>alert(1)</script>" }));
+      assertStringIncludes(html, "&lt;script&gt;");
+      assert(!html.includes("<script>"));
+    });
+  }
 });
 
 describe("Flash", () => {
