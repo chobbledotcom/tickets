@@ -123,20 +123,6 @@ export const ancestorsOf = (forest: ParentLinks, pageId: number): number[] => {
   return chain.reverse();
 };
 
-/** The descendant page ids of `pageId` (excluding itself). */
-export const descendantsOf = (forest: Forest, pageId: number): Set<number> => {
-  const out = new Set<number>();
-  const walk = (id: number): void => {
-    for (const item of forest.itemsByPage.get(id) ?? []) {
-      if (item.itemType !== "page" || out.has(item.itemId)) continue;
-      out.add(item.itemId);
-      walk(item.itemId);
-    }
-  };
-  walk(pageId);
-  return out;
-};
-
 /**
  * Would placing `candidatePageId` under `parentPageId` create a cycle? It does
  * iff the candidate is the parent itself or an ancestor of the parent (adding

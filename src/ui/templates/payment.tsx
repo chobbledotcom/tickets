@@ -12,36 +12,7 @@ import { LabelledParas } from "#templates/components/labelled-para.tsx";
 import { NewTabLink } from "#templates/components/new-tab-link.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "#templates/public/prose-page.tsx";
-import type { Attendee, Listing } from "#types";
-
-/**
- * Payment page - redirects to Stripe Checkout
- */
-export const paymentPage = (
-  _listing: Listing,
-  attendee: Attendee,
-  checkoutUrl: string,
-  formattedPrice: string,
-): string =>
-  String(
-    <Layout family="public" title={t("payment.title")}>
-      <h1>{t("payment.complete_your_payment")}</h1>
-      <aside>
-        <LabelledParas
-          items={[
-            { label: t("payment.name_label"), value: attendee.name },
-            { label: t("payment.email_label"), value: attendee.email },
-            { label: t("payment.amount_label"), value: formattedPrice },
-          ]}
-        />
-      </aside>
-      <p>{t("payment.stripe_instructions")}</p>
-      <a class="btn" href={checkoutUrl}>
-        <Icon name="credit-card" />
-        <span>{t("payment.pay_now")}</span>
-      </a>
-    </Layout>,
-  );
+import type { Listing } from "#types";
 
 /**
  * Success page - shown after payment or free reservation

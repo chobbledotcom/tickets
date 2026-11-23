@@ -2311,7 +2311,6 @@
   "test/ui/templates/admin/listings-group-bar.test.ts": 1,
   "test/ui/templates/admin/listings-page.test.tsx": 1,
   "test/ui/templates/admin/listings/aggregates.test.ts": 1,
-  "test/ui/templates/admin/listings/aggregates/near-capacity.test.ts": 1,
   "test/ui/templates/admin/listings/assign-day-card.test.ts": 1,
   "test/ui/templates/admin/listings/attendees/email-day-href.test.ts": 1,
   "test/ui/templates/admin/listings/attendees/incomplete-payment.test.ts": 3,
