@@ -22,3 +22,7 @@ export const withoutKeys =
   (keys: ReadonlySet<string>) =>
   (row: object): Record<string, unknown> =>
     Object.fromEntries(Object.entries(row).filter(([key]) => !keys.has(key)));
+
+/** The ids of the items, as a set to test membership against. */
+export const idSet = <Id>(items: Iterable<{ readonly id: Id }>): Set<Id> =>
+  new Set(Array.from(items, (item) => item.id));

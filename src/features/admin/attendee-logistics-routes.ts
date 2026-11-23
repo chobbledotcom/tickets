@@ -37,6 +37,7 @@ import {
   loadAfterDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { idSet } from "#shared/fp-records.ts";
 import { parseCoordinatePair } from "#shared/validation/coordinates.ts";
 import { AttendeeLogisticsPanel } from "#templates/admin/attendee-logistics-tab.tsx";
 import { validateAddress } from "#templates/fields/validators.ts";
@@ -61,7 +62,7 @@ const renderSubmittedLogistics = (
           parseLogisticsPlan(
             form,
             await storedFormLines(entity),
-            new Set(data.logistics.agents.map((agent) => agent.id)),
+            idSet(data.logistics.agents),
           ),
         );
       return AttendeeLogisticsPanel({ data: { ...data, logistics } });
@@ -80,11 +81,7 @@ const saveLogisticsSelectors = async (
   const lines = await storedFormLines(entity);
   const logistics = await buildAttendeeLogisticsData(lines, entity.attendee);
   if (!logistics) return;
-  const plan = parseLogisticsPlan(
-    form,
-    lines,
-    new Set(logistics.agents.map((agent) => agent.id)),
-  );
+  const plan = parseLogisticsPlan(form, lines, idSet(logistics.agents));
   await setLogisticsAssignments(
     entity.attendee.id,
     plan.split,

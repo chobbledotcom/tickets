@@ -1,4 +1,5 @@
 import type { FormParams } from "#shared/form-data.ts";
+import { idSet } from "#shared/fp-records.ts";
 
 /** From a form's number-array `field`, keep only the ids that belong to an
  * `allowed` option, so a crafted form cannot link an id that is not offered. */
@@ -7,6 +8,6 @@ export const selectedIdsFromForm = (
   field: string,
   allowed: readonly { id: number }[],
 ): number[] => {
-  const valid = new Set(allowed.map((option) => option.id));
+  const valid = idSet(allowed);
   return form.getNumberArray(field).filter((id) => valid.has(id));
 };

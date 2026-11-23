@@ -11,6 +11,7 @@
  * because the detail page is staff-only.
  */
 
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -231,6 +232,20 @@ export const renderListingsTableSection = (
         args.emptyText,
         listingTable.layout.defaultColumnKeys,
       );
+
+/** A listings table in the columns and filters the owner chose in settings. */
+export const configuredListingsTable = (
+  listings: readonly ListingWithCount[],
+  emptyText: string,
+): JSX.Element => {
+  const { columnKeys, filters } = settings.listingColumnLayout;
+  return renderListingsTableSection({
+    columnKeys,
+    emptyText,
+    filters,
+    listings: [...listings],
+  });
+};
 
 /** A listings table with an optional filter row above it and CSV-export
  *  footer below. Shared by the dashboard and the listings index. */

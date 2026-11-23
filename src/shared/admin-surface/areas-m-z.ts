@@ -136,6 +136,7 @@ export const AREAS_M_Z = {
       settingsCustomCss: "/admin/settings/custom-css",
       settingsCustomDomain: "/admin/settings/custom-domain",
       settingsCustomDomainValidate: "/admin/settings/custom-domain/validate",
+      settingsDashboardType: "/admin/settings/dashboard-type",
       settingsEmail: "/admin/settings/email",
       settingsEmailTemplatesAdmin: "/admin/settings/email-templates/admin",
       settingsEmailTemplatesConfirmation:

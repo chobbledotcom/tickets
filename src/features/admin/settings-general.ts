@@ -13,6 +13,7 @@ import {
 } from "#routes/admin/database-reset.ts";
 import {
   advancedSettingsRoute,
+  settingsChoice,
   settingsClearable,
   settingsHandler,
   settingsRoute,
@@ -30,6 +31,7 @@ import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
+import type { DashboardType } from "#shared/group-cards.ts";
 import type { ListingMode } from "#shared/listing-mode.ts";
 import {
   PAYMENT_PROVIDERS,
@@ -237,16 +239,25 @@ export const handleExternalOrderPost = settingsToggleFor(
 
 /* jscpd:ignore-end */
 
-/** Handle POST /admin/settings/listing-mode - owner only. The form carries
- *  one radio group, so the handler reads and validates it directly. */
-export const handleListingModePost = settingsHandler({
+/** Handle POST /admin/settings/listing-mode - owner only */
+export const handleListingModePost = settingsChoice<ListingMode>({
   advanced: true,
-  extract: (form) => form.getString("listingMode"),
+  field: "listingMode",
   formId: "settings-listing-mode",
-  log: (v) => `Listing mode set to ${v}`,
-  save: (v) => settings.update.listingMode(v as ListingMode),
-  validate: (v) =>
-    v !== "text" && v !== "image" ? t("error.invalid_listing_mode") : null,
+  invalidKey: "error.invalid_listing_mode",
+  label: "Listing mode",
+  save: settings.update.listingMode,
+  values: ["text", "image"],
+});
+
+/** Handle POST /admin/settings/dashboard-type - owner only */
+export const handleDashboardTypePost = settingsChoice<DashboardType>({
+  field: "dashboardType",
+  formId: "settings-dashboard-type",
+  invalidKey: "error.invalid_dashboard_type",
+  label: "Dashboard type",
+  save: settings.update.dashboardType,
+  values: ["listings", "groups"],
 });
 
 /** Handle POST /admin/settings/calendar-feeds - owner only */

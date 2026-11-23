@@ -9,6 +9,7 @@ export const defaultSettingsState = (): SettingsPageState => ({
   calendarFeedsEnabled: false,
   calendarFeedsGroupBy: "attendees",
   currency: "GBP",
+  dashboardType: "listings",
   embedHosts: "",
   enabledFeatures: DEFAULT_ENABLED_FEATURES,
   expectedTax: '{"mode":"none"}',
