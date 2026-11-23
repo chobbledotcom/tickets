@@ -60,6 +60,7 @@ const EVERY_STORY_ID = [
   "catalogue.describing-what-is-on-offer",
   "catalogue.narrowing-a-long-list-down",
   "catalogue.removing-a-listing-from-a-group",
+  "catalogue.running-club-nights-from-the-dashboard",
   "catalogue.taking-a-group-off-sale",
   "catalogue.the-list-a-visitor-reads",
   "pages.asking-the-host-for-help",
