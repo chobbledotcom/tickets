@@ -3,16 +3,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import type { App } from "#test/blackbox/driver.ts";
 import {
-  followed,
+  activityLog,
+  boxText,
   loggedIn,
+  pageAfter,
   redirectOf,
   type SettingsForm,
   send,
-  sendLoggedOut,
-  sendWithWrongToken,
+  testFormGuards,
 } from "#test/blackbox/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { decodeEntities } from "#test-utils/test-browser/parsing.ts";
 
 /** One text setting with its own form. */
 interface TextSetting extends SettingsForm {
@@ -65,17 +65,6 @@ const TERMS: TextSetting = {
   value: "By registering you agree to our listing policy.",
 };
 
-/** The text that the page holds in the box named `field`. */
-const boxText = (html: string, field: string): string => {
-  const area = html.match(
-    new RegExp(`<textarea\\b[^>]*name="${field}"[^>]*>([\\s\\S]*?)</textarea>`),
-  );
-  if (area !== null) return decodeEntities((area[1] ?? "").replace(/^\n/, ""));
-  const input = html.match(new RegExp(`<input\\b[^>]*name="${field}"[^>]*>`));
-  if (input === null) throw new Error(`The page shows no box "${field}".`);
-  return decodeEntities(input[0].match(/\svalue="([^"]*)"/)?.[1] ?? "");
-};
-
 /** The most characters that the page lets the box named `field` hold. */
 const boxLimit = (html: string, field: string): number => {
   const tag = html.match(new RegExp(`<textarea\\b[^>]*name="${field}"[^>]*>`));
@@ -88,16 +77,11 @@ const textNow = async (app: App, setting: TextSetting): Promise<string> =>
   boxText((await app.get(setting.page)).html, setting.field);
 
 /** The owner saves `value` and reads the message on the next page. */
-const save = async (
+const save = (
   app: App,
   setting: TextSetting,
   value: string | null,
-): Promise<string> =>
-  (await followed(app, await send(app, setting, { [setting.field]: value })))
-    .html;
-
-const activityLog = async (app: App): Promise<string> =>
-  (await app.get("/admin/log")).html;
+): Promise<string> => pageAfter(app, setting, { [setting.field]: value });
 
 for (const setting of [BUSINESS_EMAIL, CUSTOM_CSS, SITE_FOOTER, TERMS]) {
   describeWithEnv(`the setting ${setting.action}`, { db: true }, () => {
@@ -124,20 +108,7 @@ for (const setting of [BUSINESS_EMAIL, CUSTOM_CSS, SITE_FOOTER, TERMS]) {
       expect(await activityLog(app)).toContain(setting.cleared);
     });
 
-    test("a form with a wrong token is refused and changes nothing", async () => {
-      const app = await loggedIn();
-      const refused = await sendWithWrongToken(app, setting, setting.value);
-      expect(refused.status).toBe(403);
-      expect(refused.html).toContain("Invalid CSRF token");
-      expect(await textNow(app, setting)).toBe("");
-    });
-
-    test("a visitor who is not logged in is sent to the login and changes nothing", async () => {
-      const response = await sendLoggedOut(setting, setting.value);
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
-      expect(await textNow(await loggedIn(), setting)).toBe("");
-    });
+    testFormGuards(setting, setting.value, (app) => textNow(app, setting), "");
   });
 }
 

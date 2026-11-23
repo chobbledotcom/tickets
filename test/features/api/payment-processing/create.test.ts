@@ -232,19 +232,19 @@ const stubSuccessfulBooking = () =>
     } as never),
   );
 
-test("reports a preparation error before the atomic write starts", async () => {
-  const result = await preparationResult({ total: Number.NaN });
-  expect(result).toEqual({
-    detail:
-      "Unexpected error preparing session cs_preparation_failure: Error: mapBooking: invalid facts (non-finite amountPaid)",
-    ok: false,
-    reason: "unexpected_error",
-  });
-  if (result.ok !== false) throw new Error("Expected preparation to fail");
-  expect(specForFailure(result).code).toBe("unexpected_error");
-});
-
 describeWithEnv("payment booking lines", { db: true }, () => {
+  test("reports a preparation error before the atomic write starts", async () => {
+    const result = await preparationResult({ total: Number.NaN });
+    expect(result).toEqual({
+      detail:
+        "Unexpected error preparing session cs_preparation_failure: Error: mapBooking: invalid facts (non-finite amountPaid)",
+      ok: false,
+      reason: "unexpected_error",
+    });
+    if (result.ok !== false) throw new Error("Expected preparation to fail");
+    expect(specForFailure(result).code).toBe("unexpected_error");
+  });
+
   test("a staged-answer read failure takes the retryable path", async () => {
     // A transient I/O failure in the tail's staged-answer read has written
     // nothing, so the retryable shape — 500, provider redelivers — must win

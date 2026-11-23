@@ -5,7 +5,7 @@ import type { TableHandle } from "#db/select/tables.ts";
 import { tableCache } from "#db/table-cache.ts";
 import {
   getAllCacheStats,
-  invalidateCachesForTable,
+  invalidateCachesForWrite,
 } from "#shared/cache-registry.ts";
 
 type CachedRow = { id: number; key: string };
@@ -55,7 +55,9 @@ describe("tableCache", () => {
     const cache = cacheOver("table-cache-test-own-table");
     await cache.getAll();
     expect(cache.size()).toBe(ROWS.length);
-    invalidateCachesForTable("table-cache-test-own-table");
+    invalidateCachesForWrite("table-cache-test-own-table", {
+      updatedColumns: null,
+    });
     expect(cache.size()).toBe(0);
   });
 
@@ -64,14 +66,18 @@ describe("tableCache", () => {
       "table-cache-test-source",
     ]);
     await cache.getAll();
-    invalidateCachesForTable("table-cache-test-source");
+    invalidateCachesForWrite("table-cache-test-source", {
+      updatedColumns: null,
+    });
     expect(cache.size()).toBe(0);
   });
 
   test("keeps the cache when an unrelated table is written", async () => {
     const cache = cacheOver("table-cache-test-unrelated");
     await cache.getAll();
-    invalidateCachesForTable("table-cache-test-elsewhere");
+    invalidateCachesForWrite("table-cache-test-elsewhere", {
+      updatedColumns: null,
+    });
     expect(cache.size()).toBe(ROWS.length);
   });
 });

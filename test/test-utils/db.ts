@@ -11,7 +11,7 @@ import { sql } from "#db/sql.ts";
 import { invalidateUsersCache } from "#db/users.ts";
 import { lazyRef } from "#fp";
 import { runCleanups } from "#scripts/cleanup.ts";
-import { invalidateCachesForTable } from "#shared/cache-registry.ts";
+import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { hostEmail } from "#shared/email.ts";
@@ -74,8 +74,8 @@ const cleanupUnlessKept = (
 
 /** Drop every cached read a fresh database must not inherit. */
 const invalidateEntityCaches = (): void => {
-  invalidateCachesForTable("sessions");
-  invalidateCachesForTable("images");
+  invalidateCachesForWrite("sessions", { updatedColumns: null });
+  invalidateCachesForWrite("images", { updatedColumns: null });
   invalidateUsersCache();
   invalidateListingsCache();
   holidays.invalidate();
