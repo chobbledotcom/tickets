@@ -139,7 +139,7 @@ describe("the listing images field", () => {
   test("renders the pictures a refused create carried", () => {
     const window = installDom(
       ADMIN_TEMPLATES +
-        sectionHtml([storedImage(4, "Seed", "/image/seed-thumb.webp")]),
+        sectionHtml([storedImage(1, "Seed", "/image/seed-thumb.webp")]),
     );
     initListingImages();
 
@@ -156,7 +156,7 @@ describe("the listing images field", () => {
     expect(item.querySelector("img")?.getAttribute("src")).toBe(
       "/image/seed-thumb.webp",
     );
-    expectSelection(window, ["4"], ["Remove Seed"]);
+    expectSelection(window, ["1"], ["Remove Seed"]);
   });
 
   test("keeps each saved picture's own card, and drops it by its remove button", () => {
@@ -306,6 +306,7 @@ describe("the listing images field", () => {
     expect(optionByName(window, "Harbour").getAttribute("aria-pressed")).toBe(
       "true",
     );
+    expect(imageIdValues(window)).toEqual([]);
     confirmSelection(window);
 
     expect(removeLabels(window)).toEqual(["Remove Harbour"]);
@@ -327,15 +328,21 @@ describe("the listing images field", () => {
     const window = await uploadHarbourAndConfirm(uploadToStaleLibrary());
 
     expectSelection(window, ["12"], ["Remove Harbour"]);
+    expect(attributesOf(window, ".listing-images-item img", "src")).toEqual([]);
   });
 
-  test("keeps an uploaded picture when the refreshed library fails", async () => {
-    const window = await uploadHarbourAndConfirm([
+  test("puts an uploaded picture in the form at once when the refreshed library fails", async () => {
+    const { dialog, window } = await mounted([
       twoImageList(),
       redirected("/admin/images/12/edit"),
       new Response("down", { status: 500 }),
     ]);
+    await submitUpload(dialog, "Harbour");
+    await flush();
 
+    expectSelection(window, ["12"], ["Remove Harbour"]);
+    expect(attributesOf(window, ".listing-images-item img", "src")).toEqual([]);
+    confirmSelection(window);
     expectSelection(window, ["12"], ["Remove Harbour"]);
   });
 
@@ -413,4 +420,75 @@ describe("the listing images field", () => {
       "true",
     );
   });
+
+  test("gives each chosen picture a card and an input that name it", async () => {
+    const { window } = await mounted([twoImageList()]);
+    expect(part<HTMLButtonElement>(window, ".md-image-confirm").hidden).toBe(
+      false,
+    );
+    chose(window, "Zebra");
+    confirmSelection(window);
+
+    const inputs = 'input[name="imageIds"]';
+    expect({
+      cards: attributesOf(window, ".listing-images-item", "class"),
+      names: attributesOf(window, inputs, "data-image-name"),
+      pictures: attributesOf(window, ".listing-images-item img", "src"),
+      thumbs: attributesOf(window, inputs, "data-image-thumb"),
+    }).toEqual({
+      cards: ["listing-images-item"],
+      names: ["Zebra"],
+      pictures: ["/image/zebra-thumb.webp"],
+      thumbs: ["/image/zebra-thumb.webp"],
+    });
+  });
+
+  test("shows the empty note only while no picture is chosen", async () => {
+    const { window } = await mounted([twoImageList()]);
+    const shown = (): { empty: boolean; list: boolean } => ({
+      empty: !part<HTMLElement>(window, "[data-listing-images-empty]").hidden,
+      list: !part<HTMLElement>(window, "[data-listing-images-selected]").hidden,
+    });
+    expect(shown()).toEqual({ empty: true, list: false });
+
+    chose(window, "Zebra");
+    confirmSelection(window);
+    expect(shown()).toEqual({ empty: false, list: true });
+
+    part<HTMLButtonElement>(window, ".listing-images-remove").click();
+    expect(shown()).toEqual({ empty: true, list: false });
+  });
+
+  for (const [stored, disabled] of [
+    [[], true],
+    [[storedImage(2, "Alpha", "/image/alpha-thumb.webp")], false],
+  ] as const) {
+    test(`${disabled ? "disables" : "enables"} confirm after a failed load with ${stored.length} marked`, async () => {
+      const { window } = await mounted(
+        [new Response("down", { status: 500 })],
+        stored,
+      );
+
+      expect(
+        part<HTMLButtonElement>(window, ".md-image-confirm").disabled,
+      ).toBe(disabled);
+    });
+  }
+
+  for (const [attribute, message] of [
+    ["data-image-name", "chosen image name"],
+    ["data-image-thumb", "chosen image thumbnail"],
+    ["data-image-picker-heading", "image picker heading"],
+    ["data-image-remove-text", "image remove text"],
+    ["data-image-remove-label", "image remove label"],
+  ] as const) {
+    test(`refuses a field that lacks ${attribute}`, () => {
+      const html = sectionHtml([storedImage(4, "Seed", "/image/seed.webp")]);
+      installDom(
+        ADMIN_TEMPLATES + html.replace(new RegExp(` ${attribute}="[^"]*"`), ""),
+      );
+
+      expect(() => initListingImages()).toThrow(message);
+    });
+  }
 });

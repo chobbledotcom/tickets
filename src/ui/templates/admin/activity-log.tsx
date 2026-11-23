@@ -17,7 +17,7 @@ import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
-import type { AdminSession, ListingWithCount } from "#types";
+import type { AdminSession } from "#types";
 
 /** The "Activity log guide" link shown at the bottom of both activity-log
  *  pages. */
@@ -196,18 +196,6 @@ export const ActivityLogTable = ({
         context: refs,
         empty: t("admin.log.no_activity"),
       });
-
-/**
- * Admin activity log page for a specific listing
- */
-export const adminListingActivityLogPage = (
-  listing: ListingWithCount,
-  entries: ActivityLogEntry[],
-  session: AdminSession,
-): string =>
-  activityLogPage(`${t("admin.log.heading")}: ${listing.name}`)(session)(
-    <ActivityLogTable entries={entries} />,
-  );
 
 /**
  * Admin global activity log page (all listings)

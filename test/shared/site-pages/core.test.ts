@@ -4,7 +4,6 @@ import {
   ancestorsOf,
   buildForest,
   buildNavModel,
-  descendantsOf,
   eligibleChildPages,
   isReservedSlug,
   pageParentMapFromEdges,
@@ -146,36 +145,6 @@ describe("site-pages core", () => {
         [edge(2, "page", 1, 0), edge(2, "page", 3, 1), edge(3, "page", 2, 0)],
       );
       expect(() => ancestorsOf(forest, 1)).toThrow(/cycle/);
-    });
-  });
-
-  describe("descendantsOf", () => {
-    test("collects transitive child pages, skipping non-page items and revisits", () => {
-      // 1 → {page 2, listing 99, page 3}; 2 → page 3 (already reached via 1).
-      const forest = buildForest(
-        [page(1), page(2), page(3)],
-        [
-          edge(1, "page", 2, 0),
-          edge(1, "listing", 99, 1), // non-page item → skipped
-          edge(1, "page", 3, 2), // reached directly
-          edge(2, "page", 3, 0), // revisit of 3 → the out.has guard fires
-        ],
-      );
-      expect([...descendantsOf(forest, 1)].sort((a, b) => a - b)).toEqual([
-        2, 3,
-      ]);
-      expect([...descendantsOf(forest, 3)]).toEqual([]);
-    });
-
-    test("collects descendants reachable only transitively (recurses)", () => {
-      // 1 → 2 → 3, with 3 NOT a direct child of 1 — only recursion reaches it.
-      const forest = buildForest(
-        [page(1), page(2), page(3)],
-        [edge(1, "page", 2, 0), edge(2, "page", 3, 0)],
-      );
-      expect([...descendantsOf(forest, 1)].sort((a, b) => a - b)).toEqual([
-        2, 3,
-      ]);
     });
   });
 

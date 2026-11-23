@@ -1,5 +1,5 @@
 /**
- * Per-request settings pre-load bundles (see settings-plan.md §4).
+ * Per-request settings pre-load bundles.
  *
  * The pre-routing pipeline reads settings before the lazy router resolves a
  * handler, so the load is keyed off the path *prefix* (pure, import-free).

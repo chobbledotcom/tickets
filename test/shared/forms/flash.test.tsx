@@ -2,7 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { flashConsumed } from "#shared/flash-context.ts";
-import { Flash, renderError, renderSuccess } from "#shared/forms/flash.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -46,26 +46,5 @@ describe("Flash", () => {
     assert(!html.includes('class="success"'));
     assert(!html.includes('class="info"'));
     assert(!html.includes("alert"));
-  });
-});
-
-describe("renderError", () => {
-  test("renders the error message as text", () => {
-    assertStringIncludes(renderError("Payment refused"), "Payment refused");
-  });
-
-  test("renders nothing when there is no error", () => {
-    expect(renderError()).toBe("");
-  });
-});
-
-describe("renderSuccess", () => {
-  test("renders the success message inside a success alert", () => {
-    const html = renderSuccess("Saved");
-    expectIncludesAll(html, ['class="success"', "Saved"]);
-  });
-
-  test("renders nothing when there is no message", () => {
-    expect(renderSuccess()).toBe("");
   });
 });

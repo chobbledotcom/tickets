@@ -61,8 +61,7 @@ src/ui/client/order.ts::init.enhance.raw~03ascww  ?? → || audited:189c89x # pr
 src/ui/client/order.ts::init.enhance.raw~03ascww   → "mutated" audited:189c89x # fallback is unreachable for the matching selector
 src/ui/client/order.ts::init.enhance.current~03ascww  ?? → || audited:189c89x # present strings are truthy or empty; both operators keep the same value
 src/ui/client/order.ts::init.enhance.current~03ascww   → "mutated" audited:189c89x # absent fallback values resolve to neither listing nor package
-src/shared/site-pages/core.ts::descendantsOf.walk~06ouy8c  ?? → || audited:00febke # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
-src/shared/site-pages/core.ts::buildNavModel.levelOf~0agplud  ?? → || audited:00febke # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/shared/site-pages/core.ts::buildNavModel.levelOf~0agplud  ?? → || audited:1h9pfwp # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
 
 # --- Rich markdown editor (src/ui/client/admin/markdown-editor*.ts) ------------
 # Browser DOM-construction code, same class of equivalents as order.ts above:
@@ -221,3 +220,11 @@ src/ui/client/admin/sortable.ts::startDrag.item~1jcpfmq  sortable item → ""  a
 
 # --- Listing images field (src/ui/client/admin/listing-images.ts) ---------------
 src/ui/client/admin/listing-images.ts::cardId~0vtm44n  card image id → ""  audited:15y3c6o   # the server renders data-image-id on every card and chosenItem sets it on each card it builds, so requireValue never throws
+# A card is a newly created li and its remove control a newly created button. The
+# DOM default of className and textContent is "", and createButton sets neither text.
+src/ui/client/admin/listing-images.ts::chosenItem.item%2eclassName~098fm7d  = → +=  audited:15y3c6o   # fresh li className is "", and "" + the class equals the class
+src/ui/client/admin/listing-images.ts::chosenItem.button%2etextContent~0frpih7  = → +=  audited:15y3c6o   # fresh button textContent is "", and "" + the text equals the text
+# find gives an image object or undefined, and served.get gives an element or
+# undefined. An object is never falsy, so both operators give the same value.
+src/ui/client/admin/listing-images.ts::setUpListingImages.reload.draft~06jz6of  ?? → ||  audited:15y3c6o   # find gives an option object or undefined, and an object is never falsy
+src/ui/client/admin/listing-images.ts::setUpListingImages.render~1gqg28i  ?? → ||  audited:15y3c6o   # served.get gives an element or undefined, and an element is never falsy

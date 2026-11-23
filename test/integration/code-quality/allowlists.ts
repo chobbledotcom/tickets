@@ -9,21 +9,6 @@ export const LIBRARY_PATHS = [
   "shared/jsx/jsx-runtime.ts", // JSX compiler runtime
   "shared/jsx/jsx-dev-runtime.ts", // JSX dev runtime
   "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
-  // The transfer ledger (src/shared/ledger + src/shared/accounting) is built
-  // ahead of the payment aggregate that consumes it, so some exports have no
-  // production caller. Each entry below names the rule it answers in
-  // docs/payment-aggregate-acceptance.md, or says that no rule asks for it. A
-  // module leaves this list when its last unconsumed export gains a caller.
-  "shared/ledger/reconcile.ts", // reconcileExternal, reconcileLegs: rule 2
-  "shared/accounting/queries.ts", // whole-account reads: rules 1 and 3
-  // The site-pages feature is being wired in incrementally,
-  // foundation-first: the pure core + DB layer landed before the admin CRUD /
-  // public route / recursive-nav slices that consume them, so — like the
-  // ledger modules above — their exports have no production caller yet. Each
-  // module loses its exemption as the slice that consumes it lands.
-  "shared/site-pages/core.ts",
-  "shared/db/site-pages.ts",
-  "shared/db/site-page-items.ts",
 ];
 
 /** Index modules that only re-export from sub-modules */
@@ -94,82 +79,29 @@ export const ALLOWED_DUPLICATE_TYPE_SHAPES: {
  * Format: "file:exportName"
  */
 export const ALLOWED_TEST_HOOKS: string[] = [
-  // Database injection for test isolation
-  "shared/db/client.ts:setDb",
-  // Set encryption key directly to avoid env var races between parallel tests
-  "shared/crypto/encryption.ts:setEncryptionKeyForTest",
-  // Set fast PBKDF2 directly to avoid env var races between parallel tests
-  "shared/crypto/hashing.ts:setFastPbkdf2ForTest",
-  // Set RSA key size directly to avoid env var races between parallel tests
-  "shared/crypto/keys.ts:setRsaKeySizeForTest",
+  // Whole-ledger reads. Tests assert money movements with them; production
+  // reads the ledger by account, by event, or by page.
+  "shared/accounting/queries.ts:allTransfers",
+  "shared/accounting/queries.ts:accountBalance",
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",
-  // (settings.ts functions now accessed via settings namespace, not individual exports)
   // Reset cached I18N_REPLACEMENTS replacer + compiled formats between tests
   "shared/i18n.ts:resetI18nForTest",
-  // Raw attendee fetch for testing encrypted data (production uses batched getListingWithAttendeesRaw)
-  "shared/db/attendees/queries.ts:getAttendeesRaw",
-  // Single attendee fetch for tests (production uses batched getListingWithAttendeeRaw)
-  "shared/db/attendees/queries.ts:getAttendeeOrNull",
-  // Listing activity log fetch for tests (production uses the batched nullable reader)
-  "shared/db/activity-log.ts:getListingActivityLog",
-  // Token format check used by CSRF tests (production verifies via verifySignedCsrfToken)
-  "shared/csrf.ts:isSignedCsrfToken",
-  // Response cookie helper used by auth tests (production sets cookies directly)
-  "features/utils.ts:withCookie",
   // Reset cached effective domain between tests
   "shared/config.ts:resetEffectiveDomain",
   "shared/config.ts:setEffectiveDomainForTest",
-  // Detach the global Sentry client between test files
-  "shared/sentry.ts:resetSentryForTest",
   // Reset cached demo mode between tests
   "shared/demo/mode.ts:resetDemoMode",
   "shared/demo/mode.ts:setDemoModeForTest",
-  // Reset cached Liquid engine between tests (currency changes need fresh filters)
-  "shared/liquid-engine.ts:resetLiquidEngines",
-  // Skip login delay in tests without env var races
-  "shared/test-overrides.ts:setSkipLoginDelayForTest",
-  // Timezone validation utility (timezone now derived from country, but still useful for tests)
-  "shared/timezone.ts:isValidTimezone",
-  // Attachment size constant (now re-exported from limits.ts, not detected by export patterns)
-  "shared/storage.ts:MAX_ATTACHMENT_SIZE",
   // AsyncLocalStorage-based storage config for concurrent test isolation
   "shared/storage.ts:runWithStorageConfig",
   // Suite-level storage config setter for describeWithEnv's `storage` option
   "shared/storage.ts:setStorageConfigForTest",
-  // Set log suppression directly to avoid env var races between parallel tests
-  "shared/logger.ts:setSuppressRequestLogs",
-  "shared/log-settings.ts:setSuppressDebugLogs",
-  // Rethrow errors in tests without env var races
-  "shared/test-overrides.ts:setRethrowErrorsForTest",
-  // Override BUILD_TIMESTAMP / BUILD_COMMIT in tests (compile-time constants can't be changed otherwise)
-  "shared/update.ts:setBuildTimestampForTest",
-  "shared/update.ts:setBuildCommitForTest",
   // Lower-level deploy primitive: exposed so unit tests can test asset-URL → deploy in isolation
   // without going through the full fetchAndDownloadRelease path used by deployLatestReleaseToScript.
   "shared/update.ts:deployRelease",
-  // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
-  "features/api/index.ts:apiRoutes",
+  // Route map used by API documentation tests (production uses via createRouter)
   "features/admin/api.ts:adminApiRoutes",
-  // Storage delete override for testing fire-and-forget error handling
-  "shared/test-overrides.ts:getDeleteOverride",
-  "shared/test-overrides.ts:setDeleteOverride",
-  "shared/test-overrides.ts:setDeleteOverrideForTest",
-  // API key touch override for testing fire-and-forget error handling
-  "shared/test-overrides.ts:getTouchOverride",
-  "shared/test-overrides.ts:setTouchOverride",
-  "shared/test-overrides.ts:setTouchOverrideForTest",
-  // Reset the in-memory form re-fill stash between tests
-  "shared/form-stash.ts:clearFormStash",
-  // Backward-compat wrapper: fires all invalidators unconditionally (no production caller now
-  // that client.ts uses invalidateCachesForWrite, but kept for external callers and tests)
-  "shared/cache-registry.ts:invalidateCachesForTable",
-  // SET-clause column extractor: internal parser exposed for unit testing only
-  "shared/db/client.ts:extractUpdateColumns",
-  // Image transcode entry point: production uses it via a dynamic import in
-  // storage.ts (uploadImageTargets) so the ~1MB codec wasm loads only on the
-  // first upload, never at cold boot — invisible to the static import scanner.
-  "shared/images/transcode.ts:transcodeToWebp",
   // Reached in production through a public page handler:
   // features/app/prefix-handlers.ts dynamically imports the pages module and
   // picks the handler off the namespace object, which the named-clause scanner

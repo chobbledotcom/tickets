@@ -2,7 +2,6 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
-  CheckboxesFieldset,
   CheckboxForm,
   CheckboxLabel,
   FormSections,
@@ -179,38 +178,5 @@ describe("RunningTotalsFieldset", () => {
     const html = String(RunningTotalsFieldset({ config }));
     assertStringIncludes(html, "Recalculate");
     assert(!html.includes("<a href="));
-  });
-});
-
-describe("CheckboxesFieldset", () => {
-  test("renders the none message when there are no options", () => {
-    const html = String(
-      CheckboxesFieldset({
-        fieldName: "listingIds",
-        noneMessage: "Nothing to pick",
-        options: [],
-        selected: [],
-      }),
-    );
-    expect(html).toBe("<p>Nothing to pick</p>");
-  });
-
-  test("checks exactly the selected options", () => {
-    const html = String(
-      CheckboxesFieldset({
-        fieldName: "listingIds",
-        noneMessage: "Nothing to pick",
-        options: [
-          { id: 1, name: "First" },
-          { id: 2, name: "Second" },
-        ],
-        selected: [2],
-      }),
-    );
-    expectIncludesAll(html, [
-      '<fieldset class="checkboxes">',
-      '<input name="listingIds" type="checkbox" value="1"> First',
-      '<input checked name="listingIds" type="checkbox" value="2"> Second',
-    ]);
   });
 });

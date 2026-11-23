@@ -12,7 +12,7 @@ import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { getSessionCookieName, parseFlashValue } from "#shared/cookies.ts";
 import type { Flash } from "#shared/flash-context.ts";
-import { renderError, renderSuccess } from "#shared/forms/flash.tsx";
+import { Flash as FlashBanner } from "#shared/forms/flash.tsx";
 import { mockRequest } from "#test-utils/mocks.ts";
 
 export const FLASH_TEST_ID = "t001";
@@ -204,12 +204,14 @@ export const expectFlashRedirect =
     const parsed = parseFlashCookie(response);
     const actual = succeeded ? parsed.success : parsed.error;
     // A verified flash redirect must carry a non-empty message at the asserted
-    // level; without this, renderSuccess("")/renderError("") is "" and
-    // counting "" occurrences would pass vacuously without proving any banner.
+    // level; without this, the banner is "" and counting "" occurrences
+    // would pass vacuously without proving any banner.
     expect(actual).toBeTruthy();
     // Exactly once: catches both the dropped-flash bug (zero) and double-render
     // (two), e.g. a page banner plus a structural Layout/CsrfForm one.
-    const banner = succeeded ? renderSuccess(actual) : renderError(actual);
+    const banner = String(
+      FlashBanner(succeeded ? { success: actual } : { error: actual }),
+    );
     expect(html.split(banner).length - 1).toBe(1);
     return response;
   };
