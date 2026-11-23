@@ -39,10 +39,6 @@ export const signCsrfToken = async (): Promise<string> => {
 /** Get the most recently generated CSRF token (for synchronous JSX rendering) */
 export const getCurrentCsrfToken = requestField((store) => store.csrfToken, "");
 
-/** Check whether a token uses the signed format */
-export const isSignedCsrfToken = (token: string): boolean =>
-  token.startsWith(SIGNED_PREFIX);
-
 /** Verify a signed CSRF token's signature and expiry */
 export const verifySignedCsrfToken = async (
   token: string,

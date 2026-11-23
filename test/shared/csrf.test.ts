@@ -5,7 +5,6 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import {
   getCurrentCsrfToken,
-  isSignedCsrfToken,
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#shared/csrf.ts";
@@ -41,22 +40,6 @@ describe("signCsrfToken", () => {
     const a = await signCsrfToken();
     const b = await signCsrfToken();
     expect(a).not.toBe(b);
-  });
-});
-
-describe("isSignedCsrfToken", () => {
-  test("returns true for signed tokens", async () => {
-    setupTestEncryptionKey();
-    const token = await signCsrfToken();
-    expect(isSignedCsrfToken(token)).toBe(true);
-  });
-
-  test("returns false for plain tokens", () => {
-    expect(isSignedCsrfToken("abcdef123456")).toBe(false);
-  });
-
-  test("returns false for empty string", () => {
-    expect(isSignedCsrfToken("")).toBe(false);
   });
 });
 
@@ -163,7 +146,7 @@ describe("getCurrentCsrfToken (request-scoped)", () => {
       return { current: getCurrentCsrfToken(), signed };
     });
     expect(current).toBe(signed);
-    expect(isSignedCsrfToken(current)).toBe(true);
+    expect(current).toMatch(/^s1\.\d+\./);
   });
 
   test("re-signing within a scope replaces the rendered token", async () => {

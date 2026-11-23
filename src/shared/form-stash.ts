@@ -77,8 +77,3 @@ export const takeForm = (token: string): string | null => {
   store.delete(token);
   return entry.expires <= nowMs() ? null : entry.data;
 };
-
-/** Empty the stash. Exposed for test isolation. */
-export const clearFormStash = (): void => {
-  store.clear();
-};
