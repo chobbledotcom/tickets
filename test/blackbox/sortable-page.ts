@@ -71,7 +71,6 @@ export const openSortablePage = (
       items[item]!,
       "[data-sortable-handle]",
     );
-    handle.setPointerCapture = () => {};
     const pointer = (type: string, position?: number, pressed = 0): void => {
       fireEvent(
         handle,

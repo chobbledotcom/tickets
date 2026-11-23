@@ -11,6 +11,7 @@ import { fieldsOf, openSortablePage } from "#test/blackbox/sortable-page.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDomInstaller,
+  fireEvent,
   requireElement,
   requireElements,
 } from "#test-utils/happy-dom.ts";
@@ -126,25 +127,79 @@ describeWithEnv("drag to reorder", { db: true }, () => {
 
     page.drag({ item: 2, steps: [["pointermove", 5], ["pointerup"]] });
 
-    expect(page.sent[0]!.fields).toEqual({
-      ...carried,
-      anchor: page.ids()[1],
-      returnUrl: `${LIST}?shown=all`,
+    const posted = requireElement<HTMLFormElement>(
+      page.document,
+      "body > form:last-child",
+    );
+    expect({
+      fields: page.sent[0]!.fields,
+      posted: [posted.tagName, posted.hidden],
+    }).toEqual({
+      fields: {
+        ...carried,
+        anchor: page.ids()[1],
+        returnUrl: `${LIST}?shown=all`,
+      },
+      posted: ["FORM", true],
     });
   });
 
-  test("shows the handles and marks the row while it is dragged", async () => {
+  test("a drop ends the drag, so a later release or cancel changes nothing", async () => {
     const page = inBrowser(dom, (await (await openStatuses()).get(LIST)).html);
-    const handles = requireElements<HTMLElement>(
-      page.document,
-      "[data-sortable-handle]",
-    );
+    const before = page.ids();
+
+    page.drag({
+      item: 2,
+      steps: [
+        ["pointermove", 5],
+        ["pointerup"],
+        ["pointerup"],
+        ["pointercancel"],
+      ],
+    });
+
+    expect({
+      dragging: page.rows[2]!.classList.contains("is-dragging"),
+      ids: page.ids(),
+      sent: page.sent.length,
+    }).toEqual({
+      dragging: false,
+      ids: [before[2], before[0], before[1]],
+      sent: 1,
+    });
+  });
+
+  test("marks the list ready, which shows the handles in place of the arrows, and marks the row while it is dragged", async () => {
+    const page = inBrowser(dom, (await (await openStatuses()).get(LIST)).html);
 
     page.drag({ item: 1, steps: [] });
 
     expect({
       dragging: page.rows[1]!.classList.contains("is-dragging"),
-      hidden: handles.map((handle) => handle.hidden),
-    }).toEqual({ dragging: true, hidden: [false, false, false] });
+      ready: requireElement<HTMLElement>(page.document, "tbody[data-sortable]")
+        .dataset.sortableReady,
+    }).toEqual({ dragging: true, ready: "" });
+  });
+
+  test("a press on the handle starts a drag and stops the browser's own action, and a press beside it does neither", async () => {
+    const page = inBrowser(dom, (await (await openStatuses()).get(LIST)).html);
+    const row = page.rows[1]!;
+    const handle = requireElement<HTMLElement>(row, "[data-sortable-handle]");
+    const cell = requireElements<HTMLElement>(row, "td").find(
+      (each) => each.querySelector("[data-sortable-handle]") === null,
+    )!;
+    const press = (target: HTMLElement) => {
+      const down = new page.window.PointerEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+      });
+      fireEvent(target, down);
+      return [down.defaultPrevented, row.classList.contains("is-dragging")];
+    };
+
+    expect([press(cell), press(handle)]).toEqual([
+      [false, false],
+      [true, true],
+    ]);
   });
 });
