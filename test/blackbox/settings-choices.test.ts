@@ -51,6 +51,17 @@ const THEME: Choice = {
   start: "light",
 };
 
+const DASHBOARD_TYPE: Choice = {
+  action: "/admin/settings/dashboard-type",
+  field: "dashboardType",
+  formId: "settings-dashboard-type",
+  other: "groups",
+  page: "/admin/settings",
+  questionKey: "settings.dashboard_type",
+  saved: (value) => `Dashboard type set to ${value}`,
+  start: "listings",
+};
+
 const CHOICES: Choice[] = [
   {
     action: "/admin/settings/external-order",
@@ -72,6 +83,7 @@ const CHOICES: Choice[] = [
     saved: yesNo("Public API"),
     start: "false",
   },
+  DASHBOARD_TYPE,
   LISTING_MODE,
   THEME,
 ];
@@ -132,6 +144,7 @@ for (const choice of CHOICES) {
 }
 
 const REFUSALS: [choice: Choice, messageKey: string][] = [
+  [DASHBOARD_TYPE, "error.invalid_dashboard_type"],
   [LISTING_MODE, "error.invalid_listing_mode"],
   [THEME, "error.invalid_theme"],
 ];

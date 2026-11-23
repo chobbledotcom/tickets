@@ -53,6 +53,7 @@ import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { getAvailableDates, listingDateToCalendarDate } from "#shared/dates.ts";
+import { idSet } from "#shared/fp-records.ts";
 import {
   type AgentFilter,
   assignmentMatchesAgentFilter,
@@ -156,7 +157,7 @@ const resolveAgentFilter = async (
     : [];
   const agentFilter = parseAgentFilter(
     getSearchParam(request, "agent"),
-    new Set(agents.map((a) => a.id)),
+    idSet(agents),
   );
   return { agentFilter, agents };
 };

@@ -10,6 +10,7 @@
 import { getListingsBySlugs } from "#db/listings/records.ts";
 import { unique, uniqueBy } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
+import { idSet } from "#shared/fp-records.ts";
 import type { Group, ListingWithCount } from "#types";
 import { type GroupWithListings, loadCartPackagesBySlugs } from "./groups.ts";
 import { dropChildListings } from "./page-listings.ts";
@@ -115,7 +116,7 @@ export const handleCartBySlugs: BySlugsHandler<
     (listing) => dropped.has(listing.id) || soloChildIds.has(listing.id),
   );
   if (withoutChildren.length === 0) return notFoundResponse();
-  const survivingIds = new Set(withoutChildren.map((listing) => listing.id));
+  const survivingIds = idSet(withoutChildren);
   const activeListings =
     await buildTicketListingsWithGroupCapacity(withoutChildren);
   const packages = await loadPagePackages(

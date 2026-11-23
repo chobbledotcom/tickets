@@ -4,6 +4,7 @@
 
 import { t } from "#i18n";
 import type { EnabledFeatures } from "#shared/admin-features.ts";
+import type { DashboardType } from "#shared/group-cards.ts";
 import type { PaymentProviderMode } from "#shared/payment-provider-status.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
@@ -50,6 +51,7 @@ export type SettingsPageState = {
   businessEmail: string;
   theme: Theme;
   underlineLinks: boolean;
+  dashboardType: DashboardType;
   headerImageUrl: string;
   storageEnabled: boolean;
   superuser: SuperuserState;
@@ -74,6 +76,7 @@ export const adminSettingsPage = (
       {settingsForm(SETTINGS_FORMS.businessEmail, s)}
       {HeaderImageForm(s)}
       {settingsForm(SETTINGS_FORMS.theme, s)}
+      {settingsForm(SETTINGS_FORMS.dashboardType, s)}
 
       {PaymentProviderForm(s)}
       {ExistingPaymentProviderForm(s)}
