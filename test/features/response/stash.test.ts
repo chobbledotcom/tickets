@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { adminRedirect, infoRedirect, redirect } from "#routes/response.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { clearFormStash, takeForm } from "#shared/form-stash.ts";
+import { takeForm } from "#shared/form-stash.ts";
 import {
   clearSavedFormData,
   setSavedFormData,
@@ -17,11 +17,9 @@ import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("redirect form re-fill stash", () => {
   beforeEach(() => {
-    clearFormStash();
     clearSavedFormData();
   });
   afterEach(() => {
-    clearFormStash();
     clearSavedFormData();
   });
 

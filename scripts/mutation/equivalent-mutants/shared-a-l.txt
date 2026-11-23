@@ -177,7 +177,7 @@ src/shared/booking/package-cap.ts::parentGroupChildLimit~1c6t1l7  0 → -1 audit
 # registerTableInvalidation: `invalidatorsByTable.get(table) ?? new Set()`
 # — Map#get() is undefined or a Set object, and a Set is always truthy
 # (even when empty), so ?? and || agree.
-src/shared/cache-registry.ts::registerTableInvalidation.set~1vxiav9  ?? → || audited:10gfzwz # invalidatorsByTable.get(): Set<Registration>|undefined — a Set is always truthy, even when empty
+src/shared/cache-registry.ts::registerTableInvalidation.set~1vxiav9  ?? → || audited:1p0tm2l # invalidatorsByTable.get(): Set<Registration>|undefined — a Set is always truthy, even when empty
 
 # band-name-generator.ts's fixArticles: the "An <consonant> → A <consonant>"
 # correction has no template or pool word that ever produces a literal "An"
