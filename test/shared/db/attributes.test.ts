@@ -7,10 +7,13 @@ import {
   deleteAttribute,
   deleteAttributeOption,
   getAllAttributesWithOptions,
+  getAttributeListingUse,
   getAttributeWithOptions,
   getSelectedAttributesForListings,
   listingAttributeOptions,
+  missingAttributeOptionIds,
 } from "#db/attributes.ts";
+import { withTransaction } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
@@ -25,6 +28,15 @@ const names = <T extends { name: string }>(items: T[]): string[] =>
 const optionTexts = <T extends { text: string }>(items: T[]): string[] =>
   items.map((item) => item.text);
 
+/** Creates one listing per name, one after the other, so ids rise in order. */
+const createListingsInOrder = async (listingNames: string[]) => {
+  const listings = [];
+  for (const name of listingNames) {
+    listings.push(await createTestListing({ name }));
+  }
+  return listings;
+};
+
 describeWithEnv("db > attributes", { db: true }, () => {
   test("lists attributes and options in their display order", async () => {
     const first = await createTestAttributeWithOptions("Difficulty", [
@@ -36,11 +48,10 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "In person",
     ]);
 
-    await attributesOrder.swap({ first: first.id, second: second.id });
-    await attributeOptionsOrder.swap({
-      first: first.options[0]!.id,
+    await attributesOrder.arrange({ keys: [second.id, first.id] });
+    await attributeOptionsOrder.arrange({
+      keys: [first.options[1]!.id, first.options[0]!.id],
       scope: first.id,
-      second: first.options[1]!.id,
     });
 
     const attributes = await getAllAttributesWithOptions();
@@ -190,5 +201,57 @@ describeWithEnv("db > attributes", { db: true }, () => {
     ]);
     expect(await attributeOptionIdsIn([123_456])).toEqual([]);
     expect(await attributeOptionIdsIn([])).toEqual([]);
+  });
+
+  test("lists the submitted option ids the site does not have", async () => {
+    const attribute = await createTestAttributeWithOptions("Diet", [
+      "Vegan",
+      "Halal",
+    ]);
+    const [vegan, halal] = attribute.options;
+
+    expect(
+      await withTransaction((tx) =>
+        missingAttributeOptionIds(tx, [
+          vegan!.id,
+          123_456,
+          halal!.id,
+          123_456,
+          654_321,
+        ]),
+      ),
+    ).toEqual([123_456, 654_321]);
+    expect(
+      await withTransaction((tx) =>
+        missingAttributeOptionIds(tx, [vegan!.id, halal!.id]),
+      ),
+    ).toEqual([]);
+  });
+
+  test("reports which listings use each option, in listing id order", async () => {
+    const [lower, higher] = await createListingsInOrder([
+      "Lower id",
+      "Higher id",
+    ]);
+    const attribute = await createTestAttributeWithOptions("Pace", [
+      "Slow",
+      "Fast",
+    ]);
+    const [slow, fast] = attribute.options;
+    await listingAttributeOptions.setIds(higher!.id, [slow!.id]);
+    await listingAttributeOptions.setIds(lower!.id, [fast!.id]);
+
+    const use = await getAttributeListingUse(attribute.id);
+
+    expect(use.listings).toEqual([
+      { active: lower!.active, id: lower!.id, name: "Lower id" },
+      { active: higher!.active, id: higher!.id, name: "Higher id" },
+    ]);
+    expect(use.listingIdsByOption).toEqual(
+      new Map([
+        [slow!.id, [higher!.id]],
+        [fast!.id, [lower!.id]],
+      ]),
+    );
   });
 });

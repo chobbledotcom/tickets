@@ -214,9 +214,7 @@ export const closedFieldErrorOrNull = (
   const key = suppliedKeys.find((each) => closed.has(each));
   return key === undefined
     ? null
-    : CLOSED_REFUSALS[requiredMapValue(closed, key, "Missing closed field")](
-        key,
-      );
+    : CLOSED_REFUSALS[requiredMapValue(closed, key)](key);
 };
 
 /** The declared field of one key. A caller names a key of its own list. */

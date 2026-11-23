@@ -5,7 +5,14 @@ export type RouteParamNames<Path extends string> =
       ? Param
       : never;
 
-const isNumericRouteParam = (name: string): boolean =>
+/** A route pattern with each `:name` replaced by the value it names. */
+export const fillRoutePattern = (
+  pattern: string,
+  paramValue: (name: string) => unknown,
+): string =>
+  pattern.replace(/:(\w+)/g, (_, name: string) => String(paramValue(name)));
+
+export const isNumericRouteParam = (name: string): boolean =>
   name.endsWith("Id") || name === "id";
 
 /** The segment shape a public `:slug` route serves: lowercase letters and

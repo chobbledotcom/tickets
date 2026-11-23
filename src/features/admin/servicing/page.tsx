@@ -120,13 +120,7 @@ const servicingListingsTable = defineTable<
         min="0"
         name={`quantity${listing.id}`}
         type="number"
-        value={String(
-          requiredMapValue(
-            quantities,
-            listing.id,
-            `Listing ${listing.id} missing`,
-          ),
-        )}
+        value={String(requiredMapValue(quantities, listing.id))}
       />
     ),
   ),

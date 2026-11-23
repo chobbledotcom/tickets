@@ -95,16 +95,18 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       ]);
     });
 
-    test("sitePageItemOrder swaps by full composite key", async () => {
+    test("sitePageItemOrder arranges by full composite key", async () => {
       const p = await createTestSitePage("swap");
       const q = await createTestSitePage("swap-other");
       await addPageItem(p.id, "listing", 5);
       await addPageItem(p.id, "group", 5);
       await addPageItem(q.id, "listing", 5); // same type+id on ANOTHER page
-      await sitePageItemOrder.swap({
-        first: ["listing", 5],
+      await sitePageItemOrder.arrange({
+        keys: [
+          ["group", 5],
+          ["listing", 5],
+        ],
         scope: p.id,
-        second: ["group", 5],
       });
       const items = await getItemsForPage(p.id);
       expect(items).toEqual([
@@ -115,15 +117,17 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       expect((await getItemsForPage(q.id))[0]?.sortOrder).toBe(0);
     });
 
-    test("sitePageItemOrder is a no-op when an item is missing", async () => {
+    test("sitePageItemOrder skips an item that is gone", async () => {
       const p = await createTestSitePage("noop");
       await addPageItem(p.id, "listing", 1);
-      await sitePageItemOrder.swap({
-        first: ["listing", 1],
+      await sitePageItemOrder.arrange({
+        keys: [
+          ["group", 999],
+          ["listing", 1],
+        ],
         scope: p.id,
-        second: ["group", 999],
       });
-      expect((await getItemsForPage(p.id))[0]?.sortOrder).toBe(0);
+      expect((await getItemsForPage(p.id))[0]?.sortOrder).toBe(1);
     });
   });
 

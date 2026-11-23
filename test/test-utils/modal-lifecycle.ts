@@ -110,13 +110,9 @@ export const witnessFacts = (facts: ModalFacts) => {
   return {
     edges: facts.edges.map((edge) =>
       edgeFixture(
-        snapshotOfNode(
-          requiredMapValue(nodes, edge.source, "Missing source node"),
-        ),
-        snapshotOfNode(
-          requiredMapValue(nodes, edge.target, "Missing target node"),
-        ),
-        requiredMapValue(events, edge.event, "Missing event metadata"),
+        snapshotOfNode(requiredMapValue(nodes, edge.source)),
+        snapshotOfNode(requiredMapValue(nodes, edge.target)),
+        requiredMapValue(events, edge.event),
       ),
     ),
     events: facts.events,

@@ -117,11 +117,7 @@ export const spreadTicketMoves = (
   const movedWithOwed = moved.map((move) => ({
     ...move,
     owedAfter: remainingTickets(
-      requiredMapValue(
-        bookings,
-        pairKey(move.attendeeId, move.listingId),
-        `Move for ${pairKey(move.attendeeId, move.listingId)} has no booking`,
-      ),
+      requiredMapValue(bookings, pairKey(move.attendeeId, move.listingId)),
     ),
   }));
   return { changed, moved: movedWithOwed };

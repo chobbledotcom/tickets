@@ -58,11 +58,7 @@ const packageGroupMembersErrorTx = async (
     const listingById = byId(listings);
     for (const member of state.members) {
       const quantityError = await memberCapErrorTx(
-        requiredMapValue(
-          listingById,
-          member.id,
-          `Listing ${member.id} missing`,
-        ),
+        requiredMapValue(listingById, member.id),
         member.quantity,
       );
       if (quantityError) return quantityError;
@@ -265,11 +261,7 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite(
     const leaving = new Map(
       ids.map((id) => [
         id,
-        requiredMapValue(
-          current,
-          id,
-          "membership set for a leaving listing",
-        ).filter((group) => group !== groupId),
+        requiredMapValue(current, id).filter((group) => group !== groupId),
       ]),
     );
     const orphanError = await groupLeavingOrphanedAddOnError(leaving, tx);

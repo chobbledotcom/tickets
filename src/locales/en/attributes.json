@@ -2,7 +2,6 @@
   "attributes.title": "Listing Attributes",
   "attributes.add_submit": "Add attribute",
   "attributes.none": "No listing attributes yet.",
-  "attributes.order_column": "Order",
   "attributes.attribute_column": "Attribute",
   "attributes.options_column": "Options",
   "attributes.option_column": "Option",
@@ -45,5 +44,7 @@
   "attributes.option_deleted": "Option deleted",
   "attributes.option_updated": "Option updated",
   "attributes.name_label": "Attribute name",
-  "attributes.option_label": "Option text"
+  "attributes.option_label": "Option text",
+  "attributes.moved": "Attribute moved",
+  "attributes.option_moved": "Option moved"
 }

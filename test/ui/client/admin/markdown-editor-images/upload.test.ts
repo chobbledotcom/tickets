@@ -2,22 +2,19 @@
  * The image picker window's upload flow
  * (`src/ui/client/admin/markdown-editor-images.ts`): the inline form, the
  * multipart POST to the images route, and the insert that follows a
- * successful upload.
+ * successful upload. The picker template's own tests cover the shared upload
+ * failures, the file bytes, and the window that stays open during an upload.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
+import { requireElement } from "#test-utils/happy-dom.ts";
 import { cleanup, PICKER_CSRF_TOKEN } from "#test-utils/markdown-editor-dom.ts";
 import {
-  closeControl,
-  expectGridMessage,
   fetchStubHolder,
   finishUpload,
   flush,
   json,
-  openDialog,
   redirected,
   restoreHeldStub,
   submitUpload,
@@ -30,28 +27,6 @@ afterEach(cleanup);
 afterEach(restoreHeldStub);
 
 describe("the image picker dialog", () => {
-  test("uploads the chosen file's bytes with the image's name", async () => {
-    await withUploadFlow(
-      async ({ dialog, handle, textarea }, flushSelection) => {
-        await submitUpload(dialog, "Harbour", {
-          bytes: [1, 2, 3],
-          name: "harbour-haze.png",
-          type: "image/png",
-        });
-
-        const body = fetchStubHolder.stub?.calls[1]?.args[1]?.body;
-        expect(body).toBeInstanceOf(FormData);
-        const image = (body as FormData).get("image");
-        expect(image).toBeInstanceOf(File);
-        expect((image as File).name).toBe("harbour-haze.png");
-        expect((image as File).type).toBe("image/png");
-
-        // The uploaded image's name becomes the reference's alt text.
-        await finishUpload(handle, textarea, dialog, flushSelection);
-      },
-    );
-  });
-
   test("keeps the upload's submit away from the page form", async () => {
     await withUploadFlow(
       async ({ dialog, handle, textarea, window }, flushSelection) => {
@@ -124,27 +99,6 @@ describe("the image picker dialog", () => {
     );
   });
 
-  test("treats a redirect without an image id as a failed upload", async () => {
-    const { dialog, handle } = await openDialog([
-      twoImageList(),
-      redirected("/admin/pages/1/edit"),
-    ]);
-
-    await submitUpload(dialog, "Harbour");
-
-    expect(dialog.open).toBe(true);
-    assertStringIncludes(
-      dialog.textContent,
-      "The image could not be uploaded. Please try again.",
-    );
-    expect(
-      dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!
-        .disabled,
-    ).toBe(false);
-    handle.view.destroy();
-    dialog.remove();
-  });
-
   test("ignores a second submit press while an upload is in flight", async () => {
     await withUploadFlow(
       async ({ dialog, handle, textarea }, flushSelection) => {
@@ -205,57 +159,6 @@ describe("the image picker dialog", () => {
             .disabled,
         ).toBe(false);
       },
-    );
-  });
-
-  test("keeps the window open while an upload is in flight", async () => {
-    const { promise: upload, resolve: resolveUpload } =
-      Promise.withResolvers<Response>();
-    await withDialogClock(
-      [twoImageList(), () => upload],
-      { form: true, value: "" },
-      async ({ dialog, handle, textarea, window }, flushSelection) => {
-        await submitUpload(dialog, "Harbour");
-
-        closeControl(dialog).click();
-        expect(dialog.open).toBe(true);
-        fireEvent(
-          dialog,
-          new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
-        );
-        expect(dialog.open).toBe(true);
-
-        resolveUpload(redirected("/admin/images/12/edit"));
-        await flush();
-
-        expect(dialog.open).toBe(false);
-        expect(textarea.value).toContain("img#12");
-        handle.view.destroy();
-        await flushSelection();
-      },
-    );
-  });
-
-  test("keeps the dialog open with a plain message when the upload fails", async () => {
-    // The first reply is the options list; the upload itself fails.
-    const opened = await openDialog([
-      twoImageList(),
-      new Response("storage down", { status: 500 }),
-      new Response("storage down", { status: 500 }),
-    ]);
-    const { dialog } = opened;
-
-    await submitUpload(dialog, "Harbour");
-
-    expect(dialog.open).toBe(true);
-    // The submit re-enables, so the operator can retry without closing.
-    expect(
-      dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!
-        .disabled,
-    ).toBe(false);
-    expectGridMessage(
-      opened,
-      "The image could not be uploaded. Please try again.",
     );
   });
 });

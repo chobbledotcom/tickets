@@ -95,17 +95,15 @@ describe("admin route manifest", () => {
     // only proves a declaration names a path its area actually serves.
     for (const destination of Object.values(ADMIN_SURFACE.destinations)) {
       const servedPath = oneServedPath(destination.pattern);
-      const served = requiredMapValue(
-        routesByArea,
-        destination.area,
-        `No routes loaded for area ${destination.area}`,
-      ).some((route) => {
-        const [method, path] = routeParts(route);
-        return (
-          routePathPatternToRegex(path).test(servedPath) &&
-          (destination.intent === "view" ? method === "GET" : true)
-        );
-      });
+      const served = requiredMapValue(routesByArea, destination.area).some(
+        (route) => {
+          const [method, path] = routeParts(route);
+          return (
+            routePathPatternToRegex(path).test(servedPath) &&
+            (destination.intent === "view" ? method === "GET" : true)
+          );
+        },
+      );
       expect(served, `${destination.id}: ${destination.pattern}`).toBe(true);
     }
   });

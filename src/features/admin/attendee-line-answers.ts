@@ -28,15 +28,7 @@ export const loadLineAnswerRows = async (
   const listingById = fieldById("name")(listings);
   return answers.map((answer) => ({
     answer: answer.text,
-    listingName: requiredMapValue(
-      listingById,
-      answer.listingId,
-      `Listing ${answer.listingId} missing`,
-    ),
-    question: requiredMapValue(
-      questionById,
-      answer.questionId,
-      `Question ${answer.questionId} missing`,
-    ),
+    listingName: requiredMapValue(listingById, answer.listingId),
+    question: requiredMapValue(questionById, answer.questionId),
   }));
 };

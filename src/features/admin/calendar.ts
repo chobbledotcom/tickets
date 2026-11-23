@@ -116,11 +116,8 @@ const compileDateOptions = (
       filter((d: string) =>
         standardListings.some(
           (e) =>
-            requiredMapValue(
-              standardListingDateMap,
-              d,
-              `Calendar date ${d} missing`,
-            ).includes(e.id) && e.attendeeCount > 0,
+            requiredMapValue(standardListingDateMap, d).includes(e.id) &&
+            e.attendeeCount > 0,
         ),
       ),
     )(standardDates),
@@ -284,7 +281,7 @@ const buildAvailabilityRows = async (
       id: l.id,
       name: l.name,
       // getListingRemainingForRange returns an entry for every listing passed.
-      remaining: requiredMapValue(remaining, l.id, `Listing ${l.id} missing`),
+      remaining: requiredMapValue(remaining, l.id),
       total: l.maxAttendees,
       unitPrice: l.unitPrice,
     }),

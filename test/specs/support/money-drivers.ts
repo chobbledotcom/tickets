@@ -43,11 +43,7 @@ export type StripeOrder = {
 };
 
 const providerCharge = (world: TicketsWorld, reference: string): ChargeMoney =>
-  requiredMapValue(
-    world.providerCharges,
-    reference,
-    `The provider has no charge ${reference}`,
-  );
+  requiredMapValue(world.providerCharges, reference);
 
 /**
  * Stub the Stripe session retrieval for `order` (metadata signed exactly as

@@ -122,12 +122,7 @@ export const prepareOrder = async (
   // concealed member — resolved per listing, since a page can carry several
   // packages with different hide flags.
   const selectedNodes = tree.nodes.filter(
-    (node) =>
-      requiredMapValue(
-        nodeQuantities,
-        node.nodeKey,
-        `Booking node ${node.nodeKey} missing`,
-      ) > 0,
+    (node) => requiredMapValue(nodeQuantities, node.nodeKey) > 0,
   );
   const selectedPackages = ctx.packages.filter((pkg) =>
     selectedNodes.some(isMemberNodeOf(pkg.groupId)),

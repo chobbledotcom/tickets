@@ -110,11 +110,7 @@ export const pairEntriesByListing = <A extends { listing_id: number }>(
   );
   return attendees.map((attendee) => ({
     attendee,
-    listing: requiredMapValue(
-      listingByItemId,
-      attendee.listing_id,
-      `Listing ${attendee.listing_id} was not loaded for a created booking`,
-    ),
+    listing: requiredMapValue(listingByItemId, attendee.listing_id),
   }));
 };
 
@@ -259,11 +255,7 @@ export const createAttendeeForSession = async (
         intent,
         // The listings in booking-row order, the order the created entries keep.
         listings: bookings.map((booking) =>
-          requiredMapValue(
-            listingById,
-            booking.listingId,
-            `Listing ${booking.listingId} was not loaded for a created booking`,
-          ),
+          requiredMapValue(listingById, booking.listingId),
         ),
         modifierApplications: pricedOrder.modifierApplications,
         sessionId: session.id,

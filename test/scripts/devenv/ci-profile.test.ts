@@ -1,6 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const DEVENV_NIX_PATH = "devenv.nix";
 const WORKFLOW_DIR = ".github/workflows";
@@ -41,17 +42,20 @@ describe("CI devenv profile", () => {
     }).toEqual({ browser: true, ci: true, models: false, modelsHook: true });
   });
 
-  test("the model check step runs in the models profile", async () => {
+  // The model jobs need only Deno, Java, and Apalache. They install these with
+  // scripts/ci/setup-model-tools.sh, because the devenv setup takes longer
+  // than most checks.
+  test("the model check jobs install their tools without devenv", async () => {
     const workflow = await Deno.readTextFile(TEST_WORKFLOW_PATH);
 
-    assertStringIncludes(
-      workflow,
+    expectIncludesAll(workflow, [
       [
-        "      - name: Check machine safety models",
-        "        shell: devenv --profile models shell bash -- -e {0}",
-        "        run: deno task verify:models",
+        "      - name: Set up model tools",
+        "        uses: $/.github/actions/setup-model-tools",
       ].join("\n"),
-    );
+      '        run: deno task verify:models --model "$MODEL"',
+    ]);
+    expect(workflow).not.toContain("--profile models");
   });
 
   // The default profile carries Chromium, Apalache, Java, and the Git hook.

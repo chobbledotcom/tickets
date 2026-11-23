@@ -3,7 +3,6 @@
   "questions.heading": "Custom questions",
   "questions.add_submit": "Add question",
   "questions.no_questions": "No custom questions yet.",
-  "questions.order_column": "Order",
   "questions.question_column": "Question",
   "questions.answers_column": "Answers",
   "questions.answer_level.booking": "One per booking",
@@ -67,5 +66,7 @@
   "questions.answer_updated": "Answer updated",
   "questions.invalid_modifier": "Invalid modifier",
   "questions.name_label": "Question text",
-  "questions.answer_label": "Answer text"
+  "questions.answer_label": "Answer text",
+  "questions.moved": "Question moved",
+  "questions.answer_moved": "Answer moved"
 }

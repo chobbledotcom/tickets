@@ -183,11 +183,7 @@ const lineAnswerStatements = (
       questionId: answer.questionId,
       value:
         "text" in answer
-          ? requiredMapValue(
-              textIndexByText,
-              answer.text,
-              `Text answer for question ${answer.questionId} missing`,
-            )
+          ? requiredMapValue(textIndexByText, answer.text)
           : answer.stringId,
     })),
   );
@@ -266,11 +262,7 @@ const answerSaveStatements = (
     for (const answer of set.textAnswers) {
       valueByQuestion.set(
         answer.questionId,
-        requiredMapValue(
-          textIndexByText,
-          answer.text,
-          `Text answer for question ${answer.questionId} missing`,
-        ),
+        requiredMapValue(textIndexByText, answer.text),
       );
     }
     return [...valueByQuestion].map(([questionId, value]) => ({

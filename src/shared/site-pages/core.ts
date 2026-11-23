@@ -317,8 +317,7 @@ export const buildNavModel = (
   // the deepest — every level above holds the next chain page) is dropped:
   // there is nothing to render, and an empty <ul>/nav bar is invalid markup.
   const rawLevels = chain.map((pageId, i) => ({
-    label: requiredMapValue(forest.byId, pageId, `Site page ${pageId} missing`)
-      .name,
+    label: requiredMapValue(forest.byId, pageId).name,
     nodes: levelOf(pageId, i),
   }));
 

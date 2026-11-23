@@ -70,7 +70,7 @@ describeWithEnv("db > group storage contracts", { db: true }, () => {
 
   test("missing batch membership fails at the shared lookup", () => {
     expect(() => listingGroups.idsFor(new Map(), 42)).toThrow(
-      "Missing listing group membership",
+      "Missing map key 42",
     );
   });
 });

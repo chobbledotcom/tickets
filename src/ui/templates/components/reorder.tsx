@@ -1,58 +1,144 @@
 /**
- * Shared move-up / move-down reorder arrows: one tiny CSRF form per direction,
- * boundary-aware (no up arrow on the first row, no down arrow on the last).
- * The single implementation every reorderable admin table renders — each table
- * wraps it in its own cell (`<td>`, `<span class="reorder">`, …).
+ * Shared reorder controls for one row of an ordered list. The up arrow is a
+ * tiny CSRF form that moves the row before the row above. The down arrow
+ * moves it after the row below. The drag handle uses the same two routes, or
+ * keeps the order in the page. The admin bundle shows it in place of the
+ * arrows.
  */
 
-import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
+import { t } from "#i18n";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import type { MovePlace } from "#shared/reorder.ts";
 
-/** The reorder inputs shared by {@link ReorderArrows} and the per-table cells
- *  that wrap it (for example, `ReorderControls` in questions.tsx): a
- *  direction-to-path builder plus the row's `index` within `count` rows. */
-export type ReorderDirection = "up" | "down";
-
+/** The reorder inputs for one row: its path and its own anchor. It also
+ *  holds the anchors of the rows above and below, which the ends lack. */
 export type ReorderProps = {
-  action: (direction: ReorderDirection) => string;
-  index: number;
-  count: number;
+  path: string;
+  anchor: string;
+  above: string | undefined;
+  below: string | undefined;
 };
 
-/** The triangle glyph rendered on each direction's arrow button. */
-const ARROW_GLYPH = { down: "▼", up: "▲" } as const;
+/** The anchors of the rows above and below the row at `index`. */
+export const neighbourAnchors = <T,>(
+  rows: readonly T[],
+  index: number,
+  anchorOf: (row: T) => string,
+): Pick<ReorderProps, "above" | "below"> => {
+  const at = (position: number): string | undefined => {
+    const row = rows[position];
+    return row === undefined ? undefined : anchorOf(row);
+  };
+  return { above: at(index - 1), below: at(index + 1) };
+};
 
-/** One direction's reorder button — a tiny inline CSRF form. Rendered only
- *  when the row can actually move that way (see {@link ReorderArrows}). */
-const ArrowButton = ({
-  action,
-  direction,
-  title,
-}: {
-  action: (direction: ReorderDirection) => string;
-  direction: ReorderDirection;
+/** The triangle glyph each arrow shows, keyed by where it moves the row. */
+const ARROW_GLYPH: Record<MovePlace, string> = { after: "▼", before: "▲" };
+
+/** The move route for one place. */
+export const moveAction = (path: string, place: MovePlace): string =>
+  `${path}/move-${place}`;
+
+/** What one arrow needs: where it moves the row, and beside which row. */
+type ArrowProps = {
+  anchor: string;
+  path: string;
+  place: MovePlace;
   title?: string | undefined;
-}): JSX.Element => (
-  <InlineFormButton action={action(direction)} title={title}>
-    {ARROW_GLYPH[direction]}
-  </InlineFormButton>
+};
+
+/** One arrow on its own: a tiny CSRF form that moves the row beside
+ *  `anchor`. */
+const ArrowForm = ({ anchor, path, place, title }: ArrowProps): JSX.Element => (
+  <CsrfForm action={moveAction(path, place)} class="inline">
+    <input name="anchor" type="hidden" value={anchor} />
+    <button class="link-button small" title={title} type="submit">
+      {ARROW_GLYPH[place]}
+    </button>
+  </CsrfForm>
 );
 
-/** The arrows for the row at `index` of `count`. `action` builds the POST path
- * for a direction. `titles`, when given, adds a tooltip per arrow. */
-export const ReorderArrows = ({
-  action,
-  index,
-  count,
-  titles,
-}: ReorderProps & {
-  titles?: { up: string; down: string };
-}): JSX.Element => (
-  <>
-    {index > 0 && (
-      <ArrowButton action={action} direction="up" title={titles?.up} />
-    )}{" "}
-    {index < count - 1 && (
-      <ArrowButton action={action} direction="down" title={titles?.down} />
-    )}
-  </>
+/** One arrow inside a form that holds the row: a button that sends that
+ *  form, with its CSRF token, to the move route instead. */
+const ArrowButton = ({
+  anchor,
+  path,
+  place,
+  title,
+}: ArrowProps): JSX.Element => (
+  <button
+    class="link-button small"
+    formaction={moveAction(path, place)}
+    name="anchor"
+    title={title}
+    type="submit"
+    value={anchor}
+  >
+    {ARROW_GLYPH[place]}
+  </button>
 );
+
+/** Where the row sits: on its own, or inside a form of its own (which a form
+ *  of an arrow must not nest in). */
+export type ReorderSetting = "alone" | "inForm";
+
+const ARROW: Record<ReorderSetting, (props: ArrowProps) => JSX.Element> = {
+  alone: ArrowForm,
+  inForm: ArrowButton,
+};
+
+/** The handle that picks up a row to drag. The styles show it once the admin
+ *  bundle runs, so a page without scripts offers the arrows only. A row that
+ *  the server stores on a drop names its own anchor and path. A row that the
+ *  page keeps in order needs neither. */
+export const DragHandle = ({
+  anchor,
+  path,
+}: Partial<Pick<ReorderProps, "anchor" | "path">>): JSX.Element => (
+  <button
+    class="reorder-handle"
+    data-sortable-anchor={anchor}
+    data-sortable-handle
+    data-sortable-path={path}
+    tabindex="-1"
+    title={t("common.reorder_handle")}
+    type="button"
+  >
+    ⠿
+  </button>
+);
+
+/** The drag handle and the arrows for one row. The styles hide the arrows
+ *  once the admin bundle runs. */
+export const ReorderArrows = ({
+  above,
+  anchor,
+  below,
+  path,
+  setting = "alone",
+}: ReorderProps & { setting?: ReorderSetting }): JSX.Element => {
+  const Arrow = ARROW[setting];
+  return (
+    <>
+      <DragHandle anchor={anchor} path={path} />
+      <span class="reorder-arrows">
+        {above !== undefined && (
+          <Arrow
+            anchor={above}
+            path={path}
+            place="before"
+            title={t("common.reorder_up")}
+          />
+        )}{" "}
+        {below !== undefined && (
+          <Arrow
+            anchor={below}
+            path={path}
+            place="after"
+            title={t("common.reorder_down")}
+          />
+        )}
+      </span>
+    </>
+  );
+};

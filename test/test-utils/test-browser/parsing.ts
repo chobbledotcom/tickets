@@ -35,9 +35,7 @@ const ANY_ENTITY = new RegExp([...ENTITIES.keys()].join("|"), "g");
  * `&times;` means — a page escaped twice must not read as if it were right.
  */
 export const decodeEntities = (text: string): string =>
-  text.replace(ANY_ENTITY, (entity) =>
-    requiredMapValue(ENTITIES, entity, `No character for ${entity}`),
-  );
+  text.replace(ANY_ENTITY, (entity) => requiredMapValue(ENTITIES, entity));
 
 /** One region of a page, from its opening marker to where it closes. A page
  * that renders no such region is a loud failure. */

@@ -22,11 +22,7 @@ export const packageQuantityLimit = (
 ): number => {
   const perPackageQty = nodeFixedQuantity;
   const ownLimit = (node: BookingNode): number => {
-    const own = requiredMapValue(
-      listingById,
-      node.listingId,
-      `Listing ${node.listingId} missing`,
-    ).maxPurchasable;
+    const own = requiredMapValue(listingById, node.listingId).maxPurchasable;
     const childLimit = childLimitByListingId.get(node.listingId);
     const tickets = childLimit === undefined ? own : Math.min(own, childLimit);
     return Math.floor(tickets / perPackageQty(node));
@@ -52,11 +48,7 @@ export const packageQuantityLimit = (
     limit = Math.min(
       limit,
       ticketsThatFitInPool(
-        requiredMapValue(
-          groupRemainingByGroupId,
-          groupId,
-          `Group ${groupId} missing`,
-        ),
+        requiredMapValue(groupRemainingByGroupId, groupId),
         ticketsNeeded,
       ),
     );

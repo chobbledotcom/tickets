@@ -39,19 +39,11 @@ export const confirmRefund = async (
   );
   const target = attendeeNotes(refund.attendee.id);
   const confirmation = t("note.placeholder_refund_confirmed");
-  const sessionIds = requiredMapValue(
-    refund.claim.held,
-    refund.attendee.id,
-    `Refund confirmation lost attendee ${refund.attendee.id}'s claim`,
-  );
+  const sessionIds = requiredMapValue(refund.claim.held, refund.attendee.id);
   const phases = new Map(
     sessionIds.map((sessionId) => [
       sessionId,
-      requiredMapValue(
-        refund.claim.phases,
-        sessionId,
-        "Refund confirmation lost a payment-row phase",
-      ),
+      requiredMapValue(refund.claim.phases, sessionId),
     ]),
   );
 

@@ -63,6 +63,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   slug: "ab12c",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   slugIndex: "test-listing-index" as BlindIndex,
+  sortOrder: 0,
   thankYouUrl: "https://example.com/thanks",
   ticketsCount: 0,
   unitPrice: 0,

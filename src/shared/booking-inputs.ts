@@ -44,7 +44,8 @@ const PAYMENT_SCHEMA = v.object({
   amount: v.pipe(v.number(), v.check(isPositiveSafeInteger)),
 });
 
-/** One adjustment's refusal, or the validated entry. */
+/** One adjustment's refusal, or the validated entry. A taxable adjustment is a
+ *  charge that the tax counts, so it must bill the attendee. */
 const parseAdjustment = (
   item: unknown,
   at: string,
@@ -52,7 +53,7 @@ const parseAdjustment = (
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
     return errorResult(`${at} must name a description and an amount`);
   }
-  const { amount, description } = item as Record<string, unknown>;
+  const { amount, description, taxable } = item as Record<string, unknown>;
   if (typeof description !== "string" || description === "") {
     return errorResult(`${at}.description must be text`);
   }
@@ -66,7 +67,16 @@ const parseAdjustment = (
       `${at}.amount must be a whole number of pence or cents, not zero`,
     );
   }
-  return okResult({ amount, description });
+  if (taxable === undefined) return okResult({ amount, description });
+  if (typeof taxable !== "boolean") {
+    return errorResult(`${at}.taxable must be true or false`);
+  }
+  if (taxable && amount < 0) {
+    return errorResult(
+      `${at}.taxable only applies to a charge, not a writeoff`,
+    );
+  }
+  return okResult({ amount, description, taxable });
 };
 
 /** Parse every element of an optional array, or the first refusal. Absent
@@ -109,11 +119,12 @@ export const parseAdjustments = (raw: unknown): Result<CreateAdjustment[]> =>
 /** The money a body records: the payments received and the named adjustments,
  *  or the first refusal. The create and the update read it the same way. */
 export const parseReceipts = (
-  body: Record<string, unknown>,
+  rawPayments: unknown,
+  rawAdjustments: unknown,
 ): Result<CreateReceipts> => {
-  const payments = parsePayments(body.payments);
+  const payments = parsePayments(rawPayments);
   if (!payments.ok) return payments;
-  const adjustments = parseAdjustments(body.adjustments);
+  const adjustments = parseAdjustments(rawAdjustments);
   if (!adjustments.ok) return adjustments;
   return okResult({
     adjustments: adjustments.value,

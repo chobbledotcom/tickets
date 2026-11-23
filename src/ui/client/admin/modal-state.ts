@@ -38,11 +38,7 @@ const resizeModals = (
 ): readonly ModalState[] => {
   let resized: ModalState[] | undefined;
   for (const [index, state] of states.entries()) {
-    const size = requiredMapValue(
-      event.sizes,
-      state.key,
-      `Missing modal size: ${state.key}`,
-    );
+    const size = requiredMapValue(event.sizes, state.key);
     const point = clampModalPosition(state.point, size, event.viewport);
     if (point.left !== state.point.left || point.top !== state.point.top) {
       resized ??= [...states];

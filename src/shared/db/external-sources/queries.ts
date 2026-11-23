@@ -26,6 +26,7 @@ import { type ExternalLinkTarget, externalLinkTargets } from "./target.ts";
 import type {
   ExternalLinkFilter,
   ExternalLinkInput,
+  ExternalLinkKind,
   ExternalLinkWrite,
   ExternalSource,
   ExternalSourceLink,
@@ -153,41 +154,70 @@ export const requireExternalSourceLink = async (
     `External source link ${linkId} is missing from source ${sourceId}`,
   );
 
-/** The two stored facts that refuse a link write, read in one round trip. A
- *  write with no external id skips the duplicate check: the index is empty. */
-type LinkWriteFacts = { duplicate: number; target_missing: number };
+/** Why a link write is refused, and the status the API answers with. */
+export type LinkRefusal = { message: string; status: 400 | 409 };
 
-/** A create passes 0 for the row it does not replace. No stored id is 0. */
+/** The refusal for an external id that the source already links to a record. */
+export const externalIdHeldRefusal = (
+  linkType: ExternalLinkKind,
+  linkId: number,
+): LinkRefusal => ({
+  message: `This source already links that external id to ${linkType} ${linkId}`,
+  status: 409,
+});
+
+/** The stored facts that refuse a link write, read in one round trip. The
+ *  conflict is the oldest other link at this source that holds the same
+ *  external id. A write with no external id has none: the index is empty. */
+type LinkWriteFacts = {
+  conflict_id: number | null;
+  conflict_type: ExternalLinkKind | null;
+  target_missing: number;
+};
+
+/** The oldest other link at the source that holds the write's external id. A
+ *  create passes 0 for the row it does not replace. No stored id is 0. */
+const holderOfExternalId = (
+  input: ExternalLinkInput,
+  excludingId: number,
+): SqlStatement => sql`FROM external_source_links AS existingLink
+         WHERE existingLink.source_id = ${input.sourceId}
+           AND existingLink.external_id_index = ${input.externalIdIndex}
+           AND existingLink.id != ${excludingId}
+         ORDER BY existingLink.id
+         LIMIT 1`;
+
 const linkWriteFactsStatement = (
   input: ExternalLinkInput,
   excludingId: number,
 ): SqlStatement => {
-  const duplicate =
+  const holder =
     input.externalIdIndex === null
-      ? sql`0`
-      : sql`EXISTS (
-        SELECT 1 FROM external_source_links AS existingLink
-         WHERE existingLink.source_id = ${input.sourceId}
-           AND existingLink.external_id_index = ${input.externalIdIndex}
-           AND existingLink.link_type = ${input.linkType}
-           AND existingLink.link_id = ${input.linkId}
-           AND existingLink.id != ${excludingId}
-      )`;
+      ? null
+      : holderOfExternalId(input, excludingId);
+  const conflictType =
+    holder === null
+      ? sql`NULL`
+      : sql`(SELECT existingLink.link_type ${holder})`;
+  const conflictId =
+    holder === null ? sql`NULL` : sql`(SELECT existingLink.link_id ${holder})`;
   return sql`SELECT
-      ${duplicate} AS duplicate,
+      ${conflictType} AS conflict_type,
+      ${conflictId} AS conflict_id,
       NOT ${externalLinkTargets.existsSql(input.linkType, input.linkId)} AS target_missing`;
 };
 
 /** The columns to store for a link write, or the reason it cannot be stored.
- *  The reason names a missing target record, or an external id the source
- *  already holds. The facts read runs inside the write transaction, so a delete
- *  cannot land between the check and the write. */
+ *  The reason names a missing target record, or the record that the source
+ *  already links to that external id. One source holds one external id for one
+ *  record. The facts read runs inside the write transaction, so no other write
+ *  can land between the check and the store. */
 const prepareLinkWrite = async (
   tx: TxScope,
   sourceId: number,
   write: ExternalLinkWrite,
   excludingId: number,
-): Promise<Result<ExternalLinkInput>> => {
+): Promise<Result<ExternalLinkInput, LinkRefusal>> => {
   const input: ExternalLinkInput = {
     externalId: write.externalId,
     externalIdIndex:
@@ -204,11 +234,17 @@ const prepareLinkWrite = async (
     "The external link write facts query returned no row",
   );
   if (stored.target_missing === 1) {
-    return errorResult(`No ${write.linkType} has id ${write.linkId}`);
+    return errorResult({
+      message: `No ${write.linkType} has id ${write.linkId}`,
+      status: 400,
+    });
   }
-  if (stored.duplicate === 1) {
+  if (stored.conflict_id !== null) {
     return errorResult(
-      "This source already links that record to that external id",
+      externalIdHeldRefusal(
+        requireValue(stored.conflict_type, "A held external id has no type"),
+        stored.conflict_id,
+      ),
     );
   }
   return okResult(input);
@@ -221,7 +257,7 @@ const withPreparedLinkWrite = <T>(
   write: ExternalLinkWrite,
   excludingId: number,
   store: (tx: TxScope, input: ExternalLinkInput) => Promise<T>,
-): Promise<Result<T>> =>
+): Promise<Result<T, LinkRefusal>> =>
   withTransaction(async (tx) => {
     const prepared = await prepareLinkWrite(tx, sourceId, write, excludingId);
     if (!prepared.ok) return errorResult(prepared.error);
@@ -231,7 +267,7 @@ const withPreparedLinkWrite = <T>(
 export const createExternalSourceLink = (
   sourceId: number,
   write: ExternalLinkWrite,
-): Promise<Result<ExternalSourceLink>> =>
+): Promise<Result<ExternalSourceLink, LinkRefusal>> =>
   withPreparedLinkWrite(sourceId, write, 0, async (tx, input) => {
     // A write needs no session, so it must not open the value it sealed.
     // The row is the input, plus the keys that SQLite made.
@@ -254,7 +290,7 @@ export const createExternalSourceLink = (
 export const updateExternalSourceLink = (
   link: ExternalSourceLink,
   write: ExternalLinkWrite,
-): Promise<Result<true>> =>
+): Promise<Result<true, LinkRefusal>> =>
   withPreparedLinkWrite<true>(
     link.sourceId,
     write,

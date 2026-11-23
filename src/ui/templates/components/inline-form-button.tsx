@@ -1,6 +1,6 @@
 /**
- * A tiny inline form with one small text button — the shape shared by the
- * reorder arrows and per-row actions like "remove". Posting through a form
+ * A tiny inline form with one small text button, for per-row actions like
+ * "remove". Posting through a form
  * keeps every state-changing action a CSRF-checked POST, never a bare link.
  */
 

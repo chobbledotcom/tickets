@@ -1,7 +1,8 @@
 /** Body parsing for POST /api/admin/attendees. It validates the create
  * request: contact PII, at least one booking line, the payments already
  * received, the named one-off adjustments, and the buyer's answers. Each line
- * can carry an optional agreed per-unit price. Pure data-in/data-out. The
+ * can carry an optional agreed per-unit price. The `notifications` flag says
+ * whether the booking owes its email and webhooks. Pure data-in/data-out. The
  * route owns the writes. */
 
 import * as v from "valibot";
@@ -24,6 +25,7 @@ import {
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import type { CreateAdjustment } from "#shared/checkout-complete.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { parseArray, requireStrings } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
@@ -45,6 +47,12 @@ import {
   type ListingWithCount,
   MAX_DURATION_DAYS,
 } from "#types";
+import type { AttendeeBody } from "./api-attendee-body.ts";
+
+import {
+  type ApiExternalLink,
+  parseExternalLink,
+} from "./api-attendees-external.ts";
 
 /** One validated booking line: its listing, the quantities the caller chose,
  * and the optional per-unit price override (minor units) they agreed. */
@@ -74,7 +82,13 @@ export type ParsedApiCreate = ContactInfo & {
   /** The business time the booking happened, when the caller stamps a
    * historical one. Absent means now at insert. */
   created: string | undefined;
+  /** The external source and id the attendee is stored under, when the body
+   * names one. */
+  externalLink: ApiExternalLink | undefined;
   lines: ApiLine[];
+  /** False for an imported booking: it owes no buyer email and fires no
+   * webhook. True is the default. */
+  notifications: boolean;
   payments: number[];
   statusId: number;
   ticketToken: string | undefined;
@@ -114,13 +128,10 @@ const optionalContactField = (
 };
 
 /** The contact block's refusal, or the validated contact fields. */
-export const parseContact = (
-  body: Record<string, unknown>,
-): Result<ContactInfo> => {
-  const name = body.name;
-  if (typeof name !== "string" || name === "") {
-    return errorResult("name is required");
-  }
+export const parseContact = (body: AttendeeBody): Result<ContactInfo> => {
+  const required = requireStrings({ name: body.name }, ["name"]);
+  if (!required.ok) return required;
+  const { name } = required.value;
   const nameError = validateName(name);
   if (nameError) return errorResult(nameError);
   const email = optionalContactField(body.email, "email", validateEmail);
@@ -228,6 +239,14 @@ const parseCreated = (raw: unknown): Result<string | undefined> => {
     : errorResult("created must be a valid instant as 2026-09-01T09:00:00Z");
 };
 
+/** Whether the booking owes its notifications. An absent value keeps the
+ *  default (true). Only a real boolean is accepted, so a typo never silences
+ *  a booking by accident. */
+const parseNotifications = (raw: unknown): Result<boolean> =>
+  raw === undefined || typeof raw === "boolean"
+    ? okResult(raw ?? true)
+    : errorResult("notifications must be true or false");
+
 /** The status a create body asks for. A named status resolves by name. When
  * the body names none, the attendee takes the public default, the same
  * coercion the manual-add form makes. A site with no public default is a
@@ -246,15 +265,17 @@ export const resolveStatusId = (
 };
 
 /** One JSON body read: the parsed value, or the field refusal. */
-type BodyRead<Parsed> = (
-  body: Record<string, unknown>,
-) => Promise<Result<Parsed>>;
+type BodyRead<Parsed> = (body: AttendeeBody) => Promise<Result<Parsed>>;
 
-/** The status and retry token a body asks for, or the refusal. */
+/** The status, retry token, and notification choice a body asks for, or the
+ *  refusal. */
 const parseStatusAndToken: BodyRead<{
+  notifications: boolean;
   statusId: number;
   ticketToken: string | undefined;
 }> = async (body) => {
+  const notifications = parseNotifications(body.notifications);
+  if (!notifications.ok) return notifications;
   const status = body.status;
   if (status !== undefined && (typeof status !== "string" || status === "")) {
     return errorResult("status must be text");
@@ -281,6 +302,7 @@ const parseStatusAndToken: BodyRead<{
   const statusId = resolveStatusId(status as string | undefined, statuses);
   if (!statusId.ok) return statusId;
   return okResult({
+    notifications: notifications.value,
     statusId: statusId.value,
     ticketToken: ticketToken as string | undefined,
   });
@@ -399,22 +421,18 @@ export const parseAnswers = async (
  * from the database once and shared across the lines. */
 const parseLines = async (linesRaw: unknown[]): Promise<Result<ApiLine[]>> => {
   const listingsById = await getListingsById();
-  const lines: ApiLine[] = [];
-  for (const [index, rawLine] of linesRaw.entries()) {
-    const parsed = parseLine(rawLine, listingsById, index);
-    if (!parsed.ok) return parsed;
-    lines.push(parsed.value);
-  }
-  return okResult(lines);
+  return parseArray("lines", (rawLine, index) =>
+    parseLine(rawLine, listingsById, index),
+  )(linesRaw);
 };
 
 /** The raw lines of a body, or the refusal for a `lines` value that is not a
  *  non-empty array. */
 export const readLinesArray = (linesRaw: unknown): Result<unknown[]> => {
-  if (!Array.isArray(linesRaw)) return errorResult("lines must be an array");
-  return linesRaw.length === 0
+  const lines = parseArray("lines", okResult)(linesRaw);
+  return lines.ok && lines.value.length === 0
     ? errorResult("Add at least one booking line")
-    : okResult(linesRaw);
+    : lines;
 };
 
 /** The validated lines of a body whose `lines` is a non-empty array. Two
@@ -448,7 +466,9 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   if (!statusAndToken.ok) return statusAndToken;
   const created = parseCreated(body.created);
   if (!created.ok) return created;
-  const receipts = parseReceipts(body);
+  const externalLink = await parseExternalLink(body);
+  if (!externalLink.ok) return externalLink;
+  const receipts = parseReceipts(body.payments, body.adjustments);
   if (!receipts.ok) return receipts;
 
   const linesResult = await parseCheckedLines(linesArray.value);
@@ -462,7 +482,9 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
     adjustments: receipts.value.adjustments,
     answers: answers.value,
     created: created.value,
+    externalLink: externalLink.value,
     lines,
+    notifications: statusAndToken.value.notifications,
     payments: receipts.value.payments,
     statusId: statusAndToken.value.statusId,
     ticketToken: statusAndToken.value.ticketToken,

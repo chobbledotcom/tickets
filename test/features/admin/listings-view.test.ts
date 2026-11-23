@@ -90,7 +90,7 @@ describeWithEnv("listing detail group context", { db: true }, () => {
 
     await expect(
       loadGroupContext(listing, null, async () => new Map()),
-    ).rejects.toThrow("Missing group remaining");
+    ).rejects.toThrow(/^Missing map key \d+$/);
   });
 });
 

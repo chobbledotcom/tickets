@@ -220,13 +220,13 @@ describe("entryAnswerLines", () => {
 
   test("throws for an attendee the loader never filled", () => {
     expect(() => entryAnswerLines(new Map())(entry)).toThrow(
-      "Missing answers for attendee 9",
+      "Missing map key 9",
     );
   });
 
   test("throws for a listing the loader never filled", () => {
     expect(() => entryAnswerLines(new Map([[9, new Map()]]))(entry)).toThrow(
-      "Missing answers for attendee 9 on listing 3",
+      "Missing map key 3",
     );
   });
 });

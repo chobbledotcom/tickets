@@ -40,7 +40,7 @@ import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom, insertInto } from "#db/write.ts";
-import { groupToMap, unique } from "#fp";
+import { groupToMap, requiredMapValue, unique } from "#fp";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import type { PickerImage } from "#shared/images/picker.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -267,7 +267,9 @@ export const missingImageUseTargets = async (
       .map((target) => target.id);
     found.set(kind, await txIdSetInTable(imageUseTables[kind])(tx, ids));
   }
-  return targets.filter((target) => !found.get(target.kind)!.has(target.id));
+  return targets.filter(
+    (target) => !requiredMapValue(found, target.kind).has(target.id),
+  );
 };
 
 const imageUseOrder = defineOrderedCollection({
@@ -275,6 +277,13 @@ const imageUseOrder = defineOrderedCollection({
   scope: ["item_type", "item_id"] as const,
   table: "image_uses",
 });
+
+/** Store the order of one record's images. */
+export const arrangeItemImages = (
+  target: ImageUseTarget,
+  imageIds: readonly number[],
+): Promise<void> =>
+  imageUseOrder.arrange({ keys: imageIds, scope: [target.kind, target.id] });
 
 /**
  * The insert that links an image to a record, ignoring a link already there.

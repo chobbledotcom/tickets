@@ -4,6 +4,15 @@ type Chromium = typeof chromium;
 
 const SCREENSHOT_LAUNCH_ARGS = ["--disable-features=CDPScreenshotNewSurface"];
 
+/** The browser must not inherit the shell's library path. The Nix Chromium
+ *  wrapper sets its own path, and a shell path from another profile can put
+ *  an older glibc in front of the Chromium's dependencies. */
+const browserEnvironment = (): Record<string, string> => {
+  const env = Deno.env.toObject();
+  delete env.LD_LIBRARY_PATH;
+  return env;
+};
+
 export const browserLaunchOptions = (
   headless: boolean,
   executablePath?: string,
@@ -11,6 +20,7 @@ export const browserLaunchOptions = (
 ): LaunchOptions => ({
   ...(args ? { args } : {}),
   ...(executablePath ? { executablePath } : {}),
+  env: browserEnvironment(),
   headless,
 });
 

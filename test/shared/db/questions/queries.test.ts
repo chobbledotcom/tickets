@@ -43,7 +43,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const { q1, q2 } = await createOrderedQuestionPair("A1", "A2");
 
       // Put q2 ahead of q1 globally.
-      await questionsOrder.swap({ first: q1.id, second: q2.id });
+      await questionsOrder.arrange({ keys: [q2.id, q1.id] });
 
       const listing = await createTestListing();
       await listingQuestions.setIds(listing.id, [q1.id, q2.id]);

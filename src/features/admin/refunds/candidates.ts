@@ -70,11 +70,7 @@ export const getRefundCandidates = async (
   );
   const referenceSets = ticketHolders.map((attendee) => ({
     attendee,
-    set: requiredMapValue(
-      referencesByAttendee,
-      attendee.id,
-      `Refund references omitted attendee ${attendee.id}`,
-    ),
+    set: requiredMapValue(referencesByAttendee, attendee.id),
   }));
   const completeSets = referenceSets.flatMap(({ attendee, set }) =>
     set.kind === "complete" ? [{ attendee, references: set.references }] : [],

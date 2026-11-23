@@ -26,7 +26,11 @@ import {
   computeReservationDeposit,
 } from "#shared/reservation-amount.ts";
 import { assessTax, taxBasisLines } from "#shared/tax/assessment.ts";
-import type { TaxAssessment, TaxBasis, TaxPolicy } from "#shared/tax/types.ts";
+import type {
+  TaxAssessment,
+  TaxBasisInput,
+  TaxPolicy,
+} from "#shared/tax/types.ts";
 
 /** One ticket line and the amount charged per unit (deposit- and
  * discount-aware). A single cart item can split into several lines when a
@@ -109,12 +113,15 @@ export type ListPriceLine = {
 /** The gross order for a booking an operator records directly. The manual-add
  *  form and the admin JSON API create share it. Every line is at the listing's
  *  list price (or the caller's override), with no extras and a zero total.
+ *  `taxableCharges` are one-off amounts, such as delivery, that the tax counts
+ *  with the lines. Their own legs post with the receipts.
  *  `owedOrderForLedger` and `bookingFactsFromOrder` recognise each line's
  *  gross as a `sale` leg (income) with no `payment` or `fee` leg. The caller
  *  reconciles any already-paid portion on top. */
 export const listPriceOrder = (
   lines: ListPriceLine[],
   taxPolicy: TaxPolicy = settings.tax,
+  taxableCharges: readonly number[] = [],
 ): PricedOrder => ({
   extras: [],
   lines: lines.map((line): PricedLine => {
@@ -134,6 +141,7 @@ export const listPriceOrder = (
   modifierApplications: [],
   tax: assessTax(
     {
+      charges: taxableCharges.map((gross) => ({ gross })),
       lines: taxBasisLines(
         sumByKey(
           (line: ListPriceLine) => line.listing.id,
@@ -153,7 +161,7 @@ export const listPriceOrder = (
  * so a re-assessment can never drift from the price the buyer was shown. */
 export const taxBasisOfOrder = (
   order: Pick<PricedOrder, "lines" | "modifierApplications">,
-): TaxBasis => ({
+): TaxBasisInput => ({
   lines: taxBasisLines(lineTotalsByListingId(order.lines, lineListPrice)),
   modifiers: order.modifierApplications.map(({ delta, modifierId }) => ({
     delta,

@@ -971,12 +971,6 @@
       "fields": ["currency"]
     }
   ],
-  "src/shared/tables/column.ts": [
-    {
-      "path": [{ "name": "ReorderColumnOptions" }, { "name": "titles" }],
-      "fields": ["down", "up"]
-    }
-  ],
   "src/shared/types.ts": [
     {
       "path": [{ "name": "NagItem" }],

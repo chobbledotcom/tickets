@@ -9,7 +9,6 @@ import {
 } from "#db/logistics.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { AttendeeAnswerSet } from "#db/questions/attendee-answers/save.ts";
-import { sum, sumOf } from "#fp";
 import { t } from "#i18n";
 import { saveAttendeeEdit } from "#routes/admin/attendee-edit-save.ts";
 import {
@@ -31,7 +30,7 @@ import { redirect } from "#routes/response.ts";
 import { createdBookingEntries } from "#shared/booking.ts";
 import {
   apiCreateLedgerPoster,
-  type CreateAdjustment,
+  remainingBalanceOf,
 } from "#shared/checkout-complete.ts";
 import type { TaxSavePlan } from "#shared/tax/save.ts";
 import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
@@ -90,19 +89,14 @@ export const applyCreate = async (
   // plus the payment and adjustment legs in the same create transaction. The
   // input carries the projected net as remainingBalance, so the attendee owes
   // the tax-inclusive total minus what was paid or written off.
-  const order = toLedgerOrder(parsed);
   const receipts = receiptsOf(parsed);
+  const order = toLedgerOrder(parsed, receipts.adjustments);
   const createResult = await attendeesApi.createAttendeeAtomic(
     {
       ...input,
       allowOverbook: true,
       emailPending: emailPendingForAdminLines(parsed.lines.map(adminLineSend)),
-      remainingBalance:
-        order.tax.total -
-        sum(receipts.payments) +
-        sumOf((adjustment: CreateAdjustment) => adjustment.amount)(
-          receipts.adjustments,
-        ),
+      remainingBalance: remainingBalanceOf(order, receipts),
       source: "admin",
     },
     apiCreateLedgerPoster(order, receipts),

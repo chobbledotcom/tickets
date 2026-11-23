@@ -10,7 +10,6 @@ import {
   executeBatch,
   queryAll,
   queryIdColumn,
-  queryOne,
   type TxScope,
 } from "#db/client.ts";
 import { linkTableSide } from "#db/link-table.ts";
@@ -145,21 +144,11 @@ const buildAttributeGroups = (
   ...reduce(
     (acc: Map<number, AttributeWithOptions>, row: JoinedAttributeRow) => {
       const group = acc.get(row.attribute_id) ?? {
-        ...requiredMapValue(
-          collected.attributes,
-          row.attribute_id,
-          `Attribute ${row.attribute_id} missing`,
-        ),
+        ...requiredMapValue(collected.attributes, row.attribute_id),
         options: [],
       };
       if (row.option_id !== null) {
-        group.options.push(
-          requiredMapValue(
-            collected.options,
-            row.option_id,
-            `Option ${row.option_id} missing`,
-          ),
-        );
+        group.options.push(requiredMapValue(collected.options, row.option_id));
       }
       return acc.set(row.attribute_id, group);
     },
@@ -207,9 +196,6 @@ export const {
   onPrimary: getAttributeWithOptionsOnPrimary,
   onReplica: getAttributeWithOptions,
 } = onReplicaAndPrimary(attributeJoinedSql, attributeFromRows);
-
-export const getAttributeId = async (id: number): Promise<number | null> =>
-  (await queryOne(records.attributes.byId(id).limit(1).pick("id")))?.id ?? null;
 
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
   queryIdColumn(from(tables.attributes).sortedBy("sortOrder", "id").pick("id"));

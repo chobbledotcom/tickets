@@ -20,7 +20,7 @@ import {
   taxStateInsert,
 } from "#shared/tax/store.ts";
 import { reassessTax } from "#shared/tax/transitions.ts";
-import { NO_TAX, type TaxBasis } from "#shared/tax/types.ts";
+import { NO_TAX, type TaxBasisInput } from "#shared/tax/types.ts";
 
 export type TaxSavePreview = {
   token: string;
@@ -36,7 +36,7 @@ export type TaxSavePlan = {
   after: SqlStatement[];
 };
 
-const originalBasis = (legs: readonly Transfer[]): TaxBasis => ({
+const originalBasis = (legs: readonly Transfer[]): TaxBasisInput => ({
   lines: legs
     .filter((leg) => leg.kind === KIND.sale && leg.destination.type === REVENUE)
     .map((leg) => ({

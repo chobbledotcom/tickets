@@ -88,6 +88,7 @@ export const formData = (
   selectedAnswerIds: [],
   selectedTextAnswers: new Map(),
   statuses: [],
+  taxEnabled: false,
   topWarnings: [],
   ...overrides,
 });

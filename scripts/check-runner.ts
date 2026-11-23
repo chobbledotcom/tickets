@@ -108,9 +108,60 @@ export const compareCounts = <F extends PerFileFinding>(input: {
   ];
 };
 
+/** What a per-file count check says about one file, in the words of its rule. */
+export interface RecordWords {
+  /** The problem when the file holds nothing and an entry remains. */
+  clean: string;
+  /** The problem when the count fell below its record. */
+  fewer: (count: number, recorded: number) => string;
+  /** The registry file, named in the fix for a stale entry. */
+  registry: string;
+  /** The command that records a fallen count. */
+  updateCommand: string;
+}
+
+/**
+ * One file's findings against its recorded count. The items past the count
+ * fail. A fallen count asks for its record. An entry for a file with no item
+ * asks for its deletion. One rule behind every per-file counts check, so the
+ * checks cannot drift apart.
+ */
+export const findingsPastRecord = <Item>(
+  file: string,
+  items: readonly Item[],
+  accepted: Counts,
+  words: RecordWords,
+  past: (item: Item) => PerFileFinding,
+): PerFileFinding[] => {
+  const recorded = accepted[file] ?? 0;
+  if (items.length === 0) {
+    return file in accepted
+      ? [
+          {
+            fix: `delete the entry in ${words.registry}`,
+            line: 1,
+            problem: words.clean,
+            rule: "stale-entry",
+          },
+        ]
+      : [];
+  }
+  if (items.length < recorded) {
+    return [
+      {
+        fix: `run \`${words.updateCommand}\` to record the count`,
+        line: 1,
+        problem: words.fewer(items.length, recorded),
+        rule: "improved",
+      },
+    ];
+  }
+  return items.slice(recorded).map(past);
+};
+
 /** The counts one rule holds in one file: a whole count per rule, never
  * negative. */
-const COUNTS_SCHEMA = v.record(v.string(), integerAtLeast(0));
+export const COUNTS_SCHEMA = v.record(v.string(), integerAtLeast(0));
 
 /** The shape a registry file holds: one entry per path. */
 const REGISTRY_SCHEMA = v.record(v.string(), COUNTS_SCHEMA);
@@ -282,7 +333,7 @@ type CountedFileRule = (
 ) => PerFileFinding[];
 
 /** Report one whole-tree check's findings in the house shape. */
-const reportFound = (
+export const reportFound = (
   output: CheckOutput,
   found: string[],
   words: CheckWords,

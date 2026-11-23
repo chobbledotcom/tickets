@@ -67,6 +67,14 @@ export const withRefundConfirmationFault = refusedWriteFault(
   "refund confirmation unavailable",
 );
 
+/** The write that stores an external source link refuses, so a create that
+ * rides a link write fails after its attendee row is in. */
+export const withExternalLinkWriteFault = refusedWriteFault(
+  "test_external_link_write_fault",
+  sql`INSERT ON external_source_links`,
+  "external link write refused",
+);
+
 const CONCURRENT_DOOR_DRAIN = "test_concurrent_door_drain";
 
 /** One place at the named booking line checks in the moment a queued

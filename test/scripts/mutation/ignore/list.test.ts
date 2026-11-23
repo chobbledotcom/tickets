@@ -6,6 +6,7 @@ import {
   loadIgnoreList,
   mutantKey,
   registryFilePath,
+  splitSuppressedMutants,
   suppresses,
   unconfirmedEntries,
 } from "#scripts/mutation/ignore.ts";
@@ -24,6 +25,27 @@ describe("mutation ignore list", () => {
     expect(suppresses(ignore, new Set(), file, mutant(12))).toBe(true);
     expect(suppresses(ignore, new Set([key]), file, mutant(12))).toBe(false);
     expect(suppresses(ignore, new Set(), file, mutant(13))).toBe(false);
+  });
+
+  test("splits a file's mutants into the suppressed and the ones still to test", () => {
+    const confirmed = mutant(12);
+    const unconfirmed = mutant(13);
+    const ignore = ignoreList([
+      mutantKey(file, confirmed),
+      mutantKey(file, unconfirmed),
+    ]);
+
+    expect(
+      splitSuppressedMutants(
+        [confirmed, unconfirmed, mutant(14)],
+        ignore,
+        new Set([mutantKey(file, unconfirmed)]),
+        file,
+      ),
+    ).toEqual({
+      active: [unconfirmed, mutant(14)],
+      suppressed: [confirmed],
+    });
   });
 
   test("judges an entry unconfirmed when its stamp predates the file's text", () => {

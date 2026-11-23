@@ -254,78 +254,67 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("move answer order", () => {
-    test("move-down swaps answer with next", async () => {
+    const answerOrderOn = async (qId: number): Promise<string[]> => {
+      const { getQuestionWithAnswers } = await import(
+        "#db/questions/queries.ts"
+      );
+      return (await getQuestionWithAnswers(qId))!.answers.map((a) => a.text);
+    };
+
+    test("move-after puts the answer after the next one", async () => {
       const qId = await createQuestion("Ordering Q");
       const aId1 = await addAnswer(qId, "First");
-      await addAnswer(qId, "Second");
+      const aId2 = await addAnswer(qId, "Second");
 
       const { response } = await adminFormPost(
-        `/admin/questions/${qId}/answers/${aId1}/move-down`,
-        {},
+        `/admin/questions/${qId}/answers/${aId1}/move-after`,
+        { anchor: String(aId2) },
       );
       await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer moved",
       )(response);
 
-      // Verify order changed
-      const getResp = await adminGet(`/admin/questions/${qId}`);
-      const body = await getResp.text();
-      const firstIdx = body.indexOf("Second");
-      const secondIdx = body.indexOf("First");
-      expect(firstIdx).toBeLessThan(secondIdx);
+      expect(await answerOrderOn(qId)).toEqual(["Second", "First"]);
     });
 
-    test("move-up swaps answer with previous", async () => {
+    test("move-before puts the answer before the one above", async () => {
       const qId = await createQuestion("Up Q");
-      await addAnswer(qId, "Alpha");
+      const aId1 = await addAnswer(qId, "Alpha");
       const aId2 = await addAnswer(qId, "Beta");
 
-      const { response } = await adminFormPost(
-        `/admin/questions/${qId}/answers/${aId2}/move-up`,
-        {},
+      await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId2}/move-before`,
+        {
+          anchor: String(aId1),
+        },
       );
-      await expectFlashRedirect(
-        `/admin/questions/${qId}`,
-        "Answer moved",
-      )(response);
 
-      const getResp = await adminGet(`/admin/questions/${qId}`);
-      const body = await getResp.text();
-      const betaIdx = body.indexOf("Beta");
-      const alphaIdx = body.indexOf("Alpha");
-      expect(betaIdx).toBeLessThan(alphaIdx);
+      expect(await answerOrderOn(qId)).toEqual(["Beta", "Alpha"]);
     });
 
-    test("move-up on first answer is a no-op", async () => {
-      const qId = await createQuestion("NoOp Q");
-      const aId1 = await addAnswer(qId, "Only");
-      const { response } = await adminFormPost(
-        `/admin/questions/${qId}/answers/${aId1}/move-up`,
-        {},
-      );
-      await expectFlashRedirect(
-        `/admin/questions/${qId}`,
-        "Answer moved",
-      )(response);
-    });
+    test("an anchor from another question changes nothing", async () => {
+      const qId = await createQuestion("Own Q");
+      const aId1 = await addAnswer(qId, "Mine");
+      await addAnswer(qId, "Also mine");
+      const otherId = await addAnswer(await createQuestion("Other Q"), "Not");
 
-    test("move-down on last answer is a no-op", async () => {
-      const qId = await createQuestion("Last Q");
-      const aId1 = await addAnswer(qId, "Only");
       const { response } = await adminFormPost(
-        `/admin/questions/${qId}/answers/${aId1}/move-down`,
-        {},
+        `/admin/questions/${qId}/answers/${aId1}/move-after`,
+        { anchor: String(otherId) },
       );
+
       await expectFlashRedirect(
         `/admin/questions/${qId}`,
-        "Answer moved",
+        "That list changed since you opened it. Please try the move again.",
+        false,
       )(response);
+      expect(await answerOrderOn(qId)).toEqual(["Mine", "Also mine"]);
     });
   });
 
-  describe("POST /admin/questions/:id/move-up and move-down", () => {
-    testRequiresAuth("/admin/questions/1/move-up", {
+  describe("POST /admin/questions/:id/move-before and move-after", () => {
+    testRequiresAuth("/admin/questions/1/move-before", {
       body: {},
       method: "POST",
     });
@@ -338,42 +327,31 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       return (await getAllQuestionsWithAnswers()).map((q) => q.text);
     };
 
-    test("move-down then move-up reorders the global list", async () => {
+    test("move-after then move-before reorders the global list", async () => {
       const firstId = await createQuestion("First");
-      await createQuestion("Second");
+      const secondId = await createQuestion("Second");
       expect(await questionOrder()).toEqual(["First", "Second"]);
 
-      const down = await adminFormPost(
-        `/admin/questions/${firstId}/move-down`,
-        {},
+      const after = await adminFormPost(
+        `/admin/questions/${firstId}/move-after`,
+        { anchor: String(secondId) },
       );
       await expectFlashRedirect(
         "/admin/questions",
         "Question moved",
-      )(down.response);
+      )(after.response);
       expect(await questionOrder()).toEqual(["Second", "First"]);
 
-      const up = await adminFormPost(`/admin/questions/${firstId}/move-up`, {});
-      expect(up.response.status).toBe(302);
+      await adminFormPost(`/admin/questions/${firstId}/move-before`, {
+        anchor: String(secondId),
+      });
       expect(await questionOrder()).toEqual(["First", "Second"]);
-    });
-
-    test("moving the last question down is a no-op", async () => {
-      await createQuestion("Alpha");
-      const lastId = await createQuestion("Beta");
-
-      const { response } = await adminFormPost(
-        `/admin/questions/${lastId}/move-down`,
-        {},
-      );
-      expect(response.status).toBe(302);
-      expect(await questionOrder()).toEqual(["Alpha", "Beta"]);
     });
 
     test("returns 404 for a non-existent question", async () => {
       const { response } = await adminFormPost(
-        "/admin/questions/999/move-up",
-        {},
+        "/admin/questions/999/move-before",
+        { anchor: "1" },
       );
       expectStatus(404)(response);
     });

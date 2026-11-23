@@ -44,12 +44,7 @@ type LoadGroupMembers = (
 const membersOf = (
   group: Group,
   membersByGroup: MembersByGroup,
-): readonly ListingWithCount[] =>
-  requiredMapValue(
-    membersByGroup,
-    group.id,
-    `Members missing for group ${group.id}`,
-  );
+): readonly ListingWithCount[] => requiredMapValue(membersByGroup, group.id);
 
 const activeMembersByGroup: LoadGroupMembers = (groupList) =>
   getListingsByGroupIds(
@@ -152,11 +147,7 @@ const bookablePackageIds = async (
     .filter((group) => {
       const members = membersOf(group, membersByGroup);
       if (members.length === 0) return false;
-      const rows = requiredMapValue(
-        rowsByGroup,
-        group.id,
-        `Package members missing for group ${group.id}`,
-      );
+      const rows = requiredMapValue(rowsByGroup, group.id);
       if (members.length < rows.length) return false;
       const ticketListings = members.map(toTicketListing);
       const maps = packageMemberMaps(rows);

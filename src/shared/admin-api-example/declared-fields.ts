@@ -20,7 +20,8 @@ import {
 } from "#shared/records/listing-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import type { FieldSpecs, KeyAccess } from "#shared/rest/field-specs.ts";
-import type { ExtraField, ValueForm } from "./field-docs.ts";
+import type { ExtraField, ExtraFieldMap, ValueForm } from "./field-docs.ts";
+import { listOfObjects } from "./value-forms.ts";
 
 /** The body keys a write takes beside its field list. */
 type ExtraFields<Body, Fields extends FieldSpecs> = Record<
@@ -48,10 +49,9 @@ const PACKAGE_MEMBER_KEYS = {
   quantity: true,
 } satisfies Record<keyof PackageMemberBody, true>;
 
-const PACKAGE_MEMBERS: ValueForm = {
-  form: "list_of",
-  of: { form: "object", names: Object.keys(PACKAGE_MEMBER_KEYS) },
-};
+const PACKAGE_MEMBERS: ValueForm = listOfObjects(
+  Object.keys(PACKAGE_MEMBER_KEYS),
+);
 
 const LISTING_EXTRA_FIELDS = {
   attribute_option_ids: ID_LIST,
@@ -70,7 +70,7 @@ const GROUP_EXTRA_FIELDS = {
  *  one. The server reads the same rules when it refuses a write. */
 export type DeclaredFields = {
   access: readonly KeyAccess[];
-  extras: Readonly<Record<string, ExtraField>>;
+  extras: ExtraFieldMap;
   fields: FieldSpecs;
 };
 

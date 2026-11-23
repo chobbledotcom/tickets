@@ -35,12 +35,8 @@ export const loadChildrenByParentId = async (
     ),
   );
   const hydratedById = new Map(hydrated.map((info) => [info.listing.id, info]));
-  return mappedChildrenByParentId(childrenByParent, (parentId, child) =>
-    requiredMapValue(
-      hydratedById,
-      child.id,
-      `Child ${child.id} of listing ${parentId} left the catalog`,
-    ),
+  return mappedChildrenByParentId(childrenByParent, (_parentId, child) =>
+    requiredMapValue(hydratedById, child.id),
   );
 };
 

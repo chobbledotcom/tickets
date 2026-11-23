@@ -234,7 +234,7 @@ export const submittedMembersCapErrorTx = async (
   const stateById = byId(states);
   for (const [listingId, quantity] of quantities) {
     const capError = await memberCapErrorTx(
-      requiredMapValue(stateById, listingId, `Listing ${listingId} missing`),
+      requiredMapValue(stateById, listingId),
       quantity,
     );
     if (capError) return capError;
@@ -333,11 +333,7 @@ const validateMembershipPairsWithChildStateTx = async (
   if (loaded.refusal) return { error: loaded.refusal, listingMissing: false };
   const listingById = byId(loaded.listings);
   for (const pair of pairs) {
-    const listing = requiredMapValue(
-      listingById,
-      pair.listingId,
-      `Listing ${pair.listingId} missing`,
-    );
+    const listing = requiredMapValue(listingById, pair.listingId);
     const hasChildren = hasChildrenByListingId.get(listing.id);
     const error = await oneMembershipErrorTx(
       hasChildren === undefined ? listing : { ...listing, hasChildren },

@@ -5,7 +5,6 @@ import {
   defineAdminRoutes,
   destinationRoutes,
   entityTabRoutes,
-  orderRoutes,
   recordRoutes,
 } from "#routes/admin/route-tables.ts";
 
@@ -144,17 +143,6 @@ describe("defineAdminRoutes", () => {
     ).toThrow(
       'No admin route is declared for "POST /admin/settings/never-declared"',
     );
-  });
-});
-
-describe("orderRoutes", () => {
-  test("binds the two move handlers under the row path", () => {
-    const down = () => new Response("down");
-    const up = () => new Response("up");
-    expect(orderRoutes("/admin/things/:id", { down, up })).toEqual({
-      "POST /admin/things/:id/move-down": down,
-      "POST /admin/things/:id/move-up": up,
-    });
   });
 });
 

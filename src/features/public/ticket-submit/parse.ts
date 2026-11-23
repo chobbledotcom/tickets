@@ -248,11 +248,7 @@ const refsByListing = (
       // silently drop from the signed metadata.
       answers.map((answer) => ({
         q: answer.questionId,
-        s: requiredMapValue(
-          stringIds,
-          answer.text,
-          `Question ${answer.questionId} answer text missing`,
-        ),
+        s: requiredMapValue(stringIds, answer.text),
       })),
     ]),
   );
