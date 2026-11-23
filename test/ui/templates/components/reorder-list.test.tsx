@@ -93,7 +93,7 @@ describe("reorder list components", () => {
     const html = countTable(ITEMS);
 
     expectIncludesAll(html, [
-      '<th class="col-reorder">Order</th><th>Thing</th><th class="col-quantity">Uses</th>',
+      '<th class="col-reorder"></th><th>Thing</th><th class="col-quantity">Uses</th>',
       '<a href="/things/1/edit">First</a>',
       '<td class="col-quantity">3</td>',
       '<tbody data-sortable="">',

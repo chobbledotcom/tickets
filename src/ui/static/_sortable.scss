@@ -1,17 +1,37 @@
-/* Drag to reorder: the handle beside the arrows of an ordered list. It shows
-   on hover, and always on a touch screen, which has no hover. `touch-action`
-   lets a finger drag the handle while the rest of the page still scrolls. */
+/* Drag to reorder: the handle beside the arrows of an ordered list. The
+   handle shows, and the arrows hide, once the script marks the list ready. So
+   a page without scripts offers the arrows only. The handle shows on hover,
+   and always on a touch screen, which has no hover. `touch-action` lets a
+   finger drag the handle while the rest of the page still scrolls. */
 .reorder-handle {
+  display: none;
   cursor: grab;
   touch-action: none;
-  border: none;
-  background: none;
   padding: 0 0.25rem;
   margin: 0;
   color: inherit;
   font-size: 1.1em;
   line-height: 1;
   opacity: 0;
+}
+
+/* The handle is a bare glyph. The element selector outranks the general
+   button rules, in every state. */
+button.reorder-handle,
+button.reorder-handle:hover,
+button.reorder-handle:active,
+button.reorder-handle:focus {
+  border: none;
+  background: none;
+  box-shadow: none;
+}
+
+[data-sortable-ready] .reorder-handle {
+  display: inline-block;
+}
+
+[data-sortable-ready] .reorder-arrows {
+  display: none;
 }
 
 [data-sortable] > :hover .reorder-handle,

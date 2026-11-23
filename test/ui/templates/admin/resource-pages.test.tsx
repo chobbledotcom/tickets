@@ -138,7 +138,7 @@ describe("admin resource page factory", () => {
       "Could not load widgets.",
       "Widgets loaded.",
       '<p data-list-intro="true">Manage synthetic widgets.</p>',
-      '<th class="col-reorder">Order</th><th>Name</th><th>Code</th>',
+      '<th class="col-reorder"></th><th>Name</th><th>Code</th>',
       '<a href="/admin/widgets/17/edit">Widget &amp; One</a>',
       "<td>W-17</td>",
       'action="/admin/widgets/17/move-after"',

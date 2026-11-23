@@ -3,7 +3,7 @@
  * that reports whether it changed a row.
  */
 
-import { execute } from "#db/client.ts";
+import { execute, type TxScope } from "#db/client.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 
 /** A guard that aborts its batch unless a condition holds. It inserts `row`,
@@ -13,9 +13,15 @@ export const abortUnless =
   (condition: SqlStatement): SqlStatement =>
     sql`INSERT INTO ${target} SELECT ${row} WHERE NOT (${condition})`;
 
+/** Run a guarded write inside an open transaction and report whether it
+ * changed a row. Zero rows means that the guard refused the write. */
+export const executeChangedRowIn = async (
+  tx: Pick<TxScope, "execute">,
+  statement: SqlStatement,
+): Promise<boolean> => (await tx.execute(statement)).rowsAffected > 0;
+
 /** Run a guarded write and report whether it changed a row. Zero rows means
  * that the guard refused the write: a replay, a race, or a row in another
  * state. */
-export const executeChangedRow = async (
-  statement: SqlStatement,
-): Promise<boolean> => (await execute(statement)).rowsAffected > 0;
+export const executeChangedRow = (statement: SqlStatement): Promise<boolean> =>
+  executeChangedRowIn({ execute }, statement);
