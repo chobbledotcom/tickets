@@ -7,6 +7,7 @@
  */
 
 import { toAdminListing } from "#routes/admin/api.ts";
+import { ATTENDEE_WRITE_FIELDS } from "#routes/admin/api-attendee-body.ts";
 import type { AdminApiAttendee } from "#routes/admin/api-attendees.ts";
 import type {
   CreateGroupBody,
@@ -47,6 +48,7 @@ import {
   shownFor,
 } from "./admin-api-example/endpoint-doc.ts";
 import { EXTERNAL_SOURCE_ENDPOINTS } from "./admin-api-example/external-sources.ts";
+import { extraFieldDocs } from "./admin-api-example/field-docs.ts";
 import { IMAGE_ENDPOINTS } from "./admin-api-example/images.ts";
 import { QUESTION_ENDPOINTS } from "./admin-api-example/questions.ts";
 import { SITE_PAGE_ENDPOINTS } from "./admin-api-example/site-pages.ts";
@@ -315,6 +317,9 @@ const attendeeExample = (access: WriteAccess): Record<string, unknown> =>
     new Set(featureClosedKeys(ATTENDEE_FEATURE_KEYS, access.features)),
   )(ADMIN_API_EXAMPLE_ATTENDEE);
 
+/** The fields of the two attendee writes. */
+const ATTENDEE_FIELD_DOCS = extraFieldDocs(ATTENDEE_WRITE_FIELDS, new Set());
+
 /** The answer of an attendee write: the stored attendee row. */
 const attendeeAnswer = (access: WriteAccess) =>
   json({ attendee: attendeeExample(access) });
@@ -395,7 +400,8 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
     ),
     {
       description:
-        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. Set notifications to false for an imported booking: it owes no email and fires no webhook. When notifications is absent, the booking owes its email and fires the listing's webhooks. An optional created stamps the business time the booking happened. An adjustment with taxable: true is a charge that the tax counts, such as delivery. An update refuses taxable.",
+        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. Set notifications to false for an imported booking: it owes no email and fires no webhook. When notifications is absent, the booking owes its email and fires the listing's webhooks. The body can name an external_source_id and an external_id, both or neither. The attendee and its link then save in one transaction, and a retry with the same external_id answers with the stored attendee. This needs the external sources feature. An optional created stamps the business time the booking happened. An adjustment with taxable: true is a charge that the tax counts, such as delivery. An update refuses taxable.",
+      fields: ATTENDEE_FIELD_DOCS.create,
       method: "POST",
       path: "/api/admin/attendees",
       request: json(ADMIN_API_ATTENDEE_CREATE_BODY),
@@ -404,6 +410,7 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
     {
       description:
         "Update a booking. Every field is optional, and a field the body leaves out keeps its stored value. lines is the complete set of booking lines, and a stored line that no line names is removed. payments and adjustments are the complete lists, in the create's shape: a receipt that is already stored adds nothing, and a receipt already stored as different money is refused. A line change moves no money. The ticketToken and created fields name the booking, so an update refuses both.",
+      fields: ATTENDEE_FIELD_DOCS.update,
       method: "PUT",
       path: "/api/admin/attendees/:attendeeId",
       request: json(ADMIN_API_ATTENDEE_UPDATE_BODY),

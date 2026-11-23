@@ -12,10 +12,11 @@ import type { ChosenImage } from "#shared/images/picker.ts";
 import { IMAGE_ORDERS } from "#shared/ordered-lists.ts";
 import type { ReorderColumnOptions } from "#shared/tables/column.ts";
 import { initListingImages } from "#src/ui/client/admin/listing-images.ts";
+import { SORTABLE_MOVED } from "#src/ui/client/admin/sortable.ts";
 import { ListingImagesField } from "#templates/admin/listings/listing-images.tsx";
 import { withEnv } from "#test-utils/env.ts";
 import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
-import { requireElement } from "#test-utils/happy-dom.ts";
+import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import {
   ADMIN_TEMPLATES,
   cleanup,
@@ -146,7 +147,12 @@ describe("the listing images field", () => {
       window.document,
       ".listing-images-item",
     );
-    expect(item.querySelector("span")).toBeNull();
+    expect(
+      [...item.querySelectorAll(".listing-images-order > *")].map(
+        (control) =>
+          `${control.className} ${control.getAttribute("data-sortable-path")}`,
+      ),
+    ).toEqual(["reorder-handle null"]);
     expect(item.querySelector("img")?.getAttribute("src")).toBe(
       "/image/seed-thumb.webp",
     );
@@ -181,9 +187,13 @@ describe("the listing images field", () => {
       IMAGE_ORDERS.listing.column(1),
     );
 
+    // The handle template stays, but a list that is not sortable never
+    // starts a drag.
+    const outsideTemplate = html.replace(/<template[\s\S]*?<\/template>/, "");
+
     expect(
       ["data-sortable", "move-before", "move-after"].filter((part) =>
-        html.includes(part),
+        outsideTemplate.includes(part),
       ),
     ).toEqual([]);
   });
@@ -245,6 +255,31 @@ describe("the listing images field", () => {
     ).click();
 
     expect(imageIdValues(window)).toEqual(["2"]);
+  });
+
+  test("gives a chosen picture a drag handle, and a drop puts its input where its card now sits", async () => {
+    const { window } = await mounted([twoImageList()]);
+    chose(window, "Zebra");
+    chose(window, "Alpha");
+    confirmSelection(window);
+    const list = requireElement<HTMLElement>(
+      window.document,
+      "[data-listing-images-selected]",
+    );
+    const [zebra, alpha] = [...list.children];
+
+    list.insertBefore(alpha!, zebra!);
+    fireEvent(list, new window.Event(SORTABLE_MOVED));
+
+    expect({
+      handles: attributesOf(window, ".reorder-handle", "title"),
+      ids: imageIdValues(window),
+      removes: removeLabels(window),
+    }).toEqual({
+      handles: ["Drag to change the order", "Drag to change the order"],
+      ids: ["2", "9"],
+      removes: ["Remove Alpha", "Remove Zebra"],
+    });
   });
 
   test("keeps the window open and marks an uploaded picture", async () => {

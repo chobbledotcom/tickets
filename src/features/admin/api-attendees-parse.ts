@@ -46,6 +46,12 @@ import {
   type ListingWithCount,
   MAX_DURATION_DAYS,
 } from "#types";
+import type { AttendeeBody } from "./api-attendee-body.ts";
+
+import {
+  type ApiExternalLink,
+  parseExternalLink,
+} from "./api-attendees-external.ts";
 
 /** One validated booking line: its listing, the quantities the caller chose,
  * and the optional per-unit price override (minor units) they agreed. */
@@ -75,6 +81,9 @@ export type ParsedApiCreate = ContactInfo & {
   /** The business time the booking happened, when the caller stamps a
    * historical one. Absent means now at insert. */
   created: string | undefined;
+  /** The external source and id the attendee is stored under, when the body
+   * names one. */
+  externalLink: ApiExternalLink | undefined;
   lines: ApiLine[];
   /** False for an imported booking: it owes no buyer email and fires no
    * webhook. True is the default. */
@@ -118,10 +127,8 @@ const optionalContactField = (
 };
 
 /** The contact block's refusal, or the validated contact fields. */
-export const parseContact = (
-  body: Record<string, unknown>,
-): Result<ContactInfo> => {
-  const required = requireStrings(body, ["name"]);
+export const parseContact = (body: AttendeeBody): Result<ContactInfo> => {
+  const required = requireStrings({ name: body.name }, ["name"]);
   if (!required.ok) return required;
   const { name } = required.value;
   const nameError = validateName(name);
@@ -257,9 +264,7 @@ export const resolveStatusId = (
 };
 
 /** One JSON body read: the parsed value, or the field refusal. */
-type BodyRead<Parsed> = (
-  body: Record<string, unknown>,
-) => Promise<Result<Parsed>>;
+type BodyRead<Parsed> = (body: AttendeeBody) => Promise<Result<Parsed>>;
 
 /** The status, retry token, and notification choice a body asks for, or the
  *  refusal. */
@@ -456,7 +461,9 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   if (!statusAndToken.ok) return statusAndToken;
   const created = parseCreated(body.created);
   if (!created.ok) return created;
-  const receipts = parseReceipts(body);
+  const externalLink = await parseExternalLink(body);
+  if (!externalLink.ok) return externalLink;
+  const receipts = parseReceipts(body.payments, body.adjustments);
   if (!receipts.ok) return receipts;
 
   const linesResult = await parseCheckedLines(linesArray.value);
@@ -470,6 +477,7 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
     adjustments: receipts.value.adjustments,
     answers: answers.value,
     created: created.value,
+    externalLink: externalLink.value,
     lines,
     notifications: statusAndToken.value.notifications,
     payments: receipts.value.payments,

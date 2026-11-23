@@ -108,7 +108,7 @@ describe("adminAttributesPage (writable list)", () => {
 
   test("renders the reorder column and move controls when writable", () => {
     // The reorder flag is on: the Order header and the move arrows both show.
-    assertStringIncludes(html(), '<th class="col-reorder">Order</th>');
+    assertStringIncludes(html(), '<th class="col-reorder"></th>');
     assertStringIncludes(html(), "/admin/attributes/1/move-after");
     assertStringIncludes(html(), "/admin/attributes/2/move-before");
   });
@@ -142,10 +142,7 @@ describe("adminAttributePage (detail)", () => {
   });
 
   test("shows the options reorder column when writable", () => {
-    assertStringIncludes(
-      withListings([]),
-      '<th class="col-reorder">Order</th>',
-    );
+    assertStringIncludes(withListings([]), '<th class="col-reorder"></th>');
   });
 
   test("falls back to a zero count for an option no listing uses", () => {
@@ -359,7 +356,7 @@ describe("attribute pages in read-only mode", () => {
     const html = adminAttributesPage([ATTRIBUTE], OWNER_SESSION);
     expectIncludesAll(html, ["Colour", 'href="/admin/attributes/1"']);
     assert(!html.includes('id="new-attribute"'));
-    assert(!html.includes('<th class="col-reorder">Order</th>'));
+    assert(!html.includes('<th class="col-reorder"></th>'));
     assert(!html.includes("/admin/attributes/1/move-"));
   });
 
@@ -374,7 +371,7 @@ describe("attribute pages in read-only mode", () => {
     assert(!html.includes("/admin/attributes/1/options/10/edit"));
     assert(!html.includes("/admin/attributes/1/delete"));
     assert(!html.includes("/options/10/move-"));
-    assert(!html.includes('<th class="col-reorder">Order</th>'));
+    assert(!html.includes('<th class="col-reorder"></th>'));
   });
 });
 

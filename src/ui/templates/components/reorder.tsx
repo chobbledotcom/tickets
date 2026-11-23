@@ -1,8 +1,9 @@
 /**
  * Shared reorder controls for one row of an ordered list. The up arrow is a
  * tiny CSRF form that moves the row before the row above. The down arrow
- * moves it after the row below. The drag handle uses the same two routes.
- * The admin bundle shows it, and a drop names the row it lands next to.
+ * moves it after the row below. The drag handle uses the same two routes, or
+ * keeps the order in the page. The admin bundle shows it in place of the
+ * arrows.
  */
 
 import { t } from "#i18n";
@@ -86,8 +87,29 @@ const ARROW: Record<ReorderSetting, (props: ArrowProps) => JSX.Element> = {
   inForm: ArrowButton,
 };
 
-/** The drag handle and the arrows for one row. The handle stays hidden until
- * the admin bundle runs, so a page without scripts offers the arrows only. */
+/** The handle that picks up a row to drag. The styles show it once the admin
+ *  bundle runs, so a page without scripts offers the arrows only. A row that
+ *  the server stores on a drop names its own anchor and path. A row that the
+ *  page keeps in order needs neither. */
+export const DragHandle = ({
+  anchor,
+  path,
+}: Partial<Pick<ReorderProps, "anchor" | "path">>): JSX.Element => (
+  <button
+    class="reorder-handle"
+    data-sortable-anchor={anchor}
+    data-sortable-handle
+    data-sortable-path={path}
+    tabindex="-1"
+    title={t("common.reorder_handle")}
+    type="button"
+  >
+    ⠿
+  </button>
+);
+
+/** The drag handle and the arrows for one row. The styles hide the arrows
+ *  once the admin bundle runs. */
 export const ReorderArrows = ({
   above,
   anchor,
@@ -98,34 +120,25 @@ export const ReorderArrows = ({
   const Arrow = ARROW[setting];
   return (
     <>
-      <button
-        class="reorder-handle"
-        data-sortable-anchor={anchor}
-        data-sortable-handle
-        data-sortable-path={path}
-        hidden
-        tabindex="-1"
-        title={t("common.reorder_handle")}
-        type="button"
-      >
-        ⠿
-      </button>
-      {above !== undefined && (
-        <Arrow
-          anchor={above}
-          path={path}
-          place="before"
-          title={t("common.reorder_up")}
-        />
-      )}{" "}
-      {below !== undefined && (
-        <Arrow
-          anchor={below}
-          path={path}
-          place="after"
-          title={t("common.reorder_down")}
-        />
-      )}
+      <DragHandle anchor={anchor} path={path} />
+      <span class="reorder-arrows">
+        {above !== undefined && (
+          <Arrow
+            anchor={above}
+            path={path}
+            place="before"
+            title={t("common.reorder_up")}
+          />
+        )}{" "}
+        {below !== undefined && (
+          <Arrow
+            anchor={below}
+            path={path}
+            place="after"
+            title={t("common.reorder_down")}
+          />
+        )}
+      </span>
     </>
   );
 };
