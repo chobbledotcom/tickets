@@ -1,3 +1,8 @@
+// test-groups: run-alone — the widget runs inside happy-dom, whose internal
+// task timers can outlive `happyDOM.abort()` under load; in a shared isolate a
+// trailing timer fires during whichever suite runs next and fails its op
+// sanitizer. Solo, it dies with the isolate.
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
