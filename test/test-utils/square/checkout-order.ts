@@ -3,7 +3,8 @@
  *  metadata carries. */
 
 import { expect } from "@std/expect";
-import { extractSessionMetadata } from "#shared/payment-helpers.ts";
+import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
+import { extractSessionMetadata } from "#shared/session-metadata.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import { wireMetadata } from "#test-utils/payment-session.ts";
 
@@ -41,21 +42,20 @@ export const expectOrderLines = (
   }
 };
 
-/** Assert the order metadata decodes to the intent fields. Small fields
- *  (phone, …) travel packed into `b`, so decode the way the webhook does. */
-export const expectOrderMetadata = (
+/** Assert the order metadata opens to the intent fields. The metadata holds
+ *  only a token, so open the sealed order the way the webhook does. */
+export const expectOrderMetadata = async (
   order: CreatePaymentLinkInput["order"],
   expected: ExpectedOrderMetadata,
-): void => {
+): Promise<void> => {
   const metadata = extractSessionMetadata(wireMetadata(order.metadata));
-  expect({
-    email: metadata.email,
-    name: metadata.name,
-    phone: metadata.phone,
-  }).toEqual({
-    email: expected.email,
-    name: expected.name,
-    phone: expected.phone,
+  expect(await readSessionOrder({ metadata })).toMatchObject({
+    intent: {
+      email: expected.email,
+      items: expected.items,
+      name: expected.name,
+      phone: expected.phone,
+    },
+    status: "read",
   });
-  expect(JSON.parse(metadata.items)).toEqual(expected.items);
 };

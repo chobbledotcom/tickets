@@ -18,11 +18,13 @@ const bareMetadata: SessionMetadata = {
   allocations: "",
   answer_ids: "",
   balance_attendee_id: "",
+  bundle: "",
   date: "",
   day_count: "",
   email: "buyer@example.com",
   items: JSON.stringify([{ e: 1, p: 100, q: 1 }]),
   line_text_answer_ids: "",
+  listing: "",
   modifiers: "",
   name: "Buyer",
   phone: "",
@@ -65,8 +67,8 @@ describe("the time a payment counts as happening", () => {
 });
 
 describe("reading a booking out of a paid checkout", () => {
-  test("reads the lines, the buyer, and the empty fields as nothing", () => {
-    expect(extractIntent(session())).toEqual({
+  test("reads the lines, the buyer, and the empty fields as nothing", async () => {
+    expect(await extractIntent(session())).toEqual({
       address: "",
       allocations: undefined,
       balanceAttendeeId: undefined,
@@ -87,8 +89,8 @@ describe("reading a booking out of a paid checkout", () => {
     });
   });
 
-  test("reads everything the checkout can carry", () => {
-    const intent = extractIntent(
+  test("reads everything the checkout can carry", async () => {
+    const intent = await extractIntent(
       session({
         allocations: JSON.stringify([{ childId: 2, parentId: 1, qty: 1 }]),
         answer_ids: JSON.stringify({ "1": [7] }),
@@ -117,18 +119,18 @@ describe("reading a booking out of a paid checkout", () => {
     });
   });
 
-  test("reads the modifiers the buyer took", () => {
-    expect(
-      extractIntent(session({ modifiers: JSON.stringify([{ i: 3, q: 2 }]) }))
-        ?.modifiers,
-    ).toEqual([{ i: 3, q: 2 }]);
+  test("reads the modifiers the buyer took", async () => {
+    const intent = await extractIntent(
+      session({ modifiers: JSON.stringify([{ i: 3, q: 2 }]) }),
+    );
+    expect(intent?.modifiers).toEqual([{ i: 3, q: 2 }]);
   });
-  test("keeps the checkout's frozen tax policy", () => {
+  test("keeps the checkout's frozen tax policy", async () => {
     const taxPolicy = { mode: "add_to_total", rateBasisPoints: 1725 };
-    expect(
-      extractIntent(session({ tax_policy: JSON.stringify(taxPolicy) }))
-        ?.taxPolicy,
-    ).toEqual(taxPolicy);
+    const intent = await extractIntent(
+      session({ tax_policy: JSON.stringify(taxPolicy) }),
+    );
+    expect(intent?.taxPolicy).toEqual(taxPolicy);
   });
 
   // Our checkout only ever writes a whole number of days here, and leaves the
@@ -141,13 +143,15 @@ describe("reading a booking out of a paid checkout", () => {
     ["below zero", "-2"],
     ["part of a day", "2.7"],
   ] as const) {
-    test(`reads no booking when the day count is ${name}`, () => {
-      expect(extractIntent(session({ day_count: dayCount }))).toBe(null);
+    test(`reads no booking when the day count is ${name}`, async () => {
+      expect(await extractIntent(session({ day_count: dayCount }))).toBe(null);
     });
   }
 
-  test("keeps a day count of one", () => {
-    expect(extractIntent(session({ day_count: "1" }))?.dayCount).toBe(1);
+  test("keeps a day count of one", async () => {
+    expect((await extractIntent(session({ day_count: "1" })))?.dayCount).toBe(
+      1,
+    );
   });
 
   // Nothing to book means there is no booking to read, and the caller is
@@ -158,8 +162,8 @@ describe("reading a booking out of a paid checkout", () => {
     ["is an empty list", "[]"],
     ["holds a line with no listing", JSON.stringify([{ e: 0, p: 1, q: 1 }])],
   ] as const) {
-    test(`reads no booking when what was bought ${name}`, () => {
-      expect(extractIntent(session({ items }))).toBe(null);
+    test(`reads no booking when what was bought ${name}`, async () => {
+      expect(await extractIntent(session({ items }))).toBe(null);
     });
   }
 
@@ -180,8 +184,8 @@ describe("reading a booking out of a paid checkout", () => {
       { tax_policy: '{"mode":"add_to_total","rateBasisPoints":0.1}' },
     ],
   ] as const) {
-    test(`reads no booking when ${name}`, () => {
-      expect(extractIntent(session(metadata))).toBe(null);
+    test(`reads no booking when ${name}`, async () => {
+      expect(await extractIntent(session(metadata))).toBe(null);
     });
   }
 });

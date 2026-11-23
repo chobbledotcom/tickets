@@ -1,3 +1,4 @@
+// effects: pure
 import { isNullish } from "#fp";
 
 /** Return a required value or fail with its domain-specific error. */

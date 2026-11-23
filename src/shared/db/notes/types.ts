@@ -21,6 +21,7 @@ export type SystemNoteType = (typeof SYSTEM_NOTE_TYPES)[number];
 /** App-written note purposes whose lifecycle is decided from stored facts,
  * never by opening the note text. */
 export type SystemNotePurpose =
+  | "checkout_bundle_lost"
   | "refund_confirmation"
   | "refund_unreturned"
   | "scan_over_admission";

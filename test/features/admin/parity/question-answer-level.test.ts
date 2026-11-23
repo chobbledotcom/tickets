@@ -3,7 +3,6 @@
 // afterwards.
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getQuestionWithAnswers } from "#db/questions/queries.ts";
 import { t } from "#i18n";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
@@ -11,10 +10,16 @@ import { describeWithQuestions as describeWithEnv } from "#test-utils/feature-su
 import { adminGet } from "#test-utils/session.ts";
 import { ownerPagePost } from "./helpers.ts";
 
+const ASKS_EACH_LISTING = "This question asks: One per listing.";
+
 describeWithEnv("Question answer level pins", { db: true }, () => {
   /** The id of a free-text question that asks once for each listing. */
   const createdListingLevel = async (): Promise<number> =>
     (await seedListingLevelQuestion()).question.id;
+
+  /** The question page, which says how often the question asks. */
+  const askedOn = async (id: number): Promise<string> =>
+    (await adminGet(`/admin/questions/${id}`)).text();
 
   test("the add form creates a question that asks once for each listing", async () => {
     const response = await ownerPagePost("/admin/questions", {
@@ -26,7 +31,7 @@ describeWithEnv("Question answer level pins", { db: true }, () => {
     const id = Number(
       /\/admin\/questions\/(\d+)/.exec(response.headers.get("location")!)![1],
     );
-    expect((await getQuestionWithAnswers(id))?.answerLevel).toBe("listing");
+    expect(await askedOn(id)).toContain(ASKS_EACH_LISTING);
   });
 
   test("the edit form refuses a changed level and keeps the stored one", async () => {
@@ -40,7 +45,7 @@ describeWithEnv("Question answer level pins", { db: true }, () => {
     expectIncludesAll(await response.text(), [
       t("questions.answer_level.locked"),
     ]);
-    expect((await getQuestionWithAnswers(id))?.answerLevel).toBe("listing");
+    expect(await askedOn(id)).toContain(ASKS_EACH_LISTING);
   });
 
   test("the edit form posts the stored level, so a plain save keeps it", async () => {
@@ -49,7 +54,7 @@ describeWithEnv("Question answer level pins", { db: true }, () => {
     expectIncludesAll(page, [
       'name="answerLevel"',
       'type="hidden" value="listing"',
-      "This question asks: One per listing.",
+      ASKS_EACH_LISTING,
     ]);
   });
 });

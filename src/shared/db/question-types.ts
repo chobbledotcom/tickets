@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Shared types and validation for the custom questions tables.
  *

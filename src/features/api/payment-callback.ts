@@ -18,7 +18,11 @@ import {
   classifySessionIntent,
   type SessionIntentResult,
 } from "#routes/api/payment-processing/classify.ts";
-import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
+import {
+  isHeldResult,
+  processPaymentSession,
+} from "#routes/api/payment-processing/index.ts";
+import { missingOrderCallback } from "#routes/api/payment-processing/missing-order.ts";
 import { failureDetail } from "#routes/api/payment-processing/refunds.ts";
 import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
@@ -100,10 +104,7 @@ const processedOutcome = (
     error: result.error,
     listingId,
   };
-  // A transient lock, not a money answer: nobody decided anything yet.
-  if (result.status === 409 && result.refunded === undefined) {
-    return { ...failure, kind: "held" };
-  }
+  if (isHeldResult(result)) return { ...failure, kind: "held" };
   // A return was required and did not go through. Guarded on a payment
   // reference so a session with nothing to return cannot ask forever.
   if (result.refunded === false && session.paymentReference) {
@@ -118,6 +119,9 @@ const classifiedOutcome = async (
 ): Promise<CallbackOutcome> => {
   if (classified.kind === "unverifiable") return { kind: "unverifiable" };
   if (classified.kind === "unreadable") return { kind: "unreadable" };
+  if (classified.kind === "missing") {
+    return missingOrderCallback(classified.missing);
+  }
   const { intent, verdict } = classified;
   const listingId = intent.items[0]?.e;
   const result = await processPaymentSession(session.id, {

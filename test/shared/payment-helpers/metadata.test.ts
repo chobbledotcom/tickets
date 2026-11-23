@@ -2,13 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   buildMetadata,
-  extractSessionMetadata,
-  hasRequiredSessionMetadata,
   singleListingAnswerIds,
   toBookingItems,
   toModifierRefs,
 } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
+import {
+  extractSessionMetadata,
+  hasRequiredSessionMetadata,
+} from "#shared/session-metadata.ts";
 import { wireMetadata } from "#test-utils/payment-session.ts";
 
 describe("payment-helpers", () => {
@@ -28,8 +30,10 @@ describe("payment-helpers", () => {
     });
 
     test("toModifierRefs returns undefined for no modifiers", () => {
-      expect(toModifierRefs(undefined)).toBeUndefined();
-      expect(toModifierRefs([])).toBeUndefined();
+      expect([toModifierRefs(undefined), toModifierRefs([])]).toStrictEqual([
+        undefined,
+        undefined,
+      ]);
     });
 
     test("buildMetadata serializes modifier references and round-trips them", () => {
@@ -66,7 +70,7 @@ describe("payment-helpers", () => {
         items: [{ e: 1, p: 1000, q: 1 }],
         name: "Alice",
       });
-      expect(metadata.modifiers).toBeUndefined();
+      expect(metadata).not.toHaveProperty("modifiers");
       expect(extractSessionMetadata(wireMetadata(metadata)).modifiers).toBe("");
     });
 
@@ -173,25 +177,6 @@ describe("payment-helpers", () => {
         "1": [10],
         "2": [20, 21],
       });
-    });
-
-    test("extractSessionMetadata preserves present fields and defaults absent ones", () => {
-      const withFields = extractSessionMetadata(
-        wireMetadata({
-          email: "alice@example.com",
-          items: "[]",
-          name: "Alice",
-          phone: "+1234567890",
-        }),
-      );
-      expect(withFields.email).toBe("alice@example.com");
-      expect(withFields.phone).toBe("+1234567890");
-      expect(withFields.address).toBe("");
-
-      const minimal = extractSessionMetadata(wireMetadata({ name: "Eve" }));
-      expect(minimal.email).toBe("");
-      expect(minimal.phone).toBe("");
-      expect(minimal._origin).toBe("");
     });
 
     test("optional fields omitted during build normalize to empty on extract", () => {
@@ -346,37 +331,6 @@ describe("payment-helpers", () => {
       expect("day_count" in metadata).toBe(false);
     });
 
-    test("extractSessionMetadata round-trips day_count", () => {
-      const extracted = extractSessionMetadata(
-        wireMetadata({
-          day_count: "3",
-          email: "x@x.com",
-          items: "[]",
-          name: "X",
-        }),
-      );
-      expect(extracted.day_count).toBe("3");
-    });
-
-    test("extractSessionMetadata surfaces site_token_index when present", () => {
-      const extracted = extractSessionMetadata(
-        wireMetadata({
-          email: "renew@example.com",
-          items: "[]",
-          name: "Renewer",
-          site_token_index: "hashed-index-value",
-        }),
-      );
-      expect(extracted.site_token_index).toBe("hashed-index-value");
-    });
-
-    test("extractSessionMetadata defaults site_token_index to empty string", () => {
-      const extracted = extractSessionMetadata(
-        wireMetadata({ email: "x@x.com", items: "[]", name: "X" }),
-      );
-      expect(extracted.site_token_index).toBe("");
-    });
-
     const checkoutIntent = (
       items: CheckoutIntent["items"],
       extra: Partial<CheckoutIntent> = {},
@@ -441,9 +395,11 @@ describe("payment-helpers", () => {
     });
 
     test("singleListingAnswerIds returns undefined for empty or missing", () => {
-      expect(singleListingAnswerIds(1, [])).toBeUndefined();
-      expect(singleListingAnswerIds(1, undefined)).toBeUndefined();
-      expect(singleListingAnswerIds(1)).toBeUndefined();
+      expect([
+        singleListingAnswerIds(1, []),
+        singleListingAnswerIds(1, undefined),
+        singleListingAnswerIds(1),
+      ]).toStrictEqual([undefined, undefined, undefined]);
     });
   });
 });

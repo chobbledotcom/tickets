@@ -1,3 +1,4 @@
+// effects: pure
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field, FieldType } from "#shared/forms/field.ts";
 import { readSubmittedFieldValue } from "#shared/forms/submitted-value.ts";
