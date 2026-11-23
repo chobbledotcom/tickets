@@ -4,6 +4,7 @@ import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#crypto/hashing.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import {
+  csrfInvalidFormMessage,
   getCurrentCsrfToken,
   signCsrfToken,
   verifySignedCsrfToken,
@@ -89,6 +90,28 @@ describe("verifySignedCsrfToken", () => {
     expect(await verifySignedCsrfToken(token, 60)).toBe(false);
   });
 
+  test("accepts a token for one hour by default, and not a second longer", async () => {
+    using time = new FakeTime(1_000_000_000_000);
+    const token = await signCsrfToken();
+    time.tick(3_600_000);
+    expect(await verifySignedCsrfToken(token)).toBe(true);
+    time.tick(1_000);
+    expect(await verifySignedCsrfToken(token)).toBe(false);
+  });
+
+  test("accepts a token dated up to 60s in the future, and not a second later", async () => {
+    const signedAt = async (ms: number): Promise<string> => {
+      using _clock = new FakeTime(ms);
+      return await signCsrfToken();
+    };
+    const atLimit = await signedAt(1_700_000_060_000);
+    const pastLimit = await signedAt(1_700_000_061_000);
+
+    using _present = new FakeTime(1_700_000_000_000);
+    expect(await verifySignedCsrfToken(atLimit)).toBe(true);
+    expect(await verifySignedCsrfToken(pastLimit)).toBe(false);
+  });
+
   test("rejects a token dated more than 60s in the future", async () => {
     // Sign under a far-future clock so the token's timestamp is well ahead
     // of "now"; FakeTime cannot move backwards, so verify under a separate
@@ -140,6 +163,10 @@ describe("getCurrentCsrfToken (request-scoped)", () => {
     setupTestEncryptionKey();
   });
 
+  test("returns an empty token before the scope signs one", async () => {
+    expect(await withRequestContext(() => getCurrentCsrfToken())).toBe("");
+  });
+
   test("returns the token signed in the current scope", async () => {
     const { signed, current } = await withRequestContext(async () => {
       const signed = await signCsrfToken();
@@ -173,4 +200,10 @@ describe("getCurrentCsrfToken (request-scoped)", () => {
     expect(b.rendered).toBe(b.signed);
     expect(a.rendered).not.toBe(b.rendered);
   });
+});
+
+test("the message for a refused form says to try again", () => {
+  expect(csrfInvalidFormMessage()).toBe(
+    "Invalid or expired form. Please try again.",
+  );
 });
