@@ -55,6 +55,12 @@ describe("legIdentityDiff", () => {
     ).toEqual(["reversesGroup"]);
   });
 
+  it("treats a leg with no kind as a leg with an empty kind", () => {
+    const { kind: _kind, ...noKind } = legFacts;
+    expect(legIdentityDiff(noKind, { ...noKind, kind: "" })).toEqual([]);
+    expect(legIdentityDiff(noKind, legFacts)).toEqual(["kind"]);
+  });
+
   it("keeps a reversesId of 0 distinct from an absent link", () => {
     expect(
       legIdentityDiff(

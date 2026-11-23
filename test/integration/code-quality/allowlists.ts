@@ -83,6 +83,9 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   // reads the ledger by account, by event, or by page.
   "shared/accounting/queries.ts:allTransfers",
   "shared/accounting/queries.ts:accountBalance",
+  // The Overview figures worked out from a list of attendees. The site reads
+  // them with SQL. Tests use this as the reference that the SQL must match.
+  "ui/templates/admin/listings/overview.tsx:overviewStatsFromAttendees",
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",
   // Reset cached I18N_REPLACEMENTS replacer + compiled formats between tests

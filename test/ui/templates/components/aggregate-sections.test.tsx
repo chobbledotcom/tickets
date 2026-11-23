@@ -6,6 +6,7 @@ import {
   CheckboxLabel,
   FormSections,
   IdCheckboxLabel,
+  ItemCheckboxList,
   RunningTotalsFieldset,
   SectionFieldset,
   StackDetails,
@@ -152,6 +153,25 @@ describe("CheckboxLabel", () => {
         '<input checked disabled name="choices" type="checkbox" value="8">' +
         "Locked in</label>",
     );
+  });
+});
+
+describe("ItemCheckboxList", () => {
+  test("ticks exactly the items whose ids are chosen", () => {
+    const html = String(
+      ItemCheckboxList({
+        checkedIds: new Set([2]),
+        items: [
+          { id: 1, name: "First" },
+          { id: 2, name: "Second" },
+        ],
+        name: "listingIds",
+      }),
+    );
+    expectIncludesAll(html, [
+      '<input name="listingIds" type="checkbox" value="1"> First',
+      '<input checked name="listingIds" type="checkbox" value="2"> Second',
+    ]);
   });
 });
 
