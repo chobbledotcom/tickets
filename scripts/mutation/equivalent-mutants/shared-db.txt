@@ -265,3 +265,7 @@ src/shared/db/attendee-statuses.ts::writtenStatus~18ifnw3  The status write gave
 # checkout-bundles.ts: openCheckoutBundle catches every error of the read and
 # answers `unreadable`, so the label of the JSON reader has no observer.
 src/shared/db/checkout-bundles.ts::openCheckoutBundle.record~1hcwkes  checkout bundle → "" audited:0akzza3 # the label only names the row in an error message, and the catch around the read discards that error and answers unreadable
+
+# questions/line-answers.ts: URLSearchParams.get answers a string or null, and
+# null and the empty string both become "" under either operator.
+src/shared/db/questions/line-answers.ts::readLineAnswer.text~1sppe3i  ?? → || audited:1s438js # form.get answers a string or null, and null and the empty string both become "" under either operator

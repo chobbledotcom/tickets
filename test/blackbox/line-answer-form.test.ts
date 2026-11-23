@@ -194,6 +194,28 @@ describeWithEnv(
       ]);
     });
 
+    test("a post that leaves out the field of a booked listing is refused", async () => {
+      const discos = await openDiscos();
+      const question = await addQuestion(discos.owner, "Pupil name", "listing");
+      const buyer = createApp(inProcess);
+
+      const refused = await book(
+        discos,
+        [1, 1],
+        {
+          [fieldFor(question, discos.discoA)]: "Ava",
+          [fieldFor(question, discos.discoB)]: null,
+        },
+        buyer,
+      );
+      const shown = await buyer.get(refused.location ?? "");
+
+      expect(textOf(shown.html)).toContain(
+        "Please answer: Pupil name (Disco B)",
+      );
+      expect(await attendeeIds(discos.api, discos.discoA)).toEqual([]);
+    });
+
     test("a blank answer is refused, and the refusal names the listing", async () => {
       const discos = await openDiscos();
       const question = await addQuestion(discos.owner, "Pupil name", "listing");

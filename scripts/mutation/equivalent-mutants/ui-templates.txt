@@ -180,3 +180,7 @@ src/ui/templates/admin/built-sites/support-message.tsx::SupportMessagePanel~0xks
 # string and a boolean, so `??` and `||` pick the same fallback on every input.
 src/ui/templates/admin/bulk-email.tsx::bulkEmailComposePage~0qxp0yv  ?? → || audited:1qie383 # `draft?.body ?? ""`: the body is a string, and its only falsy value "" is also the fallback, so ?? and || agree
 src/ui/templates/admin/bulk-email.tsx::bulkEmailComposePage.checked~0aepv7o  ?? → || audited:1qie383 # `draft?.marketing ?? false`: the flag is a boolean, and false equals the fallback, so ?? and || agree
+
+# reservations/line-questions.tsx: the children of a listing are an array or
+# absent, and every array is truthy.
+src/ui/templates/public/reservations/line-questions.tsx::pageAnswerLines.children~1touvy1  ?? → || audited:1jorac9 # childrenByParentId.get answers an array or undefined, and every array is truthy, so only undefined falls through either operator

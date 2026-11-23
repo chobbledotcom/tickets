@@ -8,7 +8,12 @@ import { expect } from "@std/expect";
 import * as v from "valibot";
 import { requireValue } from "#shared/required-value.ts";
 import type { Api } from "#test/blackbox/api.ts";
-import { type App, createApp, inProcess } from "#test/blackbox/driver.ts";
+import {
+  type App,
+  createApp,
+  type Fields,
+  inProcess,
+} from "#test/blackbox/driver.ts";
 import {
   addListing,
   openApi,
@@ -75,11 +80,12 @@ export const addQuestion = async (
 export const fieldFor = (question: number, listing: SeededListing): string =>
   `question${question}_listing${listing.id}`;
 
-/** A parent books places on both discos through the booking form. */
+/** A parent books places on both discos through the booking form. An answer
+ * of `null` leaves that field out of the post. */
 export const book = (
   { discoA, discoB }: Discos,
   counts: [number, number],
-  answers: Record<string, string>,
+  answers: Fields,
   buyer: App = createApp(inProcess),
 ) =>
   buyer.submit(`/ticket/${discoA.slug}+${discoB.slug}`, {
