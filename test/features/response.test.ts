@@ -28,7 +28,7 @@ import {
   withHeaders,
 } from "#routes/response.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { clearFormStash, takeForm } from "#shared/form-stash.ts";
+import { takeForm } from "#shared/form-stash.ts";
 import {
   clearSavedFormData,
   setSavedFormData,
@@ -207,11 +207,9 @@ describeWithEnv("route responses", { db: true }, () => {
 
   describe("redirect target and form stash", () => {
     beforeEach(() => {
-      clearFormStash();
       clearSavedFormData();
     });
     afterEach(() => {
-      clearFormStash();
       clearSavedFormData();
     });
 

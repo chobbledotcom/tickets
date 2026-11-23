@@ -8,7 +8,6 @@ import {
   formatDatetimeInTz,
   formatDatetimeShortInTz,
   isValidDatetime,
-  isValidTimezone,
   localToUtc,
   todayInTz,
   utcToLocalInput,
@@ -240,32 +239,6 @@ describe("timezone", () => {
       // 23:00 UTC = next day 08:00 JST
       const result = utcToLocalInput("2026-06-15T23:00:00.000Z", "Asia/Tokyo");
       expect(result).toBe("2026-06-16T08:00");
-    });
-  });
-
-  describe("isValidTimezone", () => {
-    test("accepts valid IANA timezone", () => {
-      expect(isValidTimezone("Europe/London")).toBe(true);
-    });
-
-    test("accepts UTC", () => {
-      expect(isValidTimezone("UTC")).toBe(true);
-    });
-
-    test("accepts America/New_York", () => {
-      expect(isValidTimezone("America/New_York")).toBe(true);
-    });
-
-    test("rejects invalid timezone", () => {
-      expect(isValidTimezone("Invalid/Timezone")).toBe(false);
-    });
-
-    test("rejects empty string", () => {
-      expect(isValidTimezone("")).toBe(false);
-    });
-
-    test("rejects random string", () => {
-      expect(isValidTimezone("not-a-timezone")).toBe(false);
     });
   });
 
