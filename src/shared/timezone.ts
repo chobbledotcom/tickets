@@ -159,12 +159,6 @@ export const utcToLocalInput = (utcIso: string, tz: string): string => {
 };
 
 /**
- * Validate that a string is a valid IANA timezone identifier.
- */
-export const isValidTimezone = (tz: string): boolean =>
-  succeeds(() => Intl.DateTimeFormat(undefined, { timeZone: tz }));
-
-/**
  * Check if a naive datetime-local string is a parseable datetime.
  * Does not interpret timezone — purely a format check.
  */

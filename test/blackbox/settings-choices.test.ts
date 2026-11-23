@@ -3,13 +3,15 @@ import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import type { App, Page } from "#test/blackbox/driver.ts";
 import {
+  boxTicked,
   followed,
+  inputsNamed,
+  isTicked,
   loggedIn,
   redirectOf,
   type SettingsForm,
   send,
-  sendLoggedOut,
-  sendWithWrongToken,
+  testFormGuards,
 } from "#test/blackbox/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -86,14 +88,6 @@ const CHOICES: Choice[] = [
   THEME,
 ];
 
-/** The input tags of `html` named `field`. */
-const inputsNamed = (html: string, field: string): string[] =>
-  (html.match(/<input\b[^>]*>/gi) ?? []).filter((tag) =>
-    tag.includes(`name="${field}"`),
-  );
-
-const isTicked = (tag: string): boolean => /\schecked(?=[\s>=/])/.test(tag);
-
 /** The value of the radio that the page shows as chosen. */
 const chosenValue = (html: string, field: string): string => {
   const chosen = inputsNamed(html, field).find(isTicked);
@@ -102,15 +96,6 @@ const chosenValue = (html: string, field: string): string => {
     throw new Error(`The page shows no chosen radio for "${field}".`);
   }
   return value;
-};
-
-/** Whether the page shows the one box named `field` as ticked. */
-const boxTicked = (html: string, field: string): boolean => {
-  const [box, ...more] = inputsNamed(html, field);
-  if (box === undefined || more.length > 0) {
-    throw new Error(`The page does not show one box for "${field}".`);
-  }
-  return isTicked(box);
 };
 
 const pick = (app: App, choice: Choice, value: string): Promise<Page> =>
@@ -149,20 +134,12 @@ for (const choice of CHOICES) {
       expect(await chosenNow(app, choice)).toBe(choice.start);
     });
 
-    test("a form with a wrong token is refused and changes nothing", async () => {
-      const app = await loggedIn();
-      const refused = await sendWithWrongToken(app, choice, choice.other);
-      expect(refused.status).toBe(403);
-      expect(refused.html).toContain("Invalid CSRF token");
-      expect(await chosenNow(app, choice)).toBe(choice.start);
-    });
-
-    test("a visitor who is not logged in is sent to the login and changes nothing", async () => {
-      const response = await sendLoggedOut(choice, choice.other);
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
-      expect(await chosenNow(await loggedIn(), choice)).toBe(choice.start);
-    });
+    testFormGuards(
+      choice,
+      choice.other,
+      (app) => chosenNow(app, choice),
+      choice.start,
+    );
   });
 }
 
