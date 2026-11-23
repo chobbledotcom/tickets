@@ -1,35 +1,39 @@
 // effects: pure
 /**
- * What the club night dashboard shows. Each night (a group) shows with its
- * listings on sale. The listings on sale in no group show after the nights.
+ * What the group cards dashboard shows. Each group shows as one card with its
+ * listings on sale. The listings on sale in no group show after the cards.
  *
  * A group shows while one of its listings is on sale, or while it has no
- * listing yet. A group whose listings are all switched off is a past night,
- * and stays on the Groups page.
+ * listing yet. A group whose listings are all switched off is over, and stays
+ * on the Groups page.
  */
 
 import { requiredMapValue } from "#fp";
 import { idSet } from "#shared/fp-records.ts";
 import type { Group, ListingWithCount } from "#types";
 
-/** The `view` value that asks for the full dashboard. */
-export const FULL_DASHBOARD_VIEW = "full";
+/** What the admin home page shows: one table of every listing, or one card
+ * for each group. */
+export type DashboardType = "listings" | "groups";
 
-/** Whether `/admin/` shows the club night dashboard: the owner turned it on,
- * and this request did not ask for the full dashboard. */
-export const showsClubNights = (
-  turnedOn: boolean,
+/** The `view` value that asks for the listings table. */
+export const LISTINGS_TABLE_VIEW = "listings";
+
+/** Whether `/admin/` shows the group cards: the owner chose them, and this
+ * request did not ask for the listings table. */
+export const showsGroupCards = (
+  dashboardType: DashboardType,
   view: string | null,
-): boolean => turnedOn && view !== FULL_DASHBOARD_VIEW;
+): boolean => dashboardType === "groups" && view !== LISTINGS_TABLE_VIEW;
 
-export interface ClubNight {
+export interface GroupCard {
   readonly group: Group;
   /** The group's listings on sale, in the dashboard's listing order. */
   readonly listings: readonly ListingWithCount[];
 }
 
-export interface ClubNights {
-  readonly nights: readonly ClubNight[];
+export interface GroupCards {
+  readonly cards: readonly GroupCard[];
   /** The listings on sale that are in no group, in the dashboard's order. */
   readonly otherListings: readonly ListingWithCount[];
 }
@@ -49,12 +53,8 @@ export interface DashboardGroups {
   readonly members: ReadonlyMap<number, readonly ListingWithCount[]>;
 }
 
-/** One night per group that still sells or has no listing yet. */
-const nightsOf = ({
-  groups,
-  listings,
-  members,
-}: DashboardGroups): ClubNight[] =>
+/** One card per group that still sells or has no listing yet. */
+const cardsOf = ({ groups, listings, members }: DashboardGroups): GroupCard[] =>
   groups.flatMap((group) => {
     const groupMembers = requiredMapValue(members, group.id);
     const onSale = keepListingsInGroup(listings, idSet(groupMembers));
@@ -63,12 +63,13 @@ const nightsOf = ({
       : [];
   });
 
-/** Sort the dashboard's listings into nights and the listings in no group. */
-export const clubNightsOf = (known: DashboardGroups): ClubNights => {
+/** Sort the dashboard's listings into group cards and the listings in no
+ * group. */
+export const groupCardsOf = (known: DashboardGroups): GroupCards => {
   const onSale = known.listings.filter((listing) => listing.active);
   const grouped = idSet([...known.members.values()].flat());
   return {
-    nights: nightsOf({ ...known, listings: onSale }),
+    cards: cardsOf({ ...known, listings: onSale }),
     otherListings: onSale.filter((listing) => !grouped.has(listing.id)),
   };
 };

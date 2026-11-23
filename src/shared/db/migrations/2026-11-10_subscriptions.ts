@@ -1,4 +1,6 @@
-import { addFeatureTurnedOff, schemaMigration } from "./define.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
+import { CONFIG_KEYS } from "#shared/settings/keys.ts";
+import { schemaMigration } from "./define.ts";
 import { SUBSCRIPTION_TRIGGER_NAMES } from "./schema/admin-feature-triggers.ts";
 
 export default schemaMigration(
@@ -17,5 +19,13 @@ export default schemaMigration(
     },
     triggers: SUBSCRIPTION_TRIGGER_NAMES,
   },
-  addFeatureTurnedOff("subscriptions"),
+  // A feature list is valid only when it names every feature, so a list
+  // saved before this feature existed must gain the key.
+  async ({ getDb }) => {
+    await getDb().execute(sql`UPDATE settings
+               SET value = json_set(value, ${sqlLiteral("$.subscriptions")}, json('false'))
+             WHERE key = ${sqlLiteral(CONFIG_KEYS.ENABLED_FEATURES)}
+               AND json_valid(value)
+               AND json_type(value, ${sqlLiteral("$.subscriptions")}) IS NULL`);
+  },
 );

@@ -24,11 +24,11 @@
   "admin.dashboard.welcome.dismiss": "Got it",
   "admin.dashboard.welcome.dismissed": "Welcome message hidden.",
   "admin.listings.add_attendee": "Add Attendee",
-  "admin.dashboard.show_club_night": "Show club night dashboard",
-  "admin.dashboard.show_full": "Show full dashboard",
+  "admin.dashboard.show_group_cards": "Show group cards",
+  "admin.dashboard.show_listings_table": "Show listings table",
   "admin.dashboard.other_listings": "Other listings",
-  "admin.dashboard.night_scanner": "Scanner",
-  "admin.dashboard.night_attendees": "Attendees",
-  "admin.dashboard.night_duplicate": "Duplicate group",
-  "admin.dashboard.night_no_listings": "No listings on sale in this group"
+  "admin.dashboard.card_scanner": "Scanner",
+  "admin.dashboard.card_attendees": "Attendees",
+  "admin.dashboard.card_duplicate": "Duplicate group",
+  "admin.dashboard.card_no_listings": "No listings on sale in this group"
 }

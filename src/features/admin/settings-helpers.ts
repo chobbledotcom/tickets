@@ -12,6 +12,7 @@
 import { logActivity } from "#db/activity-log.ts";
 import { isMaskSentinel } from "#db/settings/mask.ts";
 import { settings } from "#db/settings.ts";
+import { isOneOf } from "#fp";
 import { t } from "#i18n";
 import {
   type AuthPolicy,
@@ -233,6 +234,36 @@ const toggleHandler = (cfg: ToggleConfig): SettingsFormHandler =>
 const settingsToggle: (cfg: ToggleConfig) => RequestRoute =
   routedSettings(toggleHandler);
 
+// ── Specialization: choiceHandler ───────────────────────────────────
+
+/** One radio group: the values it offers, and the message for any other. */
+type ChoiceConfig<Value extends string> = SavableFieldConfig<Value> & {
+  invalidKey: string;
+  values: readonly Value[];
+};
+
+const choiceHandler = <Value extends string>({
+  field,
+  invalidKey,
+  label,
+  save,
+  values,
+  ...location
+}: ChoiceConfig<Value>): SettingsFormHandler =>
+  createSettingsHandler<string>({
+    ...location,
+    extract: (form) => form.getString(field),
+    log: (value) => `${label} set to ${value}`,
+    // validate refuses every value outside `values`.
+    save: (value) => save(value as Value),
+    validate: (value) => (isOneOf(values)(value) ? null : t(invalidKey)),
+  });
+
+/** Convenience: choiceHandler + route wrapping */
+const settingsChoice = <Value extends string>(
+  cfg: ChoiceConfig<Value>,
+): RequestRoute => routedSettings(choiceHandler<Value>)(cfg);
+
 // ── Shared field config base ─────────────────────────────────────────
 
 type FieldConfig = SavableFieldConfig<string> & {
@@ -375,6 +406,7 @@ export {
   SETTINGS_PATH,
   saveSecret,
   secretFieldHandler,
+  settingsChoice,
   settingsClearable,
   settingsHandler,
   settingsRoute,

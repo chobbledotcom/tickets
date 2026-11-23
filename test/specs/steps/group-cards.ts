@@ -1,11 +1,13 @@
-import { Then, When } from "@cucumber/cucumber";
+import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
 import {
   adminPageHtmlAt,
   keepsWhatTheOrganiserSaw,
   ORGANISER,
+  openAdminPage,
 } from "#test/specs/support/browser.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { groupNamed } from "#test/specs/support/groups.ts";
 import {
   type TicketsWorld,
@@ -13,28 +15,39 @@ import {
 } from "#test/specs/support/world.ts";
 import { regionOutOf } from "#test-utils/test-browser/parsing.ts";
 
+Given(
+  "the owner chooses group cards as the dashboard type",
+  async function (this: TicketsWorld): Promise<void> {
+    await fillInAndSend(
+      await openAdminPage(this, "/admin/settings"),
+      { dashboardType: "groups" },
+      t("settings.save_dashboard_type"),
+    );
+  },
+);
+
 /** The organiser opens one form of the dashboard and keeps what it said. */
 const opensDashboard = (path: string) =>
   async function (this: TicketsWorld): Promise<void> {
     keepsWhatTheOrganiserSaw(this, await adminPageHtmlAt(this, path));
   };
 
-When("the organiser opens the club night dashboard", opensDashboard("/admin/"));
+When("the organiser opens the group cards", opensDashboard("/admin/"));
 
 When(
-  "the organiser opens the full dashboard",
-  opensDashboard("/admin/?view=full"),
+  "the organiser opens the listings table",
+  opensDashboard("/admin/?view=listings"),
 );
 
-/** One night's block: from its heading to the end of its links. */
-const nightOn = (html: string, groupName: string): string =>
+/** One group's card: from its heading to the end of its links. */
+const cardOn = (html: string, groupName: string): string =>
   regionOutOf(html, `>${groupName}</a></h2>`, "</p></div>", groupName);
 
 Then(
   "the dashboard shows {string} with {string}",
   function (this: TicketsWorld, groupName: string, listingName: string): void {
     assertStringIncludes(
-      nightOn(whatTheyWereTold(this, ORGANISER), groupName),
+      cardOn(whatTheyWereTold(this, ORGANISER), groupName),
       `>${listingName}</a>`,
     );
   },
@@ -45,7 +58,7 @@ Then(
   async function (this: TicketsWorld, groupName: string): Promise<void> {
     const { id } = await groupNamed(groupName);
     assertStringIncludes(
-      nightOn(whatTheyWereTold(this, ORGANISER), groupName),
+      cardOn(whatTheyWereTold(this, ORGANISER), groupName),
       `href="/admin/groups/${id}/scanner"`,
     );
   },
@@ -68,11 +81,11 @@ Then(
 );
 
 Then(
-  "the dashboard offers the club night dashboard",
+  "the dashboard offers the group cards",
   function (this: TicketsWorld): void {
     assertStringIncludes(
       whatTheyWereTold(this, ORGANISER),
-      `<a href="/admin/">${t("admin.dashboard.show_club_night")}</a>`,
+      `<a href="/admin/">${t("admin.dashboard.show_group_cards")}</a>`,
     );
   },
 );

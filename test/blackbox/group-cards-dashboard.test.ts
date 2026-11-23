@@ -1,7 +1,7 @@
 /**
- * The club night dashboard: an owner turns it on, and `/admin/` then shows
- * each group with its listings on sale. The full dashboard stays one link
- * away, and other roles keep their own landing page.
+ * The group cards dashboard: an owner chooses it as the dashboard type, and
+ * `/admin/` then shows each group with its listings on sale. The listings
+ * table stays one link away, and other roles keep their own landing page.
  */
 
 import { expect } from "@std/expect";
@@ -17,9 +17,10 @@ import {
   createTestManagerSession,
 } from "#test-utils/session.ts";
 
-const FEATURE = "/admin/features/club-night-dashboard";
-const SHOW_FULL = "Show full dashboard";
-const SHOW_CLUB_NIGHT = "Show club night dashboard";
+const SETTINGS = "/admin/settings";
+const DASHBOARD_TYPE = "/admin/settings/dashboard-type";
+const SHOW_TABLE = "Show listings table";
+const SHOW_CARDS = "Show group cards";
 
 /** The headings of the page's blocks, in order, with their links. */
 const blockHeadings = (html: string): string[] =>
@@ -51,13 +52,18 @@ const GROUP_NAMES = [
 ];
 /* jscpd:ignore-end */
 
-const turnOn = async (app: App): Promise<void> => {
-  const saved = await app.submit(FEATURE, { enabled: "true" });
+/** The owner saves a dashboard type on the settings page. */
+const chooseDashboard = async (app: App, type: string): Promise<void> => {
+  const saved = await app.submit(
+    SETTINGS,
+    { dashboardType: type },
+    DASHBOARD_TYPE,
+  );
   expect(saved.status).toBe(302);
 };
 
-/** An owner whose site sells three nights, one past night, one empty group,
- * and one listing in no group. "Early bird" sits in two live nights. Sunday
+/** An owner whose site sells three events, one past event, one empty group,
+ * and one listing in no group. "Early bird" sits in two live groups. Sunday
  * has one listing on sale. */
 const openClub = async () => {
   const app = createApp(inProcess);
@@ -84,33 +90,33 @@ const openClub = async () => {
   return { app, groups: { empty, friday, past, saturday, sunday } };
 };
 
-/** The club with the feature on, and the page that `path` shows the owner. */
+/** The club with group cards chosen, and the page `path` shows the owner. */
 const clubShowing = async (path: string) => {
   const club = await openClub();
-  await turnOn(club.app);
+  await chooseDashboard(club.app, "groups");
   return { ...club, html: (await club.app.get(path)).html };
 };
 
-/** The links a night offers, by the end of each address. */
-const nightLinks = (id: number, ends: readonly string[]): string[] =>
+/** The links a card offers, by the end of each address. */
+const cardLinks = (id: number, ends: readonly string[]): string[] =>
   ends.map((end) => `/admin/groups/${id}/${end}`);
 
-const EVERY_NIGHT_LINK = ["scanner", "attendees", "duplicate"];
+const EVERY_CARD_LINK = ["scanner", "attendees", "duplicate"];
 
-describeWithEnv("club night dashboard", { db: true }, () => {
-  test("a site that has not turned it on keeps the full dashboard", async () => {
+describeWithEnv("group cards dashboard", { db: true }, () => {
+  test("a site that has not chosen group cards keeps the listings table", async () => {
     const { app } = await openClub();
 
     const { html, status } = await app.get("/admin/");
 
     expect(status).toBe(200);
     expect(html).toContain("Friday entry");
-    expect(html).not.toContain(SHOW_CLUB_NIGHT);
-    expect(html).not.toContain(SHOW_FULL);
+    expect(html).not.toContain(SHOW_CARDS);
+    expect(html).not.toContain(SHOW_TABLE);
     expect(blockHeadings(html)).not.toContain("Other listings");
   });
 
-  test("shows each live night with its listings on sale, then the rest", async () => {
+  test("shows each live group with its listings on sale, then the rest", async () => {
     const { groups, html } = await clubShowing("/admin/");
 
     expect(blockHeadings(html)).toEqual([
@@ -132,18 +138,18 @@ describeWithEnv("club night dashboard", { db: true }, () => {
     expect(others).toContain("Gift voucher");
     expect(others).not.toContain("Friday entry");
     expect(html).not.toContain("Last Week");
-    expect(html).toContain(`href="/admin/?view=full">${SHOW_FULL}`);
+    expect(html).toContain(`href="/admin/?view=listings">${SHOW_TABLE}`);
   });
 
-  test("gives each night its scanner, attendees, and duplicate links", async () => {
+  test("gives each card its scanner, attendees, and duplicate links", async () => {
     const { groups, html } = await clubShowing("/admin/");
 
     expect(buttonLinks(blockAfter(html, "Friday Club</a>"))).toEqual(
-      nightLinks(groups.friday, EVERY_NIGHT_LINK),
+      cardLinks(groups.friday, EVERY_CARD_LINK),
     );
   });
 
-  test("every link on the club night dashboard opens a page", async () => {
+  test("every link on the group cards dashboard opens a page", async () => {
     const { app, html } = await clubShowing("/admin/");
     const links = [...html.matchAll(/<main[\s\S]*<\/main>/g)]
       .flatMap((main) => [...main[0].matchAll(/href="(\/admin[^"#]*)"/g)])
@@ -160,55 +166,55 @@ describeWithEnv("club night dashboard", { db: true }, () => {
     expect(statuses.filter(([, status]) => status !== 200)).toEqual([]);
   });
 
-  test("the full dashboard is one link away, and links back", async () => {
-    const { html } = await clubShowing("/admin/?view=full");
+  test("the listings table is one link away, and links back", async () => {
+    const { html } = await clubShowing("/admin/?view=listings");
 
     expect(blockHeadings(html)).not.toContain("Other listings");
     expect(html).toContain("Active Listing Statistics");
-    expect(html).toContain(`<a href="/admin/">${SHOW_CLUB_NIGHT}</a>`);
-    expect(html).not.toContain(SHOW_FULL);
+    expect(html).toContain(`<a href="/admin/">${SHOW_CARDS}</a>`);
+    expect(html).not.toContain(SHOW_TABLE);
   });
 
-  test("any other view value shows the club night dashboard", async () => {
+  test("any other view value shows the group cards", async () => {
     const { html } = await clubShowing("/admin/?view=nonsense");
 
     expect(blockHeadings(html)).toContain("Other listings");
   });
 
-  test("turning it off brings the full dashboard back", async () => {
+  test("choosing the listings table again brings it back", async () => {
     const { app } = await openClub();
-    await turnOn(app);
+    await chooseDashboard(app, "groups");
 
-    await app.submit(FEATURE, { enabled: "false" });
+    await chooseDashboard(app, "listings");
     const { html } = await app.get("/admin/");
 
     expect(blockHeadings(html)).not.toContain("Other listings");
-    expect(html).not.toContain(SHOW_CLUB_NIGHT);
+    expect(html).not.toContain(SHOW_CARDS);
   });
 
   test("a read-only site hides the links that change things", async () => {
     const { app, groups } = await openClub();
-    await turnOn(app);
+    await chooseDashboard(app, "groups");
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
 
     const { html } = await app.get("/admin/");
 
     expect(buttonLinks(blockAfter(html, "Friday Club</a>"))).toEqual(
-      nightLinks(groups.friday, ["scanner", "attendees"]),
+      cardLinks(groups.friday, ["scanner", "attendees"]),
     );
     expect(html).not.toContain('href="/admin/listing/new"');
   });
 
-  test("a manager sees the club night dashboard with every link", async () => {
+  test("a manager sees the group cards with every link", async () => {
     const { app, groups } = await openClub();
-    await turnOn(app);
+    await chooseDashboard(app, "groups");
     const manager = createApp(inProcess, await createTestManagerSession());
 
     const { html, status } = await manager.get("/admin/");
 
     expect(status).toBe(200);
     expect(buttonLinks(blockAfter(html, "Friday Club</a>"))).toEqual(
-      nightLinks(groups.friday, EVERY_NIGHT_LINK),
+      cardLinks(groups.friday, EVERY_CARD_LINK),
     );
   });
   test("other roles keep the landing page they had", async () => {
@@ -227,7 +233,7 @@ describeWithEnv("club night dashboard", { db: true }, () => {
       );
     const before = await landings();
 
-    await turnOn(app);
+    await chooseDashboard(app, "groups");
 
     expect(before).toEqual([
       "/admin/listings",

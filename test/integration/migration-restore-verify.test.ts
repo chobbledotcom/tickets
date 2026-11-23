@@ -89,10 +89,8 @@ describeWithEnv(
       // padding migration is data-only and covered by its own migration test.
       // The custom CSS Bunny fonts backfill is data-only and covered by its
       // own migration test. The listing-fields trim backfill is data-only and
-      // covered by its own migration test. The club night dashboard migration
-      // is data-only. Its one step is addFeatureTurnedOff, which the external
-      // sources and subscriptions migration tests cover.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 29);
+      // covered by its own migration test.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 28);
     });
 
     test("restores triggers attached to a dropped table", async () => {

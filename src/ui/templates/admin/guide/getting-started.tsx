@@ -15,7 +15,7 @@ export const gettingStartedSections = (): GuideSection[] => [
   },
   faqSection(
     "dashboard",
-    ["what_is_dashboard", "club_night_dashboard", "change_list_order"],
+    ["what_is_dashboard", "group_cards_dashboard", "change_list_order"],
     "dashboard",
   ),
   {

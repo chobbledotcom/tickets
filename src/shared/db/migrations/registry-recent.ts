@@ -146,10 +146,5 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-21_listing_sort_order",
     () => import("./2026-11-21_listing_sort_order.ts"),
   ),
-  // The dashboard can show each group and its listings, for club nights.
-  entry(
-    "2026-11-23_club_night_dashboard",
-    () => import("./2026-11-23_club_night_dashboard.ts"),
-  ),
 ];
 /* jscpd:ignore-end */

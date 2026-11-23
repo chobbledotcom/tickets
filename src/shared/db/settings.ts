@@ -65,6 +65,7 @@ import {
   type EnabledFeatures,
   parseEnabledFeatures,
 } from "#shared/admin-features.ts";
+import type { DashboardType } from "#shared/group-cards.ts";
 import {
   type ListingDefaults,
   parseListingDefaults,
@@ -266,6 +267,9 @@ const settingsBase = {
       CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
       "custom_domain_last_validated",
     ),
+    dashboardType: rawUpdate(CONFIG_KEYS.DASHBOARD_TYPE, "dashboard_type") as (
+      v: DashboardType,
+    ) => Promise<void>,
 
     // --- Email writes ---
     email: {
@@ -344,6 +348,7 @@ const storedSettingGetters = snapGetters({
   /** Derived when the stylesheet is saved, so the CSP builder reads a flag
    *  instead of scanning it on every response. */
   customCssBunnyFonts: "custom_css_bunny_fonts",
+  dashboardType: "dashboard_type",
   externalOrderEnabled: "external_order_enabled",
   orderEnabled: "order_enabled",
   orphanPurgeRetention: "orphan_purge_retention",

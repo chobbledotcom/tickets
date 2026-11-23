@@ -44,12 +44,12 @@ import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
 import { authPageAt, formPolicyAt } from "#routes/route-gates.ts";
 import { adminLandingPath } from "#shared/admin-pages.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
-import {
-  clubNightsOf,
-  keepListingsInGroup,
-  showsClubNights,
-} from "#shared/club-nights.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import {
+  groupCardsOf,
+  keepListingsInGroup,
+  showsGroupCards,
+} from "#shared/group-cards.ts";
 import { groupScopeOptions } from "#shared/ledger-scope.ts";
 import {
   attributeFilterGroupsForListings,
@@ -72,11 +72,11 @@ import {
   type ActivityLogRefs,
   adminGlobalActivityLogPage,
 } from "#templates/admin/activity-log.tsx";
-import { adminClubNightDashboardPage } from "#templates/admin/club-night-dashboard.tsx";
 import {
   adminDashboardPage,
   adminListingsPage,
 } from "#templates/admin/dashboard.tsx";
+import { adminGroupCardsDashboardPage } from "#templates/admin/group-cards-dashboard.tsx";
 import type { ListingAttributeFilterView } from "#templates/admin/listing-attribute-filters.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import type { AdminSession, ListingWithCount } from "#types";
@@ -139,8 +139,8 @@ const loadDashboardBase = async () => {
 
 type DashboardBase = Awaited<ReturnType<typeof loadDashboardBase>>;
 
-/** The club night dashboard: each group with its listings on sale. */
-const clubNightDashboard = async (
+/** The group cards dashboard: each group with its listings on sale. */
+const groupCardsDashboard = async (
   base: DashboardBase,
   session: AdminSession,
 ): Promise<Response> => {
@@ -148,13 +148,13 @@ const clubNightDashboard = async (
   const members = await getListingsByGroupIds(groups.map(({ id }) => id));
   const { error, success } = getFlash();
   return htmlResponse(
-    adminClubNightDashboardPage({
-      clubNights: clubNightsOf({
+    adminGroupCardsDashboardPage({
+      flash: { error, success },
+      groupCards: groupCardsOf({
         groups,
         listings: base.sortedListings,
         members,
       }),
-      flash: { error, success },
       listings: base.sortedListings,
       newestAttendees: base.newestAttendees,
       pendingNotifications: base.pendingNotifications,
@@ -213,8 +213,8 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       }
       const base = await loadDashboardBase();
       const view = new URL(request.url).searchParams.get("view");
-      return showsClubNights(settings.features.clubNightDashboard, view)
-        ? clubNightDashboard(base, session)
+      return showsGroupCards(settings.dashboardType, view)
+        ? groupCardsDashboard(base, session)
         : fullDashboard(base, session, request);
     },
     () => loginResponse(request),

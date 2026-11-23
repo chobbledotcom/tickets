@@ -346,8 +346,8 @@ export const adminDashboardPage = (
         listings={listings}
         newestAttendees={newestAttendees}
         switchTo={
-          settings.features.clubNightDashboard
-            ? { href: "/admin/", labelKey: "admin.dashboard.show_club_night" }
+          settings.dashboardType === "groups"
+            ? { href: "/admin/", labelKey: "admin.dashboard.show_group_cards" }
             : null
         }
       />

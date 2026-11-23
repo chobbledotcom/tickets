@@ -44,7 +44,5 @@
   "features.invoices.name": "Invoices",
   "features.invoices.description": "Show the invoices menu and the tools that invoice a booking.",
   "features.subscriptions.name": "Subscriptions",
-  "features.subscriptions.description": "Let a ticket charge again every week, month, or year. This needs Stripe.",
-  "features.club_night_dashboard.name": "Club night dashboard",
-  "features.club_night_dashboard.description": "Show each group and its listings on the dashboard, for running club nights. The full dashboard stays one click away."
+  "features.subscriptions.description": "Let a ticket charge again every week, month, or year. This needs Stripe."
 }

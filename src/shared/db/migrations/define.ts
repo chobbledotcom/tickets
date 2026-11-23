@@ -1,5 +1,4 @@
-import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
-import { CONFIG_KEYS } from "#shared/settings/keys.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { TRIGGERS } from "./schema/triggers.ts";
 import type {
   MigrationBuilder,
@@ -64,22 +63,6 @@ export const schemaMigration =
         await after?.(context);
       },
     });
-
-/**
- * Add one feature, turned off, to a feature list saved before the feature
- * existed. A feature list is valid only when it names every feature, so each
- * release that adds a feature runs this. A stored choice for the feature stays.
- */
-export const addFeatureTurnedOff =
-  (key: string): SchemaMigrationAfter =>
-  async ({ getDb }) => {
-    const path = sqlLiteral(`$.${key}`);
-    await getDb().execute(sql`UPDATE settings
-               SET value = json_set(value, ${path}, json('false'))
-             WHERE key = ${sqlLiteral(CONFIG_KEYS.ENABLED_FEATURES)}
-               AND json_valid(value)
-               AND json_type(value, ${path}) IS NULL`);
-  };
 
 /**
  * A migration that owns no additive object — it carries `{}` requires and the
