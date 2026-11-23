@@ -41,7 +41,7 @@ const addLink = async (
     linkId,
     linkType,
   });
-  if (!created.ok) throw new Error(created.error);
+  if (!created.ok) throw new Error(created.error.message);
   return created.value;
 };
 

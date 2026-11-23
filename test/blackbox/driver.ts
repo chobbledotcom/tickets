@@ -21,14 +21,16 @@ export type Target = (request: Request) => Promise<Response>;
 
 /** What a visitor sees after one request. A redirect is not followed. */
 export interface Page {
+  headers: Headers;
   html: string;
   /** The address that a redirect names, or null. */
   location: string | null;
   status: number;
 }
 
-/** The fields to send, by name. They replace what the form holds. */
-export type Fields = Record<string, string>;
+/** The fields to send, by name. They replace what the form holds. A null
+ * leaves the field out, as a browser does for a box that is not ticked. */
+export type Fields = Record<string, string | null>;
 
 export interface App {
   /** The `cookie` header value that the visitor now sends. */
@@ -81,20 +83,44 @@ const rememberCookies = (
 
 const FORM_PATTERN = /<form\b[^>]*>[\s\S]*?<\/form>/gi;
 
-/** The form of `html` whose action is `action`, or a loud failure that lists
- * the actions that the page does offer. */
-const formWithAction = (html: string, action: string): string => {
+/** The value of one attribute of an HTML tag. */
+const attributeOf = (tag: string, name: string): string | undefined =>
+  tag.match(new RegExp(`\\b${name}="([^"]*)"`, "i"))?.[1];
+
+/** The submit button of `form` whose formaction is `action`, as the entries
+ * a browser sends when it is pressed: its name and value, if it has a name. */
+const buttonPostingTo = (
+  form: string,
+  action: string,
+): [string, string][] | undefined => {
+  const tag = (form.match(/<button\b[^>]*>/gi) ?? []).find(
+    (button) => attributeOf(button, "formaction") === action,
+  );
+  if (tag === undefined) return;
+  const name = attributeOf(tag, "name");
+  return name === undefined ? [] : [[name, attributeOf(tag, "value") ?? ""]];
+};
+
+/** The form of `html` that posts to `action`: by its own action, or by the
+ * formaction of a button in it, which a browser sends with the form. A loud
+ * failure lists the actions that the page does offer. */
+const formWithAction = (
+  html: string,
+  action: string,
+): { form: string; pressed: [string, string][] } => {
   const forms = html.match(FORM_PATTERN) ?? [];
   const actionOf = (form: string): string | undefined =>
     form.match(/<form\b[^>]*\baction="([^"]*)"/i)?.[1];
-  const found = forms.find((form) => actionOf(form) === action);
-  if (found === undefined) {
-    const offered = forms.map((form) => actionOf(form) ?? "(none)").join(", ");
-    throw new Error(
-      `The page offers no form with action "${action}". Forms: ${offered || "none"}.`,
-    );
+  const own = forms.find((form) => actionOf(form) === action);
+  if (own !== undefined) return { form: own, pressed: [] };
+  for (const form of forms) {
+    const pressed = buttonPostingTo(form, action);
+    if (pressed !== undefined) return { form, pressed };
   }
-  return found;
+  const offered = forms.map((form) => actionOf(form) ?? "(none)").join(", ");
+  throw new Error(
+    `The page offers no form with action "${action}". Forms: ${offered || "none"}.`,
+  );
 };
 
 /** The body that a browser sends for these entries: multipart when the form
@@ -119,13 +145,15 @@ const withFields = (
   entries: [string, string][],
   fields: Fields,
 ): [string, string][] => {
-  const replaced = entries.map(([name, value]): [string, string] => [
-    name,
-    fields[name] ?? value,
-  ]);
+  const replaced = entries.map(([name, value]): [string, string | null] => {
+    const field = fields[name];
+    return [name, field === undefined ? value : field];
+  });
   const known = new Set(entries.map(([name]) => name));
   const added = Object.entries(fields).filter(([name]) => !known.has(name));
-  return [...replaced, ...added];
+  return [...replaced, ...added].filter(
+    (entry): entry is [string, string] => entry[1] !== null,
+  );
 };
 
 /** A visitor with no cookies, or with the cookie header `cookie`. */
@@ -150,6 +178,7 @@ export const createApp = (target: Target, cookie = ""): App => {
     );
     rememberCookies(jar, response);
     return {
+      headers: response.headers,
       html: await response.text(),
       location: response.headers.get("location"),
       status: response.status,
@@ -163,10 +192,10 @@ export const createApp = (target: Target, cookie = ""): App => {
     fields: Fields = {},
     action: string = path,
   ): Promise<Page> => {
-    const form = formWithAction((await get(path)).html, action);
+    const { form, pressed } = formWithAction((await get(path)).html, action);
     const { body, headers } = bodyFor(
       form,
-      withFields(extractFormEntries(form), fields),
+      withFields([...extractFormEntries(form), ...pressed], fields),
     );
     return await send(action, { body, headers, method: "POST" });
   };

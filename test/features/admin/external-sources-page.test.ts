@@ -22,7 +22,7 @@ const seedDirectory = async (): Promise<{ listingId: number }> => {
     linkId: listing.id,
     linkType: "listing",
   });
-  if (!created.ok) throw new Error(created.error);
+  if (!created.ok) throw new Error(created.error.message);
   return { listingId: listing.id };
 };
 

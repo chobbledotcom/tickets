@@ -60,6 +60,7 @@ export const API_EXAMPLE_LISTING: ListingWithCount = {
   // Documentation fixture, never queried — a hand-crafted stand-in for the
   // stored blind index (same boundary as test fixtures).
   slugIndex: EXAMPLE_LISTING.slug as BlindIndex,
+  sortOrder: 0,
   thankYouUrl: "",
   ticketsCount: 3,
   unitPrice: EXAMPLE_LISTING.unit_price,

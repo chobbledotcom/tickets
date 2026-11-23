@@ -92,15 +92,15 @@ describe("the A-L record areas", () => {
       write: {
         attributeDelete: { pattern: "/admin/attributes/:id/delete" },
         attributeEdit: "/admin/attributes/:id/edit",
-        attributeMoveDown: "/admin/attributes/:id/move-down",
-        attributeMoveUp: "/admin/attributes/:id/move-up",
+        attributeMoveAfter: "/admin/attributes/:id/move-after",
+        attributeMoveBefore: "/admin/attributes/:id/move-before",
         attributeOptionAdd: "/admin/attributes/:id/options",
         attributeOptionDelete: "/admin/attributes/:id/options/:optionId/delete",
         attributeOptionEdit: "/admin/attributes/:id/options/:optionId/edit",
-        attributeOptionMoveDown:
-          "/admin/attributes/:id/options/:optionId/move-down",
-        attributeOptionMoveUp:
-          "/admin/attributes/:id/options/:optionId/move-up",
+        attributeOptionMoveAfter:
+          "/admin/attributes/:id/options/:optionId/move-after",
+        attributeOptionMoveBefore:
+          "/admin/attributes/:id/options/:optionId/move-before",
       },
     });
   });
@@ -126,6 +126,8 @@ describe("the A-L record areas", () => {
         groupAddListings: "/admin/groups/:id/add-listings",
         groupDelete: staffRoute("/admin/groups/:id/delete"),
         groupEdit: savesTo("group", "/admin/groups/:id/edit"),
+        groupImageMoveAfter: "/admin/groups/:id/images/:imageId/move-after",
+        groupImageMoveBefore: "/admin/groups/:id/images/:imageId/move-before",
         groupImages: "/admin/groups/:id/images",
         groupImagesUpload: "/admin/groups/:id/images/upload",
         groupNew: "/admin/groups/new",

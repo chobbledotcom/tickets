@@ -9,10 +9,14 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import type { Window } from "happy-dom";
 import type { ChosenImage } from "#shared/images/picker.ts";
+import { IMAGE_ORDERS } from "#shared/ordered-lists.ts";
+import type { ReorderColumnOptions } from "#shared/tables/column.ts";
 import { initListingImages } from "#src/ui/client/admin/listing-images.ts";
+import { SORTABLE_MOVED } from "#src/ui/client/admin/sortable.ts";
 import { ListingImagesField } from "#templates/admin/listings/listing-images.tsx";
+import { withEnv } from "#test-utils/env.ts";
 import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
-import { requireElement } from "#test-utils/happy-dom.ts";
+import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import {
   ADMIN_TEMPLATES,
   cleanup,
@@ -35,9 +39,12 @@ import {
 afterEach(cleanup);
 afterEach(restoreHeldStub);
 
-const sectionHtml = (stored: readonly ChosenImage[] = []): string =>
+const sectionHtml = (
+  stored: readonly ChosenImage[] = [],
+  reorder?: ReorderColumnOptions<ChosenImage>,
+): string =>
   `<form action="/admin/listing" method="post">${String(
-    ListingImagesField({ selected: stored }),
+    ListingImagesField({ reorder, selected: stored }),
   )}</form>`;
 
 /** One stored picture as a rejected create renders it. */
@@ -140,11 +147,55 @@ describe("the listing images field", () => {
       window.document,
       ".listing-images-item",
     );
-    expect(item.querySelector("span")).toBeNull();
+    expect(
+      [...item.querySelectorAll(".listing-images-order > *")].map(
+        (control) =>
+          `${control.className} ${control.getAttribute("data-sortable-path")}`,
+      ),
+    ).toEqual(["reorder-handle null"]);
     expect(item.querySelector("img")?.getAttribute("src")).toBe(
       "/image/seed-thumb.webp",
     );
     expectSelection(window, ["4"], ["Remove Seed"]);
+  });
+
+  test("keeps each saved picture's own card, and drops it by its remove button", () => {
+    const window = installDom(
+      ADMIN_TEMPLATES +
+        sectionHtml(
+          [storedImage(4, "Seed", ""), storedImage(5, "Other", "")],
+          IMAGE_ORDERS.listing.column(1),
+        ),
+    );
+    initListingImages();
+
+    requireElement<HTMLButtonElement>(
+      window.document,
+      '.listing-images-remove[aria-label="Remove Seed"]',
+    ).click();
+
+    expect(imageIdValues(window)).toEqual(["5"]);
+    expect(
+      attributesOf(window, "[data-sortable-handle]", "data-sortable-path"),
+    ).toEqual(["/admin/listing/1/images/5"]);
+  });
+
+  test("offers no handles or arrows on saved pictures when the site is read-only", () => {
+    using _readOnly = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = sectionHtml(
+      [storedImage(4, "Seed", ""), storedImage(5, "Other", "")],
+      IMAGE_ORDERS.listing.column(1),
+    );
+
+    // The handle template stays, but a list that is not sortable never
+    // starts a drag.
+    const outsideTemplate = html.replace(/<template[\s\S]*?<\/template>/, "");
+
+    expect(
+      ["data-sortable", "move-before", "move-after"].filter((part) =>
+        outsideTemplate.includes(part),
+      ),
+    ).toEqual([]);
   });
 
   test("refuses a stored picture whose id is not a positive number", () => {
@@ -204,6 +255,31 @@ describe("the listing images field", () => {
     ).click();
 
     expect(imageIdValues(window)).toEqual(["2"]);
+  });
+
+  test("gives a chosen picture a drag handle, and a drop puts its input where its card now sits", async () => {
+    const { window } = await mounted([twoImageList()]);
+    chose(window, "Zebra");
+    chose(window, "Alpha");
+    confirmSelection(window);
+    const list = requireElement<HTMLElement>(
+      window.document,
+      "[data-listing-images-selected]",
+    );
+    const [zebra, alpha] = [...list.children];
+
+    list.insertBefore(alpha!, zebra!);
+    fireEvent(list, new window.Event(SORTABLE_MOVED));
+
+    expect({
+      handles: attributesOf(window, ".reorder-handle", "title"),
+      ids: imageIdValues(window),
+      removes: removeLabels(window),
+    }).toEqual({
+      handles: ["Drag to change the order", "Drag to change the order"],
+      ids: ["2", "9"],
+      removes: ["Remove Alpha", "Remove Zebra"],
+    });
   });
 
   test("keeps the window open and marks an uploaded picture", async () => {

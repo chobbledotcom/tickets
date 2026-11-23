@@ -15,9 +15,13 @@ import { adminPattern } from "#shared/admin-surface.ts";
  *   - listings-lifecycle.ts   deactivate / reactivate / delete / log
  */
 
+import { listingOrder } from "#db/listings/order.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { orderedListRoutes } from "#shared/ordered-list-routes.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
+import { loadSortedListings } from "#shared/sort-listings.ts";
 import { listingNoteFeature } from "./catalog-notes.ts";
-import { createItemImageHandlers } from "./item-images.ts";
+import { createItemImageHandlers, imageOrderRoutes } from "./item-images.ts";
 import { listingPage } from "./listing-page.ts";
 import {
   handleAdminListingDuplicateGet,
@@ -40,6 +44,13 @@ import {
 } from "./listings-recalculate.ts";
 import { handleAttachmentDelete } from "./listings-uploads.ts";
 import { bindNoteRoutes } from "./record-notes.ts";
+
+/** Move a listing on the listings page. The move works on the whole order,
+ *  so a listing that a filter hides keeps its place beside its neighbours. */
+const listingOrderRoutes = orderedListRoutes(ORDERED_LISTS.listing, {
+  order: listingOrder,
+  rows: async () => (await loadSortedListings()).listings,
+});
 
 const listingImageHandlers = createItemImageHandlers({
   disabledPath: (id) => `/admin/listing/${id}/edit`,
@@ -76,7 +87,9 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/listing/:id/delete": handleAdminListingDelete,
   "POST /admin/listing/:id/edit": handleAdminListingEditPost,
   "POST /admin/listing/:id/images": listingImageHandlers.set,
+  ...imageOrderRoutes("listing"),
   "POST /admin/listing/:id/income": handleAdminListingIncomePost,
+  ...listingOrderRoutes,
   "POST /admin/listing/:id/reactivate": idRouteFor(listingReactivate.post),
   "POST /admin/listings/recalculate/:listingId": handleListingRecalculatePost,
 });

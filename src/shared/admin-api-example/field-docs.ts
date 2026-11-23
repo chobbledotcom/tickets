@@ -16,6 +16,7 @@ import type {
 } from "#shared/rest/field-specs.ts";
 import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
 import { ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
+import { TEXT } from "./value-forms.ts";
 
 /** The form of one field's value. The docs page has one text for each form. */
 export type ValueForm =
@@ -53,7 +54,6 @@ export type FieldDocs = {
 };
 
 const TIME: ValueForm = { form: "time" };
-const TEXT: ValueForm = { form: "text" };
 
 /** The value form of each field kind. */
 const KIND_FORMS: Record<FieldKind, (field: FieldSpec) => ValueForm> = {
@@ -102,50 +102,80 @@ const createRow = (field: FieldSpec): FieldDocRow => {
   };
 };
 
-/** A body key that no field list declares, such as a list of linked ids. */
+/** A body key that a write declares for itself, such as a list of linked ids
+ *  or a booking line. */
 export type ExtraField = {
   /** The one verb that takes the key. Absent means both verbs take it. */
-  only?: "update";
+  only?: "create" | "update";
+  /** The key a create cannot go without. An update never requires a key. */
+  required?: boolean;
   value: ValueForm;
 };
 
+/** The body keys a write declares for itself, by key. */
+export type ExtraFieldMap = Readonly<Record<string, ExtraField>>;
+
 const byKey = (rows: FieldDocRow[]): FieldDocRow[] =>
   rows.toSorted((a, b) => a.key.localeCompare(b.key));
+
+/** The create row of one declared body key. */
+const extraRow = (key: string, field: ExtraField): FieldDocRow => ({
+  defaultJson: null,
+  key,
+  required: field.required === true,
+  value: field.value,
+});
+
+/** What an update row says beside its create row: nothing is required, and
+ *  the stored value is the default. */
+const UPDATE_FACTS = { defaultJson: null, required: false };
+
+/** The rows of a create and of an update, each sorted by key. An update row
+ *  is the create row with no requirement: an update can leave every key out,
+ *  and it keeps the stored value. */
+const fieldDocsOf = (
+  create: readonly FieldDocRow[],
+  update: readonly FieldDocRow[],
+): FieldDocs => ({
+  create: byKey([...create]),
+  update: byKey(update.map((row) => ({ ...row, ...UPDATE_FACTS }))),
+});
+
+/** Whether a verb takes one declared key: the viewer can set it, and no other
+ *  verb owns it. */
+const takesKey =
+  (verb: "create" | "update", closed: ReadonlySet<string>) =>
+  ([key, field]: readonly [string, ExtraField]): boolean =>
+    !closed.has(key) && (field.only === undefined || field.only === verb);
+
+/** The rows of the body keys that a write declares for itself, after the rows
+ *  of its field list. A key that the viewer cannot set has no row. */
+export const extraFieldDocs = (
+  extras: ExtraFieldMap,
+  closed: ReadonlySet<string>,
+  listed: readonly FieldDocRow[] = [],
+): FieldDocs => {
+  const rowsFor = (verb: "create" | "update"): FieldDocRow[] => [
+    ...listed,
+    ...Object.entries(extras).flatMap((entry) =>
+      takesKey(verb, closed)(entry) ? [extraRow(...entry)] : [],
+    ),
+  ];
+  return fieldDocsOf(rowsFor("create"), rowsFor("update"));
+};
 
 /** The field rows of a resource that a field list declares. A key that the
  *  viewer cannot set has no row. */
 export const specFieldDocs = (
   fields: FieldSpecs,
-  extras: Readonly<Record<string, ExtraField>>,
+  extras: ExtraFieldMap,
   closed: ReadonlySet<string>,
-): FieldDocs => {
-  const declared = fields
-    .filter((field) => !closed.has(columnName(field.key)))
-    .map(createRow);
-  const extra = Object.entries(extras)
-    .filter(([key]) => !closed.has(key))
-    .map(([key, field]) => ({
-      only: field.only,
-      row: {
-        defaultJson: null,
-        key,
-        required: false,
-        value: field.value,
-      },
-    }));
-  return {
-    create: byKey([
-      ...declared,
-      ...extra.filter(({ only }) => only === undefined).map(({ row }) => row),
-    ]),
-    // An update can leave every field out, and it keeps the stored value.
-    update: byKey([...declared, ...extra.map(({ row }) => row)]).map((row) => ({
-      ...row,
-      defaultJson: null,
-      required: false,
-    })),
-  };
-};
+): FieldDocs =>
+  extraFieldDocs(
+    extras,
+    closed,
+    fields.filter((field) => !closed.has(columnName(field.key))).map(createRow),
+  );
 
 /** The valibot schemas a write body is made of. */
 type BodyValueSchema =

@@ -5,7 +5,11 @@
 
 import * as v from "valibot";
 import type { PublicListing } from "#routes/api/public-listing.ts";
-import { PackageChildrenSchema } from "#routes/api/request-schemas.ts";
+import {
+  LISTING_BOOKING_FIELDS,
+  PACKAGE_BOOKING_FIELDS,
+  PackageChildrenSchema,
+} from "#routes/api/request-schemas.ts";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
   API_BOOK_PAID_EXAMPLE_JSON,
@@ -14,6 +18,7 @@ import {
   API_SINGLE_EXAMPLE_JSON,
 } from "#shared/api-example.ts";
 import { type EndpointDoc, json } from "./endpoint-doc.ts";
+import { type ExtraField, extraFieldDocs } from "./field-docs.ts";
 
 /** The add-on offered under the example package's "Tent Pitch" member. A member
  * that offers a child is published with it, so the booking example can choose
@@ -47,6 +52,10 @@ const PACKAGE_BOOK_CHILDREN_EXAMPLE = v.parse(PackageChildrenSchema, [
   { parent: "tent-pitch", quantity: 1, slug: "extra-bedding" },
 ]);
 
+/** The field rows of a public booking body. A booking has no update. */
+const bookingFields = (fields: Record<string, ExtraField>) =>
+  extraFieldDocs(fields, new Set()).create;
+
 export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
   {
     description: "List all active, non-hidden listings",
@@ -68,7 +77,9 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
     response: API_AVAILABILITY_EXAMPLE_JSON,
   },
   {
-    description: "Create a booking",
+    description:
+      "Create a booking. The name is always required. The listing's contact fields setting decides which of email, phone, address and special_instructions are required too. A listing booked per date also needs date.",
+    fields: bookingFields(LISTING_BOOKING_FIELDS),
     method: "POST",
     path: "/api/listings/:slug/book",
     request: json({
@@ -106,7 +117,8 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
   },
   {
     description:
-      "Book whole package bundles (optional: date for dated bundles, dayCount for customisable ones, children choosing each parent member's add-ons)",
+      "Book whole package bundles (optional: date for dated bundles, dayCount for customisable ones, children choosing each parent member's add-ons). The name is always required. The package's contact fields setting decides which of email, phone, address and special_instructions are required too.",
+    fields: bookingFields(PACKAGE_BOOKING_FIELDS),
     method: "POST",
     path: "/api/packages/:slug/book",
     request: json({

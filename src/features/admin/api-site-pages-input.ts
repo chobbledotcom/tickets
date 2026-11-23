@@ -16,6 +16,7 @@ import type { SitePageWriteInput } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import {
   CreateSitePageBodySchema,
+  FixedPageBodySchema,
   UpdateSitePageBodySchema,
 } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
@@ -186,7 +187,7 @@ export const toFixedPageContent = (
       return errorResult(`${field} cannot change on a fixed page`);
     }
   }
-  const parsed = parseApiBody(UpdateSitePageBodySchema, body);
+  const parsed = parseApiBody(FixedPageBodySchema, body);
   if (!parsed.ok) return parsed;
   return parsed.value.content === undefined
     ? okResult(stored)

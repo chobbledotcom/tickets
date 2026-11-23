@@ -11,7 +11,6 @@ import {
   addListing,
   createLink,
   createSource,
-  linksPath,
 } from "#test-utils/external-sources.ts";
 import { apiRequest } from "#test-utils/session.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
@@ -65,34 +64,6 @@ describeWithEnv("Admin API - External link search", { db: true }, () => {
         apiRequest("/api/admin/external-sources/links?link_type=listing"),
         400,
         "link_type and link_id go together",
-      );
-    });
-
-    test("names every record one external id holds", async () => {
-      const source = await createSource();
-      const sourceId = Number(source.source.id);
-      const first = await addListing("Watercolour day");
-      const second = await addListing("Pottery day");
-      await createLink(sourceId, {
-        external_id: "INV-1",
-        link_id: first.id,
-        link_type: "listing",
-      });
-      await createLink(sourceId, {
-        external_id: "INV-1",
-        link_id: second.id,
-        link_type: "listing",
-      });
-
-      await assertJson(
-        apiRequest(`${linksPath(sourceId)}?external_id=INV-1`),
-        200,
-        (body) => {
-          expect(body.links).toEqual([
-            expect.objectContaining({ link_id: first.id }),
-            expect.objectContaining({ link_id: second.id }),
-          ]);
-        },
       );
     });
   });

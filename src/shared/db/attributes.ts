@@ -10,7 +10,6 @@ import {
   executeBatch,
   queryAll,
   queryIdColumn,
-  queryOne,
   type TxScope,
 } from "#db/client.ts";
 import { linkTableSide } from "#db/link-table.ts";
@@ -197,9 +196,6 @@ export const {
   onPrimary: getAttributeWithOptionsOnPrimary,
   onReplica: getAttributeWithOptions,
 } = onReplicaAndPrimary(attributeJoinedSql, attributeFromRows);
-
-export const getAttributeId = async (id: number): Promise<number | null> =>
-  (await queryOne(records.attributes.byId(id).limit(1).pick("id")))?.id ?? null;
 
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
   queryIdColumn(from(tables.attributes).sortedBy("sortOrder", "id").pick("id"));

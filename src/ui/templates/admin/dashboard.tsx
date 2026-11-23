@@ -24,6 +24,7 @@ import {
   emptyGroupFilterView,
   type ListingGroupFilterView,
 } from "#shared/listing-group-view.ts";
+import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import type { ListingColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
@@ -330,10 +331,11 @@ export const adminListingsPage = (
   const isEditor = session.adminLevel === "editor";
   const layout = listingColumnLayout ?? listingTable.layout.defaultLayout;
   const tableOptions = isEditor
-    ? ({ table: "editor" } as const)
+    ? ({ reorder: ORDERED_LISTS.listing.column(), table: "editor" } as const)
     : {
         columnKeys: layout.columnKeys,
         filters: layout.filters,
+        reorder: ORDERED_LISTS.listing.column(),
         table: "staff" as const,
       };
   const activeListings = activeOnly(listings);

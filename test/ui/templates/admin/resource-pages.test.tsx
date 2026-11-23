@@ -71,12 +71,8 @@ const config: AdminResourcePagesConfig<SyntheticResource> = {
     guideFooter: <p data-guide-footer="true">Synthetic widget guide</p>,
     intro: <p data-list-intro="true">Manage synthetic widgets.</p>,
     reorder: {
-      action:
-        ({ id }) =>
-        (direction) =>
-          `/admin/widgets/${id}/move-${direction}`,
-      header: "Order",
-      titles: { down: "Move down", up: "Move up" },
+      anchor: ({ id }) => String(id),
+      path: ({ id }) => `/admin/widgets/${id}`,
     },
   },
   renderFields: (current) => (
@@ -142,11 +138,11 @@ describe("admin resource page factory", () => {
       "Could not load widgets.",
       "Widgets loaded.",
       '<p data-list-intro="true">Manage synthetic widgets.</p>',
-      '<th class="col-reorder">Order</th><th>Name</th><th>Code</th>',
+      '<th class="col-reorder"></th><th>Name</th><th>Code</th>',
       '<a href="/admin/widgets/17/edit">Widget &amp; One</a>',
       "<td>W-17</td>",
-      'action="/admin/widgets/17/move-down"',
-      'action="/admin/widgets/18/move-up"',
+      'action="/admin/widgets/17/move-after"',
+      'action="/admin/widgets/18/move-before"',
       '<a href="/admin/widgets/new">Add synthetic widget</a>',
       '<p data-guide-footer="true">Synthetic widget guide</p>',
     ]);

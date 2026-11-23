@@ -3,12 +3,15 @@
 /**
  * The Images field on a new physical-product or custom listing. It shows the
  * chosen pictures and keeps one `imageIds` hidden input for each picture. It
- * opens the shared image picker to choose or upload more.
+ * opens the shared image picker to choose or upload more. A drag moves a
+ * picture among the others, and the inputs follow, so Save stores the order.
  */
 
+import { requiredMapValue } from "#fp";
 import type { ChosenImage, ImageOption } from "#shared/images/picker.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { closeAdminModal } from "#src/ui/client/admin/modal.ts";
+import { SORTABLE_MOVED } from "#src/ui/client/admin/sortable.ts";
 import {
   createButton,
   createHiddenInput,
@@ -59,22 +62,47 @@ type RemoveLabels = {
   text: string;
 };
 
-/** One chosen picture: its thumbnail and the button that drops it. */
+/** What the server renders for the browser to build a card from. */
+type CardParts = RemoveLabels & {
+  /** The template that holds the drag handle of a card. */
+  handle: HTMLTemplateElement;
+};
+
+/** The id of the picture one card shows. */
+const cardId = (item: HTMLElement): number =>
+  storedId(requireValue(item.dataset.imageId, "card image id"));
+
+/** Make the drop button of one picture drop it. */
+const wireRemove = (
+  item: HTMLElement,
+  id: number,
+  remove: (id: number) => void,
+): void => {
+  requiredChild<HTMLButtonElement>(
+    item,
+    ".listing-images-remove",
+  ).addEventListener("click", () => remove(id));
+};
+
+/** One chosen picture: its drag handle, its thumbnail and the button that
+ *  drops it. */
 const chosenItem = (
   choice: ChosenImage,
   remove: (id: number) => void,
-  labels: RemoveLabels,
+  parts: CardParts,
 ): HTMLLIElement => {
   const item = document.createElement("li");
   item.className = "listing-images-item";
+  item.dataset.imageId = String(choice.id);
+  item.append(parts.handle.content.cloneNode(true));
   if (choice.thumb !== "") {
     item.append(createThumbnail(choice.thumb, "lazy"));
   }
   const button = createButton("listing-images-remove");
-  button.textContent = labels.text;
-  button.setAttribute("aria-label", labels.label(choice.name));
-  button.addEventListener("click", () => remove(choice.id));
+  button.textContent = parts.text;
+  button.setAttribute("aria-label", parts.label(choice.name));
   item.append(button);
+  wireRemove(item, choice.id, remove);
   return item;
 };
 
@@ -102,6 +130,13 @@ const setUpListingImages = (section: HTMLElement): void => {
     'input[name="imageIds"]',
   );
   let chosen = [...stored].map(choiceFromInput);
+  // The pictures the server rendered keep their card, with any drag handle
+  // and arrows on it. A picture chosen here gets a plain card.
+  const served = new Map(
+    [...list.querySelectorAll<HTMLElement>("[data-image-id]")].map(
+      (item): [number, HTMLElement] => [cardId(item), item],
+    ),
+  );
   const library = createImageLibrary();
   const picker = clonePicker(template);
   const { content, grid } = picker;
@@ -122,7 +157,11 @@ const setUpListingImages = (section: HTMLElement): void => {
     section.dataset.imageRemoveLabel,
     "image remove label",
   );
-  const labels: RemoveLabels = {
+  const parts: CardParts = {
+    handle: requiredChild<HTMLTemplateElement>(
+      section,
+      "template[data-listing-images-handle]",
+    ),
     label: (name) => removeLabel.replace("{name}", () => name),
     text: removeText,
   };
@@ -184,7 +223,9 @@ const setUpListingImages = (section: HTMLElement): void => {
   const render = (): void => {
     inputs.replaceChildren(...chosen.map(choiceInput));
     list.replaceChildren(
-      ...chosen.map((choice) => chosenItem(choice, remove, labels)),
+      ...chosen.map(
+        (choice) => served.get(choice.id) ?? chosenItem(choice, remove, parts),
+      ),
     );
     empty.hidden = chosen.length > 0;
     list.hidden = chosen.length === 0;
@@ -205,6 +246,14 @@ const setUpListingImages = (section: HTMLElement): void => {
     closeAdminModal(picker.key);
   });
   trigger.addEventListener("click", () => void open());
+  list.addEventListener(SORTABLE_MOVED, () => {
+    const byId = new Map(chosen.map((choice) => [choice.id, choice]));
+    chosen = [...list.children].map((item) =>
+      requiredMapValue(byId, cardId(item as HTMLElement)),
+    );
+    render();
+  });
+  for (const [id, item] of served) wireRemove(item, id, remove);
   render();
 };
 

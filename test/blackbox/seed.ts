@@ -31,20 +31,28 @@ export const openApi = async (app: App, name = "seed"): Promise<Api> => {
   return createApi(app.target, key);
 };
 
-/** The record of a create that answered 201. Any other answer fails and shows
- * what the API said. */
-const created = <Schema extends v.GenericSchema>(
+/** The body of an answer with the `expected` status. Any other answer fails
+ * and shows what the API said. */
+const answered = <Schema extends v.GenericSchema>(
   what: string,
   answer: Answer,
+  expected: number,
   schema: Schema,
 ): v.InferOutput<Schema> => {
-  if (answer.status !== 201) {
+  if (answer.status !== expected) {
     throw new Error(
-      `Adding the ${what} answered ${answer.status}: ${JSON.stringify(answer.body)}`,
+      `${what} answered ${answer.status}: ${JSON.stringify(answer.body)}`,
     );
   }
   return v.parse(schema, answer.body);
 };
+
+/** The record of a create that answered 201. */
+const created = <Schema extends v.GenericSchema>(
+  what: string,
+  answer: Answer,
+  schema: Schema,
+): v.InferOutput<Schema> => answered(`Adding the ${what}`, answer, 201, schema);
 
 const ListingAnswer = v.object({
   listing: v.looseObject({ id: v.number(), slug: v.string() }),
@@ -74,6 +82,47 @@ export const addListing = async (
     ListingAnswer,
   );
   return { id: listing.id, slug: listing.slug };
+};
+
+const GroupAnswer = v.object({ group: v.looseObject({ id: v.number() }) });
+
+/** Add a group and give back its number. */
+export const addGroup = async (api: Api, name: string): Promise<number> =>
+  created(
+    "group",
+    await api.post("/api/admin/groups", { max_attendees: 10, name }),
+    GroupAnswer,
+  ).group.id;
+
+const ImageAnswer = v.object({ image: v.looseObject({ id: v.number() }) });
+
+/** A real 1×1 PNG as base64 text, the smallest file an image create takes. */
+const ONE_PIXEL_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+
+/** Add an image to the library, show it on one record after the record's
+ * other images, and give back its number. The site needs image storage. */
+export const addImage = async (
+  api: Api,
+  name: string,
+  item: { item_id: number; item_type: string },
+): Promise<number> => {
+  const { id } = created(
+    "image",
+    await api.post("/api/admin/images", {
+      content_type: "image/png",
+      file: ONE_PIXEL_PNG,
+      name,
+    }),
+    ImageAnswer,
+  ).image;
+  answered(
+    `Showing image ${id}`,
+    await api.put(`/api/admin/images/${id}`, { items: [item] }),
+    200,
+    v.unknown(),
+  );
+  return id;
 };
 
 /** The fields of a new booking: who books, and how many places. */

@@ -22,6 +22,8 @@ import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { MAX_DURATION_DAYS } from "#types";
 import { ADMIN_API_ENDPOINTS, documented } from "./helpers.ts";
 
+const TEXT = { form: "text" } as const;
+
 /** The field rows of one documented write. */
 const rowsOf = (method: string, path: string): readonly FieldDocRow[] => {
   const { fields } = documented(ADMIN_API_ENDPOINTS, method, path);
@@ -277,18 +279,63 @@ describe("documented request fields", () => {
     ]);
   });
 
-  test("every documented write with a body names its fields, except the attendee writes and the fixed pages, which the server reads by hand", () => {
+  test("every documented write with a body names its fields", () => {
     const withoutFields = writesWithBody()
       .filter((endpoint) => endpoint.fields === undefined)
       .map((endpoint) => `${endpoint.method} ${endpoint.path}`);
 
-    expect(withoutFields).toEqual([
-      "POST /api/admin/attendees",
-      "PUT /api/admin/attendees/:attendeeId",
-      "PUT /api/admin/site-pages/home",
-      "PUT /api/admin/site-pages/contact",
-      "PUT /api/admin/site-pages/terms",
+    expect(withoutFields).toEqual([]);
+  });
+
+  test("an attendee create names every key the server reads and requires the name and the lines", () => {
+    const rows = rowsOf("POST", "/api/admin/attendees");
+
+    expect(keysOf(rows)).toEqual([
+      "address",
+      "adjustments",
+      "answers",
+      "created",
+      "email",
+      "external_id",
+      "external_source_id",
+      "lines",
+      "name",
+      "notifications",
+      "payments",
+      "phone",
+      "special_instructions",
+      "status",
+      "ticketToken",
     ]);
+    expect(keysOf(rows.filter((row) => row.required))).toEqual([
+      "lines",
+      "name",
+    ]);
+  });
+
+  test("an attendee update requires nothing and leaves out the keys that name the booking", () => {
+    const rows = rowsOf("PUT", "/api/admin/attendees/:attendeeId");
+
+    expect(keysOf(rows)).not.toContain("created");
+    expect(keysOf(rows)).not.toContain("ticketToken");
+    expect(keysOf(rows)).not.toContain("external_id");
+    expect(keysOf(rows)).not.toContain("external_source_id");
+    expect(rows.filter((row) => row.required)).toEqual([]);
+    expect(rowOf(rows, "lines").value).toEqual({
+      form: "list_of",
+      of: {
+        form: "object",
+        names: ["date", "durationDays", "listingId", "price", "quantity"],
+      },
+    });
+  });
+
+  test("a fixed page update takes the content the server reads", () => {
+    for (const name of ["home", "contact", "terms"]) {
+      expect(rowsOf("PUT", `/api/admin/site-pages/${name}`)).toEqual([
+        { defaultJson: null, key: "content", required: false, value: TEXT },
+      ]);
+    }
   });
 
   test("every key of an example body is a documented field", () => {

@@ -1,105 +1,30 @@
-import { assertArrayIncludes } from "@std/assert";
+// Demo mode has no switch on the public surface, so this claim stays a direct
+// test. test/blackbox/settings-texts.test.ts covers the rest of the form.
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#db/settings.ts";
+import { it as test } from "@std/testing/bdd";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { DEMO_PAGE_TEXT } from "#shared/demo/samples.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import {
-  expectFlash,
-  expectHtmlResponse,
-  testRequiresAuth,
-} from "#test-utils/assertions.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import {
-  describeAdminSettings,
-  settingsAsStored,
-} from "#test-utils/settings.ts";
+import { describeAdminSettings } from "#test-utils/settings.ts";
+
+/** The demo sample texts that the settings page shows. */
+const samplesShown = async (): Promise<string[]> => {
+  const page = await (await adminGet("/admin/settings")).text();
+  return DEMO_PAGE_TEXT.filter((sample) => page.includes(sample));
+};
 
 describeAdminSettings(() => {
-  describe("POST /admin/settings/site-footer", () => {
-    testRequiresAuth("/admin/settings/site-footer", {
-      body: { siteFooter: "Thanks for visiting." },
-      method: "POST",
+  test("demo mode saves sample text in place of the typed site footer", async () => {
+    expect(await samplesShown()).toEqual([]);
+    setDemoModeForTest(true);
+    const { response } = await adminFormPost("/admin/settings/site-footer", {
+      siteFooter: "Call Dana on 555-0139",
     });
+    expect(response.status).toBe(302);
 
-    test("saves the site footer", async () => {
-      const { response } = await adminFormPost("/admin/settings/site-footer", {
-        siteFooter: "Thank you for supporting our event!",
-      });
-
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Site footer updated"));
-      await settingsAsStored();
-      expect(settings.siteFooter).toBe("Thank you for supporting our event!");
-    });
-
-    test("rejects a footer exceeding max length without saving it", async () => {
-      await adminFormPost("/admin/settings/site-footer", {
-        siteFooter: "Some footer text",
-      });
-
-      const { response } = await adminFormPost("/admin/settings/site-footer", {
-        siteFooter: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
-      });
-
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
-        false,
-      );
-      await settingsAsStored();
-      expect(settings.siteFooter).toBe("Some footer text");
-    });
-
-    test("accepts a footer at exactly max length", async () => {
-      const atLimit = "x".repeat(MAX_TEXTAREA_LENGTH);
-      const { response } = await adminFormPost("/admin/settings/site-footer", {
-        siteFooter: atLimit,
-      });
-
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Site footer updated"));
-      await settingsAsStored();
-      expect(settings.siteFooter).toBe(atLimit);
-    });
-
-    test("clears the footer when empty", async () => {
-      await adminFormPost("/admin/settings/site-footer", {
-        siteFooter: "Some footer text",
-      });
-
-      const { response } = await adminFormPost("/admin/settings/site-footer", {
-        siteFooter: "",
-      });
-
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("Site footer removed"));
-      await settingsAsStored();
-      expect(settings.siteFooter).toBe("");
-    });
-
-    test("replaces a saved footer with sample text in demo mode", async () => {
-      setDemoModeForTest(true);
-      const { response } = await adminFormPost("/admin/settings/site-footer", {
-        siteFooter: "Call Dana on 555-0139",
-      });
-
-      expect(response.status).toBe(302);
-      await settingsAsStored();
-      assertArrayIncludes(DEMO_PAGE_TEXT, [settings.siteFooter]);
-    });
-
-    test("settings page shows the Site footer section", async () => {
-      const response = await adminGet("/admin/settings");
-      await expectHtmlResponse(response, 200, "Site footer", "Formatting help");
-    });
-
-    test("settings page shows the current footer", async () => {
-      await settings.update.siteFooter("See you at the gate.");
-      const response = await adminGet("/admin/settings");
-      await expectHtmlResponse(response, 200, "See you at the gate.");
-    });
+    setDemoModeForTest(false);
+    const page = await (await adminGet("/admin/settings")).text();
+    expect(page).not.toContain("Call Dana on 555-0139");
+    expect(await samplesShown()).toHaveLength(1);
   });
 });

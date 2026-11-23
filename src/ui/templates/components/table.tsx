@@ -21,7 +21,10 @@ import {
   defineTable,
   type TableDefinition,
 } from "#shared/tables/definition.ts";
-import { ReorderArrows } from "#templates/components/reorder.tsx";
+import {
+  neighbourAnchors,
+  ReorderArrows,
+} from "#templates/components/reorder.tsx";
 import {
   type ColumnKind,
   colClass,
@@ -52,7 +55,7 @@ type TableRenderFrame<TRow, TContext, TKey extends string> = TableRenderShell<
 > & {
   /** Saved Liquid expressions keyed by configurable column key. */
   readonly filters?: ReadonlyMap<TKey, string> | undefined;
-  /** Add the standard move-up/down column when the site is writable. */
+  /** Add the standard reorder column when the site is writable. */
   readonly reorder?: ReorderColumnOptions<TRow> | undefined;
 };
 
@@ -251,7 +254,12 @@ const renderColumns = <TRow, TContext, TKey extends string>(
         <thead>
           <tr>{renderedColumns.map(({ column }) => headerCell(column))}</tr>
         </thead>
-        <tbody {...(options.bodyAttrs ?? {})}>{body}</tbody>
+        <tbody
+          {...(reorder === undefined ? {} : { "data-sortable": "" })}
+          {...(options.bodyAttrs ?? {})}
+        >
+          {body}
+        </tbody>
         {options.foot !== undefined && <tfoot>{options.foot}</tfoot>}
       </table>
     </div>
@@ -297,22 +305,21 @@ export const renderListPartTable = <TItem, TContext = undefined>(
   });
 };
 
-/** The standard up/down reorder-arrows column: prepended to a table's
- *  columns when the operator can re-order rows. Hidden entirely in
- *  read-only mode (the arrows would post to a route that 403s). */
+/** The standard reorder column: the drag handle and the arrows, prepended to
+ *  a table's columns when the operator can re-order rows. Hidden entirely in
+ *  read-only mode, because the moves would post to a route that refuses. */
 const reorderColumn = <TRow, TContext = undefined>(
   options: ReorderColumnOptions<TRow>,
 ): TableColumn<TRow, TContext> => ({
   cell: (row, _ctx, index, rows) => (
     <ReorderArrows
-      action={options.action(row)}
-      count={rows.length}
-      index={index}
-      {...(options.titles === undefined ? {} : { titles: options.titles })}
+      {...neighbourAnchors(rows, index, options.anchor)}
+      anchor={options.anchor(row)}
+      path={options.path(row)}
     />
   ),
   class: "reorder",
-  header: options.header,
+  header: () => "",
   key: "__reorder__",
 });
 

@@ -10,6 +10,7 @@ import { queryOne } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   addListing,
   createLink,
@@ -130,33 +131,49 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
           linksPath(sourceId),
           listingLink("INV-1001", listing.id),
         ),
-        400,
-        "This source already links that record to that external id",
+        409,
+        `This source already links that external id to listing ${listing.id}`,
       );
     });
 
-    test("links one external id to a second record", async () => {
+    test("refuses a second record under one external id and names the first", async () => {
       const created = await createSource();
       const sourceId = Number(created.source.id);
       const first = await addListing("Watercolour day");
       const second = await addListing("Pottery day");
-      await createLink(sourceId, {
-        external_id: "INV-1001",
-        link_id: first.id,
-        link_type: "listing",
-      });
+      await createLink(sourceId, listingLink("INV-1001", first.id));
 
-      const linked = await createLink(sourceId, {
-        external_id: "INV-1001",
-        link_id: second.id,
-        link_type: "listing",
-      });
+      await expectApiError(
+        sendLink(
+          "POST",
+          linksPath(sourceId),
+          listingLink("INV-1001", second.id),
+        ),
+        409,
+        `This source already links that external id to listing ${first.id}`,
+      );
+      const stored = await assertJson<{ links: { link_id: number }[] }>(
+        apiRequest(linksPath(sourceId)),
+        200,
+      );
+      expect(stored.links.map((link) => link.link_id)).toEqual([first.id]);
+    });
 
-      expect(linked.link).toEqual(
-        expect.objectContaining({
+    test("refuses a second record of another kind under one external id", async () => {
+      const created = await createSource();
+      const sourceId = Number(created.source.id);
+      const listing = await addListing("Watercolour day");
+      const group = await createTestGroup({ name: "Bundle" });
+      await createLink(sourceId, listingLink("INV-1001", listing.id));
+
+      await expectApiError(
+        sendLink("POST", linksPath(sourceId), {
           external_id: "INV-1001",
-          link_id: second.id,
+          link_id: group.id,
+          link_type: "group",
         }),
+        409,
+        `This source already links that external id to listing ${listing.id}`,
       );
     });
 
@@ -263,24 +280,38 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
       );
     });
 
-    test("refuses the record it already links under that external id", async () => {
+    test("refuses an external id that another link already holds", async () => {
       const sourceId = await newSourceId();
       const listing = await addListing();
+      const other = await addListing("Pottery day");
       await createLink(sourceId, listingLink("INV-1", listing.id));
-      const second = await createLink(
-        sourceId,
-        listingLink("INV-2", listing.id),
-      );
+      const second = await createLink(sourceId, listingLink("INV-2", other.id));
 
       await expectApiError(
         sendLink(
           "PUT",
           linkPath(sourceId, Number(second.link.id)),
+          listingLink("INV-1", other.id),
+        ),
+        409,
+        `This source already links that external id to listing ${listing.id}`,
+      );
+    });
+
+    test("keeps a link's own external id when it is saved again", async () => {
+      const sourceId = await newSourceId();
+      const listing = await addListing();
+      const link = await createLink(sourceId, listingLink("INV-1", listing.id));
+
+      const saved = await assertJson<{ link: { external_id: string } }>(
+        sendLink(
+          "PUT",
+          linkPath(sourceId, Number(link.link.id)),
           listingLink("INV-1", listing.id),
         ),
-        400,
-        "This source already links that record to that external id",
+        200,
       );
+      expect(saved.link.external_id).toBe("INV-1");
     });
   });
 

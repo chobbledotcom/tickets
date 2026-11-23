@@ -12,9 +12,11 @@ import type {
 import {
   ADMIN_API_RESOURCES,
   type AdminApiSitePage,
+  FixedPageBodySchema,
 } from "#shared/admin-api-resources.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
 import { crudDocs, type EndpointDoc, json } from "./endpoint-doc.ts";
+import { schemaRows } from "./field-docs.ts";
 
 /** One content page exactly as the admin endpoints answer with it: the
  *  stored row plus the page it nests under (null at the top level). */
@@ -62,7 +64,9 @@ const fixedPageDoc = (
   description,
   method,
   path: `/api/admin/site-pages/${name}`,
-  ...(request === undefined ? {} : { request: json(request) }),
+  ...(request === undefined
+    ? {}
+    : { fields: schemaRows(FixedPageBodySchema), request: json(request) }),
   response: json(response),
 });
 

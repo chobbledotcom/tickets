@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { IMAGE_ORDERS } from "#shared/ordered-lists.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   adminImageDeletePage,
@@ -329,6 +330,7 @@ describe("admin image templates", () => {
           action: "/admin/listing/1/images",
           allImages: [image(1, "Current"), image(2, "Other")],
           linkedImages: [image(1, "Current")],
+          reorder: IMAGE_ORDERS.listing.column(1),
           uploadAction: "/admin/listing/1/images/upload",
         }),
       );
@@ -348,6 +350,7 @@ describe("admin image templates", () => {
           action: "/admin/listing/1/images",
           allImages: [image(1, "Current")],
           linkedImages: [image(1, "Current")],
+          reorder: IMAGE_ORDERS.listing.column(1),
           uploadAction: "/admin/listing/1/images/upload",
         }),
       );
@@ -364,6 +367,7 @@ describe("admin image templates", () => {
           action: "/admin/listing/1/images",
           allImages: [],
           linkedImages: [],
+          reorder: IMAGE_ORDERS.listing.column(1),
           uploadAction: "/admin/listing/1/images/upload",
         }),
       );
@@ -387,6 +391,7 @@ describe("admin image templates", () => {
             image(1, "First"),
           ],
           linkedImages: [image(1, "First"), image(2, "Second")],
+          reorder: IMAGE_ORDERS.listing.column(1),
           uploadAction: "/admin/listing/1/images/upload",
         }),
       );
@@ -411,6 +416,7 @@ describe("admin image templates", () => {
           action: "/admin/listing/1/images",
           allImages: linked,
           linkedImages: linked,
+          reorder: IMAGE_ORDERS.listing.column(1),
           uploadAction: "/admin/listing/1/images/upload",
         }),
       );
@@ -432,6 +438,7 @@ describe("admin image templates", () => {
           action: "/admin/listing/1/images",
           allImages: library,
           linkedImages: library.slice(0, 2),
+          reorder: IMAGE_ORDERS.listing.column(1),
           uploadAction: "/admin/listing/1/images/upload",
         }),
       );
@@ -451,6 +458,7 @@ describe("admin image templates", () => {
           action: "/admin/listing/1/images",
           allImages: images(12),
           linkedImages: [],
+          reorder: IMAGE_ORDERS.listing.column(1),
           uploadAction: "/admin/listing/1/images/upload",
         }),
       );

@@ -21,6 +21,7 @@ import {
   contentPagePaths,
   contentRecordRoutes,
 } from "./content-save.ts";
+import { imageOrderRoutes } from "./item-images.ts";
 import { newsPostEditForm, newsPostForm } from "./news-form.ts";
 import { newsPage } from "./news-page.ts";
 
@@ -57,4 +58,5 @@ const images = contentImageHandlers({
 
 export const adminHandlers = defineAdminRoutes({
   ...contentRecordRoutes("news", pages, images, newsPage),
+  ...imageOrderRoutes("news"),
 });

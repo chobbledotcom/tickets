@@ -76,6 +76,19 @@ const parseLinkKind = (value: unknown): Result<ExternalLinkKind> => {
     : errorResult(`link_type must be one of: ${LINK_KIND_VALUES}`);
 };
 
+/** The external id a body carries: non-empty text of a bounded length. */
+export const requiredExternalId = (
+  body: Record<string, unknown>,
+): Result<string> => {
+  const externalId = requireEntityField(body, "external_id", null);
+  if (externalId.ok && externalId.value.length > MAX_INPUT_LENGTH) {
+    return errorResult(
+      `external_id must be ${MAX_INPUT_LENGTH} characters or fewer`,
+    );
+  }
+  return externalId;
+};
+
 /** One link write: the record's kind, which one, and its id at the source. An
  *  absent external id means the other system has not named the record yet. */
 const parseLinkWrite = (
@@ -85,13 +98,8 @@ const parseLinkWrite = (
   const externalId: Result<string | null> =
     supplied === undefined || supplied === null
       ? okResult(null)
-      : requireEntityField(body, "external_id", null);
+      : requiredExternalId(body);
   if (!externalId.ok) return externalId;
-  if (externalId.value !== null && externalId.value.length > MAX_INPUT_LENGTH) {
-    return errorResult(
-      `external_id must be ${MAX_INPUT_LENGTH} characters or fewer`,
-    );
-  }
   const linkType = parseLinkKind(body.link_type);
   if (!linkType.ok) return linkType;
   const { link_id: linkId } = body;
@@ -262,16 +270,22 @@ const handleLinkLookup: RouteHandlerFn = ownerRead(async (params) => {
 const linkConfirmText = (link: ExternalSourceLink): string =>
   link.externalId ?? `${link.linkType} ${link.linkId}`;
 
-/** The activity line one link write records, naming the record and the source
- *  it belongs to. A link with no external id yet names the record instead. */
+/** The activity line one link write records, naming the reference and the
+ *  source it belongs to. */
+export const logLinkActivity = (
+  action: string,
+  reference: string,
+  source: ExternalSource,
+): Promise<unknown> =>
+  logActivity(`External link '${reference}' ${action} '${source.name}'`);
+
+/** The activity line one link write records. A link with no external id yet
+ *  names the record instead. */
 const logLink = (
   action: string,
   link: ExternalSourceLink,
   source: ExternalSource,
-): Promise<unknown> =>
-  logActivity(
-    `External link '${linkConfirmText(link)}' ${action} '${source.name}'`,
-  );
+): Promise<unknown> => logLinkActivity(action, linkConfirmText(link), source);
 
 /** Run one link write with its parsed input, or answer the parse refusal. */
 const withLinkWrite = async (
@@ -285,7 +299,9 @@ const withLinkWrite = async (
 const handleLinkCreate = underSource(({ body, source }) =>
   withLinkWrite(body, async (write) => {
     const created = await createExternalSourceLink(source.id, write);
-    if (!created.ok) return apiErrorResponse(created.error);
+    if (!created.ok) {
+      return apiErrorResponse(created.error.message, created.error.status);
+    }
     await logLink("added to", created.value, source);
     return jsonResponse(
       { link: toLinkResponse(created.value, source.urlPattern) },
@@ -297,7 +313,9 @@ const handleLinkCreate = underSource(({ body, source }) =>
 const handleLinkUpdate = withExistingLink(({ body, link, source }) =>
   withLinkWrite(body, async (write) => {
     const updated = await updateExternalSourceLink(link, write);
-    if (!updated.ok) return apiErrorResponse(updated.error);
+    if (!updated.ok) {
+      return apiErrorResponse(updated.error.message, updated.error.status);
+    }
     const stored = await requireExternalSourceLink(source.id, link.id);
     await logLink("updated in", stored, source);
     return jsonResponse({ link: toLinkResponse(stored, source.urlPattern) });
