@@ -23,5 +23,12 @@
   "admin.dashboard.welcome.step_address": "Give the site a nicer address",
   "admin.dashboard.welcome.dismiss": "Got it",
   "admin.dashboard.welcome.dismissed": "Welcome message hidden.",
-  "admin.listings.add_attendee": "Add Attendee"
+  "admin.listings.add_attendee": "Add Attendee",
+  "admin.dashboard.show_club_night": "Show club night dashboard",
+  "admin.dashboard.show_full": "Show full dashboard",
+  "admin.dashboard.other_listings": "Other listings",
+  "admin.dashboard.night_scanner": "Scanner",
+  "admin.dashboard.night_attendees": "Attendees",
+  "admin.dashboard.night_duplicate": "Duplicate group",
+  "admin.dashboard.night_no_listings": "No listings on sale in this group"
 }

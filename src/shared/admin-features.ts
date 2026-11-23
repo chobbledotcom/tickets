@@ -86,6 +86,13 @@ export const ADMIN_FEATURES = [
     labelKey: "features.subscriptions.name",
     slug: "subscriptions",
   },
+  {
+    descriptionKey: "features.club_night_dashboard.description",
+    inUseSql: null,
+    key: "clubNightDashboard",
+    labelKey: "features.club_night_dashboard.name",
+    slug: "club-night-dashboard",
+  },
 ] as const;
 /* jscpd:ignore-end */
 
