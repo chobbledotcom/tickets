@@ -33,6 +33,7 @@ import {
 import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
+import { extractSessionMetadata } from "#shared/session-metadata.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
   SUBSCRIPTION_NODE_OF,
@@ -66,31 +67,13 @@ export const seedCheckout = async (publicKey: string): Promise<void> => {
 export const checkoutMetadata = (
   shape: "valid" | "unreadable" | "foreign",
 ): SessionMetadata => {
-  const metadata: SessionMetadata = {
-    _origin: "",
-    address: "",
-    allocations: "",
-    answer_ids: "",
-    balance_attendee_id: "",
-    bundle: "",
-    date: "",
-    day_count: "",
+  const metadata: SessionMetadata = extractSessionMetadata({
     email: "model@example.invalid",
     items:
       shape === "unreadable" ? "{" : JSON.stringify([{ e: 1, p: 600, q: 1 }]),
-    line_text_answer_ids: "",
-    listing: "",
-    modifiers: "",
     name: "Synthetic subscriber",
-    phone: "",
-    price_proof: "",
-    reservation_amount: "",
-    site_token_index: "",
-    special_instructions: "",
     tax_policy: JSON.stringify({ mode: "none" }),
-    text_answer_ids: "",
-    thank_you_url: "",
-  };
+  });
   metadata.price_proof = `600.${signPrice(metadata, 600)}`;
   if (shape === "foreign") metadata.price_proof = `600.${"A".repeat(44)}`;
   return metadata;

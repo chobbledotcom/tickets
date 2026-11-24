@@ -141,6 +141,13 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
     expect(saved.rows).toEqual([]);
   });
 
+  test("files nothing for a question that no longer exists", async () => {
+    const saved = await savedOnTwoDiscos(({ a }) => ({
+      lineAnswers: [lineAnswer(a, 999_999, "Ava")],
+    }));
+    expect(saved.rows).toEqual([]);
+  });
+
   test("a booking-level save leaves the listing answers alone", async () => {
     const note = await createQuestion("Note", { displayType: "free_text" });
     const saved = await savedOnTwoDiscos(({ a, q }) => ({
@@ -183,23 +190,26 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
     expect(new Set(rows.map((row) => row.booking_row_id)).size).toBe(2);
     expect(await readStoredLineAnswers(attendee.id)).toEqual([
       lineAnswer(child.id, pupil.id, "Kit"),
+      lineAnswer(child.id, pupil.id, "Kit"),
     ]);
   });
 
-  test("a booking's answers ride its create batch and stay out of the booking record", async () => {
+  test("a booking's answers ride its create batch, and the booking record keeps only the answer for the whole booking", async () => {
     const disco = await createTestListing({ name: "Disco A" });
-    const pupil = await listingLevelQuestion();
+    const { question: pupil } = await seedListingLevelQuestion([disco.id]);
+    const note = await createQuestion("Note", {
+      assignAll: true,
+      displayType: "free_text",
+    });
     const attendee = await createAttendee(disco.id);
-    const byListing = {
-      [String(disco.id)]: [{ questionId: pupil.id, text: "Ava" }],
-    };
+    const key = String(disco.id);
     const prepared = await prepareAttendeeAnswerSave(
       groupListingAnswerSets(
         [{ attendee: { id: 0 }, listing: { id: disco.id } }],
         {},
+        { [key]: [{ questionId: note.id, text: "Nut allergy" }] },
         {},
-        {},
-        byListing,
+        { [key]: [{ questionId: pupil.id, text: "Ava" }] },
       ),
     );
     for (const statement of bookedAnswersTail(prepared, [disco.id])(
@@ -210,6 +220,10 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
     expect(await readStoredLineAnswers(attendee.id)).toEqual([
       lineAnswer(disco.id, pupil.id, "Ava"),
     ]);
-    expect(await getBookedAnswers(attendee.id, getTestPrivateKey)).toEqual([]);
+    expect(
+      (await getBookedAnswers(attendee.id, getTestPrivateKey)).map(
+        ({ questionId }) => questionId,
+      ),
+    ).toEqual([note.id]);
   });
 });

@@ -129,6 +129,7 @@ const RECEIPT_KEEPS: Record<keyof SessionMetadata, boolean> = {
   day_count: false,
   email: false,
   items: true,
+  line_text_answer_ids: false,
   listing: false,
   modifiers: false,
   name: false,

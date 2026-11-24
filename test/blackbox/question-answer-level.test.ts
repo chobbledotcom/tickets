@@ -4,7 +4,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { openDiscos, withPupilName } from "#test/blackbox/discos.ts";
+import {
+  addQuestion,
+  openDiscos,
+  withPupilName,
+} from "#test/blackbox/discos.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const ASKS_EACH_LISTING = "This question asks: One per listing.";
@@ -30,5 +34,17 @@ describeWithEnv("the answer level of a question", { db: true }, () => {
     expect(refused.html).toContain(t("questions.answer_level.locked"));
     expect(saved.status).toBe(302);
     expect((await owner.get(path)).html).toContain(ASKS_EACH_LISTING);
+  });
+
+  test("the add form names each level, and a question for the whole booking says so on its page", async () => {
+    const discos = await openDiscos();
+    const form = await discos.owner.get("/admin/questions");
+    const note = await addQuestion(discos.owner, "Note", "booking");
+
+    const page = await discos.owner.get(`/admin/questions/${note}`);
+
+    expect(form.html).toMatch(/<option value="booking"[^>]*>One per booking</);
+    expect(form.html).toMatch(/<option value="listing"[^>]*>One per listing</);
+    expect(page.html).toContain("This question asks: One per booking.");
   });
 });

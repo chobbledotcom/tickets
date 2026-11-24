@@ -79,13 +79,14 @@ Then(
     pottery: string,
     kiln: string,
   ): Promise<void> {
-    const page = await answersOnTheBookingPage(this, "Pottery");
+    const page = (await answersOnTheBookingPage(this, "Pottery")).replace(
+      /\s+/g,
+      " ",
+    );
     const question = askedQuestion(this).text;
     expectIncludesAll(page, [
-      `${question} (Pottery)`,
-      pottery,
-      `${question} (Kiln)`,
-      kiln,
+      `${question} (Pottery) ${pottery}`,
+      `${question} (Kiln) ${kiln}`,
     ]);
   },
 );

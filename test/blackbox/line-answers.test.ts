@@ -16,6 +16,7 @@ import {
   attendeeIds,
   attendeePage,
   book,
+  fieldFor,
   openDiscos,
   pupilNames,
   withPupilName,
@@ -83,12 +84,37 @@ describeWithEnv(
 
       expect(sent.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
       expect(checkout.amountTotal).toBe(2000);
-      expect(JSON.stringify(checkout.metadata)).not.toMatch(/Ava|Ben/);
+      expect(Object.keys(checkout.metadata).toSorted()).toEqual([
+        "_origin",
+        "bundle",
+        "listing",
+        "price_proof",
+      ]);
       expect(await attendeeIds(shop.api, shop.discoA)).toEqual([]);
 
       expect((await deliverPayment(cardShop, checkout)).status).toBe(200);
 
       expect(await attendeePage(shop)).toContain(BOTH_NAMES);
+    });
+
+    test("the attendee page shows the answers in the order of the questions that the owner set", async () => {
+      const shop = await withPupilName(await openDiscos());
+      const allergy = await addQuestion(shop.owner, "Allergy", "listing");
+      await shop.owner.submit(
+        "/admin/questions",
+        { anchor: String(shop.question) },
+        `/admin/questions/${allergy}/move-before`,
+      );
+
+      await book(shop, [1, 1], {
+        ...pupilNames(shop, "Ava", "Ben"),
+        [fieldFor(allergy, shop.discoA)]: "Nuts",
+        [fieldFor(allergy, shop.discoB)]: "None",
+      });
+
+      expect(await attendeePage(shop)).toContain(
+        `${HEADING} Allergy (Disco A) Nuts Allergy (Disco B) None Pupil name (Disco A) Ava Pupil name (Disco B) Ben`,
+      );
     });
 
     test("a choice question asks once for the booking, whatever level the form sends", async () => {

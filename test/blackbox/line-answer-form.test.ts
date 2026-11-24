@@ -5,6 +5,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  addGlowPack,
   addQuestion,
   attendeeIds,
   attendeePage,
@@ -19,7 +20,7 @@ import {
   withPupilName,
 } from "#test/blackbox/discos.ts";
 import { createApp, inProcess } from "#test/blackbox/driver.ts";
-import { addListing, type SeededListing } from "#test/blackbox/seed.ts";
+import type { SeededListing } from "#test/blackbox/seed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** The longest answer that the field takes, as its `maxlength` says. */
@@ -55,20 +56,6 @@ const bothDiscosBlock = ({ discoA, discoB, question }: PupilShop, forA = "") =>
       fieldOf(question, discoB, "Disco B"),
     ],
   );
-
-/** Disco A gets a child listing that a buyer can add to it. */
-const addGlowPack = async ({ api, discoA }: Discos): Promise<SeededListing> => {
-  const child = await addListing(api, {
-    max_attendees: 20,
-    max_quantity: 5,
-    name: "Glow Pack",
-    unit_price: 0,
-  });
-  await api.put(`/api/admin/listings/${discoA.id}`, {
-    child_listing_ids: [child.id],
-  });
-  return child;
-};
 
 /** Pupil names for disco B that the form refuses, and the message it shows. */
 const REFUSED: [string, string | null, string][] = [
@@ -117,7 +104,7 @@ describeWithEnv(
 
     test("a child listing that the buyer can add gets its own field, once", async () => {
       const discos = await openDiscos();
-      const glowPack = await addGlowPack(discos);
+      const glowPack = await addGlowPack(discos, [discos.discoA]);
       const { discoA, question } = await withPupilName(discos);
 
       const page = await createApp(inProcess).get(`/ticket/${discoA.slug}`);
@@ -136,7 +123,7 @@ describeWithEnv(
 
     test("a question asked only on a child listing shows at page level, and a booking question stays in the child's block", async () => {
       const discos = await openDiscos();
-      const glowPack = await addGlowPack(discos);
+      const glowPack = await addGlowPack(discos, [discos.discoA]);
       const { question } = await withPupilName(discos, glowPack);
       const note = await addQuestion(discos.owner, "Note", "booking", glowPack);
 
@@ -189,15 +176,15 @@ describeWithEnv(
       );
     });
 
-    test("an answer keeps its words without the spaces around them, and two listings can share one answer", async () => {
+    test("an answer is kept without the spaces around it, on each listing that it answers", async () => {
       const shop = await withPupilName(await openDiscos());
 
       await book(shop, [1, 1], pupilNames(shop, "  Sam  ", "Sam"));
       const [id] = await attendeeIds(shop.api, shop.discoA);
-      const edit = await shop.owner.get(`/admin/attendees/${id}`);
+      const page = await shop.owner.get(`/admin/attendees/${id}`);
 
-      expect(edit.html).toContain("<td>Sam</td>");
-      expect(await attendeePage(shop)).toContain(
+      expect(page.html.split("<td>Sam</td>").length - 1).toBe(2);
+      expect(textOf(page.html)).toContain(
         "Pupil name (Disco A) Sam Pupil name (Disco B) Sam",
       );
     });

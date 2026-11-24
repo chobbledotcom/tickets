@@ -52,17 +52,32 @@ describeWithEnv("db > migrations > question answer level", { db: true }, () => {
     expect({ ...stored.rows[0] }).toEqual({ answer_level: "booking" });
   });
 
-  test("limits the one-answer-per-question index to answers for the booking", async () => {
+  test("keeps a stored answer for the booking, and refuses a second answer to a question for the booking or for one booking row", async () => {
     await removeAnswerLevel();
+    await executeBatch([
+      sql`INSERT INTO questions (id, text, display_type) VALUES (9201, 'Name?', 'free_text')`,
+      sql`INSERT INTO strings (id, text_index, encrypted_text) VALUES (9401, 'idx', 'enc')`,
+      sql`INSERT INTO listing_attendees (id, attendee_id, listing_id) VALUES (9501, 1, 1)`,
+      sql`INSERT INTO attendee_answers (attendee_id, question_id, string_id)
+            VALUES (1, 9201, 9401)`,
+    ]);
 
     await questionAnswerLevel(context).up();
 
-    expect(await indexSql("idx_attendee_string_answers_unique")).toContain(
-      "WHERE booking_row_id IS NULL",
+    const answer = (bookingRow: number | null) =>
+      execute(
+        sql`INSERT INTO attendee_answers (attendee_id, question_id, string_id, booking_row_id)
+              VALUES (1, 9201, 9401, ${bookingRow})`,
+      );
+    const stored = await getDb().execute(
+      sql`SELECT booking_row_id FROM attendee_answers WHERE question_id = 9201`,
     );
-    expect(await indexSql("idx_attendee_listing_answers_unique")).toContain(
-      "WHERE booking_row_id IS NOT NULL",
-    );
+    expect(stored.rows.map((row) => ({ ...row }))).toEqual([
+      { booking_row_id: null },
+    ]);
+    await expect(answer(null)).rejects.toThrow("UNIQUE constraint failed");
+    await answer(9501);
+    await expect(answer(9501)).rejects.toThrow("UNIQUE constraint failed");
   });
 
   test("indexes only the answers for a booking row, and a row delete finds them by that index", async () => {

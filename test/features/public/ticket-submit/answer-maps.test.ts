@@ -86,10 +86,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
 
       expect(
         await computeTextAnswerRefs(ctx, answerInfo(ctx, listing.id)),
-      ).toEqual({
-        lineTextAnswerIds: undefined,
-        listingTextAnswerIds: undefined,
-      });
+      ).toStrictEqual({});
     });
 
     test("files each listing's own answers under that listing alone", async () => {
@@ -99,24 +96,27 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       ];
       const ctx = await ticketContext([first.id, second.id]);
 
-      const { lineTextAnswerIds } = await computeTextAnswerRefs(ctx, {
-        ...answerInfo(ctx, first.id),
-        lineTextAnswers: [
-          { listingId: first.id, questionId: 7, text: "Ava" },
-          { listingId: second.id, questionId: 7, text: "Ben" },
-        ],
-      });
+      const refsFor = (lineTextAnswers: AnswerInfo["lineTextAnswers"]) =>
+        computeTextAnswerRefs(ctx, {
+          ...answerInfo(ctx, first.id),
+          lineTextAnswers,
+        });
+      const ava = { listingId: first.id, questionId: 7, text: "Ava" };
+      const ben = { listingId: second.id, questionId: 7, text: "Ben" };
 
-      expect(Object.keys(lineTextAnswerIds ?? {}).sort()).toEqual(
-        [String(first.id), String(second.id)].sort(),
+      const both = await refsFor([ava, ben]);
+      const [avaAlone, benAlone] = [await refsFor([ava]), await refsFor([ben])];
+
+      expect(both.lineTextAnswerIds).toEqual({
+        ...avaAlone.lineTextAnswerIds,
+        ...benAlone.lineTextAnswerIds,
+      });
+      expect(avaAlone.lineTextAnswerIds?.[String(first.id)]).toEqual([
+        { q: 7, s: expect.any(Number) },
+      ]);
+      expect(avaAlone.lineTextAnswerIds?.[String(first.id)]).not.toEqual(
+        benAlone.lineTextAnswerIds?.[String(second.id)],
       );
-      const [ava, ben] = [
-        lineTextAnswerIds?.[String(first.id)],
-        lineTextAnswerIds?.[String(second.id)],
-      ];
-      expect(ava?.map((ref) => ref.q)).toEqual([7]);
-      expect(ben?.map((ref) => ref.q)).toEqual([7]);
-      expect(ava?.[0]?.s).not.toBe(ben?.[0]?.s);
     });
 
     test("looks the strings up once, whatever mix of answers the order holds", async () => {

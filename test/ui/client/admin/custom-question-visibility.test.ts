@@ -57,6 +57,34 @@ describe("custom question visibility", () => {
     expect(text.required).toBe(false);
   };
 
+  test("asks once for each listing: shows the field of a listing in the order, and hides and de-requires the field of one that is not", () => {
+    const roots = installFakeDom([
+      {
+        children: [
+          question("101", textControl()),
+          question("102", textControl()),
+        ],
+        class: "custom-question",
+        data: { listingIds: "101 102" },
+        tag: "fieldset",
+      },
+      quantity("101", "1"),
+      quantity("102", "0"),
+    ]);
+    const block = roots[0]!;
+    const [inOrder, notInOrder] = block.querySelectorAll("label");
+    const [asked, notAsked] = block.querySelectorAll('input[type="text"]');
+
+    initQuestionVisibility();
+
+    expect([block.hidden, inOrder!.hidden, notInOrder!.hidden]).toEqual([
+      false,
+      false,
+      true,
+    ]);
+    expect([asked!.required, notAsked!.required]).toEqual([true, false]);
+  });
+
   test("hides and de-requires a question with no active listing", () => {
     const control = textControl();
     const roots = installFakeDom([

@@ -1,5 +1,5 @@
-/** Reads the answers stored for each booked listing straight from the tables,
- * so a test does not lean on the production read it checks. */
+/** Reads every answer stored for a booked listing straight from the tables:
+ * one for each booking row, with no merging of rows that say the same. */
 
 import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
@@ -14,7 +14,8 @@ export type StoredLineAnswer = {
   text: string;
 };
 
-/** The attendee's listing answers, each pair once, in question order. */
+/** The attendee's listing answers, one for each booking row, in question
+ * then listing order. */
 export const readStoredLineAnswers = async (
   attendeeId: number,
 ): Promise<StoredLineAnswer[]> => {
@@ -23,12 +24,12 @@ export const readStoredLineAnswers = async (
     listing_id: number;
     question_id: number;
   }>(
-    sql`SELECT DISTINCT row.listing_id, given.question_id, text.encrypted_text
+    sql`SELECT row.listing_id, given.question_id, text.encrypted_text
           FROM attendee_answers AS given
           JOIN listing_attendees AS row ON row.id = given.booking_row_id
           JOIN strings AS text ON text.id = given.string_id
          WHERE given.attendee_id = ${attendeeId}
-         ORDER BY given.question_id, row.listing_id`,
+         ORDER BY given.question_id, row.listing_id, row.id`,
   );
   const key = await getTestPrivateKey();
   const stored: StoredLineAnswer[] = [];

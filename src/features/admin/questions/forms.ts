@@ -12,6 +12,7 @@ import {
 import { defineForm, defineTextForm } from "#shared/forms/definition.ts";
 import { requireChoiceOptions } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { answerLevelLabel } from "#templates/admin/answer-level.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 
 export const questionTextForm = defineForm({
@@ -54,7 +55,7 @@ export const questionTextForm = defineForm({
       options: requireChoiceOptions(
         "Ask",
         QUESTION_ANSWER_LEVELS.map((value) => ({
-          label: value === "booking" ? "One per booking" : "One per listing",
+          label: answerLevelLabel(value),
           value,
         })),
       ),

@@ -21,6 +21,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswerPair } from "#test-utils/db-helpers/question-answer-pair.ts";
+import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { stringUsedCounts } from "#test-utils/db-helpers/questions.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
@@ -324,6 +325,31 @@ describeWithEnv("custom questions", { db: true }, () => {
         await getTestPrivateKey(),
       );
       expect(texts.size).toBe(0);
+    });
+
+    test("reads only the answers for the whole booking, and none of the answers for each listing", async () => {
+      const listing = await createTestListing({ name: "Disco A" });
+      const att = await createAttendee(listing.id);
+      const note = await createQuestion("Note", { displayType: "free_text" });
+      const { question: pupil } = await seedListingLevelQuestion([listing.id]);
+      await saveAttendeeAnswers(
+        new Map([
+          [
+            att.id,
+            {
+              answerIds: [],
+              lineAnswers: [
+                { listingId: listing.id, questionId: pupil.id, text: "Ava" },
+              ],
+              textAnswers: [{ questionId: note.id, text: "Nut allergy" }],
+            },
+          ],
+        ]),
+      );
+
+      expect(
+        await getAttendeeTextAnswers(att.id, await getTestPrivateKey()),
+      ).toEqual(new Map([[note.id, "Nut allergy"]]));
     });
 
     test("refreshes created on a reused but still-unattached string", async () => {

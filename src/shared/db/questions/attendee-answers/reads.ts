@@ -240,8 +240,9 @@ type LineAnswerRow = {
   question_id: number;
 };
 
-/** The attendee's answers for each booked listing, decrypted for the owner.
- * A listing booked through two paths shows each answer once. */
+/** The attendee's answers for each booked listing, decrypted for the owner,
+ * in the owner's question order and then by listing. A listing booked through
+ * two paths shows each answer once. */
 export const getAttendeeLineAnswers = async (
   attendeeId: number,
   privateKey: OwnerKeyReader,
@@ -252,8 +253,10 @@ export const getAttendeeLineAnswers = async (
        INNER JOIN listing_attendees AS line
          ON line.id = attendee_answer.booking_row_id
        INNER JOIN strings AS string ON string.id = attendee_answer.string_id
+       LEFT JOIN questions AS question ON question.id = attendee_answer.question_id
       WHERE attendee_answer.attendee_id = ${attendeeId}
-      ORDER BY attendee_answer.question_id, line.listing_id`,
+      ORDER BY question.id IS NULL, question.sort_order,
+        attendee_answer.question_id, line.listing_id`,
   );
   if (rows.length === 0) return [];
   const key = await privateKey();

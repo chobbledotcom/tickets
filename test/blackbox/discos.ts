@@ -152,11 +152,34 @@ export const attendeeIds = async (api: Api, listing: SeededListing) =>
 export const textOf = (html: string): string =>
   html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
-/** The text of the attendee page of the one booking on disco A. */
-export const attendeePage = async ({ api, discoA, owner }: Discos) => {
-  const [id] = await attendeeIds(api, discoA);
+/** The text of the attendee page of the first booking on a listing, disco A
+ * when no listing is named. */
+export const attendeePage = async (
+  { api, discoA, owner }: Discos,
+  listing: SeededListing = discoA,
+) => {
+  const [id] = await attendeeIds(api, listing);
   const page = await owner.get(
-    `/admin/attendees/${requireValue(id, "Disco A has no booking")}`,
+    `/admin/attendees/${requireValue(id, `Listing ${listing.id} has no booking`)}`,
   );
   return textOf(page.html);
+};
+
+/** A free "Glow Pack" listing that a buyer can add under each of `parents`. */
+export const addGlowPack = async (
+  { api }: Discos,
+  parents: readonly SeededListing[],
+): Promise<SeededListing> => {
+  const child = await addListing(api, {
+    max_attendees: 20,
+    max_quantity: 5,
+    name: "Glow Pack",
+    unit_price: 0,
+  });
+  for (const parent of parents) {
+    await api.put(`/api/admin/listings/${parent.id}`, {
+      child_listing_ids: [child.id],
+    });
+  }
+  return child;
 };
