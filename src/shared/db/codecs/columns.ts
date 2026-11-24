@@ -172,6 +172,11 @@ export const CODECS = {
     display_type: typed<QuestionDisplayType>(),
     text: sealed,
   },
+  redirects: {
+    from_index: typed<BlindIndex>(),
+    from_path: sealed,
+    to_url: sealed,
+  },
   site_page_items: { item_type: typed<SitePageItemType>() },
   site_pages: { ...SEALED_PAGE_TEXT, hidden: yesNo },
   system_notes: { note: typed<EnvKeyEncrypted | OwnerKeyEncrypted>() },

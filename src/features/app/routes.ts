@@ -9,6 +9,7 @@ import { notFoundResponse, redirectResponse } from "#routes/response.ts";
 import { getPrefix } from "#routes/settings-bundles.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { isReadOnly, isUpdateInProgress } from "#shared/env.ts";
+import { missingPageRedirectOrNull } from "./missing-page-redirect.ts";
 import type { PrefixRoute } from "./prefix-fold.ts";
 import { prefixRoutes } from "./prefixes.ts";
 import { readOnlyBlock } from "./read-only.ts";
@@ -59,19 +60,12 @@ export const servesBodyRequests = (path: string): boolean => {
   return route !== undefined && !route.getOnly;
 };
 
-/** Route main application requests after setup is complete. */
-export const routeMainApp = async ({
+/** Route one request to its prefix handler, or answer 404. */
+const routeToPrefix = async ({
   request,
   path,
   method,
 }: AppRouteRequest): Promise<Response> => {
-  if (isReadOnly()) {
-    const updating = isUpdateInProgress();
-    const blocked = readOnlyBlock(path, method, updating);
-    if (blocked === "api") return readOnlyResponses.api(updating);
-    if (blocked === "page") return readOnlyResponses.page();
-  }
-
   const route = routeFor(getPrefix(path));
   if (!route) return notFoundResponse();
   const earlyResponse = route.beforeMessages(path, method);
@@ -81,4 +75,24 @@ export const routeMainApp = async ({
     async () =>
       (await route.handler(request, path, method)) ?? notFoundResponse(),
   );
+};
+
+/** Route main application requests after setup is complete. A page that is
+ * missing, whichever handler found it so, redirects when a redirect leaves
+ * it. */
+export const routeMainApp = async (
+  route: AppRouteRequest,
+): Promise<Response> => {
+  const { path, method } = route;
+  if (isReadOnly()) {
+    const updating = isUpdateInProgress();
+    const blocked = readOnlyBlock(path, method, updating);
+    if (blocked === "api") return readOnlyResponses.api(updating);
+    if (blocked === "page") return readOnlyResponses.page();
+  }
+
+  const response = await routeToPrefix(route);
+  return response.status === 404
+    ? ((await missingPageRedirectOrNull(path, method)) ?? response)
+    : response;
 };

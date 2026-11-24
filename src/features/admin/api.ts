@@ -20,6 +20,7 @@ import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { imageApiRoutes } from "#routes/admin/api-images.ts";
 import { questionApiRoutes } from "#routes/admin/api-questions.ts";
+import { redirectApiRoutes } from "#routes/admin/api-redirects.ts";
 import { sitePageApiRoutes } from "#routes/admin/api-site-pages.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
@@ -239,6 +240,7 @@ export const adminApiRoutes = {
   ...groupApiRoutes,
   ...imageApiRoutes,
   ...questionApiRoutes,
+  ...redirectApiRoutes,
   ...listingApiRoutes,
   ...sitePageApiRoutes,
 };

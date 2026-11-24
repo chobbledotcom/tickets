@@ -119,6 +119,19 @@ const holidayApi = fieldResource(apiFieldsOf(HOLIDAY_FIELDS), "create");
 export const HolidayRowSchema = holidayApi.row;
 export type AdminApiHoliday = v.InferOutput<typeof HolidayRowSchema>;
 
+/** The two addresses of a redirect. The API names them as the pages do: the
+ *  missing page, and the page it redirects to. A redirect is never edited. */
+const redirectFields = {
+  from_path: textField("from_path"),
+  to_url: textField("to_url"),
+};
+const redirectBodies = apiBodyPair(redirectFields);
+export const RedirectRowSchema = idRow({
+  from_path: v.string(),
+  to_url: v.string(),
+});
+export type AdminApiRedirect = v.InferOutput<typeof RedirectRowSchema>;
+
 /** One listing as the admin API answers with it: the fields the client's
  *  callers read. The server owns the rest of the stored row. */
 export const ListingRowSchema = v.looseObject({
@@ -290,6 +303,13 @@ export type AdminApiServes = {
   update?: boolean;
 };
 
+/** Whether a resource serves a standard route. A `serves` declaration lists
+ *  the routes the server answers. No declaration means all five routes. */
+export const adminApiServes = (
+  entry: Pick<AdminApiResource, "serves">,
+  verb: keyof AdminApiServes,
+): boolean => entry.serves === undefined || entry.serves[verb] === true;
+
 export type AdminApiResource = {
   children?: Record<string, AdminApiChild>;
   /** Server-side custom routes. A `DELETE` on the resource's own id segment
@@ -440,6 +460,13 @@ export const ADMIN_API_RESOURCES = {
     },
     ...resourceTableRow("Question", "questions", QuestionRowSchema),
     updateBodySchema: questionBodies.update,
+  },
+  redirects: {
+    createBodySchema: redirectBodies.create,
+    ...resourceTableRow("Redirect", "redirects", RedirectRowSchema),
+    // An operator adds and deletes a redirect. Nothing reads or edits one by
+    // its id.
+    serves: { create: true, delete: true, list: true },
   },
   "site-pages": {
     createBodySchema: CreateSitePageBodySchema,

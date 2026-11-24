@@ -22,6 +22,7 @@ import {
   type AdminApiAttendeeStatus,
   type AdminApiCreateAttendeeStatusBody,
   type AdminApiHoliday,
+  type AdminApiRedirect,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { type SnakeCased, snakeCaseKeys } from "#shared/column-names.ts";
@@ -183,6 +184,27 @@ const HOLIDAY_DOCS = {
   deleteBody: ADMIN_API_HOLIDAY_DELETE_BODY,
   example: ADMIN_API_EXAMPLE_HOLIDAY,
   updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
+};
+
+// =============================================================================
+// Redirect examples (owner only)
+// =============================================================================
+
+const ADMIN_API_EXAMPLE_REDIRECT = {
+  from_path: "/old-page",
+  id: 3,
+  to_url: "/new-page",
+} satisfies AdminApiRedirect;
+
+const REDIRECT_DOCS = {
+  createBody: {
+    from_path: "/old-page",
+    to_url: "/new-page",
+  } satisfies ApiBody<typeof ADMIN_API_RESOURCES.redirects.createBodySchema>,
+  deleteBody: { confirm_identifier: "/old-page" } satisfies DeleteBody,
+  example: ADMIN_API_EXAMPLE_REDIRECT,
+  // A redirect is never edited, so no update route is documented.
+  updateBody: {},
 };
 
 // =============================================================================
@@ -392,6 +414,7 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
     ...listingDocs(access),
     ...recordDocs("groups", "a group", GROUP_DOCS),
     ...recordDocs("holidays", "a holiday", HOLIDAY_DOCS, "owner"),
+    ...recordDocs("redirects", "a redirect", REDIRECT_DOCS, "owner"),
     ...recordDocs(
       "attendee-statuses",
       "an attendee status",

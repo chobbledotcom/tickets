@@ -211,4 +211,26 @@ export const catalogTables = declaredTables([
       ],
     },
   ],
+
+  [
+    // One permanent redirect from a missing page. `from_index` is the blind
+    // index of the page's key, so a request finds its row without decrypting.
+    // `from_path` and `to_url` hold env-key ciphertext.
+    "redirects",
+    {
+      columns: [
+        ["id", rowId],
+        ["from_index", text],
+        ["from_path", text],
+        ["to_url", text],
+      ],
+      indexes: [
+        {
+          columns: ["from_index"],
+          name: "idx_redirects_from_index",
+          unique: true,
+        },
+      ],
+    },
+  ],
 ]);
