@@ -103,7 +103,10 @@ describe("payment-helpers", () => {
           () => Promise.reject(new PaymentUserError("Phone invalid")),
           ErrorCode.PAYMENT_CHECKOUT,
         ),
-      ).rejects.toThrow("Phone invalid");
+      ).rejects.toMatchObject({
+        message: "Phone invalid",
+        name: "PaymentUserError",
+      });
     });
 
     test("propagates errors selected by the provider", async () => {
