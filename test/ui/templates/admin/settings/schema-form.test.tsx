@@ -15,6 +15,7 @@ const state = {
   calendarFeedsEnabled: false,
   calendarFeedsGroupBy: "attendees",
   customCss: "body { color: red; }",
+  dashboardType: "listings",
   embedHosts: "example.com",
   expectedTax: '{"mode":"none"}',
   externalOrderEnabled: true,

@@ -95,7 +95,7 @@ src/shared/db/groups/membership/package-writes.ts::packageGroupMembersErrorTx~1n
 
 # Accounting batch reads return arrays. An empty listing filter skips its SQL
 # clause because matchesNothing answers the read before the query runs.
-src/shared/accounting/queries.ts::transfersByAccounts~1uo1zuf  ?? → || audited:1o7wako # Map.groupBy returns a transfer wrapper array or undefined, and every array is truthy
+src/shared/accounting/queries.ts::transfersByAccounts~1uo1zuf  ?? → || audited:06nmrr5 # Map.groupBy returns a transfer wrapper array or undefined, and every array is truthy
 
 # Attendee statuses (db/attendee-statuses.ts) — the public-default fallback in
 # the shared create resolver. The seed inserts a public default and the status

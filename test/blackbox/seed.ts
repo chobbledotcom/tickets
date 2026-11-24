@@ -125,10 +125,13 @@ export const addImage = async (
   return id;
 };
 
-/** The fields of a new booking: who books, and how many places. */
+/** The fields of a new booking: who books, how many places, and the money
+ * that the booking already carries. */
 export interface BookingFields {
+  adjustments?: unknown[];
   email?: string;
   name: string;
+  payments?: unknown[];
   quantity?: number;
 }
 
@@ -138,7 +141,7 @@ export interface BookingFields {
 export const addBooking = async (
   api: Api,
   listing: SeededListing,
-  { email = "buyer@example.com", name, quantity = 1 }: BookingFields,
+  { email = "buyer@example.com", name, quantity = 1, ...money }: BookingFields,
 ): Promise<number> =>
   created(
     "booking",
@@ -146,6 +149,7 @@ export const addBooking = async (
       email,
       lines: [{ listingId: listing.id, quantity }],
       name,
+      ...money,
     }),
     AttendeeAnswer,
   ).attendee.id;

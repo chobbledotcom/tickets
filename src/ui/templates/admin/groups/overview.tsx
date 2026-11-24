@@ -1,7 +1,6 @@
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import type { GroupListingCandidate } from "#db/groups/candidates.ts";
 import { groupCandidateBlockedError } from "#db/groups/homogeneity.ts";
-import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
@@ -15,7 +14,7 @@ import {
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
 import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
-import { renderListingsTableSection } from "#templates/admin/listing-table.tsx";
+import { configuredListingsTable } from "#templates/admin/listing-table.tsx";
 import { MoneySummaryBlock } from "#templates/admin/listings/ledger-section.tsx";
 import {
   availablePublicUrl,
@@ -168,7 +167,6 @@ export const GroupOverviewPanel = ({
   shareable: boolean;
   questionData?: AttendeeQuestionData;
 }): JSX.Element => {
-  const { columnKeys, filters } = settings.listingColumnLayout;
   const totalCount = totalAttendeeCount(listings);
   const net = money.netBalance - money.servicingCosts;
   const showMoney = hasPaidListing || money.transferCount > 0;
@@ -234,12 +232,7 @@ export const GroupOverviewPanel = ({
 
       <PageBlock>
         <h2>{t("terms.listings")}</h2>
-        {renderListingsTableSection({
-          columnKeys,
-          emptyText: t("groups.detail.no_listings"),
-          filters,
-          listings,
-        })}
+        {configuredListingsTable(listings, t("groups.detail.no_listings"))}
       </PageBlock>
 
       {!isReadOnly() && listings.length > 0 && (

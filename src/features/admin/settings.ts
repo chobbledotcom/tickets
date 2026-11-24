@@ -25,6 +25,7 @@ import {
   handleBusinessEmailPost,
   handleCalendarFeedsPost,
   handleCustomCssPost,
+  handleDashboardTypePost,
   handleEmbedHostsPost,
   handleExternalOrderPost,
   handleListingColumnOrderPost,
@@ -83,6 +84,7 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/settings/custom-css": handleCustomCssPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
+  "POST /admin/settings/dashboard-type": handleDashboardTypePost,
   "POST /admin/settings/email": handleEmailPost,
   "POST /admin/settings/email-templates/admin":
     handleEmailTemplatePost("admin"),

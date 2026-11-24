@@ -60,7 +60,11 @@ const applyCountryDerived = (info: CountryInfo): void => {
 };
 
 /** The snapshot fields whose value is one choice out of a fixed set. */
-type ChoiceField = "calendar_feeds_group_by" | "listing_mode" | "theme";
+type ChoiceField =
+  | "calendar_feeds_group_by"
+  | "dashboard_type"
+  | "listing_mode"
+  | "theme";
 
 /** Write one snapshot field from the raw stored value. */
 const fieldApply =
@@ -106,6 +110,11 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
     "attendees",
   ),
   [CONFIG_KEYS.LISTING_MODE]: choiceApply("listing_mode", "image", "text"),
+  [CONFIG_KEYS.DASHBOARD_TYPE]: choiceApply(
+    "dashboard_type",
+    "groups",
+    "listings",
+  ),
   [CONFIG_KEYS.CONTACT_FORM_ENABLED]: boolApply("contact_form_enabled"),
   [CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS]: boolApply("custom_css_bunny_fonts"),
   [CONFIG_KEYS.ORDER_ENABLED]: boolApply("order_enabled"),
