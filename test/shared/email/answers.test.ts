@@ -147,6 +147,21 @@ describeWithEnv("order answer lines", { db: true }, () => {
 
     expect(calls).toBe(2);
   });
+
+  test("reads no package names for free texts that rest in no package", async () => {
+    const { attendee, listing } = await buyerWithChosenAnswer("Fete");
+    const entry = makeEntry({ id: listing.id }, { id: attendee.id });
+    const freeTexts = new Map([
+      ["12", "Coming by bus"],
+      [`question13_line${listing.id}_0_0_ticket0`, "Ava"],
+    ]);
+
+    const calls = await countDatabaseCalls(2, () =>
+      loadOrderAnswerLines([entry], freeTexts),
+    );
+
+    expect(calls).toBe(2);
+  });
 });
 
 describe("order answer lines from staged question data", () => {

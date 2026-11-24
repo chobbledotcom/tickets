@@ -287,6 +287,13 @@ describe("CSV with custom questions", () => {
       ",Pupil name (ticket 1)",
       [",Ava", ","],
     ],
+    [
+      "a question for each ticket that no attendee answered still takes its first column",
+      PUPIL_Q,
+      [],
+      ",Pupil name (ticket 1)",
+      [",", ","],
+    ],
   ];
 
   for (const [name, asked, answers, headerEnd, rowEnds] of LINE_CSVS) {

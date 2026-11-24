@@ -35,12 +35,10 @@ const sourceQty = (source: string): number => {
     : namedControlQty(`childQty${first}_${second}`);
 };
 
-/** How many tickets a line takes: the sum of its sources. */
-export const lineQuantity = (sources: string): number =>
-  sources
-    .split(" ")
-    .filter((source) => source.length > 0)
-    .reduce((total, source) => total + sourceQty(source), 0);
+/** How many tickets a line takes: the sum of its sources. Every line has at
+ * least one source. */
+const lineQuantity = (sources: string): number =>
+  sources.split(" ").reduce((total, source) => total + sourceQty(source), 0);
 
 /** The text, choice and select controls of one field. */
 const controlsOf = (field: HTMLElement) => [

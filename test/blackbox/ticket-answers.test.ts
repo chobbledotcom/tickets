@@ -129,6 +129,9 @@ describeWithEnv(
           fieldFor(shop.question, shop.discoB, { ticket }),
         ),
       ]);
+      expect(textOf(page.html)).toContain(
+        tickets.map((ticket) => `Disco A, ticket ${ticket}`).join(" "),
+      );
     });
 
     for (const [name, counts, forA, message] of REFUSED) {
