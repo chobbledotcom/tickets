@@ -11,6 +11,7 @@ import {
   addRedirect,
   countShown,
   deleteRedirect,
+  expectNoRedirects,
   LIST,
   listedRedirects,
   refusalOf,
@@ -110,8 +111,7 @@ describeWithEnv("redirects", { db: true }, () => {
       expect(said).toEqual(
         REFUSALS.map(([, , key]) => t(`redirects.error.${key}`)),
       );
-      expect(await listedRedirects(app)).toEqual([]);
-      expect(await countShown(app)).toBe("0 redirects");
+      await expectNoRedirects(app);
     });
 
     test("an address longer than the box allows is refused", async () => {
@@ -238,8 +238,7 @@ describeWithEnv("redirects", { db: true }, () => {
       expect((await followed(app, sent)).html).toContain("Redirect deleted");
 
       expect((await sentFrom("/old"))[0]).toBe(404);
-      expect(await listedRedirects(app)).toEqual([]);
-      expect(await countShown(app)).toBe("0 redirects");
+      await expectNoRedirects(app);
     });
 
     test("a wrong confirmation deletes nothing", async () => {

@@ -69,37 +69,26 @@ describeWithEnv("redirects over the admin API", { db: true }, () => {
 
     test("answers 400 with the message of each rule, and adds nothing", async () => {
       const { api } = await openShop(["/taken", "/b"]);
-      const bodies: [Record<string, unknown>, string][] = [
-        [
-          { from_path: "old", to_url: "/b" },
-          t("redirects.error.from_not_a_path"),
-        ],
-        [
-          { from_path: "/admin/x", to_url: "/b" },
-          t("redirects.error.from_reserved"),
-        ],
-        [
-          { from_path: "/x", to_url: "ftp://example.com" },
-          t("redirects.error.to_not_http"),
-        ],
-        [{ from_path: "/x", to_url: "/X/" }, t("redirects.error.same_page")],
-        [
-          { from_path: "/TAKEN", to_url: "/c" },
-          t("redirects.error.from_taken"),
-        ],
-        [
-          { from_path: "/y", to_url: "/taken?z=1" },
-          t("redirects.error.to_is_redirect"),
-        ],
-        [
-          { from_path: `/${"a".repeat(250)}`, to_url: "/c" },
-          t("redirects.error.too_long", { max: 250 }),
-        ],
+      /* jscpd:ignore-start -- a list of strings, not code */
+      const bodies: [string, string, string][] = [
+        ["old", "/b", "from_not_a_path"],
+        ["/admin/x", "/b", "from_reserved"],
+        ["/x", "ftp://example.com", "to_not_http"],
+        ["/x", "/X/", "same_page"],
+        ["/TAKEN", "/c", "from_taken"],
+        ["/y", "/taken?z=1", "to_is_redirect"],
+        [`/${"a".repeat(250)}`, "/c", "too_long"],
       ];
+      /* jscpd:ignore-end */
       const answers = await Promise.all(
-        bodies.map(([body]) => added(api, body)),
+        bodies.map(([from_path, to_url]) => added(api, { from_path, to_url })),
       );
-      expect(answers).toEqual(bodies.map(([, message]) => [400, message]));
+      expect(answers).toEqual(
+        bodies.map(([, , key]) => [
+          400,
+          t(`redirects.error.${key}`, { max: 250 }),
+        ]),
+      );
       expect(await listed(api)).toEqual([["/taken", "/b"]]);
     });
 

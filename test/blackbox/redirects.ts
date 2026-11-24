@@ -103,3 +103,9 @@ export const deleteRedirect = async (
   app.submit(`${LIST}/${await idOf(app, from)}/delete`, {
     confirmIdentifier: confirm,
   });
+
+/** The owner sees no redirect on the list, and a count of none. */
+export const expectNoRedirects = async (app: App): Promise<void> => {
+  expect(await listedRedirects(app)).toEqual([]);
+  expect(await countShown(app)).toBe("0 redirects");
+};
