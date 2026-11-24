@@ -84,7 +84,7 @@ describe("scanner camera", {
     expect(fakes.cameraCalls).toEqual([
       [{ video: { facingMode: "environment" } }],
     ]);
-    expect(h.video.srcObject).toBeTruthy();
+    expect(h.video.srcObject).toEqual({ getTracks: expect.any(Function) });
     expect(fakes.played).toBe(1);
     assertStringIncludes(el(h.document, "scanner-start").className, "hidden");
     assert(!h.video.className.includes("hidden"));

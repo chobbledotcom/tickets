@@ -27,9 +27,9 @@ describe("scanner messages under the ticket-to-booking rebrand", {
 }, () => {
   const fresh = useScannerSuite(REBRANDED_PAGE);
 
-  /** Admit one ticket worth `quantity` of `total`, and wait for the status
+  /** Admit one ticket worth `quantity` of `total`, and expect the status
    * line to show the rebranded copy. */
-  const admitAndAwait = async (
+  const expectAdmitWording = async (
     h: ScannerHarness,
     quantity: number,
     total: number,
@@ -54,6 +54,7 @@ describe("scanner messages under the ticket-to-booking rebrand", {
     );
     await whenTextShows(h.statusEl, status);
     await done;
+    expect(h.statusEl.textContent).toBe(status);
   };
 
   test("says booking when the door does not know the ticket", async () => {
@@ -69,6 +70,7 @@ describe("scanner messages under the ticket-to-booking rebrand", {
     );
     await whenTextShows(h.statusEl, "Booking not found");
     await done;
+    expect(h.statusEl.textContent).toBe("Booking not found");
   });
 
   test("says booking when the ticket has no door at all", () => {
@@ -111,12 +113,15 @@ describe("scanner messages under the ticket-to-booking rebrand", {
       el(h.document, "scanner-quantity-message"),
       "How many bookings for Ada?",
     );
+    expect(el(h.document, "scanner-quantity-message").textContent).toBe(
+      "How many bookings for Ada?",
+    );
     el(h.document, "scanner-quantity-cancel").click();
     await done;
   });
 
   test("counts one booking on a one-ticket admit", async () => {
-    await admitAndAwait(
+    await expectAdmitWording(
       fresh(),
       1,
       1,
@@ -125,7 +130,7 @@ describe("scanner messages under the ticket-to-booking rebrand", {
   });
 
   test("counts bookings on a partial admit", async () => {
-    await admitAndAwait(
+    await expectAdmitWording(
       fresh(),
       1,
       2,

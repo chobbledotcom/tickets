@@ -9,8 +9,8 @@
 
 import type { ScanAnswer } from "./scanner-answer.ts";
 import {
+  formatMessage,
   getMessage,
-  interpolate,
   type Messages,
   showStatus,
 } from "./scanner-messages.ts";
@@ -42,56 +42,47 @@ export type QueuePanel = {
 /** Posts one queued check-in and answers the door's final word for it. */
 export type SettleDelivery = (item: QueuedCheckIn) => Promise<ScanAnswer>;
 
+/** The message key and fallback words of each settled status's row. */
+type Words = readonly [key: string, fallback: string];
+
+const OUTCOME_WORDS: Partial<Record<ScanAnswer["status"], Words>> = {
+  already_checked_in: ["messageQueueItemAlready", "Was already checked in"],
+  checked_in: ["messageQueueItemCheckedIn", "Checked in"],
+  not_found: ["messageNotFound", "Ticket not found"],
+  refunded: ["messageQueueItemRefunded", "Refunded — not checked in"],
+  wrong_listing: ["messageNoDoor", "This ticket has no door to check in at"],
+};
+
+/** The row words for a status with none of its own. The ID check and the
+ * quantity ask reach the queue only as declined asks. */
+const NOT_CHECKED_IN_WORDS: Words = [
+  "messageQueueItemNotCheckedIn",
+  "Not checked in",
+];
+
 /** The words a settled queue row carries. A declined ask and a refused
  * ticket read the same way to the door: nobody was checked in. An answer
  * that reports the booking's shortfall alerts the door with the numbers.
  * The door then knows some people got in with no place left. */
 const queueOutcome = (messages: Messages, answer: ScanAnswer): string => {
   if ("overAdmission" in answer && answer.overAdmission) {
-    return interpolate(
-      getMessage(
-        messages,
-        "messageQueueItemOverAdmitted",
-        "Alert: {name} — this check-in was for {named}, but the booking only had {admitted} left. The booking holds {bought} in total.",
-      ),
+    return formatMessage(
+      messages,
+      "messageQueueItemOverAdmitted",
+      "Alert: {name} — this check-in was for {named}, but the booking only had {admitted} left. The booking holds {bought} in total.",
       // The alert's numbers ride the answer's over-admission object. The
       // person's name rides the answer itself.
-      { ...answer.overAdmission, name: answer.name },
+      {
+        admitted: answer.overAdmission.admitted,
+        bought: answer.overAdmission.bought,
+        name: answer.name,
+        named: answer.overAdmission.named,
+      },
     );
   }
-  switch (answer.status) {
-    case "checked_in":
-      return getMessage(messages, "messageQueueItemCheckedIn", "Checked in");
-    case "already_checked_in":
-      return getMessage(
-        messages,
-        "messageQueueItemAlready",
-        "Was already checked in",
-      );
-    case "refunded":
-      return getMessage(
-        messages,
-        "messageQueueItemRefunded",
-        "Refunded — not checked in",
-      );
-    case "wrong_listing":
-      return getMessage(
-        messages,
-        "messageNoDoor",
-        "This ticket has no door to check in at",
-      );
-    case "not_found":
-      return getMessage(messages, "messageNotFound", "Ticket not found");
-    case "error":
-      return answer.message;
-    default:
-      // verify_id and select_quantity reach the queue only as declined asks.
-      return getMessage(
-        messages,
-        "messageQueueItemNotCheckedIn",
-        "Not checked in",
-      );
-  }
+  if (answer.status === "error") return answer.message;
+  const [key, fallback] = OUTCOME_WORDS[answer.status] ?? NOT_CHECKED_IN_WORDS;
+  return getMessage(messages, key, fallback);
 };
 
 /** The queued count above the panel's rows: what is still pending in the
@@ -100,12 +91,10 @@ const queueOutcome = (messages: Messages, answer: ScanAnswer): string => {
  * elsewhere. */
 const renderQueueCount = (panel: QueuePanel, messages: Messages): void => {
   const count = readQueue().length;
-  panel.summary.textContent = interpolate(
-    getMessage(
-      messages,
-      count === 1 ? "messageQueueCountOne" : "messageQueueCountOther",
-      "{count} queued check-ins",
-    ),
+  panel.summary.textContent = formatMessage(
+    messages,
+    count === 1 ? "messageQueueCountOne" : "messageQueueCountOther",
+    "{count} queued check-ins",
     { count },
   );
   panel.container.classList.toggle(

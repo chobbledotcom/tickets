@@ -6,12 +6,13 @@
 
 import { isRecord } from "#types";
 import { showConfirm } from "./confirm-dialog.ts";
+import { postJson } from "./dom.ts";
 import { showQuantitySelect } from "./quantity-select.ts";
 import type { ScanAnswer } from "./scanner-answer.ts";
 import {
+  formatMessage,
   formatTicketCount,
   getMessage,
-  interpolate,
   type Messages,
   showStatus,
 } from "./scanner-messages.ts";
@@ -43,16 +44,7 @@ export const postScanBody = async (
   csrfToken: string,
   body: ScanRequest,
 ): Promise<ScanAnswer> => {
-  const res = await fetch(scanPath, {
-    body: JSON.stringify(body),
-    headers: {
-      "content-type": "application/json",
-      "x-csrf-token": csrfToken,
-    },
-    method: "POST",
-  });
-
-  const answer: unknown = await res.json();
+  const answer: unknown = await postJson(scanPath, csrfToken, body);
   if (!isScanAnswer(answer)) {
     throw new Error("The door sent no scan decision.");
   }
@@ -85,7 +77,7 @@ const nameAndTicketsMessage = (
   fallback: string,
   result: NamedBooking,
 ): string =>
-  interpolate(getMessage(messages, key, fallback), {
+  formatMessage(messages, key, fallback, {
     listingName: result.listingName,
     name: result.name,
     tickets: formatTicketCount(messages, result.quantity),
@@ -95,9 +87,7 @@ const nameAndTicketsMessage = (
 const skipPerson = (el: HTMLElement, messages: Messages, name: string): void =>
   showStatus(
     el,
-    interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), {
-      name,
-    }),
+    formatMessage(messages, "messageSkipped", "Skipped {name}", { name }),
     "warning",
   );
 
@@ -112,12 +102,10 @@ export const handleResult = (
       showStatus(
         el,
         result.total > result.quantity
-          ? interpolate(
-              getMessage(
-                messages,
-                "messageCheckedInPartial",
-                "{name} checked in for {listingName} ({tickets} of {total} tickets)",
-              ),
+          ? formatMessage(
+              messages,
+              "messageCheckedInPartial",
+              "{name} checked in for {listingName} ({tickets} of {total} tickets)",
               {
                 listingName: result.listingName,
                 name: result.name,
@@ -149,10 +137,9 @@ export const handleResult = (
     case "refunded":
       showStatus(
         el,
-        interpolate(
-          getMessage(messages, "messageRefunded", "{name} has been refunded"),
-          { name: result.name },
-        ),
+        formatMessage(messages, "messageRefunded", "{name} has been refunded", {
+          name: result.name,
+        }),
         "error",
       );
       break;
@@ -185,12 +172,8 @@ export const handleResult = (
 
 /** Ask the door one yes-or-no question in the page's own words. */
 const askConfirm = (
-  messages: Messages,
-  key: string,
-  fallback: string,
-  values: Readonly<Record<string, number | string | undefined>>,
-): Promise<boolean> =>
-  showConfirm(interpolate(getMessage(messages, key, fallback), values));
+  ...message: Parameters<typeof formatMessage>
+): Promise<boolean> => showConfirm(formatMessage(...message));
 
 /** Ask the door staff to confirm the person's ID. A decline says the
  * mismatch on the status line and answers the ask's own answer, so the
@@ -210,10 +193,9 @@ export const askIdCheck = async (
   if (ok) return null;
   showStatus(
     statusEl,
-    interpolate(
-      getMessage(messages, "messageIdMismatch", "ID does not match {name}"),
-      { name: answer.name },
-    ),
+    formatMessage(messages, "messageIdMismatch", "ID does not match {name}", {
+      name: answer.name,
+    }),
     "error",
   );
   return answer;
@@ -232,23 +214,42 @@ const declineAsk = (
 
 type Door = { messages: Messages; statusEl: HTMLElement };
 
-/** Ask whether to check a person in at a door their ticket is not for. A
- * decline answers the ask. A yes answers null, and the scan posts again. */
-const askWrongListing = async (
-  { messages, statusEl }: Door,
-  answer: Extract<ScanAnswer, { status: "wrong_listing" }>,
-  given: GivenAnswers,
-): Promise<ScanAnswer | null> => {
-  const ok = await askConfirm(
-    messages,
-    "messageWrongListingConfirm",
-    '{name} is registered for "{listingName}", not this listing. Check in anyway?',
-    { listingName: answer.listingName, name: answer.name },
-  );
-  if (!ok) return declineAsk(statusEl, messages, answer.name, answer);
-  given.force = true;
-  return null;
-};
+/** Build the handler of one ask that the door staff answer with a choice. No
+ * choice sends the person away and answers the ask. A choice is recorded under
+ * `choice`, and the answer is null, so the scan posts again. */
+const asking =
+  <
+    Asked extends Extract<ScanAnswer, { name: string }>,
+    Choice extends keyof GivenAnswers,
+  >(
+    choice: Choice,
+    ask: (
+      messages: Messages,
+      answer: Asked,
+    ) => Promise<GivenAnswers[Choice] | false | null>,
+  ) =>
+  async (
+    { messages, statusEl }: Door,
+    answer: Asked,
+    given: GivenAnswers,
+  ): Promise<ScanAnswer | null> => {
+    const chosen = await ask(messages, answer);
+    if (!chosen) return declineAsk(statusEl, messages, answer.name, answer);
+    given[choice] = chosen;
+    return null;
+  };
+
+/** Ask whether to check a person in at a door their ticket is not for. */
+const askWrongListing = asking(
+  "force",
+  (messages, answer: Extract<ScanAnswer, { status: "wrong_listing" }>) =>
+    askConfirm(
+      messages,
+      "messageWrongListingConfirm",
+      '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+      { listingName: answer.listingName, name: answer.name },
+    ),
+);
 
 /** Ask the door staff to confirm the ID. A decline answers the ask. A yes
  * answers null, and the scan posts again. */
@@ -263,29 +264,21 @@ const askVerifyId = async (
   return null;
 };
 
-/** Ask the door staff how many tickets this scan admits. A cancel answers the
- * ask. A pick answers null, and the scan posts again. */
-const askQuantity = async (
-  { messages, statusEl }: Door,
-  answer: Extract<ScanAnswer, { status: "select_quantity" }>,
-  given: GivenAnswers,
-): Promise<ScanAnswer | null> => {
-  const count = await showQuantitySelect(
-    answer.max,
-    interpolate(
-      getMessage(
+/** Ask the door staff how many tickets this scan admits. */
+const askQuantity = asking(
+  "quantity",
+  (messages, answer: Extract<ScanAnswer, { status: "select_quantity" }>) =>
+    showQuantitySelect(
+      answer.max,
+      formatMessage(
         messages,
         "messageSelectQuantity",
         "How many tickets for {name}?",
+        { name: answer.name },
       ),
-      { name: answer.name },
+      (count) => formatTicketCount(messages, count),
     ),
-    (count) => formatTicketCount(messages, count),
-  );
-  if (!count) return declineAsk(statusEl, messages, answer.name, answer);
-  given.quantity = count;
-  return null;
-};
+);
 
 /** Settle one answer: an ask goes to the door staff, and any other answer is
  * the door's final word. An ask the door staff answered yet leaves the scan

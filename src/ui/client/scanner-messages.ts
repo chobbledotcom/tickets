@@ -11,11 +11,11 @@ export type Messages = Readonly<Record<string, string | undefined>>;
 /** The colours a status line shows. */
 export type StatusType = "error" | "success" | "warning";
 
+/** The values that fill a message's holes, keyed by hole name. */
+type Values = Readonly<Record<string, number | string | undefined>>;
+
 /** Fill a message template's `{name}`-style holes. */
-export const interpolate = (
-  template: string,
-  values: Readonly<Record<string, number | string | undefined>>,
-): string =>
+const interpolate = (template: string, values: Values): string =>
   template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
 
 export const getMessage = (
@@ -24,6 +24,15 @@ export const getMessage = (
   fallback: string,
 ): string => messages[key] ?? fallback;
 
+/** One message with its holes filled: the page's own words, or the fallback
+ * words when the page carries none. */
+export const formatMessage = (
+  messages: Messages,
+  key: string,
+  fallback: string,
+  values: Values,
+): string => interpolate(getMessage(messages, key, fallback), values);
+
 export const formatTicketCount = (
   messages: Messages,
   count: number,
@@ -31,9 +40,7 @@ export const formatTicketCount = (
   const safeCount = Number.isFinite(count) ? count : 1;
   const key =
     safeCount === 1 ? "messageTicketCountOne" : "messageTicketCountOther";
-  return interpolate(getMessage(messages, key, "{count} ticket"), {
-    count: safeCount,
-  });
+  return formatMessage(messages, key, "{count} ticket", { count: safeCount });
 };
 
 export const FADE_DELAY_MS = 5000;

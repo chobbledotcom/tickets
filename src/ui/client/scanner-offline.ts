@@ -32,18 +32,22 @@ const MODE_KEY = "scanner-offline-mode";
  * origins. */
 const SCANNER_SW_PATH = "/admin/scanner-sw.js";
 
-/** Whether a value is the stored list: one entry per ticket digest, with
- * the places one scan at its door admits of the ticket's booking. */
-const isCacheList = (value: unknown): value is TicketEntry[] =>
-  Array.isArray(value) &&
-  value.every(
-    (entry: unknown) =>
-      isRecord(entry) &&
-      typeof entry.hash === "string" &&
-      typeof entry.tickets === "number" &&
-      Number.isInteger(entry.tickets) &&
-      entry.tickets > 0,
-  );
+/** The guard for a stored list: every item passes `isItem`. */
+const isListOf =
+  <Item>(isItem: (item: unknown) => item is Item) =>
+  (value: unknown): value is Item[] =>
+    Array.isArray(value) && value.every(isItem);
+
+/** Whether a value is one ticket digest, with the places one scan at its
+ * door admits of the ticket's booking. */
+const isTicketEntry = (entry: unknown): entry is TicketEntry =>
+  isRecord(entry) &&
+  typeof entry.hash === "string" &&
+  typeof entry.tickets === "number" &&
+  Number.isInteger(entry.tickets) &&
+  entry.tickets > 0;
+
+const isCacheList = isListOf(isTicketEntry);
 
 /** The stored list one door's page keeps, or null when none is stored. A
  * list we cannot parse is treated as absent and dropped. The page then
@@ -150,24 +154,22 @@ export const writeManualMode = (on: boolean): boolean => {
 export const offlineModeActive = (): boolean =>
   readManualMode() || !navigator.onLine;
 
-/** Whether a value is the stored queue. Every item names its door, its
- * ticket digest, its delivery id, the people its check-in admits, and the
- * moment it went in. */
-const isStoredQueue = (value: unknown): value is QueuedCheckIn[] =>
-  Array.isArray(value) &&
-  value.every(
-    (item: unknown) =>
-      isRecord(item) &&
-      typeof item.operationId === "string" &&
-      item.operationId !== "" &&
-      typeof item.queuedAt === "number" &&
-      typeof item.quantity === "number" &&
-      Number.isInteger(item.quantity) &&
-      item.quantity > 0 &&
-      typeof item.scanPath === "string" &&
-      typeof item.tokenHash === "string" &&
-      item.tokenHash !== "",
-  );
+/** Whether a value is one queued item. It names its door, its ticket
+ * digest, its delivery id, the people its check-in admits, and the moment it
+ * went in. */
+const isQueuedCheckIn = (item: unknown): item is QueuedCheckIn =>
+  isRecord(item) &&
+  typeof item.operationId === "string" &&
+  item.operationId !== "" &&
+  typeof item.queuedAt === "number" &&
+  typeof item.quantity === "number" &&
+  Number.isInteger(item.quantity) &&
+  item.quantity > 0 &&
+  typeof item.scanPath === "string" &&
+  typeof item.tokenHash === "string" &&
+  item.tokenHash !== "";
+
+const isStoredQueue = isListOf(isQueuedCheckIn);
 
 /** The queued check-ins, oldest first. A store the page cannot open reads
  * as no queue. So does a queue an older or newer build left in another

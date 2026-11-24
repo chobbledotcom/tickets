@@ -18,7 +18,7 @@ import {
 const clientMessages = (source: string): [string, string][] =>
   [
     ...source.matchAll(
-      /(?:getMessage|nameAndTicketsMessage|askConfirm)\(\s*messages\s*,\s*["'](\w+)["']\s*,\s*(["'])((?:\\.|(?!\2).)*)\2/g,
+      /(?:getMessage|formatMessage|nameAndTicketsMessage|askConfirm)\(\s*messages\s*,\s*["'](\w+)["']\s*,\s*(["'])((?:\\.|(?!\2).)*)\2/g,
     ),
   ].map(([, key, , fallback]) => [key, fallback] as [string, string]);
 

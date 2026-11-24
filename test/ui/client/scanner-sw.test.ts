@@ -317,7 +317,7 @@ describe("the scanner service worker's fetch boundaries", () => {
     const answered = await fireRequest("/admin/scan", { method: "POST" });
 
     // The scan POST carries live door state. The worker never answers it.
-    expect(answered).toBeUndefined();
+    expect(answered).toBe(undefined);
   });
 
   test("leaves a navigation the scanner does not own alone", async () => {
@@ -325,12 +325,12 @@ describe("the scanner service worker's fetch boundaries", () => {
       mode: "navigate",
     });
 
-    expect(answered).toBeUndefined();
+    expect(answered).toBe(undefined);
   });
 
   test("leaves a GET that is not a stored asset alone", async () => {
     const answered = await fireRequest("/admin.js");
 
-    expect(answered).toBeUndefined();
+    expect(answered).toBe(undefined);
   });
 });

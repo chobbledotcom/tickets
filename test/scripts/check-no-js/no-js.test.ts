@@ -4,19 +4,16 @@ import { describe, it as test } from "@std/testing/bdd";
 import { javascriptFindings } from "#scripts/check-no-js/rules.ts";
 import { runNoJsCheck } from "#scripts/check-no-js/run.ts";
 import type { RunCommand } from "#scripts/precommit/git.ts";
+import { capturedCheckOutput } from "#test-utils/check-script.ts";
 
 const gitListing =
   (stdout: string, code = 0, stderr = ""): RunCommand =>
   async () => ({ code, stderr, stdout, success: code === 0 });
 
 const check = async (run: RunCommand) => {
-  const out: string[] = [];
-  const errors: string[] = [];
-  const code = await runNoJsCheck(run, {
-    log: (line) => out.push(line),
-    logError: (line) => errors.push(line),
-  });
-  return { code, errors, out };
+  const output = capturedCheckOutput();
+  const code = await runNoJsCheck(run, output);
+  return { code, lines: output.lines };
 };
 
 describe("javascriptFindings", () => {
@@ -43,18 +40,18 @@ describe("javascriptFindings", () => {
 
 describe("check:no-js", () => {
   test("fails and names each tracked JavaScript file", async () => {
-    const { code, errors } = await check(
+    const { code, lines } = await check(
       gitListing("src/ok.ts\0src/ui/old.js\0docs/page.md\0"),
     );
     expect(code).toBe(1);
-    assertStringIncludes(errors[0] ?? "", "src/ui/old.js [no-javascript]");
-    assertStringIncludes(errors[1] ?? "", "1 JavaScript file issue(s) found");
+    assertStringIncludes(lines[0] ?? "", "src/ui/old.js [no-javascript]");
+    assertStringIncludes(lines[1] ?? "", "1 JavaScript file issue(s) found");
   });
 
   test("passes when every tracked file is TypeScript or data", async () => {
-    const { code, out } = await check(gitListing("src/ok.ts\0deno.json\0"));
+    const { code, lines } = await check(gitListing("src/ok.ts\0deno.json\0"));
     expect(code).toBe(0);
-    expect(out).toEqual(["Every tracked source file is TypeScript."]);
+    expect(lines).toEqual(["Every tracked source file is TypeScript."]);
   });
 
   test("fails loudly when git cannot list the files", async () => {

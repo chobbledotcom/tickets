@@ -10,9 +10,9 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
+  formatMessage,
   formatTicketCount,
   getMessage,
-  interpolate,
   showStatus,
 } from "#src/ui/client/scanner-messages.ts";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
@@ -22,13 +22,17 @@ afterEach(cleanup);
 
 describe("scanner wording helpers", () => {
   test("renders a zero count as a zero", () => {
-    expect(interpolate("{count} queued check-ins", { count: 0 })).toBe(
-      "0 queued check-ins",
-    );
+    expect(
+      formatMessage({}, "messageQueueCountOther", "{count} queued check-ins", {
+        count: 0,
+      }),
+    ).toBe("0 queued check-ins");
   });
 
   test("renders a hole with no value as nothing", () => {
-    expect(interpolate("Skipped {name}", {})).toBe("Skipped ");
+    expect(formatMessage({}, "messageSkipped", "Skipped {name}", {})).toBe(
+      "Skipped ",
+    );
   });
 
   test("reads a stored word, and falls back when the key is absent", () => {
