@@ -17,23 +17,27 @@ import {
   FEE_INCOME,
   MODIFIER,
   REVENUE,
-  WRITEOFF_TYPE,
 } from "#accounting/accounts.ts";
+import {
+  figureOf,
+  listingIncomeSubquery,
+  owedBy,
+  recognisedIncomeOf,
+} from "#accounting/figures.ts";
 import { KIND } from "#accounting/kinds.ts";
-import { MANUAL_LISTING_INCOME } from "#accounting/manual-entries.ts";
 import { readMeasures } from "#accounting/measure-reads.ts";
 import {
   accountBalanceSubquery,
   accountsAmong,
+  amountOf,
   attendeeOwedSubquery,
   balanceIn,
-  creditsLessWriteoffDebits,
+  everyAccountOf,
   type Leg,
-  type LegTest,
   ledgerLegs,
   modifierLeg,
+  ofKind,
   oneAccount,
-  signedSum,
   touching,
 } from "#accounting/projection-sql.ts";
 import {
@@ -58,11 +62,9 @@ import {
   type Condition,
   desc,
   type Expr,
-  equal,
   literal,
   or,
   valued,
-  whereTail,
   wholeCondition,
 } from "#db/select/expression.ts";
 import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
@@ -85,8 +87,6 @@ const newestTransfers = (
   selectTransfers(queryBatch, (ledger) =>
     ledger.where(conditions).orderBy(newestFirst).limit(limit),
   );
-
-type Side = "source" | "dest";
 
 /** The WHERE scope for "every transfer touching any of these accounts".
  *  One group per account type. */
@@ -258,59 +258,22 @@ export type LedgerTotals = {
   servicingCosts: number;
 };
 
-/** The row has an account of `type` on its `side`. */
-const sideOfType =
-  (side: Side, type: string): LegTest =>
-  (leg) =>
-    equal(leg[`${side}Type`], literal(type));
-
-type LedgerTotalsRow = {
-  income: number | bigint;
-  due: number | bigint;
-  refunded: number | bigint;
-  fees: number | bigint;
-  servicing_costs: number | bigint;
-};
-
 /**
- * The four headline ledger figures over `range`, in one grouped scan. Each is
- * defined by its leg direction rather than by a status column:
- *
- * - `income` counts write-up `adjustment`s from `writeoff` and subtracts
- *   write-downs to it, which is what makes it match `listingMoneyTotals`.
- * - `due` adds a leg *out of* an attendee and subtracts a leg *into* one. Over
- *   "forever" that is exactly the current total outstanding.
+ * The headline ledger figures over `range`, in one pass. Income reads the
+ * same definitions as `listingMoneyTotals`, over every revenue account. Over
+ * "forever", `due` is the current total outstanding.
  */
-export const ledgerTotals = async (
-  range: LedgerRange,
-): Promise<LedgerTotals> => {
-  const parts = occurredAtRange(range);
-  // An ungrouped aggregate always yields exactly one row.
-  const row = await requireOne<LedgerTotalsRow>(
-    sql`SELECT
-       COALESCE(SUM(CASE
-         WHEN kind = ${sqlLiteral(KIND.sale)} AND dest_type = ${sqlLiteral(REVENUE)} THEN amount
-         WHEN kind = ${sqlLiteral(KIND.taxSale)} AND dest_type = ${sqlLiteral(REVENUE)} THEN amount
-         WHEN kind = ${sqlLiteral(KIND.taxSale)} AND source_type = ${sqlLiteral(REVENUE)} THEN -amount
-         WHEN kind = ${sqlLiteral(MANUAL_LISTING_INCOME)} AND dest_type = ${sqlLiteral(REVENUE)} THEN amount
-         WHEN kind = ${sqlLiteral(KIND.adjustment)} AND dest_type = ${sqlLiteral(REVENUE)} AND source_type = ${sqlLiteral(WRITEOFF_TYPE)} THEN amount
-         WHEN kind = ${sqlLiteral(KIND.adjustment)} AND source_type = ${sqlLiteral(REVENUE)} AND dest_type = ${sqlLiteral(WRITEOFF_TYPE)} THEN -amount
-         ELSE 0 END), 0) AS income,
-       ${signedSum(sideOfType("source", ATTENDEE), sideOfType("dest", ATTENDEE))(LEDGER_ROW)} AS due,
-       COALESCE(SUM(CASE WHEN kind = ${sqlLiteral(KIND.refundCash)} THEN amount ELSE 0 END), 0) AS refunded,
-       ${signedSum(sideOfType("dest", FEE_INCOME), sideOfType("source", FEE_INCOME))(LEDGER_ROW)} AS fees,
-       COALESCE(SUM(CASE WHEN kind = ${sqlLiteral(KIND.serviceCost)} AND source_type = ${sqlLiteral(COST)} THEN amount ELSE 0 END
-                  - CASE WHEN kind = ${sqlLiteral(KIND.serviceCost)} AND dest_type = ${sqlLiteral(COST)} THEN amount ELSE 0 END), 0) AS servicing_costs
-     FROM transfers AS transfer${whereTail(parts)}`,
+export const ledgerTotals = (range: LedgerRange): Promise<LedgerTotals> =>
+  readMeasures(
+    {
+      due: owedBy(everyAccountOf(ATTENDEE)),
+      fees: balanceIn(everyAccountOf(FEE_INCOME)),
+      income: recognisedIncomeOf(everyAccountOf(REVENUE)),
+      refunded: amountOf(ofKind(KIND.refundCash)),
+      servicingCosts: figureOf("servicingCosts", everyAccountOf(COST)),
+    },
+    range,
   );
-  return {
-    due: Number(row.due),
-    fees: Number(row.fees),
-    income: Number(row.income),
-    refunded: Number(row.refunded),
-    servicingCosts: Number(row.servicing_costs),
-  };
-};
 
 /** Balance of one account: money in as the destination, less money out as
  *  the source. Zero when the account has no transfers. */
@@ -347,9 +310,7 @@ export const attendeeOwedTx = figureBySubqueryTx(attendeeOwedSubquery);
 
 /** A listing's currently projected income (gross credits less write-off debits)
  *  read in-transaction — the figure {@link adjustListingIncome} corrects. */
-export const listingIncomeTx = figureBySubqueryTx((id) =>
-  creditsLessWriteoffDebits(REVENUE, id),
-);
+export const listingIncomeTx = figureBySubqueryTx(listingIncomeSubquery);
 
 /** A modifier's currently projected net revenue (balanceOf(modifier)) read
  *  in-transaction — the figure {@link adjustModifierRevenue} corrects. */
