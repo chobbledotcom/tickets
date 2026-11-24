@@ -13,7 +13,10 @@ import {
 } from "#templates/admin/answer-rows.ts";
 import { AttendeeAnswersTable } from "#templates/admin/attendee-detail.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { testQuestion } from "#test-utils/factories-questions.ts";
+import {
+  testFreeTextQuestion,
+  testQuestion,
+} from "#test-utils/factories-questions.ts";
 
 const questions: QuestionWithAnswers[] = [
   testQuestion({
@@ -33,12 +36,7 @@ const questions: QuestionWithAnswers[] = [
     id: 2,
     text: "Meal?",
   }),
-  testQuestion({
-    answers: [],
-    displayType: "free_text",
-    id: 3,
-    text: "Allergies?",
-  }),
+  testFreeTextQuestion(3, "Allergies?"),
 ];
 
 const selected = (

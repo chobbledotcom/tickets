@@ -87,6 +87,13 @@ const savedOnTwoDiscos = async (
   };
 };
 
+/** One answer on each disco: `first` on disco A, `second` on disco B. */
+const onBoth =
+  (first: string, second: string) =>
+  ({ a, b, q }: { a: number; b: number; q: number }): SavedAnswers => ({
+    lineAnswers: [lineAnswer(a, q, first), lineAnswer(b, q, second)],
+  });
+
 /** The child booked under a parent, and again through a package. */
 const bookWithTwoPaths = async (
   parentId: number,
@@ -107,9 +114,7 @@ const bookWithTwoPaths = async (
 
 describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
   test("files each listing's answer against that listing's booking row", async () => {
-    const saved = await savedOnTwoDiscos(({ a, b, q }) => ({
-      lineAnswers: [lineAnswer(a, q, "Ava"), lineAnswer(b, q, "Ben")],
-    }));
+    const saved = await savedOnTwoDiscos(onBoth("Ava", "Ben"));
     expect(saved.rows.map((row) => row.listing_id)).toEqual([saved.a, saved.b]);
     expect(await saved.read()).toEqual([
       lineAnswer(saved.a, saved.q, "Ava"),
@@ -118,9 +123,7 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
   });
 
   test("keeps both listings' answers when two children share a name", async () => {
-    const saved = await savedOnTwoDiscos(({ a, b, q }) => ({
-      lineAnswers: [lineAnswer(a, q, "Sam"), lineAnswer(b, q, "Sam")],
-    }));
+    const saved = await savedOnTwoDiscos(onBoth("Sam", "Sam"));
     expect(new Set(saved.rows.map((row) => row.string_id)).size).toBe(1);
     expect(saved.rows).toHaveLength(2);
     expect(await usedCounts()).toEqual([2]);
@@ -165,9 +168,7 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
   });
 
   test("takes the answers with the booking row", async () => {
-    const saved = await savedOnTwoDiscos(({ a, b, q }) => ({
-      lineAnswers: [lineAnswer(a, q, "Ava"), lineAnswer(b, q, "Ben")],
-    }));
+    const saved = await savedOnTwoDiscos(onBoth("Ava", "Ben"));
     await execute(
       deleteFrom(tables.listing_attendees).where({
         attendeeId: saved.attendeeId,

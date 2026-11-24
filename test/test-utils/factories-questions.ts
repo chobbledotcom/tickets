@@ -52,3 +52,11 @@ export const testRadioQuestion = (
     id,
     text,
   });
+
+/** Build a free-text question fixture: no answer options. */
+export const testFreeTextQuestion = (
+  id: number,
+  text: string,
+  overrides: Partial<QuestionWithAnswers> = {},
+): QuestionWithAnswers =>
+  testQuestion({ displayType: "free_text", id, text, ...overrides });
