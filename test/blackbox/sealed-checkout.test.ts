@@ -5,6 +5,8 @@
 
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
+import { requireValue } from "#shared/required-value.ts";
 import {
   type CardShop,
   cancelPage,
@@ -15,24 +17,57 @@ import {
   rosterOf,
 } from "#test/blackbox/card-shop.ts";
 import { createApp, inProcess } from "#test/blackbox/driver.ts";
+import { addListing, type SeededListing } from "#test/blackbox/seed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const BOOKED = [["Sealed Buyer", 2]];
+
+/** The only metadata keys that Stripe receives. */
+const SENT_KEYS = ["_origin", "bundle", "listing", "price_proof"];
+
+const Names = v.object({
+  attendees: v.array(v.looseObject({ name: v.string() })),
+});
+
+/** The names booked on each listing, in listing order. */
+const bookedOn = (shop: CardShop, listings: readonly SeededListing[]) =>
+  Promise.all(
+    listings.map(async ({ id }) =>
+      v
+        .parse(
+          Names,
+          (await shop.api.get(`/api/admin/listings/${id}/attendees`)).body,
+        )
+        .attendees.map(({ name }) => name),
+    ),
+  );
 const TICKETS_PAGE = /^\/payment\/success\?tokens=[0-9A-F]+$/;
 
-/** A return visit that was sent to the tickets, or told to wait for the
- * booking that the other request makes. */
-const SENT_OR_WAITING =
-  /^\/payment\/success\?tokens=[0-9A-F]+ |Payment is being processed\. Please wait a moment and refresh\./;
+/** What a return visit can do, by name. */
+const VISITS: [string, RegExp][] = [
+  ["sent to the tickets", /^\/payment\/success\?tokens=[0-9A-F]+ /],
+  [
+    "told to wait",
+    /Payment is being processed\. Please wait a moment and refresh\./,
+  ],
+  ["shown success", /data-payment-result="success"/],
+];
 
-/** A later return visit, once the booking is made: the tickets, or the
- * success page that a repeated visit shows. */
-const SENT_OR_SUCCESS =
-  /^\/payment\/success\?tokens=[0-9A-F]+ |data-payment-result="success"/;
+/** The names of what a return visit did, from where it was sent and what it
+ * showed. */
+const visitDid = (page: { html: string; location: string | null }) =>
+  VISITS.filter(([, pattern]) =>
+    pattern.test(`${page.location} ${page.html}`),
+  ).map(([name]) => name);
 
-/** A return visit as one text: where it was sent, then what it showed. */
-const seenOn = (page: { html: string; location: string | null }): string =>
-  `${page.location} ${page.html}`;
+/** The webhook answer and the return visit, when both arrive together. The
+ * one that reserves the session books. The other answers from that booking,
+ * or waits for it. */
+const TOGETHER = [
+  [200, ["sent to the tickets"]],
+  [200, ["told to wait"]],
+  [409, ["sent to the tickets"]],
+];
 
 describeWithEnv("a sealed card checkout", { db: true }, () => {
   let shop: CardShop | undefined;
@@ -49,16 +84,45 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
     const opened = await open();
     const checkout = await checkOut(opened);
 
-    expect(Object.keys(checkout.metadata).toSorted()).toEqual([
-      "_origin",
-      "bundle",
-      "listing",
-      "price_proof",
-    ]);
+    expect(Object.keys(checkout.metadata).toSorted()).toEqual(SENT_KEYS);
     expect(checkout.metadata.listing).toBe(String(opened.listing.id));
     const sent = JSON.stringify(checkout.metadata);
     expect(sent).not.toContain("Sealed Buyer");
     expect(sent).not.toContain("buyer@example.com");
+  });
+
+  test("books an order of forty listings, because Stripe holds only the token", async () => {
+    const opened = await open();
+    const stalls: SeededListing[] = [];
+    for (const number of Array.from({ length: 39 }, (_, index) => index + 1)) {
+      stalls.push(
+        await addListing(opened.api, {
+          max_attendees: 10,
+          name: `Stall ${number}`,
+          unit_price: 100,
+        }),
+      );
+    }
+    const listings = [opened.listing, ...stalls];
+    const sent = await createApp(inProcess).submit(
+      `/ticket/${listings.map(({ slug }) => slug).join("+")}`,
+      {
+        email: "buyer@example.com",
+        name: "Sealed Buyer",
+        ...Object.fromEntries(listings.map(({ id }) => [`quantity${id}`, "1"])),
+      },
+    );
+    const checkout = requireValue(
+      opened.fake.checkouts.at(-1),
+      "The app opened no checkout",
+    );
+
+    expect(sent.location).toBe(`https://checkout.stripe.test/${checkout.id}`);
+    expect(Object.keys(checkout.metadata).toSorted()).toEqual(SENT_KEYS);
+    expect((await deliverPayment(opened, checkout)).status).toBe(200);
+    expect(await bookedOn(opened, listings)).toEqual(
+      listings.map(() => ["Sealed Buyer"]),
+    );
   });
 
   test("books the order that the token opens, and a replay books nothing more", async () => {
@@ -140,7 +204,7 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
     expect(opened.fake.refunds).toEqual([]);
   });
 
-  test("the webhook and the buyer who arrive at the same time make one booking between them", async () => {
+  test("the webhook and the buyer who arrive together make one booking, and the second answers from it", async () => {
     const opened = await open();
     const checkout = await checkOut(opened);
     opened.fake.pay(checkout);
@@ -149,11 +213,12 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
       deliverPayment(opened, checkout),
       returnPage(checkout),
     ]);
+    const later = await returnPage(checkout);
 
-    // One of the two books. The other answers from that booking, or waits.
-    expect([200, 409]).toContain(answer.status);
-    expect(seenOn(visit)).toMatch(SENT_OR_WAITING);
-    expect(seenOn(await returnPage(checkout))).toMatch(SENT_OR_SUCCESS);
+    expect(TOGETHER).toContainEqual([answer.status, visitDid(visit)]);
+    expect([["sent to the tickets"], ["shown success"]]).toContainEqual(
+      visitDid(later),
+    );
     expect(await rosterOf(opened)).toEqual(BOOKED);
     expect(opened.fake.refunds).toEqual([]);
   });

@@ -384,6 +384,25 @@ export const parseSessionFailure = async (
   return state.outcome;
 };
 
+/** What a payment row holds. A booked row's slot can carry the owner's refund
+ * work, so only a row with no booking holds a final outcome. */
+export type RowHolding =
+  | { readonly kind: "booked"; readonly attendeeId: number }
+  | { readonly kind: "handled"; readonly failure: StoredPaymentFailure }
+  | { readonly kind: "none" };
+
+export const rowHolding = async ({
+  attendeeId,
+  failureData,
+}: Pick<
+  ProcessedPayment,
+  "attendeeId" | "failureData"
+>): Promise<RowHolding> => {
+  if (attendeeId !== null) return { attendeeId, kind: "booked" };
+  const failure = await parseSessionFailure(failureData);
+  return failure === null ? { kind: "none" } : { failure, kind: "handled" };
+};
+
 /**
  * Decrypt the ticket_tokens field from a processed payment record.
  * Returns the plaintext token string (e.g. "tok1+tok2") or empty string.
