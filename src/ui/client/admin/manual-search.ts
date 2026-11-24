@@ -46,8 +46,8 @@ const isStringList = (value: unknown): value is string[] =>
 
 /** Whether a value is one person the search route answered. */
 const isOnlineOption = (value: unknown): value is RosterOption => {
-  if (typeof value !== "object" || value === null) return false;
-  const option = value as Record<string, unknown>;
+  // Object() turns a non-object into a wrapper that fails every field check.
+  const option = Object(value) as Record<string, unknown>;
   return (
     Number.isSafeInteger(option.attendeeId) &&
     typeof option.name === "string" &&
@@ -59,10 +59,7 @@ const isOnlineOption = (value: unknown): value is RosterOption => {
 /** The people one search route answer names. Throws on a body of another
  * shape, so the door sees the search fail instead of a wrong list. */
 const onlineFound = (body: unknown): Found[] => {
-  const options =
-    typeof body === "object" && body !== null && "options" in body
-      ? body.options
-      : undefined;
+  const { options } = Object(body) as { options?: unknown };
   if (!Array.isArray(options) || !options.every(isOnlineOption)) {
     throw new Error("The search answered a body of another shape");
   }

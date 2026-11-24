@@ -5,6 +5,7 @@
  * them in, through the scan JSON API or the offline queue. No step reloads
  * the page, so the camera keeps running. */
 
+import { requiredMapValue } from "#fp";
 import {
   type Found,
   findPeople,
@@ -89,8 +90,8 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
     setListOpen(anyVisible && document.activeElement === input);
   };
 
-  /** Each option's person, so a pick reads what the search found. */
-  const foundByOption = new WeakMap<Element, Found>();
+  /** Each shown option's person, so a pick reads what the search found. */
+  let foundByOption = new Map<Element, Found>();
 
   /** The person the door picked, or null while the next submit searches. */
   let picked: Found | null = null;
@@ -107,8 +108,9 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
   };
 
   const selectOption = (opt: HTMLLIElement) => {
-    setPicked(foundByOption.get(opt) ?? null);
-    const detail = opt.dataset.detail ?? "";
+    const person = requiredMapValue(foundByOption, opt);
+    setPicked(person);
+    const detail = foundFacts(person).details.join(", ");
     input.value =
       `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})` +
       (detail ? ` — ${detail}` : "");
@@ -225,6 +227,7 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
 
   /** Show what one search found as the options the door picks from. */
   const showFound = (found: Found[]) => {
+    foundByOption = new Map();
     listbox.replaceChildren(
       ...found.map((person) => {
         const { details, name, quantity } = foundFacts(person);

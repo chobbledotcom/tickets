@@ -153,16 +153,16 @@ const installManualCheckin = (
     activeId: () =>
       document.querySelector<HTMLElement>(".combobox-active")?.dataset
         .attendeeId ?? null,
-    buttonLabel: () => submitButton.textContent?.trim() ?? "",
+    buttonLabel: () => String(submitButton.textContent).trim(),
     form,
     input,
     keydown,
     listbox: document.querySelector<HTMLElement>("#ticket-options")!,
     pick: (attendeeId) => {
+      // A missing option makes fireEvent throw.
       const option = document.querySelector<HTMLElement>(
         `[data-attendee-id='${attendeeId}']`,
-      );
-      if (!option) throw new Error(`No option for attendee ${attendeeId}`);
+      )!;
       fireEvent(option, new window.Event("click", { bubbles: true }));
     },
     scrolledIds,
