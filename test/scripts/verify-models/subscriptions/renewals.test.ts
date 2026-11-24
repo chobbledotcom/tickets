@@ -71,14 +71,25 @@ test("renewal facts preserve observed cash, independently rounded VAT, and accou
       target: first.snapshotSubscription,
     },
   ]);
-  expect(facts.reads.filter((fact) => fact.kind === "currency")).toEqual(
-    ["site_currency", "foreign_currency", "mixed_currency"].map((owner) => ({
-      kind: "currency",
-      ordinal: 0,
-      owner,
-      target: "sub_currency",
-    })),
-  );
+  expect(facts.reads.filter((fact) => fact.kind !== "renewal")).toEqual([]);
+  expect(
+    facts.invoices
+      .filter((invoice) => invoice.attempt === "currencies:0")
+      .map(({ foreign, invoice }) => ({ foreign, invoice })),
+  ).toEqual([
+    { foreign: false, invoice: "in_currencies_home" },
+    { foreign: true, invoice: "in_currencies_away" },
+  ]);
+  expect(
+    facts.snapshots
+      .filter(
+        (item) => item.attempt === "currencies:0" && item.when === "after",
+      )
+      .map(({ cashCount, invoice }) => ({ cashCount, invoice })),
+  ).toEqual([
+    { cashCount: 1, invoice: "in_currencies_home" },
+    { cashCount: 0, invoice: "in_currencies_away" },
+  ]);
 });
 
 test("renewal facts observe exact replay and loud conflicting replay", async () => {

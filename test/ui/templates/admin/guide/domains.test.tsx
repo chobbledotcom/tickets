@@ -60,6 +60,7 @@ describe("guide domains sections", () => {
           "available_settings",
           "how_does_the_header_image_work",
           "advanced_settings",
+          "what_are_redirects",
           "what_is_debug_page",
           "what_is_the_debug_footer",
         ],

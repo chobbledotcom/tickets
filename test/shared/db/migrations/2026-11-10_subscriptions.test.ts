@@ -31,9 +31,11 @@ const BOOKING_COLUMNS = [
   "subscription_status",
 ];
 
-/** Put the tables back to how a site stood before subscriptions. */
+/** Put the tables back to how a site stood before subscriptions. A later
+ * migration indexes the booking columns, so that index goes first. */
 const removeSubscriptions = (): Promise<unknown> =>
   executeBatch([
+    sql`DROP INDEX idx_listing_attendees_subscription`,
     ...TRIGGERS.map((name) => sql`DROP TRIGGER ${sqlName(name)}`),
     ...["recurring_price", "recurring_interval"].map(
       (column) => sql`ALTER TABLE listings DROP COLUMN ${sqlName(column)}`,

@@ -9,7 +9,7 @@ import { sqlText } from "#test-utils/sql-text.ts";
 
 test("keeps the complete attendee schema declaration exact", async () => {
   expect(await jsonHash(sqlText(attendeeTables))).toBe(
-    "bb80bd5f9a5577a688a34a5fd17bb10ac7bf4bf44182597f6ecef5e9be3a9d41",
+    "87d162e03f221f8d0aef43bd70f0150c8efb34d4364e3d29e3580696ce71f32b",
   );
 });
 
@@ -32,6 +32,12 @@ const indexColumns = (table: string, indexName: string): readonly string[] => {
 };
 
 describe("attendee schema tables", () => {
+  test("indexes subscribed bookings by status, then Stripe id", () => {
+    expect(
+      indexColumns("listing_attendees", "idx_listing_attendees_subscription"),
+    ).toEqual(["subscription_status", "subscription_id"]);
+  });
+
   test("gives every staged SumUp checkout a state, defaulting to the start", () => {
     // The default decides what an upgrading site's existing rows become
     // before the migration derives them, so it has to be the start node.

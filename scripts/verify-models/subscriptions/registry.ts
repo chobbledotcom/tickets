@@ -149,7 +149,6 @@ const RENEWAL_CONTROLS = {
   "replaced-booking-accepted": "reduced",
   "rewritten-joined-plan": "reduced",
   "wrong-exact-renewal-tax": "reduced",
-  "wrong-invoice-list-subscription": "reduced",
   "wrong-joined-trial-time": "reduced",
   "wrong-renewal-attendee": "reduced",
   "wrong-renewal-cash": "reduced",
