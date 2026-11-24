@@ -63,13 +63,17 @@ describeWithEnv("sealed checkout order", { db: true }, () => {
 
   test("sumup keeps the whole record, proof included, in its own staged row", async () => {
     const { metadata, total } = await withProof(
-      checkoutIntent({ phone: "07700900000" }),
+      checkoutIntent({
+        phone: "07700900000",
+        thankYouUrl: "https://example.com/thanks",
+      }),
       "sumup",
     );
     const proof = parsePriceProof(metadata.price_proof)!;
 
     expect(metadata.bundle).toBe("");
     expect(metadata.phone).toBe("07700900000");
+    expect(metadata.thank_you_url).toBe("https://example.com/thanks");
     expect(proof.total).toBe(total);
     expect(await verifyPrice(metadata, proof.total, proof.sig)).toBe(true);
   });
