@@ -199,18 +199,37 @@ describe("validatedPaymentSession", () => {
     });
   }
 
-  it("keeps a supplied creation time", () => {
-    const createdAt = "2026-07-19T12:00:00.000Z";
-    const build = validatedPaymentSession({
-      ...basePaid,
-      amountTotal: 1000,
-      createdAt,
-      currency: "GBP",
+  /** A paid session with and without its optional facts: each fact that
+   *  arrives is kept, and one that does not arrive is not a key. */
+  const createdAt = "2026-07-19T12:00:00.000Z";
+  const PAID_SESSION = {
+    amountTotal: 1000,
+    currency: "GBP",
+    id: "sess-1",
+    metadata: unpackedMeta,
+    paymentReference: "pi_123",
+    paymentStatus: "paid",
+    provider: "stripe",
+  };
+  const OPTIONAL_FACTS = [
+    ["no optional fact", {}],
+    ["a creation time", { createdAt }],
+    ["a subscription", { subscription }],
+    ["a creation time and a subscription", { createdAt, subscription }],
+  ] as const;
+
+  for (const [name, facts] of OPTIONAL_FACTS) {
+    it(`builds a paid session with ${name}`, () => {
+      expect(
+        validatedPaymentSession({
+          ...basePaid,
+          amountTotal: 1000,
+          currency: "GBP",
+          ...facts,
+        }),
+      ).toStrictEqual({ ...PAID_SESSION, ...facts });
     });
-    expect(isSessionRejection(build)).toBe(false);
-    if (isSessionRejection(build)) return;
-    expect(build.createdAt).toBe(createdAt);
-  });
+  }
 
   // A free session captures no money, so it carries no provider resource id and
   // a zero charge is valid.
