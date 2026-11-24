@@ -30,6 +30,7 @@ import {
   type RowOf,
   recordSurfaceOf,
   type StateOf,
+  type UpdateCommand,
   type WritePlan,
   type WriteVerdict,
 } from "#shared/rest/record-contract.ts";
@@ -389,6 +390,15 @@ const buildRecord = <Shape extends RecordShape>(
     );
 
   const write = spec.write;
+  /** The domain update, or the error of a record that declares none. */
+  const updateOf = (
+    declared: NonNullable<typeof spec.write>,
+  ): UpdateCommand<Input, WriteVerdict<FullRow>> => {
+    if (declared.update === undefined) {
+      throw new Error(`The record for ${surface.list} declares no update`);
+    }
+    return declared.update;
+  };
   const commands: Pick<
     AdminRecord<Shape>,
     "create" | "remove" | "update"
@@ -405,7 +415,7 @@ const buildRecord = <Shape extends RecordShape>(
           checked(input, () => write.create(input, actor)),
         remove: (id, input, actor) => write.remove(id, input, actor),
         update: (id, input, _plan, actor) =>
-          checked(input, () => write.update(id, input, actor)),
+          checked(input, () => updateOf(write)(id, input, actor)),
       };
 
   return {

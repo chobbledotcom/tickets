@@ -18,6 +18,9 @@ export interface Api {
   get(path: string): Promise<Answer>;
   post(path: string, body: unknown): Promise<Answer>;
   put(path: string, body: unknown): Promise<Answer>;
+  /** The status of one request, whatever the body. A path that no route
+   * serves answers with a page, not JSON. */
+  statusOf(method: string, path: string, body?: unknown): Promise<number>;
 }
 
 /** The body of a response as JSON. The API always answers with JSON, so text
@@ -33,6 +36,28 @@ const readBody = (path: string, text: string): unknown => {
   }
 };
 
+/** Send one request with the key, and give back the response. */
+const exchange = (
+  target: Target,
+  key: string,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<Response> => {
+  const headers = new Headers({
+    authorization: `Bearer ${key}`,
+    host: "localhost",
+  });
+  if (body !== undefined) headers.set("content-type", "application/json");
+  return target(
+    new Request(`http://localhost${path}`, {
+      body: body === undefined ? null : JSON.stringify(body),
+      headers,
+      method,
+    }),
+  );
+};
+
 /** Send one request with the key, and read the answer. */
 const send = async (
   target: Target,
@@ -41,18 +66,7 @@ const send = async (
   path: string,
   body?: unknown,
 ): Promise<Answer> => {
-  const headers = new Headers({
-    authorization: `Bearer ${key}`,
-    host: "localhost",
-  });
-  if (body !== undefined) headers.set("content-type", "application/json");
-  const response = await target(
-    new Request(`http://localhost${path}`, {
-      body: body === undefined ? null : JSON.stringify(body),
-      headers,
-      method,
-    }),
-  );
+  const response = await exchange(target, key, method, path, body);
   return {
     body: readBody(path, await response.text()),
     status: response.status,
@@ -65,4 +79,6 @@ export const createApi = (target: Target, key: string): Api => ({
   get: (path) => send(target, key, "GET", path),
   post: (path, body) => send(target, key, "POST", path, body),
   put: (path, body) => send(target, key, "PUT", path, body),
+  statusOf: async (method, path, body) =>
+    (await exchange(target, key, method, path, body)).status,
 });

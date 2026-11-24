@@ -51,6 +51,7 @@ export const ADMIN_API_MESSAGE_GROUPS = [
   "listings-table",
   "modifiers",
   "questions",
+  "redirects",
   "site-pages",
   "statuses",
   "validation",

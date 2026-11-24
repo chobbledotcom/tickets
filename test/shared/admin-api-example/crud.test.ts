@@ -294,18 +294,29 @@ describe("documented admin CRUD endpoints", () => {
     ]);
   });
 
+  test("a resource that serves some routes documents only those", () => {
+    const redirects = ADMIN_API_ENDPOINTS.filter((e: EndpointDoc) =>
+      e.path.startsWith("/api/admin/redirects"),
+    ).map((e: EndpointDoc) => `${e.method} ${e.path}`);
+    expect(redirects).toEqual([
+      "GET /api/admin/redirects",
+      "POST /api/admin/redirects",
+      "DELETE /api/admin/redirects/:redirectId",
+    ]);
+  });
+
   test("a delete answers with a plain ok", () => {
     const deletes = ADMIN_API_ENDPOINTS.filter(
       (e: EndpointDoc) => e.method === "DELETE",
     );
 
-    // The twelve confirmed content deletes answer with a plain ok. The three
+    // The thirteen confirmed content deletes answer with a plain ok. The three
     // fixed-page deletes are refusals, because a fixed page cannot be
     // deleted.
     const okDeletes = deletes.filter(
       (endpoint) => "status" in JSON.parse(endpoint.response),
     );
-    expect(okDeletes.length).toBe(12);
+    expect(okDeletes.length).toBe(13);
     for (const endpoint of okDeletes) {
       expect(JSON.parse(endpoint.response)).toEqual({ status: "ok" });
     }

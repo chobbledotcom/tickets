@@ -8,6 +8,7 @@
 
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import type {
   AdminRecord,
@@ -29,6 +30,7 @@ import {
 } from "#templates/admin/confirm-page.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
+import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
@@ -99,6 +101,30 @@ export type ResourceList<TEntity> = {
   /** Optional guide link rendered at the very bottom of the list body. */
   guideFooter?: Child;
 };
+
+/** The list facet of a record that an Add button creates. It holds the
+ *  button, the table, the note for no rows, and the guide link. */
+export const listWithAddButton = <TEntity,>(config: {
+  add: { label: string; route: AdminDestinationId };
+  columns: readonly TableColumn<TEntity>[];
+  empty: string;
+  guide: { anchor: string; label: string };
+  intro?: Child;
+}): ResourceList<TEntity> => ({
+  actions: (
+    <ActionButton href={adminPattern(config.add.route)} icon="plus">
+      {config.add.label}
+    </ActionButton>
+  ),
+  columns: config.columns,
+  empty: <p>{config.empty}</p>,
+  guideFooter: (
+    <GuideFooter href={`${adminPattern("guide")}#${config.guide.anchor}`}>
+      {config.guide.label}
+    </GuideFooter>
+  ),
+  ...(config.intro === undefined ? {} : { intro: config.intro }),
+});
 
 export type AdminResourcePagesConfig<TEntity extends { id: number }> = {
   /** The nav `active` key (e.g. "/admin/settings"). */
