@@ -27,11 +27,12 @@ import {
   dropCheckoutAnswersStatement,
   readCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
-
+import type { LineTextAnswerId } from "#db/question-types.ts";
 import { bookedAnswersTail } from "#db/questions/attendee-answers/at-booking.ts";
 import {
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
+  withLineAnswers,
 } from "#db/questions/attendee-answers/save.ts";
 import { literal } from "#db/select/expression.ts";
 import { tables } from "#db/select/tables.ts";
@@ -40,6 +41,7 @@ import { update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 import {
   type BookingIntent,
+  type LineAnswerRef,
   StoredTextAnswerRefSchema,
   type TextAnswerRef,
 } from "#shared/booking-intent.ts";
@@ -84,6 +86,33 @@ const textRefsWithStringId = (
   }
   return resolved;
 };
+
+/** The line answer refs that have a usable string id, each with its slot and
+ * unit. A ref without one is dropped loudly, as a booking answer's is. */
+const lineRefsWithStringId = (
+  refs: readonly LineAnswerRef[] | undefined,
+): LineTextAnswerId[] =>
+  (refs ?? []).flatMap((ref) => {
+    const stringId = ref.s;
+    if (stringId !== undefined) {
+      return [
+        {
+          listingId: ref.l,
+          packageGroupId: ref.g,
+          parentListingId: ref.p,
+          questionId: ref.q,
+          stringId,
+          unit: ref.u,
+        },
+      ];
+    }
+    logError({
+      code: ErrorCode.DATA_INVALID,
+      detail: `Text answer ref has no usable string id (question ${ref.q})`,
+      listingId: ref.l,
+    });
+    return [];
+  });
 
 /** Each booked listing's text refs that have a usable string id. */
 const resolvedRefsByListing = (
@@ -205,20 +234,19 @@ export const paidBookingTail = async ({
     listings,
     intent.listingTextAnswerIds,
   );
-  const lineRefsByListing = resolvedRefsByListing(
-    listings,
-    intent.lineTextAnswerIds,
-  );
   const answers = await prepareAttendeeAnswerSave(
-    groupListingAnswerSets(
-      listings.map((listing) => ({
-        attendee: { id: PLACEHOLDER_ATTENDEE_ID },
-        listing: { id: listing.id },
-      })),
-      intent.listingAnswerIds ?? {},
-      {},
-      textRefsByListing,
-      lineRefsByListing,
+    withLineAnswers(
+      groupListingAnswerSets(
+        listings.map((listing) => ({
+          attendee: { id: PLACEHOLDER_ATTENDEE_ID },
+          listing: { id: listing.id },
+        })),
+        intent.listingAnswerIds ?? {},
+        {},
+        textRefsByListing,
+      ),
+      PLACEHOLDER_ATTENDEE_ID,
+      lineRefsWithStringId(intent.lineTextAnswerIds),
     ),
   );
 

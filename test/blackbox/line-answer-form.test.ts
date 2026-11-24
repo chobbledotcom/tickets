@@ -30,14 +30,20 @@ const LIMIT = 10240;
 const questionBlocks = (html: string): string[] =>
   html.match(/<fieldset class="custom-question"[\s\S]*?<\/fieldset>/g) ?? [];
 
-/** One listing's field of a question block, with the answer that it shows. */
+/** One line's field of a question block, with the answer that it shows. A
+ * line under a parent takes its quantity from the child's choice under that
+ * parent, and any other line from its own quantity. */
 const fieldOf = (
   question: number,
   listing: SeededListing,
-  name: string,
-  value = "",
-) =>
-  `<label class="custom-question" data-listing-ids="${listing.id}">${name}<input maxlength="${LIMIT}" name="${fieldFor(question, listing)}" type="text" value="${value}"></label>`;
+  words: string,
+  { parent, value = "" }: { parent?: SeededListing; value?: string } = {},
+) => {
+  const line = `${listing.id}_${parent?.id ?? 0}_0`;
+  const sources =
+    parent === undefined ? `q:${listing.id}` : `c:${parent.id}:${listing.id}`;
+  return `<label class="custom-question" data-line="${line}" data-sources="${sources}" data-unit="0">${words}<input maxlength="${LIMIT}" name="${fieldFor(question, listing, { parent })}" type="text" value="${value}"></label>`;
+};
 
 /** A question block: the legend, the listings it asks, and their fields. */
 const blockOf = (legend: string, listings: SeededListing[], fields: string[]) =>
@@ -52,7 +58,7 @@ const bothDiscosBlock = ({ discoA, discoB, question }: PupilShop, forA = "") =>
     "Pupil name",
     [discoA, discoB],
     [
-      fieldOf(question, discoA, "Disco A", forA),
+      fieldOf(question, discoA, "Disco A", { value: forA }),
       fieldOf(question, discoB, "Disco B"),
     ],
   );
@@ -115,7 +121,9 @@ describeWithEnv(
           [discoA, glowPack],
           [
             fieldOf(question, discoA, "Disco A"),
-            fieldOf(question, glowPack, "Glow Pack"),
+            fieldOf(question, glowPack, "Glow Pack with Disco A", {
+              parent: discoA,
+            }),
           ],
         ),
       ]);
@@ -135,7 +143,11 @@ describeWithEnv(
         blockOf(
           "Pupil name",
           [glowPack],
-          [fieldOf(question, glowPack, "Glow Pack")],
+          [
+            fieldOf(question, glowPack, "Glow Pack with Disco A", {
+              parent: discos.discoA,
+            }),
+          ],
         ),
       ]);
       expect(page.html).toMatch(
@@ -148,7 +160,11 @@ describeWithEnv(
     test("a refused order shows each typed answer again under its own listing", async () => {
       const shop = await withPupilName(await openDiscos());
 
-      const page = await bookAndRead(shop, [1, 1], "Ava", null);
+      const page = await bookAndRead(
+        shop,
+        [1, 1],
+        pupilNames(shop, "Ava", null),
+      );
 
       expect(questionBlocks(page)).toEqual([bothDiscosBlock(shop, "Ava")]);
     });
@@ -157,7 +173,11 @@ describeWithEnv(
       test(`an answer that is ${name} stops the order, and the refusal names the listing`, async () => {
         const shop = await withPupilName(await openDiscos());
 
-        const page = await bookAndRead(shop, [1, 1], "Ava", forB);
+        const page = await bookAndRead(
+          shop,
+          [1, 1],
+          pupilNames(shop, "Ava", forB),
+        );
 
         expect(textOf(page)).toContain(message);
         expect(await attendeeIds(shop.api, shop.discoA)).toEqual([]);

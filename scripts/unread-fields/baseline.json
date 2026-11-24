@@ -205,10 +205,6 @@
     {
       "path": [{ "name": "ListingAnswerRefs" }],
       "fields": ["listingAnswerIds"]
-    },
-    {
-      "path": [{ "name": "TextAnswerRef" }],
-      "fields": ["s"]
     }
   ],
   "src/shared/booking/cart-conflicts.ts": [

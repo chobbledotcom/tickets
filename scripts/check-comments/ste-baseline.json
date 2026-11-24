@@ -1475,7 +1475,6 @@
   },
   "src/ui/client/admin/custom-question-visibility.ts": {
     "long-sentence": 1,
-    "semicolon": 1,
     "contraction": 1
   },
   "src/ui/client/admin/logistics-map.ts": {

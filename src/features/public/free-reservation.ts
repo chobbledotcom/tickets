@@ -17,6 +17,7 @@ import { bookedAnswersTail } from "#db/questions/attendee-answers/at-booking.ts"
 import {
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
+  withLineAnswers,
 } from "#db/questions/attendee-answers/save.ts";
 import { requiredMapValue } from "#fp";
 import type { ListingAnswerMaps } from "#routes/public/ticket-form.ts";
@@ -115,14 +116,16 @@ export const createFreeReservation = async ({
       ? undefined
       : bookedAnswersTail(
           await prepareAttendeeAnswerSave(
-            groupListingAnswerSets(
-              finalBookings.map((booking) => ({
-                attendee: { id: 0 },
-                listing: { id: booking.listingId },
-              })),
-              listingAnswers.answerIds,
-              listingAnswers.textAnswers,
-              {},
+            withLineAnswers(
+              groupListingAnswerSets(
+                finalBookings.map((booking) => ({
+                  attendee: { id: 0 },
+                  listing: { id: booking.listingId },
+                })),
+                listingAnswers.answerIds,
+                listingAnswers.textAnswers,
+              ),
+              0,
               listingAnswers.lineTextAnswers,
             ),
           ),

@@ -13,11 +13,15 @@ import type { ChildAllocation } from "#db/attendee-types.ts";
 import { answerModifierQuantities } from "#db/modifier-resolve.ts";
 import {
   type AnswerLine,
-  isListingLevel,
+  asksEachLine,
+  inHiddenPackage,
+  lineLabel,
+  orderLineQuantities,
+  pageLineNames,
   parseLineTextAnswers,
 } from "#db/questions/line-answers.ts";
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
-import { requiredMapValue, sum, uniqueBy } from "#fp";
+import { requiredMapValue, sum } from "#fp";
 import { resolveDayCount } from "#routes/public/booking-dates.ts";
 import {
   type AnswerInfo,
@@ -55,18 +59,23 @@ import {
   type SubmissionPricingParams,
 } from "./pricing.ts";
 
-/** The booked listings the buyer can see, once each. */
+/** The booking lines of an order that the buyer can see, with their words. A
+ * line of a concealed listing or of a hidden package owes no answer. */
 const namedLines = (
+  ctx: TicketCtx,
   items: readonly CheckoutItem[],
+  allocations: ChildAllocation[],
   namedListingIds: ReadonlySet<number>,
-): AnswerLine[] =>
-  uniqueBy((line: AnswerLine) => line.id)(
-    items.flatMap((item) =>
-      namedListingIds.has(item.listingId)
-        ? [{ id: item.listingId, name: item.name }]
-        : [],
-    ),
-  );
+): AnswerLine[] => {
+  const names = pageLineNames(ctx);
+  return orderLineQuantities(items, allocations)
+    .filter(
+      (line) =>
+        namedListingIds.has(line.listingId) &&
+        !inHiddenPackage(line, ctx.packages),
+    )
+    .map((line) => ({ ...line, label: lineLabel(line, names) }));
+};
 
 /** A parsed-and-priced submission, or the message explaining why it could not
  * be priced. `prepareOrder` runs every step shared by the booking submit and
@@ -224,12 +233,13 @@ export const prepareOrder = async (
   });
   const answersResult = parseQuestionAnswers({ optional: false })(
     form,
-    activeQuestions.filter((question) => !isListingLevel(question)),
+    activeQuestions.filter((question) => !asksEachLine(question)),
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
   // A concealed package member has no field, so it owes no answer.
   const lineAnswersResult = parseLineTextAnswers(form, {
-    lines: namedLines(items, namedListingIds),
+    lines: namedLines(ctx, items, fold.allocations, namedListingIds),
+    names: pageLineNames(ctx),
     questionListingMap: foldedCtx.questionListingMap,
     questions: activeQuestions,
   });

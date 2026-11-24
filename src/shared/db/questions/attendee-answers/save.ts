@@ -11,9 +11,11 @@ import { executeBatch, type TxScope, withTransaction } from "#db/client.ts";
 import type {
   LineTextAnswer,
   LineTextAnswerId,
+  LineTicket,
   TextAnswer,
   TextAnswerId,
 } from "#db/question-types.ts";
+import { lineKey, lineSlotOf } from "#db/questions/line-answers.ts";
 import {
   internWriteStatements,
   type PreparedStringRow,
@@ -26,8 +28,8 @@ import { requiredMapValue } from "#fp";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];
-  /** The answers to questions that ask once for each booked listing. Each is
-   * filed against the attendee's booking row for its listing. */
+  /** The answers to questions that ask for each line or each ticket. Each is
+   * filed against the attendee's booking row of its slot, under its unit. */
   lineAnswers?: (LineTextAnswer | LineTextAnswerId)[];
   textAnswerIds?: TextAnswerId[];
   textAnswers?: TextAnswer[];
@@ -53,15 +55,15 @@ const dedupeByQuestion = <T extends { questionId: number }>(
   return [...answerByQuestion.values()];
 };
 
-/** One answer for each question and listing: a repeat keeps the last. */
-const dedupeByQuestionAndListing = <
-  T extends { listingId: number; questionId: number },
+/** One answer for each question and ticket: a repeat keeps the last. */
+const dedupeByQuestionAndTicket = <
+  T extends LineTicket & { questionId: number },
 >(
   answers: T[],
 ): T[] => [
   ...new Map(
     answers.map((answer) => [
-      `${answer.questionId}:${answer.listingId}`,
+      `${answer.questionId}:${lineKey(answer)}:${answer.unit}`,
       answer,
     ]),
   ).values(),
@@ -74,8 +76,8 @@ type NormalizedAnswerSet = AttendeeAnswerSet & {
 };
 
 /** An answer save with all caller-side work done: the sets normalized and the
- * free text encrypted and blind-indexed, so the write itself is plain
- * statements a transaction or batch can carry. */
+ * free text encrypted and blind-indexed. The write itself is then plain
+ * statements that a transaction or batch can carry. */
 export type PreparedAnswerSave = {
   normalized: Map<number, NormalizedAnswerSet>;
   preparedStringRows: PreparedStringRow[];
@@ -169,9 +171,10 @@ const stringIdOf = (value: number | string): SqlSlot =>
     ? sql`(SELECT id FROM strings WHERE text_index = ${value})`
     : value;
 
-/** The insert of each listing's own answers. The join to the attendee's
- * booking rows files an answer against every row the attendee holds for its
- * listing. A row with no booked quantity takes none. */
+/** The insert of each line's own answers. Each answer joins the one booking
+ * row of its slot: a row under a parent by its listing and parent, any other
+ * row by its listing and package. A ticket at or above the row's quantity
+ * takes no answer. */
 const lineAnswerStatements = (
   normalized: Map<number, NormalizedAnswerSet>,
   ref: AttendeeRef,
@@ -179,8 +182,9 @@ const lineAnswerStatements = (
 ): SqlStatement[] => {
   const rows = attendeeRows(normalized, (set) =>
     set.lineAnswers.map((answer) => ({
-      listingId: answer.listingId,
+      ...lineSlotOf(answer),
       questionId: answer.questionId,
+      unit: answer.unit,
       value:
         "text" in answer
           ? requiredMapValue(textIndexByText, answer.text)
@@ -190,17 +194,29 @@ const lineAnswerStatements = (
   const statements: SqlStatement[] = [];
   pushAnswerRows(statements, ref, {
     afterValues: sql`INSERT INTO attendee_answers
-          (attendee_id, question_id, string_id, booking_row_id)
-        SELECT selected.attendee_id, selected.question_id, selected.string_id, line.id
+          (attendee_id, question_id, string_id, booking_row_id, unit_index)
+        SELECT selected.attendee_id, selected.question_id, selected.string_id,
+          line.id, selected.unit_index
         FROM selected
         INNER JOIN questions AS question ON question.id = selected.question_id
         INNER JOIN listing_attendees AS line
           ON line.attendee_id = selected.attendee_id
           AND line.listing_id = selected.listing_id
-          AND line.quantity > 0`,
-    columns: sql`attendee_id, question_id, listing_id, string_id`,
+          AND line.parent_listing_id = selected.parent_listing_id
+          AND (selected.parent_listing_id != 0
+            OR line.package_group_id = selected.package_group_id)
+          AND line.quantity > selected.unit_index`,
+    columns: sql`attendee_id, question_id, listing_id, parent_listing_id,
+      package_group_id, unit_index, string_id`,
     rows,
-    rowValues: (row) => [row.questionId, row.listingId, stringIdOf(row.value)],
+    rowValues: (row) => [
+      row.questionId,
+      row.listingId,
+      row.parentListingId,
+      row.packageGroupId,
+      row.unit,
+      stringIdOf(row.value),
+    ],
   });
   return statements;
 };
@@ -306,7 +322,7 @@ export const prepareAttendeeAnswerSave = async (
         id,
         {
           ...answerSet,
-          lineAnswers: dedupeByQuestionAndListing(
+          lineAnswers: dedupeByQuestionAndTicket(
             arrayOrEmpty(answerSet.lineAnswers),
           ),
           textAnswerIds: dedupeByQuestion(
@@ -387,23 +403,15 @@ export type AttendeeListingEntry = {
   listing: { id: number };
 };
 
-/** Names the listing that owns each of these answers. */
-const withListing = <T extends { questionId: number }>(
-  listingId: number,
-  answers: T[] | undefined,
-): (T & { listingId: number })[] =>
-  arrayOrEmpty(answers).map((answer) => ({ ...answer, listingId }));
-
 /** One listing's answers, as they join its attendee's set. */
 type ListingAnswers = {
   answerIds: number[];
-  lines: (LineTextAnswer | LineTextAnswerId)[];
   textAnswers: TextAnswer[];
   textRefs: TextAnswerId[];
 };
 
 /** Adds one listing's answers to its attendee's set. A booking answer keeps
- * its last text. A listing's own answers never merge by question. */
+ * its last text. */
 const addListingAnswers = (
   existing: AttendeeAnswerSet,
   added: ListingAnswers,
@@ -420,12 +428,6 @@ const addListingAnswers = (
       ...arrayOrEmpty(existing.textAnswerIds),
       ...added.textRefs,
     ]);
-  }
-  if (added.lines.length > 0) {
-    existing.lineAnswers = [
-      ...arrayOrEmpty(existing.lineAnswers),
-      ...added.lines,
-    ];
   }
 };
 
@@ -445,14 +447,12 @@ export const groupListingAnswerSets = (
   listingAnswerIds: Record<string, number[]>,
   listingTextAnswers: Record<string, TextAnswer[]> = {},
   listingTextRefs: Record<string, TextAnswerId[]> = {},
-  lineAnswers: Record<string, (TextAnswer | TextAnswerId)[]> = {},
 ): Map<number, AttendeeAnswerSet> => {
   const answersByAttendee = new Map<number, AttendeeAnswerSet>();
   for (const { attendee, listing } of entries) {
     const key = String(listing.id);
     const added: ListingAnswers = {
       answerIds: arrayOrEmpty(listingAnswerIds[key]),
-      lines: withListing(listing.id, lineAnswers[key]),
       textAnswers: arrayOrEmpty(listingTextAnswers[key]),
       textRefs: arrayOrEmpty(listingTextRefs[key]),
     };
@@ -463,4 +463,19 @@ export const groupListingAnswerSets = (
     answersByAttendee.set(attendee.id, existing);
   }
   return answersByAttendee;
+};
+
+/** Adds an order's line answers to the set of its one attendee. */
+export const withLineAnswers = (
+  sets: Map<number, AttendeeAnswerSet>,
+  attendeeId: number,
+  lineAnswers: (LineTextAnswer | LineTextAnswerId)[],
+): Map<number, AttendeeAnswerSet> => {
+  if (lineAnswers.length === 0) return sets;
+  const saved = sets.get(attendeeId);
+  sets.set(attendeeId, {
+    ...(saved === undefined ? { answerIds: [] } : saved),
+    lineAnswers,
+  });
+  return sets;
 };

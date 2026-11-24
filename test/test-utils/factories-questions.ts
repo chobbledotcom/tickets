@@ -60,3 +60,12 @@ export const testFreeTextQuestion = (
   overrides: Partial<QuestionWithAnswers> = {},
 ): QuestionWithAnswers =>
   testQuestion({ displayType: "free_text", id, text, ...overrides });
+
+/** A free-text answer for one ticket of one booking line: by default the
+ * first ticket of the listing's own row. */
+export const testLineAnswer = (
+  listingId: number,
+  questionId: number,
+  text: string,
+  { packageGroupId = 0, parentListingId = 0, unit = 0 } = {},
+) => ({ listingId, packageGroupId, parentListingId, questionId, text, unit });

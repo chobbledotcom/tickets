@@ -19,8 +19,10 @@ import {
   fieldFor,
   openDiscos,
   pupilNames,
+  textOf,
   withPupilName,
 } from "#test/blackbox/discos.ts";
+import { createApp, inProcess } from "#test/blackbox/driver.ts";
 import type { FakeStripe } from "#test/blackbox/fake-stripe.ts";
 import { addBooking } from "#test/blackbox/seed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,23 +30,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 const HEADING = t("attendee_detail.line_answers");
 
 const BOTH_NAMES = `${HEADING} Pupil name (Disco A) Ava Pupil name (Disco B) Ben`;
-
-/** Free orders of the names Ava and Ben: the places booked on each disco, the
- * text that the attendee page shows, and text that it must not show. */
-const FREE_ORDERS: [string, [number, number], string, string][] = [
-  [
-    "keeps one answer for each listing, and the attendee page shows each with its listing",
-    [2, 2],
-    BOTH_NAMES,
-    "Pupil name (Disco A) Ben",
-  ],
-  [
-    "needs no answer for a listing that it does not book, and does not keep an answer typed for it",
-    [1, 0],
-    `${HEADING} Pupil name (Disco A) Ava`,
-    "Ben",
-  ],
-];
 
 describeWithEnv(
   "a question that asks once for each listing",
@@ -56,18 +41,40 @@ describeWithEnv(
       fake = undefined;
     });
 
-    for (const [name, counts, shown, notShown] of FREE_ORDERS) {
-      test(`a free order ${name}`, async () => {
-        const shop = await withPupilName(await openDiscos());
+    test("a free order keeps one answer for each listing, and the attendee page shows each with its listing", async () => {
+      const shop = await withPupilName(await openDiscos());
 
-        const booked = await book(shop, counts, pupilNames(shop, "Ava", "Ben"));
+      const booked = await book(shop, [2, 2], pupilNames(shop, "Ava", "Ben"));
 
-        expect(booked.status).toBe(302);
-        const page = await attendeePage(shop);
-        expect(page).toContain(shown);
-        expect(page).not.toContain(notShown);
-      });
-    }
+      expect(booked.status).toBe(302);
+      const page = await attendeePage(shop);
+      expect(page).toContain(BOTH_NAMES);
+      expect(page).not.toContain("Pupil name (Disco A) Ben");
+    });
+
+    test("a free order needs no answer for a listing that it does not book, and refuses one typed for it", async () => {
+      const shop = await withPupilName(await openDiscos());
+      const buyer = createApp(inProcess);
+
+      const sent = await book(
+        shop,
+        [1, 0],
+        pupilNames(shop, "Ava", "Ben"),
+        buyer,
+      );
+      const page = await buyer.get(
+        requireValue(sent.location, "The booking form sent the parent nowhere"),
+      );
+      const kept = await book(shop, [1, 0], pupilNames(shop, "Ava", ""));
+
+      expect(textOf(page.html)).toContain(
+        "You did not book this, so clear its answer: Pupil name (Disco B)",
+      );
+      expect(kept.status).toBe(302);
+      expect(await attendeePage(shop)).toContain(
+        `${HEADING} Pupil name (Disco A) Ava`,
+      );
+    });
 
     test("a paid order keeps the answers out of Stripe, and the webhook files each against its listing", async () => {
       const cardShop = await openCardShop();

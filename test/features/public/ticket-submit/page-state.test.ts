@@ -15,6 +15,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { hiddenPackageWithMember } from "#test-utils/hidden-package.ts";
 import { insertModifier, patchModifier } from "#test-utils/modifiers.ts";
 import {
+  oneListingTicketContext,
   pageBookingTree,
   quantityForm,
   ticketContext,
@@ -102,8 +103,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
     });
 
     test("says registration closed when every listing is closed", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-      const ctx = await ticketContext([listing.id]);
+      const { ctx } = await oneListingTicketContext();
       const closed = withListings(ctx, [
         buildTicketListing(ctx.listings[0]!.listing, true, undefined),
       ]);
@@ -114,8 +114,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
     });
 
     test("says sold out when the page has no spots left", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-      const ctx = await ticketContext([listing.id]);
+      const { ctx } = await oneListingTicketContext();
       const soldOut = withListings(ctx, [
         buildTicketListing(ctx.listings[0]!.listing, false, 0),
       ]);

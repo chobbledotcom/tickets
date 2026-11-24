@@ -21,12 +21,13 @@ const context = buildMigrationContext({
 const removeAnswerLevel = (): Promise<unknown> =>
   executeBatch([
     sql`DROP TRIGGER trg_listing_attendees_answers_delete`,
-    sql`DROP INDEX idx_attendee_listing_answers_unique`,
+    sql`DROP INDEX idx_attendee_line_answers_unique`,
     sql`DROP INDEX idx_attendee_answers_booking_row_id`,
     sql`DROP INDEX idx_attendee_string_answers_unique`,
     sql`CREATE UNIQUE INDEX idx_attendee_string_answers_unique
           ON attendee_answers (attendee_id, question_id)`,
     sql`ALTER TABLE attendee_answers DROP COLUMN booking_row_id`,
+    sql`ALTER TABLE attendee_answers DROP COLUMN unit_index`,
     sql`ALTER TABLE questions DROP COLUMN answer_level`,
   ]);
 
@@ -52,7 +53,7 @@ describeWithEnv("db > migrations > question answer level", { db: true }, () => {
     expect({ ...stored.rows[0] }).toEqual({ answer_level: "booking" });
   });
 
-  test("keeps a stored answer for the booking, and refuses a second answer to a question for the booking or for one booking row", async () => {
+  test("keeps a stored answer for the booking, and refuses a second answer to a question for the booking or for one ticket of a row", async () => {
     await removeAnswerLevel();
     await executeBatch([
       sql`INSERT INTO questions (id, text, display_type) VALUES (9201, 'Name?', 'free_text')`,
@@ -64,20 +65,23 @@ describeWithEnv("db > migrations > question answer level", { db: true }, () => {
 
     await questionAnswerLevel(context).up();
 
-    const answer = (bookingRow: number | null) =>
+    const answer = (bookingRow: number | null, unit = 0) =>
       execute(
-        sql`INSERT INTO attendee_answers (attendee_id, question_id, string_id, booking_row_id)
-              VALUES (1, 9201, 9401, ${bookingRow})`,
+        sql`INSERT INTO attendee_answers
+              (attendee_id, question_id, string_id, booking_row_id, unit_index)
+              VALUES (1, 9201, 9401, ${bookingRow}, ${unit})`,
       );
     const stored = await getDb().execute(
-      sql`SELECT booking_row_id FROM attendee_answers WHERE question_id = 9201`,
+      sql`SELECT booking_row_id, unit_index FROM attendee_answers WHERE question_id = 9201`,
     );
     expect(stored.rows.map((row) => ({ ...row }))).toEqual([
-      { booking_row_id: null },
+      { booking_row_id: null, unit_index: 0 },
     ]);
     await expect(answer(null)).rejects.toThrow("UNIQUE constraint failed");
     await answer(9501);
     await expect(answer(9501)).rejects.toThrow("UNIQUE constraint failed");
+    await answer(9501, 1);
+    await expect(answer(9501, 1)).rejects.toThrow("UNIQUE constraint failed");
   });
 
   test("indexes only the answers for a booking row, and a row delete finds them by that index", async () => {

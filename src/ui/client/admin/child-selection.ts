@@ -24,13 +24,18 @@ export const controlQty = (
   return /^(0|[1-9]\d*)$/.test(raw) ? Number.parseInt(raw, 10) : 0;
 };
 
-/** The numeric quantity of a `quantity<id>` control, or 0 when absent/blank. */
-export const quantityValue = (id: string): number =>
+/** The numeric value of the control a form field name names, or 0 when it is
+ * absent or blank. */
+export const namedControlQty = (name: string): number =>
   controlQty(
     document.querySelector<HTMLSelectElement | HTMLInputElement>(
-      `[name="quantity${id}"]`,
+      `[name="${name}"]`,
     ),
   );
+
+/** The numeric quantity of a `quantity<id>` control, or 0 when absent/blank. */
+export const quantityValue = (id: string): number =>
+  namedControlQty(`quantity${id}`);
 
 /** The listing id of a `quantity<id>` control, or null for a control that
  *  only shares the prefix. */

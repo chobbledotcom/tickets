@@ -270,10 +270,14 @@ export const computeTextAnswerRefs = async (
     ...(info.lineTextAnswers.length === 0
       ? {}
       : {
-          lineTextAnswerIds: refsByListing(
-            stringIds,
-            byListing.lineTextAnswers,
-          ),
+          lineTextAnswerIds: info.lineTextAnswers.map((answer) => ({
+            g: answer.packageGroupId,
+            l: answer.listingId,
+            p: answer.parentListingId,
+            q: answer.questionId,
+            s: requiredMapValue(stringIds, answer.text),
+            u: answer.unit,
+          })),
         }),
     ...(info.textAnswers.length === 0
       ? {}

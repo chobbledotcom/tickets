@@ -1,44 +1,157 @@
-/** The booking form fields for a question that asks once for each booked
- * listing. The question has one text field for each listing it asks. */
+/** The booking form fields for a question that asks for each booking line, or
+ * for each ticket of a line. The question has one field group, with a field
+ * for each line and ticket that the page can book. */
 
 import type { TicketListing } from "#booking/model.ts";
-import { type BookingTree, shownListingIds } from "#booking/tree.ts";
-import type { QuestionWithAnswers } from "#db/question-types.ts";
+import type { PackageBundleLimit } from "#booking/package-cap.ts";
+import type { PagePackage } from "#booking/page-packages.ts";
 import {
-  type AnswerLine,
-  lineAnswerFieldName,
+  type BookingNode,
+  type BookingTree,
+  isMemberNodeOf,
+} from "#booking/tree.ts";
+import type { LineSlot, QuestionWithAnswers } from "#db/question-types.ts";
+import {
+  inHiddenPackage,
+  lineKey,
+  lineLabel,
+  pageLineNames,
+  ticketFieldName,
+  unitsAsked,
 } from "#db/questions/line-answers.ts";
-import { uniqueBy } from "#fp";
+import { requiredMapValue, sum } from "#fp";
+import { t } from "#i18n";
 import { savedFormValue } from "#shared/forms/saved-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { questionTextContent } from "#templates/components/question-text.tsx";
 
-/** The listings a buyer can see on the page, and the children they can pick
- * under those listings, once each. A hidden package member is never named. */
-export const pageAnswerLines = (
-  listings: readonly TicketListing[],
-  tree: BookingTree,
-  childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
-): AnswerLine[] => {
-  const shownIds = shownListingIds(tree.nodes);
-  const shown = listings.filter((info) => shownIds.has(info.listing.id));
-  const children = shown.flatMap(
-    (info) => childrenByParentId?.get(info.listing.id) ?? [],
-  );
-  return uniqueBy((line: AnswerLine) => line.id)(
-    [...shown, ...children].map((info) => ({
-      id: info.listing.id,
-      name: info.listing.name,
-    })),
-  );
+/** One page control that a line's quantity comes from, for the visibility
+ * script:
+ * - `q:<listing>`: a listing's own quantity
+ * - `p:<package>:<fixed>`: a package count times the member's fixed quantity
+ * - `c:<parent>:<child>`: a child's quantity under one parent */
+type LineSource = string;
+
+/** A booking line before its words: its slot, the most tickets it can take on
+ * this page, and the controls its quantity comes from. */
+type LineShape = LineSlot & { cap: number; sources: LineSource[] };
+
+/** A booking line that the page can make, with its words. */
+export type PageLine = LineShape & { label: string };
+
+/** What the page knows about its listings, packages and children. */
+export type LinePageInput = {
+  childrenByParentId: ReadonlyMap<number, TicketListing[]>;
+  listings: readonly TicketListing[];
+  packageLimits: readonly PackageBundleLimit<PagePackage>[];
+  tree: BookingTree;
 };
 
-/** The text field for one question under one listing. */
-const lineField = (questionId: number, line: AnswerLine): JSX.Element => {
-  const name = lineAnswerFieldName(questionId, line.id);
+/** The package a top-level node books through, or 0 for its own row. */
+const packageOf = (
+  node: BookingNode,
+  packageLimits: LinePageInput["packageLimits"],
+): PackageBundleLimit<PagePackage> | undefined =>
+  packageLimits.find(({ pkg }) => isMemberNodeOf(pkg.groupId)(node));
+
+/** The slot and cap of one shown top-level node. A listing that is a child of
+ * a page parent books its own units on its plain row, as the booking does. */
+const topLevelLine = (
+  node: BookingNode,
+  { listings, packageLimits }: LinePageInput,
+  childIds: ReadonlySet<number>,
+): LineShape => {
+  const bundle = packageOf(node, packageLimits);
+  const info = requiredMapValue(
+    new Map(listings.map((listing) => [listing.listing.id, listing])),
+    node.listingId,
+  );
+  const fixed =
+    bundle === undefined || node.quantityRule.kind !== "FIXED"
+      ? null
+      : {
+          groupId: bundle.pkg.groupId,
+          limit: bundle.limit,
+          qty: node.quantityRule.qty,
+        };
+  return {
+    cap: fixed === null ? info.maxPurchasable : fixed.qty * fixed.limit,
+    listingId: node.listingId,
+    packageGroupId:
+      bundle === undefined || childIds.has(node.listingId)
+        ? 0
+        : bundle.pkg.groupId,
+    parentListingId: 0,
+    sources: [
+      fixed === null
+        ? `q:${node.listingId}`
+        : `p:${fixed.groupId}:${fixed.qty}`,
+    ],
+  };
+};
+
+/** Lines with one slot become one line: their caps and sources add up. */
+const joinLines = (lines: readonly LineShape[]): LineShape[] =>
+  [...Map.groupBy(lines, lineKey).values()].map((same) => ({
+    ...same[0]!,
+    cap: sum(same.map(({ cap }) => cap)),
+    sources: same.flatMap(({ sources }) => sources),
+  }));
+
+/** The booking lines a buyer can make on the page, in page order. First come
+ * the shown paths, then each child under each parent that can carry it. A child line
+ * takes as many tickets as its parent's lines can. Each parent ticket carries
+ * one child. A line of a hidden package is never named. */
+export const pageAnswerLines = (input: LinePageInput): PageLine[] => {
+  const { childrenByParentId, packageLimits, tree } = input;
+  const packages = packageLimits.map(({ pkg }) => pkg);
+  const childIds = new Set(
+    [...childrenByParentId.values()].flat().map(({ listing }) => listing.id),
+  );
+  const topLevel = joinLines(
+    tree.nodes
+      .filter((node) => node.visibility === "SHOWN")
+      .map((node) => topLevelLine(node, input, childIds))
+      .filter((line) => !inHiddenPackage(line, packages)),
+  );
+  const parentCaps = Map.groupBy(topLevel, ({ listingId }) => listingId);
+  const children = [...parentCaps].flatMap(([parentId, parentLines]) =>
+    (childrenByParentId.get(parentId) ?? []).map(({ listing }) => ({
+      cap: sum(parentLines.map(({ cap }) => cap)),
+      listingId: listing.id,
+      packageGroupId: 0,
+      parentListingId: parentId,
+      sources: [`c:${parentId}:${listing.id}`],
+    })),
+  );
+  const names = pageLineNames({ ...input, packages });
+  return [...topLevel, ...joinLines(children)].map((line) => ({
+    ...line,
+    label: lineLabel(line, names),
+  }));
+};
+
+/** The text field for one ticket of one line. The line key and the ticket let
+ * the visibility script show the field only while the line takes the ticket. */
+const ticketField = (
+  question: QuestionWithAnswers,
+  line: PageLine,
+  unit: number,
+): JSX.Element => {
+  const name = ticketFieldName(question.id, { ...line, unit });
   return (
-    <label class="custom-question" data-listing-ids={String(line.id)}>
-      {line.name}
+    <label
+      class="custom-question"
+      data-line={lineKey(line)}
+      data-sources={line.sources.join(" ")}
+      data-unit={String(unit)}
+    >
+      {question.answerLevel === "quantity"
+        ? t("questions.line_answer.ticket", {
+            line: line.label,
+            number: unit + 1,
+          })
+        : line.label}
       <input
         maxlength={MAX_TEXTAREA_LENGTH}
         name={name}
@@ -49,18 +162,25 @@ const lineField = (questionId: number, line: AnswerLine): JSX.Element => {
   );
 };
 
-/** One question's fields, one for each listing it asks. The listing ids let the
- * visibility script show a field only while its listing is in the order. The
- * script adds `required`, and the server holds the rule. */
+/** One question's fields: one for each line it asks, or one for each ticket a
+ * line can take. The listing ids let the visibility script show the question
+ * only while one of its listings is in the order. The script adds `required`,
+ * and the server holds the rule. */
 export const renderLineQuestion = (
   question: QuestionWithAnswers,
-  lines: readonly AnswerLine[],
+  lines: readonly PageLine[],
 ): JSX.Element => (
   <fieldset
     class="custom-question"
-    data-listing-ids={lines.map((line) => line.id).join(" ")}
+    data-listing-ids={[...new Set(lines.map((line) => line.listingId))].join(
+      " ",
+    )}
   >
     <legend>{questionTextContent(question)}</legend>
-    {lines.map((line) => lineField(question.id, line))}
+    {lines.flatMap((line) =>
+      unitsAsked(question.answerLevel, line.cap).map((unit) =>
+        ticketField(question, line, unit),
+      ),
+    )}
   </fieldset>
 );

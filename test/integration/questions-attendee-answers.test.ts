@@ -24,6 +24,7 @@ import { createQuestionWithAnswerPair } from "#test-utils/db-helpers/question-an
 import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { stringUsedCounts } from "#test-utils/db-helpers/questions.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
+import { testLineAnswer } from "#test-utils/factories-questions.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
 
 /** The choice answer ids one attendee has saved (undefined when none). Shared by
@@ -338,9 +339,7 @@ describeWithEnv("custom questions", { db: true }, () => {
             att.id,
             {
               answerIds: [],
-              lineAnswers: [
-                { listingId: listing.id, questionId: pupil.id, text: "Ava" },
-              ],
+              lineAnswers: [testLineAnswer(listing.id, pupil.id, "Ava")],
               textAnswers: [{ questionId: note.id, text: "Nut allergy" }],
             },
           ],

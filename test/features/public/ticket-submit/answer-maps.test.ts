@@ -15,8 +15,12 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { freeTextQuestionsOn } from "#test-utils/db-helpers/question-seeds.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import { testLineAnswer } from "#test-utils/factories-questions.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { ticketContext } from "#test-utils/ticket-ctx.ts";
+import {
+  oneListingTicketContext,
+  ticketContext,
+} from "#test-utils/ticket-ctx.ts";
 
 /** The submitted answers of a one-listing order: no answers at all unless
  * `chosen` or `typed` says otherwise. */
@@ -53,8 +57,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
     });
 
     test("is undefined when no answer was chosen", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-      const ctx = await ticketContext([listing.id]);
+      const { ctx, listing } = await oneListingTicketContext();
 
       expect(computeListingAnswerMap(ctx, answerInfo(ctx, listing.id))).toBe(
         undefined,
@@ -81,15 +84,14 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
     });
 
     test("has no text map when no text answer was given", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-      const ctx = await ticketContext([listing.id]);
+      const { ctx, listing } = await oneListingTicketContext();
 
       expect(
         await computeTextAnswerRefs(ctx, answerInfo(ctx, listing.id)),
       ).toStrictEqual({});
     });
 
-    test("files each listing's own answers under that listing alone", async () => {
+    test("carries each line's own answers with its slot and ticket", async () => {
       const [first, second] = [
         await createTestListing({ maxAttendees: 5 }),
         await createTestListing({ maxAttendees: 5 }),
@@ -101,29 +103,27 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
           ...answerInfo(ctx, first.id),
           lineTextAnswers,
         });
-      const ava = { listingId: first.id, questionId: 7, text: "Ava" };
-      const ben = { listingId: second.id, questionId: 7, text: "Ben" };
+      const refs =
+        (
+          await refsFor([
+            testLineAnswer(first.id, 7, "Ava"),
+            testLineAnswer(first.id, 7, "Amy", { unit: 1 }),
+            testLineAnswer(second.id, 7, "Ben"),
+          ])
+        ).lineTextAnswerIds ?? [];
 
-      const both = await refsFor([ava, ben]);
-      const [avaAlone, benAlone] = [await refsFor([ava]), await refsFor([ben])];
-
-      expect(both.lineTextAnswerIds).toEqual({
-        ...avaAlone.lineTextAnswerIds,
-        ...benAlone.lineTextAnswerIds,
-      });
-      expect(avaAlone.lineTextAnswerIds?.[String(first.id)]).toEqual([
-        { q: 7, s: expect.any(Number) },
+      expect(refs.map(({ s: _s, ...ref }) => ref)).toEqual([
+        { g: 0, l: first.id, p: 0, q: 7, u: 0 },
+        { g: 0, l: first.id, p: 0, q: 7, u: 1 },
+        { g: 0, l: second.id, p: 0, q: 7, u: 0 },
       ]);
-      expect(avaAlone.lineTextAnswerIds?.[String(first.id)]).not.toEqual(
-        benAlone.lineTextAnswerIds?.[String(second.id)],
-      );
+      expect(new Set(refs.map(({ s }) => s)).size).toBe(3);
     });
 
     test("looks the strings up once, whatever mix of answers the order holds", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-      const ctx = await ticketContext([listing.id]);
+      const { ctx, listing } = await oneListingTicketContext();
       const typed = { questionId: 7, text: "Hello" };
-      const own = { ...typed, listingId: listing.id, text: "Ava" };
+      const own = testLineAnswer(listing.id, typed.questionId, "Ava");
       const lookups = (info: AnswerInfo) =>
         countDatabaseCalls(5, () => computeTextAnswerRefs(ctx, info));
 

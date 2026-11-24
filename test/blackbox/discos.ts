@@ -55,7 +55,7 @@ export const openDiscos = async (): Promise<Discos> => {
 export const addQuestion = async (
   owner: App,
   text: string,
-  answerLevel: "booking" | "listing",
+  answerLevel: AnswerLevel,
   askedOn?: SeededListing,
 ): Promise<number> => {
   const added = await owner.submit("/admin/questions", {
@@ -76,22 +76,40 @@ export const addQuestion = async (
   return id;
 };
 
+/** How often a question asks, as the add form names it. */
+export type AnswerLevel = "booking" | "listing" | "quantity";
+
 /** Two discos and a "Pupil name" question that asks once for each listing. */
 export type PupilShop = Discos & { readonly question: number };
 
-/** The owner adds a "Pupil name" question that asks once for each listing. The
- * question is asked on `askedOn`, or on every listing. */
+/** The owner adds a "Pupil name" question that asks once for each listing, or
+ * once for each ticket. The question is asked on `askedOn`, or on every
+ * listing. */
 export const withPupilName = async (
   discos: Discos,
   askedOn?: SeededListing,
+  level: AnswerLevel = "listing",
 ): Promise<PupilShop> => ({
   ...discos,
-  question: await addQuestion(discos.owner, "Pupil name", "listing", askedOn),
+  question: await addQuestion(discos.owner, "Pupil name", level, askedOn),
 });
 
-/** The field of the booking form that answers a question for one listing. */
-export const fieldFor = (question: number, listing: SeededListing): string =>
-  `question${question}_listing${listing.id}`;
+/** Where a booking line comes from: the parent it is booked under, or the
+ * package it is booked in. A line with neither is the listing on its own. */
+export type LinePath = {
+  readonly parent?: SeededListing | undefined;
+  readonly packageId?: number;
+  readonly ticket?: number;
+};
+
+/** The field of the booking form that answers a question for one ticket of
+ * one booking line. The first ticket is 1. */
+export const fieldFor = (
+  question: number,
+  listing: SeededListing,
+  { packageId = 0, parent, ticket = 1 }: LinePath = {},
+): string =>
+  `question${question}_line${listing.id}_${parent?.id ?? 0}_${packageId}_ticket${ticket - 1}`;
 
 /** The pupil names for disco A and disco B. A `null` name leaves that field
  * out of the post. */
@@ -119,16 +137,15 @@ export const book = (
     ...answers,
   });
 
-/** A parent books with these pupil names, and reads the page that the form
- * sends them to. */
+/** A parent books with these answers, and reads the page that the form sends
+ * them to. */
 export const bookAndRead = async (
-  shop: PupilShop,
+  shop: Discos,
   counts: [number, number],
-  forA: string | null,
-  forB: string | null,
+  answers: Fields,
 ): Promise<string> => {
   const buyer = createApp(inProcess);
-  const sent = await book(shop, counts, pupilNames(shop, forA, forB), buyer);
+  const sent = await book(shop, counts, answers, buyer);
   const page = await buyer.get(
     requireValue(sent.location, "The booking form sent the parent nowhere"),
   );

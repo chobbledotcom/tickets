@@ -14,7 +14,7 @@ import {
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import { getListingsById } from "#db/listings/records.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
-import { isListingLevel } from "#db/questions/line-answers.ts";
+import { asksEachLine } from "#db/questions/line-answers.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import {
   parseEach,
@@ -396,7 +396,7 @@ export const parseAnswers = async (
   // A listing-level question takes its answers for each listing, which a
   // create body cannot name yet.
   const questionsById = new Map(
-    questions.filter((q) => !isListingLevel(q)).map((q) => [q.id, q]),
+    questions.filter((q) => !asksEachLine(q)).map((q) => [q.id, q]),
   );
   const answers = parseEach(raw, "answers", (item, at) =>
     parseAnswer(item, questionsById, at),

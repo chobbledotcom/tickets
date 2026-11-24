@@ -5,7 +5,6 @@
 import type { AttributeWithOptions } from "#db/attributes.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
-import type { AnswerLine } from "#db/questions/line-answers.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -31,6 +30,7 @@ import {
   renderDayCountSelector,
   renderTermsAndCheckbox,
 } from "./controls.ts";
+import type { PageLine } from "./line-questions.tsx";
 import { renderQuestions } from "./questions.tsx";
 import type { BookingPrefill } from "./types.ts";
 
@@ -208,7 +208,7 @@ export const TicketPageForm = ({
   questions: QuestionWithAnswers[] | undefined;
   questionListingMap: QuestionListingMap | undefined;
   /** The booked listings a question can ask once for each of. */
-  answerLines: readonly AnswerLine[];
+  answerLines: readonly PageLine[];
   terms: string | null | undefined;
   prefill?: BookingPrefill | undefined;
   addOns: AddOnOption[] | undefined;

@@ -19,7 +19,6 @@ import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { type AnswerRow, answerRows } from "#templates/admin/answer-rows.ts";
-import { questionTextFlat } from "#templates/admin/questions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { HeaderRow } from "#templates/components/header-row.tsx";
@@ -272,9 +271,9 @@ export const AttendeeLineAnswersTable = (
     ? null
     : answersBlock(
         t("attendee_detail.line_answers"),
-        rows.map((row) => ({
-          answer: row.answer,
-          notes: [],
-          question: `${questionTextFlat(row.question)} (${row.listingName})`,
+        rows.map(({ answer, name, notes }) => ({
+          answer,
+          notes,
+          question: name,
         })),
       );

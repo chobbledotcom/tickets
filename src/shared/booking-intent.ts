@@ -78,6 +78,32 @@ const TextAnswerRefSchema = v.strictObject({
 });
 export type TextAnswerRef = v.InferOutput<typeof TextAnswerRefSchema>;
 
+/** Where an answer's booking line rests in the order, and which of its tickets
+ *  the answer is for: listing `l`, parent `p`, package `g`, unit `u`. A parent
+ *  or a package of 0 means none. */
+const LineTicketRefEntries = {
+  g: integerAtLeast(0),
+  l: positiveInt,
+  p: integerAtLeast(0),
+  u: integerAtLeast(0),
+};
+
+/** A line answer as checkout writes it, with a stored string id. */
+const StoredLineAnswerRefSchema = v.strictObject({
+  ...StoredTextAnswerRefSchema.entries,
+  ...LineTicketRefEntries,
+});
+export type StoredLineAnswerRef = v.InferOutput<
+  typeof StoredLineAnswerRefSchema
+>;
+
+/** A line answer as it arrives in checkout metadata. */
+const LineAnswerRefSchema = v.strictObject({
+  ...TextAnswerRefSchema.entries,
+  ...LineTicketRefEntries,
+});
+export type LineAnswerRef = v.InferOutput<typeof LineAnswerRefSchema>;
+
 /** Per-listing answer references as checkout writes them. Every string id is
  * one we have really stored: the tolerant {@link TextAnswerRef} is only for
  * reading back what the provider hands us, so a checkout cannot be built with
@@ -87,8 +113,8 @@ export type ListingAnswerRefs = {
   listingAnswerIds?: Record<string, number[]> | undefined;
   /** Per-listing free-text string refs: maps listingId → question/string ids. */
   listingTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
-  /** Free-text refs for questions that ask once for each booked listing. */
-  lineTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
+  /** Free-text refs for questions that ask for each line or each ticket. */
+  lineTextAnswerIds?: StoredLineAnswerRef[] | undefined;
 };
 /**
  * Answers are filed under the listing they belong to, written the way a
@@ -124,7 +150,7 @@ export const BookingIntentSchema = v.pipe(
     dayCount: v.optional(positiveInt),
     email: v.string(),
     items: BookingItemsSchema,
-    lineTextAnswerIds: TextAnswerRefsByListingSchema,
+    lineTextAnswerIds: v.optional(v.array(LineAnswerRefSchema)),
     listingAnswerIds: v.optional(
       v.record(ListingKeySchema, v.array(positiveInt)),
     ),

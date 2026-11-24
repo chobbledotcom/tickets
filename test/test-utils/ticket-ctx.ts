@@ -78,3 +78,9 @@ export const prepareTestOrder = async (
   if (!result.ok) throw new Error(`prepareOrder refused: ${result.error}`);
   return result;
 };
+
+/** One listing with five places, and the booking page context for it. */
+export const oneListingTicketContext = async () => {
+  const listing = await createTestListing({ maxAttendees: 5 });
+  return { ctx: await ticketContext([listing.id]), listing };
+};

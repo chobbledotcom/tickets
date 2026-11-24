@@ -10,8 +10,9 @@ import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { queryAll, queryAllPrimary } from "#db/client.ts";
 import type { ListsByIds } from "#db/query.ts";
-import type { QuestionWithAnswers } from "#db/question-types.ts";
+import type { LineTicket, QuestionWithAnswers } from "#db/question-types.ts";
 import { attendeesWithChangedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
+import { lineSlotOf } from "#db/questions/line-answers.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { readRows } from "#db/read.ts";
 import { rowsForIds } from "#db/rows-for-ids.ts";
@@ -227,28 +228,34 @@ export const getAttendeeTextAnswers = async (
 /** Reads the owner's private key, only when there is something to decrypt. */
 type OwnerKeyReader = () => Promise<CryptoKey>;
 
-/** One answer to a question that asks once for each booked listing. */
-type LineAnswer = {
-  listingId: number;
+/** One answer for one ticket of one booking line, with the line's booked
+ * quantity. A ticket at or above the quantity is no longer booked. */
+export type LineAnswer = LineTicket & {
   questionId: number;
+  quantity: number;
   text: string;
 };
 
 type LineAnswerRow = {
   encrypted_text: OwnerKeyEncrypted;
   listing_id: number;
+  package_group_id: number;
+  parent_listing_id: number;
+  quantity: number;
   question_id: number;
+  unit_index: number;
 };
 
-/** The attendee's answers for each booked listing, decrypted for the owner,
- * in the owner's question order and then by listing. A listing booked through
- * two paths shows each answer once. */
+/** The attendee's answers for each line and ticket, decrypted for the owner,
+ * in the owner's question order, then by line, then by ticket. */
 export const getAttendeeLineAnswers = async (
   attendeeId: number,
   privateKey: OwnerKeyReader,
 ): Promise<LineAnswer[]> => {
   const rows = await queryAll<LineAnswerRow>(
-    sql`SELECT DISTINCT line.listing_id, attendee_answer.question_id, string.encrypted_text
+    sql`SELECT line.listing_id, line.parent_listing_id, line.package_group_id,
+         line.quantity, attendee_answer.question_id, attendee_answer.unit_index,
+         string.encrypted_text
        FROM attendee_answers AS attendee_answer
        INNER JOIN listing_attendees AS line
          ON line.id = attendee_answer.booking_row_id
@@ -256,15 +263,21 @@ export const getAttendeeLineAnswers = async (
        LEFT JOIN questions AS question ON question.id = attendee_answer.question_id
       WHERE attendee_answer.attendee_id = ${attendeeId}
       ORDER BY question.id IS NULL, question.sort_order,
-        attendee_answer.question_id, line.listing_id`,
+        attendee_answer.question_id, line.id, attendee_answer.unit_index`,
   );
   if (rows.length === 0) return [];
   const key = await privateKey();
   return mapParallel(
     async (row: LineAnswerRow): Promise<LineAnswer> => ({
-      listingId: row.listing_id,
+      ...lineSlotOf({
+        listingId: row.listing_id,
+        packageGroupId: row.package_group_id,
+        parentListingId: row.parent_listing_id,
+      }),
+      quantity: row.quantity,
       questionId: row.question_id,
       text: await decryptWithOwnerKey(row.encrypted_text, key),
+      unit: row.unit_index,
     }),
   )(rows);
 };

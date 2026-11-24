@@ -337,7 +337,7 @@ export const buildMetadata = (
   ...optionalFields(intent),
   ...answerIdsField("answer_ids")(intent.listingAnswerIds),
   ...answerIdsField("text_answer_ids")(intent.listingTextAnswerIds),
-  ...answerIdsField("line_text_answer_ids")(intent.lineTextAnswerIds),
+  ...listEntry("line_text_answer_ids", intent.lineTextAnswerIds),
   ...entry("site_token_index", intent.siteTokenIndex),
   ...entry(
     "balance_attendee_id",

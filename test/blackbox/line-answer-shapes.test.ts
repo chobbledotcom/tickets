@@ -25,33 +25,43 @@ import { createApp, type Fields, inProcess } from "#test/blackbox/driver.ts";
 import { addListing, type SeededListing } from "#test/blackbox/seed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
-/** One page shape: the page, the listings it asks about in page order, a
- * whole order with an answer for each, the listing whose answer the refusal
- * test leaves out, and the listing whose attendee page shows the answers. */
+/** A booking line: a listing, and the parent it is booked under. */
+type Line = {
+  readonly listing: SeededListing;
+  readonly parent?: SeededListing;
+};
+
+/** One page shape: the page, the lines it asks about in page order, a whole
+ * order with an answer for each, the line whose answer the refusal test
+ * leaves out, and the listing whose attendee page shows the answers. */
 type Shape = {
-  readonly asked: readonly SeededListing[];
+  readonly asked: readonly Line[];
   readonly booked: SeededListing;
   readonly order: Fields;
-  readonly owed: SeededListing | null;
+  readonly owed: Line | null;
   readonly path: string;
   readonly shows: readonly string[];
 };
 
 const CONTACT = { email: "pta@example.com", name: "PTA Parent" };
 
-/** The per-listing fields of a question on a page, in page order. A page
- * that asks about no listing has none. */
+/** The line fields of a question on a page, in page order. A page that asks
+ * about no line has none. */
 const fieldsOn = (html: string, question: number): string[] =>
-  html.match(new RegExp(`(?<=name=")question${question}_listing\\d+`, "g")) ??
-  [];
+  html.match(
+    new RegExp(`(?<=name=")question${question}_line[\\d_]+_ticket\\d+`, "g"),
+  ) ?? [];
+
+const fieldOfLine = (shop: PupilShop, { listing, parent }: Line) =>
+  fieldFor(shop.question, listing, { parent });
 
 const pageOf = (path: string) => createApp(inProcess).get(path);
 
 const bothDiscos = ({ discoA, discoB }: Discos) =>
   `/ticket/${discoA.slug}+${discoB.slug}`;
 
-const answer = (shop: PupilShop, listing: SeededListing, text: string) => ({
-  [fieldFor(shop.question, listing)]: text,
+const answer = (shop: PupilShop, line: Line, text: string) => ({
+  [fieldOfLine(shop, line)]: text,
 });
 
 const Created = v.object({
@@ -66,14 +76,14 @@ const SHAPES: [string, (discos: Discos) => Promise<[PupilShop, Shape]>][] = [
       return [
         shop,
         {
-          asked: [discos.discoB],
+          asked: [{ listing: discos.discoB }],
           booked: discos.discoB,
           order: {
             [`quantity${discos.discoA.id}`]: "1",
             [`quantity${discos.discoB.id}`]: "1",
-            ...answer(shop, discos.discoB, "Ben"),
+            ...answer(shop, { listing: discos.discoB }, "Ben"),
           },
-          owed: discos.discoB,
+          owed: { listing: discos.discoB },
           path: bothDiscos(discos),
           shows: ["Pupil name (Disco B) Ben"],
         },
@@ -89,16 +99,22 @@ const SHAPES: [string, (discos: Discos) => Promise<[PupilShop, Shape]>][] = [
       return [
         shop,
         {
-          asked: [discos.discoA, glow],
+          asked: [
+            { listing: discos.discoA },
+            { listing: glow, parent: discos.discoA },
+          ],
           booked: discos.discoA,
           order: {
             [`quantity${discos.discoA.id}`]: "1",
-            ...answer(shop, discos.discoA, "Ava"),
-            ...answer(shop, glow, "Kit"),
+            ...answer(shop, { listing: discos.discoA }, "Ava"),
+            ...answer(shop, { listing: glow, parent: discos.discoA }, "Kit"),
           },
-          owed: glow,
+          owed: { listing: glow, parent: discos.discoA },
           path,
-          shows: ["Pupil name (Disco A) Ava", "Pupil name (Glow Pack) Kit"],
+          shows: [
+            "Pupil name (Disco A) Ava",
+            "Pupil name (Glow Pack with Disco A) Kit",
+          ],
         },
       ];
     },
@@ -112,21 +128,28 @@ const SHAPES: [string, (discos: Discos) => Promise<[PupilShop, Shape]>][] = [
       return [
         shop,
         {
-          asked: [discos.discoA, discos.discoB, glow],
+          asked: [
+            { listing: discos.discoA },
+            { listing: discos.discoB },
+            { listing: glow, parent: discos.discoA },
+            { listing: glow, parent: discos.discoB },
+          ],
           booked: discos.discoA,
           order: {
             [`quantity${discos.discoA.id}`]: "1",
             [`quantity${discos.discoB.id}`]: "1",
-            ...answer(shop, discos.discoA, "Ava"),
-            ...answer(shop, discos.discoB, "Ben"),
-            ...answer(shop, glow, "Kit"),
+            ...answer(shop, { listing: discos.discoA }, "Ava"),
+            ...answer(shop, { listing: discos.discoB }, "Ben"),
+            ...answer(shop, { listing: glow, parent: discos.discoA }, "Kit"),
+            ...answer(shop, { listing: glow, parent: discos.discoB }, "Kim"),
           },
-          owed: glow,
+          owed: { listing: glow, parent: discos.discoA },
           path,
           shows: [
             "Pupil name (Disco A) Ava",
             "Pupil name (Disco B) Ben",
-            "Pupil name (Glow Pack) Kit",
+            "Pupil name (Glow Pack with Disco A) Kit",
+            "Pupil name (Glow Pack with Disco B) Kim",
           ],
         },
       ];
@@ -178,8 +201,8 @@ const [ASKED_ON_B, CHILD_OF_A, CHILD_OF_BOTH] = SHAPES;
 /** The shapes that owe an answer, and the listing that the refusal names. */
 const REFUSALS: [(typeof SHAPES)[number], string][] = [
   [requireValue(ASKED_ON_B, "shape"), "Disco B"],
-  [requireValue(CHILD_OF_A, "shape"), "Glow Pack"],
-  [requireValue(CHILD_OF_BOTH, "shape"), "Glow Pack"],
+  [requireValue(CHILD_OF_A, "shape"), "Glow Pack with Disco A"],
+  [requireValue(CHILD_OF_BOTH, "shape"), "Glow Pack with Disco A"],
 ];
 
 const timesIn = (text: string, part: string) => text.split(part).length - 1;
@@ -200,7 +223,7 @@ describeWithEnv(
         });
 
         expect(fieldsOn(page.html, shop.question)).toEqual(
-          shape.asked.map((listing) => fieldFor(shop.question, listing)),
+          shape.asked.map((line) => fieldOfLine(shop, line)),
         );
         expect(sent.status).toBe(302);
         const shown = await attendeePage(discos, shape.booked);
@@ -221,7 +244,7 @@ describeWithEnv(
         const sent = await buyer.submit(shape.path, {
           ...CONTACT,
           ...shape.order,
-          [fieldFor(shop.question, owed)]: null,
+          [fieldOfLine(shop, owed)]: null,
         });
         const shown = await buyer.get(
           requireValue(

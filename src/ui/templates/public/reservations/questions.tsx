@@ -3,16 +3,12 @@
  * validation re-render. */
 
 import type { QuestionWithAnswers } from "#db/question-types.ts";
-import {
-  type AnswerLine,
-  isListingLevel,
-  linesAskedBy,
-} from "#db/questions/line-answers.ts";
+import { asksEachLine, linesAskedBy } from "#db/questions/line-answers.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { t } from "#i18n";
 import { savedFormValue } from "#shared/forms/saved-data.ts";
 import { questionControl } from "#templates/components/question-controls.tsx";
-import { renderLineQuestion } from "./line-questions.tsx";
+import { type PageLine, renderLineQuestion } from "./line-questions.tsx";
 
 /** Render one question control. `required` is the HTML constraint: page listings
  * emit required controls; folded child questions render non-required (the server
@@ -54,13 +50,13 @@ export const answerableQuestion = (q: QuestionWithAnswers): boolean =>
 export const renderQuestions = (
   questions: QuestionWithAnswers[],
   questionListingMap?: QuestionListingMap,
-  lines: readonly AnswerLine[] = [],
+  lines: readonly PageLine[] = [],
 ): JSX.Element => (
   <>
     {questions
       .filter(answerableQuestion)
       .map((q) =>
-        isListingLevel(q)
+        asksEachLine(q)
           ? renderLineQuestion(
               q,
               linesAskedBy(lines, questionListingMap?.get(q.id)),

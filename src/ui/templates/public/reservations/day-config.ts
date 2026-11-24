@@ -13,7 +13,7 @@ import { packageBundleTotal } from "#booking/price-tree.ts";
 import type { BookingTree } from "#booking/tree.ts";
 import type { ListingAttributesById } from "#db/attributes.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
-import { isListingLevel } from "#db/questions/line-answers.ts";
+import { asksEachLine } from "#db/questions/line-answers.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { dayPriceFor, type ListingWithCount } from "#types";
 import { foldReserveByChildId } from "./child-pricing.ts";
@@ -102,9 +102,7 @@ export const splitChildQuestions = (
   // listing it asks, so a child's field never sits under its parent.
   const isPageQuestion = (q: QuestionWithAnswers): boolean => {
     const ids = questionListingMap?.get(q.id);
-    return (
-      isListingLevel(q) || !ids || ids.some((id) => pageListingIds.has(id))
-    );
+    return asksEachLine(q) || !ids || ids.some((id) => pageListingIds.has(id));
   };
   const pageQuestions = questions.filter(isPageQuestion);
   return {

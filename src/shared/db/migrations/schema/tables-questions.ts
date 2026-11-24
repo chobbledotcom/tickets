@@ -253,9 +253,12 @@ export const questionTables = declaredTables([
         ["answer_id", wholeNumberOrNull],
         ["question_id", wholeNumberOrNull],
         ["string_id", wholeNumberOrNull],
-        // The booked listing a per-listing answer belongs to. NULL for an
-        // answer to the whole booking, which is every row before this column.
+        // The booking line an answer belongs to. NULL for an answer to the
+        // whole booking, which is every row before this column.
         ["booking_row_id", wholeNumberOrNull],
+        // The ticket of the line, from 0. A question for each line, and an
+        // answer to the whole booking, keep 0.
+        ["unit_index", wholeNumberStartingAtZero],
       ],
       indexes: [
         {
@@ -282,8 +285,13 @@ export const questionTables = declaredTables([
           where: sql`booking_row_id IS NULL`,
         },
         {
-          columns: ["attendee_id", "question_id", "booking_row_id"],
-          name: "idx_attendee_listing_answers_unique",
+          columns: [
+            "attendee_id",
+            "question_id",
+            "booking_row_id",
+            "unit_index",
+          ],
+          name: "idx_attendee_line_answers_unique",
           unique: true,
           where: sql`booking_row_id IS NOT NULL`,
         },

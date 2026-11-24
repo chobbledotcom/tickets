@@ -21,9 +21,14 @@ export type QuestionDisplayType = v.InferOutput<
 export const isQuestionDisplayType = guardFor(QuestionDisplayTypeSchema);
 
 /** How often a free-text question asks. `booking` asks once for the order.
- *  `listing` asks once for each booked listing. A choice question always asks
- *  once for the order, because its answer can change the price. */
-export const QUESTION_ANSWER_LEVELS = ["booking", "listing"] as const;
+ *  `listing` asks once for each booking line, and `quantity` once for each
+ *  ticket of a line. A choice question always asks once for the order,
+ *  because its answer can change the price. */
+export const QUESTION_ANSWER_LEVELS = [
+  "booking",
+  "listing",
+  "quantity",
+] as const;
 export const QuestionAnswerLevelSchema = v.picklist(QUESTION_ANSWER_LEVELS);
 export type QuestionAnswerLevel = v.InferOutput<
   typeof QuestionAnswerLevelSchema
@@ -97,10 +102,23 @@ export type SelectedQuestionAnswers = {
 /** A free-text answer submitted for a question (plaintext, pre-string-interning). */
 export type TextAnswer = { questionId: number; text: string };
 
-/** A free-text answer to one booked listing's own question. */
-export type LineTextAnswer = TextAnswer & { listingId: number };
+/** Where one booking line rests inside one order. A line under a parent is
+ *  named by its listing and parent, and its package is 0. Any other line is
+ *  named by its listing and package, and its parent is 0. */
+export type LineSlot = {
+  listingId: number;
+  packageGroupId: number;
+  parentListingId: number;
+};
 
-export type LineTextAnswerId = TextAnswerId & { listingId: number };
+/** One ticket of one booking line. The first ticket is unit 0. A question for
+ *  each line asks unit 0 only. */
+export type LineTicket = LineSlot & { unit: number };
+
+/** A free-text answer for one ticket of one booking line. */
+export type LineTextAnswer = TextAnswer & LineTicket;
+
+export type LineTextAnswerId = TextAnswerId & LineTicket;
 
 /** A free-text answer resolved to its interned string id. */
 export type TextAnswerId = { questionId: number; stringId: number };

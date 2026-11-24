@@ -73,24 +73,12 @@ const answeredQuestionPairs = (
     .map((question, index) => [question.id, info.answerIds[index]!] as const);
 
 /** Both per-listing maps a submission's answers reduce to, each keyed by
- * `String(listingId)`. */
+ * `String(listingId)`, and the answers for each line, each with its slot. */
 export type ListingAnswerMaps = {
   answerIds: Record<string, number[]>;
-  lineTextAnswers: Record<string, TextAnswer[]>;
+  lineTextAnswers: LineTextAnswer[];
   textAnswers: Record<string, TextAnswer[]>;
 };
-
-const lineAnswersByListing = (
-  answers: readonly LineTextAnswer[],
-): Record<string, TextAnswer[]> =>
-  Object.fromEntries(
-    [...Map.groupBy(answers, (answer) => answer.listingId)].map(
-      ([listingId, listingAnswers]) => [
-        String(listingId),
-        listingAnswers.map(({ questionId, text }) => ({ questionId, text })),
-      ],
-    ),
-  );
 
 /** Files a submission's chosen answer ids and free-text answers under every
  * selected listing their question applies to — the one place both per-listing
@@ -105,7 +93,7 @@ export const listingAnswerMaps = (
   );
   return {
     answerIds: collect(answeredQuestionPairs(info)),
-    lineTextAnswers: lineAnswersByListing(info.lineTextAnswers),
+    lineTextAnswers: info.lineTextAnswers,
     textAnswers: collect(
       info.textAnswers.map((answer) => [answer.questionId, answer] as const),
     ),

@@ -1,85 +1,307 @@
-/** Questions that ask once for each booked listing. */
+/** Questions that keep their answers on booking lines: one answer for each
+ * line, or one for each ticket of a line. */
 
+import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
+import { expandChildAllocations } from "#db/attendees/order-parents.ts";
 import type {
+  LineSlot,
   LineTextAnswer,
+  LineTicket,
   Question,
+  QuestionAnswerLevel,
   QuestionWithAnswers,
 } from "#db/question-types.ts";
+import { requiredMapValue } from "#fp";
+import { t } from "#i18n";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
-/** A booked listing a line answer belongs to. */
-export type AnswerLine = { id: number; name: string };
-
-/** Whether the question keeps one answer for each booked listing. */
-export const isListingLevel = (
+/** Whether the question keeps its answers on booking lines: one for each line,
+ * or one for each ticket of a line. */
+export const asksEachLine = (
   question: Pick<Question, "answerLevel" | "displayType">,
 ): boolean =>
-  question.displayType === "free_text" && question.answerLevel === "listing";
+  question.displayType === "free_text" && question.answerLevel !== "booking";
 
-/** The form field that holds the answer to a question for one listing. */
-export const lineAnswerFieldName = (questionId: number, listingId: number) =>
-  `question${questionId}_listing${listingId}`;
-
-/** The booked listings a question asks: all, or the ones on its list. */
-export const linesAskedBy = (
-  lines: readonly AnswerLine[],
-  askedListingIds: readonly number[] | undefined,
-): AnswerLine[] =>
-  lines.filter(
-    (line) =>
-      askedListingIds === undefined || askedListingIds.includes(line.id),
-  );
-
-/** Read one question's answer for one listing: present, and within the limit. */
-const readLineAnswer = (
-  form: URLSearchParams,
-  question: QuestionWithAnswers,
-  line: AnswerLine,
-): Result<LineTextAnswer> => {
-  const text = (
-    form.get(lineAnswerFieldName(question.id, line.id)) ?? ""
-  ).trim();
-  const name = `${question.text} (${line.name})`;
-  if (text.length > MAX_TEXTAREA_LENGTH) {
-    return errorResult(`Answer is too long: ${name}`);
-  }
-  if (text === "") return errorResult(`Please answer: ${name}`);
-  return okResult({ listingId: line.id, questionId: question.id, text });
+/** The slot of a booking row. A row under a parent is named by its listing and
+ * parent, because one parent gives one row of a child. The package of such a
+ * row is left out: the booking stamps it from the parent. */
+export const lineSlotOf = (row: {
+  listingId: number;
+  packageGroupId?: number | undefined;
+  parentListingId?: number | undefined;
+}): LineSlot => {
+  const parentListingId = row.parentListingId ?? 0;
+  return {
+    listingId: row.listingId,
+    packageGroupId: parentListingId === 0 ? (row.packageGroupId ?? 0) : 0,
+    parentListingId,
+  };
 };
 
-/** What an order is asked: its questions, the listings it books, and which
- * listings each question is assigned to. */
+/** A line slot as one word, the same on the page and on the server. */
+export const lineKey = ({
+  listingId,
+  packageGroupId,
+  parentListingId,
+}: LineSlot): string => `${listingId}_${parentListingId}_${packageGroupId}`;
+
+/** The form field that holds the answer to a question for one ticket. */
+export const ticketFieldName = (questionId: number, ticket: LineTicket) =>
+  `question${questionId}_line${lineKey(ticket)}_ticket${ticket.unit}`;
+
+const TICKET_FIELD = /^question(\d+)_line(\d+)_(\d+)_(\d+)_ticket(\d+)$/u;
+
+/** The question and ticket that a posted field names. A field of any other
+ * name is not a ticket answer, so it reads as null. */
+const ticketOfFieldOrNull = (
+  name: string,
+): { questionId: number; ticket: LineTicket } | null => {
+  const match = TICKET_FIELD.exec(name);
+  if (match === null) return null;
+  const [, questionId, listingId, parentListingId, packageGroupId, unit] =
+    match.map(Number);
+  return {
+    questionId: questionId!,
+    ticket: {
+      listingId: listingId!,
+      packageGroupId: packageGroupId!,
+      parentListingId: parentListingId!,
+      unit: unit!,
+    },
+  };
+};
+
+/** The tickets of a line that a level asks about: unit 0 for each line, or
+ * one unit for each ticket of the line's quantity. */
+export const unitsAsked = (
+  level: QuestionAnswerLevel,
+  quantity: number,
+): number[] =>
+  level === "quantity"
+    ? Array.from({ length: quantity }, (_, unit) => unit)
+    : quantity > 0
+      ? [0]
+      : [];
+
+/** A booking line as a question names it: its slot, its booked quantity, and
+ * the words a buyer reads for it. */
+export type AnswerLine = LineSlot & { label: string; quantity: number };
+
+/** The names that a line's words are made from, by listing and by package. */
+export type LineNames = {
+  listings: ReadonlyMap<number, string>;
+  packages: ReadonlyMap<number, string>;
+};
+
+/** The listings, children and packages of one booking page. */
+type LinePage = {
+  childrenByParentId: ReadonlyMap<
+    number,
+    readonly { listing: { id: number; name: string } }[]
+  >;
+  listings: readonly { listing: { id: number; name: string } }[];
+  packages: readonly { groupId: number; hideListings: boolean; name: string }[];
+};
+
+/** The names of everything a booking page can book. */
+export const pageLineNames = ({
+  childrenByParentId,
+  listings,
+  packages,
+}: LinePage): LineNames => ({
+  listings: new Map(
+    [...listings, ...[...childrenByParentId.values()].flat()].map(
+      ({ listing }) => [listing.id, listing.name],
+    ),
+  ),
+  packages: new Map(packages.map((pkg) => [pkg.groupId, pkg.name])),
+});
+
+/** Whether a line rests in a package that hides its members. The buyer never
+ * sees such a line, so it owes no answer. */
+export const inHiddenPackage = (
+  slot: LineSlot,
+  packages: LinePage["packages"],
+): boolean =>
+  packages.some(
+    (pkg) => pkg.hideListings && pkg.groupId === slot.packageGroupId,
+  );
+
+/** Whether every name that a slot's words need is known. A posted field can
+ * name anything, so the submit asks before it builds the words. */
+const namesKnown = (slot: LineSlot, { listings, packages }: LineNames) =>
+  listings.has(slot.listingId) &&
+  (slot.parentListingId === 0 || listings.has(slot.parentListingId)) &&
+  (slot.packageGroupId === 0 || packages.has(slot.packageGroupId));
+
+/** The words a buyer reads for a line: the listing, then its parent or its
+ * package when it has one. */
+export const lineLabel = (slot: LineSlot, names: LineNames): string => {
+  const listing = requiredMapValue(names.listings, slot.listingId);
+  if (slot.parentListingId !== 0) {
+    return t("questions.line_answer.with_parent", {
+      listing,
+      parent: requiredMapValue(names.listings, slot.parentListingId),
+    });
+  }
+  return slot.packageGroupId === 0
+    ? listing
+    : t("questions.line_answer.in_package", {
+        listing,
+        package: requiredMapValue(names.packages, slot.packageGroupId),
+      });
+};
+
+/** The words a buyer reads for one answer: the question, then the line, then
+ * the ticket when the question asks for each ticket. */
+export const ticketAnswerName = (
+  question: Pick<Question, "answerLevel" | "text">,
+  lineWords: string,
+  unit: number,
+): string =>
+  t("questions.line_answer.name", {
+    line:
+      question.answerLevel === "quantity"
+        ? t("questions.line_answer.ticket", {
+            line: lineWords,
+            number: unit + 1,
+          })
+        : lineWords,
+    question: question.text,
+  });
+
+/** The booking lines that an order makes, with their quantities. They come
+ * from the same split into rows that the booking itself runs, so each line
+ * here is one row that the booking creates. */
+export const orderLineQuantities = (
+  items: readonly {
+    listingId: number;
+    packageGroupId?: number | undefined;
+    quantity: number;
+  }[],
+  allocations: ChildAllocation[],
+): (LineSlot & { quantity: number })[] => {
+  const bookings: ListingBooking[] = items.map((item) => ({
+    listingId: item.listingId,
+    packageGroupId: item.packageGroupId ?? 0,
+    quantity: item.quantity,
+  }));
+  const rows =
+    allocations.length > 0
+      ? expandChildAllocations(bookings, allocations)
+      : bookings;
+  return rows
+    .filter((row) => (row.quantity ?? 0) > 0)
+    .map((row) => ({ ...lineSlotOf(row), quantity: row.quantity ?? 0 }));
+};
+
+/** The lines a question asks: all, or the ones whose listing is on its list. */
+export const linesAskedBy = <Line extends LineSlot>(
+  lines: readonly Line[],
+  askedListingIds: readonly number[] | undefined,
+): Line[] =>
+  lines.filter(
+    (line) =>
+      askedListingIds === undefined || askedListingIds.includes(line.listingId),
+  );
+
+/** What an order is asked: its questions, the lines it books, and which
+ * listings each question is assigned to. `names` gives the words for any line
+ * on the page. */
 export type OrderQuestions = {
   lines: readonly AnswerLine[];
   questionListingMap: ReadonlyMap<number, number[]> | undefined;
   questions: readonly QuestionWithAnswers[];
+  names: LineNames;
 };
 
-/** The listing-level question and the booked listing of every answer owed. */
+/** One answer that the order owes: its question, line and ticket. */
+type OwedAnswer = {
+  question: QuestionWithAnswers;
+  line: AnswerLine;
+  unit: number;
+};
+
 const answersOwed = ({
   lines,
   questionListingMap,
   questions,
-}: OrderQuestions): { question: QuestionWithAnswers; line: AnswerLine }[] =>
-  questions.filter(isListingLevel).flatMap((question) =>
-    linesAskedBy(lines, questionListingMap?.get(question.id)).map((line) => ({
-      line,
-      question,
-    })),
+}: OrderQuestions): OwedAnswer[] =>
+  questions.filter(asksEachLine).flatMap((question) =>
+    linesAskedBy(lines, questionListingMap?.get(question.id)).flatMap((line) =>
+      unitsAsked(question.answerLevel, line.quantity).map((unit) => ({
+        line,
+        question,
+        unit,
+      })),
+    ),
   );
 
-/** Read every answer the listing-level questions owe. The first missing or too
- * long answer stops the booking. */
+/** Read one owed answer: present, and within the limit. */
+const readOwedAnswer = (
+  form: URLSearchParams,
+  { line, question, unit }: OwedAnswer,
+): Result<LineTextAnswer> => {
+  const ticket: LineTicket = { ...lineSlotOf(line), unit };
+  const text = (form.get(ticketFieldName(question.id, ticket)) ?? "").trim();
+  const name = ticketAnswerName(question, line.label, unit);
+  if (text.length > MAX_TEXTAREA_LENGTH) {
+    return errorResult(t("questions.line_answer.too_long", { name }));
+  }
+  if (text === "") {
+    return errorResult(t("questions.line_answer.missing", { name }));
+  }
+  return okResult({ ...ticket, questionId: question.id, text });
+};
+
+/** The first posted answer that the order does not owe. It can be for a
+ * ticket above a line's quantity, a line the order does not book, or a
+ * question the order does not ask. A blank field is no answer. */
+const unowedAnswerOrNull = (
+  form: URLSearchParams,
+  asked: OrderQuestions,
+  owed: readonly OwedAnswer[],
+): string | null => {
+  const owedFields = new Set(
+    owed.map(({ line, question, unit }) =>
+      ticketFieldName(question.id, { ...lineSlotOf(line), unit }),
+    ),
+  );
+  const questionById = new Map(asked.questions.map((q) => [q.id, q]));
+  for (const [name, value] of form) {
+    if (value.trim() === "" || owedFields.has(name)) continue;
+    const posted = ticketOfFieldOrNull(name);
+    if (posted === null) continue;
+    const question = questionById.get(posted.questionId);
+    return t("questions.line_answer.not_booked", {
+      name:
+        question === undefined || !namesKnown(posted.ticket, asked.names)
+          ? name
+          : ticketAnswerName(
+              question,
+              lineLabel(posted.ticket, asked.names),
+              posted.ticket.unit,
+            ),
+    });
+  }
+  return null;
+};
+
+/** Read every answer that the line questions owe. A missing or too long answer
+ * stops the booking, and so does an answer for anything the order does not
+ * book. */
 export const parseLineTextAnswers = (
   form: URLSearchParams,
   asked: OrderQuestions,
 ): Result<LineTextAnswer[]> => {
+  const owed = answersOwed(asked);
   const lineTextAnswers: LineTextAnswer[] = [];
-  for (const { line, question } of answersOwed(asked)) {
-    const read = readLineAnswer(form, question, line);
+  for (const answer of owed) {
+    const read = readOwedAnswer(form, answer);
     if (!read.ok) return read;
     lineTextAnswers.push(read.value);
   }
-  return okResult(lineTextAnswers);
+  const unowed = unowedAnswerOrNull(form, asked, owed);
+  return unowed === null ? okResult(lineTextAnswers) : errorResult(unowed);
 };

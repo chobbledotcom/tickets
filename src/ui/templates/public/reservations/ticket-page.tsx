@@ -313,7 +313,12 @@ export const ticketPage = ({
         <TicketPageForm
           actionUrl={actionUrl}
           addOns={addOns}
-          answerLines={pageAnswerLines(listings, tree, childrenByParentId)}
+          answerLines={pageAnswerLines({
+            childrenByParentId: childrenByParentId ?? new Map(),
+            listings,
+            packageLimits,
+            tree,
+          })}
           cartConflicts={cartConflicts(
             cartDateItems,
             listings,
