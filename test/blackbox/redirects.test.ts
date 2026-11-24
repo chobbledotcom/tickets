@@ -87,6 +87,7 @@ describeWithEnv("redirects", { db: true }, () => {
   });
 
   describe("the rules refuse an add and change nothing", () => {
+    /* jscpd:ignore-start -- a list of strings, not code */
     const REFUSALS: [string, string, string][] = [
       ["old", "/b", "from_not_a_path"],
       ["/old?x=1", "/b", "from_has_query"],
@@ -98,6 +99,7 @@ describeWithEnv("redirects", { db: true }, () => {
       ["/old", "//evil.example", "to_unsafe"],
       ["/Old", "/old/?x=1", "same_page"],
     ];
+    /* jscpd:ignore-end */
 
     test("each refusal says why", async () => {
       const app = await shopWith();

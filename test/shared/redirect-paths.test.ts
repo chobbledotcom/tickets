@@ -8,92 +8,76 @@ import {
   redirectsServe,
 } from "#shared/redirect-paths.ts";
 
-/** What a check answers for each raw address: its value, or its error. */
-const answers = <Code extends string>(
-  check: (raw: string) => unknown,
-  rows: readonly (readonly [string, string])[],
-  ok: boolean,
-) =>
-  expect(rows.map(([raw]) => check(raw))).toEqual(
-    rows.map(([, said]) =>
-      ok ? { ok, value: said } : { error: said as Code, ok },
-    ),
-  );
+type Row = readonly [string, string];
 
-test("a from page keeps its key: lower case, with no trailing slash", () => {
-  answers(
-    checkRedirectFrom,
-    [
-      ["/old-page", "/old-page"],
-      ["  /Old-Page/  ", "/old-page"],
-      ["/ticket/Old-Slug", "/ticket/old-slug"],
-      ["/", "/"],
-      ["/a%20b", "/a%20b"],
-      ["/administration", "/administration"],
-    ],
-    true,
-  );
-});
+/** What a check answers for each raw address. */
+const outcomes = (check: (raw: string) => unknown, rows: readonly Row[]) =>
+  rows.map(([raw]) => check(raw));
 
-test("a from page is refused with the reason", () => {
-  answers(
-    checkRedirectFrom,
-    [
-      ["old-page", "not_a_path"],
-      ["", "not_a_path"],
-      ["https://example.com/old", "not_a_path"],
-      ["/old?x=1", "has_query"],
-      ["/old#top", "has_query"],
-      ["//evil.example/path", "unsafe"],
-      ["/a\\b", "unsafe"],
-      ["/a/../b", "unsafe"],
-      ["/a/%2e%2e/b", "unsafe"],
-      ["/a%5Cb", "unsafe"],
-      ["/a%zz", "unsafe"],
-      ["/a\nb", "unsafe"],
-      ["/admin", "reserved"],
-      ["/admin/settings", "reserved"],
-      ["/ADMIN/x", "reserved"],
-      ["/api/admin/listings", "reserved"],
-    ],
-    false,
-  );
-});
+/** The answers that each row says: its value, or its error. */
+const said = (rows: readonly Row[], ok: boolean) =>
+  rows.map(([, word]) => (ok ? { ok, value: word } : { error: word, ok }));
 
-test("a to page is kept as typed, trimmed", () => {
-  const kept = [
-    "/new-page",
-    "/new-page?x=1#top",
-    "/",
-    "https://example.com/new",
-    "http://example.com",
-    "https://example.com/a?b=c#d",
-  ];
-  answers(
-    checkRedirectTo,
-    kept.map((raw) => [`  ${raw} `, raw] as const),
-    true,
-  );
-});
+/* jscpd:ignore-start -- lists of strings, not code */
+const FROM_KEPT: Row[] = [
+  ["/old-page", "/old-page"],
+  ["  /Old-Page/  ", "/old-page"],
+  ["/ticket/Old-Slug", "/ticket/old-slug"],
+  ["/", "/"],
+  ["/a%20b", "/a%20b"],
+  ["/administration", "/administration"],
+];
+const FROM_REFUSED: Row[] = [
+  ["old-page", "not_a_path"],
+  ["", "not_a_path"],
+  ["https://example.com/old", "not_a_path"],
+  ["/old?x=1", "has_query"],
+  ["/old#top", "has_query"],
+  ["//evil.example/path", "unsafe"],
+  ["/a\\b", "unsafe"],
+  ["/a/../b", "unsafe"],
+  ["/a/%2e%2e/b", "unsafe"],
+  ["/a%5Cb", "unsafe"],
+  ["/a%zz", "unsafe"],
+  ["/a\nb", "unsafe"],
+  ["/admin", "reserved"],
+  ["/admin/settings", "reserved"],
+  ["/ADMIN/x", "reserved"],
+  ["/api/admin/listings", "reserved"],
+];
+const TO_KEPT: Row[] = [
+  "/new-page",
+  "/new-page?x=1#top",
+  "/",
+  "https://example.com/new",
+  "http://example.com",
+  "https://example.com/a?b=c#d",
+].map((raw): Row => [`  ${raw} `, raw]);
+const TO_REFUSED: Row[] = [
+  ["//evil.example", "unsafe"],
+  ["/a/../b", "unsafe"],
+  ["/a\\b", "unsafe"],
+  ["/a\r\nSet-Cookie: x=1", "unsafe"],
+  ["https://user:pass@example.com", "unsafe"],
+  ["https://user@example.com", "unsafe"],
+  ["javascript:alert(1)", "not_http"],
+  ["data:text/html,hi", "not_http"],
+  ["ftp://example.com", "not_http"],
+  ["mailto:a@example.com", "not_http"],
+  ["example.com/page", "not_http"],
+  ["not a url", "not_http"],
+];
+/* jscpd:ignore-end */
 
-test("a to page is refused with the reason", () => {
-  answers(
-    checkRedirectTo,
-    [
-      ["//evil.example", "unsafe"],
-      ["/a/../b", "unsafe"],
-      ["/a\\b", "unsafe"],
-      ["/a\r\nSet-Cookie: x=1", "unsafe"],
-      ["https://user:pass@example.com", "unsafe"],
-      ["https://user@example.com", "unsafe"],
-      ["javascript:alert(1)", "not_http"],
-      ["data:text/html,hi", "not_http"],
-      ["ftp://example.com", "not_http"],
-      ["mailto:a@example.com", "not_http"],
-      ["example.com/page", "not_http"],
-      ["not a url", "not_http"],
-    ],
-    false,
+test("each check keeps what it keeps, and refuses what it refuses with the reason", () => {
+  const cases = [
+    [checkRedirectFrom, FROM_KEPT, true],
+    [checkRedirectFrom, FROM_REFUSED, false],
+    [checkRedirectTo, TO_KEPT, true],
+    [checkRedirectTo, TO_REFUSED, false],
+  ] as const;
+  expect(cases.map(([check, rows]) => outcomes(check, rows))).toEqual(
+    cases.map(([, rows, ok]) => said(rows, ok)),
   );
 });
 

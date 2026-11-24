@@ -22,7 +22,6 @@ import {
   type AdminApiAttendeeStatus,
   type AdminApiCreateAttendeeStatusBody,
   type AdminApiHoliday,
-  type AdminApiRedirect,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { type SnakeCased, snakeCaseKeys } from "#shared/column-names.ts";
@@ -194,7 +193,9 @@ const ADMIN_API_EXAMPLE_REDIRECT = {
   from_path: "/old-page",
   id: 3,
   to_url: "/new-page",
-} satisfies AdminApiRedirect;
+} satisfies { id: number } & ApiBody<
+  typeof ADMIN_API_RESOURCES.redirects.createBodySchema
+>;
 
 const REDIRECT_DOCS = {
   createBody: {

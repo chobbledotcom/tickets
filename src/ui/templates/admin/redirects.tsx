@@ -8,6 +8,7 @@ import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { adminPath } from "#shared/admin-surface.ts";
+import { columnName } from "#shared/column-names.ts";
 import { redirectRecord } from "#shared/records/redirects.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import {
@@ -24,7 +25,7 @@ const redirectColumns = (): TableColumn<Redirect>[] => [
   ...(["fromPath", "toUrl"] as const).map((key) =>
     translatedTableColumn(
       key,
-      `redirects.col.${key}`,
+      `redirects.col.${columnName(key)}`,
       (redirect: Redirect) => redirect[key],
     ),
   ),

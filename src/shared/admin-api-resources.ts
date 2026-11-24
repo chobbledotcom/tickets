@@ -126,11 +126,10 @@ const redirectFields = {
   to_url: textField("to_url"),
 };
 const redirectBodies = apiBodyPair(redirectFields);
-export const RedirectRowSchema = idRow({
+const RedirectRowSchema = idRow({
   from_path: v.string(),
   to_url: v.string(),
 });
-export type AdminApiRedirect = v.InferOutput<typeof RedirectRowSchema>;
 
 /** One listing as the admin API answers with it: the fields the client's
  *  callers read. The server owns the rest of the stored row. */
