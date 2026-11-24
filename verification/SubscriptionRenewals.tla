@@ -12,12 +12,13 @@ EXTENDS Apalache, Integers, FiniteSets, ModelRules, SubscriptionRules, Subscript
 \* The production store runs renewalBookingGuard, statusWrite, and the legs
 \* in one batch. The producer also observes rollback after a later leg fails.
 \* It supplies separate before and after snapshots for each attempted pass.
-\* Provider replies are synthetic assumptions. CurrencyFacts executes the
-\* real local Stripe read policy, not an outside Stripe request.
+\* Provider replies are synthetic assumptions. Each invoice fact states
+\* whether its currency differs from the site currency.
 \* ArithmeticFacts executes renewalTax. The exact law below is independent.
 \*
 \* The domain has first and replay passes, equal-value invoice identities,
-\* refused reads, changed booking identities, one write fault, and 100 invoices.
+\* refused reads, changed booking identities, one write fault, 100 invoices,
+\* every later billing reason, and a foreign invoice beside a home invoice.
 \* Large arithmetic cases concern local calculation, not Stripe admission.
 \* A changed status alone does not prohibit a previously paid renewal.
 \* The booking identity fence and the status comparison have separate purposes.
@@ -39,7 +40,7 @@ VARIABLES
   \* Model evidence that keeps every earlier failed law visible.
   \* @type: Bool;
   checksHold,
-  \* Whether the independent arithmetic and currency checks took a step.
+  \* Whether the independent arithmetic check took a step.
   \* This flag imposes no eventual-execution obligation.
   \* @type: Bool;
   arithmeticChecked,
@@ -55,7 +56,6 @@ ScenarioNames == {item.scenario : item \in ScenarioFacts}
 \* Attempts are declared before calls run. Their scenarios must all have a
 \* start state; otherwise an operation can exist but never take InspectPass.
 ExpectedScenarioNames == {item.scenario : item \in ExpectedAttempts}
-CurrencyCases == {"site_currency", "foreign_currency", "mixed_currency"}
 ArithmeticCases == {"planned", "half_up", "tax_only", "zero", "below_one",
   "below_plan", "above_plan", "excess", "no_tax", "below_half", "large"}
 
@@ -64,7 +64,6 @@ ArithmeticCases == {"planned", "half_up", "tax_only", "zero", "below_one",
 \* @type: Set({kind: Str, owner: Str});
 RequiredReads ==
   {[kind |-> "renewal", owner |-> item.attempt] : item \in ExpectedAttempts}
-  \cup {[kind |-> "currency", owner |-> item] : item \in CurrencyCases}
 ReadCoverage ==
   /\ \A expected \in RequiredReads :
        Cardinality({read \in ReadFacts :
@@ -74,14 +73,12 @@ ReadCoverage ==
        /\ \E expected \in RequiredReads :
             read.kind = expected.kind /\ read.owner = expected.owner
 
-\* The stored booking supplies the renewal target. The currency examples
-\* explicitly request sub_currency at the actual Stripe client boundary.
+\* The stored booking supplies the renewal target.
 \* @type: ($readFactsFact) => Bool;
 ReadIdentitySafe(read) ==
-  IF read.kind = "renewal"
-  THEN \E op \in OperationFacts :
-         read.owner = op.attempt /\ read.target = op.snapshotSubscription
-  ELSE read.kind = "currency" /\ read.target = "sub_currency"
+  /\ read.kind = "renewal"
+  /\ \E op \in OperationFacts :
+       read.owner = op.attempt /\ read.target = op.snapshotSubscription
 
 \* An invoice fact holds the invoice that the fixture supplied and the ledger
 \* legs of its event group at two times: before the call and after the call.
@@ -148,8 +145,6 @@ Coverage ==
          invoice.attempt = expected.attempt /\ invoice.invoice = expected.invoice
   /\ {fact.caseId : fact \in ArithmeticFacts} = ArithmeticCases
   /\ Cardinality(ArithmeticFacts) = Cardinality(ArithmeticCases)
-  /\ {fact.caseId : fact \in CurrencyFacts} = CurrencyCases
-  /\ Cardinality(CurrencyFacts) = Cardinality(CurrencyCases)
   /\ ReadCoverage
 
 \* Exact rational arithmetic rounds a half unit upwards. TLA integers do not
@@ -189,9 +184,13 @@ LegsSafe(legs, invoice) ==
        vat, invoice.attendee, "tax:vat", invoice.vatReference, invoice.expectedAt)
   /\ legs.saleAmount + legs.vatAmount = legs.cashAmount
 
-\* Only a paid cycle invoice with money can post renewal legs.
+\* A paid invoice with money posts renewal legs, unless the checkout made it
+\* or its currency is not the site currency.
 \* @type: ($invoiceFactsFact) => Bool;
-Eligible(invoice) == invoice.reason = "subscription_cycle" /\ invoice.amount > 0
+Eligible(invoice) ==
+  /\ invoice.reason /= "subscription_create"
+  /\ invoice.amount > 0
+  /\ ~invoice.foreign
 
 \* @type: ($operationFactsFact) => Bool;
 HasEligible(op) ==
@@ -348,15 +347,14 @@ InspectPass ==
     /\ checksHold' := ChecksStillPass(checksHold, AttemptSafe(op))
     /\ UNCHANGED <<scenario, arithmeticChecked, joinsChecked, readsChecked>>
 
-\* Arithmetic and currency faults remain visible even when later passes pass.
+\* Arithmetic faults remain visible even when later passes pass.
 InspectArithmetic ==
   /\ ~arithmeticChecked
   /\ checksHold' := ChecksStillPass(checksHold,
-       /\ \A fact \in ArithmeticFacts :
-            /\ fact.price > 0 /\ fact.tax >= 0 /\ fact.tax <= fact.price
-            /\ fact.amount >= 0
-            /\ fact.observedTax = TaxShare(fact.amount, fact.price, fact.tax)
-       /\ \A fact \in CurrencyFacts : (fact.status = "found") = fact.allMatch)
+       \A fact \in ArithmeticFacts :
+         /\ fact.price > 0 /\ fact.tax >= 0 /\ fact.tax <= fact.price
+         /\ fact.amount >= 0
+         /\ fact.observedTax = TaxShare(fact.amount, fact.price, fact.tax))
   /\ arithmeticChecked' := TRUE
   /\ UNCHANGED <<scenario, passIndex, storedStatus, joinsChecked, readsChecked>>
 

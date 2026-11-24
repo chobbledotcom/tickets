@@ -2,11 +2,12 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch, queryOne } from "#db/client.ts";
+import { executeBatch } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  bookingIdOf,
   bookOwnListing,
   MONTHLY,
   subscribe,
@@ -101,9 +102,7 @@ describeWithEnv("server (admin subscriptions)", { db: true }, () => {
     await subscribe("Bob", { ...MONTHLY, status: "canceled" });
     const html = await pageHtml("/admin/subscriptions");
     const [bob, adaRow] = tableRows(html);
-    const adaBooking = (await queryOne<{ id: number }>(
-      sql`SELECT id FROM listing_attendees WHERE attendee_id = ${ada.attendeeId}`,
-    ))!.id;
+    const adaBooking = await bookingIdOf(ada);
     expectIncludesAll(html, [
       "Warning: cancelling stops every later payment at once.",
       "<th>Cancel</th>",

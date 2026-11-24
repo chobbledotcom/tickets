@@ -7,6 +7,7 @@ import {
 import { execute, queryOne } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
+import { LIVE_STATUSES } from "#payment/subscription-machine-spec.ts";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
@@ -149,11 +150,48 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect((await getAdminFeatureUsage()).subscriptions).toBe(true);
   });
 
-  test("counts a subscribed booking as subscriptions use", async () => {
+  test("counts each live subscription as subscriptions use", async () => {
+    for (const status of LIVE_STATUSES) {
+      await execute(
+        sql`INSERT OR REPLACE INTO listing_attendees (id, attendee_id, listing_id, subscription_id, subscription_status) VALUES (1, 1, 1, 'sub_1', ${status})`,
+      );
+      expect([status, (await getAdminFeatureUsage()).subscriptions]).toEqual([
+        status,
+        true,
+      ]);
+    }
+  });
+
+  test("does not count an ended subscription as subscriptions use", async () => {
+    for (const status of ["canceled", "incomplete_expired"]) {
+      await execute(
+        sql`INSERT OR REPLACE INTO listing_attendees (id, attendee_id, listing_id, subscription_id, subscription_status) VALUES (1, 1, 1, 'sub_1', ${status})`,
+      );
+      expect([status, (await getAdminFeatureUsage()).subscriptions]).toEqual([
+        status,
+        false,
+      ]);
+    }
+  });
+
+  test("turns Subscriptions off once every subscription has ended", async () => {
+    await setAdminFeatureEnabled("subscriptions", true);
     await execute(
-      sql`INSERT INTO listing_attendees (attendee_id, listing_id, subscription_id) VALUES (1, 1, 'sub_1')`,
+      sql`INSERT INTO listing_attendees (attendee_id, listing_id, subscription_id, subscription_status) VALUES (1, 1, 'sub_1', 'canceled')`,
     );
-    expect((await getAdminFeatureUsage()).subscriptions).toBe(true);
+
+    expect(await setAdminFeatureEnabled("subscriptions", false)).toBe(true);
+    expect((await storedFeatures()).subscriptions).toBe(false);
+  });
+
+  test("refuses to turn Subscriptions off while one still charges", async () => {
+    await setAdminFeatureEnabled("subscriptions", true);
+    await execute(
+      sql`INSERT INTO listing_attendees (attendee_id, listing_id, subscription_id, subscription_status) VALUES (1, 1, 'sub_1', 'past_due')`,
+    );
+
+    expect(await setAdminFeatureEnabled("subscriptions", false)).toBe(false);
+    expect((await storedFeatures()).subscriptions).toBe(true);
   });
 
   test("enables one feature without changing the others", async () => {

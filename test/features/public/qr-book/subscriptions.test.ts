@@ -6,7 +6,11 @@ import { t } from "#i18n";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { enableFeature, setupStripe } from "#test-utils/settings.ts";
+import {
+  enableFeature,
+  setupStripe,
+  setupSumUp,
+} from "#test-utils/settings.ts";
 import {
   stripeCheckoutSession,
   stripeClient,
@@ -66,4 +70,26 @@ describeWithEnv("subscription QR checkout", { db: true }, () => {
       },
     );
   }
+
+  test("refuses a subscription QR checkout on a site that pays through SumUp", async () => {
+    await setupStripe();
+    await enableFeature("subscriptions");
+    const listing = await createTestListing({
+      fields: "",
+      maxAttendees: 10,
+      unitPrice: 1000,
+    });
+    await updateListing(listing.id, {
+      recurringInterval: "month",
+      recurringPrice: 500,
+    });
+    await setupSumUp();
+    const response = await scanRequest(listing, { name: "Ada", value: 1000 });
+
+    expect(response.status).toBe(400);
+    expectIncludesAll(await response.text(), [
+      t("payment.error.subscription_needs_stripe"),
+      `/ticket/${listing.slug}`,
+    ]);
+  });
 });
