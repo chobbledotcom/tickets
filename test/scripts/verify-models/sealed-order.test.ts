@@ -53,7 +53,22 @@ const MISSING = [
 const HEALED_BOOKED = { rowAfter: "finalized" };
 const HEALED_FAILED = { rowAfter: "failed" };
 
-/** Every delivery that reads an order or a receipt. */
+/** A reserved or final row decides the answer, whatever the bundle and the
+ * ledger hold. The facts run ledger by ledger, then bundle by bundle. */
+const ROW_ANSWERS = [
+  ["reserved", "held"],
+  ["finalized", "booked"],
+  ["failed", "settled"],
+] as const;
+
+const ROW_DECIDES = ROW_ANSWERS.flatMap(([row, answer]) =>
+  ["unrecorded", "recorded"].flatMap((ledger) =>
+    ["order", "receipt"].map((bundle) => fact(bundle, row, ledger, answer)),
+  ),
+);
+
+/** Every delivery that reads an order or a receipt. With no row, a ledger
+ * leg heals the row, and only a receipt with no leg books. */
 const READABLE = [
   fact("receipt", "none", "unrecorded", "booked", {
     books: true,
@@ -64,18 +79,7 @@ const READABLE = [
   fact("order", "none", "recorded", "settled", HEALED_FAILED),
   fact("receipt", "none", "recorded", "booked", HEALED_BOOKED),
   fact("receipt", "none", "recorded", "settled", HEALED_FAILED),
-  fact("order", "reserved", "unrecorded", "held"),
-  fact("receipt", "reserved", "unrecorded", "held"),
-  fact("order", "reserved", "recorded", "held"),
-  fact("receipt", "reserved", "recorded", "held"),
-  fact("order", "finalized", "unrecorded", "booked"),
-  fact("receipt", "finalized", "unrecorded", "booked"),
-  fact("order", "finalized", "recorded", "booked"),
-  fact("receipt", "finalized", "recorded", "booked"),
-  fact("order", "failed", "unrecorded", "settled"),
-  fact("receipt", "failed", "unrecorded", "settled"),
-  fact("order", "failed", "recorded", "settled"),
-  fact("receipt", "failed", "recorded", "settled"),
+  ...ROW_DECIDES,
 ];
 
 const deliveries = async (data: () => Promise<string>) =>
