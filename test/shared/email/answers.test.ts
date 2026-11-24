@@ -19,10 +19,8 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  makeTestEntry as makeEntry,
-  testAnswer,
-} from "#test-utils/factories.ts";
+import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
+import { testAnswer } from "#test-utils/factories-questions.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 interface SeededQuestion {

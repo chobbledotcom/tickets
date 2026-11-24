@@ -10,7 +10,7 @@ import {
   testAnswer,
   testQuestion,
   testRadioQuestion,
-} from "#test-utils/factories.ts";
+} from "#test-utils/factories-questions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** Two single-answer radio questions — the shared fixture for the

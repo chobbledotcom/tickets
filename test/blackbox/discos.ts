@@ -76,12 +76,35 @@ export const addQuestion = async (
   return id;
 };
 
+/** Two discos and a "Pupil name" question that asks once for each listing. */
+export type PupilShop = Discos & { readonly question: number };
+
+/** The owner adds a "Pupil name" question that asks once for each listing. The
+ * question is asked on `askedOn`, or on every listing. */
+export const withPupilName = async (
+  discos: Discos,
+  askedOn?: SeededListing,
+): Promise<PupilShop> => ({
+  ...discos,
+  question: await addQuestion(discos.owner, "Pupil name", "listing", askedOn),
+});
+
 /** The field of the booking form that answers a question for one listing. */
 export const fieldFor = (question: number, listing: SeededListing): string =>
   `question${question}_listing${listing.id}`;
 
-/** A parent books places on both discos through the booking form. An answer
- * of `null` leaves that field out of the post. */
+/** The pupil names for disco A and disco B. A `null` name leaves that field
+ * out of the post. */
+export const pupilNames = (
+  { discoA, discoB, question }: PupilShop,
+  forA: string | null,
+  forB: string | null,
+): Fields => ({
+  [fieldFor(question, discoA)]: forA,
+  [fieldFor(question, discoB)]: forB,
+});
+
+/** A parent books places on both discos through the booking form. */
 export const book = (
   { discoA, discoB }: Discos,
   counts: [number, number],
@@ -95,6 +118,22 @@ export const book = (
     [`quantity${discoB.id}`]: String(counts[1]),
     ...answers,
   });
+
+/** A parent books with these pupil names, and reads the page that the form
+ * sends them to. */
+export const bookAndRead = async (
+  shop: PupilShop,
+  counts: [number, number],
+  forA: string | null,
+  forB: string | null,
+): Promise<string> => {
+  const buyer = createApp(inProcess);
+  const sent = await book(shop, counts, pupilNames(shop, forA, forB), buyer);
+  const page = await buyer.get(
+    requireValue(sent.location, "The booking form sent the parent nowhere"),
+  );
+  return page.html;
+};
 
 const Bookings = v.object({
   attendees: v.array(v.looseObject({ id: v.number() })),

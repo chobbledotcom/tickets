@@ -13,7 +13,7 @@ import {
 } from "#templates/admin/answer-rows.ts";
 import { AttendeeAnswersTable } from "#templates/admin/attendee-detail.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { testQuestion } from "#test-utils/factories.ts";
+import { testQuestion } from "#test-utils/factories-questions.ts";
 
 const questions: QuestionWithAnswers[] = [
   testQuestion({

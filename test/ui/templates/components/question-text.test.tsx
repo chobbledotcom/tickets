@@ -9,7 +9,7 @@ import {
   questionWrapper,
 } from "#templates/components/question-text.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { testAnswer, testQuestion } from "#test-utils/factories.ts";
+import { testAnswer, testQuestion } from "#test-utils/factories-questions.ts";
 
 const radioQuestion = (text: string): QuestionWithAnswers =>
   testQuestion({

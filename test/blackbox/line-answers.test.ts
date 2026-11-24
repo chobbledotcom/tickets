@@ -2,7 +2,8 @@
  * the questions page. A buyer who books two listings gives one answer for
  * each. The owner reads each answer, with its listing, on the attendee's page.
  * A paid order carries the answers through the sealed order, not through
- * Stripe. */
+ * Stripe. The booking form's fields and refusals are in
+ * line-answer-form.test.ts. */
 
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
@@ -15,16 +16,34 @@ import {
   attendeeIds,
   attendeePage,
   book,
-  fieldFor,
   openDiscos,
-  textOf,
+  pupilNames,
+  withPupilName,
 } from "#test/blackbox/discos.ts";
-import { createApp, inProcess } from "#test/blackbox/driver.ts";
 import type { FakeStripe } from "#test/blackbox/fake-stripe.ts";
 import { addBooking } from "#test/blackbox/seed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const HEADING = t("attendee_detail.line_answers");
+
+const BOTH_NAMES = `${HEADING} Pupil name (Disco A) Ava Pupil name (Disco B) Ben`;
+
+/** Free orders of the names Ava and Ben: the places booked on each disco, the
+ * text that the attendee page shows, and text that it must not show. */
+const FREE_ORDERS: [string, [number, number], string, string][] = [
+  [
+    "keeps one answer for each listing, and the attendee page shows each with its listing",
+    [2, 2],
+    BOTH_NAMES,
+    "Pupil name (Disco A) Ben",
+  ],
+  [
+    "needs no answer for a listing that it does not book, and does not keep an answer typed for it",
+    [1, 0],
+    `${HEADING} Pupil name (Disco A) Ava`,
+    "Ben",
+  ],
+];
 
 describeWithEnv(
   "a question that asks once for each listing",
@@ -36,98 +55,40 @@ describeWithEnv(
       fake = undefined;
     });
 
-    test("the booking page shows one field for each listing", async () => {
-      const discos = await openDiscos();
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
+    for (const [name, counts, shown, notShown] of FREE_ORDERS) {
+      test(`a free order ${name}`, async () => {
+        const shop = await withPupilName(await openDiscos());
 
-      const page = await createApp(inProcess).get(
-        `/ticket/${discos.discoA.slug}+${discos.discoB.slug}`,
-      );
+        const booked = await book(shop, counts, pupilNames(shop, "Ava", "Ben"));
 
-      expect(page.html).toContain(
-        `name="${fieldFor(question, discos.discoA)}"`,
-      );
-      expect(page.html).toContain(
-        `name="${fieldFor(question, discos.discoB)}"`,
-      );
-      expect(page.html).not.toContain(`name="question${question}"`);
-    });
-
-    test("a free order keeps one answer for each listing, and the attendee page shows each with its listing", async () => {
-      const discos = await openDiscos();
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
-
-      const booked = await book(discos, [2, 2], {
-        [fieldFor(question, discos.discoA)]: "Ava",
-        [fieldFor(question, discos.discoB)]: "Ben",
+        expect(booked.status).toBe(302);
+        const page = await attendeePage(shop);
+        expect(page).toContain(shown);
+        expect(page).not.toContain(notShown);
       });
-
-      expect(booked.status).toBe(302);
-      expect(await attendeePage(discos)).toContain(
-        `${HEADING} Pupil name (Disco A) Ava Pupil name (Disco B) Ben`,
-      );
-    });
-
-    test("a missing answer for a booked listing stops the order and names the listing", async () => {
-      const discos = await openDiscos();
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
-
-      const buyer = createApp(inProcess);
-      const refused = await book(
-        discos,
-        [1, 1],
-        { [fieldFor(question, discos.discoA)]: "Ava" },
-        buyer,
-      );
-      const shown = await buyer.get(refused.location ?? "");
-
-      expect(textOf(shown.html)).toContain(
-        "Please answer: Pupil name (Disco B)",
-      );
-      expect(await attendeeIds(discos.api, discos.discoA)).toEqual([]);
-      expect(await attendeeIds(discos.api, discos.discoB)).toEqual([]);
-    });
-
-    test("a listing that the order does not book needs no answer, and an answer typed for it is not kept", async () => {
-      const discos = await openDiscos();
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
-
-      const booked = await book(discos, [1, 0], {
-        [fieldFor(question, discos.discoA)]: "Ava",
-        [fieldFor(question, discos.discoB)]: "Ben",
-      });
-
-      expect(booked.status).toBe(302);
-      const page = await attendeePage(discos);
-      expect(page).toContain(`${HEADING} Pupil name (Disco A) Ava`);
-      expect(page).not.toContain("Ben");
-    });
+    }
 
     test("a paid order keeps the answers out of Stripe, and the webhook files each against its listing", async () => {
-      const shop = await openCardShop();
-      fake = shop.fake;
-      const discos = await addDiscos(shop.owner, shop.api, 500);
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
+      const cardShop = await openCardShop();
+      fake = cardShop.fake;
+      const shop = await withPupilName(
+        await addDiscos(cardShop.owner, cardShop.api, 500),
+      );
 
-      const sent = await book(discos, [2, 2], {
-        [fieldFor(question, discos.discoA)]: "Ava",
-        [fieldFor(question, discos.discoB)]: "Ben",
-      });
+      const sent = await book(shop, [2, 2], pupilNames(shop, "Ava", "Ben"));
       const checkout = requireValue(
-        shop.fake.checkouts.at(-1),
+        cardShop.fake.checkouts.at(-1),
         "The app opened no checkout",
       );
 
       expect(sent.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
       expect(checkout.amountTotal).toBe(2000);
       expect(JSON.stringify(checkout.metadata)).not.toMatch(/Ava|Ben/);
-      expect(await attendeeIds(discos.api, discos.discoA)).toEqual([]);
+      expect(await attendeeIds(shop.api, shop.discoA)).toEqual([]);
 
-      expect((await deliverPayment(shop, checkout)).status).toBe(200);
+      expect((await deliverPayment(cardShop, checkout)).status).toBe(200);
 
-      expect(await attendeePage(discos)).toContain(
-        `${HEADING} Pupil name (Disco A) Ava Pupil name (Disco B) Ben`,
-      );
+      expect(await attendeePage(shop)).toContain(BOTH_NAMES);
     });
 
     test("a choice question asks once for the booking, whatever level the form sends", async () => {
@@ -154,21 +115,20 @@ describeWithEnv(
     });
 
     test("the edit form of an attendee offers no field for a question that asks once for each listing", async () => {
-      const discos = await openDiscos();
-      const pupil = await addQuestion(discos.owner, "Pupil name", "listing");
-      const note = await addQuestion(discos.owner, "Note", "booking");
-      await book(discos, [1, 0], {
-        [fieldFor(pupil, discos.discoA)]: "Ava",
+      const shop = await withPupilName(await openDiscos());
+      const note = await addQuestion(shop.owner, "Note", "booking");
+      await book(shop, [1, 0], {
+        ...pupilNames(shop, "Ava", null),
         [`question${note}`]: "Nut allergy",
       });
-      const [id] = await attendeeIds(discos.api, discos.discoA);
+      const [id] = await attendeeIds(shop.api, shop.discoA);
 
-      const form = await discos.owner.get(
+      const form = await shop.owner.get(
         `/admin/attendees/${requireValue(id, "Disco A has no booking")}/edit`,
       );
 
       expect(form.html).toContain(`name="question${note}"`);
-      expect(form.html).not.toContain(`name="question${pupil}`);
+      expect(form.html).not.toContain(`name="question${shop.question}`);
     });
   },
 );

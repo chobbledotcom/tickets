@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { testQuestion } from "#test-utils/factories.ts";
+import { testQuestion } from "#test-utils/factories-questions.ts";
 
 const render = (
   questions: QuestionWithAnswers[],

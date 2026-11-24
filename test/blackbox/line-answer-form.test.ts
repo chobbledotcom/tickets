@@ -9,10 +9,14 @@ import {
   attendeeIds,
   attendeePage,
   book,
+  bookAndRead,
   type Discos,
   fieldFor,
   openDiscos,
+  type PupilShop,
+  pupilNames,
   textOf,
+  withPupilName,
 } from "#test/blackbox/discos.ts";
 import { createApp, inProcess } from "#test/blackbox/driver.ts";
 import { addListing, type SeededListing } from "#test/blackbox/seed.ts";
@@ -41,18 +45,16 @@ const blockOf = (legend: string, listings: SeededListing[], fields: string[]) =>
 const bothDiscos = ({ discoA, discoB }: Discos) =>
   `/ticket/${discoA.slug}+${discoB.slug}`;
 
-/** A parent books one place on disco A with this answer, and reads the page
- * that the form sends them back to. */
-const bookDiscoA = async (discos: Discos, question: number, answer: string) => {
-  const buyer = createApp(inProcess);
-  const sent = await book(
-    discos,
-    [1, 0],
-    { [fieldFor(question, discos.discoA)]: answer },
-    buyer,
+/** The "Pupil name" block of both discos, with the names that it shows. */
+const bothDiscosBlock = ({ discoA, discoB, question }: PupilShop, forA = "") =>
+  blockOf(
+    "Pupil name",
+    [discoA, discoB],
+    [
+      fieldOf(question, discoA, "Disco A", forA),
+      fieldOf(question, discoB, "Disco B"),
+    ],
   );
-  return textOf((await buyer.get(sent.location ?? "")).html);
-};
 
 /** Disco A gets a child listing that a buyer can add to it. */
 const addGlowPack = async ({ api, discoA }: Discos): Promise<SeededListing> => {
@@ -68,38 +70,33 @@ const addGlowPack = async ({ api, discoA }: Discos): Promise<SeededListing> => {
   return child;
 };
 
+/** Pupil names for disco B that the form refuses, and the message it shows. */
+const REFUSED: [string, string | null, string][] = [
+  ["left out", null, "Please answer: Pupil name (Disco B)"],
+  ["blank", "   ", "Please answer: Pupil name (Disco B)"],
+  [
+    "over the length limit",
+    "x".repeat(LIMIT + 1),
+    "Answer is too long: Pupil name (Disco B)",
+  ],
+];
+
 describeWithEnv(
   "the booking form of a question that asks once for each listing",
   { db: true },
   () => {
     test("shows the question once, with one field for each listing, and marks no field required", async () => {
-      const discos = await openDiscos();
-      const { discoA, discoB } = discos;
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
+      const shop = await withPupilName(await openDiscos());
 
-      const page = await createApp(inProcess).get(bothDiscos(discos));
+      const page = await createApp(inProcess).get(bothDiscos(shop));
 
-      expect(questionBlocks(page.html)).toEqual([
-        blockOf(
-          "Pupil name",
-          [discoA, discoB],
-          [
-            fieldOf(question, discoA, "Disco A"),
-            fieldOf(question, discoB, "Disco B"),
-          ],
-        ),
-      ]);
+      expect(questionBlocks(page.html)).toEqual([bothDiscosBlock(shop)]);
     });
 
     test("a question asked on one listing shows a field for that listing only", async () => {
       const discos = await openDiscos();
       const { discoB } = discos;
-      const question = await addQuestion(
-        discos.owner,
-        "Pupil name",
-        "listing",
-        discoB,
-      );
+      const { question } = await withPupilName(discos, discoB);
 
       const page = await createApp(inProcess).get(bothDiscos(discos));
 
@@ -121,18 +118,16 @@ describeWithEnv(
     test("a child listing that the buyer can add gets its own field, once", async () => {
       const discos = await openDiscos();
       const glowPack = await addGlowPack(discos);
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
+      const { discoA, question } = await withPupilName(discos);
 
-      const page = await createApp(inProcess).get(
-        `/ticket/${discos.discoA.slug}`,
-      );
+      const page = await createApp(inProcess).get(`/ticket/${discoA.slug}`);
 
       expect(questionBlocks(page.html)).toEqual([
         blockOf(
           "Pupil name",
-          [discos.discoA, glowPack],
+          [discoA, glowPack],
           [
-            fieldOf(question, discos.discoA, "Disco A"),
+            fieldOf(question, discoA, "Disco A"),
             fieldOf(question, glowPack, "Glow Pack"),
           ],
         ),
@@ -142,12 +137,7 @@ describeWithEnv(
     test("a question asked only on a child listing shows at page level, and a booking question stays in the child's block", async () => {
       const discos = await openDiscos();
       const glowPack = await addGlowPack(discos);
-      const pupil = await addQuestion(
-        discos.owner,
-        "Pupil name",
-        "listing",
-        glowPack,
-      );
+      const { question } = await withPupilName(discos, glowPack);
       const note = await addQuestion(discos.owner, "Note", "booking", glowPack);
 
       const page = await createApp(inProcess).get(
@@ -158,7 +148,7 @@ describeWithEnv(
         blockOf(
           "Pupil name",
           [glowPack],
-          [fieldOf(pupil, glowPack, "Glow Pack")],
+          [fieldOf(question, glowPack, "Glow Pack")],
         ),
       ]);
       expect(page.html).toMatch(
@@ -169,94 +159,45 @@ describeWithEnv(
     });
 
     test("a refused order shows each typed answer again under its own listing", async () => {
-      const discos = await openDiscos();
-      const { discoA, discoB } = discos;
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
-      const buyer = createApp(inProcess);
+      const shop = await withPupilName(await openDiscos());
 
-      const refused = await book(
-        discos,
-        [1, 1],
-        { [fieldFor(question, discoA)]: "Ava" },
-        buyer,
-      );
-      const page = await buyer.get(refused.location ?? "");
+      const page = await bookAndRead(shop, [1, 1], "Ava", null);
 
-      expect(questionBlocks(page.html)).toEqual([
-        blockOf(
-          "Pupil name",
-          [discoA, discoB],
-          [
-            fieldOf(question, discoA, "Disco A", "Ava"),
-            fieldOf(question, discoB, "Disco B"),
-          ],
-        ),
-      ]);
+      expect(questionBlocks(page)).toEqual([bothDiscosBlock(shop, "Ava")]);
     });
 
-    test("a post that leaves out the field of a booked listing is refused", async () => {
-      const discos = await openDiscos();
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
-      const buyer = createApp(inProcess);
+    for (const [name, forB, message] of REFUSED) {
+      test(`an answer that is ${name} stops the order, and the refusal names the listing`, async () => {
+        const shop = await withPupilName(await openDiscos());
 
-      const refused = await book(
-        discos,
-        [1, 1],
-        {
-          [fieldFor(question, discos.discoA)]: "Ava",
-          [fieldFor(question, discos.discoB)]: null,
-        },
-        buyer,
-      );
-      const shown = await buyer.get(refused.location ?? "");
+        const page = await bookAndRead(shop, [1, 1], "Ava", forB);
 
-      expect(textOf(shown.html)).toContain(
-        "Please answer: Pupil name (Disco B)",
-      );
-      expect(await attendeeIds(discos.api, discos.discoA)).toEqual([]);
-    });
+        expect(textOf(page)).toContain(message);
+        expect(await attendeeIds(shop.api, shop.discoA)).toEqual([]);
+        expect(await attendeeIds(shop.api, shop.discoB)).toEqual([]);
+      });
+    }
 
-    test("a blank answer is refused, and the refusal names the listing", async () => {
-      const discos = await openDiscos();
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
-
-      const shown = await bookDiscoA(discos, question, "   ");
-
-      expect(shown).toContain("Please answer: Pupil name (Disco A)");
-      expect(await attendeeIds(discos.api, discos.discoA)).toEqual([]);
-    });
-
-    test("an answer over the length limit is refused, and one at the limit is kept", async () => {
-      const discos = await openDiscos();
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
+    test("an answer at the length limit is kept", async () => {
+      const shop = await withPupilName(await openDiscos());
       const atLimit = "x".repeat(LIMIT);
 
-      const shown = await bookDiscoA(discos, question, `${atLimit}x`);
+      await book(shop, [1, 0], pupilNames(shop, atLimit, null));
 
-      expect(shown).toContain("Answer is too long: Pupil name (Disco A)");
-      expect(await attendeeIds(discos.api, discos.discoA)).toEqual([]);
-
-      await bookDiscoA(discos, question, atLimit);
-
-      expect(await attendeePage(discos)).toContain(
+      expect(await attendeePage(shop)).toContain(
         `Pupil name (Disco A) ${atLimit} `,
       );
     });
 
     test("an answer keeps its words without the spaces around them, and two listings can share one answer", async () => {
-      const discos = await openDiscos();
-      const { discoA, discoB } = discos;
-      const question = await addQuestion(discos.owner, "Pupil name", "listing");
+      const shop = await withPupilName(await openDiscos());
 
-      await book(discos, [1, 1], {
-        [fieldFor(question, discoA)]: "  Sam  ",
-        [fieldFor(question, discoB)]: "Sam",
-      });
-      const [id] = await attendeeIds(discos.api, discoA);
-      const edit = await discos.owner.get(`/admin/attendees/${id}`);
+      await book(shop, [1, 1], pupilNames(shop, "  Sam  ", "Sam"));
+      const [id] = await attendeeIds(shop.api, shop.discoA);
+      const edit = await shop.owner.get(`/admin/attendees/${id}`);
 
       expect(edit.html).toContain("<td>Sam</td>");
-      expect(await attendeePage(discos)).toContain(
+      expect(await attendeePage(shop)).toContain(
         "Pupil name (Disco A) Sam Pupil name (Disco B) Sam",
       );
     });
