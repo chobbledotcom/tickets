@@ -23,7 +23,8 @@ export type RecurringIntervalChoice = v.InferOutput<
 >;
 
 /** The plan a listing offers a new subscriber. `recurring_price` is minor
- * units before VAT each period, and 0 means an ordinary ticket. */
+ * units each period, under the same tax mode as a ticket price. 0 means an
+ * ordinary ticket. */
 export type RecurringListingColumns = {
   recurringInterval: RecurringIntervalChoice;
   recurringPrice: number;
@@ -36,7 +37,8 @@ const PERIOD_OF: Record<RecurringInterval, Temporal.DurationLike> = {
 };
 
 /** When Stripe first charges the recurring price, as unix seconds: one period
- * after the first payment. */
+ * after the checkout session starts. The buyer can pay up to one checkout
+ * window later, so the first renewal can come that much early. */
 export const firstRecurringChargeAt = (
   nowSeconds: number,
   interval: RecurringInterval,
@@ -129,7 +131,7 @@ export const planOfStart = (
  * so the VAT is the fraction of the amount at the frozen rate. For a site that
  * adds VAT, this recovers exactly the VAT that {@link recurringCharge} added.
  */
-export const vatInRecurringPayment = (
+const vatInRecurringPayment = (
   listingId: number,
   amount: number,
   policy: TaxPolicy,

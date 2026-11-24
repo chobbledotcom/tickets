@@ -210,6 +210,14 @@ export const attendeeTables = declaredTables([
           columns: ["ledger_event_group"],
           name: "idx_listing_attendees_ledger_event_group",
         },
+        // A subscription delivery seeks its row by status and Stripe id, and
+        // the scheduled check walks the live statuses. Rows with no
+        // subscription share the blank status key, so neither read visits
+        // them.
+        {
+          columns: ["subscription_status", "subscription_id"],
+          name: "idx_listing_attendees_subscription",
+        },
       ],
     },
   ],

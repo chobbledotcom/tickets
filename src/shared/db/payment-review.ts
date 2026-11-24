@@ -17,6 +17,7 @@ import {
   type PaymentReviewCase,
 } from "#payment/review.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
+import type { KindOnly } from "#shared/kind-only.ts";
 import { nowIso } from "#shared/now.ts";
 
 export type AcknowledgePaymentReviewInput = {
@@ -25,12 +26,13 @@ export type AcknowledgePaymentReviewInput = {
   readonly reviewIdentity: string;
 };
 
-export type AcknowledgePaymentReviewResult =
-  | { readonly kind: "acknowledged" }
-  | { readonly kind: "already_acknowledged" }
-  | { readonly kind: "claim_in_progress" }
-  | { readonly kind: "nothing_to_review" }
-  | { readonly kind: "review_changed" };
+export type AcknowledgePaymentReviewResult = KindOnly<
+  | "acknowledged"
+  | "already_acknowledged"
+  | "claim_in_progress"
+  | "nothing_to_review"
+  | "review_changed"
+>;
 
 export type PaymentReviewState =
   | {
