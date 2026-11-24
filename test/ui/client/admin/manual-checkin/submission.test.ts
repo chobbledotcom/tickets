@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { useManualCheckinPage } from "./fixture.ts";
+import { alreadyIn, checkedIn, useManualCheckinPage } from "./fixture.ts";
 
 describe("manual check-in submission", () => {
   const { pickedPage, setup } = useManualCheckinPage();
@@ -30,13 +30,7 @@ describe("manual check-in submission", () => {
         "x-csrf-token": "csrf",
       });
       expect(JSON.parse(String(init?.body))).toEqual({ attendee_id: 11 });
-      return Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 2,
-        remaining: 0,
-        status: "checked_in",
-      });
+      return Response.json(checkedIn());
     });
 
     await page.submit();
@@ -45,37 +39,26 @@ describe("manual check-in submission", () => {
       "Ada checked in for Ceilidh (2 tickets)",
     );
     expect(page.status.className).toBe("checkin-status checkin-status-success");
-    expect(page.listbox.querySelector("[data-attendee-id='11']")).toBeNull();
+    expect(page.listbox.querySelector("[data-key='11']")).toBeNull();
     expect(page.buttonLabel()).toBe("Search");
     expect(page.input.value).toBe("");
   });
 
-  test("successful submission defaults an invalid quantity to one", async () => {
+  test("a check-in answer that misses its counts shows the error and keeps the pick", async () => {
     const page = await pickedPage("11");
-    using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: "two",
-        status: "checked_in",
-      }),
-    );
+    using _fetch = stubFetch(Response.json(checkedIn({ quantity: "two" })));
 
     await page.submit();
 
-    expect(page.status.textContent).toBe("Ada checked in for Ceilidh (1 pass)");
-    expect(page.listbox.querySelectorAll("[role=option]").length).toBe(2);
+    expect(page.status.textContent).toBe("Check-in failed");
+    expect(page.listbox.querySelectorAll("[role=option]").length).toBe(3);
+    expect(page.buttonLabel()).toBe("Check In");
   });
 
   test("successful submission keeps a zero ticket quantity", async () => {
     const page = await pickedPage("11");
     using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 0,
-        status: "checked_in",
-      }),
+      Response.json(checkedIn({ quantity: 0, total: 0 })),
     );
 
     await page.submit();
@@ -89,9 +72,7 @@ describe("manual check-in submission", () => {
     const page = await setup();
     page.form.dataset.messageCheckedIn = "{name}:{missing}";
     page.pick("11");
-    using _fetch = stubFetch(
-      Response.json({ name: "Ada", quantity: 2, status: "checked_in" }),
-    );
+    using _fetch = stubFetch(Response.json(checkedIn()));
 
     await page.submit();
 
@@ -100,45 +81,23 @@ describe("manual check-in submission", () => {
 
   test("a full check-in removes every matching option", async () => {
     const page = await setup();
-    const option = page.listbox.querySelector<HTMLElement>(
-      "[data-attendee-id='11']",
-    )!;
+    const option = page.listbox.querySelector<HTMLElement>("[data-key='11']")!;
     page.listbox.append(option.cloneNode(true));
     page.pick("11");
-    using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 2,
-        remaining: 0,
-        status: "checked_in",
-      }),
-    );
+    using _fetch = stubFetch(Response.json(checkedIn()));
 
     await page.submit();
 
-    expect(
-      page.listbox.querySelectorAll("[data-attendee-id='11']").length,
-    ).toBe(0);
+    expect(page.listbox.querySelectorAll("[data-key='11']").length).toBe(0);
   });
 
   test("a check-in with tickets remaining keeps the person's option, showing what is left", async () => {
     const page = await pickedPage("11");
-    using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 2,
-        remaining: 3,
-        status: "checked_in",
-      }),
-    );
+    using _fetch = stubFetch(Response.json(checkedIn({ remaining: 3 })));
 
     await page.submit();
 
-    const option = page.listbox.querySelector<HTMLElement>(
-      "[data-attendee-id='11']",
-    )!;
+    const option = page.listbox.querySelector<HTMLElement>("[data-key='11']")!;
     expect(option.dataset.quantity).toBe("3");
     expect(option.textContent).toBe("Ada (3 tickets) - Camping · 12 Jun");
     expect(page.buttonLabel()).toBe("Search");
@@ -148,20 +107,12 @@ describe("manual check-in submission", () => {
   test("an option with no day or listing keeps the plain label as it shrinks", async () => {
     const page = await pickedPage("13");
     using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Cy",
-        quantity: 2,
-        remaining: 1,
-        status: "checked_in",
-      }),
+      Response.json(checkedIn({ name: "Cy", remaining: 1 })),
     );
 
     await page.submit();
 
-    const option = page.listbox.querySelector<HTMLElement>(
-      "[data-attendee-id='13']",
-    )!;
+    const option = page.listbox.querySelector<HTMLElement>("[data-key='13']")!;
     expect(option.dataset.quantity).toBe("1");
     expect(option.textContent).toBe("Cy (1 pass)");
   });
@@ -171,7 +122,7 @@ describe("manual check-in submission", () => {
     page.form.dataset.messageAlreadyCheckedIn = "{name} already ({tickets})";
     page.pick("11");
     using _fetch = stubFetch(
-      Response.json({ name: "Ada", quantity: 0, status: "already_checked_in" }),
+      Response.json(alreadyIn({ quantity: 0, total: 0 })),
     );
 
     await page.submit();
@@ -184,9 +135,7 @@ describe("manual check-in submission", () => {
     const page = await setup();
     page.form.dataset.messageAlreadyCheckedIn = "{tickets}";
     page.pick("11");
-    using _fetch = stubFetch(
-      Response.json({ name: "Ada", quantity: 2, status: "already_checked_in" }),
-    );
+    using _fetch = stubFetch(Response.json(alreadyIn()));
 
     await page.submit();
 
@@ -236,12 +185,7 @@ describe("manual check-in submission", () => {
       expected: "Ada already checked in for Ceilidh (2 tickets)",
       key: "messageAlreadyCheckedIn",
       name: "already checked in results use their fallback message",
-      result: {
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 2,
-        status: "already_checked_in",
-      },
+      result: alreadyIn(),
     },
     {
       expected: "Ada has been refunded",

@@ -18,13 +18,6 @@
       "evidence": "handleUpdate's parent plan on an update body reads the field by key off the raw JSON body record"
     }
   ],
-  "src/features/admin/scan-cache.ts": [
-    {
-      "path": [{ "name": "TicketCacheEntry" }],
-      "kind": "external-output",
-      "evidence": "jsonResponse serialises the entries into the scan-cache GET body; the scanner page's hand-written browser JS (scanner-offline.js, scanner-offline-ui.js) validates and reads tickets for the offline quantity ask"
-    }
-  ],
   "src/features/api/public-listing.ts": [
     {
       "path": [{ "name": "PublicListing" }],
@@ -355,6 +348,13 @@
       "path": [{ "name": "WebhookPayload" }],
       "kind": "external-output",
       "evidence": "sendWebhook serialises the payload into the registration POST body; the reader is the operator's external integration"
+    }
+  ],
+  "src/ui/client/scanner-offline.ts": [
+    {
+      "path": [{ "name": "QueuedCheckIn" }],
+      "kind": "external-output",
+      "evidence": "writeQueue serialises every queued check-in into localStorage, and settleDelivery in the hand-written scanner.js reads operationId and quantity to post the delivery body"
     }
   ],
   "src/ui/templates/admin/confirm-page.tsx": [

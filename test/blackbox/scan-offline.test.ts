@@ -72,7 +72,12 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     expect(first).toEqual({
       body: {
         entries: [
-          { details: [], hash: expect.any(String), name: "Filler", tickets: 1 },
+          {
+            details: [],
+            hash: expect.any(String),
+            name: "Filler",
+            quantity: 1,
+          },
         ],
         next: expect.stringMatching(/^sc1\./),
         people: PAGE_PEOPLE,
@@ -108,7 +113,12 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     expect((await cachePage(app, `/admin/listing/${listing.id}`)).body).toEqual(
       {
         entries: [
-          { details: [], hash: expect.any(String), name: "Filler", tickets: 1 },
+          {
+            details: [],
+            hash: expect.any(String),
+            name: "Filler",
+            quantity: 1,
+          },
         ],
         next: null,
         people: PAGE_PEOPLE,

@@ -5,30 +5,29 @@ import { fireEvent } from "#test-utils/happy-dom.ts";
 import { useManualCheckinPage } from "./fixture.ts";
 
 describe("manual check-in combobox", () => {
-  const { dom, pickedPage, setup } = useManualCheckinPage();
+  const { dom, fresh, pickedPage, setup } = useManualCheckinPage();
 
   test("does nothing when the manual check-in form is absent", () => {
     dom.installDom("<p>Other page</p>");
     expect(() => initManualCheckin(null)).not.toThrow();
   });
 
-  test("arrow keys move through visible options and wrap", async () => {
+  test("arrow keys move through the found people and wrap", async () => {
     const page = await setup();
     page.input.focus();
-    page.input.value = "a";
-    fireEvent(page.input, new page.window.Event("input"));
 
     const first = page.keydown("ArrowDown");
     expect(first.defaultPrevented).toBe(true);
     expect(page.activeId()).toBe("11");
 
     page.keydown("ArrowDown");
-    expect(page.activeId()).toBe("12");
+    page.keydown("ArrowDown");
+    expect(page.activeId()).toBe("13");
     page.keydown("ArrowDown");
     expect(page.activeId()).toBe("11");
     page.keydown("ArrowUp");
-    expect(page.activeId()).toBe("12");
-    expect(page.scrolledIds).toEqual(["11", "12", "11", "12"]);
+    expect(page.activeId()).toBe("13");
+    expect(page.scrolledIds).toEqual(["11", "12", "13", "11", "13"]);
   });
 
   test("ArrowUp moves to the prior option when three are visible", async () => {
@@ -41,45 +40,25 @@ describe("manual check-in combobox", () => {
     expect(page.activeId()).toBe("13");
   });
 
-  test("arrow keys keep the active option when filtering hides every option", async () => {
-    const page = await setup();
+  test("arrow keys do nothing before a search finds anyone", () => {
+    const page = fresh(null);
     page.input.focus();
-    page.keydown("ArrowDown");
-    page.input.value = "missing";
-    fireEvent(page.input, new page.window.Event("input"));
 
     const arrow = page.keydown("ArrowDown");
 
     expect(arrow.defaultPrevented).toBe(true);
-    expect(page.activeId()).toBe("11");
+    expect(page.activeId()).toBeNull();
+    expect(page.scrolledIds).toEqual([]);
     expect(page.listbox.classList.contains("hidden")).toBe(true);
   });
 
-  test("input filtering clears a selected attendee", async () => {
+  test("typing clears the pick and closes the stale results", async () => {
     const page = await pickedPage("11");
     page.input.value = "Bea";
 
     fireEvent(page.input, new page.window.Event("input"));
 
     expect(page.buttonLabel()).toBe("Search");
-    expect(page.listbox.classList.contains("hidden")).toBe(true);
-  });
-
-  test("filtering treats an option without text as an empty label", async () => {
-    const page = await setup();
-    const option = document.querySelector<HTMLElement>(
-      "[data-attendee-id='11']",
-    )!;
-    Object.defineProperty(option, "textContent", {
-      configurable: true,
-      value: null,
-    });
-    page.input.focus();
-    page.input.value = "mutated";
-
-    fireEvent(page.input, new page.window.Event("input"));
-
-    expect(option.classList.contains("hidden")).toBe(true);
     expect(page.listbox.classList.contains("hidden")).toBe(true);
   });
 
@@ -104,9 +83,7 @@ describe("manual check-in combobox", () => {
   test("clicking an option replaces the current selection", async () => {
     const page = await pickedPage("11");
     expect(page.input.value).toBe("Ada (2 tickets) — Camping · 12 Jun");
-    const option = document.querySelector<HTMLElement>(
-      "[data-attendee-id='12']",
-    )!;
+    const option = document.querySelector<HTMLElement>("[data-key='12']")!;
 
     fireEvent(option, new page.window.Event("click", { bubbles: true }));
 
@@ -116,9 +93,7 @@ describe("manual check-in combobox", () => {
 
   test("a pick carries its day and listing beside the name", async () => {
     const page = await setup();
-    const option = document.querySelector<HTMLElement>(
-      "[data-attendee-id='11']",
-    )!;
+    const option = document.querySelector<HTMLElement>("[data-key='11']")!;
 
     fireEvent(option, new page.window.Event("click", { bubbles: true }));
 
@@ -129,9 +104,7 @@ describe("manual check-in combobox", () => {
   test("clicking an option uses the singular fallback message when unset", async () => {
     const page = await setup();
     delete page.form.dataset.messageTicketCountOne;
-    const option = document.querySelector<HTMLElement>(
-      "[data-attendee-id='12']",
-    )!;
+    const option = document.querySelector<HTMLElement>("[data-key='12']")!;
 
     fireEvent(option, new page.window.Event("click", { bubbles: true }));
 

@@ -122,22 +122,20 @@ src/ui/client/scanner.js::init~02xv58k messageCameraDenied→"" audited:16ugf2r 
 # attribute, and its data-message-skipped copy is the same "Skipped {name}" as
 # the fallback. Server-rendered markup never sets an empty dataset key, so a
 # broken lookup key lands on the same words either way.
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.confirmed~1vyukih messageVerifyIdConfirm→"" audited:1jdc1my # the lookup misses into the fallback copy
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d messageSkipped→"" audited:1jdc1my # the lookup misses into the fallback copy
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.confirmed~1vyukih messageVerifyIdConfirm→"" audited:13t8v0h # the lookup misses into the fallback copy
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.checkInById~1e6fg4d messageSkipped→"" audited:13t8v0h # the lookup misses into the fallback copy
 
 # The manual-checkin message fallbacks: the scanner template renders every
 # data-message attribute the script reads (sharedScanMessageAttrs plus the
 # two option labels), and the en copy of each equals the script's fallback
 # word for word — so a missed lookup lands on the same words, and a mutated
 # fallback copy is never shown.
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.answerValues.listingName~0zqcwxz ??→|| audited:1jdc1my # every scan answer that reaches this carries a non-empty listing name or none, so no falsy non-null value arrives
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.answerValues.listingName~0zqcwxz →"mutated" audited:1jdc1my # the fallback fires only on an absent listing name, which no scan answer that reaches this ever has
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~05eghw6 {name} ({tickets}) — {detail}→"" audited:1jdc1my # the form always renders data-message-ticket-option-detail, so the fallback copy never shows
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~1dudzlm messageTicketOption→"" audited:1jdc1my # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~1dudzlm {name} ({tickets})→"" audited:1jdc1my # the form always renders data-message-ticket-option, so the fallback copy never shows
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.handleCheckedIn~1jsm9lf {name} checked in for {listingName} ({tickets})→"" audited:1jdc1my # the form always renders data-message-checked-in, so the fallback copy never shows
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d Skipped {name}→"" audited:1jdc1my # the form always renders data-message-skipped, so the fallback copy never shows
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.count~0irieiu How many tickets for {name}?→"" audited:1jdc1my # the form always renders data-message-select-quantity, so the fallback copy never shows
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~05eghw6 {name} ({tickets}) — {detail}→"" audited:13t8v0h # the form always renders data-message-ticket-option-detail, so the fallback copy never shows
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~1dudzlm messageTicketOption→"" audited:13t8v0h # the lookup misses into the fallback copy, whose words are the rendered attribute's own
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~1dudzlm {name} ({tickets})→"" audited:13t8v0h # the form always renders data-message-ticket-option, so the fallback copy never shows
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.answerHandlers.checked_in~0fsk6nn {name} checked in for {listingName} ({tickets})→"" audited:13t8v0h # the form always renders data-message-checked-in, so the fallback copy never shows
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.checkInById~1e6fg4d Skipped {name}→"" audited:13t8v0h # the form always renders data-message-skipped, so the fallback copy never shows
+src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.count~0irieiu How many tickets for {name}?→"" audited:13t8v0h # the form always renders data-message-select-quantity, so the fallback copy never shows
 
 # The scanner bundle's wording helpers (src/ui/client/scanner-messages.js):
 # their direct suite (test/ui/client/scanner-messages.test.ts) pins the

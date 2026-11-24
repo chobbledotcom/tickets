@@ -8,6 +8,7 @@
  * Each entry names its person and the door-safe details, so the manual
  * check-in can find them by name with no connection. */
 
+import type * as v from "valibot";
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import {
   defineSignedToken,
@@ -22,7 +23,7 @@ import {
 } from "#db/attendees/pii.ts";
 import { getAttendeesPageByListingIds } from "#db/listings/attendees.ts";
 import { decryptUsername, getUserById } from "#db/users.ts";
-import { chunk, groupToMap, mapParallel, requiredMapValue, sumOf } from "#fp";
+import { chunk, flatMap, groupToMap, mapParallel, sumOf } from "#fp";
 import { sortedByString } from "#fp-strings";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -31,6 +32,10 @@ import { expiresIn } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { hmacHex, importHmacKey } from "#shared/sha256.ts";
+import type {
+  TicketCacheEntry,
+  TicketCachePageSchema,
+} from "#shared/ticket-cache.ts";
 import { type Attendee, hasTicketQuantity } from "#types";
 import type { ScanScope } from "./scan-answer.ts";
 import { owingListings, scanAdmits } from "./scan-decision.ts";
@@ -53,30 +58,47 @@ const DIGEST_BATCH = 100;
  * so a door with thousands of people never decrypts them all at once. */
 const CACHE_PAGE_PEOPLE = 250;
 
-/** One saved ticket's keyed digest and the places one scan at this door
- * admits of its booking. The offline quantity ask reads the count and
- * bounds its pick at it. The server answers what the booking can still
- * supply when the check-in lands. The person's name and the door-safe
- * details let the door find them by name with no connection. */
-export type TicketCacheEntry = {
-  details: string[];
-  hash: string;
-  name: string;
-  tickets: number;
-};
-
 /** What one token's entry says about its person, before the digest. */
 type EntryFacts = Omit<TicketCacheEntry, "hash">;
 
-/** One page of a door's cache. `next` is the signed cursor for the next
- * page, or null on the last page. `people` counts the door's people this
- * page read, out of `total`. */
-type TicketCachePage = {
-  entries: TicketCacheEntry[];
-  next: string | null;
-  people: number;
-  total: number;
+/** One person's booking lines on the door's listings. */
+type PersonLines = DecryptedAttendeeRow<Attendee>[];
+
+/** What one person's entry says at this door, or null when the door owes
+ * them nothing: such a person has no place in the list. */
+const personFactsOrNull = (
+  lines: PersonLines,
+  checkInEveryListing: boolean,
+  listingNames: ListingNames,
+): EntryFacts | null => {
+  // One line that can still admit admits the person, so any of the
+  // person's tickets at this door goes in the list.
+  const live = lines.filter((row) => !row.refunded && hasTicketQuantity(row));
+  // The scan groups every line it can see before it drops the listings
+  // that owe nothing. The count therefore names the listing that scan
+  // lands on, even when an earlier line on it sits fully checked in.
+  const owed = owingListings(live, (row) => row.listing_id, remainingTickets);
+  if (owed.length === 0) return null;
+  // What one scan admits, by the scan's own rule: the first listing still
+  // owing places, or every one when this door checks them all in.
+  const admitted = scanAdmits(false, checkInEveryListing, owed);
+  return {
+    details: optionDetails(lines.filter(lineOwes), listingNames),
+    name: lines[0]!.name,
+    quantity: sumOf(sumOf(remainingTickets))(admitted),
+  };
 };
+
+/** Each of one person's tokens, paired with the person's facts. A person
+ * the door owes nothing brings no token. */
+const tokenFacts =
+  (checkInEveryListing: boolean, listingNames: ListingNames) =>
+  (lines: PersonLines): [string, EntryFacts][] => {
+    const facts = personFactsOrNull(lines, checkInEveryListing, listingNames);
+    return facts === null
+      ? []
+      : lines.map((row): [string, EntryFacts] => [row.ticket_token, facts]);
+  };
 
 /** One page of the keyed digests of one door's admittable ticket tokens,
  * read after the attendee id `afterId`. Each entry carries the
@@ -93,7 +115,7 @@ const ticketCachePage = async (
   doorKey: Uint8Array,
   afterId: number,
   cursorAfter: (attendeeId: number) => Promise<string>,
-): Promise<TicketCachePage> => {
+): Promise<v.InferOutput<typeof TicketCachePageSchema>> => {
   // Booking order — the (start, listing) order the scan's own decision
   // groups a booking's lines by — so the count names what that scan admits.
   const page = await getAttendeesPageByListingIds(
@@ -110,45 +132,26 @@ const ticketCachePage = async (
     (row: DecryptedAttendeeRow<Attendee>) => row.id,
     (row: DecryptedAttendeeRow<Attendee>) => row,
   )(rows);
-  const factsByToken = new Map<string, EntryFacts>();
-  for (const lines of rowsByAttendee.values()) {
-    // One line that can still admit admits the person, so any of the
-    // person's tickets at this door goes in the list.
-    const live = lines.filter((row) => !row.refunded && hasTicketQuantity(row));
-    // The scan groups every line it can see before it drops the listings
-    // that owe nothing. The count therefore names the listing that scan
-    // lands on, even when an earlier line on it sits fully checked in.
-    const owed = owingListings(live, (row) => row.listing_id, remainingTickets);
-    if (owed.length === 0) continue;
-    // What one scan admits, by the scan's own rule: the first listing
-    // still owing places, or every one when this door checks them all in.
-    const admitted = scanAdmits(false, scope.checkInEveryListing, owed);
-    const places = sumOf(
-      (owedLines: readonly DecryptedAttendeeRow<Attendee>[]) =>
-        sumOf(remainingTickets)(owedLines),
-    )(admitted);
-    const facts = {
-      details: optionDetails(lines.filter(lineOwes), listingNames),
-      name: lines[0]!.name,
-      tickets: places,
-    };
-    for (const row of lines) factsByToken.set(row.ticket_token, facts);
-  }
+  // One token resolves the whole booking, so a token two lines share is
+  // one entry.
+  const factsByToken = new Map(
+    flatMap(tokenFacts(scope.checkInEveryListing, listingNames))([
+      ...rowsByAttendee.values(),
+    ]),
+  );
   // One key import serves every digest. A per-digest import repeats the
-  // same work for each token. Each batch pairs its digests with the owed
-  // counts, so no result order matters.
+  // same work for each token. Each digest travels with its own facts, so no
+  // result order matters.
   const key = await importHmacKey(doorKey);
-  const digestBatch = async (batch: string[]): Promise<TicketCacheEntry[]> =>
-    Promise.all(
-      batch.map(async (token) => ({
-        ...requiredMapValue(factsByToken, token),
-        hash: await hmacHex(key, token),
-      })),
-    );
+  const digestBatch = (
+    batch: [string, EntryFacts][],
+  ): Promise<TicketCacheEntry[]> =>
+    mapParallel(async ([token, facts]: [string, EntryFacts]) => ({
+      ...facts,
+      hash: await hmacHex(key, token),
+    }))(batch);
   const entries = (
-    await mapParallel(digestBatch)(
-      chunk(DIGEST_BATCH)([...factsByToken.keys()]),
-    )
+    await mapParallel(digestBatch)(chunk(DIGEST_BATCH)([...factsByToken]))
   ).flat();
   return {
     // Digest order, so every device saves the same list for the same door

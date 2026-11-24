@@ -1,7 +1,7 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
-import { isSyncing, offlineModeActive } from "./scanner-offline.js";
-import { initOfflineScanner, offlineScan } from "./scanner-offline-ui.js";
+import { isSyncing, offlineModeActive } from "./scanner-offline.ts";
+import { initOfflineScanner, offlineScan } from "./scanner-offline-ui.ts";
 import { startManualCheckin } from "./scanner-manual.ts";
 import {
   FADE_DELAY_MS,

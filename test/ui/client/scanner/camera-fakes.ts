@@ -16,11 +16,11 @@ export const drain = async (): Promise<void> => {
 
 /** One entry of the door's saved list: the ticket digest, the places one
  * scan admits, and the person a name search finds by it. */
-export const savedEntry = (hash: string, tickets = 1) => ({
+export const savedEntry = (hash: string, quantity = 1) => ({
   details: [],
   hash,
   name: "Ada",
-  tickets,
+  quantity,
 });
 
 /** The door's ticket list, stamped by the clock the scan will read. The

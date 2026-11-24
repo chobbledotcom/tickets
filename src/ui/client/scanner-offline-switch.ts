@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // Browser-only code - bundled into /scanner.js by scripts/build-static-assets.ts
 //
 // The offline mode switch of one scanner door. Offline mode is opt-in. The
@@ -10,11 +11,16 @@ import {
   readManualMode,
   removeTicketCache,
   writeManualMode,
-} from "./scanner-offline.js";
+} from "./scanner-offline.ts";
 
 /** Show one status line in the page's own words. */
-const say = (statusEl, messages, key, fallback, type) =>
-  showStatus(statusEl, getMessage(messages, key, fallback), type);
+const say = (
+  statusEl: HTMLElement,
+  messages: DOMStringMap,
+  key: string,
+  fallback: string,
+  type: "success" | "error",
+): void => showStatus(statusEl, getMessage(messages, key, fallback), type);
 
 /** Wire one door's switch. `onChange` redraws the banner, the switch, and the queue.
  * `onTurnedOff` settles what the door queued while the switch held the
@@ -28,11 +34,19 @@ export const wireOfflineSwitch = ({
   scanPath,
   statusEl,
   toggle,
-}) => {
+}: {
+  messages: DOMStringMap;
+  onChange: () => void;
+  onTurnedOff: () => void;
+  progress: HTMLElement;
+  scanPath: string;
+  statusEl: HTMLElement;
+  toggle: HTMLElement;
+}): { refresh: () => void } => {
   /** The running download's stop handle, or null when none runs. */
-  let running = null;
+  let running: AbortController | null = null;
 
-  const showProgress = (done, total) => {
+  const showProgress = (done: number, total: number) => {
     progress.textContent = interpolate(
       getMessage(
         messages,

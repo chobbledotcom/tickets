@@ -1,13 +1,16 @@
+/// <reference lib="dom" />
 // Browser-only code - bundled into /scanner.js by scripts/build-static-assets.ts
 //
 // The offline scanner's page furniture. The banner says which mode the door
 // works in. A scan is validated offline and queued in the page's store. The
 // module wires one page's offline side. The queue panel and the replay that
-// settles it live in scanner-offline-sync.js.
+// settles it live in scanner-offline-sync.ts.
 
 import { fromBase64Url } from "#crypto/utils.ts";
 import { DAY_MS } from "#shared/now.ts";
 import { hmacHex } from "#shared/sha256.ts";
+import type { TicketCacheEntry } from "#shared/ticket-cache.ts";
+import type { ManualOffline, Person, Say } from "./admin/manual-search.ts";
 import { showQuantitySelect } from "./quantity-select.ts";
 import {
   formatTicketCount,
@@ -21,18 +24,38 @@ import {
   queueCheckIn,
   readManualMode,
   readQueue,
-  readTicketCache,
+  readTicketCacheOrNull,
   registerScannerWorker,
-} from "./scanner-offline.js";
-import { wireOfflineSwitch } from "./scanner-offline-switch.js";
+} from "./scanner-offline.ts";
+import { wireOfflineSwitch } from "./scanner-offline-switch.ts";
 import {
   appendQueuedRow,
+  type QueueRow,
   renderQueuePanel,
+  type SettleDelivery,
   syncQueue,
-} from "./scanner-offline-sync.js";
+} from "./scanner-offline-sync.ts";
+
+/** The offline side's queue panel. It holds the page elements of the
+ * queue, the door's digest key and replay window, and the rendered rows.
+ * `sync` is the queue's sync for this page's door. */
+export type QueuePanel = {
+  container: HTMLElement;
+  doorKey: Uint8Array;
+  list: HTMLElement;
+  replayWindowMs: number;
+  rows: QueueRow[];
+  summary: HTMLElement;
+  sync: () => void;
+};
 
 /** Show or hide the offline banner, worded for why the mode is on. */
-const updateOfflineBanner = (banner, bannerText, messages, scanPath) => {
+const updateOfflineBanner = (
+  banner: HTMLElement,
+  bannerText: HTMLElement,
+  messages: DOMStringMap,
+  scanPath: string,
+): void => {
   const active = offlineModeActive(scanPath);
   banner.classList.toggle("hidden", !active);
   if (active) {
@@ -54,7 +77,7 @@ const updateOfflineBanner = (banner, bannerText, messages, scanPath) => {
  * digest signs under. The page is the only response that holds a door's
  * key. The stored digests carry the same key. A scan cannot use them
  * without this attribute. */
-const doorKeyBytes = (pageKey) => {
+const doorKeyBytes = (pageKey: string | undefined): Uint8Array => {
   if (!pageKey) {
     throw new Error("The scanner page carries no data-door-cache-key");
   }
@@ -66,7 +89,7 @@ const doorKeyBytes = (pageKey) => {
  * server cannot tell a resend from a first send, so the page sends no
  * queued check-in this old. A page that carries no usable day count
  * throws, and the page degrades to the online-only scanner. */
-const replayWindowMs = (pageDays) => {
+const replayWindowMs = (pageDays: string | undefined): number => {
   const days = Number(pageDays);
   if (!Number.isSafeInteger(days) || days <= 0) {
     throw new Error(
@@ -79,17 +102,16 @@ const replayWindowMs = (pageDays) => {
 /** The most saved people one name search shows. */
 const SEARCH_MAX_RESULTS = 20;
 
-/** The door's saved list when it can vouch for a check-in. Null after the
- * door hears why it cannot: no list on this device, or an expired one. */
-const usableListOrNull = (scanPath, say, messages) => {
-  let cache;
-  try {
-    cache = readTicketCache(scanPath);
-  } catch {
-    // A dropped corrupt set reads as no set: the door sees the missing-list
-    // message, and the next download rebuilds the cache from scratch.
-    cache = null;
-  }
+/** Run `use` on the door's saved entries when the list can vouch for a
+ * check-in. Null after the door hears why it cannot: no list on this
+ * device, or an expired one. */
+const withUsableList = <Result>(
+  scanPath: string,
+  say: Say,
+  messages: DOMStringMap,
+  use: (entries: TicketCacheEntry[]) => Result,
+): Result | null => {
+  const cache = readTicketCacheOrNull(scanPath);
   if (!cache) {
     say(
       getMessage(
@@ -112,12 +134,18 @@ const usableListOrNull = (scanPath, say, messages) => {
     );
     return null;
   }
-  return cache;
+  return use(cache.entries);
 };
 
 /** Queue the check-in of one saved list entry. A camera scan reaches it by
  * the scanned ticket's digest, and a manual pick by the person's name. */
-const queueSavedEntry = async (scanPath, entry, say, messages, panel) => {
+const queueSavedEntry = async (
+  scanPath: string,
+  entry: TicketCacheEntry,
+  say: Say,
+  messages: DOMStringMap,
+  panel: QueuePanel,
+): Promise<void> => {
   // The door's own last-token guard expires after the status fades, so the
   // same ticket can reach this line twice. A second item sends the
   // check-in twice, and the door reads that as two admissions.
@@ -142,15 +170,15 @@ const queueSavedEntry = async (scanPath, entry, say, messages, panel) => {
   // another door took some first. A booking whose one-scan count is one
   // place admits it without an ask.
   const quantity =
-    entry.tickets > 1
+    entry.quantity > 1
       ? await showQuantitySelect(
-          entry.tickets,
+          entry.quantity,
           getMessage(
             messages,
             "messageOfflineQuantityAsk",
             "How many people are you checking in?",
           ),
-          (count) => formatTicketCount(messages, count),
+          (count: number) => formatTicketCount(messages, count),
         )
       : 1;
   if (!quantity) {
@@ -166,7 +194,7 @@ const queueSavedEntry = async (scanPath, entry, say, messages, panel) => {
   }
   // A storage failure here leaves the scan unqueued, and the save-failed
   // message tells the door to scan again.
-  let queued;
+  let queued: ReturnType<typeof queueCheckIn>;
   try {
     queued = queueCheckIn(scanPath, entry.hash, quantity);
   } catch {
@@ -208,46 +236,59 @@ const queueSavedEntry = async (scanPath, entry, say, messages, panel) => {
  * downloads the set, and so does a page load while the switch is on. An
  * expired set answers nothing until the door reloads the page. */
 export const offlineScan = async (
-  scanPath,
-  token,
-  statusEl,
-  messages,
-  panel,
-) => {
-  const say = (text, type) => showStatus(statusEl, text, type);
-  const cache = usableListOrNull(scanPath, say, messages);
-  if (!cache) return;
-  const hash = await hmacHex(panel.doorKey, token);
-  const entry = cache.entries.find((saved) => saved.hash === hash);
-  if (!entry) {
-    say(
-      getMessage(
-        messages,
-        "messageOfflineInvalid",
-        "This ticket cannot be checked in offline. Scan it again when you are back online to see why.",
-      ),
-      "error",
-    );
-    return;
-  }
-  await queueSavedEntry(scanPath, entry, say, messages, panel);
+  scanPath: string,
+  token: string,
+  statusEl: HTMLElement,
+  messages: DOMStringMap,
+  panel: QueuePanel,
+): Promise<void> => {
+  const say: Say = (text, type) => showStatus(statusEl, text, type);
+  await withUsableList(scanPath, say, messages, async (entries) => {
+    const hash = await hmacHex(panel.doorKey, token);
+    const entry = entries.find((saved) => saved.hash === hash);
+    if (!entry) {
+      say(
+        getMessage(
+          messages,
+          "messageOfflineInvalid",
+          "This ticket cannot be checked in offline. Scan it again when you are back online to see why.",
+        ),
+        "error",
+      );
+      return;
+    }
+    await queueSavedEntry(scanPath, entry, say, messages, panel);
+  });
 };
 
-/** The manual check-in's offline side for one door. `active` says whether a
- * pick settles offline now. `search` answers the saved people whose name
- * holds the text, or null after the door hears why the list cannot
- * answer. `pick` queues one saved person's check-in. Each reports through
- * the `say` the manual form hands in. */
-export const offlinePeople = (scanPath, messages, panel) => ({
+/** The manual check-in's offline side for one door. A saved person's
+ * check-in queues offline, and the door is done with the pick either
+ * way. */
+export const offlinePeople = (
+  scanPath: string,
+  messages: DOMStringMap,
+  panel: QueuePanel,
+): ManualOffline => ({
   active: () => offlineModeActive(scanPath),
-  pick: (entry, say) => queueSavedEntry(scanPath, entry, say, messages, panel),
   search: (text, say) => {
-    const cache = usableListOrNull(scanPath, say, messages);
-    if (!cache) return null;
     const wanted = text.toLowerCase();
-    return cache.entries
-      .filter((entry) => entry.name.toLowerCase().includes(wanted))
-      .slice(0, SEARCH_MAX_RESULTS);
+    return withUsableList(scanPath, say, messages, (entries) =>
+      entries
+        .filter((entry) => entry.name.toLowerCase().includes(wanted))
+        .slice(0, SEARCH_MAX_RESULTS)
+        .map(
+          (entry): Person => ({
+            checkIn: async (sayTo) => {
+              await queueSavedEntry(scanPath, entry, sayTo, messages, panel);
+              return true;
+            },
+            details: entry.details,
+            key: entry.hash,
+            name: entry.name,
+            quantity: entry.quantity,
+          }),
+        ),
+    );
   },
 });
 
@@ -259,14 +300,19 @@ export const initOfflineScanner = ({
   scanPath,
   settleDelivery,
   statusEl,
-}) => {
+}: {
+  messages: DOMStringMap;
+  scanPath: string;
+  settleDelivery: SettleDelivery;
+  statusEl: HTMLElement;
+}): QueuePanel => {
   /** The page's one element for `id`, or a hard stop when the page lacks it. */
-  const lookup = (id) => {
+  const lookup = (id: string): HTMLElement => {
     const found = document.getElementById(id);
     if (found) return found;
     throw new Error(`The scanner page carries no ${id}`);
   };
-  const panel = {
+  const panel: QueuePanel = {
     container: lookup("scanner-queue"),
     doorKey: doorKeyBytes(lookup("scanner-container").dataset.doorCacheKey),
     list: lookup("scanner-queue-items"),

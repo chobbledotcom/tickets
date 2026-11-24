@@ -5,12 +5,18 @@
  * them in, through the scan JSON API or the offline queue. No step reloads
  * the page, so the camera keeps running. */
 
+import * as v from "valibot";
 import { requiredMapValue } from "#fp";
 import {
-  type Found,
+  type AnswerOf,
+  type ScanAnswer,
+  ScanAnswerSchema,
+} from "#src/ui/client/admin/manual-answer.ts";
+import {
   findPeople,
-  foundFacts,
   type ManualOffline,
+  type Person,
+  type Say,
   SEARCH_MIN_LENGTH,
 } from "#src/ui/client/admin/manual-search.ts";
 import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
@@ -18,23 +24,13 @@ import { showQuantitySelect } from "#src/ui/client/quantity-select.ts";
 
 type OptionDirection = "up" | "down";
 
-/** What the scan API answers a door. */
-type ScanAnswer = {
-  error?: string;
-  listingName?: unknown;
-  max?: unknown;
-  message?: string;
-  name?: string;
-  quantity?: unknown;
-  remaining?: unknown;
-  status?: string;
-  total?: unknown;
-};
-
 const KEY_DIRECTIONS: Partial<Record<string, OptionDirection>> = {
   ArrowDown: "down",
   ArrowUp: "up",
 };
+
+/** The answers the door gave so far for one pick. */
+type Given = { id_verified?: true; quantity?: number };
 
 /** Wire the page's manual check-in. `offline` is the scanner's offline side,
  * or null on a page whose offline side did not start. */
@@ -69,64 +65,53 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
       { count },
     );
 
-  const allOptions = () =>
-    listbox.querySelectorAll<HTMLLIElement>("[role='option']");
+  const allOptions = () => [
+    ...listbox.querySelectorAll<HTMLElement>("[role='option']"),
+  ];
 
-  /** Opens or closes the suggestion list, telling a screen reader either way. */
+  /** Opens or closes the result list, telling a screen reader either way. */
   const setListOpen = (open: boolean) => {
     listbox.classList.toggle("hidden", !open);
     input.setAttribute("aria-expanded", String(open));
   };
 
-  const filterOptions = () => {
-    const query = input.value.toLowerCase();
-    let anyVisible = false;
-    for (const opt of allOptions()) {
-      const text = (opt.textContent ?? "").toLowerCase();
-      const visible = text.includes(query);
-      opt.classList.toggle("hidden", !visible);
-      if (visible) anyVisible = true;
-    }
-    setListOpen(anyVisible && document.activeElement === input);
-  };
-
   /** Each shown option's person, so a pick reads what the search found. */
-  let foundByOption = new Map<Element, Found>();
+  let personByOption = new Map<Element, Person>();
 
   /** The person the door picked, or null while the next submit searches. */
-  let picked: Found | null = null;
+  let picked: Person | null = null;
 
   /** Word the submit button for what the next submit does. */
-  const setPicked = (found: Found | null) => {
-    picked = found;
+  const setPicked = (person: Person | null) => {
+    picked = person;
     const label = submitBtn.querySelector("span");
     if (label) {
-      label.textContent = found
+      label.textContent = person
         ? getMessage("messageCheckInButton", "Check In")
         : getMessage("messageSearchButton", "Search");
     }
   };
 
-  const selectOption = (opt: HTMLLIElement) => {
-    const person = requiredMapValue(foundByOption, opt);
+  const selectOption = (opt: HTMLElement) => {
+    const person = requiredMapValue(personByOption, opt);
     setPicked(person);
-    const detail = foundFacts(person).details.join(", ");
+    const detail = person.details.join(", ");
     input.value =
-      `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})` +
+      `${person.name} (${formatTicketCount(Number(opt.dataset.quantity))})` +
       (detail ? ` — ${detail}` : "");
     setListOpen(false);
   };
 
+  // A changed name makes the shown results stale: the next submit searches.
   input.addEventListener("input", () => {
     setPicked(null);
-    filterOptions();
+    setListOpen(false);
   });
 
   input.addEventListener("focus", () => {
-    filterOptions();
+    setListOpen(allOptions().length > 0);
   });
 
-  // Hide list on outside click
   document.addEventListener("click", (e) => {
     if (
       !input.contains(e.target as Node) &&
@@ -136,28 +121,22 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
     }
   });
 
-  const getVisibleOptions = () => [
-    ...listbox.querySelectorAll<HTMLLIElement>("[role='option']:not(.hidden)"),
-  ];
-
   const getActiveOption = () =>
-    listbox.querySelector<HTMLLIElement>("[role='option'].combobox-active");
+    listbox.querySelector<HTMLElement>("[role='option'].combobox-active");
 
   const navigateOptions = (direction: OptionDirection) => {
-    const visible = getVisibleOptions();
-    if (visible.length === 0) return;
+    const options = allOptions();
+    if (options.length === 0) return;
     const active = getActiveOption();
-    const idx = active ? visible.indexOf(active) : -1;
+    const idx = active ? options.indexOf(active) : -1;
     active?.classList.remove("combobox-active");
     const step = direction === "down" ? 1 : -1;
-    const next = visible[(idx + step + visible.length) % visible.length];
-    if (next) {
-      next.classList.add("combobox-active");
-      next.scrollIntoView({ block: "nearest" });
-    }
+    const next = options[(idx + step + options.length) % options.length]!;
+    next.classList.add("combobox-active");
+    next.scrollIntoView({ block: "nearest" });
   };
 
-  const handleKeydown = (e: KeyboardEvent) => {
+  input.addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       setListOpen(false);
       return;
@@ -173,21 +152,16 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
     if (!active) return;
     e.preventDefault();
     selectOption(active);
-  };
-
-  input.addEventListener("keydown", handleKeydown);
+  });
 
   listbox.addEventListener("click", (e) => {
-    const opt = (e.target as HTMLElement).closest<HTMLLIElement>(
+    const opt = (e.target as HTMLElement).closest<HTMLElement>(
       "[role='option']",
     );
     if (opt) selectOption(opt);
   });
 
-  const showCheckinStatus = (
-    message: string,
-    type: "success" | "warning" | "error",
-  ) => {
+  const say: Say = (message, type) => {
     statusEl.textContent = message;
     statusEl.classList.remove(
       "hidden",
@@ -198,58 +172,11 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
     statusEl.classList.add("checkin-status", `checkin-status-${type}`);
   };
 
-  /** One scan answer as the message the door reads: who they are, how many
-   * places the answer covers, and the listing names that drove it. A part
-   * answer names its raw counts, so "(2 of 3 tickets)" reads as counts. */
-  const answerValues = (result: {
-    listingName?: unknown;
-    name?: string;
-    quantity?: unknown;
-    total?: unknown;
-  }): Record<string, string | undefined> => {
-    const count = Number.isFinite(result.quantity)
-      ? Number(result.quantity)
-      : 1;
-    const total = Number(result.total);
-    const partial = total > count;
-    return {
-      listingName: String(result.listingName ?? ""),
-      name: result.name,
-      tickets: partial ? String(count) : formatTicketCount(count),
-      ...(partial ? { total: String(total) } : {}),
-    };
-  };
-
-  const clearPick = () => {
-    setPicked(null);
-    input.value = "";
-  };
-
-  /** Show what one search found as the options the door picks from. */
-  const showFound = (found: Found[]) => {
-    foundByOption = new Map();
-    listbox.replaceChildren(
-      ...found.map((person) => {
-        const { details, name, quantity } = foundFacts(person);
-        const opt = document.createElement("div");
-        opt.setAttribute("role", "option");
-        opt.tabIndex = 0;
-        if (person.kind === "online") {
-          opt.dataset.attendeeId = String(person.attendeeId);
-        }
-        opt.dataset.detail = details.join(", ");
-        opt.dataset.name = name;
-        relabelOption(opt, quantity);
-        foundByOption.set(opt, person);
-        return opt;
-      }),
-    );
-  };
-
   /** Relabel one option with the tickets its person still owes. */
-  function relabelOption(opt: HTMLElement, remaining: number) {
+  const relabelOption = (opt: HTMLElement, remaining: number) => {
+    const { details, name } = requiredMapValue(personByOption, opt);
     opt.dataset.quantity = String(remaining);
-    const detail = opt.dataset.detail;
+    const detail = details.join(", ");
     opt.textContent = interpolate(
       detail
         ? getMessage(
@@ -257,170 +184,158 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
             "{name} ({tickets}) — {detail}",
           )
         : getMessage("messageTicketOption", "{name} ({tickets})"),
-      { detail, name: opt.dataset.name, tickets: formatTicketCount(remaining) },
+      { detail, name, tickets: formatTicketCount(remaining) },
     );
-  }
+  };
+
+  /** Show what one search found as the options the door picks from. */
+  const showFound = (people: Person[]) => {
+    personByOption = new Map();
+    listbox.replaceChildren(
+      ...people.map((person) => {
+        const opt = document.createElement("div");
+        opt.setAttribute("role", "option");
+        opt.tabIndex = 0;
+        opt.dataset.key = person.key;
+        personByOption.set(opt, person);
+        relabelOption(opt, person.quantity);
+        return opt;
+      }),
+    );
+  };
 
   /** A person the door still owes tickets keeps their option. The option
    * shows what is left: part of a party, or listings a scan did not cover. */
-  const showRemaining = (attendeeId: string, remaining: number) => {
+  const showRemaining = (key: string, remaining: number) => {
     for (const opt of allOptions()) {
-      if (opt.dataset.attendeeId !== attendeeId) continue;
+      if (opt.dataset.key !== key) continue;
       if (remaining > 0) relabelOption(opt, remaining);
       else opt.remove();
     }
   };
 
-  const handleCheckedIn = (
-    result: {
-      listingName?: unknown;
-      name: string;
-      quantity?: unknown;
-      remaining?: unknown;
-      total?: unknown;
-    },
-    attendeeId: string,
-    idVerified: boolean,
+  /** One counted answer as the values its message names. A part answer
+   * names its raw counts, so "(2 of 3 tickets)" reads as counts. */
+  const countedValues = (
+    answer: AnswerOf<"already_checked_in" | "checked_in">,
   ) => {
-    const idNote = idVerified
-      ? getMessage("messageVerifyIdNote", " — verify their ID")
-      : "";
-    const partial = Number(result.total) > Number(result.quantity);
-    showCheckinStatus(
-      `${interpolate(
-        getMessage(
-          partial ? "messageCheckedInPartial" : "messageCheckedIn",
-          "{name} checked in for {listingName} ({tickets})",
+    const partial = answer.total > answer.quantity;
+    return {
+      listingName: answer.listingName,
+      name: answer.name,
+      partial,
+      tickets: partial
+        ? String(answer.quantity)
+        : formatTicketCount(answer.quantity),
+      total: String(answer.total),
+    };
+  };
+
+  /** What the door reads for one final answer, keyed by its status. Each
+   * answers whether the door is done with the pick. An ask that comes back
+   * after the door answered it is an answer this page cannot settle. */
+  const answerHandlers: {
+    [Status in ScanAnswer["status"]]: (
+      answer: AnswerOf<Status>,
+      key: string,
+      given: Given,
+    ) => boolean;
+  } = {
+    already_checked_in: (answer) => {
+      say(
+        interpolate(
+          getMessage(
+            "messageAlreadyCheckedIn",
+            "{name} already checked in for {listingName} ({tickets})",
+          ),
+          countedValues(answer),
         ),
-        answerValues(result),
-      )}${idNote}`,
-      "success",
-    );
-    showRemaining(attendeeId, Number(result.remaining));
-    clearPick();
+        "warning",
+      );
+      return false;
+    },
+    checked_in: (answer, key, given) => {
+      const values = countedValues(answer);
+      const idNote = given.id_verified
+        ? getMessage("messageVerifyIdNote", " — verify their ID")
+        : "";
+      say(
+        `${interpolate(
+          getMessage(
+            values.partial ? "messageCheckedInPartial" : "messageCheckedIn",
+            "{name} checked in for {listingName} ({tickets})",
+          ),
+          values,
+        )}${idNote}`,
+        "success",
+      );
+      showRemaining(key, answer.remaining);
+      return true;
+    },
+    not_found: () => {
+      say(getMessage("messageNotFound", "Ticket not found"), "error");
+      return false;
+    },
+    other: (answer) => showFailure(answer.error ?? answer.message),
+    refunded: (answer) => {
+      say(
+        interpolate(getMessage("messageRefunded", "{name} has been refunded"), {
+          name: answer.name,
+        }),
+        "error",
+      );
+      return false;
+    },
+    select_quantity: () => showFailure(undefined),
+    verify_id: () => showFailure(undefined),
   };
 
-  /** Say the door sent this person away without checking them in. */
-  const skipPerson = (name: unknown) => {
-    showCheckinStatus(
-      interpolate(getMessage("messageSkipped", "Skipped {name}"), { name }),
-      "warning",
-    );
-    clearPick();
+  /** Say why an answer settled nothing: the answer's own words, or the
+   * page's error message when it has none. */
+  const showFailure = (words: string | undefined) => {
+    say(words ?? getMessage("messageError", "Error"), "error");
+    return false;
   };
 
-  /** Whether a scan answer asks the door something it has not answered. */
-  const needsAsk = (
-    result: { status?: string },
-    given: Record<string, unknown>,
-  ): boolean =>
-    (result.status === "verify_id" && !given.id_verified) ||
-    (result.status === "select_quantity" && given.quantity === undefined);
+  /** The one question an answer asks the door, or null when it asks none
+   * the door has not answered. */
+  const pendingAsk = (answer: ScanAnswer, given: Given) => {
+    if (answer.status === "verify_id" && !given.id_verified) return answer;
+    if (answer.status === "select_quantity" && given.quantity === undefined) {
+      return answer;
+    }
+    return null;
+  };
 
-  /** Ask the door the one question a scan answer needs, and return the
-   * choice to re-post, or null when the door declined. A non-transferable
-   * listing needs the door to look at the person's ID and say so — never
-   * assert it from the name pick alone. A ticket that owes more than one
-   * place asks how many to admit, capped by what the lines owe. */
-  const askDoor = async (result: {
-    max?: unknown;
-    name?: unknown;
-    status?: string;
-  }): Promise<Record<string, unknown> | null> => {
-    if (result.status === "verify_id") {
+  /** Ask the door the one question an answer needs, and return the choice
+   * to re-post, or null when the door declined. A non-transferable listing
+   * needs the door to look at the person's ID and say so — never assert it
+   * from the name pick alone. A ticket that owes more than one place asks
+   * how many to admit, capped by what the lines owe. */
+  const askDoor = async (
+    ask: AnswerOf<"select_quantity" | "verify_id">,
+  ): Promise<Given | null> => {
+    if (ask.status === "verify_id") {
       const confirmed = await showConfirm(
         interpolate(
           getMessage("messageVerifyIdConfirm", 'Does their ID match "{name}"?'),
-          { name: result.name },
+          { name: ask.name },
         ),
       );
       return confirmed ? { id_verified: true } : null;
     }
     const count = await showQuantitySelect(
-      Number(result.max),
+      ask.max,
       interpolate(
         getMessage("messageSelectQuantity", "How many tickets for {name}?"),
-        { name: result.name },
+        { name: ask.name },
       ),
       formatTicketCount,
     );
     return count === null ? null : { quantity: count };
   };
 
-  const dispatchScanResult = (
-    result: {
-      listingName?: unknown;
-      status?: string;
-      name?: string;
-      message?: string;
-      error?: string;
-      quantity?: unknown;
-    },
-    attendeeId: string,
-    idVerified: boolean,
-  ) => {
-    if (result.status === "checked_in") {
-      handleCheckedIn(
-        result as { name: string; quantity?: unknown },
-        attendeeId,
-        idVerified,
-      );
-    } else if (result.status === "already_checked_in") {
-      showCheckinStatus(
-        interpolate(
-          getMessage(
-            "messageAlreadyCheckedIn",
-            "{name} already checked in for {listingName} ({tickets})",
-          ),
-          answerValues(result),
-        ),
-        "warning",
-      );
-    } else if (result.status === "refunded") {
-      showCheckinStatus(
-        interpolate(getMessage("messageRefunded", "{name} has been refunded"), {
-          name: result.name,
-        }),
-        "error",
-      );
-    } else if (result.status === "not_found") {
-      showCheckinStatus(
-        getMessage("messageNotFound", "Ticket not found"),
-        "error",
-      );
-    } else {
-      showCheckinStatus(
-        result.error ?? result.message ?? getMessage("messageError", "Error"),
-        "error",
-      );
-    }
-  };
-
-  /** Settle one pick with the door. Each ask is answered once: the re-post
-   * carries every earlier answer, so a verified ID still stands when the
-   * door then picks a count. */
-  const checkInPick = async (
-    attendeeId: string,
-    postScan: (body: Record<string, unknown>) => Promise<ScanAnswer>,
-  ) => {
-    const attendeeIdNumber = Number(attendeeId);
-    let given: Record<string, unknown> = {};
-    let result = await postScan({ attendee_id: attendeeIdNumber });
-    while (needsAsk(result, given)) {
-      const choice = await askDoor(result);
-      if (!choice) {
-        skipPerson(result.name);
-        return;
-      }
-      given = { ...given, ...choice };
-      result = await postScan({ attendee_id: attendeeIdNumber, ...given });
-    }
-    dispatchScanResult(result, attendeeId, given.id_verified === true);
-  };
-
-  const postScan = async (
-    body: Record<string, unknown>,
-  ): Promise<ScanAnswer> => {
+  const postScan = async (body: Record<string, unknown>) => {
     const r = await fetch(scanPath, {
       body: JSON.stringify(body),
       headers: {
@@ -429,14 +344,46 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
       },
       method: "POST",
     });
-    return r.json();
+    return v.parse(ScanAnswerSchema, await r.json());
+  };
+
+  /** Settle one pick with the door. Each ask is answered once: the re-post
+   * carries every earlier answer, so a verified ID still stands when the
+   * door then picks a count. Answers whether the door is done with it. */
+  const checkInById = async (attendeeId: number): Promise<boolean> => {
+    let given: Given = {};
+    let answer = await postScan({ attendee_id: attendeeId });
+    for (
+      let ask = pendingAsk(answer, given);
+      ask;
+      ask = pendingAsk(answer, given)
+    ) {
+      const choice = await askDoor(ask);
+      if (!choice) {
+        say(
+          interpolate(getMessage("messageSkipped", "Skipped {name}"), {
+            name: ask.name,
+          }),
+          "warning",
+        );
+        return true;
+      }
+      given = { ...given, ...choice };
+      answer = await postScan({ attendee_id: attendeeId, ...given });
+    }
+    const handle = answerHandlers[answer.status] as (
+      answer: ScanAnswer,
+      key: string,
+      given: Given,
+    ) => boolean;
+    return handle(answer, String(attendeeId), given);
   };
 
   /** Search by the typed name and show what the search found. */
   const search = async () => {
     const text = input.value.trim();
     if (text.length < SEARCH_MIN_LENGTH) {
-      showCheckinStatus(
+      say(
         getMessage(
           "messageSearchTooShort",
           "Type at least 2 letters of the name.",
@@ -445,20 +392,20 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
       );
       return;
     }
-    const found = await findPeople(
-      text,
-      scanPath,
-      offline,
-      showCheckinStatus,
-      getMessage(
+    const found = await findPeople(text, {
+      checkInById,
+      failedText: getMessage(
         "messageSearchFailed",
         "The search did not work. Check your connection, then try again.",
       ),
-    );
+      offline,
+      say,
+      scanPath,
+    });
     showFound(found ?? []);
     if (found === null) return;
     if (found.length === 0) {
-      showCheckinStatus(
+      say(
         getMessage(
           "messageSearchNone",
           "Nobody at this door matches that name.",
@@ -471,15 +418,12 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
     setListOpen(true);
   };
 
-  /** Settle the door's pick: the offline queue takes a saved person, and
-   * the scan API takes a person the search route found. */
-  const settlePick = async (person: Found) => {
-    if (person.kind === "online") {
-      await checkInPick(String(person.attendeeId), postScan);
-      return;
+  /** Settle the door's pick, then clear it once the door is done with it. */
+  const settlePick = async (person: Person) => {
+    if (await person.checkIn(say)) {
+      setPicked(null);
+      input.value = "";
     }
-    clearPick();
-    await person.queue(showCheckinStatus);
   };
 
   form.addEventListener("submit", async (e) => {
@@ -488,10 +432,7 @@ export const initManualCheckin = (offline: ManualOffline | null): void => {
     try {
       await (picked === null ? search() : settlePick(picked));
     } catch {
-      showCheckinStatus(
-        getMessage("messageNetworkError", "Network error"),
-        "error",
-      );
+      say(getMessage("messageNetworkError", "Network error"), "error");
     } finally {
       submitBtn.disabled = false;
     }

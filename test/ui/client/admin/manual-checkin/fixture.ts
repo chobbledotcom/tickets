@@ -80,6 +80,28 @@ export const FOUND_PEOPLE = [
   { attendeeId: 13, details: [], name: "Cy", quantity: 3 },
 ];
 
+/** A full check-in answer for Ada at the Ceilidh, as the scan route sends
+ * it. `overrides` changes the fields a test is about. */
+export const checkedIn = (overrides: Record<string, unknown> = {}) => ({
+  listingName: "Ceilidh",
+  name: "Ada",
+  quantity: 2,
+  remaining: 0,
+  status: "checked_in",
+  total: 2,
+  ...overrides,
+});
+
+/** An answer that says Ada is already checked in at the Ceilidh. */
+export const alreadyIn = (overrides: Record<string, unknown> = {}) => ({
+  listingName: "Ceilidh",
+  name: "Ada",
+  quantity: 2,
+  status: "already_checked_in",
+  total: 2,
+  ...overrides,
+});
+
 export interface ManualCheckinPage {
   activeId: () => string | null;
   /** The words on the submit button: what the next submit does. */
@@ -120,7 +142,7 @@ const installManualCheckin = (
   const window = dom.installDom(page);
   const scrolledIds: string[] = [];
   window.HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
-    scrolledIds.push(this.dataset.attendeeId!);
+    scrolledIds.push(this.dataset.key!);
   };
   initManualCheckin(offline);
   const input = document.querySelector<HTMLInputElement>(
@@ -151,8 +173,8 @@ const installManualCheckin = (
   };
   return {
     activeId: () =>
-      document.querySelector<HTMLElement>(".combobox-active")?.dataset
-        .attendeeId ?? null,
+      document.querySelector<HTMLElement>(".combobox-active")?.dataset.key ??
+      null,
     buttonLabel: () => String(submitButton.textContent).trim(),
     form,
     input,
@@ -161,7 +183,7 @@ const installManualCheckin = (
     pick: (attendeeId) => {
       // A missing option makes fireEvent throw.
       const option = document.querySelector<HTMLElement>(
-        `[data-attendee-id='${attendeeId}']`,
+        `[data-key='${attendeeId}']`,
       )!;
       fireEvent(option, new window.Event("click", { bubbles: true }));
     },

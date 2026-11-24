@@ -20,8 +20,11 @@ import { expect } from "@std/expect";
 import type { Page } from "playwright";
 import { encode } from "uqr";
 import * as v from "valibot";
-import type { TicketCacheEntry } from "#routes/admin/scan-cache.ts";
 import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
+import {
+  type TicketCacheEntry,
+  TicketCacheEntrySchema,
+} from "#shared/ticket-cache.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {
   type BrowserContract,
@@ -51,14 +54,7 @@ export const CHECK_IN_PICK = 2;
 /** The ticket list one door's cache endpoint answers and the page stores:
  * one keyed digest per ticket, with the places one scan at the door admits.
  * Both boundaries are outside the test's own code, so both parse. */
-const cacheEntriesSchema = v.array(
-  v.object({
-    details: v.array(v.string()),
-    hash: v.string(),
-    name: v.string(),
-    tickets: v.pipe(v.number(), v.integer()),
-  }),
-);
+const cacheEntriesSchema = v.array(TicketCacheEntrySchema);
 const servedCacheSchema = v.object({ entries: cacheEntriesSchema });
 const storedCacheSchema = v.object({
   entries: cacheEntriesSchema,

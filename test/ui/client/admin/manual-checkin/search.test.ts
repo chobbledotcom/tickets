@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type {
   ManualOffline,
-  SavedEntry,
+  Person,
   Say,
 } from "#src/ui/client/admin/manual-search.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -14,27 +14,28 @@ const optionLabels = (page: ManualCheckinPage): (string | null)[] =>
     (option) => option.textContent,
   );
 
-const SAVED_ADA: SavedEntry = {
-  details: ["Camping · 12 Jun"],
-  name: "Ada",
-  tickets: 2,
-};
-
 /** An offline side that answers from a fixed saved list and records what
  * the form asks of it. */
-const savedListOffline = (active: boolean, saved: SavedEntry[] | null) => {
+const savedListOffline = (active: boolean, saved: boolean) => {
   const searched: string[] = [];
-  const picked: SavedEntry[] = [];
+  const picked: string[] = [];
+  const ada: Person = {
+    checkIn: async (say: Say) => {
+      picked.push("Ada");
+      say("Queued.", "success");
+      return true;
+    },
+    details: ["Camping · 12 Jun"],
+    key: "saved-digest",
+    name: "Ada",
+    quantity: 2,
+  };
   const offline: ManualOffline = {
     active: () => active,
-    pick: async (entry: SavedEntry, say: Say) => {
-      picked.push(entry);
-      say("Queued.", "success");
-    },
     search: (text: string, say: Say) => {
       searched.push(text);
-      if (saved === null) say("No saved list.", "error");
-      return saved;
+      if (!saved) say("No saved list.", "error");
+      return saved ? [ada] : null;
     },
   };
   return { offline, picked, searched };
@@ -121,7 +122,7 @@ describe("manual check-in search", () => {
   });
 
   test("searches the saved list while offline mode settles the door", async () => {
-    const { offline, picked, searched } = savedListOffline(true, [SAVED_ADA]);
+    const { offline, picked, searched } = savedListOffline(true, true);
     const page = fresh(offline);
     using fetchStub = stubFetch(Response.json({ options: [] }));
     page.input.value = "ad";
@@ -129,14 +130,16 @@ describe("manual check-in search", () => {
     await page.submit();
     expect(searched).toEqual(["ad"]);
     expect(optionLabels(page)).toEqual(["Ada (2 tickets) - Camping · 12 Jun"]);
-    // A saved person has no attendee id: the queue knows them by digest.
-    expect(page.listbox.querySelector("[data-attendee-id]")).toBeNull();
+    // The queue knows a saved person by their ticket digest.
+    expect(
+      page.listbox.querySelector<HTMLElement>("[role=option]")?.dataset.key,
+    ).toBe("saved-digest");
 
     const option = page.listbox.querySelector<HTMLElement>("[role=option]")!;
     option.click();
     await page.submit();
 
-    expect(picked).toEqual([SAVED_ADA]);
+    expect(picked).toEqual(["Ada"]);
     expect(page.status.textContent).toBe("Queued.");
     expect(page.buttonLabel()).toBe("Search");
     expect(page.input.value).toBe("");
@@ -145,7 +148,7 @@ describe("manual check-in search", () => {
   });
 
   test("shows no list when the device has no saved list", async () => {
-    const { offline } = savedListOffline(true, null);
+    const { offline } = savedListOffline(true, false);
     const page = fresh(offline);
     page.input.value = "Ada";
 
@@ -156,7 +159,7 @@ describe("manual check-in search", () => {
   });
 
   test("asks the search route while the offline side is idle", async () => {
-    const { offline, searched } = savedListOffline(false, [SAVED_ADA]);
+    const { offline, searched } = savedListOffline(false, true);
     const page = fresh(offline);
     using fetchStub = stubFetch(Response.json({ options: [] }));
     page.input.value = "Ada";

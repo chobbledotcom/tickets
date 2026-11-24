@@ -2,7 +2,11 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { fireEvent } from "#test-utils/happy-dom.ts";
-import { useManualCheckinPage, waitUntilSettled } from "./fixture.ts";
+import {
+  checkedIn,
+  useManualCheckinPage,
+  waitUntilSettled,
+} from "./fixture.ts";
 
 describe("manual check-in scan answers", () => {
   const { pickedPage, stubScans } = useManualCheckinPage();
@@ -31,20 +35,21 @@ describe("manual check-in scan answers", () => {
   const settle = (page: { submitButton: HTMLButtonElement }): Promise<void> =>
     waitUntilSettled(() => !page.submitButton.disabled, "the check-in");
 
-  test("asks how many when the line owes more than one, then admits the pick", async () => {
-    const sent = stubScans([
-      { max: 2, name: "Ada", status: "select_quantity" },
-      {
-        listingName: "Tour",
-        name: "Ada",
-        quantity: 2,
-        remaining: 0,
-        status: "checked_in",
-        total: 3,
-      },
-    ]);
+  const COUNT_ASK = { max: 2, name: "Ada", status: "select_quantity" };
+
+  /** Pick Ada, whose line owes two places, and wait for the count ask. The
+   * scan route answers `afterCount` once the door picks. */
+  const askCountThen = async (afterCount: Record<string, unknown>) => {
+    const sent = stubScans([COUNT_ASK, afterCount]);
     const page = await startSubmitFor("11");
     await awaitOverlay();
+    return { page, sent };
+  };
+
+  test("asks how many when the line owes more than one, then admits the pick", async () => {
+    const { page, sent } = await askCountThen(
+      checkedIn({ listingName: "Tour", total: 3 }),
+    );
 
     // The overlay is up with the person's name in it and 1 to the whole
     // line offered, the whole line selected.
@@ -101,5 +106,18 @@ describe("manual check-in scan answers", () => {
     expect(sent).toHaveLength(1);
     expect(page.status.textContent).toBe("Skipped Ada");
     assertStringIncludes(page.status.className, "checkin-status-warning");
+  });
+
+  test("a count ask that comes back after the door picked shows the error", async () => {
+    const { page, sent } = await askCountThen(COUNT_ASK);
+    document.getElementById("scanner-quantity-confirm")!.click();
+    await settle(page);
+
+    expect(sent).toEqual([
+      { attendee_id: 11 },
+      { attendee_id: 11, quantity: 2 },
+    ]);
+    expect(page.status.textContent).toBe("Check-in failed");
+    assertStringIncludes(page.status.className, "checkin-status-error");
   });
 });

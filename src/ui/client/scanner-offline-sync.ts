@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // Browser-only code - bundled into /scanner.js by scripts/build-static-assets.ts
 //
 // The queue panel the offline door reads, and the replay that settles it.
@@ -5,22 +6,57 @@
 // each queued check-in to the door it was scanned at once the connection is
 // back. It marks the answer on its own row.
 
+import * as v from "valibot";
 import { getMessage, interpolate, showStatus } from "./scanner-messages.js";
 import {
   deliveryExpired,
   dropFromQueue,
   isSyncing,
+  type QueuedCheckIn,
   queueHolds,
   readQueue,
   setSyncing,
-} from "./scanner-offline.js";
+} from "./scanner-offline.ts";
+import type { QueuePanel } from "./scanner-offline-ui.ts";
+
+/** One queue row: the stored check-in and the list item that shows it. */
+export type QueueRow = { item: QueuedCheckIn; row: HTMLElement };
+
+/** What a queued check-in's delivery answers, as far as the queue reads
+ * it. An answer with no status is no scan decision: an expired session or
+ * a refused role leaves the check-in queued. */
+const QueueAnswerSchema = v.object({
+  message: v.optional(v.string(), ""),
+  name: v.optional(v.string()),
+  overAdmission: v.optional(
+    v.object({ admitted: v.number(), bought: v.number(), named: v.number() }),
+  ),
+  status: v.string(),
+});
+
+type QueueAnswer = v.InferOutput<typeof QueueAnswerSchema>;
+
+/** Post one queued check-in's delivery and answer the door's final word. */
+export type SettleDelivery = (item: QueuedCheckIn) => Promise<unknown>;
+
+/** The message key and fallback words for each answer status a settled
+ * row names. */
+/* jscpd:ignore-start -- static data, not code */
+const QUEUE_OUTCOME_WORDS: Partial<Record<string, [string, string]>> = {
+  already_checked_in: ["messageQueueItemAlready", "Was already checked in"],
+  checked_in: ["messageQueueItemCheckedIn", "Checked in"],
+  not_found: ["messageNotFound", "Ticket not found"],
+  refunded: ["messageQueueItemRefunded", "Refunded — not checked in"],
+  wrong_listing: ["messageNoDoor", "This ticket has no door to check in at"],
+};
+/* jscpd:ignore-end */
 
 /** The words a settled queue row carries. A declined ask and a refused
  * ticket read the same way to the door: nobody was checked in. An answer
  * that reports the booking's shortfall alerts the door with the numbers.
  * The door then knows some people got in with no place left. */
-const queueOutcome = (messages, answer) => {
-  if (answer?.overAdmission) {
+const queueOutcome = (messages: DOMStringMap, answer: QueueAnswer): string => {
+  if (answer.overAdmission) {
     return interpolate(
       getMessage(
         messages,
@@ -32,46 +68,21 @@ const queueOutcome = (messages, answer) => {
       { ...answer.overAdmission, name: answer.name },
     );
   }
-  switch (answer?.status) {
-    case "checked_in":
-      return getMessage(messages, "messageQueueItemCheckedIn", "Checked in");
-    case "already_checked_in":
-      return getMessage(
-        messages,
-        "messageQueueItemAlready",
-        "Was already checked in",
-      );
-    case "refunded":
-      return getMessage(
-        messages,
-        "messageQueueItemRefunded",
-        "Refunded — not checked in",
-      );
-    case "wrong_listing":
-      return getMessage(
-        messages,
-        "messageNoDoor",
-        "This ticket has no door to check in at",
-      );
-    case "not_found":
-      return getMessage(messages, "messageNotFound", "Ticket not found");
-    case "error":
-      return answer.message;
-    default:
-      // verify_id and select_quantity reach the queue only as declined asks.
-      return getMessage(
-        messages,
-        "messageQueueItemNotCheckedIn",
-        "Not checked in",
-      );
-  }
+  if (answer.status === "error") return answer.message;
+  // verify_id and select_quantity reach the queue only as declined asks, so
+  // they and any other status read as nobody checked in.
+  const [key, fallback] = QUEUE_OUTCOME_WORDS[answer.status] ?? [
+    "messageQueueItemNotCheckedIn",
+    "Not checked in",
+  ];
+  return getMessage(messages, key, fallback);
 };
 
 /** The queued count above the panel's rows: what is still pending in the
  * store. Rows stay on the page with their outcome after the sync, so the
  * door sees every result — including which tickets were already checked in
  * elsewhere. */
-const renderQueueCount = (panel, messages) => {
+const renderQueueCount = (panel: QueuePanel, messages: DOMStringMap): void => {
   const count = readQueue().length;
   panel.summary.textContent = interpolate(
     getMessage(
@@ -88,7 +99,11 @@ const renderQueueCount = (panel, messages) => {
 };
 
 /** One waiting row for the panel's list, paired with its stored item. */
-const queuedRow = (panel, messages, item) => {
+const queuedRow = (
+  panel: QueuePanel,
+  messages: DOMStringMap,
+  item: QueuedCheckIn,
+): QueueRow => {
   const row = document.createElement("li");
   row.textContent = getMessage(
     messages,
@@ -100,7 +115,10 @@ const queuedRow = (panel, messages, item) => {
 };
 
 /** Rebuild the queue panel's rows from the stored queue, oldest first. */
-export const renderQueuePanel = (panel, messages) => {
+export const renderQueuePanel = (
+  panel: QueuePanel,
+  messages: DOMStringMap,
+): void => {
   panel.list.replaceChildren();
   panel.rows = [];
   for (const item of readQueue()) {
@@ -112,7 +130,11 @@ export const renderQueuePanel = (panel, messages) => {
 /** Add one queued check-in's waiting row without touching the rows already
  * on the panel. A running sync writes its answers to those rows, and the
  * loop settles the appended row too. */
-export const appendQueuedRow = (panel, messages, item) => {
+export const appendQueuedRow = (
+  panel: QueuePanel,
+  messages: DOMStringMap,
+  item: QueuedCheckIn,
+): void => {
   panel.rows.push(queuedRow(panel, messages, item));
   renderQueueCount(panel, messages);
 };
@@ -120,16 +142,21 @@ export const appendQueuedRow = (panel, messages, item) => {
 /** A sync asked for while another runs re-runs once the running one ends.
  * The ask that arrives mid-run — a returning connection, a disarm — must
  * not die with the run it interrupted. */
-let syncRequested = false;
+const ask = { again: false };
 
 /** Send every queued check-in and report each one's outcome on its own row.
  * An item leaves the queue only after the door answered it with a scan
  * decision. Nothing is lost when the connection drops mid-sync or the door
  * refuses the page's session. The door answers a replayed check-in
  * with already_checked_in rather than checking anyone in twice. */
-export const syncQueue = async (statusEl, messages, panel, settleDelivery) => {
+export const syncQueue = async (
+  statusEl: HTMLElement,
+  messages: DOMStringMap,
+  panel: QueuePanel,
+  settleDelivery: SettleDelivery,
+): Promise<void> => {
   if (isSyncing()) {
-    syncRequested = true;
+    ask.again = true;
     return;
   }
   if (!navigator.onLine || readQueue().length === 0) return;
@@ -138,7 +165,7 @@ export const syncQueue = async (statusEl, messages, panel, settleDelivery) => {
   /** Drop one answered check-in from the store. False when the store
    * refused the removal, which stops the sync. The door then learns why
    * the row still waits. */
-  const dropAnswered = (item) => {
+  const dropAnswered = (item: QueuedCheckIn): boolean => {
     try {
       dropFromQueue(item);
     } catch {
@@ -163,7 +190,7 @@ export const syncQueue = async (statusEl, messages, panel, settleDelivery) => {
    * store without a send. Its row tells the door to scan the ticket
    * again. False when the store refused the removal, which stops the
    * sync. */
-  const expireRow = ({ item, row }) => {
+  const expireRow = ({ item, row }: QueueRow): boolean => {
     if (!dropAnswered(item)) return false;
     row.className = "";
     row.textContent = getMessage(
@@ -178,15 +205,10 @@ export const syncQueue = async (statusEl, messages, panel, settleDelivery) => {
   /** Settle one queued check-in: send its delivery, mark its answer on the
    * row, and drop it from the store. False when the store refused the
    * removal, which stops the sync. */
-  const settleRow = async ({ item, row }) => {
-    let answer;
+  const settleRow = async ({ item, row }: QueueRow): Promise<boolean> => {
+    let answer: QueueAnswer;
     try {
-      answer = await settleDelivery(item);
-      // An answer without a scan decision is no settlement: an expired
-      // session or a refused role leaves the check-in queued.
-      if (typeof answer?.status !== "string") {
-        throw new Error("The door sent no scan decision.");
-      }
+      answer = v.parse(QueueAnswerSchema, await settleDelivery(item));
     } catch {
       // No answer or no scan decision — a dead connection, an expired
       // session, a refused role. The item waits for the next sync.
@@ -202,7 +224,7 @@ export const syncQueue = async (statusEl, messages, panel, settleDelivery) => {
     row.textContent = queueOutcome(messages, answer);
     // The over-admission alert must stand out among the settled rows: the
     // door let people in with no place left, and staff act on it now.
-    row.className = answer?.overAdmission ? "scanner-queue-alert" : "";
+    row.className = answer.overAdmission ? "scanner-queue-alert" : "";
     renderQueueCount(panel, messages);
     return true;
   };
@@ -249,8 +271,8 @@ export const syncQueue = async (statusEl, messages, panel, settleDelivery) => {
     showSyncOutcome();
   } finally {
     setSyncing(false);
-    if (syncRequested) {
-      syncRequested = false;
+    if (ask.again) {
+      ask.again = false;
       syncQueue(statusEl, messages, panel, settleDelivery);
     }
   }

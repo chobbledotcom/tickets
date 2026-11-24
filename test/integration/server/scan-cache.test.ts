@@ -51,14 +51,14 @@ const doorDigest = (door: string, token: string): Promise<string> =>
  * person a name search finds by it, with no detail unless one is named. */
 const entryOf = (
   hash: string,
-  tickets: number,
+  quantity: number,
   name: string,
   details: unknown[] = [],
-) => ({ details, hash, name, tickets });
+) => ({ details, hash, name, quantity });
 
 /** The digest and the count of each entry, in the saved order. */
-const digestsAndCounts = (entries: { hash: string; tickets: number }[]) =>
-  entries.map((entry) => [entry.hash, entry.tickets]);
+const digestsAndCounts = (entries: { hash: string; quantity: number }[]) =>
+  entries.map((entry) => [entry.hash, entry.quantity]);
 
 describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
   test("serves an entry for every ticket the listing door can admit", async () => {
