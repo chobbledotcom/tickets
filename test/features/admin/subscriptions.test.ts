@@ -66,6 +66,14 @@ const renew = async (subscriptionId: string): Promise<void> => {
   );
 };
 
+/** A refund of 5.00 from `attendeeId` back to the world, as a refund posts
+ * its cash leg. */
+const refundFive = (attendeeId: number) =>
+  executeBatch([
+    sql`INSERT INTO transfers (source_type, source_id, dest_type, dest_id, amount, occurred_at, recorded_at, reference, event_group, kind)
+        VALUES ('attendee', ${String(attendeeId)}, 'external', 'world', 500, 1782120600000, 1782120600000, ${`refund-${attendeeId}`}, ${`refund-${attendeeId}`}, 'refund_cash')`,
+  ]);
+
 describeWithEnv("server (admin subscriptions)", { db: true }, () => {
   test("says nobody has subscribed yet", async () => {
     expectIncludesAll(await pageHtml("/admin/subscriptions"), [
@@ -194,6 +202,18 @@ describeWithEnv("server (admin subscriptions)", { db: true }, () => {
     expect(bobRow).toContain(
       `<a href="/admin/ledger/attendee/${bob.attendeeId}">0</a>`,
     );
+  });
+
+  test("takes each refund off the total paid, but not off the count", async () => {
+    const { attendeeId } = await subscribe("Ada", MONTHLY);
+    await renew("sub_ada");
+    await postAttendeePayment(attendeeId);
+    await refundFive(attendeeId);
+    expectIncludesAll(tableRows(await pageHtml("/admin/subscriptions"))[0]!, [
+      `<a href="/admin/ledger/attendee/${attendeeId}">2</a>`,
+      "<td>£13.34</td>",
+      "<td>2026-06-22 09:30</td>",
+    ]);
   });
 
   test("does not count a charge that the owner adds as a payment", async () => {
