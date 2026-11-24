@@ -65,7 +65,7 @@ const EXPECTED_FEATURES = [
     "subscriptions",
     "subscriptions",
     "subscriptions",
-    "EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_id != '')",
+    "EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_status IN (?1, ?2, ?3, ?4, ?5, ?6))",
   ],
 ] as const;
 /* jscpd:ignore-end */

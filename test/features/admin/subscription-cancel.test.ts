@@ -5,7 +5,7 @@ import { it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { eventGroup } from "#accounting/refs.ts";
 import { selectByEventGroup } from "#accounting/rows.ts";
-import { execute, queryBatch, queryOne } from "#db/client.ts";
+import { execute, queryBatch } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import { CANCELLABLE_STATUSES } from "#payment/subscription-machine-spec.ts";
@@ -18,7 +18,10 @@ import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions/redirect.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  bookingIdOf,
+  bookOwnListing,
   MONTHLY,
+  statusOf,
   subscribe,
   type TestBooking,
 } from "#test-utils/db-helpers/subscriptions.ts";
@@ -84,16 +87,6 @@ const withStripe = (
     body,
   );
 
-const bookingIdOf = async (booking: TestBooking): Promise<number> =>
-  (await queryOne<{ id: number }>(
-    sql`SELECT id FROM listing_attendees WHERE attendee_id = ${booking.attendeeId}`,
-  ))!.id;
-
-const statusOf = async (booking: TestBooking): Promise<string> =>
-  (await queryOne<{ subscription_status: string }>(
-    sql`SELECT subscription_status FROM listing_attendees WHERE attendee_id = ${booking.attendeeId}`,
-  ))!.subscription_status;
-
 const renewalLegCount = async (): Promise<number> =>
   (
     await selectByEventGroup(
@@ -124,7 +117,7 @@ const askedAbout = (mock: Stub): unknown[][] =>
 
 describeWithEnv("server (cancel a subscription)", { db: true }, () => {
   for (const start of CANCELLABLE_STATUSES) {
-    test(`an owner cancels a ${start} subscription and keeps its last payments`, async () => {
+    test(`an owner cancels a subscription that is ${start}, and keeps its last payments`, async () => {
       const ada = await subscribe("Ada", { ...MONTHLY, status: start });
       await withStripe({ cancel: found("canceled") }, async (mocks) => {
         expectCancelled(await ownerCancel(ada));
@@ -240,13 +233,21 @@ describeWithEnv("server (cancel a subscription)", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
+  test("answers not found for a real booking that has no subscription", async () => {
+    const plain = await bookOwnListing("Bob");
+    await withStripe({ cancel: found("canceled") }, async (mocks) => {
+      expect((await ownerCancel(plain)).status).toBe(404);
+      expect(askedAbout(mocks.cancel)).toEqual([]);
+    });
+  });
+
   const staffCookies = {
     editor: async () => (await createTestEditorSession()).cookie,
     manager: () => createTestManagerSession(),
   };
 
   for (const [role, cookieOf] of Object.entries(staffCookies)) {
-    test(`a ${role} cannot cancel`, async () => {
+    test(`the ${role} role cannot cancel`, async () => {
       const ada = await subscribe("Ada", MONTHLY);
       const cookie = await cookieOf();
       await withStripe({ cancel: found("canceled") }, async (mocks) => {

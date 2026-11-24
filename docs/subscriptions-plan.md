@@ -1,6 +1,6 @@
 # Subscriptions plan
 
-Status: implementation. Each pull request owns its behaviour, safeguards, and regression tests.
+Status: built. The Stripe test-mode proof is not complete.
 This plan follows [the pull request workflow](pr-workflow.md).
 
 ## Goal
@@ -223,8 +223,9 @@ hand.
 
 ### Ledger entry for one recurring payment
 
-One paid Stripe invoice with the reason `subscription_cycle` posts one event
-group. The invoice id is the stable identity.
+Each paid Stripe invoice after the first one posts one event group. That
+includes a cycle, a proration from a change in the Stripe dashboard, and a
+manual charge. The invoice id is the stable identity.
 
 | Leg | From | To | Amount |
 | --- | --- | --- | --- |
@@ -238,9 +239,12 @@ group. The invoice id is the stable identity.
   `recurring_price`. For any other amount, the share keeps the same ratio.
 - The cash leg always uses the observed amount, never the expected amount.
 - The first invoice has the reason `subscription_create`. The current booking
-  path records that payment, so the task skips it.
+  path records that payment, so the task skips it. An invoice with no money
+  posts nothing.
 - An invoice in a currency other than the site currency posts nothing. The
-  task logs an error and leaves the row as it is. The next run tries again.
+  task logs an error that names the invoice and its currency. The other
+  invoices and the status still record. The owner records that payment with
+  a manual ledger entry.
 
 ### Scheduled task
 
@@ -270,8 +274,10 @@ group. The invoice id is the stable identity.
 | The booking cannot proceed | Stripe does not confirm cancellation | The quantity-zero row keeps the plan. The refund waits. | Webhook redelivery and the success redirect |
 | Stripe took the first payment | The booking write fails | The current payment recovery path | The current path |
 | Nothing | The scheduled read fails for one row | That row keeps its status. The batch continues. | The next run |
-| Nothing | The delivery read fails | The delivery answers 503. Nothing is recorded. | Stripe redelivers, and the scheduled check also covers the row |
+| Nothing | Stripe does not answer the delivery read | The delivery answers 503. Nothing is recorded. | Stripe redelivers, and the scheduled check also covers the row |
+| Nothing | Stripe answers the delivery read with no usable subscription | The delivery is acknowledged. Nothing is recorded. The error log names the cause. | The scheduled check reads the row again and logs it on each pass |
 | Stripe took a renewal | The ledger write fails | Nothing recorded. The error reaches the log. | The next run posts the same invoice id, and the next delivery does the same |
+| Stripe took a renewal | The renewal conflicts with the legs that the ledger holds | The check logs the conflict, skips that row, and checks the rows after it | The owner repairs the ledger |
 | Ledger write | The status write fails | The status is stale | The next run |
 | Nothing | The Stripe cancel call fails | No local change. The owner sees an error. | The owner |
 | Stripe cancelled | The status write fails | The status is stale | The scheduled check |
@@ -295,10 +301,12 @@ A failed subscription checkout has three replay rules:
 | Status write | Subscription id | The same status again | A live status needs the status that was read. An ended status replaces any live status. |
 | Cancel | Subscription id | Stripe refuses a second cancel. The site then reads the subscription and stores what it finds. | The same guarded write |
 
-A refused Stripe read leaves that row for a later pass. The batch continues,
-and the delivery answers 503 so that Stripe sends it again. A database write
-failure or a ledger conflict stops the run. The maintenance runner retries from
-its saved checkpoint.
+A refused Stripe read leaves that row for a later pass, and the batch
+continues. If Stripe did not answer, the delivery answers 503 so that Stripe
+sends it again. If Stripe answered with no usable subscription, a second
+delivery cannot do better, so the delivery is acknowledged. A ledger conflict
+skips its row, and the batch continues. Any other database write failure stops
+the run. The maintenance runner retries from its saved checkpoint.
 
 ### Concurrency table
 
@@ -366,9 +374,14 @@ observed amount. Two cases stay with the owner:
   site records nothing. That covers another site on a shared Stripe account,
   and a row that already ended. The read that ended the row recorded its last
   paid invoices at that time.
-- A delivery finds its booking row with a scan of `listing_attendees`. That
-  table holds one row for each booking of the site, and the read asks for the
-  plan columns only.
+- A delivery finds its booking row, and the scheduled check finds the live
+  rows, through `idx_listing_attendees_subscription`. Bookings with no
+  subscription share the blank status, so neither read visits them.
+- A Stripe read can finish after a later read and write an older live status.
+  For example, the check reads `past_due`, Stripe returns to `active`, and a
+  delivery writes nothing. The check then writes `past_due`. The next read
+  corrects the row. An ended status is final, so this cannot reopen an ended
+  row.
 - Stripe stops automatic collection when the owner cancels. If a person
   collects an open invoice by hand after cancellation, the owner must record
   it with a manual ledger entry.

@@ -4,6 +4,7 @@ import { eventGroup, legReference } from "#accounting/refs.ts";
 import { byColumnIn, selectTransfers } from "#accounting/rows.ts";
 import { execute, queryBatch, queryOnePrimary } from "#db/client.ts";
 import { notNullGuardFailure } from "#db/query.ts";
+import { settings } from "#db/settings.ts";
 import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { getSubscribedRowOrNull, type LiveRow } from "#db/subscriptions.ts";
 
@@ -26,7 +27,7 @@ const WRITE_FAULT = "model renewal write refused";
 /** Keep every provider-read argument, even if a later call uses the right id. */
 export const captureRead = <Answer>(
   reads: RenewalFacts["reads"],
-  kind: "renewal" | "currency",
+  kind: "renewal",
   owner: string,
   answer: () => Promise<Answer>,
 ): ((target: string) => Promise<Answer>) => {
@@ -124,6 +125,7 @@ const invoiceEvidence = async (
       cashReference: await legReference(["renewal", invoice.id, "payment"]),
       expectedAt: invoice.status_transitions.paid_at,
       expectedGroup: await eventGroup(["renewal", invoice.id]),
+      foreign: invoice.currency !== settings.currency.toLowerCase(),
       invoice: invoice.id,
       listing: `revenue:${row.listingId}`,
       price: scenario.price,
@@ -224,6 +226,7 @@ export const observePass = async (
     return {
       ...supplied,
       billing_reason: input.reason,
+      currency: input.foreign === true ? "model_foreign" : supplied.currency,
       status_transitions: {
         paid_at: input.paidAt ?? supplied.status_transitions.paid_at,
       },

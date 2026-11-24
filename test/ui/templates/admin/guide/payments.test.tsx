@@ -26,6 +26,7 @@ describe("payments guide schema", () => {
       { id: "refunds", titleKey: "refunds" },
       { id: "ledger", titleKey: "ledger" },
       { id: "invoices", titleKey: "invoices" },
+      { id: "subscriptions", titleKey: "subscriptions" },
       { id: "holidays", titleKey: "daily_listings_and_holidays" },
     ]);
   });
@@ -69,6 +70,19 @@ describe("payments guide schema", () => {
     expectIncludesAll(html, [
       t("guide.q.invoices_how_they_work"),
       "<strong>Update preview</strong>",
+    ]);
+  });
+
+  test("explains selling, reading, and cancelling subscriptions", () => {
+    const html = String(renderGuideSections([sectionByTitle("subscriptions")]));
+    expectIncludesAll(html, [
+      t("guide.q.subscriptions_selling"),
+      t("guide.q.subscriptions_page"),
+      t("guide.q.subscriptions_cancelling"),
+      t("guide.q.subscriptions_still_charging"),
+      "You need Stripe for this.",
+      "Only an owner can do this.",
+      "The site refunds nothing, and the booking stays.",
     ]);
   });
 });

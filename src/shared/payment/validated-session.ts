@@ -124,13 +124,14 @@ const withRejectedSubscription = (
   rejection: MalformedRejection,
   subscription: ValidatedPaymentSession["subscription"],
   createdAt: string | undefined,
-): MalformedRejection => {
-  if (subscription !== undefined) {
-    rejection.subscription = subscription;
-    if (createdAt !== undefined) rejection.createdAt = createdAt;
-  }
-  return rejection;
-};
+): MalformedRejection =>
+  subscription === undefined
+    ? rejection
+    : {
+        ...rejection,
+        subscription,
+        ...(createdAt === undefined ? {} : { createdAt }),
+      };
 
 /**
  * The one place a provider's raw session becomes a ValidatedPaymentSession, so

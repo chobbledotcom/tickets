@@ -55,6 +55,18 @@ const NAMED_LABELS: readonly (readonly [string, readonly string[]])[] = [
     ["deliveries.edit_template", "settings.run_sheet.title"],
   ],
   ["invoices_how_they_work", ["invoices.action.update_preview"]],
+  [
+    "subscriptions_selling",
+    [
+      "settings.title",
+      "features.title",
+      "features.subscriptions.name",
+      "features.status.enabled",
+      "fields.listing.recurring_interval",
+    ],
+  ],
+  ["subscriptions_page", ["nav.subscriptions"]],
+  ["subscriptions_cancelling", ["subscriptions.cancel.button"]],
 ];
 
 /** A label as the guide quotes it in a sentence: the page ends a standalone
