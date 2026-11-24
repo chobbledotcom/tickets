@@ -56,16 +56,19 @@ export const redirectRule = (input: RedirectInput): Result<RedirectInput> => {
 
 const logRedirect = logNameActivity("Redirect");
 
+/** The name of a redirect is the page that it leaves. */
+const fromPathOf = ({ fromPath }: { fromPath: string }): string => fromPath;
+
 export const redirectRecord = defineRecord<
   RecordShapeOf<Redirect, RedirectInput>
 >()({
   activityName: "Redirect",
   api: ADMIN_API_RESOURCES.redirects,
   getAll: redirects.getAll,
-  logName: (input) => input.fromPath,
+  logName: fromPathOf,
   nameField: "fromPath",
   nameLabel: "redirects.name_label",
-  nameOf: (row) => row.fromPath,
+  nameOf: fromPathOf,
   rule: redirectRule,
   surface: { deleteDestination: "redirectDelete", list: "redirects" },
   table: tables.redirects,
@@ -73,7 +76,7 @@ export const redirectRecord = defineRecord<
     create: (input) =>
       commitCommand<Redirect, RedirectInput, RedirectConflict>({
         input,
-        log: (row) => logRedirect(row.fromPath, "created"),
+        log: (row) => logRedirect(fromPathOf(row), "created"),
         message: (conflict) => t(`redirects.error.${conflict}`),
         rule: redirectRule,
         stored: null,
@@ -82,7 +85,7 @@ export const redirectRecord = defineRecord<
     remove: deleteCommand(
       records.redirects.find,
       (row) => deleteRedirect(row.id),
-      (row) => logRedirect(row.fromPath, "deleted"),
+      (row) => logRedirect(fromPathOf(row), "deleted"),
     ),
   },
 });

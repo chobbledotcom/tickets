@@ -102,8 +102,8 @@ export type ResourceList<TEntity> = {
   guideFooter?: Child;
 };
 
-/** The list facet of a record that an Add button creates: the button, the
- *  table, the note for no rows, and the link to the guide. */
+/** The list facet of a record that an Add button creates. It holds the
+ *  button, the table, the note for no rows, and the guide link. */
 export const listWithAddButton = <TEntity,>(config: {
   add: { label: string; route: AdminDestinationId };
   columns: readonly TableColumn<TEntity>[];
