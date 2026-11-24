@@ -86,7 +86,7 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         200,
         "Add Group",
         "Group Name",
-        "Description (optional)",
+        "Description",
         "Terms and Conditions",
       );
       assert(!html.includes('name="slug"'));

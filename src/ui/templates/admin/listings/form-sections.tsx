@@ -209,6 +209,7 @@ export const ListingFormSections = ({
           <Raw html={renderDayPricesFieldset(dayPricesListing)} />
         </>,
       ),
+      className: "listing-section listing-section--duration",
       legend: t("listings_table.booking_duration_day_prices"),
     },
     {

@@ -7,6 +7,7 @@ export const fieldShape = (field: Field): Record<string, unknown> => {
   for (const key of [
     "label",
     "hint",
+    "hintFirst",
     "placeholder",
     "required",
     "requiredMessage",

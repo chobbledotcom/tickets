@@ -49,7 +49,7 @@
 @mixin hide-when-using-defaults($class, $field) {
   @include hidden-in-form(
     ".listing-form--default-#{$class}:has(#use-defaults:checked)",
-    'label:has([name="#{$field}"])',
+    ':is(label, .field-group):has([name="#{$field}"])',
   );
 }
 
@@ -87,8 +87,8 @@
 // ---------------------------------------------------------------------------
 
 form.listing-form--templated:not(:has(#customise-listing:checked)) {
-  label:has(input[name="purchaseOnly"]),
-  label:has(input[name="usesLogistics"]) {
+  :is(label, .field-group):has(input[name="purchaseOnly"]),
+  :is(label, .field-group):has(input[name="usesLogistics"]) {
     display: none;
   }
 }
@@ -96,7 +96,7 @@ form.listing-form--templated:not(:has(#customise-listing:checked)) {
 form.listing-form--templated.listing-form--hide-type:not(
   :has(#customise-listing:checked)
 ) {
-  label:has(select[name="listingType"]) {
+  :is(label, .field-group):has(select[name="listingType"]) {
     display: none;
   }
 }
@@ -109,10 +109,17 @@ form.listing-form--templated.listing-form--hide-date:not(
   }
 }
 
+// A physical or digital item, a donation, and a subscription have no place to
+// show, so their forms omit the location box.
+form.listing-form--no-location label:has([name="location"]) {
+  display: none;
+}
+
 form.listing-form--templated.listing-form--no-daily:not(
   :has(#customise-listing:checked)
 ) {
-  label:has([name="customisableDays"]),
+  .listing-section--duration,
+  :is(label, .field-group):has([name="customisableDays"]),
   #day-prices {
     display: none;
   }
@@ -143,7 +150,7 @@ form.listing-form--templated.listing-form--no-daily:not(
 @include reveal-when-checked("isPackage", ".package-prices");
 @include reveal-when-checked(
   "isPackage",
-  'label:has(input[name="hidePackageListings"])',
+  ':is(label, .field-group):has(input[name="hidePackageListings"])',
 );
 
 // "Show hidden listings" decides what a REGULAR group's public page offers, so
@@ -151,7 +158,7 @@ form.listing-form--templated.listing-form--no-daily:not(
 // this box would say.
 @include hidden-in-form(
   ':has(input[name="isPackage"]:checked)',
-  'label:has(input[name="showHiddenListings"])',
+  ':is(label, .field-group):has(input[name="showHiddenListings"])',
 );
 
 // Hide the reservation amount field unless "This is a reservation" is checked.

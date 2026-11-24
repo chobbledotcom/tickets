@@ -151,6 +151,14 @@ describe("listingFormClass", () => {
       "listing-form--templated listing-form--hide-type listing-form--no-daily",
     );
 
+    const noLocation = {
+      location: false,
+      signature: { daily: false },
+    } as Parameters<typeof listingFormClass>[0];
+    expect(listingFormClass(noLocation)).toBe(
+      "listing-form--templated listing-form--hide-type listing-form--no-daily listing-form--no-location",
+    );
+
     expect(
       listingFormClass({ signature: {} } as Parameters<
         typeof listingFormClass
@@ -167,11 +175,11 @@ describe("listingFormClassAttr", () => {
     const withDefault = { hidden: true };
     expect(listingFormClassAttr(templated, withDefault)).toEqual({
       class:
-        "listing-form--templated listing-form--hide-type listing-form--hide-date listing-form--default-hidden",
+        "listing-form listing-form--templated listing-form--hide-type listing-form--hide-date listing-form--default-hidden",
     });
     expect(listingFormClassAttr(null, withDefault)).toEqual({
-      class: "listing-form--default-hidden",
+      class: "listing-form listing-form--default-hidden",
     });
-    expect(listingFormClassAttr(null, {})).toEqual({});
+    expect(listingFormClassAttr(null, {})).toEqual({ class: "listing-form" });
   });
 });

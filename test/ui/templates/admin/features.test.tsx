@@ -49,14 +49,14 @@ describe("admin feature templates", () => {
     ]);
   });
 
-  test("renders an enabled feature as an editable yes-no form", () => {
+  test("renders an enabled feature as an editable checkbox form", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = renderFeature({ enabled: true });
 
     expectIncludesAll(html, [
       'action="/admin/features/attributes"',
-      '<input checked name="enabled" type="radio" value="true">',
-      '<input name="enabled" type="radio" value="false">',
+      '<input checked name="enabled" type="checkbox" value="true">',
+      "Enable this feature",
       "Save feature",
     ]);
     assert(!html.includes("This feature is in use."));

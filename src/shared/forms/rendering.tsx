@@ -15,6 +15,7 @@ import { getSavedFieldValue } from "#shared/forms/saved-data.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { commaParts } from "#shared/split.ts";
 import { PriceInput } from "#templates/components/price-input.tsx";
+import { RequiredMark } from "#templates/components/required-mark.tsx";
 
 export type SelectOption = {
   value: string;
@@ -226,25 +227,59 @@ const publicLinkHint = (field: Field, value: string): JSX.Element | null => {
   );
 };
 
-export const renderField = (field: Field, value: string = ""): string =>
-  (field.beforeHtml ?? "") +
-  String(
+export const renderField = (field: Field, value: string = ""): string => {
+  const requirement = <RequiredMark required={field.required} />;
+  const hint = field.hint ? <small>{field.hint}</small> : null;
+  const hints = (
     <>
-      <label>
-        {field.label}
-        {field.labelSuffixHtml && <Raw html={field.labelSuffixHtml} />}
-        {renderFieldInput(field, value)}
-        {field.hint && <small>{field.hint}</small>}
-        {field.hintHtml && (
-          <small>
-            <Raw html={field.hintHtml} />
-          </small>
-        )}
-        {publicLinkHint(field, value)}
-      </label>
-      {selectOptionHints(field)}
-    </>,
+      {!field.hintFirst && hint}
+      {field.hintHtml && (
+        <small>
+          <Raw html={field.hintHtml} />
+        </small>
+      )}
+      {publicLinkHint(field, value)}
+    </>
   );
+  // A checkbox group needs a fieldset and a legend. Nesting it inside a
+  // <label> puts one label inside another, which HTML forbids.
+  if (field.type === "checkbox-group") {
+    const singleOption = field.options.length === 1;
+    return (
+      (field.beforeHtml ?? "") +
+      String(
+        <>
+          <fieldset class="field-group">
+            <legend class={singleOption ? "visually-hidden" : undefined}>
+              {field.label}
+              {field.labelSuffixHtml && <Raw html={field.labelSuffixHtml} />}
+              {requirement}
+            </legend>
+            {renderFieldInput(field, value)}
+            {hints}
+          </fieldset>
+          {selectOptionHints(field)}
+        </>,
+      )
+    );
+  }
+  return (
+    (field.beforeHtml ?? "") +
+    String(
+      <>
+        <label>
+          {field.label}
+          {field.labelSuffixHtml && <Raw html={field.labelSuffixHtml} />}
+          {requirement}
+          {field.hintFirst && hint}
+          {renderFieldInput(field, value)}
+          {hints}
+        </label>
+        {selectOptionHints(field)}
+      </>,
+    )
+  );
+};
 
 const resolveFieldValue = (
   field: Field,

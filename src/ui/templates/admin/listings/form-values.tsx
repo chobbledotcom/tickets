@@ -105,6 +105,7 @@ export const listingFormClass = (template: ListingTemplate): string =>
     template.signature.daily !== undefined ? "listing-form--hide-type" : "",
     template.signature.dated === false ? "listing-form--hide-date" : "",
     template.signature.daily === false ? "listing-form--no-daily" : "",
+    template.location === false ? "listing-form--no-location" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -112,20 +113,18 @@ export const listingFormClass = (template: ListingTemplate): string =>
 const listingFormClassFor = (
   template: ListingTemplate | null,
   defaults: ListingDefaults,
-): string | undefined => {
-  const classes = [
+): string =>
+  [
+    "listing-form",
     template ? listingFormClass(template) : "",
     listingDefaultFormClasses(defaults),
   ]
     .filter(Boolean)
     .join(" ");
-  return classes || undefined;
-};
 
 export const listingFormClassAttr = (
   template: ListingTemplate | null,
   defaults: ListingDefaults,
-): { class?: string } => {
-  const classes = listingFormClassFor(template, defaults);
-  return classes ? { class: classes } : {};
-};
+): { class: string } => ({
+  class: listingFormClassFor(template, defaults),
+});

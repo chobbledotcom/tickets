@@ -151,9 +151,9 @@ label.terms-agree {
 
 .listing-section > legend {
   display: block;
-  width: 100%;
-  margin-top: var(--space-lg);
-  @include section-divider;
+  width: auto;
+  margin: 0;
+  padding: 0 var(--space-s);
   font-weight: bold;
   font-size: 1.05rem;
 }
