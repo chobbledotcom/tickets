@@ -23,6 +23,11 @@
       "path": [{ "name": "TicketCacheEntry" }],
       "kind": "external-output",
       "evidence": "jsonResponse serialises the entries into the scan-cache GET body; the scanner page's hand-written browser JS (scanner-offline.js, scanner-offline-ui.js) validates and reads tickets for the offline quantity ask"
+    },
+    {
+      "path": [{ "name": "TicketCachePage" }],
+      "kind": "external-output",
+      "evidence": "jsonResponse serialises one page into the scan-cache GET body; the scanner page's hand-written browser JS (isCachePage and downloadTicketCache in scanner-offline.js) validates the page and reads entries, next, people and total to collect the list and show progress"
     }
   ],
   "src/features/api/public-listing.ts": [
