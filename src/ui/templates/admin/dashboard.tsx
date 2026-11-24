@@ -5,6 +5,7 @@
 import type { ActiveListingStats } from "#db/attendee-types.ts";
 import type { ServicingEventSummary } from "#db/attendees/servicing.ts";
 import type { Holiday } from "#db/holidays.ts";
+import { settings } from "#db/settings.ts";
 import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -56,7 +57,7 @@ const activeOnly = filter((e: ListingWithCount) => e.active);
 /** The dashboard's quick-create actions — shortcuts to add a listing or an
  *  attendee straight from the home page (each section's own sub-nav reaches the
  *  same create flows once you're inside it). */
-const DashboardQuickActions = (): JSX.Element => (
+export const DashboardQuickActions = (): JSX.Element => (
   <p class="actions">
     <ActionButton href="/admin/listing/new" icon="plus">
       {t("admin.dashboard.add_listing")}
@@ -210,14 +211,58 @@ const upcomingHolidaysSection = (holidays: Holiday[]): string =>
 /** The attendees still owed a notification send, shown when the count is above
  * zero. Links to the attendees browser, where each attendee's badges name what
  * never went out. */
-const pendingNotificationsSection = (count: number): string =>
-  String(
-    <p class="prose">
-      <a href="/admin/attendees">
-        {t("admin.dashboard.pending_notifications", { count })}
-      </a>
-    </p>,
-  );
+export const pendingNotificationsSection = (count: number): string =>
+  count === 0
+    ? ""
+    : String(
+        <p class="prose">
+          <a href="/admin/attendees">
+            {t("admin.dashboard.pending_notifications", { count })}
+          </a>
+        </p>,
+      );
+
+/** The end of both dashboards: the newest attendees, the link to the other
+ * dashboard when there is one, and the guide link. */
+export const DashboardTail = ({
+  listings,
+  newestAttendees,
+  switchTo,
+}: {
+  /** Every listing in order, which names the newest attendees' listings. */
+  listings: ListingWithCount[];
+  newestAttendees: DisplayAttendee[];
+  switchTo: { href: string; labelKey: string } | null;
+}): JSX.Element => (
+  <>
+    <Raw html={newestAttendeesSection(newestAttendees, listings)} />
+
+    {switchTo !== null && (
+      <p>
+        <a href={switchTo.href}>{t(switchTo.labelKey)}</a>
+      </p>
+    )}
+
+    <GuideFooter href="/admin/guide#dashboard">
+      {t("admin.dashboard.guide_link")}
+    </GuideFooter>
+  </>
+);
+
+/** Open one of the two dashboards. Both sit at `/admin/` under the Listings
+ * title. */
+export const renderDashboard = (
+  body: JSX.Element,
+  flash: { error?: string | undefined; success?: string | undefined },
+  session: AdminSession,
+): string =>
+  renderAdminPageSpec({
+    active: "/admin/",
+    body,
+    flash,
+    session,
+    title: t("terms.listings"),
+  });
 
 /**
  * Admin dashboard page
@@ -272,48 +317,44 @@ export const adminDashboardPage = (
   );
   const filterHtml = `${typeFilterHtml}${attributeFilterHtml}`;
 
-  return renderAdminPageSpec({
-    active: "/admin/",
-    body: (
-      <>
-        {showWelcome && !isReadOnly() && <WelcomeBanner />}
+  return renderDashboard(
+    <>
+      {showWelcome && !isReadOnly() && <WelcomeBanner />}
 
-        {!isReadOnly() && <DashboardQuickActions />}
+      {!isReadOnly() && <DashboardQuickActions />}
 
-        <ListingsTableBlock
-          columnKeys={columnKeys}
-          filters={filters}
-          headerHtml={filterHtml}
-          listings={shownListings}
-        />
+      <ListingsTableBlock
+        columnKeys={columnKeys}
+        filters={filters}
+        headerHtml={filterHtml}
+        listings={shownListings}
+      />
 
-        {stats && <Raw html={activeListingStatsSection(stats)} />}
+      {stats && <Raw html={activeListingStatsSection(stats)} />}
 
-        {pendingNotifications > 0 && (
-          <Raw html={pendingNotificationsSection(pendingNotifications)} />
-        )}
+      <Raw html={pendingNotificationsSection(pendingNotifications)} />
 
-        {upcomingHolidays.length > 0 && (
-          <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
-        )}
+      {upcomingHolidays.length > 0 && (
+        <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
+      )}
 
-        {upcomingServicingEvents.length > 0 && (
-          <Raw html={upcomingServicingSection(upcomingServicingEvents)} />
-        )}
+      {upcomingServicingEvents.length > 0 && (
+        <Raw html={upcomingServicingSection(upcomingServicingEvents)} />
+      )}
 
-        {newestAttendees.length > 0 && (
-          <Raw html={newestAttendeesSection(newestAttendees, listings)} />
-        )}
-
-        <GuideFooter href="/admin/guide#dashboard">
-          {t("admin.dashboard.guide_link")}
-        </GuideFooter>
-      </>
-    ),
-    flash: { error: imageError, success: successMessage },
+      <DashboardTail
+        listings={listings}
+        newestAttendees={newestAttendees}
+        switchTo={
+          settings.dashboardType === "groups"
+            ? { href: "/admin/", labelKey: "admin.dashboard.show_group_cards" }
+            : null
+        }
+      />
+    </>,
+    { error: imageError, success: successMessage },
     session,
-    title: t("terms.listings"),
-  });
+  );
 };
 
 /** Admin listings index page with active and deactivated listings split. */

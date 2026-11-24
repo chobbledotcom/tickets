@@ -189,13 +189,6 @@ export const orderModifierLines = async (
 export const allTransfers = (): Promise<Transfer[]> =>
   selectTransfers(queryBatch);
 
-/** The most recent `limit` transfers, newest first (by business time then id, so
- *  ties are stable). The ordering + limit run in SQL so the whole ledger is never
- *  loaded into memory. `occurred_at` is the stored INTEGER epoch, so DESC is
- *  newest-first. */
-export const recentTransfers = (limit: number): Promise<Transfer[]> =>
-  newestTransfers(limit, () => []);
-
 /** Legs shown on the operator-facing ledger list. Routine checkout cash
  * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden.
  * Owner-entered manual rows and service cost legs remain visible even when they

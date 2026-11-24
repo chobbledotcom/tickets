@@ -2,25 +2,29 @@
  * Admin guide — GettingStarted sections.
  */
 
-import { faq, type GuideSection } from "#templates/admin/guide/components.tsx";
+import {
+  faq,
+  faqSection,
+  type GuideSection,
+} from "#templates/admin/guide/components.tsx";
 
 export const gettingStartedSections = (): GuideSection[] => [
   {
     entries: [faq("create_listing"), faq("setup_payments")],
     titleKey: "getting_started",
   },
-  {
-    entries: [faq("what_is_dashboard"), faq("change_list_order")],
-    id: "dashboard",
-    titleKey: "dashboard",
-  },
+  faqSection(
+    "dashboard",
+    ["what_is_dashboard", "group_cards_dashboard", "change_list_order"],
+    "dashboard",
+  ),
   {
     entries: [faq("test_after_changing_settings"), faq("report_bug")],
     titleKey: "testing_your_system",
   },
-  {
-    entries: [faq("contact_support"), faq("support_page_availability")],
-    id: "support",
-    titleKey: "getting_help",
-  },
+  faqSection(
+    "getting_help",
+    ["contact_support", "support_page_availability"],
+    "support",
+  ),
 ];

@@ -1,5 +1,6 @@
 import { resultRows, type TxScope } from "#db/client.ts";
 import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
+import { idSet } from "#shared/fp-records.ts";
 import { namedError } from "#shared/named-error.ts";
 
 /** Runs a transaction-local ID lookup for one deduplicated input set. */
@@ -13,7 +14,7 @@ export const txIdSet = async (
   const rows = resultRows<{ id: number }>(
     await tx.execute(toStatement(unique)),
   );
-  return new Set(rows.map((row) => row.id));
+  return idSet(rows);
 };
 
 /** A txIdSet lookup of one table's id column, bounded to the submitted ids.

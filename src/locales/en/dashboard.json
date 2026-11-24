@@ -23,5 +23,12 @@
   "admin.dashboard.welcome.step_address": "Give the site a nicer address",
   "admin.dashboard.welcome.dismiss": "Got it",
   "admin.dashboard.welcome.dismissed": "Welcome message hidden.",
-  "admin.listings.add_attendee": "Add Attendee"
+  "admin.listings.add_attendee": "Add Attendee",
+  "admin.dashboard.show_group_cards": "Show group cards",
+  "admin.dashboard.show_listings_table": "Show listings table",
+  "admin.dashboard.other_listings": "Other listings",
+  "admin.dashboard.card_scanner": "Scanner",
+  "admin.dashboard.card_attendees": "Attendees",
+  "admin.dashboard.card_duplicate": "Duplicate group",
+  "admin.dashboard.card_no_listings": "No listings on sale in this group"
 }

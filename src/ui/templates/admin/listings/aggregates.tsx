@@ -16,7 +16,6 @@ import {
   bindRecalculatePage,
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
-import { capacityLevel } from "#templates/components/capacity.tsx";
 import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import type { ListingWithCount } from "#types";
 
@@ -26,9 +25,6 @@ export {
   countCheckedInRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
-
-export const nearCapacity = (listing: ListingWithCount): boolean =>
-  capacityLevel(listing.attendeeCount, listing.maxAttendees).nearLimit;
 
 const listingRecalculateRows = recalculateRowsFor<ListingAggregateField>(
   getListingAggregateFields,

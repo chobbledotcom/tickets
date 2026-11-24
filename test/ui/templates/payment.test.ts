@@ -6,7 +6,6 @@ import {
   checkoutPopupPage,
   paymentCancelPage,
   paymentErrorPage,
-  paymentPage,
   paymentWaitingPage,
   successPage,
   WAITING_PAGE_RELOAD_LIMIT,
@@ -14,55 +13,8 @@ import {
 } from "#templates/payment.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { testAttendee, testListing } from "#test-utils/factories.ts";
+import { testListing } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-
-describe("paymentPage", () => {
-  beforeAll(setupAdminPageTest);
-
-  const listing = testListing({ unitPrice: 1000 });
-  const attendee = testAttendee();
-
-  test("renders payment details", () => {
-    const html = paymentPage(
-      listing,
-      attendee,
-      "https://checkout.stripe.com/session",
-      "£10.00",
-    );
-    expectIncludesAll(html, [
-      "Complete Your Payment",
-      "John Doe",
-      "john@example.com",
-      "£10.00",
-    ]);
-  });
-
-  test("includes checkout URL", () => {
-    const html = paymentPage(
-      listing,
-      attendee,
-      "https://checkout.stripe.com/session",
-      "£10.00",
-    );
-    expectIncludesAll(html, [
-      "https://checkout.stripe.com/session",
-      'class="btn"',
-      "Pay Now",
-    ]);
-  });
-
-  test("escapes user data", () => {
-    const evilAttendee = testAttendee({ name: "<script>evil()</script>" });
-    const html = paymentPage(
-      listing,
-      evilAttendee,
-      "https://checkout.stripe.com/session",
-      "£10.00",
-    );
-    assertStringIncludes(html, "&lt;script&gt;");
-  });
-});
 
 describe("successPage", () => {
   beforeAll(setupAdminPageTest);

@@ -192,7 +192,9 @@ describe("code quality", () => {
       const scan = await ensureLoaded();
       const violations: string[] = [];
 
-      for (const file of scan.srcFiles) {
+      const contents = new Map([...scan.srcContents, ...scan.srcTsxContents]);
+
+      for (const file of [...scan.srcFiles, ...scan.srcTsxFiles]) {
         const relativePath = getRelativePath(file);
         if (shouldSkipFile(relativePath)) continue;
 
@@ -200,7 +202,7 @@ describe("code quality", () => {
           ...findTestOnlyExportViolations(
             file,
             relativePath,
-            scan.srcContents,
+            contents,
             scan.srcTsxContents,
             scan.testContents,
             ALLOWED_TEST_HOOKS,
