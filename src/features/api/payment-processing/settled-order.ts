@@ -11,18 +11,15 @@
 import { rewriteCheckoutBundle } from "#db/checkout-bundles.ts";
 import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import { buildMetadata } from "#shared/payment-helpers.ts";
-import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { receiptRecord } from "#shared/session-metadata.ts";
 
-/** Replace a settled session's sealed order with its receipt. A provider that
- * stages its own order has nothing sealed to replace. */
+/** Replace a settled session's sealed order with its receipt. A checkout that
+ * carries its order in its own fields has nothing sealed to replace. */
 export const keepOrderReceipt = async ({
   intent,
   session,
 }: ValidatedSession): Promise<void> => {
-  if (PAYMENT_PROVIDERS[session.provider].orderCarrier !== "sealed-bundle") {
-    return;
-  }
+  if (session.metadata.bundle === "") return;
   await rewriteCheckoutBundle(
     session.metadata.bundle,
     receiptRecord(buildMetadata(intent)),
