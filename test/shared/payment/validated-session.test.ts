@@ -92,6 +92,45 @@ describe("validatedPaymentSession", () => {
     expect(isSessionRejection("skip")).toBe(false);
   });
 
+  /** A valid rejection of each reason, then each one with a single field
+   *  broken. Only the valid shapes count. */
+  const BLANK = {
+    metadata: meta,
+    provider: "stripe",
+    reason: "blank_reference",
+    sessionId: "cs_blank",
+  };
+  const MALFORMED = {
+    ...BLANK,
+    paymentReference: "pi_1",
+    reason: "malformed_charge",
+    refundable: true,
+  };
+  const BROKEN: [string, Record<string, unknown>][] = [
+    ["no metadata", { ...BLANK, metadata: undefined }],
+    ["null metadata", { ...BLANK, metadata: null }],
+    ["text metadata", { ...BLANK, metadata: "items" }],
+    ["an unknown provider", { ...BLANK, provider: "paypal" }],
+    ["a provider that is not text", { ...BLANK, provider: 1 }],
+    ["a session id that is not text", { ...BLANK, sessionId: 5 }],
+    ["a blank session id", { ...BLANK, sessionId: "" }],
+    ["a reference that is not text", { ...MALFORMED, paymentReference: 1 }],
+    [
+      "a refundable flag that is not true or false",
+      { ...MALFORMED, refundable: "yes" },
+    ],
+  ];
+
+  it("refuses a rejection with one field broken", () => {
+    expect([isSessionRejection(BLANK), isSessionRejection(MALFORMED)]).toEqual([
+      true,
+      true,
+    ]);
+    for (const [name, value] of BROKEN) {
+      expect([name, isSessionRejection(value)]).toEqual([name, false]);
+    }
+  });
+
   const subscription = {
     amount: 1200,
     id: "sub_rejected",
