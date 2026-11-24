@@ -18,7 +18,9 @@ import {
 } from "#shared/email/answers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { testAnswer } from "#test-utils/factories-questions.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -66,15 +68,26 @@ describeWithEnv("order answer lines", { db: true }, () => {
     return { attendee, listing };
   };
 
+  /** The answer lines on each of the attendee's entries, in listing order. */
+  const shownLines = async (
+    attendeeId: number,
+    listings: readonly { id: number; name: string }[],
+    freeTexts?: ReadonlyMap<string, string>,
+  ) => {
+    const lines = await loadOrderAnswerLines(
+      listings.map(({ id, name }) =>
+        makeEntry({ id, name }, { id: attendeeId }),
+      ),
+      freeTexts,
+    );
+    return listings.map(({ id }) => lines.get(attendeeId)?.get(id));
+  };
+
   test("shows the chosen answer of a question the listing asks", async () => {
     const { attendee, listing } = await buyerWithChosenAnswer("Fete");
 
-    const lines = await loadOrderAnswerLines([
-      makeEntry({ id: listing.id, name: listing.name }, { id: attendee.id }),
-    ]);
-
-    expect(lines.get(attendee.id)?.get(listing.id)).toEqual([
-      { question: "Any allergies?", text: "Shellfish" },
+    expect(await shownLines(attendee.id, [listing])).toEqual([
+      [{ question: "Any allergies?", text: "Shellfish" }],
     ]);
   });
 
@@ -84,22 +97,14 @@ describeWithEnv("order answer lines", { db: true }, () => {
     const { answerId } = await seedChoiceQuestion([asking.id]);
     await saveAttendeeAnswers(new Map([[attendee.id, [answerId]]]));
 
-    const lines = await loadOrderAnswerLines([
-      makeEntry({ id: other.id, name: other.name }, { id: attendee.id }),
-    ]);
-
-    expect(lines.get(attendee.id)?.get(other.id)).toEqual([]);
+    expect(await shownLines(attendee.id, [other])).toEqual([[]]);
   });
 
   test("skips a question the attendee left unanswered", async () => {
     const { attendee, listing } = await bookedBuyer("Fete");
     await seedChoiceQuestion([listing.id]);
 
-    const lines = await loadOrderAnswerLines([
-      makeEntry({ id: listing.id }, { id: attendee.id }),
-    ]);
-
-    expect(lines.get(attendee.id)?.get(listing.id)).toEqual([]);
+    expect(await shownLines(attendee.id, [listing])).toEqual([[]]);
   });
 
   test("places each entry's answers under its own listing", async () => {
@@ -109,15 +114,27 @@ describeWithEnv("order answer lines", { db: true }, () => {
     await seedChoiceQuestion([second.id], "Shirt size?");
     await saveAttendeeAnswers(new Map([[attendee.id, [onFirst.answerId]]]));
 
-    const lines = await loadOrderAnswerLines([
-      makeEntry({ id: first.id }, { id: attendee.id }),
-      makeEntry({ id: second.id }, { id: attendee.id }),
+    expect(await shownLines(attendee.id, [first, second])).toEqual([
+      [{ question: "Diet?", text: "Shellfish" }],
+      [],
     ]);
+  });
 
-    expect(lines.get(attendee.id)?.get(first.id)).toEqual([
-      { question: "Diet?", text: "Shellfish" },
+  test("names a ticket answer in a package by its package", async () => {
+    const { attendee, listing } = await bookedBuyer("Hall");
+    const pack = await createTestGroup({ isPackage: true, name: "Party Pack" });
+    const { question } = await seedListingLevelQuestion(
+      [listing.id],
+      "Pupil name",
+      "quantity",
+    );
+    const field = `question${question.id}_line${listing.id}_0_${pack.id}_ticket0`;
+
+    expect(
+      await shownLines(attendee.id, [listing], new Map([[field, "Ava"]])),
+    ).toEqual([
+      [{ question: "Pupil name (Hall in Party Pack, ticket 1)", text: "Ava" }],
     ]);
-    expect(lines.get(attendee.id)?.get(second.id)).toEqual([]);
   });
 
   test("spends fixed database reads however many entries the order has", async () => {

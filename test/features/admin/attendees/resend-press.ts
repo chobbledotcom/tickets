@@ -8,6 +8,7 @@ import { t } from "#i18n";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
   bookTestAttendeeWithFlags,
+  markNotificationSendsOwed,
   readPendingNotificationFlags,
 } from "#test-utils/db-helpers/attendees.ts";
 import { updateTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -20,6 +21,20 @@ export const resend = (attendeeId: number, name: string, sides?: string) =>
     confirmIdentifier: name,
     ...(sides === undefined ? {} : { resendSides: sides }),
   });
+
+/** Mark the booking's notifications owed, press re-send, and expect the
+ * success flash. */
+export const expectOwedResend = async (
+  attendeeId: number,
+  name: string,
+): Promise<void> => {
+  await markNotificationSendsOwed(attendeeId);
+  const { response } = await resend(attendeeId, name);
+  expectRedirectWithFlash(
+    `/admin/attendees/${attendeeId}/actions`,
+    t("success.notification_resent"),
+  )(response);
+};
 
 export const addWebhook = async (listingId: number): Promise<void> => {
   await updateTestListing(listingId, {

@@ -17,6 +17,7 @@ import {
   withPupilName,
 } from "#test/blackbox/discos.ts";
 import { createApp, inProcess } from "#test/blackbox/driver.ts";
+import type { SeededListing } from "#test/blackbox/seed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const HEADING = "Answers for each listing";
@@ -38,6 +39,45 @@ const REFUSED: [string, [number, number], string[], string][] = [
     [1, 0],
     ["Ava", "Amy"],
     "You did not book this, so clear its answer: Pupil name (Disco A, ticket 2)",
+  ],
+];
+
+type TicketShop = Awaited<ReturnType<typeof ticketShop>>;
+
+const NO_SUCH_ID = 999_999;
+
+const absent = (shop: TicketShop): SeededListing => ({
+  ...shop.discoA,
+  id: NO_SUCH_ID,
+});
+
+/** Crafted answer fields that name something the order does not book: the
+ * field, and the words for it in the refusal. A field that names a question,
+ * listing or package that the page does not know keeps its own name. */
+const CRAFTED: [
+  string,
+  (shop: TicketShop) => string,
+  (shop: TicketShop) => string,
+][] = [
+  [
+    "a question that the page does not ask",
+    (shop) => fieldFor(NO_SUCH_ID, shop.discoA),
+    (shop) => fieldFor(NO_SUCH_ID, shop.discoA),
+  ],
+  [
+    "a listing that the page does not offer",
+    (shop) => fieldFor(shop.question, absent(shop)),
+    (shop) => fieldFor(shop.question, absent(shop)),
+  ],
+  [
+    "a package that the page does not offer",
+    (shop) => fieldFor(shop.question, shop.discoA, { packageId: NO_SUCH_ID }),
+    (shop) => fieldFor(shop.question, shop.discoA, { packageId: NO_SUCH_ID }),
+  ],
+  [
+    "a line under a parent that the order does not book",
+    (shop) => fieldFor(shop.question, shop.discoA, { parent: shop.discoB }),
+    () => "Pupil name (Disco A with Disco B, ticket 1)",
   ],
 ];
 
@@ -98,6 +138,22 @@ describeWithEnv(
         const page = await bookAndRead(shop, counts, ticketNames(shop, forA));
 
         expect(textOf(page)).toContain(message);
+        expect(await attendeeIds(shop.api, shop.discoA)).toEqual([]);
+      });
+    }
+
+    for (const [name, field, words] of CRAFTED) {
+      test(`an answer for ${name} is refused, and books nothing`, async () => {
+        const shop = await ticketShop();
+
+        const page = await bookAndRead(shop, [1, 0], {
+          ...ticketNames(shop, ["Ava"]),
+          [field(shop)]: "Zed",
+        });
+
+        expect(textOf(page)).toContain(
+          `You did not book this, so clear its answer: ${words(shop)}`,
+        );
         expect(await attendeeIds(shop.api, shop.discoA)).toEqual([]);
       });
     }

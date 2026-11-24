@@ -28,13 +28,13 @@ export const asksEachLine = (
  * row is left out: the booking stamps it from the parent. */
 export const lineSlotOf = (row: {
   listingId: number;
-  packageGroupId?: number | undefined;
+  packageGroupId: number;
   parentListingId?: number | undefined;
 }): LineSlot => {
   const parentListingId = row.parentListingId ?? 0;
   return {
     listingId: row.listingId,
-    packageGroupId: parentListingId === 0 ? (row.packageGroupId ?? 0) : 0,
+    packageGroupId: parentListingId === 0 ? row.packageGroupId : 0,
     parentListingId,
   };
 };
@@ -74,16 +74,15 @@ export const ticketOfFieldOrNull = (
 };
 
 /** The tickets of a line that a level asks about: unit 0 for each line, or
- * one unit for each ticket of the line's quantity. */
+ * one unit for each ticket of the line's quantity. Every line it is given
+ * takes at least one ticket. */
 export const unitsAsked = (
   level: QuestionAnswerLevel,
   quantity: number,
 ): number[] =>
   level === "quantity"
     ? Array.from({ length: quantity }, (_, unit) => unit)
-    : quantity > 0
-      ? [0]
-      : [];
+    : [0];
 
 /** A booking line as a question names it: its slot, its booked quantity, and
  * the words a buyer reads for it. */
@@ -177,6 +176,9 @@ export const ticketAnswerName = (
     question: question.text,
   });
 
+/** A booking row whose package and quantity are known. */
+type LineRow = { packageGroupId: number; quantity: number };
+
 /** The booking lines that an order makes, with their quantities. They come
  * from the same split into rows that the booking itself runs, so each line
  * here is one row that the booking creates. */
@@ -188,18 +190,14 @@ export const orderLineQuantities = (
   }[],
   allocations: ChildAllocation[],
 ): (LineSlot & { quantity: number })[] => {
-  const bookings: ListingBooking[] = items.map((item) => ({
+  const bookings: (ListingBooking & LineRow)[] = items.map((item) => ({
     listingId: item.listingId,
     packageGroupId: item.packageGroupId ?? 0,
     quantity: item.quantity,
   }));
-  const rows =
-    allocations.length > 0
-      ? expandChildAllocations(bookings, allocations)
-      : bookings;
-  return rows
-    .filter((row) => (row.quantity ?? 0) > 0)
-    .map((row) => ({ ...lineSlotOf(row), quantity: row.quantity ?? 0 }));
+  return expandChildAllocations(bookings, allocations)
+    .filter((row) => row.quantity > 0)
+    .map((row) => ({ ...lineSlotOf(row), quantity: row.quantity }));
 };
 
 /** The lines a question asks: all, or the ones whose listing is on its list. */
