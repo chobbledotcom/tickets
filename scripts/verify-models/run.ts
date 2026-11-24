@@ -13,6 +13,12 @@ export const COMMAND_TIMEOUT_MS = {
   version: 60_000,
 } as const;
 
+/** A child that a signal stops writes no error of its own. */
+const endOf = ({ code, signal }: Deno.CommandOutput): string =>
+  signal === null
+    ? `The command stopped with exit code ${code}.`
+    : `The command stopped with signal ${signal}.`;
+
 /** Stop a stalled child, retain both streams, and never return a timed-out
  *  verdict as evidence for a negative control. */
 export const outputOf = async (
@@ -44,7 +50,8 @@ export const outputOf = async (
         `${command} timed out after ${timeoutMs / 1000} seconds. Read ${cwd}.\n${text}`,
       );
     }
-    return { output: text, success: result.success };
+    if (result.success) return { output: text, success: true };
+    return { output: `${text}\n${endOf(result)}`, success: false };
   } finally {
     clearTimeout(timer);
   }

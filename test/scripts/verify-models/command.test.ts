@@ -110,21 +110,29 @@ describe("model child commands", () => {
     expect(signals).toEqual([undefined, "SIGKILL"]);
   });
 
-  for (const success of [true, false]) {
-    test(`keeps an ordinary ${success ? "pass" : "failure"} and clears its deadline`, async () => {
+  const ends: [string, Deno.CommandOutput, string][] = [
+    ["pass", result(true), ""],
+    ["failure", result(false), "\nThe command stopped with exit code 1."],
+    [
+      "stop by a signal",
+      { ...result(false), code: 137, signal: "SIGKILL" },
+      "\nThe command stopped with signal SIGKILL.",
+    ],
+  ];
+  for (const [name, ended, end] of ends) {
+    test(`keeps an ordinary ${name} and clears its deadline`, async () => {
       using time = new FakeTime();
       const signals: (Deno.Signal | undefined)[] = [];
       const child = stubChildProcess({
         kill: (signal) => {
           signals.push(signal);
         },
-        output: () => Promise.resolve(result(success)),
+        output: () => Promise.resolve(ended),
       });
       using _command = stubDenoCommand(() => ({ spawn: () => child }));
       expect(await outputOf("checker", [], "/work", 10)).toEqual({
-        output:
-          "Safety violated. Check the trace in: trace.json\nchecker detail",
-        success,
+        output: `Safety violated. Check the trace in: trace.json\nchecker detail${end}`,
+        success: ended.success,
       });
       await time.tickAsync(10);
       expect(signals).toEqual([]);
