@@ -72,7 +72,7 @@ export const createListingGuide: GuideStoryboard = {
       kind: "click",
       selector: 'a[href^="/admin/listing/"]:has-text("Pottery Evening")',
     },
-    { kind: "wait", ms: 1200 },
+    { kind: "wait", ms: 3000 },
     {
       kind: "openLink",
       selector: 'a[href*="/ticket/"]:not([href$="/qr"])',
