@@ -9,6 +9,7 @@ import { CHECKOUT_WINDOW_MINUTES } from "#shared/limits.ts";
 import {
   custom,
   faq,
+  faqSection,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
 import { MAX_DURATION_DAYS } from "#types";
@@ -108,6 +109,16 @@ export const paymentsSections = (): GuideSection[] => [
     id: "invoices",
     titleKey: "invoices",
   },
+  faqSection(
+    "subscriptions",
+    [
+      "subscriptions_selling",
+      "subscriptions_page",
+      "subscriptions_cancelling",
+      "subscriptions_still_charging",
+    ],
+    "subscriptions",
+  ),
   {
     entries: [
       faq("how_daily_listings_work"),

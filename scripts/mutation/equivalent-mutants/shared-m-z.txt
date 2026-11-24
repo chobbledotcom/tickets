@@ -50,8 +50,10 @@ src/features/api/public-listing.ts::mapParentChildren.children~1owkdwg  ?? → |
 src/features/api/public-listing.ts::buildChildPublicListings~1eo8erl ??→||  audited:0q2grmj   # mapParentChildren → array|null; only null falls through either operator
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → || audited:0dtnttp # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/session-metadata.ts::parsePackedFields~0lfi795  || → && audited:1xlv3zz # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → || audited:1sm34tf # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts::orderRecord.taxPolicy~1exa23e  ?? → || audited:1sm34tf # intent.taxPolicy: TaxPolicy|undefined — a TaxPolicy is a valibot object, always truthy, so only undefined reaches settings.tax either way
+src/shared/payments.ts::createActiveCheckout.provider~1d3a308  Payments are on with no provider → "" audited:0yhcw4j # unreachable: both callers (booking.ts, folded-booking.ts) run it only after isPaymentsEnabled(), which needs settings.paymentProvider set, so getActivePaymentProvider always loads a provider and requireValue never raises this message
+src/shared/session-metadata.ts::parsePackedFields~0lfi795  || → && audited:06o8ebx # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
 
 # The SumUp machine has no split move. Representative tags label only the test
 # matrix, and `expected` ignores its tag for every plain or absent cell.
@@ -251,7 +253,7 @@ src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2 audited:0y5af7
 
 # Square session retrieval returns either an object or null. Objects are
 # truthy, so null is the only value for which either operator takes "skip".
-src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → || audited:0ndw3ek # RetrieveSessionResult is ValidatedPaymentSession | SessionRejection | null; both non-null members are objects, so ?? and || agree
+src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → || audited:0fzkrhh # RetrieveSessionResult is ValidatedPaymentSession | SessionRejection | null; both non-null members are objects, so ?? and || agree
 
 # Square's rejected-field reader yields one of two literal words, or nothing.
 src/shared/square/transport.ts::readInvalidField~1u7zvmn  ?? → || audited:0x5q2bn # find yields RejectedBuyerField | undefined; "email" and "phone" are both truthy, so both operators pick the same field or null
@@ -270,7 +272,7 @@ src/shared/rebrand.ts::stepProse.end~17odbj7  1 → 0 audited:0dvk6sd # `open + 
 
 # Payment plumbing (main #2020): an ignored success flag, non-empty provider
 # strings, a sort tie-break, and validation messages nothing reads.
-src/shared/stripe-provider.ts::sessionCharge.paymentReference~0ge5o6c  ?? → || audited:0bbdej8 # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
+src/shared/stripe-provider.ts::sessionCharge.paymentReference~0ge5o6c  ?? → || audited:03oqh19 # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
 src/shared/validation/money.ts::PositiveMoneySchema~0jfm1h7  false → true audited:0hcedvj # a leading "-" only admits values <= 0, which v.minValue(1) rejects either way
 src/shared/payment/money.ts::CurrencySchema~1qa2mi1  Currency must be three uppercase letters → "" audited:0isam1l # message text of the currency regex; validation outcome is identical
 src/shared/payment/resource-id.ts::ResourceIdSchema~1pmki6u  Resource id must be text with no whitespace → "" audited:16vnpf8 # message text of the resource-id regex; validation outcome is identical
@@ -401,6 +403,8 @@ src/shared/schema-atlas/machine-spec.ts::moveOrRefuse.to~0qwc62v  →"mutated" a
 # All three expressions below produce ten links. The module takes no input.
 src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  - → / audited:1njegg8 # floor((31 - 1) / 3) = floor((31 / 1) / 3) = 10.
 src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  1 → 0 audited:1njegg8 # floor((31 - 1) / 3) = floor((31 - 0) / 3) = 10.
+src/shared/subscriptions/status-check.ts::runSubscriptionCheck.rows~1ugmzlf  ??→|| audited:03wbte1 # checkpoint is a string or null. Only "" differs, and Number("") and Number(0) are both 0.
+src/shared/subscriptions/status-check.ts::runSubscriptionCheck~13dsz2x  Full batch is empty→"" audited:03wbte1 # A full batch holds SUBSCRIPTION_CHECK_BATCH rows, so at(-1) is never undefined and the message never shows.
 
 # order-line-items.ts: a package display name comes from the groups table, and
 # every writer there rejects an empty name, so the ?? never sees "".

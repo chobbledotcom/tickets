@@ -7,7 +7,7 @@
  * a stored row needs the database, because no visitor can delete one. */
 
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
@@ -18,9 +18,9 @@ import {
   checkOut,
   checkOutBalance,
   deliverPayment,
-  openCardShop,
   returnPage,
   rosterOf,
+  useCardShop,
 } from "#test/blackbox/card-shop.ts";
 import type { FakeCheckout } from "#test/blackbox/fake-stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -89,15 +89,7 @@ describeWithEnv(
   "a sealed card checkout whose order is gone",
   { db: true },
   () => {
-    let shop: CardShop | undefined;
-    const open = async () => {
-      shop = await openCardShop();
-      return shop;
-    };
-    afterEach(async () => {
-      await shop?.fake.close();
-      shop = undefined;
-    });
+    const { checkedOut, open } = useCardShop();
 
     const loseOrders = () => execute(sql`DELETE FROM checkout_bundles`);
 
@@ -123,8 +115,7 @@ describeWithEnv(
       timesIn((await opened.owner.get("/admin/log")).html, line);
 
     test("a paid session that is not settled is reported once, refused for a retry, and never refunded", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       const report = reportOf(checkout, "bundle_missing");
       expect(await shown(opened, report)).toEqual(NOT_REPORTED);
       await loseOrders();
@@ -145,8 +136,7 @@ describeWithEnv(
     });
 
     test("an order that will not open is reported with its own reason, and never refunded", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       await execute(sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"}`);
 
       expect((await deliverPayment(opened, checkout)).status).toBe(503);
@@ -159,8 +149,7 @@ describeWithEnv(
     });
 
     test("the return page alone reports a paid session that is not settled", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       await loseOrders();
       opened.fake.pay(checkout);
 
@@ -177,8 +166,7 @@ describeWithEnv(
 
     for (const [name, work, mirror] of BOOKED_ROWS) {
       test(`a booked session whose payment row ${name} answers as settled, with no report`, async () => {
-        const opened = await open();
-        const checkout = await checkOut(opened);
+        const { checkout, opened } = await checkedOut();
         await deliverPayment(opened, checkout);
         if (work !== null) {
           await putRowState(checkout.id, await rowStateSlot(work), mirror);
@@ -211,8 +199,7 @@ describeWithEnv(
     }
 
     test("a refunded session shows its refund message, not success, and is not refunded again", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       await deliverPayment(opened, checkout, { charged: 1999 });
       await loseOrders();
 
@@ -270,8 +257,7 @@ describeWithEnv(
     }
 
     test("the cancel page still answers, with no link back to the booking page", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       const retryLink = `href="/ticket/${opened.listing.slug}"`;
       expect((await cancelPage(checkout)).html).toContain(retryLink);
       await loseOrders();

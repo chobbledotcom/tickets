@@ -1,15 +1,21 @@
-/** Tests for the answer one admission's write gives, the direct suite
- * beside admissionAnswer in src/routes/admin/scan-reply.ts: what a door
- * reads when another door took its tickets first, and the delivery claims
- * that make the answer name a tier and quantity a prior send put in.
+/** The direct suite of src/features/admin/scan-reply.ts: the JSON answers
+ * one scan sends. What a door reads when another door took its tickets
+ * first, the delivery claims that make the answer name a tier and quantity
+ * a prior send put in, the wrong-listing answer, and the over-admission
+ * note.
  */
 
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { claimScanOperation } from "#db/processed-scan-operations.ts";
 import type { ScanDecision } from "#routes/admin/scan-decision.ts";
-import { admissionAnswer } from "#routes/admin/scan-reply.ts";
+import {
+  admissionAnswer,
+  listingNamesOf,
+  overAdmissionNoteText,
+  wrongListingResponse,
+} from "#routes/admin/scan-reply.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
@@ -193,5 +199,69 @@ describeWithEnv("the answer for one admission's write", { db: true }, () => {
       status: "checked_in",
       total: 3,
     });
+  });
+
+  for (const [admitted, overAdmission] of [
+    [1, { overAdmission: { admitted: 1, bought: 3, named: 2 } }],
+    [2, {}],
+  ] as const) {
+    test(`a delivery that named 2 and landed ${admitted} answers ${admitted < 2 ? "with" : "without"} the over-admission numbers`, async () => {
+      const answer = await admissionAnswer(
+        {
+          allEntries: [standardRow(3)],
+          decision: admitOf([standardRow(3)]),
+          delivery: {
+            operationId: "op-landed",
+            quantity: 2,
+            tokenHash: "digest-landed",
+          },
+        },
+        "Cara",
+        { admitted, remaining: 3 - admitted },
+      );
+
+      expect(await answer.json()).toEqual({
+        listingName: "Standard",
+        name: "Cara",
+        quantity: admitted,
+        remaining: 3 - admitted,
+        status: "checked_in",
+        total: 3,
+        ...overAdmission,
+      });
+    });
+  }
+});
+
+describe("the answers that need no write", () => {
+  test("names each listing once, in the order the rows first name it", () => {
+    expect(listingNamesOf([standardRow(1), societyRow(), standardRow(2)])).toBe(
+      "Standard, Society",
+    );
+  });
+
+  for (const [rows, listingName] of [
+    [[standardRow(1), societyRow()], "Standard, Society"],
+    [[standardRow(1)], "Standard"],
+    [[], "Unknown listing"],
+  ] as const) {
+    test(`a wrong-listing answer names "${listingName}"`, async () => {
+      const answer = wrongListingResponse([...rows], "Cara");
+
+      expect(await answer.json()).toEqual({
+        listingName,
+        name: "Cara",
+        status: "wrong_listing",
+      });
+    });
+  }
+
+  test("the over-admission note says how many of the people named got in", () => {
+    expect(overAdmissionNoteText(5, 0, 3)).toBe(
+      "An offline door check-in named 5 people, and none could be checked in. The booking holds 3 places.",
+    );
+    expect(overAdmissionNoteText(5, 2, 3)).toBe(
+      "An offline door check-in named 5 people, and 2 of them could be checked in. The booking holds 3 places.",
+    );
   });
 });

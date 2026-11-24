@@ -1,6 +1,7 @@
 // effects: pure
 import * as v from "valibot";
-import { sql } from "#db/sql.ts";
+import { sql, sqlList } from "#db/sql.ts";
+import { LIVE_STATUSES } from "#payment/subscription-machine-spec.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /**
@@ -82,7 +83,7 @@ export const ADMIN_FEATURES = [
   },
   {
     descriptionKey: "features.subscriptions.description",
-    inUseSql: sql`EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_id != '')`,
+    inUseSql: sql`EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_status IN (${sqlList(LIVE_STATUSES)}))`,
     key: "subscriptions",
     labelKey: "features.subscriptions.name",
     slug: "subscriptions",

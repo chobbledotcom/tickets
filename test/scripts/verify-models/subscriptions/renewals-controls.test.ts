@@ -44,7 +44,7 @@ const examples: readonly Example[] = [
     where: { attempt: "normal:0" },
   })),
   {
-    expected: { outcome: "returned", snapshotAttendee: 25, storedAttendee: 26 },
+    expected: { outcome: "returned", snapshotAttendee: 29, storedAttendee: 30 },
     name: "replaced-booking-accepted",
     table: "OperationFacts",
     where: { scenario: "identity_attendee" },
@@ -77,10 +77,10 @@ const examples: readonly Example[] = [
     where: { attempt: "normal:0" },
   },
   {
-    expected: { allMatch: false, status: "found" },
+    expected: { foreign: false, reason: "subscription_cycle" },
     name: "foreign-renewal-currency-accepted",
-    table: "CurrencyFacts",
-    where: { caseId: "foreign_currency" },
+    table: "InvoiceFacts",
+    where: { invoice: "in_currencies_away" },
   },
   {
     expected: { observedAmount: 1202, price: 1203, requestedAmount: 1202 },
@@ -105,12 +105,6 @@ const examples: readonly Example[] = [
     where: { kind: "renewal", owner: "normal:0" },
   },
   {
-    expected: { ordinal: 0, target: "sub_wrong_read" },
-    name: "wrong-invoice-list-subscription",
-    table: "ReadFacts",
-    where: { kind: "currency", owner: "site_currency" },
-  },
-  {
     expected: null,
     name: "missing-renewal-arithmetic",
     table: "ArithmeticFacts",
@@ -119,8 +113,8 @@ const examples: readonly Example[] = [
   {
     expected: null,
     name: "missing-renewal-currency",
-    table: "CurrencyFacts",
-    where: { caseId: "site_currency" },
+    table: "ExpectedInvoices",
+    where: { invoice: "in_currencies_away" },
   },
   {
     expected: {
@@ -135,7 +129,7 @@ const examples: readonly Example[] = [
     expected: null,
     name: "missing-provider-read",
     table: "ReadFacts",
-    where: { kind: "currency", owner: "site_currency" },
+    where: { kind: "renewal", owner: "normal:0" },
   },
   {
     expected: null,
@@ -193,20 +187,20 @@ test("the duplicate-read control retains both events with the same target", asyn
   const data = await control.data();
   expect(
     records(data, "ReadFacts").filter(
-      (fact) => fact.kind === "currency" && fact.owner === "site_currency",
+      (fact) => fact.kind === "renewal" && fact.owner === "normal:0",
     ),
   ).toEqual([
     {
-      kind: "currency",
+      kind: "renewal",
       ordinal: 0,
-      owner: "site_currency",
-      target: "sub_currency",
+      owner: "normal:0",
+      target: "sub_normal",
     },
     {
-      kind: "currency",
+      kind: "renewal",
       ordinal: 1,
-      owner: "site_currency",
-      target: "sub_currency",
+      owner: "normal:0",
+      target: "sub_normal",
     },
   ]);
 });

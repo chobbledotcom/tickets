@@ -1,6 +1,7 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { mapNotNullish } from "#fp";
 import {
   PAYMENT_PROVIDER_IDS,
   PAYMENT_PROVIDERS,
@@ -10,6 +11,7 @@ import {
   WEBHOOK_SIGNATURE_HEADERS,
 } from "#shared/payment-providers.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
+import type { PaymentProviderType } from "#types";
 
 const messages = await allEnglishMessages();
 
@@ -179,11 +181,18 @@ describe("payment provider registry", () => {
       expect(WEBHOOK_SIGNATURE_HEADERS).toEqual(headers);
     });
 
-    test("gives every webhook provider real copy for a domain change", () => {
-      for (const id of PAYMENT_PROVIDER_IDS) {
-        const webhook = providerWebhook(id);
-        if (webhook === null) continue;
-        expect(messages[webhook.domainChangeFixKey]).toMatch(/\S/);
+    test("gives every webhook provider its own copy for a domain change", () => {
+      const keys = mapNotNullish(
+        (id: PaymentProviderType) => providerWebhook(id)?.domainChangeFixKey,
+      )(PAYMENT_PROVIDER_IDS);
+
+      expect(keys).toEqual([
+        "settings.domain_warning.square",
+        "settings.domain_warning.stripe",
+      ]);
+      for (const key of keys) {
+        expect(Object.keys(messages)).toContain(key);
+        expect(messages[key]).toMatch(/\S/);
       }
     });
   });

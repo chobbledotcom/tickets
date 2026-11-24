@@ -158,5 +158,10 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-23_question_answer_level",
     () => import("./2026-11-23_question_answer_level.ts"),
   ),
+  // Subscription reads seek the subscribed booking rows.
+  entry(
+    "2026-11-24_subscription_index",
+    () => import("./2026-11-24_subscription_index.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
