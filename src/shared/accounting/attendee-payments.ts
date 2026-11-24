@@ -17,6 +17,7 @@ import {
 import { readRows } from "#db/read.ts";
 import { literal, or, sum, valued, when } from "#db/select/expression.ts";
 import { sql } from "#db/sql.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { epochMsToIso } from "#shared/validation/timestamp.ts";
 
 /** How many payments reached one attendee, the total less refunds, and the
@@ -32,7 +33,9 @@ const NO_PAYMENTS: PaymentSummary = { count: 0, lastPaidAt: null, total: 0 };
 
 const world = (role: Role): LegTest => onSide(role, WORLD.type, WORLD.id);
 
-/** The payment summary of each attendee in `attendeeIds`, keyed by id. */
+/** The payment summary of each attendee in `attendeeIds`, keyed by id. A
+ * refund returns money that a payment brought in, so every attendee with a
+ * refund also has a payment. */
 export const paymentSummaries = async (
   attendeeIds: readonly number[],
 ): Promise<Map<number, PaymentSummary>> => {
@@ -60,10 +63,14 @@ export const paymentSummaries = async (
       Number(row.attendee_id),
       {
         count: Number(row.count),
-        lastPaidAt:
-          row.last_paid_at === null
-            ? null
-            : epochMsToIso(Number(row.last_paid_at)),
+        lastPaidAt: epochMsToIso(
+          Number(
+            requireValue(
+              row.last_paid_at,
+              `Attendee ${row.attendee_id} has a refund but no payment`,
+            ),
+          ),
+        ),
         total: Number(row.total),
       },
     ]),
