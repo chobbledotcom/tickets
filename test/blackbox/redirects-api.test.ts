@@ -20,6 +20,7 @@ const Row = v.strictObject({
   to_url: v.string(),
 });
 const RedirectAnswer = v.object({ redirect: Row });
+const ErrorAnswer = v.object({ error: v.string() });
 const ListAnswer = v.object({ redirects: v.array(Row) });
 
 const openShop = async (...redirects: [string, string][]) => {
@@ -48,16 +49,15 @@ const added = async (
   api: Api,
   body: Record<string, unknown>,
 ): Promise<[number, string | null]> => {
-  const answer = await api.post(PATH, body);
-  const error = v.safeParse(v.object({ error: v.string() }), answer.body);
-  return [answer.status, error.success ? error.output.error : null];
+  const { body: answer, status } = await api.post(PATH, body);
+  return [status, v.is(ErrorAnswer, answer) ? answer.error : null];
 };
 
 describeWithEnv("redirects over the admin API", { db: true }, () => {
   describe("add", () => {
     test("answers 201 with the redirect as saved, and the visitor is redirected", async () => {
-      const { api } = await openShop();
-      const answer = await api.post(PATH, {
+      const shop = await openShop();
+      const answer = await shop.api.post(PATH, {
         from_path: " /Old/ ",
         to_url: "/new",
       });
@@ -77,6 +77,7 @@ describeWithEnv("redirects over the admin API", { db: true }, () => {
         ["/x", "/X/", "same_page"],
         ["/TAKEN", "/c", "from_taken"],
         ["/y", "/taken?z=1", "to_is_redirect"],
+        ["/b", "/c", "from_is_target"],
         [`/${"a".repeat(250)}`, "/c", "too_long"],
       ];
       /* jscpd:ignore-end */

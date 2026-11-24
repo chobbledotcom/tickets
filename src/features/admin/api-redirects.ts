@@ -15,7 +15,7 @@ export const redirectApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.redirects,
   RecordShapeOf<Redirect, RedirectInput>
 >(redirectRecord, {
-  stripKeys: ["from_index"],
+  stripKeys: ["from_index", "to_index"],
   toCreateInput: ({ from_path: fromPath, to_url: toUrl }) =>
     okResult({ fromPath, toUrl }),
 });

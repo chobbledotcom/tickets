@@ -175,6 +175,7 @@ export const CODECS = {
   redirects: {
     from_index: typed<BlindIndex>(),
     from_path: sealed,
+    to_index: typed<BlindIndex | null>(),
     to_url: sealed,
   },
   site_page_items: { item_type: typed<SitePageItemType>() },

@@ -215,7 +215,10 @@ export const catalogTables = declaredTables([
   [
     // One permanent redirect from a missing page. `from_index` is the blind
     // index of the page's key, so a request finds its row without decrypting.
-    // `from_path` and `to_url` hold env-key ciphertext.
+    // `from_path` and `to_url` hold env-key ciphertext. `to_index` is the blind
+    // index of the page that the redirect enters, and is null for another
+    // site. The insert reads both indexes, so no redirect enters a redirect. Only
+    // an add reads `to_index`, so it has no index of its own.
     "redirects",
     {
       columns: [
@@ -223,6 +226,7 @@ export const catalogTables = declaredTables([
         ["from_index", text],
         ["from_path", text],
         ["to_url", text],
+        ["to_index", textOrNull],
       ],
       indexes: [
         {

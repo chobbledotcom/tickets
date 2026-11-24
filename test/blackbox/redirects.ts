@@ -33,6 +33,30 @@ export const refusalOf = (page: Page): string => {
   return decodeEntities(error![1]!);
 };
 
+/** The message that the add page shows after the owner sends an add that the
+ *  rules refuse. */
+export const refusedWith = async (
+  app: App,
+  fromPath: string,
+  toUrl: string,
+): Promise<string> => {
+  const sent = await app.submit(`${LIST}/new`, { fromPath, toUrl }, LIST);
+  expect(sent.location).toMatch(/^\/admin\/redirects\/new\?flash=/);
+  return refusalOf(await followed(app, sent));
+};
+
+/** The message of each refused add, one add after the other. */
+export const refusalsOf = async (
+  app: App,
+  pairs: readonly (readonly [string, string, ...unknown[]])[],
+): Promise<string[]> => {
+  const said: string[] = [];
+  for (const [fromPath, toUrl] of pairs) {
+    said.push(await refusedWith(app, fromPath, toUrl));
+  }
+  return said;
+};
+
 /** The rows of the redirect list: each from page with its to page. */
 export const listedRedirects = async (
   app: App,

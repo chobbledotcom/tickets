@@ -28,6 +28,7 @@
   "redirects.error.to_not_http": "The to page must be a path such as /new-page, or a web address that starts with http:// or https://.",
   "redirects.error.to_unsafe": "The to page is not a safe address.",
   "redirects.error.same_page": "The from page and the to page must be different.",
+  "redirects.error.from_is_target": "A redirect already goes to that page. Delete that redirect first, or use the page it goes to.",
   "redirects.error.from_taken": "That page already has a redirect. Delete the old redirect first.",
   "redirects.error.to_is_redirect": "The to page is a page that already redirects. Use the page it redirects to."
 }

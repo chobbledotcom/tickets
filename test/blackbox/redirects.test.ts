@@ -14,7 +14,8 @@ import {
   expectNoRedirects,
   LIST,
   listedRedirects,
-  refusalOf,
+  refusalsOf,
+  refusedWith,
   sentFrom,
   shopWith,
   visit,
@@ -28,17 +29,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const ADD = { action: LIST, field: "fromPath", page: `${LIST}/new` };
-
-/** The message that the add page shows after the owner sends an add. */
-const refusedWith = async (
-  app: Awaited<ReturnType<typeof shopWith>>,
-  fromPath: string,
-  toUrl: string,
-): Promise<string> => {
-  const sent = await app.submit(`${LIST}/new`, { fromPath, toUrl }, LIST);
-  expect(sent.location).toMatch(/^\/admin\/redirects\/new\?flash=/);
-  return refusalOf(await followed(app, sent));
-};
 
 describeWithEnv("redirects", { db: true }, () => {
   describe("the advanced settings page", () => {
@@ -131,21 +121,24 @@ describeWithEnv("redirects", { db: true }, () => {
       expect(await countShown(app)).toBe("1 redirect");
     });
 
-    test("a redirect to a page that already redirects is refused, so no loop can close", async () => {
-      const app = await shopWith(["/a", "/b"], ["/b", "/c"]);
-      for (const [from, to] of [
-        ["/c", "/A/?x=1"],
-        ["/d", "/a"],
-      ] as const) {
-        expect(await refusedWith(app, from, to)).toBe(
-          t("redirects.error.to_is_redirect"),
-        );
-      }
-      expect(await listedRedirects(app)).toHaveLength(2);
+    test("a redirect that would meet another redirect is refused, so no chain forms", async () => {
+      const app = await shopWith(["/a", "/b"]);
+      /* jscpd:ignore-start -- a list of strings, not code */
+      const sent: [string, string, string][] = [
+        ["/d", "/A/?x=1", "to_is_redirect"],
+        ["/d", "/a", "to_is_redirect"],
+        ["/b", "/c", "from_is_target"],
+        ["/B/", "/c", "from_is_target"],
+      ];
+      /* jscpd:ignore-end */
+      expect(await refusalsOf(app, sent)).toEqual(
+        sent.map(([, , key]) => t(`redirects.error.${key}`)),
+      );
+      expect(await listedRedirects(app)).toEqual([["/a", "/b"]]);
     });
 
-    test("a redirect to another site can leave a page that already is a destination", async () => {
-      const app = await shopWith(["/a", "/b"], ["/b", "https://example.com/a"]);
+    test("a redirect to another site is not a redirect to a page that already redirects", async () => {
+      const app = await shopWith(["/a", "/b"], ["/c", "https://example.com/a"]);
       expect(await listedRedirects(app)).toHaveLength(2);
     });
   });
@@ -253,17 +246,6 @@ describeWithEnv("redirects", { db: true }, () => {
       await addRedirect(app, `/ticket/${listing.slug}`, "/elsewhere");
       expect((await sentFrom(`/ticket/${listing.slug}`))[0]).toBe(200);
     });
-
-    test("follows a chain one step at a time", async () => {
-      await shopWith(["/a", "/b"], ["/b", "/c"]);
-      expect(
-        await Promise.all(["/a", "/b", "/c"].map((path) => sentFrom(path))),
-      ).toEqual([
-        [301, "/b"],
-        [301, "/c"],
-        [404, null],
-      ]);
-    });
   });
 
   describe("the owner deletes a redirect", () => {
@@ -295,11 +277,17 @@ describeWithEnv("redirects", { db: true }, () => {
       expect((await app.get(`${LIST}/999/delete`)).status).toBe(404);
     });
 
-    test("the deleted page can get a redirect again", async () => {
+    test("the deleted page, and the page it entered, can get a redirect", async () => {
       const app = await shopWith(["/old", "/new"]);
       await deleteRedirect(app, "/old");
       await addRedirect(app, "/old", "/newer");
-      expect(await sentFrom("/old")).toEqual([301, "/newer"]);
+      await addRedirect(app, "/new", "/newest");
+      expect(
+        await Promise.all(["/old", "/new"].map((path) => sentFrom(path))),
+      ).toEqual([
+        [301, "/newer"],
+        [301, "/newest"],
+      ]);
     });
   });
 });

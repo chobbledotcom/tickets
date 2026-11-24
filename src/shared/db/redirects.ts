@@ -35,13 +35,18 @@ export type Redirect = DecodedRowOf<"redirects">;
  *  already checked and normalised by the redirect rule. */
 export type RedirectInput = { fromPath: string; toUrl: string };
 
-/** Why a create writes nothing. */
-export type RedirectConflict = "from_taken" | "to_is_redirect";
+/** Why a create writes nothing. The missing page already has a redirect, or
+ *  the new address is a page that already redirects, or a redirect already
+ *  enters the missing page. */
+export type RedirectConflict =
+  | "from_is_target"
+  | "from_taken"
+  | "to_is_redirect";
 
 /** Every redirect in the order they were added. The sealed text is decrypted
  *  by its codec. */
 export const redirects = requestCachedRows(tables.redirects, (rows) =>
-  rows.sortedBy("id").pick("fromIndex", "fromPath", "id", "toUrl"),
+  rows.sortedBy("id").pick("fromIndex", "fromPath", "id", "toIndex", "toUrl"),
 );
 
 /** How many redirects exist, read from the settings that every request loads.
@@ -53,64 +58,69 @@ export const redirectCount = (): number => Number(settings.redirectCount);
 const countStatement = (): SqlStatement =>
   sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.REDIRECT_COUNT}, CAST((SELECT COUNT(*) FROM redirects AS redirect) AS TEXT))`;
 
-/** The keys that a new redirect must not meet. One key is the page that it
- *  leaves. The other is the page that it enters, when that page is on this
- *  site. */
+/** The blind indexes of a new redirect. `to` is the index of the page that it
+ *  enters, or null when it enters another site. */
 const indexesOf = async (
   input: RedirectInput,
-): Promise<{ from: BlindIndex; keys: BlindIndex[] }> => {
-  const fromIndex = await hmacHash(input.fromPath);
+): Promise<{ from: BlindIndex; to: BlindIndex | null }> => {
   const toKey = redirectKeyOfTarget(input.toUrl);
   return {
-    from: fromIndex,
-    keys: toKey === null ? [fromIndex] : [fromIndex, await hmacHash(toKey)],
+    from: await hmacHash(input.fromPath),
+    to: toKey === null ? null : await hmacHash(toKey),
   };
 };
 
-/** The reason the insert wrote nothing: the missing page already has a
- *  redirect, or the new address is a missing page that already redirects. */
+/** The redirects that a new one must not meet. One leaves the page that the
+ *  new one leaves. One leaves the page that the new one enters. One enters the
+ *  page that the new one leaves. */
+const meetingCondition = (from: BlindIndex, to: BlindIndex | null) =>
+  sql`redirect.from_index IN (${sqlList(to === null ? [from] : [from, to])}) OR redirect.to_index = ${from}`;
+
+/** The reason the insert wrote nothing. */
 const conflictOf = async (
   tx: TxScope,
-  fromIndex: BlindIndex,
-  keys: readonly BlindIndex[],
+  from: BlindIndex,
+  to: BlindIndex | null,
 ): Promise<RedirectConflict> => {
-  const taken = resultRows<{ from_index: string }>(
+  const met = resultRows<{ from_index: string }>(
     await tx.execute(
-      sql`SELECT redirect.from_index FROM redirects AS redirect WHERE redirect.from_index IN (${sqlList(keys)})`,
+      sql`SELECT redirect.from_index FROM redirects AS redirect WHERE ${meetingCondition(from, to)}`,
     ),
-  );
-  return taken.some((row) => row.from_index === fromIndex)
-    ? "from_taken"
-    : "to_is_redirect";
+  ).map((row) => row.from_index);
+  if (met.includes(from)) return "from_taken";
+  return to !== null && met.includes(to) ? "to_is_redirect" : "from_is_target";
 };
 
 /**
  * Add one redirect. The insert carries its own condition, so the check and
- * the write are one statement in one transaction. The condition has two
- * parts. No redirect can already leave the missing page. No redirect can
- * already leave the page that the new one enters. A redirect cannot enter a
- * redirect, so redirects can never close into a loop.
+ * the write are one statement in one transaction. No redirect can already
+ * leave the missing page. No redirect can already leave the page that the new
+ * one enters, and none can already enter the page that the new one leaves. A
+ * redirect never enters a redirect, so redirects never chain and never close
+ * into a loop, whatever the order of the adds.
  */
 export const createRedirect = (
   input: RedirectInput,
 ): Promise<Result<Redirect, RedirectConflict>> =>
   withTransaction(async (tx) => {
-    const { from: fromIndex, keys } = await indexesOf(input);
+    const { from, to } = await indexesOf(input);
     const [row] = resultRows(
       await tx.execute(
         await recordsOf(tables.redirects).insertStatement(
-          newRecordOf(tables.redirects)({ ...input, fromIndex }),
+          newRecordOf(tables.redirects)({
+            ...input,
+            fromIndex: from,
+            toIndex: to,
+          }),
           {
             when: wholeCondition(
-              sql`NOT EXISTS (SELECT 1 FROM redirects AS redirect WHERE redirect.from_index IN (${sqlList(keys)}))`,
+              sql`NOT EXISTS (SELECT 1 FROM redirects AS redirect WHERE ${meetingCondition(from, to)})`,
             ),
           },
         ),
       ),
     );
-    if (row === undefined) {
-      return errorResult(await conflictOf(tx, fromIndex, keys));
-    }
+    if (row === undefined) return errorResult(await conflictOf(tx, from, to));
     await tx.batch([countStatement(), settingsVersionIncrement()]);
     return okResult(row);
   });
