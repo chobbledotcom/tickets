@@ -900,7 +900,7 @@
   "test/integration/servicing/purge-edge-cases.test.ts": 6,
   "test/integration/servicing/route-guards.test.ts": 1,
   "test/integration/servicing/tampering.test.ts": 1,
-  "test/integration/square-retention.test.ts": 8,
+  "test/shared/db/prune/square-retention.test.ts": 8,
   "test/integration/stripe-client-parity.test.ts": 2,
   "test/integration/stripe/checkout.test.ts": 2,
   "test/integration/stripe/connection.test.ts": 5,
