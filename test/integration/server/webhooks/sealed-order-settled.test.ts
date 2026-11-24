@@ -52,9 +52,7 @@ const orderOf = (shop: CardShop) => ({
 /** Its receipt: the lines, and nothing of the buyer. */
 const receiptOf = (shop: CardShop) => ({
   _origin: "localhost",
-  email: "",
   items: JSON.stringify([{ e: shop.listing.id, p: 2000, q: 2 }]),
-  name: "",
 });
 
 describeWithEnv("a settled sealed checkout order", { db: true }, () => {
