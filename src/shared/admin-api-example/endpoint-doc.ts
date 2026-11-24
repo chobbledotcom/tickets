@@ -10,7 +10,9 @@ import {
   type AdminApiChild,
   type AdminApiResource,
   type AdminApiResourceName,
+  type AdminApiServes,
   adminApiIdParam,
+  adminApiServes,
 } from "#shared/admin-api-resources.ts";
 import type { EnabledFeatures } from "#shared/admin-features.ts";
 import { withoutKeys } from "#shared/fp-records.ts";
@@ -237,6 +239,15 @@ const resourceFieldDocs = (
  *  Descriptions are passed in, because they carry per-resource wording such
  *  as the holiday's owner-only note. `desc` is [list, get, create, update,
  *  delete]. */
+/** The route each doc entry of {@link crudDocsFor} describes, in order. */
+const CRUD_ROUTE_ORDER = [
+  "list",
+  "get",
+  "create",
+  "update",
+  "delete",
+] as const satisfies readonly (keyof AdminApiServes)[];
+
 /** What the docs of one resource are built from. */
 export type CrudDocsParts = {
   entry: AdminApiResource;
@@ -285,7 +296,7 @@ export const crudDocsFor =
         : json({ [singular]: c.createResponse });
     const fields = resourceFieldDocs(c.entry, closed);
     const [list, get, create, update, del] = c.desc;
-    return [
+    const docs: EndpointDoc[] = [
       {
         description: list,
         method: "GET",
@@ -301,6 +312,10 @@ export const crudDocsFor =
         [created, updated],
       ),
     ];
+    // The docs follow the routes the resource serves, in the order above.
+    return docs.filter((_doc, index) =>
+      adminApiServes(c.entry, CRUD_ROUTE_ORDER[index]!),
+    );
   };
 
 /** The doc entries of a resource with no declared field list. Such a

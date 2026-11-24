@@ -8,6 +8,7 @@ import {
   bufferRequestBody,
   type RequestTransform,
 } from "#routes/request-body.ts";
+import { isPathUnder } from "#shared/url-safety.ts";
 
 const CUSTOM_CSS_PATH = "/custom.css";
 
@@ -55,9 +56,6 @@ const ORGANIC_UNSAFE_PREFIXES = [
   "/wallet",
 ] as const;
 
-const pathIs = (path: string, prefix: string): boolean =>
-  path === prefix || path.startsWith(`${prefix}/`);
-
 const shouldRunOrganicMaintenance = (
   method: string,
   path: string,
@@ -66,7 +64,7 @@ const shouldRunOrganicMaintenance = (
   (method === "GET" || method === "HEAD") &&
   status >= 200 &&
   status < 300 &&
-  !ORGANIC_UNSAFE_PREFIXES.some((prefix) => pathIs(path, prefix));
+  !ORGANIC_UNSAFE_PREFIXES.some((prefix) => isPathUnder(path, prefix));
 
 const [getNextOrganicWake, setNextOrganicWake] = lazyRef(() => 0);
 

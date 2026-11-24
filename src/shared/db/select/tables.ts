@@ -206,6 +206,7 @@ const SINGULAR: Record<TableName, string> = {
   processed_scan_operations: "scanOperation",
   processed_sms_inbound: "inboundSms",
   questions: "question",
+  redirects: "redirect",
   refund_confirmation_references: "refundConfirmationReference",
   refund_confirmations: "refundConfirmation",
   schema_migrations: "schemaMigration",

@@ -10,7 +10,7 @@ import { sqlText } from "#test-utils/sql-text.ts";
 test("keeps the complete catalog schema exact", async () => {
   await expectSchemaDeclarationExact(
     catalogTables,
-    "eb32697e7850fe4b0ec2ad6799488c5c7a863267e4e3825f642c3d8d13807c12",
+    "a5eb3f38b92cff51a6c69cacaf9d139e5c6c9777d32617cde131f545976e47ee",
   );
 });
 

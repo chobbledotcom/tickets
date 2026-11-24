@@ -81,6 +81,7 @@ type KindCodecs = {
   price: Typed<number>;
   privateText: Codec<EnvKeyEncrypted | "", string>;
   recurringInterval: Typed<RecurringIntervalChoice>;
+  sealedText: Codec<EnvKeyEncrypted, string>;
   switch: Codec<number, boolean>;
   text: Typed<string>;
   weekdays: Codec<string, string[]>;
@@ -111,6 +112,7 @@ const KIND_CODECS: {
   price: () => typed(),
   privateText: () => blankAsItself(sealed),
   recurringInterval: () => typed(),
+  sealedText: () => sealed,
   switch: () => yesNo,
   text: () => typed(),
   weekdays: (field, table) =>

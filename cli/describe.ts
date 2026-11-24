@@ -6,6 +6,7 @@ import {
   type AdminApiCustomRoute,
   type AdminApiResource,
   adminApiIdParam,
+  adminApiServes,
   DeleteBodySchema,
 } from "#shared/admin-api-resources.ts";
 
@@ -117,27 +118,20 @@ export type ResourceDoc = {
 
 export type DescribeDoc = { resources: Record<string, ResourceDoc> };
 
-/** Whether a resource serves a standard verb. A `serves` declaration lists
- *  the routes the server answers; absent means all five. */
-const servesVerb = (
-  entry: AdminApiResource,
-  verb: "create" | "delete" | "get" | "list" | "update",
-): boolean => entry.serves === undefined || entry.serves[verb] === true;
-
 /** One resource's describe document, read off the table. */
 export const describeResource = (entry: AdminApiResource): ResourceDoc => {
   const children: Record<string, AdminApiChild> = entry.children ?? {};
   const custom: Record<string, AdminApiCustomRoute> = entry.custom ?? {};
   const verbs: ResourceDoc["verbs"] = {};
-  if (servesVerb(entry, "create")) {
+  if (adminApiServes(entry, "create")) {
     verbs.create = { body: bodyDoc(entry.createBodySchema) };
   }
-  if (servesVerb(entry, "delete")) {
+  if (adminApiServes(entry, "delete")) {
     verbs.delete = { body: bodyDoc(DeleteBodySchema) };
   }
-  if (servesVerb(entry, "get")) verbs.get = {};
-  if (servesVerb(entry, "list")) verbs.list = {};
-  if (servesVerb(entry, "update")) {
+  if (adminApiServes(entry, "get")) verbs.get = {};
+  if (adminApiServes(entry, "list")) verbs.list = {};
+  if (adminApiServes(entry, "update")) {
     verbs.update = { body: bodyDoc(entry.updateBodySchema) };
   }
   return {

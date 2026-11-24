@@ -18,6 +18,7 @@ import {
   LISTING_FIELDS,
   LISTING_WRITE_KEYS,
 } from "#shared/records/listing-fields.ts";
+import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import type { FieldSpecs, KeyAccess } from "#shared/rest/field-specs.ts";
 import type { ExtraField, ExtraFieldMap, ValueForm } from "./field-docs.ts";
@@ -98,4 +99,5 @@ export const DECLARED_FIELDS: Readonly<Record<string, DeclaredFields>> = {
     extras: LISTING_EXTRA_FIELDS,
     fields: LISTING_FIELDS,
   },
+  redirects: listOnly(REDIRECT_FIELDS),
 };
