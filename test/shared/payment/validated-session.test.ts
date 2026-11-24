@@ -450,6 +450,7 @@ describe("validatedPaymentSession", () => {
         reason: "blank_reference",
         sessionId: "sess-1",
       });
+      expect(errorSpy.contains("missing its provider resource id")).toBe(true);
     });
   }
 });
