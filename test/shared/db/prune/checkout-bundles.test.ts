@@ -1,10 +1,10 @@
 /** The prune of sealed checkout orders: a bundle goes when its checkout window
- * and the provider retry window are over, and a younger one stays. */
+ * and the provider retry window are over, and a younger one stays. The rule
+ * for how long is checked beside it, in test/shared/db/checkout-bundles.test.ts. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  bundleRetentionMs,
   openCheckoutBundle,
   sealCheckoutBundle,
 } from "#db/checkout-bundles.ts";
@@ -41,10 +41,5 @@ describeWithEnv("pruning checkout bundles", { db: true }, () => {
 
     expect(await openCheckoutBundle(old)).toEqual({ status: "missing" });
     expect((await openCheckoutBundle(young)).status).toBe("opened");
-  });
-
-  test("keeps a bundle no longer than a payment row, so a receipt never outlives its row", () => {
-    expect(bundleRetentionMs(90 * DAY_MS)).toBe(KEPT_FOR_MS);
-    expect(bundleRetentionMs(3 * DAY_MS)).toBe(3 * DAY_MS);
   });
 });
