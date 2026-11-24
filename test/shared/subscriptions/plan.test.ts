@@ -7,7 +7,6 @@ import {
   recurringCharge,
   renewalTax,
   type SubscriptionStart,
-  vatInRecurringPayment,
 } from "#shared/subscriptions/plan.ts";
 import { NO_TAX } from "#shared/tax/types.ts";
 
@@ -36,12 +35,12 @@ describe("subscription plan", () => {
   });
 
   test("finds no VAT when the site charges none", () => {
-    expect(vatInRecurringPayment(4, 1200, NO_TAX)).toBe(0);
+    expect(planOfStart(start, NO_TAX).tax).toBe(0);
   });
 
   test("finds the VAT inside a payment at the frozen rate", () => {
-    expect(vatInRecurringPayment(4, 1200, INCLUDED)).toBe(200);
-    expect(vatInRecurringPayment(4, 1200, ADDED)).toBe(200);
+    expect(planOfStart(start, INCLUDED).tax).toBe(200);
+    expect(planOfStart(start, ADDED).tax).toBe(200);
   });
 
   test("recovers exactly the VAT that an added-VAT charge carries", () => {
@@ -59,7 +58,9 @@ describe("subscription plan", () => {
           policy,
         );
         const added = charge - price * quantity;
-        expect(vatInRecurringPayment(1, charge, policy)).toBe(added);
+        expect(planOfStart({ ...start, amount: charge }, policy).tax).toBe(
+          added,
+        );
       }),
       seedArgs,
     );

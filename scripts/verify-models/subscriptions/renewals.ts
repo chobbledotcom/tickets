@@ -1,58 +1,14 @@
 /** Real renewal writes, stored observations, and independently checkable inputs. */
 
 import { execute } from "#db/client.ts";
-import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { type Faults, producerFor } from "./controls.ts";
-import { paidInvoice, withSubscriptionDb } from "./environment.ts";
+import { withSubscriptionDb } from "./environment.ts";
 import { failedJourneyFacts, observeJourney } from "./journey.ts";
 import { arithmeticFacts, RENEWAL_CASES } from "./renewal-cases.ts";
 import { type RenewalFacts, renderRenewals } from "./renewal-facts.ts";
-import { captureRead, observeCase } from "./renewal-observations.ts";
-
-const currencyFacts = async (): Promise<
-  Pick<RenewalFacts, "currencies" | "reads">
-> => {
-  const currency = settings.currency.toLowerCase();
-  const client = stripeClientRuntime.create("sk_test_model_currency");
-  const previous = stripeClientRuntime.get;
-  const answers = [
-    { caseId: "site_currency", currencies: [currency] },
-    { caseId: "foreign_currency", currencies: ["model_foreign"] },
-    { caseId: "mixed_currency", currencies: [currency, "model_foreign"] },
-  ];
-  const facts: RenewalFacts["currencies"] = [];
-  const reads: RenewalFacts["reads"] = [];
-  stripeClientRuntime.get = () => Promise.resolve(client);
-  try {
-    for (const example of answers) {
-      client.invoices.listPaid = captureRead(
-        reads,
-        "currency",
-        example.caseId,
-        () =>
-          Promise.resolve(
-            example.currencies.map((value, index) => ({
-              ...paidInvoice(`in_currency_${index}`),
-              currency: value,
-            })),
-          ),
-      );
-      const answer = await stripeApi.readPaidInvoices("sub_currency");
-      facts.push({
-        allMatch: example.currencies.every((value) => value === currency),
-        caseId: example.caseId,
-        status: answer.status,
-      });
-    }
-  } finally {
-    stripeClientRuntime.get = previous;
-  }
-  return { currencies: facts, reads };
-};
+import { observeCase } from "./renewal-observations.ts";
 
 /** Every invocation observes a fresh database; fault tests cannot read cached facts. */
 export const renewalFacts = async (
@@ -61,7 +17,6 @@ export const renewalFacts = async (
   const facts = await withSubscriptionDb(async () => {
     const facts: RenewalFacts = {
       arithmetic: arithmeticFacts(),
-      ...(await currencyFacts()),
       expected: RENEWAL_CASES.flatMap((example) =>
         example.passes.map((_, index) => ({
           attempt: `${example.name}:${index}`,
@@ -73,6 +28,7 @@ export const renewalFacts = async (
       invoices: [],
       journeys: [],
       operations: [],
+      reads: [],
       scenarios: [],
       snapshots: [],
     };
@@ -95,7 +51,8 @@ export const renewalFacts = async (
 /* jscpd:ignore-start -- a list of strings, not code */
 const firstLegs = { attempt: "normal:0", when: "after" };
 const editedJourney = { phase: "edited" };
-const siteCurrencyRead = { kind: "currency", owner: "site_currency" };
+const foreignInvoice = { invoice: "in_currencies_away" };
+const firstRead = { kind: "renewal", owner: "normal:0" };
 /** A step starts from a named scenario, so each control keeps them all. */
 const STEP_STATE = { scenarios: [] };
 /** The invoices of the same attempt, and their ledger legs at both times. */
@@ -142,10 +99,10 @@ const FAULTS: Faults = {
     ],
     [
       "foreign-renewal-currency-accepted",
-      "currencies",
-      "status",
-      "found",
-      { caseId: "foreign_currency" },
+      "invoices",
+      "foreign",
+      "",
+      foreignInvoice,
     ],
     ["rewritten-joined-plan", "journeys", "price", "", editedJourney],
     ["wrong-joined-trial-time", "journeys", "trialAt", "", editedJourney],
@@ -155,13 +112,6 @@ const FAULTS: Faults = {
       "observedSubscription",
       "sub_wrong_join",
       { attempt: "2" },
-    ],
-    [
-      "wrong-invoice-list-subscription",
-      "reads",
-      "target",
-      "sub_wrong_read",
-      siteCurrencyRead,
     ],
   ],
   missing: [
@@ -177,13 +127,8 @@ const FAULTS: Faults = {
       "arithmetic",
       { caseId: "planned" },
     ],
-    [
-      "missing-renewal-currency",
-      "initial",
-      "currencies",
-      { caseId: "site_currency" },
-    ],
-    ["missing-provider-read", "initial", "reads", siteCurrencyRead],
+    ["missing-renewal-currency", "initial", "expectedInvoices", foreignInvoice],
+    ["missing-provider-read", "initial", "reads", firstRead],
     [
       "missing-renewal-scenario",
       "initial",
@@ -193,8 +138,8 @@ const FAULTS: Faults = {
   ],
   reads: {
     arithmetic: STEP_STATE,
-    currencies: STEP_STATE,
     failedJoins: STEP_STATE,
+    invoices: { ...STEP_STATE, ...ATTEMPT_LEGS, operations: ["attempt"] },
     journeys: STEP_STATE,
     operations: { ...STEP_STATE, ...ATTEMPT_LEGS },
     reads: STEP_STATE,

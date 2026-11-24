@@ -5,6 +5,7 @@
  */
 
 import { expect } from "@std/expect";
+import { afterEach } from "@std/testing/bdd";
 import * as v from "valibot";
 import { requireValue } from "#shared/required-value.ts";
 import type { Api } from "#test/blackbox/api.ts";
@@ -58,6 +59,26 @@ export const openCardShop = async (): Promise<CardShop> => {
     unit_price: 1000,
   });
   return { api, fake, listing, owner };
+};
+
+/** A fresh shop for each test of a suite. Call it in the suite's body. It
+ * closes the fake Stripe of each test when the test ends. `checkedOut` also
+ * books two places and gives back the checkout. */
+export const useCardShop = () => {
+  let shop: CardShop | undefined;
+  afterEach(async () => {
+    await shop?.fake.close();
+    shop = undefined;
+  });
+  const open = async (): Promise<CardShop> => {
+    shop = await openCardShop();
+    return shop;
+  };
+  const checkedOut = async () => {
+    const opened = await open();
+    return { checkout: await checkOut(opened), opened };
+  };
+  return { checkedOut, open };
 };
 
 /** A buyer books two places through the booking form and is sent to Stripe.

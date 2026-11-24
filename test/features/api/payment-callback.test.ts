@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { reserveSession } from "#db/processed-payments.ts";
+import { markSessionFailed, reserveSession } from "#db/processed-payments.ts";
 import {
   type CallbackOutcome,
   settlePaymentCallback,
@@ -12,6 +12,11 @@ import {
 } from "#shared/sumup/checkout-resolution.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { asSession } from "#test-utils/payment-session.ts";
+import {
+  ourRejection,
+  withRefundAnswering,
+  withSucceedingRefundFor,
+} from "#test-utils/rejected-charge.ts";
 import {
   stageSignedMultiItemSumupCheckout,
   stageSignedSumupCheckout,
@@ -137,5 +142,57 @@ describeWithEnv("settlePaymentCallback", { db: true }, () => {
 
     expect(outcome.kind).toBe("held");
     expect("listingId" in outcome && outcome.listingId).toBe(listings[0]!.id);
+  });
+
+  for (const [name, stored] of [
+    [
+      "a refund stored with a 409",
+      { error: "The price changed.", refunded: true, status: 409 },
+    ],
+    [
+      "an outcome stored with a 200 that names no refund",
+      { error: "This payment has already been processed.", status: 200 },
+    ],
+  ] as const) {
+    test(`answers ${name} as settled, not as held`, async () => {
+      const { reference } = await stageSignedSumupCheckout(
+        `co_${stored.status}`,
+      );
+      await reserveSession(reference);
+      await markSessionFailed(reference, stored);
+
+      const outcome = await settleStaged(`co_${stored.status}`, reference);
+
+      expect(outcome).toMatchObject({ error: stored.error, kind: "settled" });
+    });
+  }
+
+  test("answers a rejected charge whose refund went through as settled", async () => {
+    const { result } = await withSucceedingRefundFor(500)(() =>
+      settlePaymentCallback(ourRejection("pi_callback_settled"), "Webhook"),
+    );
+
+    expect(result).toEqual({
+      detail: "Webhook session rejected as malformed_charge (refunded: true)",
+      error: "rejected",
+      kind: "settled",
+      listingId: undefined,
+    });
+  });
+
+  test("answers a rejected charge whose refund was turned down as unsettled", async () => {
+    const { result } = await withRefundAnswering(() => ({
+      kind: "rejected",
+      reason: "failed",
+    }))(() =>
+      settlePaymentCallback(ourRejection("pi_callback_unsettled"), "Webhook"),
+    );
+
+    expect(result).toEqual({
+      detail: "Webhook session rejected as malformed_charge (refunded: false)",
+      error: "Refund failed",
+      kind: "unsettled",
+      listingId: undefined,
+    });
   });
 });

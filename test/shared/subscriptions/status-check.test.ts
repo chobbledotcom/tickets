@@ -15,21 +15,28 @@ import {
   runMerge,
 } from "#test/shared/merge/attendee-merge/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withDbFault } from "#test-utils/db-fault.ts";
 import {
+  bookingIdOf,
   givePlan,
   MONTHLY,
+  queryPlanOfSent,
   renewalLegs,
   statusOf,
   subscribe,
   type TestBooking,
 } from "#test-utils/db-helpers/subscriptions.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { rejection } from "#test-utils/ledger.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import {
   stripePaidInvoice,
   stripeSubscription,
 } from "#test-utils/stripe/fixtures.ts";
-import { withStripeRenewals } from "#test-utils/stripe/subscription-checkout.ts";
+import {
+  stubSubscriptionRead,
+  withStripeRenewals,
+} from "#test-utils/stripe/subscription-checkout.ts";
 
 /** What the task asked of the runner during one run. */
 type RunRecord = { checkpoint: string | null; followUp: boolean };
@@ -86,7 +93,28 @@ const checkWhileStripeAnswers = (
     },
   );
 
+/** Run `body` while Stripe reports each subscription as active, with the paid
+ * invoices that `invoicesOf` names for it. */
+const checkWhileStripeAnswersEach = (
+  invoicesOf: (id: string) => ReturnType<typeof stripePaidInvoice>[],
+  body: () => Promise<void>,
+): Promise<void> =>
+  withMocks(
+    () => ({
+      invoices: stub(stripeApi, "readPaidInvoices", (id: string) =>
+        Promise.resolve({
+          resource: invoicesOf(id),
+          status: "found" as const,
+        }),
+      ),
+      read: stubSubscriptionRead("active"),
+    }),
+    body,
+  );
+
 describeWithEnv("subscription status check", { db: true }, () => {
+  const errors = setupErrorSpy();
+
   test("posts each renewal with its VAT on the day Stripe took it", async () => {
     const ada = await subscribe("Ada", MONTHLY);
     await withStripeRenewals(
@@ -191,12 +219,7 @@ describeWithEnv("subscription status check", { db: true }, () => {
             status: "found" as const,
           };
         }),
-        read: stub(stripeApi, "readSubscription", (id: string) =>
-          Promise.resolve({
-            resource: stripeSubscription({ id, status: "active" }),
-            status: "found" as const,
-          }),
-        ),
+        read: stubSubscriptionRead("active"),
       }),
       async () => {
         await expect(runCheck()).rejects.toThrow();
@@ -292,19 +315,117 @@ describeWithEnv("subscription status check", { db: true }, () => {
       await statusOf(bob),
       await statusOf(cy),
     ]).toEqual(["trialing", "past_due", "trialing"]);
+    expect([
+      errors.contains(
+        "Subscription sub_ada could not be read (unavailable: timeout)",
+      ),
+      errors.contains(
+        "Subscription sub_cy could not be read (invalid: mismatched_money)",
+      ),
+    ]).toEqual([true, true]);
   });
 
-  test("stops loudly when a renewal contradicts the legs it already posted", async () => {
+  test("skips a row whose renewal contradicts its legs, and checks the rows after it", async () => {
     const ada = await subscribe("Ada", MONTHLY);
-    const invoices = [stripePaidInvoice({ id: "in_changed" })];
-    await withStripeRenewals("active", invoices, async () => {
-      await runCheck();
-      await execute(
-        sql`UPDATE listing_attendees SET recurring_tax = 50, subscription_status = 'trialing' WHERE attendee_id = ${ada.attendeeId}`,
+    const bob = await subscribe("Bob", MONTHLY);
+    await checkWhileStripeAnswersEach(
+      (id) =>
+        id === "sub_ada" ? [stripePaidInvoice({ id: "in_changed" })] : [],
+      async () => {
+        await runCheck();
+        await execute(
+          sql`UPDATE listing_attendees SET recurring_tax = 50, subscription_status = 'trialing' WHERE attendee_id = ${ada.attendeeId}`,
+        );
+        await execute(
+          sql`UPDATE listing_attendees SET subscription_status = 'trialing' WHERE attendee_id = ${bob.attendeeId}`,
+        );
+        expect(await runCheck()).toEqual({ checkpoint: null, followUp: false });
+      },
+    );
+    expect([await statusOf(ada), await statusOf(bob)]).toEqual([
+      "trialing",
+      "active",
+    ]);
+    expect(
+      errors.contains(
+        "Subscription sub_ada was skipped: ledger conflict on reference",
+      ),
+    ).toBe(true);
+  });
+
+  test("stops the run when a write fails for a reason other than a conflict", async () => {
+    await subscribe("Ada", MONTHLY);
+    await withStripeRenewals("active", [], async () => {
+      await withDbFault(
+        sql`CREATE TRIGGER test_subscription_status_fault
+        BEFORE UPDATE OF subscription_status ON listing_attendees
+        BEGIN
+          SELECT RAISE(ABORT, 'subscription status write refused');
+        END`,
+        "test_subscription_status_fault",
+        async () => {
+          expect((await rejection(runCheck())).message).toContain(
+            "subscription status write refused",
+          );
+        },
       );
-      expect((await rejection(runCheck())).name).toBe("LedgerConflictError");
     });
-    expect(await statusOf(ada)).toBe("trialing");
+  });
+
+  test("posts every paid invoice after the first, whatever its reason", async () => {
+    await subscribe("Ada", MONTHLY);
+    await withStripeRenewals(
+      "active",
+      [
+        stripePaidInvoice({
+          billing_reason: "subscription_update",
+          id: "in_prorated",
+        }),
+        stripePaidInvoice({ billing_reason: "manual", id: "in_manual" }),
+        stripePaidInvoice({
+          billing_reason: "subscription_threshold",
+          id: "in_threshold",
+        }),
+        stripePaidInvoice({ amount_paid: 0, id: "in_free" }),
+      ],
+      async () => {
+        await runCheck();
+      },
+    );
+    const counts = [];
+    for (const id of ["in_prorated", "in_manual", "in_threshold", "in_free"]) {
+      counts.push((await renewalLegs(id)).length);
+    }
+    expect(counts).toEqual([3, 3, 3, 0]);
+  });
+
+  test("leaves out only a renewal in another currency, and logs it", async () => {
+    const ada = await subscribe("Ada", MONTHLY);
+    await withStripeRenewals(
+      "canceled",
+      [
+        stripePaidInvoice({ id: "in_home" }),
+        stripePaidInvoice({ currency: "jpy", id: "in_away" }),
+      ],
+      async () => {
+        await runCheck();
+      },
+    );
+    await expectEndedAfter(ada, "in_home");
+    expect(await renewalLegs("in_away")).toEqual([]);
+    expect(
+      errors.contains(
+        "Subscription sub_ada invoice in_away is in jpy, not the site currency.",
+      ),
+    ).toBe(true);
+  });
+
+  test("walks the live rows through the subscription index", async () => {
+    expect(
+      await queryPlanOfSent("subscription_status", () => runCheck()),
+    ).toContain(
+      "USING INDEX idx_listing_attendees_subscription (subscription_status=?)",
+    );
   });
 
   test("walks the rows in batches from the checkpoint", async () => {
@@ -318,7 +439,9 @@ describeWithEnv("subscription status check", { db: true }, () => {
     await withStripeRenewals("active", [], async () => {
       const first = await runCheck();
       expect(first.followUp).toBe(true);
-      expect(first.checkpoint).not.toBeNull();
+      expect(first.checkpoint).toBe(
+        String(await bookingIdOf(bookings[SUBSCRIPTION_CHECK_BATCH - 1]!)),
+      );
       expect(await statusOf(bookings.at(-1)!)).toBe("trialing");
       expect(await runCheck(first.checkpoint)).toEqual({
         checkpoint: null,

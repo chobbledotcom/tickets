@@ -14,6 +14,7 @@ import type {
 } from "#shared/stripe/schemas.ts";
 import { type StripeApi, stripeApi } from "#shared/stripe.ts";
 import type { SubscriptionStatus } from "#shared/subscriptions/plan.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
@@ -22,6 +23,7 @@ import {
   type TestListingOverrides,
 } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { withProof } from "#test-utils/sealed-checkout.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   stripeSubscription,
@@ -161,8 +163,12 @@ export const withRejectedCheckout = (
   reason: "malformed charge" | "unpaid malformed charge",
   foreign: boolean,
   body: (session: Partial<StripeCheckoutSession>) => Promise<void>,
+  metadata?: Record<string, string>,
 ): Promise<void> => {
   const started = startedCheckout(listingId);
+  started.session.metadata =
+    metadata ??
+    requireValue(started.session.metadata, "Checkout metadata not found");
   started.session.amount_total = null;
   if (foreign) {
     requireValue(
@@ -175,6 +181,23 @@ export const withRejectedCheckout = (
   }
   return withSubscriptionStarted(started, () => body(started.session));
 };
+
+/** The metadata of the same order as `startedCheckout`, sealed in a bundle
+ * the way a Stripe checkout carries it. */
+export const sealedCheckoutMetadata = async (
+  listingId: number,
+): Promise<Record<string, string>> =>
+  (
+    await withProof(
+      checkoutIntent({
+        email: "member@example.com",
+        items: [checkoutItem({ listingId, quantity: 2, unitPrice: 1000 })],
+        name: "Member",
+        taxPolicy: { mode: "calculate_from_total", rateBasisPoints: 2000 },
+      }),
+      "stripe",
+    )
+  ).wire;
 
 export const withUntouchedSubscription = async (
   body: (listingId: number) => Promise<void>,

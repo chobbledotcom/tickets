@@ -80,14 +80,19 @@ describeStripe("stripe-provider resolveWebhookSession", () => {
     });
   }
 
-  test("returns null for a webhook checkout object without a session ID", async () => {
-    const { id: _id, ...withoutId } = stripeCheckoutSession();
-    expect(
-      await stripePaymentProvider.resolveWebhookSession({
-        data: { object: withoutId },
-        id: "evt_without_session",
-        type: "checkout.session.completed",
-      }),
-    ).toBeNull();
-  });
+  const { id: _id, ...withoutId } = stripeCheckoutSession();
+  for (const [name, object] of [
+    ["without a session ID", withoutId],
+    ["with a blank session ID", stripeCheckoutSession({ id: "" })],
+  ] as const) {
+    test(`returns null for a webhook checkout object ${name}`, async () => {
+      expect(
+        await stripePaymentProvider.resolveWebhookSession({
+          data: { object },
+          id: "evt_without_session",
+          type: "checkout.session.completed",
+        }),
+      ).toBeNull();
+    });
+  }
 });

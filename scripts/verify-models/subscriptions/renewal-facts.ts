@@ -20,14 +20,6 @@ const RENEWAL_TABLES = {
       tax: "Int",
     },
   ],
-  currencies: [
-    "CurrencyFacts",
-    {
-      allMatch: "Bool",
-      caseId: "Str",
-      status: "Str",
-    },
-  ],
   expected: ["ExpectedAttempts", { attempt: "Str", scenario: "Str" }],
   expectedInvoices: ["ExpectedInvoices", { attempt: "Str", invoice: "Str" }],
   failedJoins: [
@@ -67,6 +59,7 @@ const RENEWAL_TABLES = {
       cashReference: "Str",
       expectedAt: "Int",
       expectedGroup: "Str",
+      foreign: "Bool",
       invoice: "Str",
       listing: "Str",
       price: "Int",
