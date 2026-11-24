@@ -1,6 +1,7 @@
 import { afterEach } from "@std/testing/bdd";
 import type { Window } from "happy-dom";
 import { initManualCheckin } from "#src/ui/client/admin/manual-checkin.ts";
+import type { ManualOffline } from "#src/ui/client/admin/manual-search.ts";
 import {
   createDomInstaller,
   createGlobalStash,
@@ -12,6 +13,7 @@ import { rebrandedPage } from "#test-utils/rebrand-page.ts";
 const CHECKIN_FORM = `
   <form
     data-manual-checkin
+    data-message-check-in-button="Check In"
     data-message-already-checked-in="{name} already checked in for {listingName} ({tickets})"
     data-message-checked-in="{name} checked in for {listingName} ({tickets})"
     data-message-checked-in-partial="{name} checked in for {listingName} ({tickets} of {total} tickets)"
@@ -19,6 +21,10 @@ const CHECKIN_FORM = `
     data-message-network-error="Could not reach server"
     data-message-not-found="No matching ticket"
     data-message-refunded="{name} was refunded."
+    data-message-search-button="Search"
+    data-message-search-failed="The search failed."
+    data-message-search-none="Nobody matches."
+    data-message-search-too-short="Type more letters."
     data-message-select-quantity="How many tickets for {name}?"
     data-message-skipped="Skipped {name}"
     data-message-ticket-count-one="{count} pass"
@@ -28,16 +34,11 @@ const CHECKIN_FORM = `
     data-message-verify-id-note=" - check ID"
     data-scan-path="/admin/listing/7/scan"
   >
-    <input id="manual-checkin-attendee-id" />
     <input id="manual-checkin-input" />
     <input name="csrfToken" value="csrf" />
-    <div class="combobox-list hidden" id="ticket-options" role="listbox">
-      <div data-attendee-id="11" data-detail="Camping · 12 Jun" data-name="Ada" data-quantity="2" role="option" tabindex="0">Ada (2 tickets)</div>
-      <div data-attendee-id="12" data-name="Bea" data-quantity="1" role="option" tabindex="0">Bea (1 ticket)</div>
-      <div data-attendee-id="13" data-name="Cy" data-quantity="3" role="option" tabindex="0">Cy (3 tickets)</div>
-    </div>
+    <div class="combobox-list hidden" id="ticket-options" role="listbox"></div>
     <p class="hidden checkin-status-error checkin-status-success checkin-status-warning" id="manual-checkin-status">Waiting</p>
-    <button type="submit">Check in</button>
+    <button type="submit"><span>Search</span></button>
   </form>
   <div class="scanner-overlay hidden" id="scanner-quantity">
     <div class="scanner-overlay-backdrop"></div>
@@ -72,13 +73,23 @@ export const REBRANDED_FORM = rebrandedPage(CHECKIN_FORM, [
   ],
 ]);
 
+/** The people the fixture's own search finds: the search route's answer. */
+export const FOUND_PEOPLE = [
+  { attendeeId: 11, details: ["Camping · 12 Jun"], name: "Ada", quantity: 2 },
+  { attendeeId: 12, details: [], name: "Bea", quantity: 1 },
+  { attendeeId: 13, details: [], name: "Cy", quantity: 3 },
+];
+
 export interface ManualCheckinPage {
   activeId: () => string | null;
-  attendeeIdInput: HTMLInputElement;
+  /** The words on the submit button: what the next submit does. */
+  buttonLabel: () => string;
   form: HTMLFormElement;
   input: HTMLInputElement;
   keydown: (key: string) => { readonly defaultPrevented: boolean };
   listbox: HTMLElement;
+  /** Pick the person whose option carries the attendee id. */
+  pick: (attendeeId: string) => void;
   scrolledIds: string[];
   status: HTMLElement;
   submit: () => Promise<{ readonly defaultPrevented: boolean }>;
@@ -100,16 +111,18 @@ export const waitUntilSettled = async (
   throw new Error(`${what} never settled`);
 };
 
-const setupManualCheckin = (
+/** Install the page and wire its manual check-in, with no search yet. */
+const installManualCheckin = (
   dom: DomInstaller,
-  page = CHECKIN_FORM,
+  page: string,
+  offline: ManualOffline | null,
 ): ManualCheckinPage => {
   const window = dom.installDom(page);
   const scrolledIds: string[] = [];
   window.HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
     scrolledIds.push(this.dataset.attendeeId!);
   };
-  initManualCheckin();
+  initManualCheckin(offline);
   const input = document.querySelector<HTMLInputElement>(
     "#manual-checkin-input",
   )!;
@@ -127,36 +140,64 @@ const setupManualCheckin = (
     fireEvent(input, event);
     return event;
   };
+  const submit = async () => {
+    const event = new window.Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(form, event);
+    await waitUntilSettled(() => !submitButton.disabled, "the check-in");
+    return event;
+  };
   return {
     activeId: () =>
       document.querySelector<HTMLElement>(".combobox-active")?.dataset
         .attendeeId ?? null,
-    attendeeIdInput: document.querySelector<HTMLInputElement>(
-      "#manual-checkin-attendee-id",
-    )!,
+    buttonLabel: () => submitButton.textContent?.trim() ?? "",
     form,
     input,
     keydown,
     listbox: document.querySelector<HTMLElement>("#ticket-options")!,
+    pick: (attendeeId) => {
+      const option = document.querySelector<HTMLElement>(
+        `[data-attendee-id='${attendeeId}']`,
+      );
+      if (!option) throw new Error(`No option for attendee ${attendeeId}`);
+      fireEvent(option, new window.Event("click", { bubbles: true }));
+    },
     scrolledIds,
     status: document.querySelector<HTMLElement>("#manual-checkin-status")!,
-    submit: async () => {
-      const event = new window.Event("submit", {
-        bubbles: true,
-        cancelable: true,
-      });
-      fireEvent(form, event);
-      await waitUntilSettled(() => !submitButton.disabled, "the check-in");
-      return event;
-    },
+    submit,
     submitButton,
     window,
   };
 };
 
+/** The page after a search that finds `FOUND_PEOPLE`. The page lists nobody
+ * until the door searches, so the fixture searches, then closes the list.
+ * Each test starts the way a door does after its search. */
+const setupManualCheckin = async (
+  dom: DomInstaller,
+  page: string,
+): Promise<ManualCheckinPage> => {
+  const ready = installManualCheckin(dom, page, null);
+  const stash = createGlobalStash();
+  stash.set("fetch", async () => Response.json({ options: FOUND_PEOPLE }));
+  ready.input.value = "fixture search";
+  await ready.submit();
+  stash.restore();
+  ready.input.value = "";
+  ready.keydown("Escape");
+  return ready;
+};
+
 export interface ManualCheckinHarness {
   dom: DomInstaller;
-  setup: () => ManualCheckinPage;
+  /** The page before any search, wired to `offline`. */
+  fresh: (offline: ManualOffline | null) => ManualCheckinPage;
+  /** The page after its search, with the person `attendeeId` picked. */
+  pickedPage: (attendeeId: string) => Promise<ManualCheckinPage>;
+  setup: () => Promise<ManualCheckinPage>;
   /** Serve the given JSON answers to the scan API, one per POST, recording
    * each request body the page sends. */
   stubScans: (answers: Record<string, unknown>[]) => Record<string, unknown>[];
@@ -174,6 +215,12 @@ export const useManualCheckinPage = (
   });
   return {
     dom,
+    fresh: (offline) => installManualCheckin(dom, page, offline),
+    pickedPage: async (attendeeId) => {
+      const ready = await setupManualCheckin(dom, page);
+      ready.pick(attendeeId);
+      return ready;
+    },
     setup: () => setupManualCheckin(dom, page),
     stubScans: (answers) => {
       const sent: Record<string, unknown>[] = [];

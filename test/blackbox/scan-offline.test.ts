@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { type App, createApp, inProcess } from "#test/blackbox/driver.ts";
+import { expectPrivateJson } from "#test/blackbox/headers.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts";
@@ -70,7 +71,9 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     // entry for the whole booking.
     expect(first).toEqual({
       body: {
-        entries: [{ hash: expect.any(String), tickets: 1 }],
+        entries: [
+          { details: [], hash: expect.any(String), name: "Filler", tickets: 1 },
+        ],
         next: expect.stringMatching(/^sc1\./),
         people: PAGE_PEOPLE,
         total: PAGE_PEOPLE + 1,
@@ -104,7 +107,9 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     await seedFillerAttendees(listing.id, PAGE_PEOPLE);
     expect((await cachePage(app, `/admin/listing/${listing.id}`)).body).toEqual(
       {
-        entries: [{ hash: expect.any(String), tickets: 1 }],
+        entries: [
+          { details: [], hash: expect.any(String), name: "Filler", tickets: 1 },
+        ],
         next: null,
         people: PAGE_PEOPLE,
         total: PAGE_PEOPLE,
@@ -118,17 +123,7 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     const { headers } = await app.get(
       `/admin/listing/${listing.id}/scan-cache`,
     );
-    expect({
-      cache: headers.get("cache-control"),
-      policy: headers
-        .get("content-security-policy")
-        ?.includes("default-src 'self'"),
-      type: headers.get("content-type"),
-    }).toEqual({
-      cache: "private, no-store",
-      policy: true,
-      type: "application/json; charset=utf-8",
-    });
+    expectPrivateJson(headers);
   });
 
   test("keeps every line of one person on the same page", async () => {

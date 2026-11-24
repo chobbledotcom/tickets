@@ -1,8 +1,17 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-/** Manual check-in: custom combobox + fetch-based form submission.
- * Posts to the scan JSON API without a page reload so the camera keeps running. */
+/** Manual check-in: a search by name, then a pick from what it found. A
+ * submit with nobody picked searches. A submit with a person picked checks
+ * them in, through the scan JSON API or the offline queue. No step reloads
+ * the page, so the camera keeps running. */
 
+import {
+  type Found,
+  findPeople,
+  foundFacts,
+  type ManualOffline,
+  SEARCH_MIN_LENGTH,
+} from "#src/ui/client/admin/manual-search.ts";
 import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
 import { showQuantitySelect } from "#src/ui/client/quantity-select.ts";
 
@@ -26,14 +35,16 @@ const KEY_DIRECTIONS: Partial<Record<string, OptionDirection>> = {
   ArrowUp: "up",
 };
 
-export const initManualCheckin = (): void => {
+/** Wire the page's manual check-in. `offline` is the scanner's offline side,
+ * or null on a page whose offline side did not start. */
+export const initManualCheckin = (offline: ManualOffline | null): void => {
   const form = document.querySelector<HTMLFormElement>("[data-manual-checkin]");
   if (!form) return;
 
   const input = form.querySelector<HTMLInputElement>("#manual-checkin-input")!;
-  const attendeeIdInput = document.getElementById(
-    "manual-checkin-attendee-id",
-  ) as HTMLInputElement;
+  const submitBtn = form.querySelector<HTMLButtonElement>(
+    'button[type="submit"]',
+  )!;
   const listbox = document.getElementById("ticket-options")!;
   const statusEl = document.getElementById("manual-checkin-status")!;
   const scanPath = form.dataset.scanPath!;
@@ -78,8 +89,25 @@ export const initManualCheckin = (): void => {
     setListOpen(anyVisible && document.activeElement === input);
   };
 
+  /** Each option's person, so a pick reads what the search found. */
+  const foundByOption = new WeakMap<Element, Found>();
+
+  /** The person the door picked, or null while the next submit searches. */
+  let picked: Found | null = null;
+
+  /** Word the submit button for what the next submit does. */
+  const setPicked = (found: Found | null) => {
+    picked = found;
+    const label = submitBtn.querySelector("span");
+    if (label) {
+      label.textContent = found
+        ? getMessage("messageCheckInButton", "Check In")
+        : getMessage("messageSearchButton", "Search");
+    }
+  };
+
   const selectOption = (opt: HTMLLIElement) => {
-    attendeeIdInput.value = opt.dataset.attendeeId!;
+    setPicked(foundByOption.get(opt) ?? null);
     const detail = opt.dataset.detail ?? "";
     input.value =
       `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})` +
@@ -88,7 +116,7 @@ export const initManualCheckin = (): void => {
   };
 
   input.addEventListener("input", () => {
-    attendeeIdInput.value = "";
+    setPicked(null);
     filterOptions();
   });
 
@@ -191,12 +219,32 @@ export const initManualCheckin = (): void => {
   };
 
   const clearPick = () => {
-    attendeeIdInput.value = "";
+    setPicked(null);
     input.value = "";
   };
 
+  /** Show what one search found as the options the door picks from. */
+  const showFound = (found: Found[]) => {
+    listbox.replaceChildren(
+      ...found.map((person) => {
+        const { details, name, quantity } = foundFacts(person);
+        const opt = document.createElement("div");
+        opt.setAttribute("role", "option");
+        opt.tabIndex = 0;
+        if (person.kind === "online") {
+          opt.dataset.attendeeId = String(person.attendeeId);
+        }
+        opt.dataset.detail = details.join(", ");
+        opt.dataset.name = name;
+        relabelOption(opt, quantity);
+        foundByOption.set(opt, person);
+        return opt;
+      }),
+    );
+  };
+
   /** Relabel one option with the tickets its person still owes. */
-  const relabelOption = (opt: HTMLElement, remaining: number) => {
+  function relabelOption(opt: HTMLElement, remaining: number) {
     opt.dataset.quantity = String(remaining);
     const detail = opt.dataset.detail;
     opt.textContent = interpolate(
@@ -208,7 +256,7 @@ export const initManualCheckin = (): void => {
         : getMessage("messageTicketOption", "{name} ({tickets})"),
       { detail, name: opt.dataset.name, tickets: formatTicketCount(remaining) },
     );
-  };
+  }
 
   /** A person the door still owes tickets keeps their option. The option
    * shows what is left: part of a party, or listings a scan did not cover. */
@@ -367,32 +415,75 @@ export const initManualCheckin = (): void => {
     dispatchScanResult(result, attendeeId, given.id_verified === true);
   };
 
+  const postScan = async (
+    body: Record<string, unknown>,
+  ): Promise<ScanAnswer> => {
+    const r = await fetch(scanPath, {
+      body: JSON.stringify(body),
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": csrfInput.value,
+      },
+      method: "POST",
+    });
+    return r.json();
+  };
+
+  /** Search by the typed name and show what the search found. */
+  const search = async () => {
+    const text = input.value.trim();
+    if (text.length < SEARCH_MIN_LENGTH) {
+      showCheckinStatus(
+        getMessage(
+          "messageSearchTooShort",
+          "Type at least 2 letters of the name.",
+        ),
+        "warning",
+      );
+      return;
+    }
+    const found = await findPeople(
+      text,
+      scanPath,
+      offline,
+      showCheckinStatus,
+      getMessage(
+        "messageSearchFailed",
+        "The search did not work. Check your connection, then try again.",
+      ),
+    );
+    showFound(found ?? []);
+    if (found === null) return;
+    if (found.length === 0) {
+      showCheckinStatus(
+        getMessage(
+          "messageSearchNone",
+          "Nobody at this door matches that name.",
+        ),
+        "warning",
+      );
+      return;
+    }
+    statusEl.classList.add("hidden");
+    setListOpen(true);
+  };
+
+  /** Settle the door's pick: the offline queue takes a saved person, and
+   * the scan API takes a person the search route found. */
+  const settlePick = async (person: Found) => {
+    if (person.kind === "online") {
+      await checkInPick(String(person.attendeeId), postScan);
+      return;
+    }
+    clearPick();
+    await person.queue(showCheckinStatus);
+  };
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const attendeeId = attendeeIdInput.value.trim();
-    if (!attendeeId) return;
-
-    const submitBtn = form.querySelector<HTMLButtonElement>(
-      'button[type="submit"]',
-    )!;
     submitBtn.disabled = true;
-
-    const postScan = async (
-      body: Record<string, unknown>,
-    ): Promise<ScanAnswer> => {
-      const r = await fetch(scanPath, {
-        body: JSON.stringify(body),
-        headers: {
-          "content-type": "application/json",
-          "x-csrf-token": csrfInput.value,
-        },
-        method: "POST",
-      });
-      return r.json();
-    };
-
     try {
-      await checkInPick(attendeeId, postScan);
+      await (picked === null ? search() : settlePick(picked));
     } catch {
       showCheckinStatus(
         getMessage("messageNetworkError", "Network error"),

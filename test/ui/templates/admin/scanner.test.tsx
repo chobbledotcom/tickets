@@ -33,7 +33,6 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
       false,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
@@ -47,126 +46,27 @@ describe("the admin scanner page template", () => {
     assert(!html.includes("Scanning a ticket in this group"));
   });
 
-  test("offers the people still to arrive with their summed places", () => {
+  test("draws an empty name search, with no person in the page", () => {
     const html = adminScannerPage(
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [
-        { attendeeId: 41, details: [], name: "Ada", quantity: 2 },
-        { attendeeId: 42, details: [], name: "Sam", quantity: 1 },
-      ],
       false,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
     );
 
+    // The door asks the search route for a person by name, so the page
+    // itself lists nobody.
     expectIncludesAll(html, [
-      "2 tickets available",
-      'data-name="Ada"',
-      'data-quantity="2"',
-      'data-attendee-id="41"',
-      'data-name="Sam"',
+      'placeholder="Type a name, then search"',
+      "Search by name",
+      'id="ticket-options"',
+      'role="listbox"></div>',
+      'data-message-search-too-short="Type at least 2 letters of the name."',
     ]);
-  });
-
-  test("tells two people with the same name apart by their day and listing", () => {
-    const html = adminScannerPage(
-      { name: "Doors" },
-      "/admin/groups/5/scan",
-      OWNER_SESSION,
-      [
-        {
-          attendeeId: 41,
-          details: ["Camping · 12 Jun"],
-          name: "Ada",
-          quantity: 2,
-        },
-        {
-          attendeeId: 42,
-          details: ["Workshop · 14 Jun"],
-          name: "Ada",
-          quantity: 2,
-        },
-      ],
-      false,
-      DOOR_CACHE_KEY,
-      RETENTION_DAYS,
-    );
-
-    // Same name and the same number of places: only the day, and on a
-    // multi-listing door the listing, tells the two picks apart, so the
-    // roster shows it beside the name.
-    expectIncludesAll(html, [
-      "Ada (2 tickets) — Camping · 12 Jun",
-      "Ada (2 tickets) — Workshop · 14 Jun",
-      'data-detail="Camping · 12 Jun"',
-      // The pick list searches what it shows; it no longer offers the ticket
-      // token, which the roster stopped carrying.
-      "Search by name, day, or listing",
-    ]);
-    assert(!html.includes("ticket token"));
-  });
-
-  test("joins a several-place pick's details into one searchable line", () => {
-    const html = adminScannerPage(
-      { name: "Doors" },
-      "/admin/groups/5/scan",
-      OWNER_SESSION,
-      [
-        {
-          attendeeId: 43,
-          details: ["Camping", "12 Jun"],
-          name: "Ada",
-          quantity: 2,
-        },
-      ],
-      false,
-      DOOR_CACHE_KEY,
-      RETENTION_DAYS,
-    );
-
-    assertStringIncludes(html, 'data-detail="Camping, 12 Jun"');
-  });
-
-  test("escapes a pick's name and day once, so the search reads the real words", () => {
-    const html = adminScannerPage(
-      { name: "Doors" },
-      "/admin/groups/5/scan",
-      OWNER_SESSION,
-      [
-        {
-          attendeeId: 41,
-          details: ["Tom & Jerry <Show>"],
-          name: "Ada & Bo",
-          quantity: 1,
-        },
-      ],
-      false,
-      DOOR_CACHE_KEY,
-      RETENTION_DAYS,
-    );
-
-    expectIncludesAll(html, [
-      'data-name="Ada &amp; Bo"',
-      'data-detail="Tom &amp; Jerry &lt;Show&gt;"',
-      "Ada &amp; Bo (1 ticket) — Tom &amp; Jerry &lt;Show&gt;",
-    ]);
-    assert(!html.includes("&amp;amp;"));
-  });
-
-  test("says when nobody is left to check in", () => {
-    const html = adminScannerPage(
-      { name: "Doors" },
-      "/admin/groups/5/scan",
-      OWNER_SESSION,
-      [],
-      false,
-      DOOR_CACHE_KEY,
-      RETENTION_DAYS,
-    );
-
-    assertStringIncludes(html, "No tickets to check in");
+    assert(!html.includes('role="option"'));
+    assert(!html.includes("data-attendee-id"));
   });
 
   test("carries the door's cache key for the device, once", () => {
@@ -174,7 +74,6 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
       false,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
@@ -191,7 +90,6 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
       false,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
@@ -209,7 +107,6 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
       false,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
@@ -222,20 +119,6 @@ describe("the admin scanner page template", () => {
     expect(times(html, "aria-live=")).toBe(1);
   });
 
-  test("one person still to arrive is named as one ticket, not none", () => {
-    const html = adminScannerPage(
-      { name: "Doors" },
-      "/admin/groups/5/scan",
-      OWNER_SESSION,
-      [{ attendeeId: 41, details: [], name: "Ada", quantity: 1 }],
-      false,
-      DOOR_CACHE_KEY,
-      RETENTION_DAYS,
-    );
-
-    assertStringIncludes(html, "1 ticket available");
-  });
-
   test("carries the check-every-listing warning as an alert, with no way to change it at the door", () => {
     // The flag, not the door's kind, draws the warning: the group's route
     // passes it only for a multi-listing door whose stored rule is on.
@@ -243,7 +126,6 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
       true,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
@@ -260,7 +142,6 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
       false,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
@@ -275,7 +156,6 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/listing/3/scan",
       OWNER_SESSION,
-      [],
       undefined,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
@@ -288,7 +168,6 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
       false,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
@@ -424,7 +303,6 @@ describe("the admin scanner page template", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
       false,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
@@ -474,8 +352,7 @@ describe("the admin scanner page template", () => {
       'name="csrfToken"',
       'for="manual-checkin-input"',
       'class="combobox"',
-      'id="manual-checkin-attendee-id"',
-      'name="attendeeId"',
+      'id="manual-checkin-submit"',
       'autocomplete="off"',
       'id="manual-checkin-input"',
       'type="text"',
@@ -483,11 +360,11 @@ describe("the admin scanner page template", () => {
       'id="ticket-options"',
       'id="manual-checkin-status"',
     ]);
-    // Two hidden fields: the form's own code, and the chosen person's
-    // ticket; plus the five plainly hidden boxes the script reveals (the
+    // One hidden field, the form's own code: the script holds the chosen
+    // person. Plus the five plainly hidden boxes the script reveals (the
     // offline banner, the queue panel, and the overlays carry their hidden
     // state inside a two-class attribute).
-    expect(times(html, 'type="hidden"')).toBe(2);
+    expect(times(html, 'type="hidden"')).toBe(1);
     expect(times(html, 'class="hidden"')).toBe(5);
 
     // The way out to the guide.

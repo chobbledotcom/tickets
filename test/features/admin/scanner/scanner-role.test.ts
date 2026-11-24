@@ -34,7 +34,7 @@ import {
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { doorPage, groupDoor } from "./support.ts";
+import { doorSearch, groupDoor } from "./support.ts";
 
 /** A live door scan sent as a scanner session, the page's own script's shape. */
 const scanAsScanner = async (
@@ -244,11 +244,21 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
       "ada-society@test.com",
     );
 
-    const body = await doorPage(group.id);
-    expectIncludesAll(body, [
-      `Ada (2 tickets) — Standard · ${formatDateLabel(firstDay)}`,
-      `Ada (2 tickets) — Society · ${formatDateLabel(addDays(testDate(firstDay), 1))}`,
-    ]);
+    const found = await doorSearch(group.id, "Ada");
+    expect(
+      found.map(({ details, quantity }) => ({ details, quantity })),
+    ).toEqual(
+      expect.arrayContaining([
+        { details: [`Standard · ${formatDateLabel(firstDay)}`], quantity: 2 },
+        {
+          details: [
+            `Society · ${formatDateLabel(addDays(testDate(firstDay), 1))}`,
+          ],
+          quantity: 2,
+        },
+      ]),
+    );
+    expect(found).toHaveLength(2);
   });
 
   test("an editor and an agent are refused every door and every scan", async () => {

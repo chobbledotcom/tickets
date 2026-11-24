@@ -4,8 +4,9 @@
  * digests nothing. The scanner page downloads the list in pages when the door
  * turns offline mode on. A scan with no connection then answers from the
  * digests alone. The offline quantity ask bounds its pick at the stored
- * count. The device never holds the tokens of tickets it has not scanned,
- * and never holds any guest detail from this endpoint. */
+ * count. The device never holds the tokens of tickets it has not scanned.
+ * Each entry names its person and the door-safe details, so the manual
+ * check-in can find them by name with no connection. */
 
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import {
@@ -14,42 +15,35 @@ import {
   parseIdPayload,
 } from "#crypto/define-signed-token.ts";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
-import { toBase64Url } from "#crypto/utils.ts";
 import { logActivity } from "#db/activity-log.ts";
 import {
   type DecryptedAttendeeRow,
   decryptAttendees,
 } from "#db/attendees/pii.ts";
-import { getGroupById } from "#db/groups.ts";
 import { getAttendeesPageByListingIds } from "#db/listings/attendees.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
 import { decryptUsername, getUserById } from "#db/users.ts";
 import { chunk, groupToMap, mapParallel, requiredMapValue, sumOf } from "#fp";
 import { sortedByString } from "#fp-strings";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { type AuthSession, SCANNER_JSON, withAuth } from "#routes/auth.ts";
-import type { IdRouteHandler } from "#routes/entity.ts";
-import { jsonResponse, notFoundResponse } from "#routes/response.ts";
+import type { AuthSession } from "#routes/auth.ts";
+import { jsonResponse } from "#routes/response.ts";
 import { expiresIn } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { hmacHex, importHmacKey } from "#shared/sha256.ts";
-import { type Attendee, type Group, hasTicketQuantity } from "#types";
-import { groupScope, listingScope, type ScanScope } from "./scan-answer.ts";
+import { type Attendee, hasTicketQuantity } from "#types";
+import type { ScanScope } from "./scan-answer.ts";
 import { owingListings, scanAdmits } from "./scan-decision.ts";
-
-/** The name a door's cache key derives from: the door's kind and id. The
- * cache endpoint and the scanner page derive the same key from the same
- * name. */
-export const doorCacheName = (kind: "group" | "listing", id: number): string =>
-  `${kind}:${id}`;
-
-/** The door's cache key as the scanner page carries it: base64url bytes the
- * device decodes before it digests a scan. The page is the only response
- * that holds a door's key, so a copied cache response alone digests
- * nothing. */
-export const pageDoorCacheKey = (door: string): string =>
-  toBase64Url(deriveDoorCacheKey(door));
+import {
+  doorListingNames,
+  doorRoute,
+  type ListingNames,
+  lineOwes,
+  loadGroupDoor,
+  loadListingDoor,
+  optionDetails,
+  type ScanDoor,
+} from "./scan-door.ts";
 
 /** The token digests one round signs at once, so a large door's cache
  * build does not start every digest at the same time. */
@@ -62,8 +56,17 @@ const CACHE_PAGE_PEOPLE = 250;
 /** One saved ticket's keyed digest and the places one scan at this door
  * admits of its booking. The offline quantity ask reads the count and
  * bounds its pick at it. The server answers what the booking can still
- * supply when the check-in lands. */
-export type TicketCacheEntry = { hash: string; tickets: number };
+ * supply when the check-in lands. The person's name and the door-safe
+ * details let the door find them by name with no connection. */
+export type TicketCacheEntry = {
+  details: string[];
+  hash: string;
+  name: string;
+  tickets: number;
+};
+
+/** What one token's entry says about its person, before the digest. */
+type EntryFacts = Omit<TicketCacheEntry, "hash">;
 
 /** One page of a door's cache. `next` is the signed cursor for the next
  * page, or null on the last page. `people` counts the door's people this
@@ -86,6 +89,7 @@ type TicketCachePage = {
  * way, and each carries the same count. */
 const ticketCachePage = async (
   scope: ScanScope,
+  listingNames: ListingNames,
   doorKey: Uint8Array,
   afterId: number,
   cursorAfter: (attendeeId: number) => Promise<string>,
@@ -106,7 +110,7 @@ const ticketCachePage = async (
     (row: DecryptedAttendeeRow<Attendee>) => row.id,
     (row: DecryptedAttendeeRow<Attendee>) => row,
   )(rows);
-  const owedByToken = new Map<string, number>();
+  const factsByToken = new Map<string, EntryFacts>();
   for (const lines of rowsByAttendee.values()) {
     // One line that can still admit admits the person, so any of the
     // person's tickets at this door goes in the list.
@@ -123,7 +127,12 @@ const ticketCachePage = async (
       (owedLines: readonly DecryptedAttendeeRow<Attendee>[]) =>
         sumOf(remainingTickets)(owedLines),
     )(admitted);
-    for (const row of lines) owedByToken.set(row.ticket_token, places);
+    const facts = {
+      details: optionDetails(lines.filter(lineOwes), listingNames),
+      name: lines[0]!.name,
+      tickets: places,
+    };
+    for (const row of lines) factsByToken.set(row.ticket_token, facts);
   }
   // One key import serves every digest. A per-digest import repeats the
   // same work for each token. Each batch pairs its digests with the owed
@@ -132,12 +141,14 @@ const ticketCachePage = async (
   const digestBatch = async (batch: string[]): Promise<TicketCacheEntry[]> =>
     Promise.all(
       batch.map(async (token) => ({
+        ...requiredMapValue(factsByToken, token),
         hash: await hmacHex(key, token),
-        tickets: requiredMapValue(owedByToken, token),
       })),
     );
   const entries = (
-    await mapParallel(digestBatch)(chunk(DIGEST_BATCH)([...owedByToken.keys()]))
+    await mapParallel(digestBatch)(
+      chunk(DIGEST_BATCH)([...factsByToken.keys()]),
+    )
   ).flat();
   return {
     // Digest order, so every device saves the same list for the same door
@@ -148,20 +159,6 @@ const ticketCachePage = async (
     total: page.total,
   };
 };
-
-/** One door as its cache route sees it. `door` is the name its key derives
- * from. `name` is the door's own name for the activity log. `listingId` is
- * the listing the log entry belongs to, or null for a group door. */
-type CacheDoor = {
-  door: string;
-  listingId: number | null;
-  name: string;
-  scope: ScanScope;
-};
-
-/** Load one door by id. Null is the documented answer for a door that does
- * not exist, or a listing marked "No check-in". */
-type CacheDoorLoader = (id: number) => Promise<CacheDoor | null>;
 
 /** How long one page's cursor stays valid. A download that stops for longer
  * starts again from the first page, which logs again. */
@@ -182,7 +179,7 @@ const cacheCursor = defineSignedToken<IdPayload, CursorOwner>({
 
 /** Write the log entry for one person who starts to download a door's list. */
 const logListDownload = async (
-  loaded: CacheDoor,
+  loaded: ScanDoor,
   session: AuthSession,
 ): Promise<void> => {
   const username = await decryptUsername(
@@ -201,59 +198,27 @@ const logListDownload = async (
  * page, and it writes the activity log entry. Every later page needs the
  * signed cursor that the page before it issued, so no page reaches a device
  * without a logged first page. */
-const handleScanCacheGet =
-  (load: CacheDoorLoader): IdRouteHandler =>
-  (request, { id }) =>
-    withAuth(request, SCANNER_JSON, async (session) => {
-      const loaded = await load(id);
-      if (!loaded) return notFoundResponse();
-      const owner = { door: loaded.door, userId: session.userId };
-      const from = new URL(request.url).searchParams.get("from");
-      const cursor =
-        from === null ? { a: 0 } : await cacheCursor.verify(owner, from);
-      if (cursor === null) return apiErrorResponse("Invalid page cursor");
-      if (from === null) await logListDownload(loaded, session);
-      return jsonResponse(
-        await ticketCachePage(
-          loaded.scope,
-          deriveDoorCacheKey(loaded.door),
-          cursor.a,
-          (attendeeId) =>
-            cacheCursor.sign(owner, {
-              a: attendeeId,
-              e: expiresIn(CURSOR_MAX_AGE_S),
-            }),
-        ),
-      );
-    });
-
-/** The listing door. A "No check-in" listing has no door, so a guessed URL
- * meets the same answer as an unknown listing. */
-const loadListingDoor: CacheDoorLoader = async (id) => {
-  const listing = await getListingWithCount(id);
-  return !listing || listing.purchaseOnly
-    ? null
-    : {
-        door: doorCacheName("listing", id),
-        listingId: id,
-        name: listing.name,
-        scope: listingScope(id),
-      };
-};
-
-/** The group door. A missing group answers 404 rather than an empty set, so
- * a broken link cannot pass every ticket off as absent. */
-const loadGroupDoor: CacheDoorLoader = async (id) => {
-  const group: Group | null = await getGroupById(id);
-  return group
-    ? {
-        door: doorCacheName("group", id),
-        listingId: null,
-        name: group.name,
-        scope: await groupScope(group),
-      }
-    : null;
-};
+const handleScanCacheGet = doorRoute(async (loaded, request, session) => {
+  const owner = { door: loaded.door, userId: session.userId };
+  const from = new URL(request.url).searchParams.get("from");
+  const cursor =
+    from === null ? { a: 0 } : await cacheCursor.verify(owner, from);
+  if (cursor === null) return apiErrorResponse("Invalid page cursor");
+  if (from === null) await logListDownload(loaded, session);
+  return jsonResponse(
+    await ticketCachePage(
+      loaded.scope,
+      await doorListingNames(loaded.scope),
+      deriveDoorCacheKey(loaded.door),
+      cursor.a,
+      (attendeeId) =>
+        cacheCursor.sign(owner, {
+          a: attendeeId,
+          e: expiresIn(CURSOR_MAX_AGE_S),
+        }),
+    ),
+  );
+});
 
 /** The cache routes of both door kinds: one page of the door's list. */
 export const scanCacheRoutes = {

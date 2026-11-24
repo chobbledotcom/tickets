@@ -8,7 +8,7 @@ import {
 } from "./fixture.ts";
 
 describe("manual check-in under the ticket-to-booking rebrand", () => {
-  const { setup, stubScans } = useManualCheckinPage(REBRANDED_FORM);
+  const { pickedPage, stubScans } = useManualCheckinPage(REBRANDED_FORM);
 
   test("asks how many bookings at the quantity ask", async () => {
     stubScans([
@@ -22,8 +22,7 @@ describe("manual check-in under the ticket-to-booking rebrand", () => {
         total: 1,
       },
     ]);
-    const page = setup();
-    page.attendeeIdInput.value = "11";
+    const page = await pickedPage("11");
     const event = new page.window.Event("submit", { cancelable: true });
     fireEvent(page.form, event);
 

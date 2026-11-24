@@ -100,8 +100,10 @@ export const AREAS_M_Z = {
       doors: "/admin/scanner",
       groupScanCache: "/admin/groups/:id/scan-cache",
       groupScanner: "/admin/groups/:id/scanner",
+      groupScanSearch: "/admin/groups/:id/scan-search",
       listingScanCache: "/admin/listing/:id/scan-cache",
       listingScanner: "/admin/listing/:id/scanner",
+      listingScanSearch: "/admin/listing/:id/scan-search",
     },
     write: {
       groupScan: openInReadOnly("/admin/groups/:id/scan"),

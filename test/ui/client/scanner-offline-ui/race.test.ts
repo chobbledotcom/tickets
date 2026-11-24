@@ -20,6 +20,7 @@ import {
   type CameraFakes,
   cameraFakes,
   drain,
+  savedEntry,
   scanFirst,
   scanNext,
   seedTicketCache,
@@ -166,7 +167,7 @@ describe("scanner offline races", {
     const fetchStub = stubFetch(async (url) =>
       String(url).includes("/scan-cache")
         ? Response.json({
-            entries: [{ hash: await hmacHex(DOOR_KEY, TOKEN), tickets: 1 }],
+            entries: [savedEntry(await hmacHex(DOOR_KEY, TOKEN))],
             next: null,
             people: 1,
             total: 1,
@@ -182,7 +183,7 @@ describe("scanner offline races", {
       // The downloaded list sits in the store, written by the switch.
       const stored = await whenStoreHolds(h, `scanner-tickets-${SCAN_PATH}`);
       expect(JSON.parse(stored)).toEqual({
-        entries: [{ hash: await hmacHex(DOOR_KEY, TOKEN), tickets: 1 }],
+        entries: [savedEntry(await hmacHex(DOOR_KEY, TOKEN))],
         storedAt: expect.any(Number),
       });
       await whenStatusShows(

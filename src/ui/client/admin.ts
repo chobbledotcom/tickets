@@ -24,7 +24,6 @@ import { initIframeScrollIntoView } from "./admin/iframe-scroll-into-view.ts";
 import { initImageLibrary } from "./admin/image-library.ts";
 import { initListingImages } from "./admin/listing-images.ts";
 import { initLogisticsMapLoader } from "./admin/logistics-map-loader.ts";
-import { initManualCheckin } from "./admin/manual-checkin.ts";
 import { initMarkdownEditorLoader } from "./admin/markdown-editor-loader.ts";
 import { initMarkdownPreview } from "./admin/markdown-preview.ts";
 import { initAdminModalShell } from "./admin/modal.ts";
@@ -64,7 +63,6 @@ initMarkdownPreview();
 // preview's footer strip once its bundle loads.
 initMarkdownEditorLoader();
 initLogisticsMapLoader();
-initManualCheckin();
 initFormSubmitDisable();
 initQuestionVisibility();
 initChildRequired();

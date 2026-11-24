@@ -14,6 +14,15 @@ export const drain = async (): Promise<void> => {
   for (let hop = 0; hop < 50; hop++) await Promise.resolve();
 };
 
+/** One entry of the door's saved list: the ticket digest, the places one
+ * scan admits, and the person a name search finds by it. */
+export const savedEntry = (hash: string, tickets = 1) => ({
+  details: [],
+  hash,
+  name: "Ada",
+  tickets,
+});
+
 /** The door's ticket list, stamped by the clock the scan will read. The
  * camera fakes own the clock, so the seed lands after they do. The entry
  * carries the places the booking owed when the list was built; a booking
@@ -27,7 +36,7 @@ export const seedTicketCache = async (
   h.window.localStorage.setItem(
     `scanner-tickets-${SCAN_PATH}`,
     JSON.stringify({
-      entries: [{ hash: await hmacHex(DOOR_KEY, token), tickets }],
+      entries: [savedEntry(await hmacHex(DOOR_KEY, token), tickets)],
       storedAt,
     }),
   );

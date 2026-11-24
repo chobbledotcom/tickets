@@ -13,6 +13,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  savedEntry,
   whenStatusShows,
   whenStoreHolds,
 } from "#test/ui/client/scanner/camera-fakes.ts";
@@ -39,11 +40,11 @@ const cachePage = (
   next: string | null,
   people: number,
   total: number,
-) => ({ entries: [{ hash, tickets: 1 }], next, people, total });
+) => ({ entries: [savedEntry(hash)], next, people, total });
 
 /** A list a device saved earlier, still fresh. */
 const savedList = JSON.stringify({
-  entries: [{ hash: "saved", tickets: 1 }],
+  entries: [savedEntry("saved")],
   storedAt: Date.now(),
 });
 
@@ -139,10 +140,7 @@ describe("scanner offline switch", {
     await whenStatusShows(h.statusEl, READY);
 
     expect(storedList(h)).toEqual({
-      entries: [
-        { hash: "first", tickets: 1 },
-        { hash: "second", tickets: 1 },
-      ],
+      entries: [savedEntry("first"), savedEntry("second")],
       storedAt: expect.any(Number),
     });
     expect(h.window.localStorage.getItem(MODE_KEY)).toBe("1");
@@ -240,7 +238,7 @@ describe("scanner offline switch", {
 
     newPage.resolve(Response.json(cachePage("fresh", null, 1, 1)));
     await whenStatusShows(h.statusEl, READY);
-    expect(storedEntries(h)).toEqual([{ hash: "fresh", tickets: 1 }]);
+    expect(storedEntries(h)).toEqual([savedEntry("fresh")]);
     expect(toggle(h).getAttribute("aria-busy")).toBe(null);
   });
 
@@ -263,7 +261,7 @@ describe("scanner offline switch", {
       seed: switchOnWithList,
     });
     await whenStatusShows(h.statusEl, READY);
-    expect(storedEntries(h)).toEqual([{ hash: "fresh", tickets: 1 }]);
+    expect(storedEntries(h)).toEqual([savedEntry("fresh")]);
     expect(askedUrls(fetchStub)).toEqual([FIRST_PAGE]);
   });
 

@@ -284,51 +284,47 @@ export const doorPageHtml: ReadAboutOneThing = async (world, listing) =>
   (await openAdminPage(world, listingPath(world, listing, "scanner")))
     .currentHtml;
 
-/** The people a scanner page's list offers when the organiser looks someone
- * up by hand instead of reading their ticket. Each one is read from the row
- * the organiser would click, so a name shown anywhere else on the page does
- * not count as being offered. */
-export const readOfferedPeople = (html: string): Array<{ name: string }> =>
-  [...html.matchAll(/<div[^>]*role="option"[^>]*>/g)].map(([row]) => ({
-    name: readOf(row, "name"),
-  }));
+/** One person a door's name search finds, and the tickets they still owe. */
+export type FoundAtDoor = { name: string; quantity: number };
 
-/** The people a door's own list offers, whatever door page the caller
- * names: the listing's door and the group's door both stand on this. */
+/** The people a door's name search finds for `who`, asked the way the door's
+ * manual check-in asks: through the door's search route, by part of a name.
+ * The listing's door and the group's door both stand on this. */
 export const offeredAt =
-  (
-    pageHtml: ReadAboutOneThing<string>,
-  ): ReadAboutOneThing<Array<{ name: string }>> =>
-  async (world, doorName) =>
-    readOfferedPeople(await pageHtml(world, doorName));
+  (searchPath: (world: TicketsWorld, doorName: string) => string) =>
+  async (
+    world: TicketsWorld,
+    doorName: string,
+    who: string,
+  ): Promise<FoundAtDoor[]> => {
+    const browser = await openAdminPage(
+      world,
+      `${searchPath(world, doorName)}?q=${encodeURIComponent(who)}`,
+    );
+    const { options } = JSON.parse(browser.currentHtml) as {
+      options: FoundAtDoor[];
+    };
+    return options.map(({ name, quantity }) => ({ name, quantity }));
+  };
 
-/** One thing the door records about a person it is offering. A row missing it
- * is a broken page, not an empty answer. */
-const readOf = (row: string, what: string): string =>
-  requireGroup(
-    row.match(new RegExp(`data-${what}="([^"]*)"`)),
-    `A row at the door has no ${what}`,
-  );
-
-/** The people the listing's door offers when the organiser looks someone up by
- * hand instead of reading their ticket. */
-export const peopleOfferedAtDoor = offeredAt(doorPageHtml);
+/** The people the listing's door finds when the organiser looks someone up
+ * by name instead of reading their ticket. */
+export const peopleOfferedAtDoor = offeredAt((world, listing) =>
+  listingPath(world, listing, "scan-search"),
+);
 
 /** How many tickets the listing's door offers one person for when the
- * organiser looks them up by hand: what their party still owes. */
+ * organiser looks them up by name: what their party still owes. */
 export const ticketsOfferedAtDoor = async (
   world: TicketsWorld,
   listing: string,
   who: string,
 ): Promise<number> => {
-  const rows = [
-    ...(await doorPageHtml(world, listing)).matchAll(
-      /<div[^>]*role="option"[^>]*>/g,
-    ),
-  ].map(([row]) => row);
-  const row = rows.find((one) => readOf(one, "name") === who);
-  if (!row) throw new Error(`The door does not offer ${who}`);
-  return Number(readOf(row, "quantity"));
+  const found = (await peopleOfferedAtDoor(world, listing, who)).find(
+    (person) => person.name === who,
+  );
+  if (!found) throw new Error(`The door does not offer ${who}`);
+  return found.quantity;
 };
 
 /** What the listing's own record of the day says happened. */

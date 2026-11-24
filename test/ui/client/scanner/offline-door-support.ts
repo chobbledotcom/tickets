@@ -52,7 +52,12 @@ export const CHECK_IN_PICK = 2;
  * one keyed digest per ticket, with the places one scan at the door admits.
  * Both boundaries are outside the test's own code, so both parse. */
 const cacheEntriesSchema = v.array(
-  v.object({ hash: v.string(), tickets: v.pipe(v.number(), v.integer()) }),
+  v.object({
+    details: v.array(v.string()),
+    hash: v.string(),
+    name: v.string(),
+    tickets: v.pipe(v.number(), v.integer()),
+  }),
 );
 const servedCacheSchema = v.object({ entries: cacheEntriesSchema });
 const storedCacheSchema = v.object({

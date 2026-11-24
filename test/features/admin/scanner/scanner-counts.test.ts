@@ -128,22 +128,21 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
   });
 
-  test("the scanner's pick list shows the tickets a part party still owes", async () => {
+  test("the scanner's search shows the tickets a part party still owes", async () => {
     const { attendee, cookie, listing } = await partyOfThree();
     await moveTickets("admit", [
       { attendeeId: attendee.id, count: 2, listingId: listing.id },
     ]);
 
-    const body = await (
-      await awaitTestRequest(`/admin/listing/${listing.id}/scanner`, {
-        cookie,
-      })
-    ).text();
+    const search = await awaitTestRequest(
+      `/admin/listing/${listing.id}/scan-search?q=pia`,
+      { cookie },
+    );
 
-    expectIncludesAll(body, [
-      `data-attendee-id="${attendee.id}"`,
-      'data-quantity="1"',
-      "Pia (1 ticket)",
-    ]);
+    expect(await search.json()).toEqual({
+      options: [
+        { attendeeId: attendee.id, details: [], name: "Pia", quantity: 1 },
+      ],
+    });
   });
 });

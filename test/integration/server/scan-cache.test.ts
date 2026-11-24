@@ -16,7 +16,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
-import { doorCacheName, pageDoorCacheKey } from "#routes/admin/scan-cache.ts";
+import { doorCacheName, pageDoorCacheKey } from "#routes/admin/scan-door.ts";
 import { addDays } from "#shared/dates.ts";
 import { hmacHex } from "#shared/sha256.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -47,6 +47,19 @@ const authedGet = async (path: string): Promise<Response> =>
 const doorDigest = (door: string, token: string): Promise<string> =>
   hmacHex(deriveDoorCacheKey(door), token);
 
+/** One saved-list entry: the digest, the places one scan admits, and the
+ * person a name search finds by it, with no detail unless one is named. */
+const entryOf = (
+  hash: string,
+  tickets: number,
+  name: string,
+  details: unknown[] = [],
+) => ({ details, hash, name, tickets });
+
+/** The digest and the count of each entry, in the saved order. */
+const digestsAndCounts = (entries: { hash: string; tickets: number }[]) =>
+  entries.map((entry) => [entry.hash, entry.tickets]);
+
 describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
   test("serves an entry for every ticket the listing door can admit", async () => {
     const { listing, token: kept } = await createTestAttendeeWithToken(
@@ -63,12 +76,12 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       200,
     );
     const door = doorCacheName("listing", listing.id);
+    const entries = [
+      entryOf(await doorDigest(door, kept), 1, "Ada Host"),
+      entryOf(await doorDigest(door, other), 1, "Ben Lane"),
+    ].sort((one, two) => (one.hash < two.hash ? -1 : 1));
     expect(body).toEqual({
-      entries: (
-        await Promise.all([doorDigest(door, kept), doorDigest(door, other)])
-      )
-        .sort()
-        .map((hash) => ({ hash, tickets: 1 })),
+      entries,
       next: null,
       people: 2,
       total: 2,
@@ -124,19 +137,17 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     const earlyLesser = await doorWith(false, ["Eve Ash", "Finn Ash"]);
     const earlyGreater = await doorWith(true, ["Gail Ash", "Hugo Ash"]);
     for (const built of [earlyLesser, earlyGreater]) {
-      expect(
-        await assertJson(
-          authedGet(`/admin/listing/${built.listing.id}/scan-cache`),
-          200,
-        ),
-      ).toEqual({
-        entries: [
-          { hash: built.lesserDigest, tickets: 1 },
-          { hash: built.greaterDigest, tickets: 1 },
-        ],
+      const body = await assertJson(
+        authedGet(`/admin/listing/${built.listing.id}/scan-cache`),
+        200,
+      );
+      expect(digestsAndCounts(body.entries)).toEqual([
+        [built.lesserDigest, 1],
+        [built.greaterDigest, 1],
+      ]);
+      expect({ next: body.next, people: body.people }).toEqual({
         next: null,
         people: 2,
-        total: 2,
       });
     }
   });
@@ -153,10 +164,11 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       200,
     );
     expect(body.entries).toEqual([
-      {
-        hash: await doorDigest(doorCacheName("listing", listing.id), token),
-        tickets: 3,
-      },
+      entryOf(
+        await doorDigest(doorCacheName("listing", listing.id), token),
+        3,
+        "Ada Host",
+      ),
     ]);
   });
 
@@ -194,6 +206,8 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     return {
       attendee,
       body,
+      // A door that spans two listings names each listing the person holds.
+      details: [west.name, east.name],
       digest: await doorDigest(
         doorCacheName("group", group.id),
         attendee.ticket_token,
@@ -205,25 +219,25 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     // Each scan at this door checks in one listing at a time, so one scan
     // admits only the first listing's places. The saved list bounds the
     // door's ask at those places, so the delivery it names lands whole.
-    const { body, digest } = await twoListingDoorCache(
+    const { body, details, digest } = await twoListingDoorCache(
       "Bound Barn",
       false,
       "Gus Reed",
       "gus@example.com",
     );
-    expect(body.entries).toEqual([{ hash: digest, tickets: 2 }]);
+    expect(body.entries).toEqual([entryOf(digest, 2, "Gus Reed", details)]);
   });
 
   test("keeps a multi-listing booking's whole total at a check-every-listing door", async () => {
     // One scan at this door checks in every listing the ticket holds, so
     // the saved list keeps the booking's whole total as the ask's bound.
-    const { body, digest } = await twoListingDoorCache(
+    const { body, details, digest } = await twoListingDoorCache(
       "Whole Barn",
       true,
       "Hana Reed",
       "hana@example.com",
     );
-    expect(body.entries).toEqual([{ hash: digest, tickets: 5 }]);
+    expect(body.entries).toEqual([entryOf(digest, 5, "Hana Reed", details)]);
   });
 
   test("names the first listing's places when an earlier line on it is fully checked in", async () => {
@@ -273,14 +287,21 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       authedGet(`/admin/groups/${group.id}/scan-cache`),
       200,
     );
+    // The fully checked-in early line adds no detail. The two lines that
+    // still owe places each name their listing and their day.
     expect(body.entries).toEqual([
-      {
-        hash: await doorDigest(
+      entryOf(
+        await doorDigest(
           doorCacheName("group", group.id),
           attendee.ticket_token,
         ),
-        tickets: 3,
-      },
+        3,
+        "Ivy Reed",
+        [
+          expect.stringMatching(new RegExp(`^${east.name} · \\w+day \\d+ `)),
+          expect.stringMatching(new RegExp(`^${west.name} · \\w+day \\d+ `)),
+        ],
+      ),
     ]);
   });
 
@@ -312,10 +333,11 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       200,
     );
     expect(body.entries).toEqual([
-      {
-        hash: await doorDigest(doorCacheName("listing", listing.id), waiting),
-        tickets: 1,
-      },
+      entryOf(
+        await doorDigest(doorCacheName("listing", listing.id), waiting),
+        1,
+        "Dan Ford",
+      ),
     ]);
   });
 
@@ -343,10 +365,11 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       ),
     ).toEqual({
       entries: [
-        {
-          hash: await doorDigest(doorCacheName("listing", listing.id), kept),
-          tickets: 1,
-        },
+        entryOf(
+          await doorDigest(doorCacheName("listing", listing.id), kept),
+          1,
+          "Kit Vale",
+        ),
       ],
       next: null,
       people: 2,
@@ -373,10 +396,12 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       200,
     );
     const door = doorCacheName("group", group.id);
+    // Each person's entry names the member listing they hold.
     expect(body.entries).toEqual(
-      (await Promise.all([doorDigest(door, first), doorDigest(door, second)]))
-        .sort()
-        .map((hash) => ({ hash, tickets: 1 })),
+      [
+        entryOf(await doorDigest(door, first), 1, "Eve Ray", [west.name]),
+        entryOf(await doorDigest(door, second), 1, "Finn Ash", [east.name]),
+      ].sort((one, two) => (one.hash < two.hash ? -1 : 1)),
     );
   });
 

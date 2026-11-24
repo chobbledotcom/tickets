@@ -13,6 +13,26 @@ import {
   testCsrfToken,
 } from "#test-utils/session.ts";
 
+/** One person a name search at a door finds, as the search route answers. */
+export type FoundPerson = {
+  attendeeId: number;
+  details: string[];
+  name: string;
+  quantity: number;
+};
+
+/** The people a name search at the group door finds. */
+export const doorSearch = async (
+  groupId: number,
+  text: string,
+): Promise<FoundPerson[]> => {
+  const response = await adminGet(
+    `/admin/groups/${groupId}/scan-search?q=${encodeURIComponent(text)}`,
+  );
+  expect(response.status).toBe(200);
+  return ((await response.json()) as { options: FoundPerson[] }).options;
+};
+
 /** One group door with its member listings. Names are unique across the
  * whole site — listings and groups both — so a test that opens two doors
  * must give each its own names. */

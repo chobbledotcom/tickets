@@ -4,21 +4,23 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { useManualCheckinPage } from "./fixture.ts";
 
 describe("manual check-in submission", () => {
-  const { setup } = useManualCheckinPage();
+  const { pickedPage, setup } = useManualCheckinPage();
 
-  test("submission without a selected ticket does not call the server", async () => {
-    const page = setup();
+  test("a search shorter than two letters asks for more and calls nothing", async () => {
+    const page = await setup();
     using fetchStub = stubFetch(Response.json({ status: "checked_in" }));
+    page.input.value = " a ";
 
     const event = await page.submit();
 
     expect(event.defaultPrevented).toBe(true);
     expect(fetchStub.calls.length).toBe(0);
+    expect(page.status.textContent).toBe("Type more letters.");
+    expect(page.status.className).toBe("checkin-status checkin-status-warning");
   });
 
   test("successful submission checks in and removes the selected option", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
+    const page = await pickedPage("11");
     page.input.value = "Ada";
     using _fetch = stubFetch((url, init) => {
       expect(url).toBe("/admin/listing/7/scan");
@@ -44,13 +46,12 @@ describe("manual check-in submission", () => {
     );
     expect(page.status.className).toBe("checkin-status checkin-status-success");
     expect(page.listbox.querySelector("[data-attendee-id='11']")).toBeNull();
-    expect(page.attendeeIdInput.value).toBe("");
+    expect(page.buttonLabel()).toBe("Search");
     expect(page.input.value).toBe("");
   });
 
   test("successful submission defaults an invalid quantity to one", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
+    const page = await pickedPage("11");
     using _fetch = stubFetch(
       Response.json({
         listingName: "Ceilidh",
@@ -67,8 +68,7 @@ describe("manual check-in submission", () => {
   });
 
   test("successful submission keeps a zero ticket quantity", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
+    const page = await pickedPage("11");
     using _fetch = stubFetch(
       Response.json({
         listingName: "Ceilidh",
@@ -86,9 +86,9 @@ describe("manual check-in submission", () => {
   });
 
   test("successful submission uses empty text for an unknown message value", async () => {
-    const page = setup();
+    const page = await setup();
     page.form.dataset.messageCheckedIn = "{name}:{missing}";
-    page.attendeeIdInput.value = "11";
+    page.pick("11");
     using _fetch = stubFetch(
       Response.json({ name: "Ada", quantity: 2, status: "checked_in" }),
     );
@@ -99,12 +99,12 @@ describe("manual check-in submission", () => {
   });
 
   test("a full check-in removes every matching option", async () => {
-    const page = setup();
+    const page = await setup();
     const option = page.listbox.querySelector<HTMLElement>(
       "[data-attendee-id='11']",
     )!;
     page.listbox.append(option.cloneNode(true));
-    page.attendeeIdInput.value = "11";
+    page.pick("11");
     using _fetch = stubFetch(
       Response.json({
         listingName: "Ceilidh",
@@ -123,8 +123,7 @@ describe("manual check-in submission", () => {
   });
 
   test("a check-in with tickets remaining keeps the person's option, showing what is left", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
+    const page = await pickedPage("11");
     using _fetch = stubFetch(
       Response.json({
         listingName: "Ceilidh",
@@ -142,13 +141,12 @@ describe("manual check-in submission", () => {
     )!;
     expect(option.dataset.quantity).toBe("3");
     expect(option.textContent).toBe("Ada (3 tickets) - Camping · 12 Jun");
-    expect(page.attendeeIdInput.value).toBe("");
+    expect(page.buttonLabel()).toBe("Search");
     expect(page.input.value).toBe("");
   });
 
   test("an option with no day or listing keeps the plain label as it shrinks", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "13";
+    const page = await pickedPage("13");
     using _fetch = stubFetch(
       Response.json({
         listingName: "Ceilidh",
@@ -169,9 +167,9 @@ describe("manual check-in submission", () => {
   });
 
   test("already checked in results show a warning", async () => {
-    const page = setup();
+    const page = await setup();
     page.form.dataset.messageAlreadyCheckedIn = "{name} already ({tickets})";
-    page.attendeeIdInput.value = "11";
+    page.pick("11");
     using _fetch = stubFetch(
       Response.json({ name: "Ada", quantity: 0, status: "already_checked_in" }),
     );
@@ -183,9 +181,9 @@ describe("manual check-in submission", () => {
   });
 
   test("already checked in results keep their ticket quantity", async () => {
-    const page = setup();
+    const page = await setup();
     page.form.dataset.messageAlreadyCheckedIn = "{tickets}";
-    page.attendeeIdInput.value = "11";
+    page.pick("11");
     using _fetch = stubFetch(
       Response.json({ name: "Ada", quantity: 2, status: "already_checked_in" }),
     );
@@ -223,8 +221,7 @@ describe("manual check-in submission", () => {
     },
   ]) {
     test(scanError.name, async () => {
-      const page = setup();
-      page.attendeeIdInput.value = "11";
+      const page = await pickedPage("11");
       using _fetch = stubFetch(Response.json(scanError.result));
 
       await page.submit();
@@ -266,9 +263,9 @@ describe("manual check-in submission", () => {
     },
   ]) {
     test(fallback.name, async () => {
-      const page = setup();
+      const page = await setup();
       delete page.form.dataset[fallback.key];
-      page.attendeeIdInput.value = "11";
+      page.pick("11");
       using _fetch = stubFetch(Response.json(fallback.result));
 
       await page.submit();
@@ -278,9 +275,9 @@ describe("manual check-in submission", () => {
   }
 
   test("an empty configured message stays empty", async () => {
-    const page = setup();
+    const page = await setup();
     page.form.dataset.messageNotFound = "";
-    page.attendeeIdInput.value = "11";
+    page.pick("11");
     using _fetch = stubFetch(Response.json({ status: "not_found" }));
 
     await page.submit();
@@ -289,8 +286,7 @@ describe("manual check-in submission", () => {
   });
 
   test("network failures show an error and re-enable submission", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
+    const page = await pickedPage("11");
     using _fetch = stubFetch(new Error("offline"));
 
     await page.submit();
@@ -301,9 +297,9 @@ describe("manual check-in submission", () => {
   });
 
   test("network failures use the fallback message when none is configured", async () => {
-    const page = setup();
+    const page = await setup();
     delete page.form.dataset.messageNetworkError;
-    page.attendeeIdInput.value = "11";
+    page.pick("11");
     using _fetch = stubFetch(new Error("offline"));
 
     await page.submit();

@@ -11,17 +11,6 @@ import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AdminSession } from "#types";
 
-/** Ticket option for the manual check-in autocomplete. It carries the
- * attendee's internal id, never the ticket credential. */
-export interface TicketOption {
-  attendeeId: number;
-  /** The door-safe facts that tell two people with the same name apart —
-   * the listing (on a multi-listing door) and the day each place is for. */
-  details: string[];
-  name: string;
-  quantity: number;
-}
-
 /** One door on the doors page: its name and the scanner page that serves it. */
 export interface ScannerDoor {
   name: string;
@@ -223,7 +212,7 @@ const scannerShell = (
   );
 
 /**
- * Scanner page - camera feed with auto check-in + manual autocomplete.
+ * Scanner page - camera feed with auto check-in + manual check-in by name.
  * `subject` is whichever door this page scans for — a listing or a group —
  * and `scanPath` is the JSON API its two check-in paths post to. A group
  * whose stored door rule checks in every listing passes
@@ -238,7 +227,6 @@ export const adminScannerPage = (
   subject: { name: string },
   scanPath: string,
   session: AdminSession,
-  uncheckedIn: TicketOption[] = [],
   checksInEveryListing = false,
   doorCacheKey: string,
   scanOperationRetentionDays: number,
@@ -361,6 +349,11 @@ export const adminScannerPage = (
           action={scanPath}
           {...sharedScanMessageAttrs(messageTemplates)}
           data-manual-checkin
+          data-message-check-in-button={t("admin.scanner.check_in")}
+          data-message-search-button={t("admin.scanner.search_button")}
+          data-message-search-failed={t("admin.scanner.search_failed")}
+          data-message-search-none={t("admin.scanner.search_none")}
+          data-message-search-too-short={t("admin.scanner.search_too_short")}
           data-message-ticket-option={tWithHoles(
             "admin.scanner.ticket_option",
             "name",
@@ -383,23 +376,12 @@ export const adminScannerPage = (
           </label>
           <div class="combobox">
             <input
-              id="manual-checkin-attendee-id"
-              name="attendeeId"
-              type="hidden"
-            />
-            <input
               aria-autocomplete="list"
               aria-controls="ticket-options"
               aria-expanded="false"
               autocomplete="off"
               id="manual-checkin-input"
-              placeholder={
-                uncheckedIn.length > 0
-                  ? t("admin.scanner.tickets_available", {
-                      count: uncheckedIn.length,
-                    })
-                  : t("admin.scanner.no_tickets")
-              }
+              placeholder={t("admin.scanner.search_placeholder")}
               required
               role="combobox"
               type="text"
@@ -408,36 +390,11 @@ export const adminScannerPage = (
               class="combobox-list hidden"
               id="ticket-options"
               role="listbox"
-            >
-              {uncheckedIn.map((ticket) => {
-                const detail = ticket.details.join(", ");
-                return (
-                  <div
-                    data-attendee-id={String(ticket.attendeeId)}
-                    data-detail={detail}
-                    data-name={ticket.name}
-                    data-quantity={String(ticket.quantity)}
-                    role="option"
-                    tabIndex={0}
-                  >
-                    {detail
-                      ? t("admin.scanner.ticket_option_detail", {
-                          detail,
-                          name: ticket.name,
-                          tickets: ticketCountText(ticket.quantity),
-                        })
-                      : t("admin.scanner.ticket_option", {
-                          name: ticket.name,
-                          tickets: ticketCountText(ticket.quantity),
-                        })}
-                  </div>
-                );
-              })}
-            </div>
+            ></div>
           </div>
           <div class="hidden" id="manual-checkin-status"></div>
-          <SubmitButton icon="check">
-            {t("admin.scanner.check_in")}
+          <SubmitButton icon="search" id="manual-checkin-submit">
+            {t("admin.scanner.search_button")}
           </SubmitButton>
         </form>
       </article>

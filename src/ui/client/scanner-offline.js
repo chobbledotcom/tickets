@@ -12,8 +12,9 @@ const MODE_KEY_PREFIX = "scanner-offline-mode-";
  * origins. */
 const SCANNER_SW_PATH = "/admin/scanner-sw.js";
 
-/** Whether a value is the stored list: one entry per ticket digest, with
- * the places one scan at its door admits of the ticket's booking. */
+/** Whether a value is the stored list: one entry per ticket digest. Each
+ * entry holds the places one scan at its door admits of the booking. It
+ * also holds the person's name and door-safe details for a name search. */
 const isCacheList = (value) =>
   Array.isArray(value) &&
   value.every(
@@ -21,6 +22,9 @@ const isCacheList = (value) =>
       typeof entry === "object" &&
       entry !== null &&
       typeof entry.hash === "string" &&
+      typeof entry.name === "string" &&
+      Array.isArray(entry.details) &&
+      entry.details.every((detail) => typeof detail === "string") &&
       typeof entry.tickets === "number" &&
       Number.isInteger(entry.tickets) &&
       entry.tickets > 0,

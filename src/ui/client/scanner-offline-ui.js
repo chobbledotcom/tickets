@@ -76,18 +76,12 @@ const replayWindowMs = (pageDays) => {
   return days * DAY_MS;
 };
 
-/** Validate one scan against the door's stored ticket hashes and queue the
- * check-in when the ticket looks legit. The scan makes no network call, so
- * the stored set is its only evidence. The click that turns offline mode on
- * downloads the set, and so does a page load while the switch is on. An
- * expired set answers nothing until the door reloads the page. */
-export const offlineScan = async (
-  scanPath,
-  token,
-  statusEl,
-  messages,
-  panel,
-) => {
+/** The most saved people one name search shows. */
+const SEARCH_MAX_RESULTS = 20;
+
+/** The door's saved list when it can vouch for a check-in. Null after the
+ * door hears why it cannot: no list on this device, or an expired one. */
+const usableListOrNull = (scanPath, say, messages) => {
   let cache;
   try {
     cache = readTicketCache(scanPath);
@@ -97,8 +91,7 @@ export const offlineScan = async (
     cache = null;
   }
   if (!cache) {
-    showStatus(
-      statusEl,
+    say(
       getMessage(
         messages,
         "messageOfflineCacheMissing",
@@ -106,11 +99,10 @@ export const offlineScan = async (
       ),
       "error",
     );
-    return;
+    return null;
   }
   if (!isCacheFresh(cache)) {
-    showStatus(
-      statusEl,
+    say(
       getMessage(
         messages,
         "messageOfflineCacheExpired",
@@ -118,32 +110,23 @@ export const offlineScan = async (
       ),
       "error",
     );
-    return;
+    return null;
   }
-  const hash = await hmacHex(panel.doorKey, token);
-  const entry = cache.entries.find((saved) => saved.hash === hash);
-  if (!entry) {
-    showStatus(
-      statusEl,
-      getMessage(
-        messages,
-        "messageOfflineInvalid",
-        "This ticket cannot be checked in offline. Scan it again when you are back online to see why.",
-      ),
-      "error",
-    );
-    return;
-  }
+  return cache;
+};
+
+/** Queue the check-in of one saved list entry. A camera scan reaches it by
+ * the scanned ticket's digest, and a manual pick by the person's name. */
+const queueSavedEntry = async (scanPath, entry, say, messages, panel) => {
   // The door's own last-token guard expires after the status fades, so the
   // same ticket can reach this line twice. A second item sends the
   // check-in twice, and the door reads that as two admissions.
   if (
     readQueue().some(
-      (item) => item.scanPath === scanPath && item.tokenHash === hash,
+      (item) => item.scanPath === scanPath && item.tokenHash === entry.hash,
     )
   ) {
-    showStatus(
-      statusEl,
+    say(
       getMessage(
         messages,
         "messageOfflineAlreadyQueued",
@@ -171,8 +154,7 @@ export const offlineScan = async (
         )
       : 1;
   if (!quantity) {
-    showStatus(
-      statusEl,
+    say(
       getMessage(
         messages,
         "messageOfflineNotQueued",
@@ -186,10 +168,9 @@ export const offlineScan = async (
   // message tells the door to scan again.
   let queued;
   try {
-    queued = queueCheckIn(scanPath, hash, quantity);
+    queued = queueCheckIn(scanPath, entry.hash, quantity);
   } catch {
-    showStatus(
-      statusEl,
+    say(
       getMessage(
         messages,
         "messageOfflineSaveFailed",
@@ -206,8 +187,7 @@ export const offlineScan = async (
   } else {
     renderQueuePanel(panel, messages);
   }
-  showStatus(
-    statusEl,
+  say(
     getMessage(
       messages,
       "messageOfflineQueued",
@@ -221,6 +201,55 @@ export const offlineScan = async (
   // switch holds the check-in. A dead connection leaves it queued.
   if (!readManualMode(scanPath)) panel.sync();
 };
+
+/** Validate one scan against the door's stored ticket hashes and queue the
+ * check-in when the ticket looks legit. The scan makes no network call, so
+ * the stored set is its only evidence. The click that turns offline mode on
+ * downloads the set, and so does a page load while the switch is on. An
+ * expired set answers nothing until the door reloads the page. */
+export const offlineScan = async (
+  scanPath,
+  token,
+  statusEl,
+  messages,
+  panel,
+) => {
+  const say = (text, type) => showStatus(statusEl, text, type);
+  const cache = usableListOrNull(scanPath, say, messages);
+  if (!cache) return;
+  const hash = await hmacHex(panel.doorKey, token);
+  const entry = cache.entries.find((saved) => saved.hash === hash);
+  if (!entry) {
+    say(
+      getMessage(
+        messages,
+        "messageOfflineInvalid",
+        "This ticket cannot be checked in offline. Scan it again when you are back online to see why.",
+      ),
+      "error",
+    );
+    return;
+  }
+  await queueSavedEntry(scanPath, entry, say, messages, panel);
+};
+
+/** The manual check-in's offline side for one door. `active` says whether a
+ * pick settles offline now. `search` answers the saved people whose name
+ * holds the text, or null after the door hears why the list cannot
+ * answer. `pick` queues one saved person's check-in. Each reports through
+ * the `say` the manual form hands in. */
+export const offlinePeople = (scanPath, messages, panel) => ({
+  active: () => offlineModeActive(scanPath),
+  pick: (entry, say) => queueSavedEntry(scanPath, entry, say, messages, panel),
+  search: (text, say) => {
+    const cache = usableListOrNull(scanPath, say, messages);
+    if (!cache) return null;
+    const wanted = text.toLowerCase();
+    return cache.entries
+      .filter((entry) => entry.name.toLowerCase().includes(wanted))
+      .slice(0, SEARCH_MAX_RESULTS);
+  },
+});
 
 /** Wire the offline side of one scanner page and return the panel the camera
  * loop hands each offline scan to. `settleDelivery` posts a queued

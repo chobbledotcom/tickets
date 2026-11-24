@@ -38,7 +38,6 @@ describe("the scanner page's words", () => {
       { name: "Doors" },
       "/admin/groups/5/scan",
       OWNER_SESSION,
-      [],
       false,
       "test-door-cache-key",
       7,

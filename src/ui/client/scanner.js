@@ -1,7 +1,12 @@
 // Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
 import { isSyncing, offlineModeActive } from "./scanner-offline.js";
-import { initOfflineScanner, offlineScan } from "./scanner-offline-ui.js";
+import {
+  initOfflineScanner,
+  offlinePeople,
+  offlineScan,
+} from "./scanner-offline-ui.js";
+import { initManualCheckin } from "./admin/manual-checkin.ts";
 import {
   FADE_DELAY_MS,
   formatTicketCount,
@@ -330,6 +335,12 @@ const init = () => {
     // The documented degrade: this page scans online only, as before the
     // offline side existed.
   }
+
+  // The manual check-in searches the saved list and queues its picks while
+  // offline mode settles the door, so it shares the offline side.
+  initManualCheckin(
+    panel ? offlinePeople(scanPath, messages, panel) : null,
+  );
 
   /** Stop all camera tracks to release the hardware */
   const stopCamera = () => {
