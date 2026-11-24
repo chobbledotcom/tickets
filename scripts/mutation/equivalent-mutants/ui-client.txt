@@ -130,7 +130,6 @@ src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d mess
 # two option labels), and the en copy of each equals the script's fallback
 # word for word — so a missed lookup lands on the same words, and a mutated
 # fallback copy is never shown.
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.selectOption.detail~1eign4p ??→|| audited:1jdc1my # dataset.detail is a string or undefined; its only falsy string is the "" the fallback supplies
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.answerValues.listingName~0zqcwxz ??→|| audited:1jdc1my # every scan answer that reaches this carries a non-empty listing name or none, so no falsy non-null value arrives
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.answerValues.listingName~0zqcwxz →"mutated" audited:1jdc1my # the fallback fires only on an absent listing name, which no scan answer that reaches this ever has
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~05eghw6 {name} ({tickets}) — {detail}→"" audited:1jdc1my # the form always renders data-message-ticket-option-detail, so the fallback copy never shows
