@@ -29,17 +29,35 @@ const emailBodySetting = <const Key extends ConfigKey>(key: Key) =>
     tags: ["emailBody"],
   });
 
+/** A setting that the settings object reads and writes by a name. */
+const accessorSetting = <
+  const Storage extends StringStorage,
+  const Name extends string,
+  const Key extends ConfigKey,
+>(
+  storage: Storage,
+  name: Name,
+  key: Key,
+) => definition({ accessor: { name }, key, storage });
+
+/** A plaintext setting that the settings object reads by a name and never
+ * writes. Another module stores it. */
+const readOnlySetting = <
+  const Name extends string,
+  const Key extends ConfigKey,
+>(
+  name: Name,
+  key: Key,
+) =>
+  definition({
+    accessor: { name, readOnly: true as const },
+    key,
+    storage: "plaintext" as const,
+  });
+
 export const STRING_SETTING_DEFINITIONS = [
-  definition({
-    accessor: { name: "terms" },
-    key: CONFIG_KEYS.TERMS_AND_CONDITIONS,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "bulkEmailDraft" },
-    key: CONFIG_KEYS.BULK_EMAIL_DRAFT,
-    storage: "plaintext",
-  }),
+  accessorSetting("plaintext", "terms", CONFIG_KEYS.TERMS_AND_CONDITIONS),
+  accessorSetting("plaintext", "bulkEmailDraft", CONFIG_KEYS.BULK_EMAIL_DRAFT),
   definition({ key: CONFIG_KEYS.EMAIL_PROVIDER, storage: "plaintext" }),
   definition({
     key: CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER,
@@ -50,57 +68,37 @@ export const STRING_SETTING_DEFINITIONS = [
   definition({ key: CONFIG_KEYS.TAX, storage: "plaintext" }),
   // Custom CSS is served verbatim as a public stylesheet at /custom.css, so it
   // is stored unencrypted. There is nothing secret about it.
-  definition({
-    accessor: { name: "customCss" },
-    key: CONFIG_KEYS.CUSTOM_CSS,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "customDomain" },
-    key: CONFIG_KEYS.CUSTOM_DOMAIN,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "customDomainLastValidated", readOnly: true },
-    key: CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "bunnySubdomain" },
-    key: CONFIG_KEYS.BUNNY_SUBDOMAIN,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "currentTask" },
-    key: CONFIG_KEYS.CURRENT_TASK,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "publicKey", readOnly: true },
-    key: CONFIG_KEYS.PUBLIC_KEY,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "wrappedPrivateKey", readOnly: true },
-    key: CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
-    storage: "plaintext",
-  }),
+  accessorSetting("plaintext", "customCss", CONFIG_KEYS.CUSTOM_CSS),
+  accessorSetting("plaintext", "customDomain", CONFIG_KEYS.CUSTOM_DOMAIN),
+  readOnlySetting(
+    "customDomainLastValidated",
+    CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
+  ),
+  accessorSetting("plaintext", "bunnySubdomain", CONFIG_KEYS.BUNNY_SUBDOMAIN),
+  accessorSetting("plaintext", "currentTask", CONFIG_KEYS.CURRENT_TASK),
+  readOnlySetting("publicKey", CONFIG_KEYS.PUBLIC_KEY),
+  // How many redirects the redirects table holds. Every redirect write sets it
+  // in the same batch as the row. The advanced settings page and the
+  // missing-page check read it from the settings that load for every request.
+  // They do not query the table.
+  readOnlySetting("redirectCount", CONFIG_KEYS.REDIRECT_COUNT),
+  readOnlySetting("wrappedPrivateKey", CONFIG_KEYS.WRAPPED_PRIVATE_KEY),
   definition({ key: CONFIG_KEYS.SQUARE_LOCATION_ID, storage: "plaintext" }),
   definition({
     key: CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
     storage: "plaintext",
   }),
   definition({ key: CONFIG_KEYS.SUMUP_MERCHANT_CODE, storage: "plaintext" }),
-  definition({
-    accessor: { name: "latestScriptVersion" },
-    key: CONFIG_KEYS.LATEST_SCRIPT_VERSION,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "latestScriptVersionName" },
-    key: CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
-    storage: "plaintext",
-  }),
+  accessorSetting(
+    "plaintext",
+    "latestScriptVersion",
+    CONFIG_KEYS.LATEST_SCRIPT_VERSION,
+  ),
+  accessorSetting(
+    "plaintext",
+    "latestScriptVersionName",
+    CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
+  ),
   // The provider that was active before the operator switched new sales off
   // ("none"). Its credentials stay stored. Refunds, replayed callbacks, and
   // in-flight completions of payments that already exist keep running against
@@ -110,80 +108,55 @@ export const STRING_SETTING_DEFINITIONS = [
     storage: "plaintext",
   }),
   definition({ key: CONFIG_KEYS.SUPERUSER_CHOICE, storage: "plaintext" }),
-  definition({
-    accessor: { name: "supportFormLastSubmitted", readOnly: true },
-    key: CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "listingColumnOrder" },
-    key: CONFIG_KEYS.LISTING_COLUMN_ORDER,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "attendeeColumnOrder" },
-    key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
-    storage: "plaintext",
-  }),
+  readOnlySetting(
+    "supportFormLastSubmitted",
+    CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
+  ),
+  accessorSetting(
+    "plaintext",
+    "listingColumnOrder",
+    CONFIG_KEYS.LISTING_COLUMN_ORDER,
+  ),
+  accessorSetting(
+    "plaintext",
+    "attendeeColumnOrder",
+    CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
+  ),
   // The run sheet's two Liquid templates. The text is the owner's own markup
   // for a signed-in admin page, so it is stored unencrypted.
-  definition({
-    accessor: { name: "logisticsRunSheetBody" },
-    key: CONFIG_KEYS.LOGISTICS_RUN_SHEET_BODY,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "logisticsRunSheetHeading" },
-    key: CONFIG_KEYS.LOGISTICS_RUN_SHEET_HEADING,
-    storage: "plaintext",
-  }),
+  accessorSetting(
+    "plaintext",
+    "logisticsRunSheetBody",
+    CONFIG_KEYS.LOGISTICS_RUN_SHEET_BODY,
+  ),
+  accessorSetting(
+    "plaintext",
+    "logisticsRunSheetHeading",
+    CONFIG_KEYS.LOGISTICS_RUN_SHEET_HEADING,
+  ),
   // The invoice text the operator kept on the last invoice they made. It holds
   // no customer facts, so it is stored unencrypted.
-  definition({
-    accessor: { name: "invoiceBodyTemplate" },
-    key: CONFIG_KEYS.INVOICE_BODY_TEMPLATE,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "smsGatewayBaseUrl" },
-    key: CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
-    storage: "plaintext",
-  }),
-  definition({
-    accessor: { name: "businessEmail" },
-    key: CONFIG_KEYS.BUSINESS_EMAIL,
-    storage: "encrypted",
-  }),
-  definition({
-    accessor: { name: "headerImageUrl" },
-    key: CONFIG_KEYS.HEADER_IMAGE_URL,
-    storage: "encrypted",
-  }),
-  definition({
-    accessor: { name: "websiteTitle" },
-    key: CONFIG_KEYS.WEBSITE_TITLE,
-    storage: "encrypted",
-  }),
-  definition({
-    accessor: { name: "homepageText" },
-    key: CONFIG_KEYS.HOMEPAGE_TEXT,
-    storage: "encrypted",
-  }),
-  definition({
-    accessor: { name: "contactPageText" },
-    key: CONFIG_KEYS.CONTACT_PAGE_TEXT,
-    storage: "encrypted",
-  }),
-  definition({
-    accessor: { name: "orderIntroText" },
-    key: CONFIG_KEYS.ORDER_INTRO_TEXT,
-    storage: "encrypted",
-  }),
-  definition({
-    accessor: { name: "siteFooter" },
-    key: CONFIG_KEYS.SITE_FOOTER,
-    storage: "encrypted",
-  }),
+  accessorSetting(
+    "plaintext",
+    "invoiceBodyTemplate",
+    CONFIG_KEYS.INVOICE_BODY_TEMPLATE,
+  ),
+  accessorSetting(
+    "plaintext",
+    "smsGatewayBaseUrl",
+    CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
+  ),
+  accessorSetting("encrypted", "businessEmail", CONFIG_KEYS.BUSINESS_EMAIL),
+  accessorSetting("encrypted", "headerImageUrl", CONFIG_KEYS.HEADER_IMAGE_URL),
+  accessorSetting("encrypted", "websiteTitle", CONFIG_KEYS.WEBSITE_TITLE),
+  accessorSetting("encrypted", "homepageText", CONFIG_KEYS.HOMEPAGE_TEXT),
+  accessorSetting(
+    "encrypted",
+    "contactPageText",
+    CONFIG_KEYS.CONTACT_PAGE_TEXT,
+  ),
+  accessorSetting("encrypted", "orderIntroText", CONFIG_KEYS.ORDER_INTRO_TEXT),
+  accessorSetting("encrypted", "siteFooter", CONFIG_KEYS.SITE_FOOTER),
   definition({ key: CONFIG_KEYS.STRIPE_SECRET_KEY, storage: "encrypted" }),
   definition({ key: CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, storage: "encrypted" }),
   definition({ key: CONFIG_KEYS.SQUARE_ACCESS_TOKEN, storage: "encrypted" }),
@@ -192,11 +165,7 @@ export const STRING_SETTING_DEFINITIONS = [
     storage: "encrypted",
   }),
   definition({ key: CONFIG_KEYS.SUMUP_API_KEY, storage: "encrypted" }),
-  definition({
-    accessor: { name: "embedHosts" },
-    key: CONFIG_KEYS.EMBED_HOSTS,
-    storage: "encrypted",
-  }),
+  accessorSetting("encrypted", "embedHosts", CONFIG_KEYS.EMBED_HOSTS),
   emailBodySetting(CONFIG_KEYS.EMAIL_API_KEY),
   emailBodySetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS),
   emailBodySetting(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT),
@@ -231,26 +200,26 @@ export const STRING_SETTING_DEFINITIONS = [
     key: CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
     storage: "encrypted",
   }),
-  definition({
-    accessor: { name: "smsGatewayPassphrase" },
-    key: CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE,
-    storage: "encrypted",
-  }),
-  definition({
-    accessor: { name: "smsGatewayUsername" },
-    key: CONFIG_KEYS.SMS_GATEWAY_USERNAME,
-    storage: "encrypted",
-  }),
-  definition({
-    accessor: { name: "smsGatewayPassword" },
-    key: CONFIG_KEYS.SMS_GATEWAY_PASSWORD,
-    storage: "encrypted",
-  }),
-  definition({
-    accessor: { name: "smsGatewayWebhookSecret" },
-    key: CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
-    storage: "encrypted",
-  }),
+  accessorSetting(
+    "encrypted",
+    "smsGatewayPassphrase",
+    CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE,
+  ),
+  accessorSetting(
+    "encrypted",
+    "smsGatewayUsername",
+    CONFIG_KEYS.SMS_GATEWAY_USERNAME,
+  ),
+  accessorSetting(
+    "encrypted",
+    "smsGatewayPassword",
+    CONFIG_KEYS.SMS_GATEWAY_PASSWORD,
+  ),
+  accessorSetting(
+    "encrypted",
+    "smsGatewayWebhookSecret",
+    CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
+  ),
   // The defaults blob can carry a webhook / thank-you URL, which commonly hold
   // bearer tokens or private endpoints. The same fields are encrypted on
   // listings, so the shared default is encrypted at rest too.

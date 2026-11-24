@@ -4,6 +4,7 @@ import * as v from "valibot";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
+  adminApiServes,
   CreateSitePageBodySchema,
   HolidayRowSchema,
   QuestionRowSchema,
@@ -117,10 +118,30 @@ describe("admin api resource table", () => {
         children: { answers: { idParam: "answerId", path: "answers" } },
         custom: { bookings: route("GET", ":questionId/bookings") },
       }),
+      redirects: declared("Redirect", "redirects", {
+        serves: { create: true, delete: true, list: true },
+      }),
       "site-pages": declared("Page", "site-pages", {
         custom: FIXED_PAGE_ROUTES,
       }),
     });
+  });
+});
+
+describe("adminApiServes", () => {
+  test("a resource with no declaration serves all five routes", () => {
+    for (const verb of ["create", "delete", "get", "list", "update"] as const) {
+      expect(adminApiServes({}, verb)).toBe(true);
+    }
+  });
+
+  test("a declaration serves only the routes it lists", () => {
+    const redirects = ADMIN_API_RESOURCES.redirects;
+    expect(
+      (["create", "delete", "get", "list", "update"] as const).filter((verb) =>
+        adminApiServes(redirects, verb),
+      ),
+    ).toEqual(["create", "delete", "list"]);
   });
 });
 

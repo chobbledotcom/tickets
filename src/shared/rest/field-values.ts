@@ -107,6 +107,7 @@ const KIND_VALUES: {
   price: () => integerAtLeast(0),
   privateText: () => v.string(),
   recurringInterval: () => RecurringIntervalChoiceSchema,
+  sealedText: () => v.pipe(v.string(), v.trim(), v.nonEmpty()),
   switch: () => v.boolean(),
   text: () => v.string(),
   weekdays: () => v.array(v.picklist(VALID_DAY_NAMES)),
@@ -118,6 +119,7 @@ export const fieldValueSchema = (field: FieldSpec): v.GenericSchema =>
 
 /** The kinds whose form box refuses a fraction with the whole-number rule. A
  *  price box reads a decimal amount, and the duration box has its own rule. */
+/* jscpd:ignore-start -- static data, not code */
 const WHOLE_NUMBER_KINDS: Record<FieldKind, boolean> = {
   contactFields: false,
   count: true,
@@ -131,10 +133,12 @@ const WHOLE_NUMBER_KINDS: Record<FieldKind, boolean> = {
   price: false,
   privateText: false,
   recurringInterval: false,
+  sealedText: false,
   switch: false,
   text: false,
   weekdays: false,
 };
+/* jscpd:ignore-end */
 
 /** True when the field's form box takes the whole-number rule, the same
  *  rule the API check applies to the body value. */
@@ -181,6 +185,7 @@ const API_FIELDS = {
   price: optionalViews,
   privateText: optionalViews,
   recurringInterval: optionalViews,
+  sealedText: atApiKey(textField),
   switch: atApiKey(switchField),
   text: atApiKey(optionalTextField),
   weekdays: optionalViews,

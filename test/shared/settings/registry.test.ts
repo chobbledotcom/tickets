@@ -80,6 +80,7 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   ORPHAN_PURGE_RETENTION
   PAYMENT_PROVIDER
   PUBLIC_KEY
+  REDIRECT_COUNT
   SETTINGS_VERSION
   SETUP_COMPLETE
   SHOW_PUBLIC_API
@@ -128,6 +129,7 @@ const EXPECTED_SETTING_ROWS = [
   ["BUNNY_SUBDOMAIN", "plaintext", "bunnySubdomain"],
   ["CURRENT_TASK", "plaintext", "currentTask"],
   ["PUBLIC_KEY", "plaintext", "publicKey", "readOnly"],
+  ["REDIRECT_COUNT", "plaintext", "redirectCount", "readOnly"],
   ["WRAPPED_PRIVATE_KEY", "plaintext", "wrappedPrivateKey", "readOnly"],
   ["SQUARE_LOCATION_ID", "plaintext", null],
   ["STRIPE_WEBHOOK_ENDPOINT_ID", "plaintext", null],

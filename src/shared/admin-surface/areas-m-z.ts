@@ -84,6 +84,15 @@ export const AREAS_M_Z = {
     segments: ["listing"],
     singular: "question",
   }),
+  // Owner only. An operator adds and deletes a redirect. No form edits one,
+  // and a redirect has no page of its own.
+  redirects: recordArea({
+    audience: OWNER_AUDIENCE,
+    detailPage: false,
+    editPage: false,
+    name: "redirects",
+    singular: "redirect",
+  }),
   scanner: {
     audience: DOOR_ADMIN_LEVELS,
     view: {

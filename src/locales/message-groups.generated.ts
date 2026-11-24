@@ -60,6 +60,7 @@ export const MESSAGE_GROUPS = [
   "privacy",
   "public-site",
   "questions",
+  "redirects",
   "renewal",
   "schema-atlas",
   "seed-data",

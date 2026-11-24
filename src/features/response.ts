@@ -139,6 +139,20 @@ export const redirectResponse = (url: string, cookie?: string): Response => {
   return new Response(null, { headers, status: 302 });
 };
 
+/**
+ * Create a 301 redirect response to a saved address. A path of this site keeps
+ * the iframe marker. A whole URL is left as saved, because the marker cuts
+ * its host.
+ */
+export const permanentRedirectResponse = (target: string): Response =>
+  new Response(null, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      location: target.startsWith("/") ? appendIframeParam(target) : target,
+    },
+    status: 301,
+  });
+
 /** Options for redirect */
 type RedirectOpts = {
   formId?: string;

@@ -63,12 +63,14 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
           </>,
         ),
         faq("advanced_settings"),
+        faq("what_are_redirects"),
         faq("what_is_debug_page"),
         faq("what_is_the_debug_footer"),
       ],
       id: "settings",
       titleKey: "settings_overview",
     },
+
     hostConfig?.builderEnabled
       ? {
           entries: [

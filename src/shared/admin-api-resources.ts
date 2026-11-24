@@ -31,6 +31,7 @@ import {
 import { markdownSource } from "#shared/markdown-source.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import {
   type ApiBody,
@@ -120,6 +121,8 @@ const fieldResource = <
 const holidayApi = fieldResource(apiFieldsOf(HOLIDAY_FIELDS), "create");
 export const HolidayRowSchema = holidayApi.row;
 export type AdminApiHoliday = v.InferOutput<typeof HolidayRowSchema>;
+
+const redirectApi = fieldResource(apiFieldsOf(REDIRECT_FIELDS), "create");
 
 /** One listing as the admin API answers with it: the fields the client's
  *  callers read. The server owns the rest of the stored row. */
@@ -292,6 +295,13 @@ export type AdminApiServes = {
   update?: boolean;
 };
 
+/** Whether a resource serves a standard route. A `serves` declaration lists
+ *  the routes the server answers. No declaration means all five routes. */
+export const adminApiServes = (
+  entry: Pick<AdminApiResource, "serves">,
+  verb: keyof AdminApiServes,
+): boolean => entry.serves === undefined || entry.serves[verb] === true;
+
 export type AdminApiResource = {
   children?: Record<string, AdminApiChild>;
   /** Server-side custom routes. A `DELETE` on the resource's own id segment
@@ -442,6 +452,13 @@ export const ADMIN_API_RESOURCES = {
     },
     ...resourceTableRow("Question", "questions", QuestionRowSchema),
     updateBodySchema: questionBodies.update,
+  },
+  redirects: {
+    createBodySchema: redirectApi.bodies.create,
+    ...resourceTableRow("Redirect", "redirects", redirectApi.row),
+    // An operator adds and deletes a redirect. Nothing reads or edits one by
+    // its id.
+    serves: { create: true, delete: true, list: true },
   },
   "site-pages": {
     createBodySchema: CreateSitePageBodySchema,
