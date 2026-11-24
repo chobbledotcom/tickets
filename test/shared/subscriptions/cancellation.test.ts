@@ -8,7 +8,10 @@ import { sql } from "#db/sql.ts";
 import { getSubscribedRows } from "#db/subscriptions.ts";
 import type { StripePaidInvoice } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { cancelOwnerSubscription } from "#shared/subscriptions/cancellation.ts";
+import {
+  cancelOwnerSubscription,
+  endFailedCheckoutSubscription,
+} from "#shared/subscriptions/cancellation.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { MONTHLY, subscribe } from "#test-utils/db-helpers/subscriptions.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -138,5 +141,34 @@ describeWithEnv("subscription cancellation identity", { db: true }, () => {
     );
     expect(await getSubscribedRows()).toEqual([row]);
     await expectNoRenewalMoney();
+  });
+
+  test("refuses a failed checkout whose subscription Stripe still charges", async () => {
+    await withMocks(
+      () => ({
+        cancel: stub(stripeApi, "cancelSubscription", () =>
+          Promise.resolve({ status: "missing" as const }),
+        ),
+        read: stub(stripeApi, "readSubscription", (id: string) =>
+          Promise.resolve({
+            resource: stripeSubscription({ id, status: "active" }),
+            status: "found" as const,
+          }),
+        ),
+      }),
+      async () => {
+        await expect(
+          endFailedCheckoutSubscription({
+            amount: 600,
+            id: "sub_failed",
+            interval: "month",
+            listingId: 1,
+            status: "trialing",
+          }),
+        ).rejects.toThrow(
+          "Failed checkout subscription sub_failed did not end",
+        );
+      },
+    );
   });
 });

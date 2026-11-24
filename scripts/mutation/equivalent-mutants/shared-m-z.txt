@@ -402,6 +402,8 @@ src/shared/schema-atlas/machine-spec.ts::moveOrRefuse.to~0qwc62v  →"mutated" a
 # All three expressions below produce ten links. The module takes no input.
 src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  - → / audited:1njegg8 # floor((31 - 1) / 3) = floor((31 / 1) / 3) = 10.
 src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  1 → 0 audited:1njegg8 # floor((31 - 1) / 3) = floor((31 - 0) / 3) = 10.
+src/shared/subscriptions/status-check.ts::runSubscriptionCheck.rows~1ugmzlf  ??→|| audited:03wbte1 # checkpoint is a string or null. Only "" differs, and Number("") and Number(0) are both 0.
+src/shared/subscriptions/status-check.ts::runSubscriptionCheck~13dsz2x  Full batch is empty→"" audited:03wbte1 # A full batch holds SUBSCRIPTION_CHECK_BATCH rows, so at(-1) is never undefined and the message never shows.
 
 # order-line-items.ts: a package display name comes from the groups table, and
 # every writer there rejects an empty name, so the ?? never sees "".

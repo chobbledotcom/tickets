@@ -18,6 +18,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { setupSumUp } from "#test-utils/settings.ts";
 
 type SumupClient = NonNullable<ReturnType<typeof sumupApi.getSumupClient>>;
 
@@ -102,9 +103,7 @@ export const stageSignedMultiItemSumupCheckout = async (
       await createTestListing({ unitPrice: unitPrices[index] ?? 1000 }),
     );
   }
-  await settings.update.paymentProvider("sumup");
-  await settings.update.sumup.apiKey("sk_test_x");
-  await settings.update.sumup.merchantCode("MC1");
+  await setupSumUp();
   setEffectiveDomainForTest("localhost");
   const reference = crypto.randomUUID();
   const intent: CheckoutIntent = {

@@ -146,5 +146,10 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-21_listing_sort_order",
     () => import("./2026-11-21_listing_sort_order.ts"),
   ),
+  // Subscription reads seek the subscribed booking rows.
+  entry(
+    "2026-11-24_subscription_index",
+    () => import("./2026-11-24_subscription_index.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

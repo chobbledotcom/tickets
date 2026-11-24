@@ -18,7 +18,8 @@ const firstPaymentIntent = (invoice: StripeInvoicePayments): string =>
 /** The listing whose booking row keeps the plan. The checkout wrote it, so a
  * subscription without it is not one of ours. */
 const subscribedListingId = (subscription: StripeSubscription): number => {
-  const listingId = parsePositiveInt(subscription.metadata.listing_id ?? "");
+  const written = subscription.metadata.listing_id;
+  const listingId = written === undefined ? null : parsePositiveInt(written);
   if (listingId === null) {
     throw new Error(
       `Stripe subscription ${subscription.id} names no listing in its metadata`,

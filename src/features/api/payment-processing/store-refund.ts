@@ -57,7 +57,6 @@ import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { withSubscriptionPlan } from "#shared/subscriptions/booking-plan.ts";
-import { NO_TAX } from "#shared/tax/types.ts";
 
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =
@@ -271,7 +270,7 @@ export const storeRefundedBooking = async (
     bookings: withSubscriptionPlan(
       bookings,
       session.subscription,
-      intent.taxPolicy ?? NO_TAX,
+      requireValue(intent.taxPolicy, "Parsed booking has no tax policy"),
     ),
     extra: {
       require: (result) => refundAuthority.requireResult(result),

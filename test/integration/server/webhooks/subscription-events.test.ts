@@ -10,6 +10,7 @@ import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   MONTHLY,
+  queryPlanOfSent,
   renewalLegs,
   statusOf,
   subscribe,
@@ -205,6 +206,58 @@ describeWithEnv("subscription webhook deliveries", { db: true }, () => {
       },
     );
     expect(await statusOf(ada)).toBe("trialing");
+  });
+
+  for (const read of [
+    { status: "missing" as const },
+    { reason: "malformed_response" as const, status: "invalid" as const },
+  ]) {
+    test(`acknowledges a delivery whose subscription Stripe reports as ${read.status}`, async () => {
+      const ada = await stripeSubscriber("Ada");
+      await withMocks(
+        () => ({
+          read: stub(stripeApi, "readSubscription", () =>
+            Promise.resolve(read),
+          ),
+        }),
+        () =>
+          postDelivery(invoiceDelivery("invoice.paid", "sub_ada"), (json) => {
+            expect(json).toEqual({ received: true });
+          }),
+      );
+      expect(await statusOf(ada)).toBe("trialing");
+    });
+  }
+
+  test("finds the row of a delivery through the subscription index", async () => {
+    await setupStripe();
+    expect(
+      await queryPlanOfSent("subscription_id", () =>
+        expectNoWork(invoiceDelivery("invoice.paid", "sub_another_site")),
+      ),
+    ).toContain(
+      "USING INDEX idx_listing_attendees_subscription (subscription_status=? AND subscription_id=?)",
+    );
+  });
+
+  test("records the status and the home renewals beside one in another currency", async () => {
+    const ada = await stripeSubscriber("Ada");
+    await withStripeRenewals(
+      "active",
+      [
+        stripePaidInvoice({ id: "in_home" }),
+        stripePaidInvoice({ currency: "jpy", id: "in_away" }),
+      ],
+      () =>
+        postDelivery(invoiceDelivery("invoice.paid", "sub_ada"), (json) => {
+          expect(json).toEqual({ processed: true, received: true });
+        }),
+    );
+    expect([
+      (await renewalLegs("in_home")).length,
+      await renewalLegs("in_away"),
+      await statusOf(ada),
+    ]).toEqual([3, [], "active"]);
   });
 
   test("leaves a signed invoice that no subscription made to the booking path", async () => {
