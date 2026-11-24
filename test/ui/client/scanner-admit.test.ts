@@ -64,6 +64,16 @@ describe("scanner answers", {
     expect(answer).toEqual({ body: { token: "tok" }, status: "ok" });
   });
 
+  test("refuses a reply that carries no scan decision", async () => {
+    const { postScan } = fresh().module;
+    // An expired session or a refused role answers JSON with no status.
+    using _fetch = stubFetch(() => Response.json({ error: "Forbidden" }));
+
+    await expect(postScan("/x", "tok", "csrf")).rejects.toThrow(
+      "The door sent no scan decision.",
+    );
+  });
+
   test("fails over to the network message when the scan cannot be sent", async () => {
     const { postScan } = fresh().module;
     using _fetch = stubFetch(new Error("offline"));
