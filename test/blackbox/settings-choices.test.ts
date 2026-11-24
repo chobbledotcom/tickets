@@ -15,8 +15,10 @@ import {
 } from "#test/blackbox/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
-/** One radio choice on a settings page, with its own form. */
+/** One saved choice on a settings page, with its own form. */
 interface Choice extends SettingsForm {
+  /** The control the page shows the choice with. */
+  control: "checkbox" | "radios";
   formId: string;
   /** The choice that a new site starts with, and the one it can change to. */
   other: string;
@@ -31,6 +33,7 @@ const yesNo = (label: string) => (value: string) =>
 
 const LISTING_MODE: Choice = {
   action: "/admin/settings/listing-mode",
+  control: "radios",
   field: "listingMode",
   formId: "settings-listing-mode",
   other: "image",
@@ -42,6 +45,7 @@ const LISTING_MODE: Choice = {
 
 const THEME: Choice = {
   action: "/admin/settings/theme",
+  control: "radios",
   field: "theme",
   formId: "settings-theme",
   other: "dark",
@@ -53,6 +57,7 @@ const THEME: Choice = {
 
 const DASHBOARD_TYPE: Choice = {
   action: "/admin/settings/dashboard-type",
+  control: "radios",
   field: "dashboardType",
   formId: "settings-dashboard-type",
   other: "groups",
@@ -65,6 +70,7 @@ const DASHBOARD_TYPE: Choice = {
 const CHOICES: Choice[] = [
   {
     action: "/admin/settings/external-order",
+    control: "checkbox",
     field: "externalOrderEnabled",
     formId: "settings-external-order",
     other: "true",
@@ -75,6 +81,7 @@ const CHOICES: Choice[] = [
   },
   {
     action: "/admin/settings/show-public-api",
+    control: "checkbox",
     field: "showPublicApi",
     formId: "settings-show-public-api",
     other: "true",
@@ -88,12 +95,15 @@ const CHOICES: Choice[] = [
   THEME,
 ];
 
-/** The value of the radio that the page shows as chosen. */
-const chosenValue = (html: string, field: string): string => {
-  const chosen = inputsNamed(html, field).find(isTicked);
+/** The value the page shows as chosen for one control. A checkbox sends
+ * "true" only while it is ticked, so an unticked box reads as "false". */
+const chosenValue = (html: string, choice: Choice): string => {
+  if (choice.control === "checkbox")
+    return boxTicked(html, choice.field) ? "true" : "false";
+  const chosen = inputsNamed(html, choice.field).find(isTicked);
   const value = chosen?.match(/\svalue="([^"]*)"/)?.[1];
   if (value === undefined) {
-    throw new Error(`The page shows no chosen radio for "${field}".`);
+    throw new Error(`The page shows no chosen radio for "${choice.field}".`);
   }
   return value;
 };
@@ -102,7 +112,7 @@ const pick = (app: App, choice: Choice, value: string): Promise<Page> =>
   send(app, choice, { [choice.field]: value });
 
 const chosenNow = async (app: App, choice: Choice): Promise<string> =>
-  chosenValue((await app.get(choice.page)).html, choice.field);
+  chosenValue((await app.get(choice.page)).html, choice);
 
 for (const choice of CHOICES) {
   describeWithEnv(`the setting ${choice.action}`, { db: true }, () => {
@@ -111,7 +121,7 @@ for (const choice of CHOICES) {
       const page = await app.get(choice.page);
       expect(page.status).toBe(200);
       expect(page.html).toContain(t(choice.questionKey));
-      expect(chosenValue(page.html, choice.field)).toBe(choice.start);
+      expect(chosenValue(page.html, choice)).toBe(choice.start);
     });
 
     test("a new choice saves, says so beside its form, and stays chosen", async () => {

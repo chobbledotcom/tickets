@@ -228,7 +228,13 @@ const publicLinkHint = (field: Field, value: string): JSX.Element | null => {
 };
 
 export const renderField = (field: Field, value: string = ""): string => {
-  const requirement = <RequiredMark required={field.required} />;
+  const label = (
+    <>
+      {field.label}
+      {field.labelSuffixHtml && <Raw html={field.labelSuffixHtml} />}
+      <RequiredMark required={field.required} />
+    </>
+  );
   const hint = field.hint ? <small>{field.hint}</small> : null;
   const hints = (
     <>
@@ -251,9 +257,7 @@ export const renderField = (field: Field, value: string = ""): string => {
         <>
           <fieldset class="field-group">
             <legend class={singleOption ? "visually-hidden" : undefined}>
-              {field.label}
-              {field.labelSuffixHtml && <Raw html={field.labelSuffixHtml} />}
-              {requirement}
+              {label}
             </legend>
             {renderFieldInput(field, value)}
             {hints}
@@ -268,9 +272,7 @@ export const renderField = (field: Field, value: string = ""): string => {
     String(
       <>
         <label>
-          {field.label}
-          {field.labelSuffixHtml && <Raw html={field.labelSuffixHtml} />}
-          {requirement}
+          {label}
           {field.hintFirst && hint}
           {renderFieldInput(field, value)}
           {hints}
