@@ -50,6 +50,9 @@ export const redirectsServe = (requestPath: string): boolean =>
 export const redirectKeyOfRequest = (requestPath: string): string =>
   keyOfPath(requestPath);
 
+/** The path of an address: everything before its query or fragment. */
+const pathPart = (address: string): string => address.replace(/[?#].*$/s, "");
+
 /** Whether a path holds a shape that leaves the site. An escape that is
  *  percent-encoded counts too, and so does a malformed escape. */
 const escapesTheSite = (path: string): boolean => {
@@ -85,8 +88,7 @@ export const checkRedirectTo = (
   const address = raw.trim();
   if (hasControlCharacter(address)) return errorResult("unsafe");
   if (address.startsWith("/")) {
-    const [path = ""] = address.split(/[?#]/, 1);
-    if (escapesTheSite(path)) return errorResult("unsafe");
+    if (escapesTheSite(pathPart(address))) return errorResult("unsafe");
     const local = new URL(address, BASE);
     return okResult(`${local.pathname}${local.search}${local.hash}`);
   }
@@ -105,6 +107,5 @@ export const checkRedirectTo = (
  *  names another site. */
 export const redirectKeyOfTarget = (target: string): string | null => {
   if (!target.startsWith("/")) return null;
-  const [path = ""] = target.split(/[?#]/, 1);
-  return keyOfPath(new URL(path, BASE).pathname);
+  return keyOfPath(new URL(pathPart(target), BASE).pathname);
 };
