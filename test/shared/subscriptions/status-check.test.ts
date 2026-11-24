@@ -33,7 +33,10 @@ import {
   stripePaidInvoice,
   stripeSubscription,
 } from "#test-utils/stripe/fixtures.ts";
-import { withStripeRenewals } from "#test-utils/stripe/subscription-checkout.ts";
+import {
+  stubSubscriptionRead,
+  withStripeRenewals,
+} from "#test-utils/stripe/subscription-checkout.ts";
 
 /** What the task asked of the runner during one run. */
 type RunRecord = { checkpoint: string | null; followUp: boolean };
@@ -104,12 +107,7 @@ const checkWhileStripeAnswersEach = (
           status: "found" as const,
         }),
       ),
-      read: stub(stripeApi, "readSubscription", (id: string) =>
-        Promise.resolve({
-          resource: stripeSubscription({ id, status: "active" }),
-          status: "found" as const,
-        }),
-      ),
+      read: stubSubscriptionRead("active"),
     }),
     body,
   );
@@ -221,12 +219,7 @@ describeWithEnv("subscription status check", { db: true }, () => {
             status: "found" as const,
           };
         }),
-        read: stub(stripeApi, "readSubscription", (id: string) =>
-          Promise.resolve({
-            resource: stripeSubscription({ id, status: "active" }),
-            status: "found" as const,
-          }),
-        ),
+        read: stubSubscriptionRead("active"),
       }),
       async () => {
         await expect(runCheck()).rejects.toThrow();

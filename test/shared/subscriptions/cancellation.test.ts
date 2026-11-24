@@ -20,6 +20,7 @@ import {
   stripePaidInvoice,
   stripeSubscription,
 } from "#test-utils/stripe/fixtures.ts";
+import { stubSubscriptionRead } from "#test-utils/stripe/subscription-checkout.ts";
 
 const withoutRenewals: readonly (readonly [string, StripePaidInvoice[]])[] = [
   ["no paid invoices", []],
@@ -149,12 +150,7 @@ describeWithEnv("subscription cancellation identity", { db: true }, () => {
         cancel: stub(stripeApi, "cancelSubscription", () =>
           Promise.resolve({ status: "missing" as const }),
         ),
-        read: stub(stripeApi, "readSubscription", (id: string) =>
-          Promise.resolve({
-            resource: stripeSubscription({ id, status: "active" }),
-            status: "found" as const,
-          }),
-        ),
+        read: stubSubscriptionRead("active"),
       }),
       async () => {
         await expect(
