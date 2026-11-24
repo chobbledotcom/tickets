@@ -89,7 +89,12 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     });
     // The later page writes no entry of its own. A new download does.
     expect(await downloadsLogged(app)).toBe(1);
-    expect((await cachePage(app, door)).body).toEqual(first.body);
+    // The new download's cursor carries its own expiry, so only its shape
+    // matches the first one.
+    expect((await cachePage(app, door)).body).toEqual({
+      ...(first.body as object),
+      next: expect.stringMatching(/^sc1\./),
+    });
     expect(await downloadsLogged(app)).toBe(2);
   });
 
@@ -183,10 +188,17 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     expect(await downloadsLogged(app)).toBe(1);
   });
 
-  test("refuses a cursor more than an hour old", async () => {
+  test("accepts a cursor for the hour after its page, and not after", async () => {
     const app = await loggedIn();
     const door = await twoPageDoor();
     const cursor = nextOf(await cachePage(app, door));
+    {
+      using _time = new FakeTime(Date.now() + 59 * 60 * 1000);
+      expect(await cachePage(app, door, cursor)).toEqual({
+        body: expect.objectContaining({ next: null, people: 1 }),
+        status: 200,
+      });
+    }
     using _time = new FakeTime(Date.now() + 61 * 60 * 1000);
     expect(await cachePage(app, door, cursor)).toEqual(REFUSED);
   });

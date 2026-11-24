@@ -7,9 +7,12 @@
  * count. The device never holds the tokens of tickets it has not scanned,
  * and never holds any guest detail from this endpoint. */
 
-import * as v from "valibot";
 import { remainingTickets } from "#booking/remaining-tickets.ts";
-import { defineSignedToken } from "#crypto/define-signed-token.ts";
+import {
+  defineSignedToken,
+  type IdPayload,
+  parseIdPayload,
+} from "#crypto/define-signed-token.ts";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { toBase64Url } from "#crypto/utils.ts";
 import { logActivity } from "#db/activity-log.ts";
@@ -31,8 +34,6 @@ import { expiresIn } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { hmacHex, importHmacKey } from "#shared/sha256.ts";
-import { integerAtLeast } from "#shared/validation/number.ts";
-import { parseOrNull } from "#shared/validation/parse.ts";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
 import { groupScope, listingScope, type ScanScope } from "./scan-answer.ts";
 import { owingListings, scanAdmits } from "./scan-decision.ts";
@@ -166,23 +167,16 @@ type CacheDoorLoader = (id: number) => Promise<CacheDoor | null>;
  * starts again from the first page, which logs again. */
 const CURSOR_MAX_AGE_S = 60 * 60;
 
-/** A cache page cursor: the last attendee id the page read, and its expiry. */
-type CursorPayload = { a: number; e: number };
-
 /** Who a cursor belongs to. Its HMAC binds it to one door and one user.
  * Nobody can read later pages on a cursor from another person's first page. */
 type CursorOwner = { door: string; userId: number };
 
-const CursorPayloadSchema = v.strictObject({
-  a: integerAtLeast(1),
-  e: v.number(),
-});
-
-const cacheCursor = defineSignedToken<CursorPayload, CursorOwner>({
+/** A cache page cursor: `a` is the last attendee id its page read. */
+const cacheCursor = defineSignedToken<IdPayload, CursorOwner>({
   maxAgeS: CURSOR_MAX_AGE_S,
   message: ({ door, userId }, encoded) =>
     `scan-cache-cursor:${door}:${userId}:${encoded}`,
-  parse: (raw) => parseOrNull(CursorPayloadSchema, raw),
+  parse: parseIdPayload,
   prefix: "sc1.",
 });
 

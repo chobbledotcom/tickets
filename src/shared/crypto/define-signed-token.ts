@@ -8,6 +8,7 @@
  * structural guard for its payload.
  */
 
+import * as v from "valibot";
 import {
   buildSignedToken,
   decodeTokenPayload,
@@ -16,9 +17,24 @@ import {
   isTokenObject,
   verifySignedToken,
 } from "#crypto/signed-token.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
 
 /** Every signed-token payload carries its expiry as unix seconds. */
 export type ExpiringPayload = { e: number };
+
+/** A payload that names one record by its id `a` and expires at `e`. */
+export type IdPayload = { a: number; e: number };
+
+const IdPayloadSchema = v.strictObject({
+  a: v.number(),
+  e: v.number(),
+});
+
+/** The shape check of an id payload, for a scheme's `parse`. The HMAC check
+ * runs before it, so only a payload this server signed reaches it. */
+export const parseIdPayload = (
+  raw: Record<string, unknown>,
+): IdPayload | null => parseOrNull(IdPayloadSchema, raw);
 
 /**
  * The parts of a signed-token scheme that differ between token types.
