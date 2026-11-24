@@ -8,7 +8,7 @@ import { bookingEventGroup } from "#accounting/mappers.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
 import { queryOne } from "#db/client.ts";
-import { parseSessionFailure } from "#db/processed-payments.ts";
+import { type RowHolding, rowHolding } from "#db/processed-payments.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import type { StoredPaymentFailure } from "#payment/row-state.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -26,23 +26,21 @@ export type SessionStanding =
   | { kind: "recorded" }
   | { kind: "open" };
 
-/** What a standing read found: the booking that the payment row names, the
- * final outcome that it holds, and whether the ledger holds a leg. */
+/** What a standing read found: what the payment row holds, and whether the
+ * ledger holds a leg. */
 export type StandingFacts = {
-  readonly attendeeId: number | null;
-  readonly failure: StoredPaymentFailure | null;
+  readonly row: RowHolding;
   readonly recorded: boolean;
 };
 
 /** Where a session stands, from what its payment row and its ledger hold. A
  * booking outranks a final outcome, and the payment row outranks the ledger. */
 export const standingOf = ({
-  attendeeId,
-  failure,
   recorded,
+  row,
 }: StandingFacts): SessionStanding => {
-  if (attendeeId !== null) return { kind: "booked" };
-  if (failure !== null) return { failure, kind: "handled" };
+  if (row.kind === "booked") return { kind: "booked" };
+  if (row.kind === "handled") return { failure: row.failure, kind: "handled" };
   return recorded ? { kind: "recorded" } : { kind: "open" };
 };
 
@@ -71,8 +69,11 @@ export const sessionStanding = async (
   );
   const row = requireValue(read, "A session-standing read gives one row");
   return standingOf({
-    attendeeId: row.attendee_id,
-    failure: await parseSessionFailure(row.failure_data ?? ""),
     recorded: row.recorded === 1,
+    // A session with no payment row reads as a row that holds nothing.
+    row: await rowHolding({
+      attendeeId: row.attendee_id,
+      failureData: row.failure_data ?? "",
+    }),
   });
 };

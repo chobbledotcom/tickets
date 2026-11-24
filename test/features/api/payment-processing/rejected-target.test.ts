@@ -32,6 +32,7 @@ import {
 } from "#routes/api/payment-processing/rejected-target.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -46,6 +47,7 @@ import {
   withSucceedingRefundFor,
 } from "#test-utils/rejected-charge.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { withProof } from "#test-utils/sealed-checkout.ts";
 import { getTestSession, requestAsSession } from "#test-utils/session.ts";
 import { completedStripeRefund } from "#test-utils/stripe/fixtures.ts";
 
@@ -114,17 +116,54 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
   });
 });
 
+type Carrier = "fields" | "sealed";
+
+/** How a test name says where the order is carried. */
+const CARRIED: Record<Carrier, string> = {
+  fields: "in the metadata's own fields",
+  sealed: "sealed in a bundle",
+};
+
+/** The two ways a checkout carries its order, as a rejection that names one
+ * line of 500 on the listing. */
+const CARRIERS: Record<
+  Carrier,
+  (
+    reference: string,
+    listingId: number,
+  ) => Promise<ReturnType<typeof ourRejection>>
+> = {
+  fields: (reference, listingId) =>
+    Promise.resolve(
+      ourRejection(reference, { items: singleItem(listingId, 1, 500) }),
+    ),
+  sealed: async (reference, listingId) => ({
+    ...ourRejection(reference),
+    metadata: (
+      await withProof(
+        checkoutIntent({
+          items: [checkoutItem({ listingId, unitPrice: 500 })],
+        }),
+        "stripe",
+      )
+    ).metadata,
+  }),
+};
+
 describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
   const CAPTURED = 750;
 
-  /** A rejection whose signed metadata names one real listing line. */
-  const rejectionFor = async (reference: string) => {
+  /** A rejection whose order names one real listing line. The order is
+   * carried in the metadata's own fields, or sealed in a bundle the way a
+   * Stripe or Square checkout carries it. */
+  const rejectionFor = async (
+    reference: string,
+    carrier: Carrier = "fields",
+  ) => {
     const listing = await createTestListing({});
     return {
       listing,
-      rejection: ourRejection(reference, {
-        items: singleItem(listing.id, 1, 500),
-      }),
+      rejection: await CARRIERS[carrier](reference, listing.id),
     };
   };
 
@@ -147,52 +186,54 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     return Number(row!.total);
   };
 
-  it("stores the ghost, posts both legs, and records the authority", async () => {
-    const { listing, rejection } = await rejectionFor("pi_target");
-    const { result } = await withSucceedingRefundFor(CAPTURED)(() =>
-      settleRejectedCharge(rejection),
-    );
-    expect(result.refunded).toBe(true);
-    expect(result.returned).not.toBeNull();
+  for (const carrier of ["fields", "sealed"] as const) {
+    it(`stores the ghost, posts both legs, and records the authority, with the order ${CARRIED[carrier]}`, async () => {
+      const { listing, rejection } = await rejectionFor("pi_target", carrier);
+      const { result } = await withSucceedingRefundFor(CAPTURED)(() =>
+        settleRejectedCharge(rejection),
+      );
+      expect(result.refunded).toBe(true);
+      expect(result.returned).not.toBeNull();
 
-    const ghosts = await ghostAttendees(listing.id);
-    expect(ghosts).toEqual([{ id: ghosts[0]!.id, quantity: 0 }]);
+      const ghosts = await ghostAttendees(listing.id);
+      expect(ghosts).toEqual([{ id: ghosts[0]!.id, quantity: 0 }]);
 
-    // The books show the money in and the money back, each under the
-    // session's own event group and its derived refund group.
-    const bookingGroup = await bookingEventGroup(rejection.sessionId);
-    const payment = await transfersByEventGroup(bookingGroup);
-    const returned = await transfersByEventGroup(
-      await refundEventGroup(bookingGroup),
-    );
-    expect(payment.map(({ amount }) => amount)).toEqual([CAPTURED]);
-    expect(returned.map(({ amount }) => amount)).toEqual([CAPTURED]);
+      // The books show the money in and the money back, each under the
+      // session's own event group and its derived refund group.
+      const bookingGroup = await bookingEventGroup(rejection.sessionId);
+      const payment = await transfersByEventGroup(bookingGroup);
+      const returned = await transfersByEventGroup(
+        await refundEventGroup(bookingGroup),
+      );
+      expect(payment.map(({ amount }) => amount)).toEqual([CAPTURED]);
+      expect(returned.map(({ amount }) => amount)).toEqual([CAPTURED]);
 
-    // The authority no longer waits for the untrue owner attestation.
-    const authority = await loadRefundAuthorityById(
-      result.returned!.authority.id,
-    );
-    expect(authority?.state.kind).toBe("completed");
-    expect(authority?.state.local.kind).toBe("recorded");
+      // The authority no longer waits for the untrue owner attestation.
+      const authority = await loadRefundAuthorityById(
+        result.returned!.authority.id,
+      );
+      expect(authority?.state.kind).toBe("completed");
+      expect(authority?.state.local.kind).toBe("recorded");
 
-    // Both legs carry the provider's return instant, so every delivery
-    // would post the exact same identity.
-    const returnInstant = new Date(
-      completedAtOf(authority!.state)!,
-    ).toISOString();
-    expect(payment.map(({ occurredAt }) => occurredAt)).toEqual([
-      returnInstant,
-    ]);
-    expect(returned.map(({ occurredAt }) => occurredAt)).toEqual([
-      returnInstant,
-    ]);
+      // Both legs carry the provider's return instant, so every delivery
+      // would post the exact same identity.
+      const returnInstant = new Date(
+        completedAtOf(authority!.state)!,
+      ).toISOString();
+      expect(payment.map(({ occurredAt }) => occurredAt)).toEqual([
+        returnInstant,
+      ]);
+      expect(returned.map(({ occurredAt }) => occurredAt)).toEqual([
+        returnInstant,
+      ]);
 
-    // The ghost's born claim was settled, so nothing holds the row.
-    const mirror = await queryOne<{ protected_state: string }>(
-      sql`SELECT protected_state FROM processed_payments WHERE attendee_id = ${ghosts[0]!.id}`,
-    );
-    expect(mirror?.protected_state).toBe("");
-  });
+      // The ghost's born claim was settled, so nothing holds the row.
+      const mirror = await queryOne<{ protected_state: string }>(
+        sql`SELECT protected_state FROM processed_payments WHERE attendee_id = ${ghosts[0]!.id}`,
+      );
+      expect(mirror?.protected_state).toBe("");
+    });
+  }
 
   it("stores the outcome a later delivery replays to the buyer", async () => {
     const { rejection } = await rejectionFor("pi_stored_outcome");
@@ -276,47 +317,54 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     });
   });
 
-  it("finishes the interrupted tail on the next delivery, exactly once", async () => {
-    const { listing, rejection } = await rejectionFor("pi_ledger_resumed");
-    await withRefundLedgerFault(() =>
-      expect(
-        withSucceedingRefundFor(CAPTURED)(() =>
-          settleRejectedCharge(rejection),
-        ),
-      ).rejects.toThrow("could not be recorded"),
-    );
+  for (const carrier of ["fields", "sealed"] as const) {
+    it(`finishes the interrupted tail on the next delivery, exactly once, with the order ${CARRIED[carrier]}`, async () => {
+      const { listing, rejection } = await rejectionFor(
+        "pi_ledger_resumed",
+        carrier,
+      );
+      await withRefundLedgerFault(() =>
+        expect(
+          withSucceedingRefundFor(CAPTURED)(() =>
+            settleRejectedCharge(rejection),
+          ),
+        ).rejects.toThrow("could not be recorded"),
+      );
 
-    // The fault lifts and the provider redelivers: the same entry point
-    // finds the held anchor and finishes the money records from it.
-    const { result } = await withSucceedingRefundFor(CAPTURED)(() =>
-      settleRejectedCharge(rejection),
-    );
-    expect(result).toEqual({
-      refunded: true,
-      returned: result.returned,
-      settled: true,
-    });
-    await expectOnePairOfLegs(rejection.sessionId);
-    const charge = await queryOne<{
-      refund_state_name: string;
-      refund_local_state: string;
-    }>(sql`SELECT refund_state_name, refund_local_state FROM payment_charges`);
-    expect(charge).toEqual({
-      refund_local_state: "recorded",
-      refund_state_name: "completed",
-    });
-    const anchor = await queryOne<{ protected_state: string }>(
-      sql`SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''`,
-    );
-    expect(anchor?.protected_state).toBe("");
+      // The fault lifts and the provider redelivers: the same entry point
+      // finds the held anchor and finishes the money records from it.
+      const { result } = await withSucceedingRefundFor(CAPTURED)(() =>
+        settleRejectedCharge(rejection),
+      );
+      expect(result).toEqual({
+        refunded: true,
+        returned: result.returned,
+        settled: true,
+      });
+      await expectOnePairOfLegs(rejection.sessionId);
+      const charge = await queryOne<{
+        refund_state_name: string;
+        refund_local_state: string;
+      }>(
+        sql`SELECT refund_state_name, refund_local_state FROM payment_charges`,
+      );
+      expect(charge).toEqual({
+        refund_local_state: "recorded",
+        refund_state_name: "completed",
+      });
+      const anchor = await queryOne<{ protected_state: string }>(
+        sql`SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''`,
+      );
+      expect(anchor?.protected_state).toBe("");
 
-    // A third delivery finds nothing left to do and changes nothing.
-    await withSucceedingRefundFor(CAPTURED)(() =>
-      settleRejectedCharge(rejection),
-    );
-    await expectOnePairOfLegs(rejection.sessionId);
-    expect((await ghostAttendees(listing.id)).length).toBe(1);
-  });
+      // A third delivery finds nothing left to do and changes nothing.
+      await withSucceedingRefundFor(CAPTURED)(() =>
+        settleRejectedCharge(rejection),
+      );
+      await expectOnePairOfLegs(rejection.sessionId);
+      expect((await ghostAttendees(listing.id)).length).toBe(1);
+    });
+  }
 
   it("resumes nothing when the session row was finalized another way", async () => {
     const { listing, rejection } = await rejectionFor("pi_finalized_row");

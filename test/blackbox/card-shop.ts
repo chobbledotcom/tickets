@@ -15,6 +15,7 @@ import {
   startFakeStripe,
 } from "#test/blackbox/fake-stripe.ts";
 import {
+  addBooking,
   addListing,
   openApi,
   type SeededListing,
@@ -64,7 +65,31 @@ export const checkOut = async (shop: CardShop): Promise<FakeCheckout> => {
     [`quantity${shop.listing.id}`]: "2",
   });
   expect(sent.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
-  return requireValue(shop.fake.checkouts.at(-1), "The app opened no checkout");
+  return lastCheckout(shop);
+};
+
+/** The checkout that the app opened last. */
+const lastCheckout = (shop: CardShop): FakeCheckout =>
+  requireValue(shop.fake.checkouts.at(-1), "The app opened no checkout");
+
+/** The owner books one place by hand with 400 of its 1000 paid. The buyer
+ * pays the rest through the pay link on the booking's ledger tab, and is sent
+ * to Stripe. Gives back the checkout that the app opened. */
+export const checkOutBalance = async (
+  shop: CardShop,
+): Promise<FakeCheckout> => {
+  const id = await addBooking(shop.api, shop.listing, {
+    name: "Balance Buyer",
+    payments: [{ amount: 400 }],
+  });
+  const ledger = await shop.owner.get(`/admin/attendees/${id}/ledger`);
+  const link = requireValue(
+    ledger.html.match(/\/pay\/[^"<\s]+/)?.[0],
+    "The ledger tab shows no pay link",
+  );
+  const sent = await createApp(inProcess).submit(link);
+  expect(sent.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
+  return lastCheckout(shop);
 };
 
 /** Send Stripe's signed "checkout completed" callback for a checkout. */
