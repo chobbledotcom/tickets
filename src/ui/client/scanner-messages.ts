@@ -1,16 +1,33 @@
+/// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 // Browser-only code - shared wording helpers for the scanner bundle and its
 // offline module. The page hands the client its words as `data-message-*`
 // attributes. A lookup that misses falls back to the same words the page
 // renders.
 
+/** The words the page renders, keyed by their `data-message-*` name. */
+export type Messages = Readonly<Record<string, string | undefined>>;
+
+/** The colours a status line shows. */
+export type StatusType = "error" | "success" | "warning";
+
 /** Fill a message template's `{name}`-style holes. */
-export const interpolate = (template, values) =>
-  template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
+export const interpolate = (
+  template: string,
+  values: Readonly<Record<string, number | string | undefined>>,
+): string =>
+  template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
 
-export const getMessage = (messages, key, fallback) =>
-  messages[key] ?? fallback;
+export const getMessage = (
+  messages: Messages,
+  key: string,
+  fallback: string,
+): string => messages[key] ?? fallback;
 
-export const formatTicketCount = (messages, count) => {
+export const formatTicketCount = (
+  messages: Messages,
+  count: number,
+): string => {
   const safeCount = Number.isFinite(count) ? count : 1;
   const key =
     safeCount === 1 ? "messageTicketCountOne" : "messageTicketCountOther";
@@ -24,7 +41,11 @@ export const FADE_DELAY_MS = 5000;
 let fadeTimer = 0;
 
 /** Show a status message with color via CSS classes */
-export const showStatus = (el, message, type) => {
+export const showStatus = (
+  el: HTMLElement,
+  message: string,
+  type: StatusType,
+): void => {
   clearTimeout(fadeTimer);
   el.textContent = message;
   el.classList.remove(

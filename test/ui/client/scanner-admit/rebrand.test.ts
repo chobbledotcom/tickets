@@ -19,7 +19,7 @@ import {
   type ScannerHarness,
   useScannerSuite,
   whenTextShows,
-} from "./fixture.ts";
+} from "../scanner/fixture.ts";
 
 describe("scanner messages under the ticket-to-booking rebrand", {
   sanitizeOps: false,

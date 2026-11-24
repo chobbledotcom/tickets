@@ -74,6 +74,6 @@ export const modelFrom = <
 
 /** Review context is source code under the declared repository roots. */
 export const isReviewSourcePath = (path: string): boolean =>
-  /^(?:src|scripts|verification)\/.+\.(?:[cm]?[jt]sx?|tla)$/.test(path) &&
+  /^(?:src|scripts|verification)\/.+\.(?:tsx?|tla)$/.test(path) &&
   !path.includes("\\") &&
   path.split("/").every((part) => part !== "" && !part.startsWith("."));

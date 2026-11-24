@@ -42,6 +42,7 @@
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
     "check:ste": "deno run --allow-read=. --allow-write=scripts/check-ste/baseline.json scripts/check-ste.ts",
     "check:alias-exports": "deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-env --allow-sys --allow-ffi scripts/check-alias-exports.ts",
+    "check:no-js": "deno run --allow-run=git scripts/check-no-js.ts",
     "check:empty-catch": "deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-env --allow-sys --allow-ffi scripts/check-empty-catch.ts",
     "check:double-casts": "deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-env --allow-sys --allow-ffi --allow-write=scripts/check-double-casts/baseline.json scripts/check-double-casts.ts",
     "check:file-lengths": "deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-write=scripts/check-file-lengths/over-limit.json scripts/counts-check.ts file-lengths",

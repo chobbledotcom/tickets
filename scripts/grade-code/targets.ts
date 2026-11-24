@@ -52,7 +52,7 @@ const selectedSource = async (
   const supported =
     target.root === "verification"
       ? normalized.endsWith(".tla")
-      : /\.[cm]?[jt]sx?$/.test(normalized);
+      : /\.tsx?$/.test(normalized);
   if (
     sourceRoot(normalized) !== target.root ||
     (target.directory && !normalized.startsWith(`${target.path}/`)) ||

@@ -1,9 +1,11 @@
+/// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 // Browser-only code - bundled into /scanner.js by scripts/build-static-assets.ts
 //
 // The offline scanner's page furniture. The banner says which mode the door
 // works in. A scan is validated offline and queued in the page's store. The
 // module wires one page's offline side. The queue panel and the replay that
-// settles it live in scanner-offline-sync.js.
+// settles it live in scanner-offline-sync.ts.
 
 import { fromBase64Url } from "#crypto/utils.ts";
 import { DAY_MS } from "#shared/now.ts";
@@ -12,28 +14,37 @@ import { showQuantitySelect } from "./quantity-select.ts";
 import {
   formatTicketCount,
   getMessage,
+  type Messages,
   showStatus,
-} from "./scanner-messages.js";
+} from "./scanner-messages.ts";
 import {
   isCacheFresh,
   isSyncing,
   offlineModeActive,
+  type QueuedCheckIn,
   queueCheckIn,
   readManualMode,
   readQueue,
   readTicketCache,
   refreshTicketCache,
   registerScannerWorker,
+  type TicketCache,
   writeManualMode,
-} from "./scanner-offline.js";
+} from "./scanner-offline.ts";
 import {
   appendQueuedRow,
+  type QueuePanel,
   renderQueuePanel,
+  type SettleDelivery,
   syncQueue,
-} from "./scanner-offline-sync.js";
+} from "./scanner-offline-sync.ts";
 
 /** Show or hide the offline banner, worded for why the mode is on. */
-const updateOfflineBanner = (banner, bannerText, messages) => {
+const updateOfflineBanner = (
+  banner: HTMLElement,
+  bannerText: HTMLElement,
+  messages: Messages,
+): void => {
   const active = offlineModeActive();
   banner.classList.toggle("hidden", !active);
   if (active) {
@@ -55,7 +66,7 @@ const updateOfflineBanner = (banner, bannerText, messages) => {
  * digest signs under. The page is the only response that holds a door's
  * key. The stored digests carry the same key. A scan cannot use them
  * without this attribute. */
-const doorKeyBytes = (pageKey) => {
+const doorKeyBytes = (pageKey: string | undefined): Uint8Array => {
   if (!pageKey) {
     throw new Error("The scanner page carries no data-door-cache-key");
   }
@@ -67,7 +78,7 @@ const doorKeyBytes = (pageKey) => {
  * server cannot tell a resend from a first send, so the page sends no
  * queued check-in this old. A page that carries no usable day count
  * throws, and the page degrades to the online-only scanner. */
-const replayWindowMs = (pageDays) => {
+const replayWindowMs = (pageDays: string | undefined): number => {
   const days = Number(pageDays);
   if (!Number.isSafeInteger(days) || days <= 0) {
     throw new Error(
@@ -83,13 +94,13 @@ const replayWindowMs = (pageDays) => {
  * while the connection holds, and so does the click that arms the switch.
  * An expired set answers nothing until the door reloads the page. */
 export const offlineScan = async (
-  scanPath,
-  token,
-  statusEl,
-  messages,
-  panel,
-) => {
-  let cache;
+  scanPath: string,
+  token: string,
+  statusEl: HTMLElement,
+  messages: Messages,
+  panel: QueuePanel,
+): Promise<void> => {
+  let cache: TicketCache | null;
   try {
     cache = readTicketCache(scanPath);
   } catch {
@@ -185,7 +196,7 @@ export const offlineScan = async (
   }
   // A storage failure here leaves the scan unqueued, and the save-failed
   // message tells the door to scan again.
-  let queued;
+  let queued: QueuedCheckIn;
   try {
     queued = queueCheckIn(scanPath, hash, quantity);
   } catch {
@@ -232,14 +243,19 @@ export const initOfflineScanner = ({
   scanPath,
   settleDelivery,
   statusEl,
-}) => {
+}: {
+  messages: Messages;
+  scanPath: string;
+  settleDelivery: SettleDelivery;
+  statusEl: HTMLElement;
+}): QueuePanel => {
   /** The page's one element for `id`, or a hard stop when the page lacks it. */
-  const lookup = (id) => {
+  const lookup = (id: string): HTMLElement => {
     const found = document.getElementById(id);
     if (found) return found;
     throw new Error(`The scanner page carries no ${id}`);
   };
-  const panel = {
+  const panel: QueuePanel = {
     container: lookup("scanner-queue"),
     doorKey: doorKeyBytes(lookup("scanner-container").dataset.doorCacheKey),
     list: lookup("scanner-queue-items"),
@@ -264,7 +280,7 @@ export const initOfflineScanner = ({
     });
 
   /** The switch, the banner, and the queue all read one offline state. */
-  const renderOfflineState = () => {
+  const renderOfflineState = (): void => {
     toggle.setAttribute("aria-pressed", String(readManualMode()));
     updateOfflineBanner(banner, bannerText, messages);
     // While a sync runs it owns the queue's rows: a rebuild here detaches

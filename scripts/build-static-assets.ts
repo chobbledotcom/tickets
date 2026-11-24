@@ -80,13 +80,13 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
   // bundle.
   browserBundle(
     "Scanner",
-    "./src/ui/client/scanner.js",
+    "./src/ui/client/scanner.ts",
     STATIC_ASSET_OUTFILES.scanner,
     { format: "esm" },
   ),
   browserBundle(
     "Scanner service worker",
-    "./src/ui/client/scanner-sw.js",
+    "./src/ui/client/scanner-sw.ts",
     STATIC_ASSET_OUTFILES.scannerSw,
   ),
   browserBundle(

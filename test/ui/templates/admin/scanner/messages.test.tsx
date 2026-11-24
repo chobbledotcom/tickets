@@ -26,10 +26,12 @@ describe("the scanner page's words", () => {
   beforeAll(setupAdminPageTest);
 
   test("carries every message the client reads, in the client's own words", async () => {
-    const source = await Deno.readTextFile(
-      relativeToProject("src/ui/client/scanner.js"),
+    const sources = await Promise.all(
+      ["scanner.ts", "scanner-admit.ts"].map((file) =>
+        Deno.readTextFile(relativeToProject(`src/ui/client/${file}`)),
+      ),
     );
-    const messages = clientMessages(source);
+    const messages = clientMessages(sources.join("\n"));
     // One message per key the client reads today. A change here means the
     // client started or stopped reading a message: re-check the page
     // carries it, then update this count.

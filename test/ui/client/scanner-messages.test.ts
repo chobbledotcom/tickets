@@ -14,7 +14,7 @@ import {
   getMessage,
   interpolate,
   showStatus,
-} from "#src/ui/client/scanner-messages.js";
+} from "#src/ui/client/scanner-messages.ts";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
 
 const { installDom, cleanup } = createDomInstaller();

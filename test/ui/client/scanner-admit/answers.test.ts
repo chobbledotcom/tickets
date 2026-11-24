@@ -25,7 +25,7 @@ import {
   useScannerSuite,
   whenMessageShows,
   whenTextShows,
-} from "./fixture.ts";
+} from "../scanner/fixture.ts";
 
 /** A forced scan waiting at its override prompt: the helper serves the
  * given answers one per POST, starts the scan, and hands back the running

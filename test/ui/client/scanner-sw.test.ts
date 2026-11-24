@@ -15,7 +15,7 @@ import { createGlobalStash } from "#test-utils/happy-dom.ts";
 
 // The worker registers its listeners on import; the test dispatches fetch
 // events at the page's own global scope.
-import "#src/ui/client/scanner-sw.js";
+import "#src/ui/client/scanner-sw.ts";
 
 /** The store the worker reads as the browser's Cache Storage, holding its
  * entries where a test can read them. */
