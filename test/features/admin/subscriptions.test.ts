@@ -4,6 +4,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
+import { postAttendeePayment } from "#test/integration/server/ledger/helpers.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -18,7 +19,15 @@ import {
   createTestManagerSession,
   editorGetStatus,
 } from "#test-utils/session.ts";
-import { featureSetting, withSetting } from "#test-utils/settings.ts";
+import {
+  featureSetting,
+  setupStripe,
+  stubWebhookVerify,
+  withSetting,
+} from "#test-utils/settings.ts";
+import { stripePaidInvoice } from "#test-utils/stripe/fixtures.ts";
+import { withStripeRenewals } from "#test-utils/stripe/subscription-checkout.ts";
+import { postWebhookAndAssert } from "#test-utils/webhooks.ts";
 
 const pageHtml = async (path: string, cookie?: string): Promise<string> => {
   const response =
@@ -32,6 +41,30 @@ const pageHtml = async (path: string, cookie?: string): Promise<string> => {
 /** The rows of the page's table, in the order the page shows them. */
 const tableRows = (html: string): string[] =>
   [...html.matchAll(/<tr>[\s\S]*?<\/tr>/g)].map(([row]) => row).slice(1);
+
+/** Stripe reports one paid renewal of `subscriptionId`, on 1 March 2026. */
+const renew = async (subscriptionId: string): Promise<void> => {
+  await setupStripe();
+  await withStripeRenewals(
+    "active",
+    [stripePaidInvoice({ id: `in_${subscriptionId}` })],
+    async () => {
+      const verify = await stubWebhookVerify({
+        data: {
+          object: {
+            parent: {
+              subscription_details: { subscription: subscriptionId },
+              type: "subscription_details",
+            },
+          },
+        },
+        id: `evt_${subscriptionId}`,
+        type: "invoice.paid",
+      });
+      await postWebhookAndAssert(() => verify.restore(), 200);
+    },
+  );
+};
 
 describeWithEnv("server (admin subscriptions)", { db: true }, () => {
   test("says nobody has subscribed yet", async () => {
@@ -122,6 +155,66 @@ describeWithEnv("server (admin subscriptions)", { db: true }, () => {
     );
     expect(html).not.toContain("Cancel subscription");
     expect(html).not.toContain("Warning: cancelling");
+  });
+
+  test("shows the owner each subscriber's payments, linked to their ledger", async () => {
+    const { attendeeId } = await subscribe("Ada", MONTHLY);
+    await renew("sub_ada");
+    await postAttendeePayment(attendeeId);
+    const html = await pageHtml("/admin/subscriptions");
+    expectIncludesAll(html, [
+      "<th>Payments</th>",
+      "<th>Total paid</th>",
+      "<th>Last payment</th>",
+    ]);
+    expectIncludesAll(tableRows(html)[0]!, [
+      `<a href="/admin/ledger/attendee/${attendeeId}">2</a>`,
+      "<td>£18.34</td>",
+      "<td>2026-06-22 09:30</td>",
+    ]);
+  });
+
+  test("shows a subscriber with no payment as none", async () => {
+    const { attendeeId } = await subscribe("Ada", MONTHLY);
+    expectIncludesAll(tableRows(await pageHtml("/admin/subscriptions"))[0]!, [
+      `<a href="/admin/ledger/attendee/${attendeeId}">0</a>`,
+      "<td>£0</td>",
+      "<td>None</td>",
+    ]);
+  });
+
+  test("counts only the payments of each subscriber", async () => {
+    const ada = await subscribe("Ada", MONTHLY);
+    const bob = await subscribe("Bob", MONTHLY);
+    await postAttendeePayment(ada.attendeeId);
+    const [bobRow, adaRow] = tableRows(await pageHtml("/admin/subscriptions"));
+    expect(adaRow).toContain(
+      `<a href="/admin/ledger/attendee/${ada.attendeeId}">1</a>`,
+    );
+    expect(bobRow).toContain(
+      `<a href="/admin/ledger/attendee/${bob.attendeeId}">0</a>`,
+    );
+  });
+
+  test("does not count a charge that the owner adds as a payment", async () => {
+    const { attendeeId } = await subscribe("Ada", MONTHLY);
+    await postAttendeePayment(attendeeId, "5.00", "manual_attendee_charge");
+    expectIncludesAll(tableRows(await pageHtml("/admin/subscriptions"))[0]!, [
+      `<a href="/admin/ledger/attendee/${attendeeId}">0</a>`,
+      "<td>£0</td>",
+    ]);
+  });
+
+  test("shows a manager no payments and no ledger link", async () => {
+    const { attendeeId } = await subscribe("Ada", MONTHLY);
+    await postAttendeePayment(attendeeId);
+    const html = await pageHtml(
+      "/admin/subscriptions",
+      await createTestManagerSession(),
+    );
+    expect(html).not.toContain("<th>Payments</th>");
+    expect(html).not.toContain("/admin/ledger/");
+    expect(html).not.toContain("£12.34");
   });
 
   test("an editor cannot reach the page", async () => {
