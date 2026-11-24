@@ -66,8 +66,8 @@ describe("scanner offline sync", {
   };
 
   /** Answers each replayed delivery with the answer its queued ticket maps
-   * to, and the page's cache refresh with an empty list. The delivery names
-   * its ticket by the digest it stored. */
+   * to, and any cache page with an empty list. The delivery names its
+   * ticket by the digest it stored. */
   const answerEachToken = async (
     answers: Record<string, Record<string, unknown>>,
   ): Promise<FetchResponder> => {

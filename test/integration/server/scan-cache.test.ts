@@ -30,6 +30,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   requestAsSession,
@@ -316,6 +317,41 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
         tickets: 1,
       },
     ]);
+  });
+
+  test("leaves a refunded ticket out of the set", async () => {
+    const { listing, token: kept } = await createTestAttendeeWithToken(
+      "Kit Vale",
+      "kit@example.com",
+    );
+    const { attendee: refunded } = await createTestAttendeeDirect(
+      listing.id,
+      "Lou Ford",
+      "lou@example.com",
+    );
+    await postAttendeeRefund({
+      attendeeId: refunded.id,
+      listingId: listing.id,
+    });
+
+    // The refunded person still holds a line, so the page reads both
+    // people and keeps one entry.
+    expect(
+      await assertJson(
+        authedGet(`/admin/listing/${listing.id}/scan-cache`),
+        200,
+      ),
+    ).toEqual({
+      entries: [
+        {
+          hash: await doorDigest(doorCacheName("listing", listing.id), kept),
+          tickets: 1,
+        },
+      ],
+      next: null,
+      people: 2,
+      total: 2,
+    });
   });
 
   test("serves a group door's tokens across its member listings", async () => {

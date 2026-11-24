@@ -177,6 +177,20 @@ const trimAttendeePage = (rows: Attendee[]): AttendeesPage => {
   return { hasNext: true, rows: rows.filter((row) => row.id !== extraId) };
 };
 
+/** The people with a line on the listings, or on any listing when
+ * `listingIds` is null, as SQL text after `FROM`. A page of people selects
+ * `pageAttendee.id` from it. */
+export const peopleWithLinesOn = (
+  listingIds: readonly number[] | null,
+): SqlStatement =>
+  sql`attendees AS pageAttendee
+    JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
+    WHERE pageAttendee.kind = ${sqlLiteral(ATTENDEE_KIND)}${
+      listingIds
+        ? sql` AND pageLine.listing_id IN (${sqlList(listingIds)})`
+        : sql``
+    }`;
+
 /**
  * Pagination counts ATTENDEES, not booking lines, so a grouped attendee row
  * carries their complete listings list and never splits across a page boundary.
@@ -202,9 +216,6 @@ export const getAttendeesPage = async ({
   // An empty filter set matches nothing — e.g. a type with no listings yet.
   if (listingIds?.length === 0) return { hasNext: false, rows: [] };
   const oldestFirst = sort === "oldest";
-  const lineFilter = listingIds
-    ? sql` AND pageLine.listing_id IN (${sqlList(listingIds)})`
-    : sql``;
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
   // The inner subquery pages the ATTENDEE ids (grouped, so paging counts
@@ -214,9 +225,7 @@ export const getAttendeesPage = async ({
     order: oldestFirst ? "id_asc" : "id_desc",
     where: {
       attendeeIdsSubquery: sql`SELECT pageAttendee.id
-           FROM attendees AS pageAttendee
-           JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
-           WHERE pageAttendee.kind = ${sqlLiteral(ATTENDEE_KIND)}${lineFilter}
+           FROM ${peopleWithLinesOn(listingIds)}
            GROUP BY pageAttendee.id
            ORDER BY pageAttendee.id ${oldestFirst ? sql`ASC` : sql`DESC`}
            LIMIT ${limit} OFFSET ${offset}`,

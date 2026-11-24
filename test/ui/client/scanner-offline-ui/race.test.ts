@@ -8,8 +8,8 @@
 /**
  * The races the offline door's queue and sync run: a scan that lands while
  * its digest still runs or while a sync is already replaying, the re-run
- * the returning connection schedules, and the fetched list an offline scan
- * validates against. Every test drives the real built bundle, so the words
+ * the returning connection schedules, and the downloaded list an offline
+ * scan validates against. Every test drives the real built bundle, so the words
  * asserted are the words the door reads.
  */
 

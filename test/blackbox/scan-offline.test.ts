@@ -67,18 +67,23 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
 
     const first = await cachePage(app, door);
     expect(first.status).toBe(200);
-    const { next, people, total } = first.body as {
-      next: number;
-      people: number;
-      total: number;
-    };
-    expect({ people, total }).toEqual({
+    // Every filler ticket carries the same token, so each page holds one
+    // entry for the whole booking.
+    expect(first.body).toEqual({
+      entries: [{ hash: expect.any(String), tickets: 1 }],
+      next: expect.any(Number),
       people: PAGE_PEOPLE,
       total: PAGE_PEOPLE + 1,
     });
+    const { entries, next } = first.body as {
+      entries: unknown[];
+      next: number;
+    };
 
-    const last = await cachePage(app, door, String(next));
-    expect(last.body).toMatchObject({
+    // The cursor names the last person read, so the next page reads the
+    // one person left: no one skipped and no one read twice.
+    expect((await cachePage(app, door, String(next))).body).toEqual({
+      entries,
       next: null,
       people: 1,
       total: PAGE_PEOPLE + 1,
@@ -90,9 +95,35 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     const app = await loggedIn();
     const listing = await createTestListing({ maxAttendees: 1000 });
     await seedFillerAttendees(listing.id, PAGE_PEOPLE);
-    expect(
-      (await cachePage(app, `/admin/listing/${listing.id}`)).body,
-    ).toMatchObject({ next: null, people: PAGE_PEOPLE, total: PAGE_PEOPLE });
+    expect((await cachePage(app, `/admin/listing/${listing.id}`)).body).toEqual(
+      {
+        entries: [{ hash: expect.any(String), tickets: 1 }],
+        next: null,
+        people: PAGE_PEOPLE,
+        total: PAGE_PEOPLE,
+      },
+    );
+  });
+
+  test("serves both offline routes as private JSON under the site's policy", async () => {
+    const app = await loggedIn();
+    const listing = await createTestListing();
+    const door = `/admin/listing/${listing.id}`;
+    const read = await app.get(`${door}/scan-cache`);
+    const record = await turnOfflineOn(app, door);
+    for (const headers of [read.headers, record.headers]) {
+      expect({
+        cache: headers.get("cache-control"),
+        policy: headers
+          .get("content-security-policy")
+          ?.includes("default-src 'self'"),
+        type: headers.get("content-type"),
+      }).toEqual({
+        cache: "private, no-store",
+        policy: true,
+        type: "application/json; charset=utf-8",
+      });
+    }
   });
 
   test("keeps every line of one person on the same page", async () => {

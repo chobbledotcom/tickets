@@ -198,6 +198,47 @@ describe("scanner offline switch", {
     expect(toggle(h).getAttribute("aria-busy")).toBe(null);
   });
 
+  test("keeps the new download's progress when a stopped one ends after it starts", async () => {
+    // The first download's second page and the new download's first page
+    // both wait, so the stopped download ends while the new one still runs.
+    const stoppedPage = Promise.withResolvers<Response>();
+    const newPage = Promise.withResolvers<Response>();
+    let firstPages = 0;
+    using _fetch = stubFetch((url, init) => {
+      if (String(url).endsWith("after=7")) return stoppedPage.promise;
+      if (String(url).endsWith("after=0")) {
+        firstPages += 1;
+        if (firstPages === 2) return newPage.promise;
+      }
+      return doorWith({ 0: cachePage("first", 7, 250, 251) })(url, init);
+    });
+    const h = fresh();
+    toggle(h).click();
+    await whenStatusShows(
+      progress(h),
+      "Downloading the ticket list (250 of 251 people)",
+    );
+    toggle(h).click();
+    toggle(h).click();
+    expect(toggle(h).getAttribute("aria-busy")).toBe("true");
+
+    // The stopped download runs to its end and must leave the new one's
+    // progress on the page.
+    stoppedPage.resolve(Response.json(cachePage("second", null, 1, 251)));
+    await expect(whenStoreHolds(h, LIST_KEY)).rejects.toThrow(
+      `The store never held ${LIST_KEY}`,
+    );
+    expect(toggle(h).getAttribute("aria-busy")).toBe("true");
+    expect(progress(h).className).not.toContain("hidden");
+
+    newPage.resolve(Response.json(cachePage("fresh", null, 1, 1)));
+    await whenStatusShows(h.statusEl, READY);
+    expect(
+      JSON.parse(String(h.window.localStorage.getItem(LIST_KEY))).entries,
+    ).toEqual([{ hash: "fresh", tickets: 1 }]);
+    expect(toggle(h).getAttribute("aria-busy")).toBe(null);
+  });
+
   test("deletes the saved list when the door turns offline mode off", async () => {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh({

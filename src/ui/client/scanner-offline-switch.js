@@ -95,8 +95,12 @@ export const wireOfflineSwitch = ({
       }
     } finally {
       if (running === stop) running = null;
-      toggle.removeAttribute("aria-busy");
-      progress.classList.add("hidden");
+      // A stopped download can end after a new one starts. The new one keeps
+      // its own busy state and progress.
+      if (running === null) {
+        toggle.removeAttribute("aria-busy");
+        progress.classList.add("hidden");
+      }
       onChange();
     }
   };

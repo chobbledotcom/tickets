@@ -20,6 +20,7 @@ import { getAttendeesPageByListingIds } from "#db/listings/attendees.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { decryptUsername, getUserById } from "#db/users.ts";
 import { chunk, groupToMap, mapParallel, requiredMapValue, sumOf } from "#fp";
+import { sortedByString } from "#fp-strings";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { type AuthSession, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
@@ -51,7 +52,7 @@ const DIGEST_BATCH = 100;
 
 /** How many people one cache page reads. One page is one bounded request,
  * so a door with thousands of people never decrypts them all at once. */
-export const CACHE_PAGE_PEOPLE = 250;
+const CACHE_PAGE_PEOPLE = 250;
 
 /** One saved ticket's keyed digest and the places one scan at this door
  * admits of its booking. The offline quantity ask reads the count and
@@ -62,18 +63,11 @@ export type TicketCacheEntry = { hash: string; tickets: number };
 /** One page of a door's cache. `next` is the cursor for the next page, or
  * null on the last page. `people` counts the door's people this page read,
  * out of `total`. */
-export type TicketCachePage = {
+type TicketCachePage = {
   entries: TicketCacheEntry[];
   next: number | null;
   people: number;
   total: number;
-};
-
-/** Puts one page's cache rows in digest order, so every device saves the
- * same list for the same door and the same tokens. */
-const byDigest = (one: TicketCacheEntry, two: TicketCacheEntry): number => {
-  if (one.hash < two.hash) return -1;
-  return 1;
 };
 
 /** One page of the keyed digests of one door's admittable ticket tokens,
@@ -140,7 +134,9 @@ const ticketCachePage = async (
     await mapParallel(digestBatch)(chunk(DIGEST_BATCH)([...owedByToken.keys()]))
   ).flat();
   return {
-    entries: entries.sort(byDigest),
+    // Digest order, so every device saves the same list for the same door
+    // and the same tokens.
+    entries: sortedByString((entry: TicketCacheEntry) => entry.hash)(entries),
     next: page.nextAfter,
     people: page.people,
     total: page.total,

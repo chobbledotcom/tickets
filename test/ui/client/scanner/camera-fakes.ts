@@ -62,8 +62,8 @@ export const whenStatusShows = async (
 };
 
 /** Waits for the store to hold the key over real event-loop turns: the
- * page's own cache refresh runs on the platform's crypto promise, which
- * no microtask drain resolves. */
+ * list download and the offline digest run on the platform's own promises,
+ * which no microtask drain resolves. */
 export const whenStoreHolds = async (
   h: ScannerHarness,
   key: string,
