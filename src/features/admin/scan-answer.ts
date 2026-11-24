@@ -12,7 +12,6 @@ import {
   type DecryptedAttendeeRow,
   decryptAttendees,
 } from "#db/attendees/pii.ts";
-import type { AttendeeOrder } from "#db/attendees/select.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
@@ -74,16 +73,14 @@ export const listingScope = (listingId: number): ScanScope => ({
   listingIds: new Set([listingId]),
 });
 
-/** The door scope's decrypted attendee lines, in one read. The scanner page
- * and the offline ticket cache both need every line the door's listings
- * hold. The order defaults to the roster's newest-first. A caller that
- * groups the lines per booking names its own. */
+/** The door scope's decrypted attendee lines, in one read, newest first.
+ * The scanner page's manual check-in list and the scan by digest need every
+ * line the door's listings hold. */
 export const scopeAttendees = async (
   scope: ScanScope,
-  order: AttendeeOrder = "created_desc",
 ): Promise<DecryptedAttendeeRow<Attendee>[]> =>
   decryptAttendees(
-    await getAttendeesByListingIds([...scope.listingIds], false, order),
+    await getAttendeesByListingIds([...scope.listingIds], false),
     await requireRequestPrivateKey(),
   );
 

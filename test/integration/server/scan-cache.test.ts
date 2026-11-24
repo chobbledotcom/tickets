@@ -68,6 +68,9 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
       )
         .sort()
         .map((hash) => ({ hash, tickets: 1 })),
+      next: null,
+      people: 2,
+      total: 2,
     });
   });
 
@@ -130,6 +133,9 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
           { hash: built.lesserDigest, tickets: 1 },
           { hash: built.greaterDigest, tickets: 1 },
         ],
+        next: null,
+        people: 2,
+        total: 2,
       });
     }
   });

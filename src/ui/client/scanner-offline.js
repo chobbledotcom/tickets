@@ -4,7 +4,7 @@ export const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
 const TICKETS_KEY_PREFIX = "scanner-tickets-";
 const QUEUE_KEY = "scanner-queue";
-const MODE_KEY = "scanner-offline-mode";
+const MODE_KEY_PREFIX = "scanner-offline-mode-";
 
 /** The worker's own URL, same-origin under /admin/ so its scope covers the
  * scanner pages. It is not an asset-paths constant: the edge build rewrites
@@ -28,7 +28,7 @@ const isCacheList = (value) =>
 
 /** The stored list one door's page keeps, or null when none is stored. A
  * list we cannot parse is treated as absent and dropped. The page then
- * answers "no offline list" instead of breaking, and the next online load
+ * answers "no offline list" instead of breaking, and the next download
  * rebuilds it. */
 export const readTicketCache = (scanPath) => {
   const raw = localStorage.getItem(TICKETS_KEY_PREFIX + scanPath);
@@ -48,7 +48,7 @@ export const readTicketCache = (scanPath) => {
 /** Store one door's list, stamped with the time this device stored it. The
  * clock that judges the 12-hour validity is this device's own, so a server
  * clock a minute away cannot stretch or cut the window. */
-export const storeTicketCache = (scanPath, entries) => {
+const storeTicketCache = (scanPath, entries) => {
   localStorage.setItem(
     TICKETS_KEY_PREFIX + scanPath,
     JSON.stringify({ entries, storedAt: Date.now() }),
@@ -62,20 +62,55 @@ export const isCacheFresh = (cache) => {
   return age >= 0 && age < CACHE_TTL_MS;
 };
 
-/** Fetch one door's list from the scan-cache endpoint behind its scan
- * endpoint, and store it. Throws when the request or the body fails, so the
- * caller decides what an unusable cache means for it. */
-export const refreshTicketCache = async (scanPath) => {
-  const res = await fetch(scanPath.replace(/\/scan$/, "/scan-cache"));
+/** Delete one door's stored list. */
+export const removeTicketCache = (scanPath) =>
+  localStorage.removeItem(TICKETS_KEY_PREFIX + scanPath);
+
+/** Whether a value is one page of a door's list. `next` is the cursor for
+ * the next page, or null on the last one. `people` counts the door's people
+ * this page read, out of `total`. */
+const isCachePage = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  isCacheList(value.entries) &&
+  (value.next === null || Number.isSafeInteger(value.next)) &&
+  Number.isSafeInteger(value.people) &&
+  Number.isSafeInteger(value.total);
+
+/** Fetch one page of a door's list after the attendee id `after`. Throws
+ * when the request or the body fails. */
+const fetchCachePage = async (scanPath, after, signal) => {
+  const base = scanPath.replace(/\/scan$/, "/scan-cache");
+  const res = await fetch(`${base}?after=${after}`, { signal });
   if (!res.ok) {
     throw new Error(`The ticket cache for ${scanPath} answered ${res.status}`);
   }
-  const body = await res.json();
-  if (!isCacheList(body.entries)) {
+  const page = await res.json();
+  if (!isCachePage(page)) {
     throw new Error(`The ticket cache for ${scanPath} has a bad shape`);
   }
-  storeTicketCache(scanPath, body.entries);
-  return readTicketCache(scanPath);
+  return page;
+};
+
+/** Download one door's whole list page by page, and store it once the last
+ * page arrives. `onProgress` hears how many people are read out of the
+ * total after each page. A failed or stopped download stores nothing, so
+ * any list the door already holds stands. */
+export const downloadTicketCache = async (scanPath, onProgress, signal) => {
+  const entries = [];
+  let after = 0;
+  let read = 0;
+  while (after !== null) {
+    const page = await fetchCachePage(scanPath, after, signal);
+    entries.push(...page.entries);
+    read += page.people;
+    // People booked during the download can push the total past the
+    // first page's count, so the shown count never passes the total.
+    onProgress(Math.min(read, page.total), page.total);
+    after = page.next;
+  }
+  signal.throwIfAborted();
+  storeTicketCache(scanPath, entries);
 };
 
 /** Register the scanner's service worker, which keeps the page's script and
@@ -90,24 +125,25 @@ export const registerScannerWorker = () => {
   });
 };
 
-/** The door switch's stored position. A store this page cannot read reads
- * as off, so the page boots and scans instead of stopping. */
-export const readManualMode = () => {
+/** One door's switch position, stored per door so turning offline mode on
+ * at one door does not arm a door with no list. A store this page cannot
+ * read reads as off, so the page boots and scans instead of stopping. */
+export const readManualMode = (scanPath) => {
   try {
-    return localStorage.getItem(MODE_KEY) === "1";
+    return localStorage.getItem(MODE_KEY_PREFIX + scanPath) === "1";
   } catch {
     // Site data is blocked for this page, so nothing is read or stored.
     return false;
   }
 };
 
-/** Store the door switch's position, and say whether the store took it. A
+/** Store one door's switch position, and say whether the store took it. A
  * blocked or full store keeps the old position: the switch stays where it
  * was, and the caller tells the door why nothing changed. */
-export const writeManualMode = (on) => {
+export const writeManualMode = (scanPath, on) => {
   try {
-    if (on) localStorage.setItem(MODE_KEY, "1");
-    else localStorage.removeItem(MODE_KEY);
+    if (on) localStorage.setItem(MODE_KEY_PREFIX + scanPath, "1");
+    else localStorage.removeItem(MODE_KEY_PREFIX + scanPath);
     return true;
   } catch {
     // Site data is blocked for this page, or the store is full: the same
@@ -116,10 +152,11 @@ export const writeManualMode = (on) => {
   }
 };
 
-/** Whether a scan settles offline: the door switch says so, or the device
- * has no connection. The stored cache decides later whether an offline scan
- * can be validated at all. */
-export const offlineModeActive = () => readManualMode() || !navigator.onLine;
+/** Whether a scan at this door settles offline: its switch says so, or the
+ * device has no connection. The stored cache decides later whether an
+ * offline scan can be validated at all. */
+export const offlineModeActive = (scanPath) =>
+  readManualMode(scanPath) || !navigator.onLine;
 
 /** Whether a value is the stored queue. Every item names its door, its
  * ticket digest, its delivery id, the people its check-in admits, and the

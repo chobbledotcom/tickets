@@ -135,12 +135,15 @@ export const SCANNER_PAGE = `
     data-message-offline-banner-auto="No connection. Scans are queued and checked in when you are back online."
     data-message-offline-banner-manual="Offline mode is on. Scans are queued and checked in when you are back online."
     data-message-offline-cache-expired="The offline ticket list has expired. Go online and reload this page."
-    data-message-offline-cache-missing="No offline ticket list yet. Go online and reload this page first."
+    data-message-offline-cache-missing="No offline ticket list on this device. Go online and turn on offline mode first."
+    data-message-offline-download-failed="The ticket list did not download. Check your connection, then try again."
+    data-message-offline-downloading="Downloading the ticket list ({done} of {total} people)"
     data-message-offline-invalid="This ticket cannot be checked in offline. Scan it again when you are back online to see why."
     data-message-offline-mode-save-failed="Your change was not saved. Free up space on this device, then try again."
     data-message-offline-not-queued="Nothing was queued. Scan the ticket again to check them in."
     data-message-offline-quantity-ask="How many people are you checking in?"
     data-message-offline-queued="Ticket looks valid. It will be checked in when you are back online."
+    data-message-offline-ready="Offline mode is on. The ticket list is saved on this device."
     data-message-offline-save-failed="This scan was not saved. Free up space on this device, then scan it again."
     data-message-queue-count-one="{count} queued check-in"
     data-message-queue-count-other="{count} queued check-ins"
@@ -192,6 +195,7 @@ export const SCANNER_PAGE = `
   </div>
   <button id="scanner-start" type="button">Start Camera</button>
   <button aria-pressed="false" class="link-button muted" id="scanner-offline-toggle" type="button">Offline mode</button>
+  <p class="hidden muted" id="scanner-offline-progress" role="status"></p>
 `;
 
 /** The camera page as the operator's ticket-to-booking rebrand renders it:
@@ -337,6 +341,9 @@ export const whenMessageShows = (
 
 /** The scan path the fixture page's camera posts to. */
 export const SCAN_PATH = "/admin/groups/5/scan";
+
+/** The store key that holds the fixture door's offline mode switch. */
+export const MODE_KEY = `scanner-offline-mode-${SCAN_PATH}`;
 
 /** The ticket token one scan carries. */
 export const TOKEN = "tok12345";

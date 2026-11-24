@@ -22,10 +22,9 @@ import {
   readManualMode,
   readQueue,
   readTicketCache,
-  refreshTicketCache,
   registerScannerWorker,
-  writeManualMode,
 } from "./scanner-offline.js";
+import { wireOfflineSwitch } from "./scanner-offline-switch.js";
 import {
   appendQueuedRow,
   renderQueuePanel,
@@ -33,8 +32,8 @@ import {
 } from "./scanner-offline-sync.js";
 
 /** Show or hide the offline banner, worded for why the mode is on. */
-const updateOfflineBanner = (banner, bannerText, messages) => {
-  const active = offlineModeActive();
+const updateOfflineBanner = (banner, bannerText, messages, scanPath) => {
+  const active = offlineModeActive(scanPath);
   banner.classList.toggle("hidden", !active);
   if (active) {
     bannerText.textContent = navigator.onLine
@@ -79,9 +78,9 @@ const replayWindowMs = (pageDays) => {
 
 /** Validate one scan against the door's stored ticket hashes and queue the
  * check-in when the ticket looks legit. The scan makes no network call, so
- * the stored set is its only evidence. The page load refreshes the set
- * while the connection holds, and so does the click that arms the switch.
- * An expired set answers nothing until the door reloads the page. */
+ * the stored set is its only evidence. The click that turns offline mode on
+ * downloads the set, and so does a page load while the switch is on. An
+ * expired set answers nothing until the door reloads the page. */
 export const offlineScan = async (
   scanPath,
   token,
@@ -94,7 +93,7 @@ export const offlineScan = async (
     cache = readTicketCache(scanPath);
   } catch {
     // A dropped corrupt set reads as no set: the door sees the missing-list
-    // message, and the next online load rebuilds the cache from scratch.
+    // message, and the next download rebuilds the cache from scratch.
     cache = null;
   }
   if (!cache) {
@@ -103,7 +102,7 @@ export const offlineScan = async (
       getMessage(
         messages,
         "messageOfflineCacheMissing",
-        "No offline ticket list yet. Go online and reload this page first.",
+        "No offline ticket list on this device. Go online and turn on offline mode first.",
       ),
       "error",
     );
@@ -220,14 +219,15 @@ export const offlineScan = async (
   // and the returning connection finds an empty store. The queued check-in
   // asks for the sync itself. A running sync takes the ask. An armed
   // switch holds the check-in. A dead connection leaves it queued.
-  if (!readManualMode()) panel.sync();
+  if (!readManualMode(scanPath)) panel.sync();
 };
 
 /** Wire the offline side of one scanner page and return the panel the camera
- * loop hands each offline scan to. The page hands in `settleDelivery`, the
- * one call that posts a queued check-in's delivery and answers the door's
- * final word for it. */
+ * loop hands each offline scan to. `settleDelivery` posts a queued
+ * check-in's delivery and answers the door's final word for it.
+ * `announceOffline` records a person turning offline mode on. */
 export const initOfflineScanner = ({
+  announceOffline,
   messages,
   scanPath,
   settleDelivery,
@@ -256,44 +256,26 @@ export const initOfflineScanner = ({
   const bannerText = lookup("scanner-offline-banner-text");
   const toggle = lookup("scanner-offline-toggle");
 
-  /** The page loads with the door's ticket hashes on file, so a scan can be
-   * validated before any connection is needed. */
-  const refreshQuietly = () =>
-    refreshTicketCache(scanPath).catch(() => {
-      // A failed refresh keeps whatever stored set the door already holds.
-    });
-
   /** The switch, the banner, and the queue all read one offline state. */
   const renderOfflineState = () => {
-    toggle.setAttribute("aria-pressed", String(readManualMode()));
-    updateOfflineBanner(banner, bannerText, messages);
+    toggle.setAttribute("aria-pressed", String(readManualMode(scanPath)));
+    updateOfflineBanner(banner, bannerText, messages, scanPath);
     // While a sync runs it owns the queue's rows: a rebuild here detaches
     // the row elements the sync still writes its outcomes to.
     if (!isSyncing()) renderQueuePanel(panel, messages);
   };
 
-  toggle.addEventListener("click", () => {
-    if (!writeManualMode(!readManualMode())) {
-      showStatus(
-        statusEl,
-        getMessage(
-          messages,
-          "messageOfflineModeSaveFailed",
-          "Your change was not saved. Free up space on this device, then try again.",
-        ),
-        "error",
-      );
-      return;
-    }
-    renderOfflineState();
-    // Arming the mode wants a fresh list while there is still a connection.
-    // Offline, the refresh fails and any stored set stands.
-    if (readManualMode() && navigator.onLine) refreshQuietly();
-    // Disarming settles what the door queued while the switch held the
+  const offlineSwitch = wireOfflineSwitch({
+    announceOffline,
+    messages,
+    onChange: renderOfflineState,
+    // Turning off settles what the door queued while the switch held the
     // scans, the same way a reload or a returning connection does.
-    if (!readManualMode()) {
-      syncQueue(statusEl, messages, panel, settleDelivery);
-    }
+    onTurnedOff: panel.sync,
+    progress: lookup("scanner-offline-progress"),
+    scanPath,
+    statusEl,
+    toggle,
   });
 
   // Connectivity coming back settles whatever the door queued, and both
@@ -305,7 +287,7 @@ export const initOfflineScanner = ({
   window.addEventListener("offline", () => renderOfflineState());
 
   registerScannerWorker();
-  refreshQuietly();
+  offlineSwitch.refresh();
   renderOfflineState();
   syncQueue(statusEl, messages, panel, settleDelivery);
 

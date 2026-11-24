@@ -19,11 +19,13 @@ import {
   scanFirst,
   start,
   whenStatusShows,
+  whenStoreHolds,
   withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
   fullStore,
+  MODE_KEY,
   queuedItem,
   SCAN_PATH,
   type ScannerHarness,
@@ -110,9 +112,9 @@ describe("scanner offline sync", {
   });
 
   test("settles the queue when the door turns offline mode off", async () => {
-    using _fetch = stubFetch(settledCheckIn);
+    using _fetch = stubFetch(withEmptyCache(settledCheckIn));
     const h = fresh({
-      seed: (store) => store.setItem("scanner-offline-mode", "1"),
+      seed: (store) => store.setItem(MODE_KEY, "1"),
     });
     // The scan queued while the switch was on; the page load's sync ran
     // against an empty queue, so the switch's own disarm does the settling.
@@ -120,14 +122,19 @@ describe("scanner offline sync", {
       "scanner-queue",
       JSON.stringify([queuedItem]),
     );
+    await whenStoreHolds(h, `scanner-tickets-${SCAN_PATH}`);
 
     el(h.document, "scanner-offline-toggle").click();
 
     await whenTextShows(h.statusEl, "Queued tickets are done.");
     expect(storedQueue(h)).toBe("[]");
     expect(firstRow(h).textContent).toBe("Checked in");
-    // The switch disarmed: the store holds no mode and the banner is gone.
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(null);
+    // The switch disarmed: the store holds no mode and no list, and the
+    // banner is gone.
+    expect(h.window.localStorage.getItem(MODE_KEY)).toBe(null);
+    expect(h.window.localStorage.getItem(`scanner-tickets-${SCAN_PATH}`)).toBe(
+      null,
+    );
     expect(el(h.document, "scanner-offline-banner").className).toContain(
       "hidden",
     );
@@ -137,7 +144,7 @@ describe("scanner offline sync", {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh({
       onLine: false,
-      seed: (store) => store.setItem("scanner-offline-mode", "1"),
+      seed: (store) => store.setItem(MODE_KEY, "1"),
     });
 
     // The store refuses the removal: the switch stays armed, and the page
@@ -152,7 +159,7 @@ describe("scanner offline sync", {
     expect(h.statusEl.className).toContain("scanner-status-error");
     // The armed switch keeps its position: the mode stays stored, the
     // banner stays up, and the switch reads as pressed.
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe("1");
+    expect(h.window.localStorage.getItem(MODE_KEY)).toBe("1");
     expect(el(h.document, "scanner-offline-banner").className).not.toContain(
       "hidden",
     );
@@ -181,16 +188,18 @@ describe("scanner offline sync", {
 
   test("keeps the settled row on the page when the switch is clicked mid-sync", async () => {
     const { promise, resolve } = Promise.withResolvers<Response>();
-    using _fetch = stubFetch((url) => {
-      if (String(url).endsWith("-cache")) {
-        return Response.json({ hashes: [] });
-      }
-      return promise;
+    using _fetch = stubFetch(withEmptyCache(() => promise));
+    const h = fresh({
+      seed: (store) => {
+        store.setItem(MODE_KEY, "1");
+        store.setItem("scanner-queue", JSON.stringify([queuedItem]));
+      },
     });
-    const h = fresh(queueSeeded());
+    await whenStoreHolds(h, `scanner-tickets-${SCAN_PATH}`);
 
-    // The sync is waiting on the door's answer. The switch's re-render must
-    // leave the row elements the sync writes to on the page.
+    // The sync is waiting on the door's answer. Turning the switch off
+    // re-renders, and must leave the row elements the sync writes to on
+    // the page.
     el(h.document, "scanner-offline-toggle").click();
     resolve(
       Response.json({

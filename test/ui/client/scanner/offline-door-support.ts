@@ -210,13 +210,15 @@ export const openDoor = async (
   };
 };
 
-/** Waits for the door's ticket list to be in the store. The page fetches it
- * while the connection holds, and a drop that lands first aborts that fetch,
- * so every journey waits here before it takes the connection away. */
-export const waitDoorCacheStored = async (
+/** Turns offline mode on at the door and waits for its ticket list to be in
+ * the store. The page downloads the list only when the door turns the switch
+ * on, and a connection drop that lands first stops that download, so every
+ * offline journey waits here before it takes the connection away. */
+export const turnOfflineModeOn = async (
   page: Page,
   door: SeededDoor,
 ): Promise<void> => {
+  await page.click("#scanner-offline-toggle");
   try {
     await page.waitForFunction(
       (key) => localStorage.getItem(key) !== null,
@@ -237,6 +239,13 @@ export const waitDoorCacheStored = async (
     );
   }
 };
+
+/** Whether the page's store holds the door's ticket list at all. */
+export const cacheStored = (page: Page, door: SeededDoor): Promise<boolean> =>
+  page.evaluate(
+    (key) => localStorage.getItem(key) !== null,
+    door.cacheStoreKey,
+  );
 
 /** The ticket list the page's store holds, exactly as the cache endpoint
  * served it: the journeys read their digests from the two ends instead of

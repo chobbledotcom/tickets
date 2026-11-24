@@ -35,8 +35,7 @@ import {
 } from "./scan-answer.ts";
 import {
   doorCacheName,
-  handleGroupScanCacheGet,
-  handleListingScanCacheGet,
+  offlineDoorRoutes,
   pageDoorCacheKey,
 } from "./scan-cache.ts";
 
@@ -202,9 +201,8 @@ const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
 
 /** Scanner routes */
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/groups/:id/scan-cache": handleGroupScanCacheGet,
+  ...offlineDoorRoutes,
   "GET /admin/groups/:id/scanner": handleGroupScannerGet,
-  "GET /admin/listing/:id/scan-cache": handleListingScanCacheGet,
   "GET /admin/listing/:id/scanner": handleScannerGet,
   "GET /admin/scanner": handleDoorsGet,
   "POST /admin/groups/:id/scan": handleGroupScanPost,

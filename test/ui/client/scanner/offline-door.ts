@@ -49,8 +49,8 @@ export const expectOneStoredCheckIn = async (
 };
 
 /** What one offline refusal leaves: the wording on the page, the error
- * status, nothing stored, and no request beyond the page load's cache
- * refresh. */
+ * status, nothing stored, and no request at all. A door with offline mode
+ * off downloads nothing on load. */
 export const expectOfflineRefusal = async (
   h: ScannerHarness,
   fetchStub: Stub,
@@ -59,7 +59,7 @@ export const expectOfflineRefusal = async (
   await whenStatusShows(h.statusEl, message);
   expect(h.statusEl.className).toContain("scanner-status-error");
   expect(storedQueue(h)).toBe(null);
-  expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+  expect(askedUrls(fetchStub)).toEqual([]);
 };
 
 /** The queue panel's first row, which every sync test's page carries. */
@@ -122,8 +122,7 @@ export const queuedItems = async (tokens: string[]): Promise<string> =>
   );
 
 /** The door's answer one settled queue replay gets. A fresh response per
- * call: the page load's cache refresh consumes the first one's body, and a
- * reused body would fail the replay's read. */
+ * call: a reused body would fail the replay's read. */
 export const settledCheckIn = (): Response =>
   Response.json({
     listingName: "Standard",

@@ -1,6 +1,7 @@
 /** Listing reads batched with attendee data and daily attendee queries. */
 
 import type { ResultSet } from "@libsql/client";
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeOrder,
@@ -10,7 +11,7 @@ import {
 } from "#db/attendees/select.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { queryAll, queryBatch, resultRows } from "#db/client.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import { flatMap, sortStrings, unique } from "#fp";
 import { coveredDays } from "#shared/dates.ts";
 import type { Attendee, ListingWithCount } from "#types";
@@ -139,6 +140,65 @@ export const getAttendeesByListingIds = (
     },
     order,
   );
+};
+
+/** One page of the people who hold lines on some listings, in attendee id
+ * order. Each person brings every line they hold on those listings, so a
+ * page never splits one booking. */
+export type ListingAttendeesPage = {
+  attendees: Attendee[];
+  /** The last attendee id on this page, or null on the last page. */
+  nextAfter: number | null;
+  /** How many people this page holds. */
+  people: number;
+  /** How many people the listings hold in all. */
+  total: number;
+};
+
+/** The people with a line on the listings, as SQL text after `FROM`. */
+const peopleOnListings = (listingIds: readonly number[]): SqlStatement =>
+  sql`attendees AS pageAttendee
+    JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
+    WHERE pageAttendee.kind = ${sqlLiteral(ATTENDEE_KIND)}
+      AND pageLine.listing_id IN (${sqlList(listingIds)})`;
+
+/** Read one page of the people who hold lines on the listings, after the
+ * attendee id `afterId`. One more id than the page holds tells whether a
+ * next page exists. */
+export const getAttendeesPageByListingIds = async (
+  listingIds: number[],
+  afterId: number,
+  pageSize: number,
+  order: AttendeeOrder,
+): Promise<ListingAttendeesPage> => {
+  if (listingIds.length === 0) {
+    return { attendees: [], nextAfter: null, people: 0, total: 0 };
+  }
+  const [idResult, totalResult] = await queryBatch([
+    sql`SELECT pageAttendee.id AS id FROM ${peopleOnListings(listingIds)}
+      AND pageAttendee.id > ${afterId}
+      GROUP BY pageAttendee.id
+      ORDER BY pageAttendee.id ASC
+      LIMIT ${pageSize + 1}`,
+    sql`SELECT COUNT(DISTINCT pageAttendee.id) AS total
+      FROM ${peopleOnListings(listingIds)}`,
+  ]);
+  const ids = resultRows<{ id: number }>(idResult!).map((row) => row.id);
+  const pageIds = ids.slice(0, pageSize);
+  const total = resultRows<{ total: number }>(totalResult!)[0]!.total;
+  const attendees =
+    pageIds.length === 0
+      ? []
+      : await bookingScopedAttendeeRows(
+          { attendeeIds: pageIds, kind: "attendee", listingIds },
+          order,
+        );
+  return {
+    attendees,
+    nextAfter: ids.length > pageSize ? pageIds.at(-1)! : null,
+    people: pageIds.length,
+    total,
+  };
 };
 
 export type ListingWithAttendeeRaw = {

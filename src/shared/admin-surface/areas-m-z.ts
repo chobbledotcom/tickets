@@ -7,6 +7,7 @@
 import {
   OWNER_AUDIENCE,
   onePageAreas,
+  openInReadOnly,
 } from "#shared/admin-surface/definitions.ts";
 import {
   childWrites,
@@ -94,14 +95,10 @@ export const AREAS_M_Z = {
       listingScanner: "/admin/listing/:id/scanner",
     },
     write: {
-      groupScan: {
-        pattern: "/admin/groups/:id/scan",
-        readOnlyWrite: "read-only",
-      },
-      listingScan: {
-        pattern: "/admin/listing/:id/scan",
-        readOnlyWrite: "read-only",
-      },
+      groupScan: openInReadOnly("/admin/groups/:id/scan"),
+      groupScanOffline: openInReadOnly("/admin/groups/:id/scan-offline"),
+      listingScan: openInReadOnly("/admin/listing/:id/scan"),
+      listingScanOffline: openInReadOnly("/admin/listing/:id/scan-offline"),
     },
   },
   servicing: {
@@ -221,7 +218,7 @@ export const AREAS_M_Z = {
   support: {
     audience: OWNER_AUDIENCE,
     view: {
-      support: { pattern: "/admin/support", readOnlyWrite: "read-only" },
+      support: openInReadOnly("/admin/support"),
     },
   },
   update: {

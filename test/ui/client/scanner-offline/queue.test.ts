@@ -25,7 +25,6 @@ import {
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
-  SCAN_PATH,
   type ScannerHarness,
   storedQueue,
   TOKEN,
@@ -82,8 +81,9 @@ describe("scanner offline queue", {
       expect(el(h.document, "scanner-queue-summary").textContent).toBe(
         "1 queued check-in",
       );
-      // No scan left the page: only the page load's cache refresh ran.
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+      // No scan left the page, and a door with offline mode off downloads
+      // nothing on load.
+      expect(askedUrls(fetchStub)).toEqual([]);
     } finally {
       fetchStub.restore();
     }
@@ -133,8 +133,9 @@ describe("scanner offline queue", {
       expect(item.quantity).toBe(2);
       expect(item.tokenHash).toBe(await digestOf(TOKEN));
       expect(item.operationId).toEqual(expect.any(String));
-      // No scan left the page: only the page load's cache refresh ran.
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+      // No scan left the page, and a door with offline mode off downloads
+      // nothing on load.
+      expect(askedUrls(fetchStub)).toEqual([]);
     } finally {
       fetchStub.restore();
     }
@@ -183,7 +184,7 @@ describe("scanner offline queue", {
       await expectOfflineRefusal(
         h,
         fetchStub,
-        "No offline ticket list yet. Go online and reload this page first.",
+        "No offline ticket list on this device. Go online and turn on offline mode first.",
       );
     } finally {
       fetchStub.restore();

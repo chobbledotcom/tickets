@@ -31,10 +31,12 @@ const PATHS = {
   groupScan: "/admin/groups/:id/scan",
   groupScanCache: "/admin/groups/:id/scan-cache",
   groupScanner: "/admin/groups/:id/scanner",
+  groupScanOffline: "/admin/groups/:id/scan-offline",
   listingDefaults: "/admin/listing-defaults",
   listingScan: "/admin/listing/:id/scan",
   listingScanCache: "/admin/listing/:id/scan-cache",
   listingScanner: "/admin/listing/:id/scanner",
+  listingScanOffline: "/admin/listing/:id/scan-offline",
   logistics: "/admin/logistics",
   logisticsAgent: "/admin/logistics/:id",
   logisticsDelete: "/admin/logistics/:id/delete",
@@ -209,7 +211,9 @@ describe("the M-Z admin areas", () => {
   test("keep the scans and the support page open in read-only mode", () => {
     expect(routesDeclaring("readOnlyWrite")).toEqual([
       ["groupScan", "read-only"],
+      ["groupScanOffline", "read-only"],
       ["listingScan", "read-only"],
+      ["listingScanOffline", "read-only"],
       ["support", "read-only"],
     ]);
     expect(routes.filter((route) => route.readOnlyGet)).toEqual([]);

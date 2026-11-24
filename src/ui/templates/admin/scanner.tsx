@@ -45,6 +45,16 @@ type ScannerMessages = {
   wrongListingConfirm: string;
 };
 
+/** The `data-message-*` attribute of each key that takes no values. The
+ * last part of the key, in kebab case, names its attribute. */
+const plainMessageAttrs = (keys: readonly string[]): Record<string, string> =>
+  Object.fromEntries(
+    keys.map((key) => [
+      `data-message-${key.slice(key.lastIndexOf(".") + 1).replaceAll("_", "-")}`,
+      t(key),
+    ]),
+  );
+
 /** The check-in message templates shared by both the camera scanner container
  *  and the manual-checkin form. They arrive as `data-message-*` attributes to
  *  spread onto each form (each form then adds its own extra messages).
@@ -55,9 +65,11 @@ const sharedScanMessageAttrs = (
   "data-message-already-checked-in": messageTemplates.alreadyCheckedIn,
   "data-message-checked-in": messageTemplates.checkedIn,
   "data-message-checked-in-partial": messageTemplates.checkedInPartial,
-  "data-message-error": t("admin.scanner.error"),
-  "data-message-network-error": t("admin.scanner.network_error"),
-  "data-message-not-found": t("admin.scanner.not_found"),
+  ...plainMessageAttrs([
+    "admin.scanner.error",
+    "admin.scanner.network_error",
+    "admin.scanner.not_found",
+  ]),
   "data-message-refunded": messageTemplates.refunded,
   "data-message-select-quantity": messageTemplates.selectQuantity,
   "data-message-skipped": messageTemplates.skipped,
@@ -109,45 +121,51 @@ const scannerMessages = (): ScannerMessages => ({
   }),
 });
 
+/* jscpd:ignore-start -- a list of strings, not code */
+const OFFLINE_PLAIN_MESSAGE_KEYS = [
+  "admin.scanner.offline_already_queued",
+  "admin.scanner.offline_banner_auto",
+  "admin.scanner.offline_banner_manual",
+  "admin.scanner.offline_cache_expired",
+  "admin.scanner.offline_cache_missing",
+  "admin.scanner.offline_download_failed",
+  "admin.scanner.offline_invalid",
+  "admin.scanner.offline_mode_save_failed",
+  "admin.scanner.offline_not_queued",
+  "admin.scanner.offline_quantity_ask",
+  "admin.scanner.offline_queued",
+  "admin.scanner.offline_ready",
+  "admin.scanner.offline_save_failed",
+  "admin.scanner.queue_item_already",
+  "admin.scanner.queue_item_checked_in",
+  "admin.scanner.queue_item_expired",
+  "admin.scanner.queue_item_not_checked_in",
+  "admin.scanner.queue_item_queued",
+  "admin.scanner.queue_item_refunded",
+  "admin.scanner.queue_item_still_queued",
+  "admin.scanner.queue_save_failed",
+  "admin.scanner.sync_done",
+  "admin.scanner.sync_holds",
+  "admin.scanner.sync_running",
+  "admin.scanner.sync_still_queued",
+] as const;
+/* jscpd:ignore-end */
+
 /** The offline-mode words the camera client composes into statuses, the
  * banner, and the queue panel, as `data-message-*` attributes. The camera
  * page is the only surface the offline scanner serves. */
 const offlineMessageAttrs = (): Record<string, string> => ({
-  "data-message-offline-already-queued": t(
-    "admin.scanner.offline_already_queued",
-  ),
-  "data-message-offline-banner-auto": t("admin.scanner.offline_banner_auto"),
-  "data-message-offline-banner-manual": t(
-    "admin.scanner.offline_banner_manual",
-  ),
-  "data-message-offline-cache-expired": t(
-    "admin.scanner.offline_cache_expired",
-  ),
-  "data-message-offline-cache-missing": t(
-    "admin.scanner.offline_cache_missing",
-  ),
-  "data-message-offline-invalid": t("admin.scanner.offline_invalid"),
-  "data-message-offline-mode-save-failed": t(
-    "admin.scanner.offline_mode_save_failed",
-  ),
-  "data-message-offline-not-queued": t("admin.scanner.offline_not_queued"),
-  "data-message-offline-quantity-ask": t("admin.scanner.offline_quantity_ask"),
-  "data-message-offline-queued": t("admin.scanner.offline_queued"),
-  "data-message-offline-save-failed": t("admin.scanner.offline_save_failed"),
+  ...plainMessageAttrs(OFFLINE_PLAIN_MESSAGE_KEYS),
+  "data-message-offline-downloading": t("admin.scanner.offline_downloading", {
+    done: "{done}",
+    total: "{total}",
+  }),
   "data-message-queue-count-one": t("admin.scanner.queue_count_one", {
     count: "{count}",
   }),
   "data-message-queue-count-other": t("admin.scanner.queue_count_other", {
     count: "{count}",
   }),
-  "data-message-queue-item-already": t("admin.scanner.queue_item_already"),
-  "data-message-queue-item-checked-in": t(
-    "admin.scanner.queue_item_checked_in",
-  ),
-  "data-message-queue-item-expired": t("admin.scanner.queue_item_expired"),
-  "data-message-queue-item-not-checked-in": t(
-    "admin.scanner.queue_item_not_checked_in",
-  ),
   "data-message-queue-item-over-admitted": t(
     "admin.scanner.queue_item_over_admitted",
     {
@@ -157,16 +175,6 @@ const offlineMessageAttrs = (): Record<string, string> => ({
       named: "{named}",
     },
   ),
-  "data-message-queue-item-queued": t("admin.scanner.queue_item_queued"),
-  "data-message-queue-item-refunded": t("admin.scanner.queue_item_refunded"),
-  "data-message-queue-item-still-queued": t(
-    "admin.scanner.queue_item_still_queued",
-  ),
-  "data-message-queue-save-failed": t("admin.scanner.queue_save_failed"),
-  "data-message-sync-done": t("admin.scanner.sync_done"),
-  "data-message-sync-holds": t("admin.scanner.sync_holds"),
-  "data-message-sync-running": t("admin.scanner.sync_running"),
-  "data-message-sync-still-queued": t("admin.scanner.sync_still_queued"),
 });
 
 /** One centered overlay above the camera: backdrop, box, and the page's own
@@ -335,6 +343,7 @@ export const adminScannerPage = (
         >
           {t("admin.scanner.offline_mode")}
         </button>
+        <p class="muted hidden" id="scanner-offline-progress" role="status"></p>
       </article>
 
       {checksInEveryListing ? (

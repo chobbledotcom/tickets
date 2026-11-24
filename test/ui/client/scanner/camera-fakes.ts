@@ -33,13 +33,13 @@ export const seedTicketCache = async (
   );
 };
 
-/** Answers the page's cache request with an empty list, and hands every
- * check-in to the responder the test stages. */
+/** Answers the page's cache request with one empty last page, and hands
+ * every other request to the responder the test stages. */
 export const withEmptyCache =
   (checkIns: FetchResponder): FetchResponder =>
   (url, init) =>
-    String(url).endsWith("-cache")
-      ? Response.json({ entries: [] })
+    String(url).includes("/scan-cache?")
+      ? Response.json({ entries: [], next: null, people: 0, total: 0 })
       : checkIns(url, init);
 
 /** The real timer the camera fakes replace, captured at module load. */

@@ -160,6 +160,7 @@ describe("JSON paths", () => {
 
   for (const path of [
     "/admin/listing/12/scan",
+    "/admin/groups/3/scan-offline",
     "/api/listings",
     "/v1/devices/one",
   ]) {
@@ -170,6 +171,7 @@ describe("JSON paths", () => {
 
   test("near-miss API paths do not match", () => {
     expect(isJsonApiPath("/admin/listing/x/scan")).toBe(false);
+    expect(isJsonApiPath("/admin/listing/12/scan-offlines")).toBe(false);
     expect(isJsonApiPath("/apis/listings")).toBe(false);
     expect(isJsonApiPath("/v10/devices/one")).toBe(false);
   });

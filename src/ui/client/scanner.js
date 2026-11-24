@@ -259,7 +259,7 @@ const startScanner = (video, canvas, statusEl, scanPath, csrfToken, messages, pa
         "warning",
       );
       settle = Promise.resolve();
-    } else if (panel && offlineModeActive()) {
+    } else if (panel && offlineModeActive(scanPath)) {
       settle = offlineScan(scanPath, token, statusEl, messages, panel);
     } else {
       settle = admitScan(scanPath, token, csrfToken, statusEl, messages);
@@ -313,6 +313,19 @@ const init = () => {
     });
   };
 
+  /** Record on the server that this person turned offline mode on at this
+   * door. Any answer but the recorded one stops the download. */
+  const announceOffline = async () => {
+    const answer = await postScanBody(
+      scanPath.replace(/\/scan$/, "/scan-offline"),
+      csrfToken,
+      {},
+    );
+    if (answer.status !== "ok") {
+      throw new Error(`Offline mode for ${scanPath} was not recorded`);
+    }
+  };
+
   // The offline side owns its own elements: the banner, the queue panel, and
   // the door switch. It throws naming any one the page fails to render, and
   // its door key needs an engine with Uint8Array.fromBase64. Either failure
@@ -321,6 +334,7 @@ const init = () => {
   let panel = null;
   try {
     panel = initOfflineScanner({
+      announceOffline,
       messages,
       scanPath,
       settleDelivery,

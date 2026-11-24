@@ -1,30 +1,35 @@
 /** The offline scan cache one door serves: keyed digests of the ticket
  * tokens its door can currently admit. Each digest is HMAC-SHA256 under a
  * key only the door's scanner page carries. A copied cache response alone
- * digests nothing. The scanner page stores the list on load, so a scan
- * with no connection answers from the digests alone. The offline quantity
- * ask bounds its pick at the stored count. The device never holds
- * the tokens of tickets it has not scanned, and never holds any guest
- * detail from this endpoint. */
+ * digests nothing. The scanner page downloads the list in pages when the door
+ * turns offline mode on. A scan with no connection then answers from the
+ * digests alone. The offline quantity ask bounds its pick at the stored
+ * count. The device never holds the tokens of tickets it has not scanned,
+ * and never holds any guest detail from this endpoint. */
 
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { toBase64Url } from "#crypto/utils.ts";
-import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
+import { logActivity } from "#db/activity-log.ts";
+import {
+  type DecryptedAttendeeRow,
+  decryptAttendees,
+} from "#db/attendees/pii.ts";
 import { getGroupById } from "#db/groups.ts";
+import { getAttendeesPageByListingIds } from "#db/listings/attendees.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { decryptUsername, getUserById } from "#db/users.ts";
 import { chunk, groupToMap, mapParallel, requiredMapValue, sumOf } from "#fp";
-import { SCANNER_JSON, withAuth } from "#routes/auth.ts";
+import { apiErrorResponse } from "#routes/api/cors.ts";
+import { type AuthSession, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
+import { requireValue } from "#shared/required-value.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { hmacHex, importHmacKey } from "#shared/sha256.ts";
+import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
-import {
-  groupScope,
-  listingScope,
-  type ScanScope,
-  scopeAttendees,
-} from "./scan-answer.ts";
+import { groupScope, listingScope, type ScanScope } from "./scan-answer.ts";
 import { owingListings, scanAdmits } from "./scan-decision.ts";
 
 /** The name a door's cache key derives from: the door's kind and id. The
@@ -44,20 +49,35 @@ export const pageDoorCacheKey = (door: string): string =>
  * build does not start every digest at the same time. */
 const DIGEST_BATCH = 100;
 
+/** How many people one cache page reads. One page is one bounded request,
+ * so a door with thousands of people never decrypts them all at once. */
+export const CACHE_PAGE_PEOPLE = 250;
+
 /** One saved ticket's keyed digest and the places one scan at this door
  * admits of its booking. The offline quantity ask reads the count and
  * bounds its pick at it. The server answers what the booking can still
  * supply when the check-in lands. */
 export type TicketCacheEntry = { hash: string; tickets: number };
 
-/** Puts one door's cache rows in digest order, so every device saves the
+/** One page of a door's cache. `next` is the cursor for the next page, or
+ * null on the last page. `people` counts the door's people this page read,
+ * out of `total`. */
+export type TicketCachePage = {
+  entries: TicketCacheEntry[];
+  next: number | null;
+  people: number;
+  total: number;
+};
+
+/** Puts one page's cache rows in digest order, so every device saves the
  * same list for the same door and the same tokens. */
 const byDigest = (one: TicketCacheEntry, two: TicketCacheEntry): number => {
   if (one.hash < two.hash) return -1;
   return 1;
 };
 
-/** The keyed digests of one door's admittable ticket tokens, each with the
+/** One page of the keyed digests of one door's admittable ticket tokens,
+ * read after the attendee id `afterId`. Each entry carries the
  * places one scan at this door admits of the token's booking. A token
  * belongs in the list when its attendee holds at least one line on the
  * door's listings that still owes a ticket. That line must not be refunded,
@@ -65,13 +85,23 @@ const byDigest = (one: TicketCacheEntry, two: TicketCacheEntry): number => {
  * loaded lines carry joins the list. One token resolves the attendee's whole
  * booking. So any of the person's tickets admits them at this door the same
  * way, and each carries the same count. */
-export const ticketCacheForScope = async (
+const ticketCachePage = async (
   scope: ScanScope,
   doorKey: Uint8Array,
-): Promise<TicketCacheEntry[]> => {
+  afterId: number,
+): Promise<TicketCachePage> => {
   // Booking order — the (start, listing) order the scan's own decision
   // groups a booking's lines by — so the count names what that scan admits.
-  const rows = await scopeAttendees(scope, "start_then_listing");
+  const page = await getAttendeesPageByListingIds(
+    [...scope.listingIds],
+    afterId,
+    CACHE_PAGE_PEOPLE,
+    "start_then_listing",
+  );
+  const rows = await decryptAttendees(
+    page.attendees,
+    await requireRequestPrivateKey(),
+  );
   const rowsByAttendee = groupToMap(
     (row: DecryptedAttendeeRow<Attendee>) => row.id,
     (row: DecryptedAttendeeRow<Attendee>) => row,
@@ -109,41 +139,115 @@ export const ticketCacheForScope = async (
   const entries = (
     await mapParallel(digestBatch)(chunk(DIGEST_BATCH)([...owedByToken.keys()]))
   ).flat();
-  return entries.sort(byDigest);
+  return {
+    entries: entries.sort(byDigest),
+    next: page.nextAfter,
+    people: page.people,
+    total: page.total,
+  };
 };
 
-/** The cache response behind one door: the door's digest set, or the
- * not-found answer for a door that does not exist. */
-const handleScanCacheGet =
+/** One door as its cache routes see it. `door` is the name its key derives
+ * from. `name` is the door's own name for the activity log. `listingId` is
+ * the listing the log entry belongs to, or null for a group door. */
+type CacheDoor = {
+  door: string;
+  listingId: number | null;
+  name: string;
+  scope: ScanScope;
+};
+
+/** Load one door by id. Null is the documented answer for a door that does
+ * not exist, or a listing marked "No check-in". */
+type CacheDoorLoader = (id: number) => Promise<CacheDoor | null>;
+
+/** The attendee id a cache page starts after: absent means the first page. */
+const cacheCursorOrNull = (request: Request): number | null => {
+  const after = new URL(request.url).searchParams.get("after");
+  return after === null ? 0 : parseNonNegativeInt(after);
+};
+
+/** One route at one door. It loads the door by id and hands it to
+ * `answer`. A door that does not exist answers 404. */
+const doorRoute =
   (
-    load: (id: number) => Promise<{ door: string; scope: ScanScope } | null>,
-  ): IdRouteHandler =>
+    answer: (
+      door: CacheDoor,
+      request: Request,
+      session: AuthSession,
+    ) => Promise<Response>,
+  ) =>
+  (load: CacheDoorLoader): IdRouteHandler =>
   (request, { id }) =>
-    withAuth(request, SCANNER_JSON, async () => {
+    withAuth(request, SCANNER_JSON, async (session) => {
       const loaded = await load(id);
-      if (!loaded) return notFoundResponse();
-      const doorKey = deriveDoorCacheKey(loaded.door);
-      return jsonResponse({
-        entries: await ticketCacheForScope(loaded.scope, doorKey),
-      });
+      return loaded ? answer(loaded, request, session) : notFoundResponse();
     });
 
-/** Handle GET /admin/listing/:id/scan-cache — the listing door's digest set.
- * A "No check-in" listing has no door, so a guessed URL meets the same
- * answer as an unknown listing. */
-export const handleListingScanCacheGet = handleScanCacheGet(async (id) => {
+/** One page of the door's digest set, after the cursor the request names. */
+const handleScanCacheGet = doorRoute(async (loaded, request) => {
+  const afterId = cacheCursorOrNull(request);
+  if (afterId === null) return apiErrorResponse("Invalid page cursor");
+  return jsonResponse(
+    await ticketCachePage(
+      loaded.scope,
+      deriveDoorCacheKey(loaded.door),
+      afterId,
+    ),
+  );
+});
+
+/** Record that one person turned offline mode on at one door. The scanner
+ * page posts this before it downloads the door's list, so every download a
+ * person starts has its log entry. */
+const handleScanOfflinePost = doorRoute(async (loaded, _request, session) => {
+  const username = await decryptUsername(
+    requireValue(
+      await getUserById(session.userId),
+      `User ${session.userId} does not exist`,
+    ),
+  );
+  await logActivity(
+    `Offline scanning turned on for '${loaded.name}' by '${username}'`,
+    loaded.listingId,
+  );
+  return jsonResponse({ status: "ok" });
+});
+
+/** The listing door. A "No check-in" listing has no door, so a guessed URL
+ * meets the same answer as an unknown listing. */
+const loadListingDoor: CacheDoorLoader = async (id) => {
   const listing = await getListingWithCount(id);
   return !listing || listing.purchaseOnly
     ? null
-    : { door: doorCacheName("listing", id), scope: listingScope(id) };
-});
+    : {
+        door: doorCacheName("listing", id),
+        listingId: id,
+        name: listing.name,
+        scope: listingScope(id),
+      };
+};
 
-/** Handle GET /admin/groups/:id/scan-cache — the group door's digest set. A
- * missing group answers 404 rather than an empty set, so a broken link
- * cannot pass every ticket off as absent. */
-export const handleGroupScanCacheGet = handleScanCacheGet(async (id) => {
+/** The group door. A missing group answers 404 rather than an empty set, so
+ * a broken link cannot pass every ticket off as absent. */
+const loadGroupDoor: CacheDoorLoader = async (id) => {
   const group: Group | null = await getGroupById(id);
   return group
-    ? { door: doorCacheName("group", id), scope: await groupScope(group) }
+    ? {
+        door: doorCacheName("group", id),
+        listingId: null,
+        name: group.name,
+        scope: await groupScope(group),
+      }
     : null;
-});
+};
+
+/** The offline routes of both door kinds: one page of the door's list, and
+ * the record of a person turning offline mode on. */
+export const offlineDoorRoutes = {
+  "GET /admin/groups/:id/scan-cache": handleScanCacheGet(loadGroupDoor),
+  "GET /admin/listing/:id/scan-cache": handleScanCacheGet(loadListingDoor),
+  "POST /admin/groups/:id/scan-offline": handleScanOfflinePost(loadGroupDoor),
+  "POST /admin/listing/:id/scan-offline":
+    handleScanOfflinePost(loadListingDoor),
+};

@@ -23,7 +23,6 @@ import {
   el,
   fullStore,
   queuedItem,
-  SCAN_PATH,
   SCANNER_PAGE_WITHOUT_REPLAY_WINDOW,
   type ScannerHarness,
   storedQueue,
@@ -55,18 +54,6 @@ describe("scanner offline door", {
     await scanFirst(fakes, scanned);
   };
 
-  test("stores the offline switch the door turns on", () => {
-    const h = fresh();
-    const toggle = el(h.document, "scanner-offline-toggle");
-    toggle.click();
-
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe("1");
-    expect(toggle.getAttribute("aria-pressed")).toBe("true");
-    expect(el(h.document, "scanner-offline-banner-text").textContent).toBe(
-      "Offline mode is on. Scans are queued and checked in when you are back online.",
-    );
-  });
-
   test("shows the no-connection banner while the page has no connection", () => {
     const h = fresh({ onLine: false });
     expect(el(h.document, "scanner-offline-banner").className).not.toContain(
@@ -92,7 +79,7 @@ describe("scanner offline door", {
       );
       // The first queue item stands alone, and no scan left the page.
       expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+      expect(askedUrls(fetchStub)).toEqual([]);
     } finally {
       fetchStub.restore();
     }
@@ -108,7 +95,7 @@ describe("scanner offline door", {
         "The offline ticket list has expired. Go online and reload this page.",
       );
       expect(storedQueue(h)).toBe(null);
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+      expect(askedUrls(fetchStub)).toEqual([]);
     } finally {
       fetchStub.restore();
     }
