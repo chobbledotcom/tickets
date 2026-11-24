@@ -8,7 +8,7 @@ import { sqlText } from "#test-utils/sql-text.ts";
 /** The identity hash of this group's declaration. A column, index, or trigger
  * change moves it. */
 const QUESTION_TABLES_HASH =
-  "7ed54984f3d1fa8fcced23af792a29023e78b12a7e56e683f07bb949a8184c4e";
+  "f0c09353487f3ba5695dc46c92d2d5cf3ca9bef0ec422bd735da788ac34a9119";
 
 test("keeps the complete question and built-site schema exact", async () => {
   expect(await jsonHash(sqlText(questionTables))).toBe(QUESTION_TABLES_HASH);

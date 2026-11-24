@@ -86,7 +86,12 @@ export const PREFIXES_A_L = {
   // snapshot).
   calculate: {
     handler: ticketRoutes,
-    messageGroups: publicMessageGroups("payment", "tickets", "validation"),
+    messageGroups: publicMessageGroups(
+      "payment",
+      "questions",
+      "tickets",
+      "validation",
+    ),
     settings: EMBEDDABLE_BOOKING_SETTINGS,
   },
   caldav: {

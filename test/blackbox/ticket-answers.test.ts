@@ -102,6 +102,22 @@ describeWithEnv(
       });
     }
 
+    test("the running total of an order with an unanswered ticket names that ticket", async () => {
+      const shop = await ticketShop();
+      const slugs = `${shop.discoA.slug}+${shop.discoB.slug}`;
+
+      const quote = await createApp(inProcess).submit(
+        `/ticket/${slugs}`,
+        { [`quantity${shop.discoA.id}`]: "1" },
+        `/calculate/${slugs}`,
+      );
+
+      expect([quote.status, textOf(quote.html).trim()]).toEqual([
+        200,
+        "Please answer: Pupil name (Disco A, ticket 1)",
+      ]);
+    });
+
     test("a blank field for a ticket that the order does not take is no answer", async () => {
       const shop = await ticketShop();
 
