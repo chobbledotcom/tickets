@@ -263,22 +263,14 @@ const readInvoicePayments = oneResource((client, id) =>
   client.invoices.retrieveWithPayments(id),
 );
 
-/** The paid invoices of one subscription. The site sets the currency of every
- * price it creates, so an invoice in another currency is a refused read. */
+/** The paid invoices of one subscription. The recorder judges each invoice on
+ * its own, so one bad invoice cannot hide the others. */
 const readPaidInvoices = (
   subscriptionId: string,
 ): Promise<ProviderRead<readonly StripePaidInvoice[]>> =>
   readStripeResource(
     (client) => client.invoices.listPaid(subscriptionId),
-    judgedBy([
-      refuseUnless(
-        "mismatched_money",
-        (invoices: readonly StripePaidInvoice[]) =>
-          invoices.every(
-            (invoice) => invoice.currency === settings.currency.toLowerCase(),
-          ),
-      ),
-    ]),
+    judgedBy<readonly StripePaidInvoice[]>([]),
   );
 
 type StripeRefundStatus = Exclude<StripeRefund["status"], null>;

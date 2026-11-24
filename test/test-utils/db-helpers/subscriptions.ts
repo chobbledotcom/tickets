@@ -1,8 +1,9 @@
 /** Booking rows with and without a Stripe subscription plan. */
 
+import { spy } from "@std/testing/mock";
 import { eventGroup } from "#accounting/refs.ts";
 import { selectByEventGroup } from "#accounting/rows.ts";
-import { execute, queryBatch, queryOne } from "#db/client.ts";
+import { execute, getDb, queryAll, queryBatch, queryOne } from "#db/client.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -105,3 +106,37 @@ export const statusOf = async (booking: TestBooking): Promise<string> =>
     ),
     `Booking ${booking.attendeeId} has no row`,
   ).subscription_status;
+
+/** The id of the booking row of one booking. */
+export const bookingIdOf = async (booking: TestBooking): Promise<number> =>
+  requireValue(
+    await queryOne<{ id: number }>(
+      sql`SELECT id FROM listing_attendees WHERE attendee_id = ${booking.attendeeId}`,
+    ),
+    `Booking ${booking.attendeeId} has no row`,
+  ).id;
+
+/** How SQLite plans the first single statement that `run` sends whose text
+ * holds `needle`, one line for each step. */
+export const queryPlanOfSent = async (
+  needle: string,
+  run: () => Promise<unknown>,
+): Promise<string> => {
+  const client = getDb();
+  const executes = spy(client, "execute");
+  try {
+    await run();
+  } finally {
+    executes.restore();
+  }
+  const statement = requireValue(
+    executes.calls
+      .map((call) => call.args[0])
+      .find((item) => item.sql.includes(needle)),
+    `No statement holds ${needle}`,
+  );
+  const plan = await queryAll<{ detail: string }>(
+    sql`EXPLAIN QUERY PLAN ${statement}`,
+  );
+  return plan.map((row) => row.detail).join("\n");
+};

@@ -12,14 +12,6 @@ import {
 import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { withEnv } from "#test-utils/env.ts";
-import { signedMeta } from "#test-utils/factories.ts";
-import { getProcessedPayment } from "#test-utils/processed-payments.ts";
-import { expectOnePairOfLegs } from "#test-utils/rejected-charge.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-import { stripeFirstInvoice } from "#test-utils/stripe/fixtures.ts";
-import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   checkoutListingId,
   deliver,
@@ -35,7 +27,16 @@ import {
   storedPlans,
   withCheckoutActions,
   withRejectedCheckout,
-} from "./subscription-refund-helpers.ts";
+} from "#test/integration/server/webhooks/subscription-refund-helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { signedMeta } from "#test-utils/factories.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { expectOnePairOfLegs } from "#test-utils/rejected-charge.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stripeFirstInvoice } from "#test-utils/stripe/fixtures.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 const processed = async () =>
   requireValue(await getProcessedPayment(SESSION_ID), "Session was not stored");
@@ -52,6 +53,8 @@ const refusedCancellation = () => ({
 });
 
 describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
+  const errorLog = setupErrorSpy();
+
   for (const staleMarker of [false, true]) {
     test(`replays a settled rejected refund with ${staleMarker ? "a stale" : "the final"} outcome`, async () => {
       await setupStripe();
@@ -171,6 +174,11 @@ describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
         expect(occupied.attendeeId).toBeNull();
         expect(occupied.failureData).toBe("");
         await expectStatuses(deliver, 503);
+        expect(
+          errorLog.contains(
+            "Rejected subscription session has no stored failure",
+          ),
+        ).toBe(false);
         expect(await processed()).toEqual(occupied);
         expectActions(cancel, refund, 0, 0);
         expect(await storedPlans(listingId)).toEqual([]);

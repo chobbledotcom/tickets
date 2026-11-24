@@ -92,6 +92,45 @@ describe("validatedPaymentSession", () => {
     expect(isSessionRejection("skip")).toBe(false);
   });
 
+  /** A valid rejection of each reason, then each one with a single field
+   *  broken. Only the valid shapes count. */
+  const BLANK = {
+    metadata: meta,
+    provider: "stripe",
+    reason: "blank_reference",
+    sessionId: "cs_blank",
+  };
+  const MALFORMED = {
+    ...BLANK,
+    paymentReference: "pi_1",
+    reason: "malformed_charge",
+    refundable: true,
+  };
+  const BROKEN: [string, Record<string, unknown>][] = [
+    ["no metadata", { ...BLANK, metadata: undefined }],
+    ["null metadata", { ...BLANK, metadata: null }],
+    ["text metadata", { ...BLANK, metadata: "items" }],
+    ["an unknown provider", { ...BLANK, provider: "paypal" }],
+    ["a provider that is not text", { ...BLANK, provider: 1 }],
+    ["a session id that is not text", { ...BLANK, sessionId: 5 }],
+    ["a blank session id", { ...BLANK, sessionId: "" }],
+    ["a reference that is not text", { ...MALFORMED, paymentReference: 1 }],
+    [
+      "a refundable flag that is not true or false",
+      { ...MALFORMED, refundable: "yes" },
+    ],
+  ];
+
+  it("refuses a rejection with one field broken", () => {
+    expect([isSessionRejection(BLANK), isSessionRejection(MALFORMED)]).toEqual([
+      true,
+      true,
+    ]);
+    for (const [name, value] of BROKEN) {
+      expect([name, isSessionRejection(value)]).toEqual([name, false]);
+    }
+  });
+
   const subscription = {
     amount: 1200,
     id: "sub_rejected",
@@ -117,6 +156,21 @@ describe("validatedPaymentSession", () => {
         subscription,
       }),
     );
+  });
+
+  it("keeps the subscription on malformed_charge without a checkout time", () => {
+    const build = validatedPaymentSession({
+      ...basePaid,
+      amountTotal: null,
+      createdAt: undefined,
+      currency: "GBP",
+      paymentReference: "pi_123",
+      subscription,
+    });
+    expect(build).toEqual(
+      expect.objectContaining({ reason: "malformed_charge", subscription }),
+    );
+    expect("createdAt" in build).toBe(false);
   });
 
   for (const amountTotal of [1000, null]) {
@@ -160,18 +214,37 @@ describe("validatedPaymentSession", () => {
     });
   }
 
-  it("keeps a supplied creation time", () => {
-    const createdAt = "2026-07-19T12:00:00.000Z";
-    const build = validatedPaymentSession({
-      ...basePaid,
-      amountTotal: 1000,
-      createdAt,
-      currency: "GBP",
+  /** A paid session with and without its optional facts: each fact that
+   *  arrives is kept, and one that does not arrive is not a key. */
+  const createdAt = "2026-07-19T12:00:00.000Z";
+  const PAID_SESSION = {
+    amountTotal: 1000,
+    currency: "GBP",
+    id: "sess-1",
+    metadata: unpackedMeta,
+    paymentReference: "pi_123",
+    paymentStatus: "paid",
+    provider: "stripe",
+  };
+  const OPTIONAL_FACTS = [
+    ["no optional fact", {}],
+    ["a creation time", { createdAt }],
+    ["a subscription", { subscription }],
+    ["a creation time and a subscription", { createdAt, subscription }],
+  ] as const;
+
+  for (const [name, facts] of OPTIONAL_FACTS) {
+    it(`builds a paid session with ${name}`, () => {
+      expect(
+        validatedPaymentSession({
+          ...basePaid,
+          amountTotal: 1000,
+          currency: "GBP",
+          ...facts,
+        }),
+      ).toStrictEqual({ ...PAID_SESSION, ...facts });
     });
-    expect(isSessionRejection(build)).toBe(false);
-    if (isSessionRejection(build)) return;
-    expect(build.createdAt).toBe(createdAt);
-  });
+  }
 
   // A free session captures no money, so it carries no provider resource id and
   // a zero charge is valid.
@@ -411,6 +484,7 @@ describe("validatedPaymentSession", () => {
         reason: "blank_reference",
         sessionId: "sess-1",
       });
+      expect(errorSpy.contains("missing its provider resource id")).toBe(true);
     });
   }
 });

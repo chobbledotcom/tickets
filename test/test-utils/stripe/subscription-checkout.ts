@@ -57,6 +57,16 @@ export const withSubscriptionStarted = (
     body,
   );
 
+/** Stub every subscription read to report `status`. The caller restores the
+ * stub. */
+export const stubSubscriptionRead = (status: StripeSubscription["status"]) =>
+  stub(stripeApi, "readSubscription", (id: string) =>
+    Promise.resolve({
+      resource: stripeSubscription({ id, status }),
+      status: "found" as const,
+    }),
+  );
+
 /** Stub the observed status and paid invoices. The caller restores the stubs. */
 export const stubStripeRenewals = (
   status: StripeSubscription["status"],
@@ -65,12 +75,7 @@ export const stubStripeRenewals = (
   invoices: stub(stripeApi, "readPaidInvoices", () =>
     Promise.resolve({ resource: invoices, status: "found" as const }),
   ),
-  read: stub(stripeApi, "readSubscription", (id: string) =>
-    Promise.resolve({
-      resource: stripeSubscription({ id, status }),
-      status: "found" as const,
-    }),
-  ),
+  read: stubSubscriptionRead(status),
 });
 
 export const withStripeRenewals = (

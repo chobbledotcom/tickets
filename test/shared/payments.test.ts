@@ -77,6 +77,14 @@ describe("checkoutItem terms", () => {
     ]).toEqual([false, false]);
   });
 
+  test("sells a subscription at the smallest recurring price", () => {
+    const penny = testListing({ recurringInterval: "week", recurringPrice: 1 });
+    expect(checkoutItem(penny, 1, 1000).recurring).toEqual({
+      interval: "week",
+      price: 1,
+    });
+  });
+
   test("prices a renewal purchase by the tier's months per unit", () => {
     const tier = testListing({
       hidden: true,

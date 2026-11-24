@@ -80,7 +80,7 @@ export type StripeCheckoutSession = StripeCheckoutSessionFields;
 export const StripeSubscriptionSchema = v.object({
   id: ResourceIdSchema,
   items: v.object({
-    data: v.tuple([
+    data: v.strictTuple([
       v.object({
         price: v.object({
           recurring: v.object({ interval: RecurringIntervalSchema }),

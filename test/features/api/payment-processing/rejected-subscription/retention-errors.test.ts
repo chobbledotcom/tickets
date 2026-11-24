@@ -23,18 +23,6 @@ import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import type { HeldAnchorSearch } from "#routes/api/payment-processing/placeholder-resume.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { serveFromBunny } from "#test-utils/entry.ts";
-import { withEnv } from "#test-utils/env.ts";
-import { signedMeta } from "#test-utils/factories.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
-import { getProcessedPayment } from "#test-utils/processed-payments.ts";
-import { withRefundAnswering } from "#test-utils/rejected-charge.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-import { completedStripeRefund } from "#test-utils/stripe/fixtures.ts";
-import { withSubscriptionStarted } from "#test-utils/stripe/subscription-checkout.ts";
-import { expectTemporaryError } from "#test-utils/temporary-error.ts";
-import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   checkoutListingId,
   deliver,
@@ -48,7 +36,19 @@ import {
   placeholderOwner,
   SESSION_ID,
   startedCheckout,
-} from "./subscription-refund-helpers.ts";
+} from "#test/integration/server/webhooks/subscription-refund-helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { serveFromBunny } from "#test-utils/entry.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { signedMeta } from "#test-utils/factories.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { withRefundAnswering } from "#test-utils/rejected-charge.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { completedStripeRefund } from "#test-utils/stripe/fixtures.ts";
+import { withSubscriptionStarted } from "#test-utils/stripe/subscription-checkout.ts";
+import { expectTemporaryError } from "#test-utils/temporary-error.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 const reference = taggedPaymentReference("stripe", "pi_first");
 const checkoutMoney = async () => {

@@ -35,9 +35,15 @@ describeWithEnv("Stripe paid invoices", { db: true }, () => {
     });
   });
 
-  test("refuses invoices in another currency", async () => {
-    expect(
-      await readAnswering([stripePaidInvoice({ currency: "jpy" })]),
-    ).toEqual({ reason: "mismatched_money", status: "invalid" });
+  test("finds invoices in another currency, for the recorder to judge", async () => {
+    const site = stripePaidInvoice({
+      currency: settings.currency.toLowerCase(),
+      id: "in_site",
+    });
+    const foreign = stripePaidInvoice({ currency: "jpy", id: "in_foreign" });
+    expect(await readAnswering([site, foreign])).toEqual({
+      resource: [site, foreign],
+      status: "found",
+    });
   });
 });
