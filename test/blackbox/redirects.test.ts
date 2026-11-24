@@ -17,6 +17,7 @@ import {
   refusalOf,
   sentFrom,
   shopWith,
+  visit,
 } from "#test/blackbox/redirects.ts";
 import { addListing, openApi } from "#test/blackbox/seed.ts";
 import {
@@ -179,6 +180,42 @@ describeWithEnv("redirects", { db: true }, () => {
       ]);
     });
 
+    test("sends a to page with any character as a valid address", async () => {
+      await shopWith(
+        ["/a", "/日本語?q=ü#x"],
+        ["/b", "https://EXAMPLE.com/日本 a"],
+        ["/c", "/café bar"],
+        ["/日本", "/d"],
+      );
+      expect(
+        await Promise.all(
+          ["/a", "/b", "/c", "/%E6%97%A5%E6%9C%AC"].map((path) =>
+            sentFrom(path),
+          ),
+        ),
+      ).toEqual([
+        [301, "/%E6%97%A5%E6%9C%AC%E8%AA%9E?q=%C3%BC#x"],
+        [301, "https://example.com/%E6%97%A5%E6%9C%AC%20a"],
+        [301, "/caf%C3%A9%20bar"],
+        [301, "/d"],
+      ]);
+    });
+
+    test("answers a 301 with no body, the site's security headers, and no browser cache", async () => {
+      await shopWith(["/old", "/new"]);
+      const answer = await visit("/old");
+      expect(answer.status).toBe(301);
+      expect(await answer.text()).toBe("");
+      expect(answer.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8",
+      );
+      expect(answer.headers.get("cache-control")).toBe("private, no-store");
+      expect(answer.headers.get("content-security-policy")).toContain(
+        "frame-ancestors 'none'",
+      );
+      expect(answer.headers.get("x-frame-options")).toBe("DENY");
+    });
+
     test("is redirected from a listing address that no longer exists", async () => {
       await shopWith(["/ticket/old-slug", "/ticket/new-slug"]);
       expect(await sentFrom("/ticket/old-slug")).toEqual([
@@ -239,6 +276,9 @@ describeWithEnv("redirects", { db: true }, () => {
 
       expect((await sentFrom("/old"))[0]).toBe(404);
       await expectNoRedirects(app);
+      expect((await app.get("/admin/log")).html).toContain(
+        "Redirect '/old' deleted",
+      );
     });
 
     test("a wrong confirmation deletes nothing", async () => {

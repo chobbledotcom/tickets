@@ -5,7 +5,7 @@
   "redirects.add_redirect": "Add redirect",
   "redirects.delete.heading": "Delete redirect",
   "redirects.delete.submit": "Delete redirect",
-  "redirects.delete.confirm": "Visitors to <strong>{name}</strong> will see the missing page again. A visitor whose browser already followed this redirect can keep going to the new page.",
+  "redirects.delete.confirm": "Visitors to <strong>{name}</strong> will see the missing page again. A search engine that already learned the new page can keep using it for a while.",
   "redirects.delete.confirm_prompt": "Type the from page \"{name}\" to confirm:",
   "redirects.delete.confirm_label": "From page",
   "redirects.name_label": "From page",

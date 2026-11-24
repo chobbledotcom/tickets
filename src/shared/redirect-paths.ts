@@ -77,7 +77,8 @@ export const checkRedirectFrom = (
 };
 
 /** The saved form of a "to" address, or the reason it cannot be saved. The
- *  address is a path of this site, or a whole http or https URL. */
+ *  address is a path of this site, or a whole http or https URL. The saved
+ *  form is percent-encoded, so it is always a valid `Location` header. */
 export const checkRedirectTo = (
   raw: string,
 ): Result<string, RedirectToError> => {
@@ -85,7 +86,9 @@ export const checkRedirectTo = (
   if (hasControlCharacter(address)) return errorResult("unsafe");
   if (address.startsWith("/")) {
     const [path = ""] = address.split(/[?#]/, 1);
-    return escapesTheSite(path) ? errorResult("unsafe") : okResult(address);
+    if (escapesTheSite(path)) return errorResult("unsafe");
+    const local = new URL(address, BASE);
+    return okResult(`${local.pathname}${local.search}${local.hash}`);
   }
   if (!URL.canParse(address)) return errorResult("not_http");
   const url = new URL(address);
@@ -94,7 +97,7 @@ export const checkRedirectTo = (
   }
   // A name and password in front of the host disguise where the link goes.
   return url.username === "" && url.password === ""
-    ? okResult(address)
+    ? okResult(url.href)
     : errorResult("unsafe");
 };
 

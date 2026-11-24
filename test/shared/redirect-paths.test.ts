@@ -45,14 +45,19 @@ const FROM_REFUSED: Row[] = [
   ["/ADMIN/x", "reserved"],
   ["/api/admin/listings", "reserved"],
 ];
-const TO_KEPT: Row[] = [
-  "/new-page",
-  "/new-page?x=1#top",
-  "/",
-  "https://example.com/new",
-  "http://example.com",
-  "https://example.com/a?b=c#d",
-].map((raw): Row => [`  ${raw} `, raw]);
+const TO_KEPT: Row[] = (
+  [
+    ["/new-page", "/new-page"],
+    ["/new-page?x=1#top", "/new-page?x=1#top"],
+    ["/", "/"],
+    ["/日本語?q=ü#x", "/%E6%97%A5%E6%9C%AC%E8%AA%9E?q=%C3%BC#x"],
+    ["/a b", "/a%20b"],
+    ["https://example.com/new", "https://example.com/new"],
+    ["http://example.com", "http://example.com/"],
+    ["HTTPS://Example.COM/A?b=c#d", "https://example.com/A?b=c#d"],
+    ["https://example.com/日本", "https://example.com/%E6%97%A5%E6%9C%AC"],
+  ] as const
+).map(([raw, saved]): Row => [`  ${raw} `, saved]);
 const TO_REFUSED: Row[] = [
   ["//evil.example", "unsafe"],
   ["/a/../b", "unsafe"],

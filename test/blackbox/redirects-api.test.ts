@@ -130,7 +130,7 @@ describeWithEnv("redirects over the admin API", { db: true }, () => {
       );
       expect(await listed(api)).toEqual([
         ["/b", "/1"],
-        ["/a", "https://example.com"],
+        ["/a", "https://example.com/"],
       ]);
     });
 
