@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { GuideFingerprint } from "#scripts/guides/fingerprint.ts";
 import {
   buildFreshnessReport,
   freshnessReportLines,
@@ -9,32 +8,18 @@ import {
   staleGuides,
   statusForPercent,
 } from "#scripts/guides/freshness.ts";
-import {
-  guideBaseline,
-  listingFormAnchor,
-  thumbnail,
-} from "./guides-fixtures.ts";
+import { guideBaseline, hashOf, LISTING_GUIDE } from "./fixtures.ts";
 
-const fingerprint = (grey: number, sha: string): GuideFingerprint => ({
-  grayscale: thumbnail(grey),
-  sha256: sha.repeat(64),
+const baseline = guideBaseline({
+  "listing-form": hashOf("f"),
+  "public-booking-page": hashOf("f"),
 });
-
-const baseline = guideBaseline([
-  listingFormAnchor(0, "a"),
-  {
-    captureId: "public-booking-page",
-    caseId: "minimum-quantity.choices-skip-below-the-minimum",
-    grayscale: thumbnail(0),
-    sha256: "b".repeat(64),
-  },
-]);
 
 describe("guide freshness", () => {
   test("grades each anchor and the guide", () => {
-    const result = gradeGuide(baseline, {
-      "listing-form": fingerprint(0, "a"),
-      "public-booking-page": fingerprint(255, "e"),
+    const result = gradeGuide(LISTING_GUIDE, baseline, {
+      "listing-form": hashOf("f"),
+      "public-booking-page": hashOf("0f"),
     });
 
     expect(result.percent).toBe(50);
@@ -57,8 +42,35 @@ describe("guide freshness", () => {
 
   test("names a capture the evidence run no longer produces", () => {
     expect(() =>
-      gradeGuide(baseline, { "listing-form": fingerprint(0, "a") }),
-    ).toThrow("No desktop evidence capture public-booking-page");
+      gradeGuide(LISTING_GUIDE, baseline, { "listing-form": hashOf("f") }),
+    ).toThrow(
+      "No evidence capture public-booking-page for guide create-a-listing",
+    );
+  });
+
+  test("asks for a new recording when the storyboard and baseline differ", () => {
+    const current = {
+      "listing-form": hashOf("f"),
+      "public-booking-page": hashOf("f"),
+    };
+    expect(() =>
+      gradeGuide(
+        LISTING_GUIDE,
+        guideBaseline({ "listing-form": hashOf("f") }),
+        current,
+      ),
+    ).toThrow(
+      "The baseline for create-a-listing has no public-booking-page. Record the guide again.",
+    );
+    expect(() =>
+      gradeGuide(
+        LISTING_GUIDE,
+        guideBaseline({ ...baseline.anchors, "old-page": hashOf("f") }),
+        current,
+      ),
+    ).toThrow(
+      "The baseline for create-a-listing names old-page, which the storyboard no longer uses. Record the guide again.",
+    );
   });
 
   test("reports the guide and the overall score", () => {

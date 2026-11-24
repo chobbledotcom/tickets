@@ -7,7 +7,7 @@ import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { recordSession } from "#scripts/guides/record/session.ts";
 import type { GuideAction } from "#scripts/guides/storyboard.ts";
 import { parseGuideTimeline } from "#scripts/guides/timeline.ts";
-import { launchScreenshotBrowser } from "./screenshots-browser-helpers.ts";
+import { launchScreenshotBrowser } from "#test/scripts/screenshots-browser-helpers.ts";
 
 const VIEWPORT = { height: 600, width: 800 };
 

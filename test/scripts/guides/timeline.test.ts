@@ -6,7 +6,7 @@ import {
   focusEvent,
   guideTimeline,
   pointerEvent,
-} from "./guides-fixtures.ts";
+} from "./fixtures.ts";
 
 const timeline = guideTimeline(
   3000,

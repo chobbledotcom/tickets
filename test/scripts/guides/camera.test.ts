@@ -10,7 +10,7 @@ import {
   pageToScreen,
 } from "#scripts/guides/camera.ts";
 import type { GuideTimelineEvent } from "#scripts/guides/timeline.ts";
-import { focusEvent, pointerEvent } from "./guides-fixtures.ts";
+import { focusEvent, pointerEvent } from "./fixtures.ts";
 
 const viewport = { height: 500, width: 1000 };
 const focusRect = { height: 100, width: 200, x: 400, y: 100 };

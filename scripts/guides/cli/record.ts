@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run --allow-all
 import { parseArgs } from "@std/cli/parse-args";
-import { recordGuide } from "./guides/record-guide.ts";
-import { GUIDE_SLUGS } from "./guides/storyboards/index.ts";
+import { recordGuide } from "#scripts/guides/build.ts";
+import { GUIDE_SLUGS } from "#scripts/guides/storyboards/index.ts";
 
 const options = parseArgs(Deno.args, {
   boolean: ["allow-dirty", "keep-frames", "keep-session"],

@@ -4,12 +4,10 @@
  * signal that the video may no longer show the site a viewer will meet.
  */
 
+import { requireValue } from "#shared/required-value.ts";
 import type { GuideFreshnessBaseline } from "./baseline.ts";
-import {
-  compareFingerprints,
-  freshnessPercent,
-  type GuideFingerprint,
-} from "./fingerprint.ts";
+import { edgeSimilarity, freshnessPercent } from "./edge-hash.ts";
+import type { StoryboardEvidence } from "./storyboard.ts";
 
 /** The score at or under which the check asks the maintainer to choose. */
 export const GUIDE_WARN_BELOW_PERCENT = 80;
@@ -52,34 +50,59 @@ const averagePercent = (values: readonly number[]): number => {
   );
 };
 
+/** The facts a guide's storyboard gives the check: its name and the captures
+ * it uses, in order. */
+export interface GuideToGrade {
+  evidence: readonly StoryboardEvidence[];
+  slug: string;
+  title: string;
+}
+
+/** The baseline must name exactly the captures the storyboard uses. A guide
+ * whose storyboard changed after the recording must be recorded again. */
+const checkBaselineMatches = (
+  guide: GuideToGrade,
+  baseline: GuideFreshnessBaseline,
+): void => {
+  const used = new Set(guide.evidence.map(({ captureId }) => captureId));
+  for (const captureId of Object.keys(baseline.anchors)) {
+    if (!used.has(captureId)) {
+      throw new Error(
+        `The baseline for ${guide.slug} names ${captureId}, which the storyboard no longer uses. Record the guide again.`,
+      );
+    }
+  }
+};
+
 /** Grade one guide. `current` is keyed by capture id, so a guide that names a
  * capture the evidence run no longer produces fails at that name. */
 export const gradeGuide = (
+  guide: GuideToGrade,
   baseline: GuideFreshnessBaseline,
-  current: Readonly<Record<string, GuideFingerprint>>,
+  current: Readonly<Record<string, string>>,
 ): GuideFreshness => {
-  const anchors = baseline.anchors.map((anchor): GuideAnchorFreshness => {
-    const now = current[anchor.captureId];
-    if (!now) {
-      throw new Error(
-        `No ${baseline.profile} evidence capture ${anchor.captureId} for guide ${baseline.guide.slug}`,
+  checkBaselineMatches(guide, baseline);
+  const anchors = guide.evidence.map(
+    ({ captureId, caseId }): GuideAnchorFreshness => {
+      const recorded = requireValue(
+        baseline.anchors[captureId],
+        `The baseline for ${guide.slug} has no ${captureId}. Record the guide again.`,
       );
-    }
-    const percent = freshnessPercent(compareFingerprints(anchor, now));
-    return {
-      captureId: anchor.captureId,
-      caseId: anchor.caseId,
-      percent,
-      status: statusForPercent(percent),
-    };
-  });
+      const now = requireValue(
+        current[captureId],
+        `No evidence capture ${captureId} for guide ${guide.slug}`,
+      );
+      const percent = freshnessPercent(edgeSimilarity(recorded, now));
+      return { captureId, caseId, percent, status: statusForPercent(percent) };
+    },
+  );
   const percent = averagePercent(anchors.map(({ percent }) => percent));
   return {
     anchors,
     percent,
-    slug: baseline.guide.slug,
+    slug: guide.slug,
     status: statusForPercent(percent),
-    title: baseline.guide.title,
+    title: guide.title,
   };
 };
 

@@ -125,12 +125,18 @@ const StoryboardSchema = v.strictObject({
 });
 /* jscpd:ignore-end */
 
+/** A Cucumber capture a guide uses, and the case that makes it. */
+export interface StoryboardEvidence {
+  captureId: string;
+  caseId: string;
+}
+
 /** The evidence captures a storyboard uses, in the order it first uses one. */
 export const storyboardEvidence = (
   storyboard: GuideStoryboard,
-): Array<{ captureId: string; caseId: string }> => {
+): StoryboardEvidence[] => {
   const seen = new Set<string>();
-  const found: Array<{ captureId: string; caseId: string }> = [];
+  const found: StoryboardEvidence[] = [];
   for (const action of storyboard.actions) {
     if (action.kind !== "evidence" || seen.has(action.captureId)) continue;
     seen.add(action.captureId);

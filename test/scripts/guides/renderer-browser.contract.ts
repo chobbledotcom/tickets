@@ -5,8 +5,8 @@ import type { Browser, Page } from "playwright";
 import sharp from "sharp";
 import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { startGuideRenderServer } from "#scripts/guides/render/server.ts";
-import { focusEvent, guideTimeline, pointerEvent } from "./guides-fixtures.ts";
-import { launchScreenshotBrowser } from "./screenshots-browser-helpers.ts";
+import { launchScreenshotBrowser } from "#test/scripts/screenshots-browser-helpers.ts";
+import { focusEvent, guideTimeline, pointerEvent } from "./fixtures.ts";
 
 const VIEWPORT = { height: 720, width: 1280 };
 

@@ -1,22 +1,18 @@
 /** Guide timelines and baselines that the guide tests build their cases from. */
 
 import { expect } from "@std/expect";
-import { toBase64 } from "#crypto/utils.ts";
-import type {
-  GuideBaselineAnchor,
-  GuideFreshnessBaseline,
-} from "#scripts/guides/baseline.ts";
+import type { GuideFreshnessBaseline } from "#scripts/guides/baseline.ts";
+import type { GuideToGrade } from "#scripts/guides/freshness.ts";
 import type {
   GuideRect,
   GuideTimeline,
   GuideTimelineEvent,
 } from "#scripts/guides/timeline.ts";
 
-/** A 32 by 32 greyscale thumbnail with every pixel at one shade. */
-export const thumbnail = (grey: number): string =>
-  toBase64(new Uint8Array(1024).fill(grey));
+/** An edge hash whose leading hex digits are `digits` and the rest zero. */
+export const hashOf = (digits: string): string => digits.padEnd(60, "0");
 
-export const GUIDE_SUMMARY = {
+const GUIDE_SUMMARY = {
   slug: "create-a-listing",
   title: "Create a listing",
 };
@@ -54,28 +50,26 @@ export const guideTimeline = (
   viewport: { fps: 30, height: 720, width: 1280 },
 });
 
-/** A desktop baseline recorded against the given anchors. */
+/** A baseline recorded against the given anchors. */
 export const guideBaseline = (
-  anchors: GuideBaselineAnchor[],
+  anchors: Record<string, string>,
 ): GuideFreshnessBaseline => ({
   anchors,
-  evidenceCommit: "c".repeat(40),
-  guide: GUIDE_SUMMARY,
-  profile: "desktop",
   recordedCommit: "d".repeat(40),
-  schemaVersion: 1,
+  schemaVersion: 2,
 });
 
-/** The anchor for the listing form screen, at one shade and hash letter. */
-export const listingFormAnchor = (
-  grey: number,
-  sha: string,
-): GuideBaselineAnchor => ({
-  captureId: "listing-form",
-  caseId: "booking.group-page-journey",
-  grayscale: thumbnail(grey),
-  sha256: sha.repeat(64),
-});
+/** The create-a-listing guide as the check reads it from its storyboard. */
+export const LISTING_GUIDE: GuideToGrade = {
+  ...GUIDE_SUMMARY,
+  evidence: [
+    { captureId: "listing-form", caseId: "booking.group-page-journey" },
+    {
+      captureId: "public-booking-page",
+      caseId: "minimum-quantity.choices-skip-below-the-minimum",
+    },
+  ],
+};
 
 /** Expects the parser to refuse each input with a message that names why. */
 export const expectEachRefused = (

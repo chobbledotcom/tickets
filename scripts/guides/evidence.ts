@@ -12,7 +12,11 @@ import {
   type EvidenceManifest,
   EvidenceManifestSchema,
 } from "#scripts/specs/evidence/schema.ts";
-import { fingerprintPng, type GuideFingerprint } from "./fingerprint.ts";
+import { fingerprintPng } from "./fingerprint.ts";
+import type { StoryboardEvidence } from "./storyboard.ts";
+
+/** Every guide records and checks the desktop screenshots. */
+export const GUIDE_PROFILE: ScreenshotProfileName = "desktop";
 
 export const EVIDENCE_MANIFEST = join(
   projectRoot,
@@ -66,9 +70,8 @@ export const evidenceAssetBytes = async (
 export const evidenceFingerprints = async (
   manifest: EvidenceManifest,
   manifestPath: string,
-  captures: readonly { captureId: string; caseId: string }[],
-  profile: ScreenshotProfileName,
-): Promise<Record<string, GuideFingerprint>> => {
+  captures: readonly StoryboardEvidence[],
+): Promise<Record<string, string>> => {
   const entries = await Promise.all(
     captures.map(async ({ captureId, caseId }) => {
       const capture = captureNamed(manifest, manifestPath, captureId);
@@ -81,7 +84,7 @@ export const evidenceFingerprints = async (
         manifest,
         manifestPath,
         captureId,
-        profile,
+        GUIDE_PROFILE,
       );
       return [captureId, await fingerprintPng(bytes)] as const;
     }),

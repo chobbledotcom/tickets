@@ -6,7 +6,6 @@ import { join } from "@std/path";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import type { EvidenceManifest } from "#scripts/specs/evidence/schema.ts";
-import { requireValue } from "#shared/required-value.ts";
 import {
   type GuideFreshnessBaseline,
   parseGuideFreshnessBaseline,
@@ -19,8 +18,11 @@ import {
 import {
   buildFreshnessReport,
   type FreshnessReport,
+  type GuideFreshness,
   gradeGuide,
 } from "./freshness.ts";
+import { storyboardEvidence } from "./storyboard.ts";
+import { guideStoryboard } from "./storyboards/index.ts";
 
 const GUIDES = join(projectRoot, "guides");
 
@@ -43,13 +45,9 @@ const baselineSlugs = async (): Promise<string[]> => {
   return slugs.sort();
 };
 
-export const readGuideBaselines = async (
-  guide?: string,
-): Promise<GuideFreshnessBaseline[]> => {
-  if (guide) return [await readBaseline(guide)];
-  const slugs = await baselineSlugs();
-  return await Promise.all(slugs.map(readBaseline));
-};
+/** The slugs to check: the one asked for, or every guide with a baseline. */
+const slugsToCheck = async (guide?: string): Promise<string[]> =>
+  guide ? [guide] : await baselineSlugs();
 
 const readManifest = async (): Promise<EvidenceManifest> => {
   try {
@@ -65,28 +63,30 @@ const readManifest = async (): Promise<EvidenceManifest> => {
   }
 };
 
+const gradeOne = async (
+  manifest: EvidenceManifest,
+  slug: string,
+): Promise<GuideFreshness> => {
+  const storyboard = guideStoryboard(slug);
+  const evidence = storyboardEvidence(storyboard);
+  const [baseline, current] = await Promise.all([
+    readBaseline(slug),
+    evidenceFingerprints(manifest, EVIDENCE_MANIFEST, evidence),
+  ]);
+  return gradeGuide(
+    { evidence, slug, title: storyboard.title },
+    baseline,
+    current,
+  );
+};
+
 export const checkGuides = async (
   guide?: string,
 ): Promise<FreshnessReport | null> => {
-  const baselines = await readGuideBaselines(guide);
-  if (baselines.length === 0) return null;
+  const slugs = await slugsToCheck(guide);
+  if (slugs.length === 0) return null;
   const manifest = await readManifest();
-  const current = await Promise.all(
-    baselines.map((baseline) =>
-      evidenceFingerprints(
-        manifest,
-        EVIDENCE_MANIFEST,
-        baseline.anchors,
-        baseline.profile,
-      ),
-    ),
-  );
   return buildFreshnessReport(
-    baselines.map((baseline, index) =>
-      gradeGuide(
-        baseline,
-        requireValue(current[index], "Missing fingerprints"),
-      ),
-    ),
+    await Promise.all(slugs.map((slug) => gradeOne(manifest, slug))),
   );
 };

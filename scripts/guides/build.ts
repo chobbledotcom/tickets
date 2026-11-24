@@ -9,7 +9,6 @@ import { join } from "@std/path";
 import { removeIfPresent } from "#scripts/cleanup.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import type { EvidenceManifest } from "#scripts/specs/evidence/schema.ts";
-import { requireValue } from "#shared/required-value.ts";
 import {
   type GuideFreshnessBaseline,
   parseGuideFreshnessBaseline,
@@ -20,7 +19,6 @@ import {
   evidenceFingerprints,
   readEvidenceManifest,
 } from "./evidence.ts";
-import type { GuideFingerprint } from "./fingerprint.ts";
 import { type GuideGitState, guideGitState } from "./git.ts";
 import { recordGuideSession } from "./record/run.ts";
 import { renderGuideFromSession } from "./render/run.ts";
@@ -100,8 +98,7 @@ export interface RecordGuideResult {
 }
 
 interface PreparedGuide {
-  current: Record<string, GuideFingerprint>;
-  evidence: readonly { captureId: string; caseId: string }[];
+  current: Record<string, string>;
   git: GuideGitState;
   manifest: EvidenceManifest;
   storyboard: GuideStoryboard;
@@ -125,14 +122,12 @@ const prepareGuide = async (
     );
   }
   const manifest = await readEvidenceManifest(EVIDENCE_MANIFEST);
-  const evidence = storyboardEvidence(storyboard);
   const current = await evidenceFingerprints(
     manifest,
     EVIDENCE_MANIFEST,
-    evidence,
-    "desktop",
+    storyboardEvidence(storyboard),
   );
-  return { current, evidence, git, manifest, storyboard };
+  return { current, git, manifest, storyboard };
 };
 
 const timelineFor = async (
@@ -177,19 +172,9 @@ const guideName = (
 
 const baselineFor = (prepared: PreparedGuide): GuideFreshnessBaseline =>
   parseGuideFreshnessBaseline({
-    anchors: prepared.evidence.map(({ captureId, caseId }) => ({
-      captureId,
-      caseId,
-      ...requireValue(
-        prepared.current[captureId],
-        `No fingerprint for ${captureId}`,
-      ),
-    })),
-    evidenceCommit: prepared.manifest.app.commit,
-    guide: guideName(prepared),
-    profile: "desktop",
+    anchors: prepared.current,
     recordedCommit: prepared.git.commit,
-    schemaVersion: 1,
+    schemaVersion: 2,
   });
 
 const writeGuideManifest = (

@@ -55,17 +55,25 @@ address.
 ## Freshness
 
 A guide names the Cucumber captures it uses as visual references. At record
-time, `guide:record` stores two facts for each capture in
-`guides/<slug>/freshness.json`:
+time, `guide:record` writes one edge hash for each capture to
+`guides/<slug>/freshness.json`, with the commit that it recorded. The
+storyboard holds the guide title and the case of each capture, so the baseline
+does not repeat them.
 
-- the SHA-256 digest of the image the video used.
-- a 32 by 32 greyscale thumbnail of that image.
+To make an edge hash, the recorder shrinks the image to a 16 by 16 greyscale
+grid. Each of the 240 bits records whether one cell is clearly brighter than the
+cell to its right. The hash is 60 hex characters.
 
-`guide:check` compares those facts with the images in
-`reports/evidence/manifest.json`. An exact digest scores 100. Otherwise the
-score is 75 percent page shape and 25 percent light and dark. Page shape uses a
-normalised correlation, so a page that moved scores low even when both pages are
-mostly white.
+`guide:check` hashes the images in `reports/evidence/manifest.json` again. The
+score is the share of edges that both hashes hold: the edges in both, divided by
+the edges in either. A colour change or a small text change keeps the score
+high. A block that moves puts its edges in other cells, so the score falls,
+even when both pages are mostly white. A sideways move gives a lower score than
+a downward move of the same size.
+
+The baseline must name the same captures as the storyboard. If the storyboard
+adds or removes a capture, the check fails and asks you to record the guide
+again.
 
 The scores are:
 
