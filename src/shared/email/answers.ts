@@ -5,11 +5,26 @@
  * the same way. Free-text answers sit in the strings table sealed to the
  * owner key, which costs a session to read, so the sender passes the texts it
  * already holds: the request that took the booking, or the checkout's staged
- * copy taken back at completion.
+ * copy taken back at completion. A line answer shows under the entry of its
+ * listing, named by its line and ticket.
  */
 
-import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { getAllGroupNames } from "#db/groups.ts";
+import type {
+  LineTextAnswer,
+  QuestionWithAnswers,
+  TextAnswer,
+} from "#db/question-types.ts";
 import { choiceAnswerIdsPrimary } from "#db/questions/attendee-answers/reads.ts";
+import {
+  asksEachLine,
+  type LineNames,
+  lineLabel,
+  listingNamesOf,
+  ticketAnswerName,
+  ticketFieldName,
+  ticketOfFieldOrNull,
+} from "#db/questions/line-answers.ts";
 import {
   getQuestionsWithListingIds,
   type QuestionListingMap,
@@ -23,8 +38,26 @@ export type AnswerLine = { question: string; text: string };
 /** Every entry's answer lines, keyed attendee id then listing id. */
 export type OrderAnswerLines = Map<number, Map<number, AnswerLine[]>>;
 
-/** The free-text answers a sender holds, keyed by question id. */
-export type FreeTextAnswers = ReadonlyMap<number, string>;
+/** The free-text answers a sender holds. A booking answer rests under its
+ * question id, and a line answer under its ticket field name. */
+export type FreeTextAnswers = ReadonlyMap<string, string>;
+
+/** The free-text answers a sender holds, from the booking answers and the
+ * line answers it has in plaintext. */
+export const heldFreeTexts = (
+  textAnswers: readonly TextAnswer[],
+  lineAnswers: readonly LineTextAnswer[],
+): Map<string, string> =>
+  new Map([
+    ...textAnswers.map(({ questionId, text }): [string, string] => [
+      String(questionId),
+      text,
+    ]),
+    ...lineAnswers.map((answer): [string, string] => [
+      ticketFieldName(answer.questionId, answer),
+      answer.text,
+    ]),
+  ]);
 
 /** The loaded question and answer context every entry's lines read: the
  * questions the order's listings ask, which listings each one belongs to,
@@ -33,6 +66,7 @@ export type FreeTextAnswers = ReadonlyMap<number, string>;
 export interface QuestionContext {
   chosenByAttendee: ReadonlyMap<number, readonly number[]>;
   freeTexts: FreeTextAnswers;
+  names: LineNames;
   questionListingMap: QuestionListingMap;
   questions: readonly QuestionWithAnswers[];
 }
@@ -58,7 +92,7 @@ const answerTextFor = (
   freeTexts: FreeTextAnswers,
 ): string | null => {
   if (question.displayType === "free_text") {
-    return freeTexts.get(question.id) ?? null;
+    return freeTexts.get(String(question.id)) ?? null;
   }
   const chosen = question.answers.find((answer) =>
     chosenAnswerIds.includes(answer.id),
@@ -77,10 +111,36 @@ const linesForEntry = (
     asksOn(question, entry.listing.id, ctx.questionListingMap),
   )(ctx.questions);
   return asksHere.flatMap((question) => {
+    if (asksEachLine(question)) return lineAnswersFor(question, entry, ctx);
     const text = answerTextFor(question, chosen, ctx.freeTexts);
     return text === null ? [] : [{ question: question.text, text }];
   });
 };
+
+/** The held answers of one line question for the entry's listing, each named
+ * by its line and ticket. */
+const lineAnswersFor = (
+  question: QuestionWithAnswers,
+  entry: EmailEntry,
+  { freeTexts, names }: QuestionContext,
+): AnswerLine[] =>
+  [...freeTexts].flatMap(([key, text]) => {
+    const held = ticketOfFieldOrNull(key);
+    return held === null ||
+      held.questionId !== question.id ||
+      held.ticket.listingId !== entry.listing.id
+      ? []
+      : [
+          {
+            question: ticketAnswerName(
+              question,
+              lineLabel(held.ticket, names),
+              held.ticket.unit,
+            ),
+            text,
+          },
+        ];
+  });
 
 /** Build every entry's answer lines from loaded questions and choices. Pure:
  * the email renderers can also be fed this shape from a preloaded batch. */
@@ -125,13 +185,22 @@ export const loadOrderAnswerLines = async (
 ): Promise<OrderAnswerLines> => {
   const listingIds = unique(entries.map((entry) => entry.listing.id));
   const attendeeIds = unique(entries.map((entry) => entry.attendee.id));
-  const [{ questions, questionListingMap }, chosen] = await Promise.all([
-    getQuestionsWithListingIds(listingIds),
-    choiceAnswerIdsPrimary(attendeeIds),
-  ]);
+  const inPackage = [...freeTexts.keys()].some(
+    (key) => (ticketOfFieldOrNull(key)?.ticket.packageGroupId ?? 0) !== 0,
+  );
+  const [{ questions, questionListingMap }, chosen, packages] =
+    await Promise.all([
+      getQuestionsWithListingIds(listingIds),
+      choiceAnswerIdsPrimary(attendeeIds),
+      inPackage ? getAllGroupNames() : new Map<number, string>(),
+    ]);
   return orderAnswerLines(entries, {
     chosenByAttendee: chosen,
     freeTexts,
+    names: {
+      listings: listingNamesOf(entries),
+      packages,
+    },
     questionListingMap,
     questions,
   });

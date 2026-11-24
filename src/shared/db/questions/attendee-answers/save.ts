@@ -173,8 +173,9 @@ const stringIdOf = (value: number | string): SqlSlot =>
 
 /** The insert of each line's own answers. Each answer joins the one booking
  * row of its slot: a row under a parent by its listing and parent, any other
- * row by its listing and package. A ticket at or above the row's quantity
- * takes no answer. */
+ * row by its listing and package. The booking checks each ticket against the
+ * line's quantity. A merge keeps an answer for a ticket that is no longer
+ * booked. */
 const lineAnswerStatements = (
   normalized: Map<number, NormalizedAnswerSet>,
   ref: AttendeeRef,
@@ -204,8 +205,7 @@ const lineAnswerStatements = (
           AND line.listing_id = selected.listing_id
           AND line.parent_listing_id = selected.parent_listing_id
           AND (selected.parent_listing_id != 0
-            OR line.package_group_id = selected.package_group_id)
-          AND line.quantity > selected.unit_index`,
+            OR line.package_group_id = selected.package_group_id)`,
     columns: sql`attendee_id, question_id, listing_id, parent_listing_id,
       package_group_id, unit_index, string_id`,
     rows,

@@ -7,8 +7,10 @@ import {
   type ElementSpec,
   type FakeElement,
   installFakeDom,
+  packageSelectorSpec,
   quantitySpec as quantity,
   restoreDocument,
+  soleChildSpec,
 } from "#test-utils/fake-dom.ts";
 
 const question = (listingIds: string, control: ElementSpec): ElementSpec => ({
@@ -57,33 +59,62 @@ describe("custom question visibility", () => {
     expect(text.required).toBe(false);
   };
 
-  test("asks once for each listing: shows the field of a listing in the order, and hides and de-requires the field of one that is not", () => {
-    const roots = installFakeDom([
-      {
-        children: [
-          question("101", textControl()),
-          question("102", textControl()),
-        ],
-        class: "custom-question",
-        data: { listingIds: "101 102" },
-        tag: "fieldset",
-      },
-      quantity("101", "1"),
-      quantity("102", "0"),
-    ]);
-    const block = roots[0]!;
-    const [inOrder, notInOrder] = block.querySelectorAll("label");
-    const [asked, notAsked] = block.querySelectorAll('input[type="text"]');
-
-    initQuestionVisibility();
-
-    expect([block.hidden, inOrder!.hidden, notInOrder!.hidden]).toEqual([
-      false,
-      false,
-      true,
-    ]);
-    expect([asked!.required, notAsked!.required]).toEqual([true, false]);
+  /** A ticket field: one ticket of one line, with the controls that the
+   * line's quantity comes from. */
+  const ticketField = (sources: string, unit: number): ElementSpec => ({
+    children: [textControl()],
+    class: "custom-question",
+    data: { sources, unit: String(unit) },
+    tag: "label",
   });
+
+  /** Each place a line's quantity comes from, the page controls that give it
+   * two tickets, and the source the field names. */
+  const LINE_SOURCES: [string, string, ElementSpec[]][] = [
+    ["its own quantity", "q:101", [quantity("101", "2")]],
+    [
+      "a package count times the member's fixed quantity",
+      "p:3:2",
+      [packageSelectorSpec(["101:2"], "1")],
+    ],
+    [
+      "a child's quantity under one parent",
+      "c:101:301",
+      [childSelectorSpec("101"), childQtySpec("101", "301", "2")],
+    ],
+    [
+      "a sole child, which takes all of its parent's tickets",
+      "c:101:301",
+      [quantity("101", "2"), soleChildSpec("101", "301")],
+    ],
+  ];
+
+  for (const [name, sources, controls] of LINE_SOURCES) {
+    test(`a line that takes two tickets from ${name} shows and requires two fields, and hides and disables the third`, () => {
+      const roots = installFakeDom([
+        ...[0, 1, 2].map((unit) => ticketField(sources, unit)),
+        ...controls,
+      ]);
+      const texts = roots
+        .slice(0, 3)
+        .map((field) => field.querySelectorAll('input[type="text"]')[0]!);
+
+      initQuestionVisibility();
+
+      expect(roots.slice(0, 3).map((field) => field.hidden)).toEqual([
+        false,
+        false,
+        true,
+      ]);
+      expect(
+        texts.map(({ disabled, required }) => [disabled, required]),
+      ).toEqual([
+        [false, true],
+        [false, true],
+        [true, false],
+      ]);
+    });
+  }
 
   test("hides and de-requires a question with no active listing", () => {
     const control = textControl();

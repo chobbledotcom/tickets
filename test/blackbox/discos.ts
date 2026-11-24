@@ -122,6 +122,23 @@ export const pupilNames = (
   [fieldFor(question, discoB)]: forB,
 });
 
+/** The pupil names of a shop, ticket by ticket, on disco A then disco B. */
+export const ticketNames = (
+  { discoA, discoB, question }: PupilShop,
+  forA: readonly string[],
+  forB: readonly string[] = [],
+): Fields =>
+  Object.fromEntries([
+    ...forA.map((name, at) => [
+      fieldFor(question, discoA, { ticket: at + 1 }),
+      name,
+    ]),
+    ...forB.map((name, at) => [
+      fieldFor(question, discoB, { ticket: at + 1 }),
+      name,
+    ]),
+  ]);
+
 /** A parent books places on both discos through the booking form. */
 export const book = (
   { discoA, discoB }: Discos,

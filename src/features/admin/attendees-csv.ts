@@ -5,7 +5,9 @@
  */
 
 import { isServicing } from "#db/attendees/kind.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
+import { asksEachLine } from "#db/questions/line-answers.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -100,9 +102,44 @@ export const listingInfoColumns = <T>(
     : []),
 ];
 
+/** The texts of one attendee's answers to one line question that are still
+ * booked, in line and ticket order. */
+const bookedLineTexts = (
+  data: AttendeeQuestionData | undefined,
+  attendeeId: number,
+  questionId: number,
+): string[] =>
+  (data?.lineAnswerMap?.get(attendeeId) ?? [])
+    .filter((answer) => answer.questionId === questionId)
+    .filter((answer) => answer.unit < answer.quantity)
+    .map(({ text }) => text);
+
+/** The columns of a line question. A question for each ticket takes one
+ * column for each ticket, up to the most tickets that an attendee holds. A
+ * question for each line takes one column, and joins the answers of an
+ * attendee's lines. */
+const lineQuestionColumns = (
+  q: QuestionWithAnswers,
+  attendees: readonly Attendee[],
+  data: AttendeeQuestionData | undefined,
+): Column<Attendee>[] => {
+  const texts = (a: Attendee) => bookedLineTexts(data, a.id, q.id);
+  if (q.answerLevel !== "quantity") {
+    return [{ header: q.text, value: (a) => texts(a).join("; ") }];
+  }
+  const most = Math.max(1, ...attendees.map((a) => texts(a).length));
+  return Array.from({ length: most }, (_, at) => ({
+    header: t("csv.col.ticket_answer", { number: at + 1, question: q.text }),
+    value: (a: Attendee) => texts(a)[at] ?? "",
+  }));
+};
+
 /** One column per custom question, each cell the attendee's chosen answer (for
  * choice questions) or their decrypted free-text answer (for free_text). */
-const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
+const questionColumns = (
+  attendees: readonly Attendee[],
+  data?: AttendeeQuestionData,
+): Column<Attendee>[] => {
   const questions = data?.questions ?? [];
   const answerMap = data?.attendeeAnswerMap ?? new Map<number, number[]>();
   const textMap = data?.textAnswerMap;
@@ -110,20 +147,29 @@ const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
   for (const q of questions) {
     for (const a of q.answers) answerText.set(a.id, a.text);
   }
-  return questions.map((q) => ({
-    header: q.text,
-    value: (a: Attendee) => {
-      if (q.displayType === "free_text") {
-        return textMap?.get(a.id)?.get(q.id) ?? "";
-      }
-      const ids = answerMap.get(a.id) ?? [];
-      const matched = ids.find((id) => q.answers.some((ans) => ans.id === id));
-      return matched ? requiredMapValue(answerText, matched) : "";
-    },
-  }));
+  return questions.flatMap((q) =>
+    asksEachLine(q)
+      ? lineQuestionColumns(q, attendees, data)
+      : [
+          {
+            header: q.text,
+            value: (a: Attendee) => {
+              if (q.displayType === "free_text") {
+                return textMap?.get(a.id)?.get(q.id) ?? "";
+              }
+              const ids = answerMap.get(a.id) ?? [];
+              const matched = ids.find((id) =>
+                q.answers.some((ans) => ans.id === id),
+              );
+              return matched ? requiredMapValue(answerText, matched) : "";
+            },
+          },
+        ],
+  );
 };
 
 type AttendeeCsvOptions = {
+  attendees: readonly Attendee[];
   /** Prepend a Date column (the booking's day/range) for daily listings. */
   includeDate: boolean;
   domain: string;
@@ -135,6 +181,7 @@ type AttendeeCsvOptions = {
 
 /** Built per call so the active locale applies. */
 const attendeeColumns = ({
+  attendees,
   includeDate,
   domain,
   tz,
@@ -160,7 +207,7 @@ const attendeeColumns = ({
     },
   ),
   ...standardAttendeeColumns(domain),
-  ...questionColumns(questionData),
+  ...questionColumns(attendees, questionData),
 ];
 
 /**
@@ -176,6 +223,7 @@ export const generateAttendeesCsv = (
   CSV.generate(
     attendees,
     attendeeColumns({
+      attendees,
       domain: getEffectiveDomain(),
       includeDate,
       listingInfo,

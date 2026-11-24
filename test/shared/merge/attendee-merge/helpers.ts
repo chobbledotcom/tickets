@@ -23,6 +23,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
+import { testLineAnswer } from "#test-utils/factories-questions.ts";
 import type { ContactInfo } from "#types";
 
 /** Create a test attendee on a single listing. */
@@ -250,5 +251,24 @@ export const saveTextAnswer = (
   saveAttendeeAnswers(
     new Map([
       [attendeeId, { answerIds: [], textAnswers: [{ questionId, text }] }],
+    ]),
+  );
+
+/** Save one answer for the first ticket of an attendee's own row on a listing. */
+export const saveLineAnswer = (
+  attendeeId: number,
+  listingId: number,
+  questionId: number,
+  text: string,
+) =>
+  saveAttendeeAnswers(
+    new Map([
+      [
+        attendeeId,
+        {
+          answerIds: [],
+          lineAnswers: [testLineAnswer(listingId, questionId, text)],
+        },
+      ],
     ]),
   );

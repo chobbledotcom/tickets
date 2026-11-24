@@ -137,9 +137,13 @@ describe("order answer lines from staged question data", () => {
     id: number,
     text: string,
     answers: { id: number; text: string }[],
-    opts: { assignAll?: boolean; displayType?: "radio" | "free_text" } = {},
+    opts: {
+      answerLevel?: QuestionWithAnswers["answerLevel"];
+      assignAll?: boolean;
+      displayType?: "radio" | "free_text";
+    } = {},
   ) => ({
-    answerLevel: "booking" as const,
+    answerLevel: opts.answerLevel ?? "booking",
     answers: answers.map((a) =>
       testAnswer({ id: a.id, questionId: id, text: a.text }),
     ),
@@ -156,11 +160,24 @@ describe("order answer lines from staged question data", () => {
   ): QuestionContext => ({
     chosenByAttendee: chosen,
     freeTexts,
+    names: {
+      listings: new Map([
+        [101, "Disco A"],
+        [102, "Disco B"],
+      ]),
+      packages: new Map(),
+    },
     questionListingMap: new Map([
       [11, [101]],
       [12, [101]],
+      [13, [101, 102]],
     ]),
     questions,
+  });
+
+  const pupilName = question(13, "Pupil name", [], {
+    answerLevel: "quantity",
+    displayType: "free_text",
   });
 
   test("merges free-text answers with choice answers in question order", () => {
@@ -171,7 +188,7 @@ describe("order answer lines from staged question data", () => {
           question(11, "Any allergies?", [{ id: 31, text: "Peanuts" }]),
           question(12, "Anything else?", [], { displayType: "free_text" }),
         ],
-        new Map([[12, "Coming by bus"]]),
+        new Map([["12", "Coming by bus"]]),
       ),
     );
 
@@ -194,6 +211,29 @@ describe("order answer lines from staged question data", () => {
     expect(lines.get(7)?.get(999)).toEqual([
       { question: "Club member?", text: "Yes" },
     ]);
+  });
+
+  test("shows each line answer under its listing's entry, named by its line and ticket", () => {
+    const lines = orderAnswerLines(
+      [makeEntry({ id: 101 }, { id: 7 }), makeEntry({ id: 102 }, { id: 7 })],
+      ctx(
+        [pupilName],
+        new Map([
+          ["question13_line101_0_0_ticket0", "Sam"],
+          ["question13_line101_0_0_ticket1", "Sam"],
+          ["question13_line102_0_0_ticket0", "Ben"],
+        ]),
+      ),
+    );
+
+    expect([lines.get(7)?.get(101), lines.get(7)?.get(102)]).toEqual([
+      [
+        { question: "Pupil name (Disco A, ticket 1)", text: "Sam" },
+        { question: "Pupil name (Disco A, ticket 2)", text: "Sam" },
+      ],
+      [{ question: "Pupil name (Disco B, ticket 1)", text: "Ben" }],
+    ]);
+    expect(eachAnswerOnce(lines.get(7)?.get(101) ?? [])).toHaveLength(2);
   });
 
   test("omits a free-text question when no text was held for it", () => {

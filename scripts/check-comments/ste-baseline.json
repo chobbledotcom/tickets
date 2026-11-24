@@ -1046,7 +1046,7 @@
     "semicolon": 3
   },
   "src/shared/merge/attendee-merge.ts": {
-    "long-sentence": 17,
+    "long-sentence": 16,
     "semicolon": 5,
     "banned-modal": 3,
     "participle": 1,

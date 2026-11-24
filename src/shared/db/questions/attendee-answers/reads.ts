@@ -19,7 +19,13 @@ import { rowsForIds } from "#db/rows-for-ids.ts";
 import { equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlList,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { groupToMap, mapParallel } from "#fp";
 
 /** Group `(attendee_id, answer_id)` rows into an attendee → answer-ids map. */
@@ -182,6 +188,9 @@ export type AttendeeQuestionData = {
   /** The attendees whose answers changed since booking. Present only when the
    * loader feeds the answers cells, which mark a changed answer. */
   changedAttendeeIds?: ReadonlySet<number>;
+  /** attendeeId → the line and ticket answers on the loaded listing, in line
+   * and ticket order. The CSV export loads them. */
+  lineAnswerMap?: Map<number, LineAnswer[]>;
 };
 
 /**
@@ -216,6 +225,12 @@ export const loadAttendeeQuestionData = async (
       };
 };
 
+/** Free-text answers keyed by question id, as a list of answers. */
+export const textAnswersOf = (
+  texts: ReadonlyMap<number, string>,
+): { questionId: number; text: string }[] =>
+  [...texts].map(([questionId, text]) => ({ questionId, text }));
+
 /** Get free-text answers for one attendee, decrypted for owner/admin edit. */
 export const getAttendeeTextAnswers = async (
   attendeeId: number,
@@ -246,41 +261,64 @@ type LineAnswerRow = {
   unit_index: number;
 };
 
-/** The attendee's answers for each line and ticket, decrypted for the owner,
- * in the owner's question order, then by line, then by ticket. */
-export const getAttendeeLineAnswers = async (
-  attendeeId: number,
+/** The line answers that `where` picks, decrypted for the owner, in the
+ * owner's question order, then by line, then by ticket. */
+const readLineAnswers = async (
+  where: SqlStatement,
   privateKey: OwnerKeyReader,
-): Promise<LineAnswer[]> => {
-  const rows = await queryAll<LineAnswerRow>(
-    sql`SELECT line.listing_id, line.parent_listing_id, line.package_group_id,
-         line.quantity, attendee_answer.question_id, attendee_answer.unit_index,
+): Promise<(LineAnswer & { attendeeId: number })[]> => {
+  const rows = await queryAll<LineAnswerRow & { attendee_id: number }>(
+    sql`SELECT attendee_answer.attendee_id, line.listing_id,
+         line.parent_listing_id, line.package_group_id, line.quantity,
+         attendee_answer.question_id, attendee_answer.unit_index,
          string.encrypted_text
        FROM attendee_answers AS attendee_answer
        INNER JOIN listing_attendees AS line
          ON line.id = attendee_answer.booking_row_id
        INNER JOIN strings AS string ON string.id = attendee_answer.string_id
        LEFT JOIN questions AS question ON question.id = attendee_answer.question_id
-      WHERE attendee_answer.attendee_id = ${attendeeId}
+      WHERE ${where}
       ORDER BY question.id IS NULL, question.sort_order,
         attendee_answer.question_id, line.id, attendee_answer.unit_index`,
   );
   if (rows.length === 0) return [];
   const key = await privateKey();
-  return mapParallel(
-    async (row: LineAnswerRow): Promise<LineAnswer> => ({
-      ...lineSlotOf({
-        listingId: row.listing_id,
-        packageGroupId: row.package_group_id,
-        parentListingId: row.parent_listing_id,
-      }),
-      quantity: row.quantity,
-      questionId: row.question_id,
-      text: await decryptWithOwnerKey(row.encrypted_text, key),
-      unit: row.unit_index,
+  return mapParallel(async (row: LineAnswerRow & { attendee_id: number }) => ({
+    attendeeId: row.attendee_id,
+    ...lineSlotOf({
+      listingId: row.listing_id,
+      packageGroupId: row.package_group_id,
+      parentListingId: row.parent_listing_id,
     }),
-  )(rows);
+    quantity: row.quantity,
+    questionId: row.question_id,
+    text: await decryptWithOwnerKey(row.encrypted_text, key),
+    unit: row.unit_index,
+  }))(rows);
 };
+
+/** The attendee's answers for each line and ticket, decrypted for the owner,
+ * in the owner's question order, then by line, then by ticket. */
+export const getAttendeeLineAnswers = (
+  attendeeId: number,
+  privateKey: OwnerKeyReader,
+): Promise<LineAnswer[]> =>
+  readLineAnswers(sql`attendee_answer.attendee_id = ${attendeeId}`, privateKey);
+
+/** Each attendee's line answers on these listings, for the CSV. */
+export const getLineAnswersOnListings = async (
+  attendeeIds: number[],
+  listingIds: number[],
+  privateKey: CryptoKey,
+): Promise<Map<number, LineAnswer[]>> =>
+  Map.groupBy(
+    await readLineAnswers(
+      sql`attendee_answer.attendee_id IN (${sqlList(attendeeIds)})
+        AND line.listing_id IN (${sqlList(listingIds)})`,
+      () => Promise.resolve(privateKey),
+    ),
+    ({ attendeeId }) => attendeeId,
+  );
 
 /** Get attendee answers mapped by question ID.
  * Returns Map<questionId, { answerId, answerText }> for a single attendee. */

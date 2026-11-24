@@ -76,12 +76,7 @@ export const readCheckoutAnswers = async (
     await decrypt(row.sealed as EnvKeyEncrypted),
     "checkout answers",
   );
-  return new Map(
-    Object.entries(staged).map(([questionId, text]): [number, string] => [
-      Number(questionId),
-      text,
-    ]),
-  );
+  return new Map(Object.entries(staged));
 };
 
 /** The delete that takes back the answers staged for a checkout, as a plain

@@ -62,6 +62,50 @@ const freeTextCsv = (answer: string): string[] =>
     textAnswerMap: new Map([[1, new Map([[3, answer]])]]),
   }).split("\n");
 
+/** A free-text question that asks for each line or each ticket. */
+const lineQuestion = (
+  id: number,
+  text: string,
+  answerLevel: "listing" | "quantity",
+): QuestionWithAnswers => ({ ...NOTES_Q, answerLevel, id, text });
+
+const PUPIL_Q = lineQuestion(4, "Pupil name", "quantity");
+const GLOW_Q = lineQuestion(5, "Glow name", "listing");
+
+/** One stored answer for a ticket of a line of quantity `quantity`. */
+const ticketAnswer = (
+  questionId: number,
+  text: string,
+  { parentListingId = 0, quantity = 1, unit = 0 } = {},
+) => ({
+  listingId: 7,
+  packageGroupId: 0,
+  parentListingId,
+  quantity,
+  questionId,
+  text,
+  unit,
+});
+
+/** CSV lines for Alice and Bob with these line answers. */
+const lineAnswerCsv = (
+  questions: QuestionWithAnswers[],
+  answers: [number, ReturnType<typeof ticketAnswer>[]][],
+): string[] =>
+  generateAttendeesCsv(
+    [
+      testAttendee({ id: 1, name: "Alice" }),
+      testAttendee({ id: 2, name: "Bob" }),
+    ],
+    false,
+    undefined,
+    {
+      attendeeAnswerMap: new Map(),
+      lineAnswerMap: new Map(answers),
+      questions,
+    },
+  ).split("\n");
+
 describe("CSV with custom questions", () => {
   test("appends question text columns after the ticket URL column", () => {
     const [header] = csvWithQuestions(
@@ -195,4 +239,64 @@ describe("CSV with custom questions", () => {
     // And the data row should have the same number of cells (commas) as the header
     expect(row!.split(",").length).toBe(header!.split(",").length);
   });
+
+  /** Line answers in a CSV: the question, each attendee's answers, how the
+   * header ends, and how Alice's and Bob's rows end. */
+  const LINE_CSVS: [
+    string,
+    QuestionWithAnswers,
+    [number, ReturnType<typeof ticketAnswer>[]][],
+    string,
+    [string, string],
+  ][] = [
+    [
+      "a question for each ticket takes one column for each ticket, up to the most tickets an attendee holds",
+      PUPIL_Q,
+      [
+        [
+          1,
+          [
+            ticketAnswer(4, "Ava", { quantity: 2 }),
+            ticketAnswer(4, "Amy", { quantity: 2, unit: 1 }),
+          ],
+        ],
+        [2, [ticketAnswer(4, "Ben")]],
+      ],
+      ",Pupil name (ticket 1),Pupil name (ticket 2)",
+      [",Ava,Amy", ",Ben,"],
+    ],
+    [
+      "a question for each line takes one column, and joins the answers of an attendee's lines",
+      GLOW_Q,
+      [
+        [
+          1,
+          [
+            ticketAnswer(5, "Kit", { parentListingId: 1 }),
+            ticketAnswer(5, "Kim", { parentListingId: 2 }),
+          ],
+        ],
+      ],
+      ",Glow name",
+      [",Kit; Kim", ","],
+    ],
+    [
+      "an answer for a ticket that is no longer booked stays out of the ticket columns",
+      PUPIL_Q,
+      [[1, [ticketAnswer(4, "Ava"), ticketAnswer(4, "Amy", { unit: 1 })]]],
+      ",Pupil name (ticket 1)",
+      [",Ava", ","],
+    ],
+  ];
+
+  for (const [name, asked, answers, headerEnd, rowEnds] of LINE_CSVS) {
+    test(name, () => {
+      const lines = lineAnswerCsv([asked], answers).slice(0, 3);
+      const ends = [headerEnd, ...rowEnds];
+
+      expect(lines.map((line, at) => line.slice(-ends[at]!.length))).toEqual(
+        ends,
+      );
+    });
+  }
 });

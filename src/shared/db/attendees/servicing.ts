@@ -35,6 +35,7 @@ import { listingNamesByIds } from "#db/listings/records.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
+  textAnswersOf,
 } from "#db/questions/attendee-answers/reads.ts";
 import {
   type AttendeeAnswerSet,
@@ -460,9 +461,7 @@ const snapshotAnswerSet = (
   batch: AttendeeAnswersBatch,
 ): AttendeeAnswerSet => ({
   answerIds: batch.answerIds.get(id) ?? [],
-  textAnswers: [
-    ...(batch.textAnswers.get(id) ?? new Map<number, string>()),
-  ].map(([questionId, text]) => ({ questionId, text })),
+  textAnswers: textAnswersOf(batch.textAnswers.get(id) ?? new Map()),
 });
 
 export const updateServicingEvent = async (

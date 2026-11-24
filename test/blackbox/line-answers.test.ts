@@ -11,6 +11,7 @@ import { t } from "#i18n";
 import { requireValue } from "#shared/required-value.ts";
 import { deliverPayment, openCardShop } from "#test/blackbox/card-shop.ts";
 import {
+  type AnswerLevel,
   addDiscos,
   addQuestion,
   attendeeIds,
@@ -18,11 +19,13 @@ import {
   book,
   fieldFor,
   openDiscos,
+  type PupilShop,
   pupilNames,
   textOf,
+  ticketNames,
   withPupilName,
 } from "#test/blackbox/discos.ts";
-import { createApp, inProcess } from "#test/blackbox/driver.ts";
+import { createApp, type Fields, inProcess } from "#test/blackbox/driver.ts";
 import type { FakeStripe } from "#test/blackbox/fake-stripe.ts";
 import { addBooking } from "#test/blackbox/seed.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -30,6 +33,17 @@ import { describeWithEnv } from "#test-utils/db.ts";
 const HEADING = t("attendee_detail.line_answers");
 
 const BOTH_NAMES = `${HEADING} Pupil name (Disco A) Ava Pupil name (Disco B) Ben`;
+
+/** Paid orders of two places on each disco: the level the question asks at,
+ * the answers the parent types, and what the attendee page then shows. */
+const PAID_ORDERS: [AnswerLevel, (shop: PupilShop) => Fields, string][] = [
+  ["listing", (shop) => pupilNames(shop, "Ava", "Ben"), BOTH_NAMES],
+  [
+    "quantity",
+    (shop) => ticketNames(shop, ["Ava", "Amy"], ["Ben", "Bo"]),
+    `${HEADING} Pupil name (Disco A, ticket 1) Ava Pupil name (Disco A, ticket 2) Amy Pupil name (Disco B, ticket 1) Ben Pupil name (Disco B, ticket 2) Bo`,
+  ],
+];
 
 describeWithEnv(
   "a question that asks once for each listing",
@@ -76,33 +90,37 @@ describeWithEnv(
       );
     });
 
-    test("a paid order keeps the answers out of Stripe, and the webhook files each against its listing", async () => {
-      const cardShop = await openCardShop();
-      fake = cardShop.fake;
-      const shop = await withPupilName(
-        await addDiscos(cardShop.owner, cardShop.api, 500),
-      );
+    for (const [level, answers, shown] of PAID_ORDERS) {
+      test(`a paid order asked ${level} keeps the answers out of Stripe, and the webhook files each against its line`, async () => {
+        const cardShop = await openCardShop();
+        fake = cardShop.fake;
+        const shop = await withPupilName(
+          await addDiscos(cardShop.owner, cardShop.api, 500),
+          undefined,
+          level,
+        );
 
-      const sent = await book(shop, [2, 2], pupilNames(shop, "Ava", "Ben"));
-      const checkout = requireValue(
-        cardShop.fake.checkouts.at(-1),
-        "The app opened no checkout",
-      );
+        const sent = await book(shop, [2, 2], answers(shop));
+        const checkout = requireValue(
+          cardShop.fake.checkouts.at(-1),
+          "The app opened no checkout",
+        );
 
-      expect(sent.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
-      expect(checkout.amountTotal).toBe(2000);
-      expect(Object.keys(checkout.metadata).toSorted()).toEqual([
-        "_origin",
-        "bundle",
-        "listing",
-        "price_proof",
-      ]);
-      expect(await attendeeIds(shop.api, shop.discoA)).toEqual([]);
+        expect(sent.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
+        expect(checkout.amountTotal).toBe(2000);
+        expect(Object.keys(checkout.metadata).toSorted()).toEqual([
+          "_origin",
+          "bundle",
+          "listing",
+          "price_proof",
+        ]);
+        expect(await attendeeIds(shop.api, shop.discoA)).toEqual([]);
 
-      expect((await deliverPayment(cardShop, checkout)).status).toBe(200);
+        expect((await deliverPayment(cardShop, checkout)).status).toBe(200);
 
-      expect(await attendeePage(shop)).toContain(BOTH_NAMES);
-    });
+        expect(await attendeePage(shop)).toContain(shown);
+      });
+    }
 
     test("the attendee page shows the answers in the order of the questions that the owner set", async () => {
       const shop = await withPupilName(await openDiscos());

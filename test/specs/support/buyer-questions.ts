@@ -188,7 +188,7 @@ export const visitorBooksEachListingAnswering = async (
   );
   const fields = answers.flatMap(([, answer], index) => {
     const listingId = listings[index]!.id;
-    const field = `question${askedQuestion(world).id}_listing${listingId}`;
+    const field = `question${askedQuestion(world).id}_line${listingId}_0_0_ticket0`;
     assertStringIncludes(browser.currentHtml, `name="${field}"`);
     return [
       [`quantity${listingId}`, "1"],

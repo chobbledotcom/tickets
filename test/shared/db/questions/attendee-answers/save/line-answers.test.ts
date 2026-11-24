@@ -136,7 +136,7 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
     ]);
   });
 
-  test("files one answer for each ticket, and none for a ticket above the line's quantity", async () => {
+  test("files one answer for each ticket of a line", async () => {
     const disco = await createTestListing({ name: "Disco A" });
     const attendee = await bookTestAttendee(
       [{ listingId: disco.id, quantity: 2 }],
@@ -144,7 +144,7 @@ describeWithEnv("db > attendee answers > line answers", { db: true }, () => {
     );
     const pupil = await listingLevelQuestion();
     await saveFor(attendee.id, {
-      lineAnswers: [0, 1, 2].map((unit) =>
+      lineAnswers: [0, 1].map((unit) =>
         testLineAnswer(disco.id, pupil.id, `Pupil ${unit + 1}`, { unit }),
       ),
     });

@@ -141,7 +141,8 @@ type CheckoutIntentBase = ContactInfo &
     /** Visitor-chosen day count for "customisable days" listings (shared across
      * the checkout). Absent when no selected listing is customisable. */
     dayCount?: number | undefined;
-    /** Typed free-text answers by question id, staged locally, never sent on. */
+    /** Typed free-text answers, keyed as the confirmation email reads them,
+     * staged locally, never sent on. */
     textAnswers?: Record<string, string> | undefined;
   };
 

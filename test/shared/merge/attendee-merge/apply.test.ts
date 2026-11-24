@@ -9,7 +9,9 @@ import {
 import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { readStoredLineAnswers } from "#test-utils/db-helpers/line-answers.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import {
   createAttendee,
   createFreeTextQuestion,
@@ -18,6 +20,7 @@ import {
   oneQuestion,
   runMerge,
   saveChoice,
+  saveLineAnswer,
   saveTextAnswer,
 } from "./helpers.ts";
 
@@ -171,6 +174,44 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       await expectMergedTextAnswer(source, target, textQuestion.id, "Vegan");
     });
+
+    /** Line answers before and after a merge: whether both attendees book
+     * one listing, the text each gives, and what the target keeps. */
+    const LINE_MERGES: [string, boolean, string, string, string[]][] = [
+      [
+        "joins both answers for one line into one text, the target's first",
+        true,
+        "Ava",
+        "Ben",
+        ["Ava, Ben"],
+      ],
+      ["does not repeat a text that both give", true, "Sam", "Sam", ["Sam"]],
+      [
+        "moves a line answer with its booking to the target",
+        false,
+        "Ava",
+        "Ben",
+        ["Ava", "Ben"],
+      ],
+    ];
+
+    for (const [name, sameListing, forTarget, forSource, kept] of LINE_MERGES) {
+      test(`a merge ${name}`, async () => {
+        const { listing, listing2, source, target } = await createMergePair({
+          sameListing,
+        });
+        const { question } = await seedListingLevelQuestion();
+        await saveLineAnswer(target.id, listing.id, question.id, forTarget);
+        await saveLineAnswer(source.id, listing2.id, question.id, forSource);
+
+        const { result } = await runMerge({ source, target });
+
+        expect(result.success).toBe(true);
+        expect(
+          (await readStoredLineAnswers(target.id)).map(({ text }) => text),
+        ).toEqual(kept);
+      });
+    }
 
     test("clears answers when decision is clear", async () => {
       const { listing, target, source } = await createMergePair();

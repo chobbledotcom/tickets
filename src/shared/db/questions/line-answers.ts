@@ -52,9 +52,10 @@ export const ticketFieldName = (questionId: number, ticket: LineTicket) =>
 
 const TICKET_FIELD = /^question(\d+)_line(\d+)_(\d+)_(\d+)_ticket(\d+)$/u;
 
-/** The question and ticket that a posted field names. A field of any other
- * name is not a ticket answer, so it reads as null. */
-const ticketOfFieldOrNull = (
+/** The question and ticket that a ticket field name names. A held free-text
+ * answer rests under the same name. Any other name is not a ticket answer, so
+ * it reads as null. */
+export const ticketOfFieldOrNull = (
   name: string,
 ): { questionId: number; ticket: LineTicket } | null => {
   const match = TICKET_FIELD.exec(name);
@@ -104,17 +105,22 @@ type LinePage = {
   packages: readonly { groupId: number; hideListings: boolean; name: string }[];
 };
 
+/** Each listing's name by its id. */
+export const listingNamesOf = (
+  entries: readonly { listing: { id: number; name: string } }[],
+): Map<number, string> =>
+  new Map(entries.map(({ listing }) => [listing.id, listing.name]));
+
 /** The names of everything a booking page can book. */
 export const pageLineNames = ({
   childrenByParentId,
   listings,
   packages,
 }: LinePage): LineNames => ({
-  listings: new Map(
-    [...listings, ...[...childrenByParentId.values()].flat()].map(
-      ({ listing }) => [listing.id, listing.name],
-    ),
-  ),
+  listings: listingNamesOf([
+    ...listings,
+    ...[...childrenByParentId.values()].flat(),
+  ]),
   packages: new Map(packages.map((pkg) => [pkg.groupId, pkg.name])),
 });
 

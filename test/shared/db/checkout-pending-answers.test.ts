@@ -63,7 +63,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await stageCheckoutAnswers("cs_staged", { "7": "Coming by bus" }, null);
 
     expect(await readCheckoutAnswers("cs_staged")).toEqual(
-      new Map([[7, "Coming by bus"]]),
+      new Map([["7", "Coming by bus"]]),
     );
   });
 
@@ -93,7 +93,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   test("the batch's drop takes the row away, so a later read finds nothing", async () => {
     await stageCheckoutAnswers("cs_taken", { "7": "Once only" }, null);
     expect(await readCheckoutAnswers("cs_taken")).toEqual(
-      new Map([[7, "Once only"]]),
+      new Map([["7", "Once only"]]),
     );
     const drop = await dropCheckoutAnswersStatement("cs_taken");
     await execute(drop);
@@ -106,7 +106,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await stageCheckoutAnswers("cs_empty", undefined, null);
 
     expect(await readCheckoutAnswers("cs_replaced")).toEqual(
-      new Map([[8, "second try"]]),
+      new Map([["8", "second try"]]),
     );
     expect(await readCheckoutAnswers("cs_empty")).toEqual(new Map());
   });
@@ -132,7 +132,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
 
     expect(await readCheckoutAnswers("cs_abandoned")).toEqual(new Map());
     expect(await readCheckoutAnswers("cs_open")).toEqual(
-      new Map([[7, "still open"]]),
+      new Map([["7", "still open"]]),
     );
   });
 

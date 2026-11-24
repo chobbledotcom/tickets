@@ -59,7 +59,7 @@ describeWithEnv(
 
       expect(calls).toBe(1);
       expect(await readCheckoutAnswers("cs_staging")).toEqual(
-        new Map([[7, "Coming by bus"]]),
+        new Map([["7", "Coming by bus"]]),
       );
     });
 
@@ -133,7 +133,7 @@ describeWithEnv(
       await squareCheckoutAgedDays("sq_day_150", 150);
 
       expect(await readCheckoutAnswers("sq_day_150")).toEqual(
-        new Map([[7, "Coming by bus"]]),
+        new Map([["7", "Coming by bus"]]),
       );
     });
 
@@ -143,7 +143,7 @@ describeWithEnv(
       await squareCheckoutAgedDays("sq_day_181", 181);
 
       expect(await readCheckoutAnswers("sq_day_181")).toEqual(
-        new Map([[7, "Coming by bus"]]),
+        new Map([["7", "Coming by bus"]]),
       );
     });
 

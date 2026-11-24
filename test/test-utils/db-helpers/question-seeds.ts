@@ -82,9 +82,10 @@ export const freeTextQuestionsOn = async <
 export const seedListingLevelQuestion = (
   listingIds: readonly number[] = [],
   text = "Pupil name",
+  answerLevel: "listing" | "quantity" = "listing",
 ) =>
   seedQuestion({
-    answerLevel: "listing",
+    answerLevel,
     displayType: "free_text",
     listingIds,
     text,

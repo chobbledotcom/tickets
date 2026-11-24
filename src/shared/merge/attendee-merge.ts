@@ -13,10 +13,7 @@ import {
 import { withTransaction } from "#db/client.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
-import {
-  getAttendeeAnswersByQuestion,
-  getAttendeeTextAnswers,
-} from "#db/questions/attendee-answers/reads.ts";
+import { getAttendeeAnswersByQuestion } from "#db/questions/attendee-answers/reads.ts";
 import {
   prepareAttendeeAnswerSave,
   saveAttendeeAnswersTx,
@@ -29,6 +26,10 @@ import { insertInto, update } from "#db/write.ts";
 import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
+import {
+  mergedFreeTexts,
+  targetLineAnswersDelete,
+} from "#shared/merge/answer-texts.ts";
 import type {
   ApplyAttendeeMergeInput,
   AttendeeMergeApplyResult,
@@ -747,19 +748,9 @@ export const applyAttendeeMerge = async (
     bookingsReplacedTarget,
   } = applyBookingDecisions(targetId, diff, decision);
 
-  // Free-text answers are not part of the merge diff UI. Load both attendees'
-  // text answers BEFORE the batch below deletes the source's rows, then merge
-  // them with the target taking precedence — so a source-only text answer is
-  // adopted (matching how source-only choice answers are) instead of being
-  // dropped, while a target answer is never silently overwritten.
-  const [targetTextAnswers, sourceTextAnswers] = await Promise.all([
-    getAttendeeTextAnswers(targetId, privateKey),
-    getAttendeeTextAnswers(sourceId, privateKey),
-  ]);
-  const mergedTextAnswers = new Map([
-    ...sourceTextAnswers,
-    ...targetTextAnswers,
-  ]);
+  // Free-text answers are not part of the merge diff UI. They are read now,
+  // before the batch below deletes the source's rows.
+  const freeTexts = await mergedFreeTexts(targetId, sourceId, privateKey);
 
   // --- 4. Resolve decision-17 money for the discarded conflicting bookings ---
   const {
@@ -780,6 +771,7 @@ export const applyAttendeeMerge = async (
     ...deleteTargetBookingStatements,
     // Insert moved/replaced source bookings
     ...insertStatements,
+    targetLineAnswersDelete(targetId),
     ...checkoutStageDeleteStatements(sql`${targetId}`),
     // An old source without payment provenance makes the merged history
     // unqualified too; carry that fact before deleting its attendee row.
@@ -818,10 +810,7 @@ export const applyAttendeeMerge = async (
   // lets the save's replace re-create the encrypted strings it drops.
   const mergedAnswerSet = {
     answerIds: [...finalAnswers.values()],
-    textAnswers: [...mergedTextAnswers].map(([questionId, text]) => ({
-      questionId,
-      text,
-    })),
+    ...freeTexts,
   };
   // The re-encryption runs here, before the transaction opens, so it holds
   // no write lock.

@@ -79,7 +79,7 @@ Then(
   "the answers the site still holds a link for are kept",
   async function (this: TicketsWorld): Promise<void> {
     const answers = await stagedAnswerTexts(STAGED_ANSWER_SESSIONS.kept);
-    expect(answers.get(3)).toBe("Arriving late");
+    expect(answers.get("3")).toBe("Arriving late");
   },
 );
 
@@ -94,6 +94,6 @@ Then(
   "the answers inside their window are kept",
   async function (this: TicketsWorld): Promise<void> {
     const answers = await stagedAnswerTexts(STAGED_ANSWER_SESSIONS.recent);
-    expect(answers.get(3)).toBe("Two tickets");
+    expect(answers.get("3")).toBe("Two tickets");
   },
 );

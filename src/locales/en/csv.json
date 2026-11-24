@@ -2,6 +2,7 @@
   "csv.col.listing_date": "Listing Date",
   "csv.col.listing_location": "Listing Location",
   "csv.col.price_paid": "Price Paid",
+  "csv.col.ticket_answer": "{question} (ticket {number})",
   "csv.col.transaction_id": "Transaction ID",
   "csv.col.ticket_token": "Ticket Token",
   "csv.col.ticket_url": "Ticket URL",

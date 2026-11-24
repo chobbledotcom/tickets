@@ -68,6 +68,14 @@ const PLACEHOLDER_ATTENDEE_ID = 0;
  * but never validated. Without it, a null, a word, or half a number lands in
  * the stored answers.
  */
+/** Log the drop of one answer whose ref has no usable string id. */
+const dropUnusableRef = (questionId: number, listingId: number): void =>
+  logError({
+    code: ErrorCode.DATA_INVALID,
+    detail: `Text answer ref has no usable string id (question ${questionId})`,
+    listingId,
+  });
+
 const textRefsWithStringId = (
   refs: TextAnswerRef[],
   listingId: number,
@@ -77,11 +85,7 @@ const textRefsWithStringId = (
     if (v.is(StoredTextAnswerRefSchema, ref)) {
       resolved.push({ questionId: ref.q, stringId: ref.s });
     } else {
-      logError({
-        code: ErrorCode.DATA_INVALID,
-        detail: `Text answer ref has no usable string id (question ${ref.q})`,
-        listingId,
-      });
+      dropUnusableRef(ref.q, listingId);
     }
   }
   return resolved;
@@ -106,11 +110,7 @@ const lineRefsWithStringId = (
         },
       ];
     }
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `Text answer ref has no usable string id (question ${ref.q})`,
-      listingId: ref.l,
-    });
+    dropUnusableRef(ref.q, ref.l);
     return [];
   });
 
@@ -211,7 +211,9 @@ export const paidBookingTail = async ({
   // The buyer's typed answers, read before the batch so the confirmation
   // email can show them. The staged row is deleted by the batch itself, so a
   // booking that rolls back keeps its staged copy for the redelivery.
-  const wantsStagedTexts = intent.listingTextAnswerIds !== undefined;
+  const wantsStagedTexts =
+    intent.listingTextAnswerIds !== undefined ||
+    intent.lineTextAnswerIds !== undefined;
   const freeTexts = wantsStagedTexts
     ? await readCheckoutAnswers(sessionId)
     : undefined;
