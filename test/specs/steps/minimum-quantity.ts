@@ -2,7 +2,6 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { t } from "#i18n";
 import {
   adminBrowser,
@@ -30,6 +29,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Who the public-rule scenarios follow: a visitor only reading the page, and

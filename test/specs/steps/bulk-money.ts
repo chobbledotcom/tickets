@@ -1,7 +1,6 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import {
@@ -32,6 +31,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 
 Given(
   "{int} people each paid {word} for a {word} place",

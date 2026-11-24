@@ -4,10 +4,11 @@ import {
   applyAttendeeAtomicEdit,
   loadExistingLines,
 } from "#db/attendees/atomic-update.ts";
-import { getAttendeeOrNull, getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { dailyListingBooked } from "#test-utils/db-helpers/capacity-fixtures.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

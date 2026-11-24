@@ -5,7 +5,6 @@ import { revenueAccount } from "#accounting/accounts.ts";
 import { accountBalance } from "#accounting/queries.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { loadExistingLines } from "#db/attendees/atomic-update.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { sql } from "#db/sql.ts";
@@ -18,6 +17,7 @@ import {
   type AttendeeLineInput,
   attendeeLineFields,
   buildAttendeeEditForm,
+  getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
 import {
   createPackageWithMember,

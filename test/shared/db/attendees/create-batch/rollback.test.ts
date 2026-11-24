@@ -8,7 +8,6 @@ import {
   createBookingAtomic,
 } from "#db/attendees/create.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryOne } from "#db/client.ts";
 import {
   getContactRecord,
@@ -29,6 +28,7 @@ import { NO_TAX } from "#shared/tax/types.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 import {

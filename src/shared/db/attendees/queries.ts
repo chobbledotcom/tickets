@@ -94,13 +94,6 @@ export const loadAttendeeRows = (
   query: Omit<GetAttendeesQuery<(typeof ATTENDEE_FIELDS)[number]>, "fields">,
 ): Promise<Attendee[]> => getAttendees({ ...query, fields: ATTENDEE_FIELDS });
 
-export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
-  loadAttendeeRows({
-    order: "created_desc",
-    owedScope: "booking",
-    where: { listingIds: [listingId] },
-  });
-
 /**
  * One attendee's raw booking rows (real lines only — quantity > 0): every
  * line the attendee holds, whatever its kind, because one site serves the

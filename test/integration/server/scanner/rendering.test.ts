@@ -123,6 +123,12 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
         response.headers.get("content-type") ?? "",
         "application/javascript",
       );
+      // The manual check-in rides in the scanner bundle, beside the offline
+      // side it searches and queues through, not in admin.js.
+      expectIncludesAll(await response.text(), [
+        "#manual-checkin-input",
+        "messageSearchTooShort",
+      ]);
     });
   });
 

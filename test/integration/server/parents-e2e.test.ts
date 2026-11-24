@@ -1,10 +1,10 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { sql } from "#db/sql.ts";
 import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   bookingPageHtml,
@@ -123,7 +123,9 @@ const assertTwoOfOnePersisted = async (childA: Listing, childB: Listing) => {
  * asserts a 200 and returns the rendered HTML for content checks. */
 const attendeeDetailHtml = async (listingId: number): Promise<string> => {
   const { adminGet } = await import("#test-utils/session.ts");
-  const { getAttendeesRaw: rawFor } = await import("#db/attendees/queries.ts");
+  const { getAttendeesRaw: rawFor } = await import(
+    "#test-utils/db-helpers/attendees.ts"
+  );
   const attendeeId = (await rawFor(listingId))[0]!.id;
   const page = await adminGet(`/admin/attendees/${attendeeId}`);
   expect(page.status).toBe(200);

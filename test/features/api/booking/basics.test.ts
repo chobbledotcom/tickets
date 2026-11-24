@@ -19,8 +19,10 @@ describePublicApi(() => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
-      expect(body.booking?.ticketUrl).toBeDefined();
+      expect(body.booking?.ticketToken).toMatch(/^[A-Za-z0-9_-]{8,}$/);
+      expect(body.booking?.ticketUrl).toContain(
+        String(body.booking?.ticketToken),
+      );
       expect(typeof body.booking?.ticketUrl).toBe("string");
       expectCorsHeaders(response);
     });
@@ -60,7 +62,9 @@ describePublicApi(() => {
       // one-ticket booking.
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/quantity/i);
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
@@ -86,7 +90,7 @@ describePublicApi(() => {
         name: undefined,
       });
       expect(response.status).toBe(400);
-      expect(body.error).toBeDefined();
+      expect(body.error).toBe("Your Name is required");
     });
 
     test("returns 400 when required email is missing", async () => {
@@ -99,7 +103,7 @@ describePublicApi(() => {
         name: "Alice",
       });
       expect(response.status).toBe(400);
-      expect(body.error).toBeDefined();
+      expect(body.error).toBe("Your Email is required");
     });
 
     test("returns 409 when listing is at capacity", async () => {
@@ -149,7 +153,7 @@ describePublicApi(() => {
         quantity: 3,
       });
       expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
+      expect(body.booking?.ticketToken).toMatch(/^[A-Za-z0-9_-]{8,}$/);
     });
 
     test("rejects a quantity above max_quantity instead of clamping it", async () => {

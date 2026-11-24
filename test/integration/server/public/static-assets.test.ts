@@ -348,7 +348,6 @@ describeWithEnv(
           "/admin/markdown-preview",
           "/markdown-editor.js",
           "/logistics-map.js",
-          "#manual-checkin-input",
           ":not([data-manual-checkin])",
           ".custom-question[data-listing-ids]",
           "data-child-hint",
