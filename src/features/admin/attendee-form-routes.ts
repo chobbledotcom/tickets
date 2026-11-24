@@ -47,12 +47,12 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { formPolicyAt, pageGuardRun } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-
 import {
   ATTENDEE_DEMO_FIELDS,
   loadAfterDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { idSet } from "#shared/fp-records.ts";
 import {
   selectedListingQuantities,
   selectedStartDate,
@@ -213,7 +213,7 @@ const handleSubmitInner = async (
     ? parseLogisticsPlan(
         form,
         parsed.lines,
-        new Set((await logisticsAgents.getAll()).map((a) => a.id)),
+        idSet(await logisticsAgents.getAll()),
       )
     : null;
 

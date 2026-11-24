@@ -16,7 +16,11 @@ import { getNewestAttendeesRaw } from "#db/attendees/queries.ts";
 import { getUpcomingServicingEvents } from "#db/attendees/servicing.ts";
 import { getActiveListingStats } from "#db/attendees/stats.ts";
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
-import { getAllGroupNames } from "#db/groups.ts";
+import {
+  getAllGroupNames,
+  getGroupsById,
+  getListingsByGroupIds,
+} from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
@@ -41,6 +45,11 @@ import { authPageAt, formPolicyAt } from "#routes/route-gates.ts";
 import { adminLandingPath } from "#shared/admin-pages.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import {
+  groupCardsOf,
+  keepListingsInGroup,
+  showsGroupCards,
+} from "#shared/group-cards.ts";
 import { groupScopeOptions } from "#shared/ledger-scope.ts";
 import {
   attributeFilterGroupsForListings,
@@ -67,9 +76,10 @@ import {
   adminDashboardPage,
   adminListingsPage,
 } from "#templates/admin/dashboard.tsx";
+import { adminGroupCardsDashboardPage } from "#templates/admin/group-cards-dashboard.tsx";
 import type { ListingAttributeFilterView } from "#templates/admin/listing-attribute-filters.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
-import type { ListingWithCount } from "#types";
+import type { AdminSession, ListingWithCount } from "#types";
 
 export const loginResponse = async (
   request: Request,
@@ -107,6 +117,89 @@ const loadListingAttributeFilterContext = async (
   };
 };
 
+/** What both dashboards show: the listings in order, the holidays that set
+ * the order, the newest attendees, and the count of unsent notifications. */
+const loadDashboardBase = async () => {
+  const [listings, holidays, newestRaw, privateKey, pendingNotifications] =
+    await Promise.all([
+      getAllListings(),
+      getActiveHolidays(),
+      getNewestAttendeesRaw(NEWEST_ATTENDEES_LIMIT),
+      requireRequestPrivateKey(),
+      countAttendeesWithPendingFlags(),
+    ]);
+  return {
+    holidays,
+    newestAttendees: await decryptAttendees(newestRaw, privateKey),
+    pendingNotifications,
+    privateKey,
+    sortedListings: sortListings(listings, holidays),
+  };
+};
+
+type DashboardBase = Awaited<ReturnType<typeof loadDashboardBase>>;
+
+/** The group cards dashboard: each group with its listings on sale. */
+const groupCardsDashboard = async (
+  base: DashboardBase,
+  session: AdminSession,
+): Promise<Response> => {
+  const groups = [...(await getGroupsById()).values()];
+  const members = await getListingsByGroupIds(groups.map(({ id }) => id));
+  const { error, success } = getFlash();
+  return htmlResponse(
+    adminGroupCardsDashboardPage({
+      flash: { error, success },
+      groupCards: groupCardsOf({
+        groups,
+        listings: base.sortedListings,
+        members,
+      }),
+      listings: base.sortedListings,
+      newestAttendees: base.newestAttendees,
+      pendingNotifications: base.pendingNotifications,
+      session,
+    }),
+  );
+};
+
+const fullDashboard = async (
+  base: DashboardBase,
+  session: AdminSession,
+  request: Request,
+): Promise<Response> => {
+  const { error: imageError, success: successMessage } = getFlash();
+  const { sortedListings, privateKey } = base;
+  const stats = await getActiveListingStats(sortedListings);
+  const activeType = listingTypeFromRequest(request);
+  const activeListings = filter((listing: ListingWithCount) => listing.active)(
+    sortedListings,
+  );
+  const [upcomingServicingEvents, attributeContext] = await Promise.all([
+    getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
+    loadListingAttributeFilterContext(request, activeListings),
+  ]);
+  return htmlResponse(
+    adminDashboardPage(
+      sortedListings,
+      session,
+      imageError,
+      base.newestAttendees,
+      successMessage,
+      stats,
+      settings.listingColumnLayout,
+      activeType,
+      base.holidays,
+      upcomingServicingEvents,
+      attributeContext,
+      // The welcome steps are the owner's alone. Managers share the page
+      // without them.
+      session.adminLevel === "owner" && settings.welcomeEnabled,
+      base.pendingNotifications,
+    ),
+  );
+};
+
 const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
@@ -118,55 +211,14 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       if (adminLandingPath(session.adminLevel) !== "/admin") {
         return redirectResponse(adminLandingPath(session.adminLevel));
       }
-      const { error: imageError, success: successMessage } = getFlash();
-      const [listings, holidays, newestRaw, privateKey] = await Promise.all([
-        getAllListings(),
-        getActiveHolidays(),
-        getNewestAttendeesRaw(NEWEST_ATTENDEES_LIMIT),
-        requireRequestPrivateKey(),
-      ]);
-      const newestAttendees = await decryptAttendees(newestRaw, privateKey);
-      const sortedListings = sortListings(listings, holidays);
-      const stats = await getActiveListingStats(sortedListings);
-      const activeType = listingTypeFromRequest(request);
-      const activeListings = filter(
-        (listing: ListingWithCount) => listing.active,
-      )(sortedListings);
-      const [upcomingServicingEvents, attributeContext, pendingNotifications] =
-        await Promise.all([
-          getUpcomingServicingEvents(privateKey, todayInTz(settings.timezone)),
-          loadListingAttributeFilterContext(request, activeListings),
-          countAttendeesWithPendingFlags(),
-        ]);
-      return htmlResponse(
-        adminDashboardPage(
-          sortedListings,
-          session,
-          imageError,
-          newestAttendees,
-          successMessage,
-          stats,
-          settings.listingColumnLayout,
-          activeType,
-          holidays,
-          upcomingServicingEvents,
-          attributeContext,
-          // The welcome steps are the owner's alone. Managers share the page
-          // without them.
-          session.adminLevel === "owner" && settings.welcomeEnabled,
-          pendingNotifications,
-        ),
-      );
+      const base = await loadDashboardBase();
+      const view = new URL(request.url).searchParams.get("view");
+      return showsGroupCards(settings.dashboardType, view)
+        ? groupCardsDashboard(base, session)
+        : fullDashboard(base, session, request);
     },
     () => loginResponse(request),
   );
-
-/** The loaded listings that belong to the chosen group, in the loaded order. */
-const keepListingsInGroup = (
-  listings: ListingWithCount[],
-  memberIds: ReadonlySet<number>,
-): ListingWithCount[] =>
-  listings.filter((listing) => memberIds.has(listing.id));
 
 /** Editors land on this page, so it is gated to content roles (staff +
  * editor). The template renders role-aware columns and links, so editors see

@@ -445,3 +445,4 @@ src/shared/rest/field-specs.ts::closedReasonOrNull~1mg5p9w  ??→|| audited:02d9
 # validation/string.ts: the brand label exists only in the type system.
 src/shared/validation/string.ts::NonEmptyStringSchema~19qgdi8  NonEmptyString→"" audited:177e60r # valibot stores the brand label on the schema and no validation reads it, so no input behaves differently
 src/features/admin/images.ts::handleImageEditGet~07bwflp  ! → ∅ audited:0qhp2w3 # applyFlash only records the form id from the form search value, and neither the image edit form (it has no id) nor the layout reads that id for this page, so applying or skipping it gives the same page
+src/shared/receipt-replay.ts::newReceiptLegs.legs~0bk9mk3  api-receipt → "" audited:09ztsws # The label only feeds the digest that names a receipt's event. The code reads that digest for equality alone, and no other event group starts with an empty label, so each receipt still gets its own event.

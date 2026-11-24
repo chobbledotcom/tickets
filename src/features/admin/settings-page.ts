@@ -75,6 +75,7 @@ const getSettingsPageState = async () => {
     calendarFeedsEnabled: settings.calendarFeedsEnabled,
     calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
     currency: settings.currency,
+    dashboardType: settings.dashboardType,
     embedHosts: settings.embedHosts,
     enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
     expectedTax: serializeTaxPolicy(tax),

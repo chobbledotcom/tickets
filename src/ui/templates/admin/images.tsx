@@ -9,6 +9,7 @@ import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import { renderFields } from "#shared/forms/rendering.tsx";
+import { idSet } from "#shared/fp-records.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { LAZY_THUMBNAIL_FROM } from "#shared/images/picker.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
@@ -331,16 +332,11 @@ const itemImageCheckboxes = (
   </fieldset>
 );
 
-/** The set of image ids in a list — used to test membership when merging linked
- *  and unlinked images. */
-const imageIdSet = (images: readonly Image[]): Set<number> =>
-  new Set(images.map((image) => image.id));
-
 const itemImageOptions = (
   allImages: readonly Image[],
   linkedImages: readonly Image[],
 ): Image[] => {
-  const linkedIds = imageIdSet(linkedImages);
+  const linkedIds = idSet(linkedImages);
   return [
     ...linkedImages,
     ...allImages.filter((image) => !linkedIds.has(image.id)),
@@ -363,7 +359,7 @@ export const ItemImagesPanel = ({
       </>
     );
   }
-  const selectedIds = imageIdSet(linkedImages);
+  const selectedIds = idSet(linkedImages);
   return (
     <>
       <Flash error={error} />

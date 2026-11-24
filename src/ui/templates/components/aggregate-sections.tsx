@@ -180,29 +180,6 @@ export const ItemCheckboxList = <T extends { id: number; name: string }>({
     />
   ));
 
-export const CheckboxesFieldset = <T extends { id: number; name: string }>({
-  fieldName,
-  noneMessage,
-  options,
-  selected,
-}: {
-  fieldName: string;
-  noneMessage: string;
-  options: T[];
-  selected: number[];
-}): JSX.Element =>
-  options.length === 0 ? (
-    <p>{noneMessage}</p>
-  ) : (
-    <fieldset class="checkboxes">
-      <ItemCheckboxList
-        checkedIds={new Set(selected)}
-        items={options}
-        name={fieldName}
-      />
-    </fieldset>
-  );
-
 export const CheckboxForm = saveFormComponent<{
   action: string;
   children: Child;

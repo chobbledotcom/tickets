@@ -11,6 +11,7 @@
 import type { KeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { recordSettingRead } from "#db/settings-audit.ts";
 import { DEFAULT_COUNTRY } from "#shared/countries.ts";
+import type { DashboardType } from "#shared/group-cards.ts";
 import { DEFAULT_ORPHAN_RETENTION } from "#shared/orphan-retention.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import {
@@ -59,6 +60,7 @@ type SpecificFields = {
   external_order_enabled: boolean;
   calendar_feeds_enabled: boolean;
   calendar_feeds_group_by: string;
+  dashboard_type: DashboardType;
   listing_mode: "text" | "image";
   contact_form_enabled: boolean;
   custom_css_bunny_fonts: boolean;
@@ -89,6 +91,7 @@ export const data: SettingsData = {
   country: DEFAULT_COUNTRY,
   currency: "GBP",
   custom_css_bunny_fonts: false,
+  dashboard_type: "listings",
   external_order_enabled: false,
   listing_mode: "text",
   order_enabled: false,

@@ -120,6 +120,30 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "Site theme",
   }),
   definition({
+    action: "/admin/settings/dashboard-type",
+    copy: {
+      descriptionKey: "settings.dashboard_type_hint",
+      submitLabelKey: "settings.save_dashboard_type",
+      titleKey: "settings.dashboard_type",
+    },
+    fields: [
+      {
+        fieldName: "dashboardType",
+        kind: "radios",
+        options: [
+          { labelKey: "settings.dashboard_type_listings", value: "listings" },
+          { labelKey: "settings.dashboard_type_groups", value: "groups" },
+        ],
+        stateField: "dashboardType",
+      },
+    ],
+    formId: "settings-dashboard-type",
+    kind: "fields",
+    name: "dashboardType",
+    page: "main",
+    routeLabel: "Dashboard type",
+  }),
+  definition({
     action: "/admin/settings/calendar-feeds",
     copy: {
       descriptionHtml: true,

@@ -85,6 +85,14 @@ const EXPECTED_FORM_ROWS = [
     "Site theme",
   ),
   multi(
+    "dashboardType",
+    "main",
+    "/admin/settings/dashboard-type",
+    "settings-dashboard-type",
+    ["dashboardType"],
+    "Dashboard type",
+  ),
+  multi(
     "calendarFeeds",
     "main",
     "/admin/settings/calendar-feeds",

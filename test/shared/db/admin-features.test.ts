@@ -346,16 +346,18 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   });
 
   test("rolls back a feature record when the stored feature setting is invalid", async () => {
-    await execute(
-      sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${'{"attributes":"false"}'})`,
-    );
+    for (const stored of ["not json", "[]", '{"attributes":"false"}']) {
+      await execute(
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${stored})`,
+      );
 
-    await expect(
-      execute(sql`INSERT INTO attributes (name) VALUES ('Level')`),
-    ).rejects.toThrow("enabled feature setting is invalid");
-    expect(
-      await queryOne(sql`SELECT id FROM attributes WHERE name = 'Level'`),
-    ).toBeNull();
+      await expect(
+        execute(sql`INSERT INTO attributes (name) VALUES ('Level')`),
+      ).rejects.toThrow("enabled feature setting is invalid");
+      expect(
+        await queryOne(sql`SELECT id FROM attributes WHERE name = 'Level'`),
+      ).toBeNull();
+    }
   });
 
   test("rolls back Logistics cleanup when the stored feature setting is invalid", async () => {
@@ -364,7 +366,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       usesLogistics: true,
     });
     const defaultsBefore = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
-    const featuresBefore = '{"logistics":"true"}';
+    const featuresBefore = '{"attributes":"false","logistics":"true"}';
     await execute(
       sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${featuresBefore})`,
     );

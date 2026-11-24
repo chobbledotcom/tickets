@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { occurrencesIn } from "#fp-strings";
-import { refusalOf, withoutKey } from "#shared/fp-records.ts";
+import { idSet, refusalOf, withoutKey } from "#shared/fp-records.ts";
 
 describe("withoutKey", () => {
   test("copies the record with the one key left out", () => {
@@ -42,5 +42,17 @@ describe("occurrencesIn", () => {
     expect(
       occurrencesIn("b-a-c-a", (item: string) => item, 3)(["a", "b"]),
     ).toEqual([{ at: 6, item: "a" }]);
+  });
+});
+
+describe("idSet", () => {
+  test("holds each item's id once", () => {
+    const rows = [{ id: 7 }, { id: 2 }, { id: 7 }];
+    expect([...idSet(rows)]).toEqual([7, 2]);
+  });
+
+  test("reads ids from any iterable", () => {
+    const rows = new Map([["a", { id: "x" }]]).values();
+    expect([...idSet(rows)]).toEqual(["x"]);
   });
 });

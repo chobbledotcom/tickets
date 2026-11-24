@@ -525,16 +525,6 @@
       "fields": ["toString"]
     }
   ],
-  "src/shared/ledger/reconcile.ts": [
-    {
-      "path": [{ "name": "LegDiscrepancy" }],
-      "fields": ["eventGroup", "missing", "unexpected"]
-    },
-    {
-      "path": [{ "name": "ReconcileResult" }],
-      "fields": ["actual", "diff", "expected", "ok"]
-    }
-  ],
   "src/shared/ledger/types.ts": [
     {
       "path": [{ "name": "LedgerError" }],
