@@ -3,7 +3,9 @@
  */
 
 import { t } from "#i18n";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import type { ListingMode } from "#shared/listing-mode.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
@@ -62,6 +64,9 @@ export type AdvancedSettingsPageState = {
   logisticsRunSheetHeading: string;
   existingPaymentProvider: PaymentProviderType | null;
   paymentProviderRecoveryNeeded: boolean;
+  /** How many redirects exist. A stored setting gives it, so the page reads
+   *  no table. */
+  redirectCount: number;
   smsGatewayUsername: string;
   smsGatewayBaseUrl: string;
   smsGatewayPasswordConfigured: boolean;
@@ -69,6 +74,20 @@ export type AdvancedSettingsPageState = {
   smsGatewayWebhookConfigured: boolean;
   scheduledTaskKey: string | undefined;
 };
+
+/** One titled note of plain paragraphs. */
+const Note = ({
+  children,
+  title,
+}: {
+  children: Child;
+  title: string;
+}): JSX.Element => (
+  <article class="prose">
+    <h2>{title}</h2>
+    {children}
+  </article>
+);
 
 export const adminAdvancedSettingsPage = (
   session: AdminSession,
@@ -101,16 +120,26 @@ export const adminAdvancedSettingsPage = (
       {AppleWalletForm(s)}
       {SmsGatewayForm(s)}
       {settingsForm(SETTINGS_FORMS.addressLookup, s)}
+      <Note title={t("settings.advanced.redirects_title")}>
+        <p>{t("settings.advanced.redirects_intro")}</p>
+        <p>
+          {t("settings.advanced.redirects_count", { count: s.redirectCount })}
+        </p>
+        <p>
+          <a href={adminPattern("redirects")}>
+            {t("settings.advanced.redirects_link")}
+          </a>
+        </p>
+      </Note>
 
-      <article class="prose">
-        <h2>{t("settings.advanced.scheduled_title")}</h2>
+      <Note title={t("settings.advanced.scheduled_title")}>
         <p>{t("settings.advanced.scheduled_intro")}</p>
         {s.scheduledTaskKey ? (
           <code>{s.scheduledTaskKey}</code>
         ) : (
           <p>{t("settings.advanced.scheduled_unset")}</p>
         )}
-      </article>
+      </Note>
 
       <ResetDatabaseForm
         action="/admin/settings/reset-database"

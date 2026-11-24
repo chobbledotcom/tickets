@@ -5,6 +5,7 @@
  */
 
 import { getAdminFeatureUsage } from "#db/admin-features.ts";
+import { redirectCount } from "#db/redirects.ts";
 import { serializeTaxPolicy } from "#db/settings/tax.ts";
 import { settings } from "#db/settings.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -160,6 +161,7 @@ const getAdvancedSettingsPageState = async (
     logisticsRunSheetHeading: settings.logisticsRunSheetHeading,
     paymentProviderRecoveryNeeded:
       existingPaymentProvider.recoveryChoices.length > 0,
+    redirectCount: redirectCount(),
     scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV),
     showPublicApi: settings.showPublicApi,
     smsGatewayBaseUrl: settings.smsGatewayBaseUrl,

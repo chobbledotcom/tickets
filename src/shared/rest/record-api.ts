@@ -15,7 +15,9 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   type AdminApiChild,
   type AdminApiResource,
+  type AdminApiServes,
   adminApiIdParam,
+  adminApiServes,
 } from "#shared/admin-api-resources.ts";
 import { snakeCaseKeys } from "#shared/column-names.ts";
 import type {
@@ -45,7 +47,7 @@ import {
   type WriteVerdict,
 } from "#shared/rest/record.ts";
 import { gatedByFeature } from "#shared/rest/resource-feature.ts";
-import type { Result } from "#shared/result.ts";
+import type { AsyncResult, Result } from "#shared/result.ts";
 import type { AdminLevel, AdminSession } from "#types";
 
 /** The five standard routes a record's JSON surface serves. An override
@@ -68,7 +70,8 @@ export type RecordApiConfig<
     WriteBody<Entry["createBodySchema"]>,
     null
   >;
-  toUpdateInput: WriteMapper<
+  /** Absent for a record that no body edits. It then serves no update route. */
+  toUpdateInput?: WriteMapper<
     InputOf<Shape>,
     WriteBody<Entry["updateBodySchema"]>,
     FullRowOf<Shape>
@@ -277,34 +280,23 @@ export const recordApi = <
         }
       : undefined;
 
-  /** The write input: the entry's schema validates the raw body, then the
-   *  record's mapper produces the input. */
-  const writeInput = (
-    { body, existing }: SubmittedRow,
-    session: AdminSession,
-  ): Result<InputOf<Shape>> | Promise<Result<InputOf<Shape>>> => {
-    const schema =
-      existing === null ? entry.createBodySchema : entry.updateBodySchema;
+  /** The write input of one body: the schema validates the raw body, then the
+   *  record's mapper produces the input. An entry with no schema keeps the
+   *  body as sent. */
+  const inputOf = (
+    schema: AdminApiResource["createBodySchema"],
+    body: Record<string, unknown>,
+    toInput: (parsed: unknown) => AsyncResult<InputOf<Shape>>,
+  ): AsyncResult<InputOf<Shape>> => {
     const parsed: Result<unknown> =
       schema === undefined
         ? { ok: true, value: body }
         : parseApiBody(schema, body);
-    if (!parsed.ok) return parsed;
-    return existing === null
-      ? config.toCreateInput(
-          parsed.value as WriteBody<Entry["createBodySchema"]>,
-          null,
-          session,
-        )
-      : config.toUpdateInput(
-          parsed.value as WriteBody<Entry["updateBodySchema"]>,
-          existing,
-          session,
-        );
+    return parsed.ok ? toInput(parsed.value) : parsed;
   };
 
   const validatedInput = async (
-    raw: Result<InputOf<Shape>> | Promise<Result<InputOf<Shape>>>,
+    raw: AsyncResult<InputOf<Shape>>,
   ): Promise<{ response: Response } | { input: InputOf<Shape> }> => {
     const result = await parseAndValidate(raw);
     if (!result.ok) return { response: result.response };
@@ -319,41 +311,38 @@ export const recordApi = <
       ? apiErrorResponse(verdict.message)
       : apiErrorResponse(`${singular} not found`, 404);
 
-  /** Answer one written row, or its failure. */
-  const answerWrite = async (
-    verdict: WriteVerdict<FullRowOf<Shape>>,
+  /** Validate one write input, run the write, and answer its verdict. */
+  const runValidatedWrite = async (
+    raw: AsyncResult<InputOf<Shape>>,
+    write: (input: InputOf<Shape>) => Promise<WriteVerdict<FullRowOf<Shape>>>,
     status: number,
     session: AuthSession,
-  ): Promise<Response> =>
-    verdict.kind === "written"
+  ): Promise<Response> => {
+    const validated = await validatedInput(raw);
+    if ("response" in validated) return validated.response;
+    const verdict = await write(validated.input);
+    return verdict.kind === "written"
       ? respondWithRow(verdict.row, status, session)
       : failureResponse(verdict);
-
-  const runValidatedWrite = async (
-    request: SubmittedRow & { session: AuthSession },
-    write: (input: InputOf<Shape>) => Promise<Response>,
-  ): Promise<Response> => {
-    const validated = await validatedInput(
-      writeInput(
-        { body: request.body, existing: request.existing },
-        request.session,
-      ),
-    );
-    return "response" in validated
-      ? validated.response
-      : write(validated.input);
   };
 
   const handleCreate: RouteHandlerFn = (request) =>
-    withAuth(request, readPolicy, async (session, body) =>
-      runValidatedWrite({ body, existing: null, session }, async (input) => {
-        const verdict = await record.create(
-          input,
-          writePlan({ body, existing: null }),
-          { session },
-        );
-        return answerWrite(verdict, 201, session);
-      }),
+    withAuth(request, readPolicy, (session, body) =>
+      runValidatedWrite(
+        inputOf(entry.createBodySchema, body, (parsed) =>
+          config.toCreateInput(
+            parsed as WriteBody<Entry["createBodySchema"]>,
+            null,
+            session,
+          ),
+        ),
+        (input) =>
+          record.create(input, writePlan({ body, existing: null }), {
+            session,
+          }),
+        201,
+        session,
+      ),
     );
 
   const paramName = adminApiIdParam(singular);
@@ -385,17 +374,24 @@ export const recordApi = <
     jsonResponse({ [responseKey]: await toResponse(row, session) }),
   );
 
-  const handleUpdate = entityRoute(async (existing, session, body, id) =>
-    runValidatedWrite({ body, existing, session }, async (input) => {
-      const verdict = await record.update(
-        id,
-        input,
-        writePlan({ body, existing }),
-        { session },
-      );
-      return answerWrite(verdict, 200, session);
-    }),
-  );
+  const handleUpdate = (
+    toUpdateInput: NonNullable<typeof config.toUpdateInput>,
+  ) =>
+    entityRoute((existing, session, body, id) =>
+      runValidatedWrite(
+        inputOf(entry.updateBodySchema, body, (parsed) =>
+          toUpdateInput(
+            parsed as WriteBody<Entry["updateBodySchema"]>,
+            existing,
+            session,
+          ),
+        ),
+        (input) =>
+          record.update(id, input, writePlan({ body, existing }), { session }),
+        200,
+        session,
+      ),
+    );
 
   const handleDelete = entityRoute(async (existing, session, body, id) => {
     const error = verifyIdentifierOrJsonError(
@@ -433,22 +429,34 @@ export const recordApi = <
     return routes;
   };
 
-  const standard = apiHandlerSet(
-    handleCreate,
-    handleDelete,
-    handleGet,
-    handleList,
-    handleUpdate,
-  );
   const routes = config.overrides ?? {};
+  // A record that no body edits gives no update mapper, so it has no handler.
+  const updateHandler =
+    routes.update ??
+    (config.toUpdateInput === undefined
+      ? undefined
+      : handleUpdate(config.toUpdateInput));
+  const standard: [keyof AdminApiServes, string, RouteHandlerFn | undefined][] =
+    [
+      ["list", `GET /api/admin/${name}`, routes.list ?? handleList],
+      ["get", `GET /api/admin/${name}/:${paramName}`, routes.get ?? handleGet],
+      ["create", `POST /api/admin/${name}`, routes.create ?? handleCreate],
+      ["update", `PUT /api/admin/${name}/:${paramName}`, updateHandler],
+      [
+        "delete",
+        `DELETE /api/admin/${name}/:${paramName}`,
+        routes.delete ?? handleDelete,
+      ],
+    ];
 
   return gatedByFeature(entry, {
-    [`GET /api/admin/${name}`]: routes.list ?? standard.list,
-    [`GET /api/admin/${name}/:${paramName}`]: routes.get ?? standard.get,
-    [`POST /api/admin/${name}`]: routes.create ?? standard.create,
-    [`PUT /api/admin/${name}/:${paramName}`]: routes.update ?? standard.update,
-    [`DELETE /api/admin/${name}/:${paramName}`]:
-      routes.delete ?? standard.delete,
+    ...Object.fromEntries(
+      standard.flatMap(([verb, route, handler]) =>
+        handler !== undefined && adminApiServes(entry, verb)
+          ? [[route, handler] as const]
+          : [],
+      ),
+    ),
     ...declaredRoutes(),
   });
 };
