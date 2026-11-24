@@ -3,21 +3,16 @@
  * renewal, a settled balance and a payment that the owner recorded all arrive
  * this way. */
 
-import { ATTENDEE, WORLD } from "#accounting/accounts.ts";
+import { ATTENDEE } from "#accounting/accounts.ts";
+import { readMeasuresByAccount } from "#accounting/measure-reads.ts";
 import {
-  every,
-  type Leg,
-  type LegTest,
-  ledgerLegs,
-  onSide,
-  type Role,
-  sideAmong,
-  signedSum,
+  type AccountId,
+  countOf,
+  externalCashOf,
+  largestOf,
+  oneAccount,
+  paidIn,
 } from "#accounting/projection-sql.ts";
-import { readRows } from "#db/read.ts";
-import { literal, or, sum, valued, when } from "#db/select/expression.ts";
-import { sql } from "#db/sql.ts";
-import { requireValue } from "#shared/required-value.ts";
 import { epochMsToIso } from "#shared/validation/timestamp.ts";
 
 /** How many payments reached one attendee, the total less refunds, and the
@@ -29,53 +24,28 @@ export type PaymentSummary = {
   total: number;
 };
 
-const NO_PAYMENTS: PaymentSummary = { count: 0, lastPaidAt: null, total: 0 };
+const paymentMeasures = (id: AccountId) => {
+  const attendee = oneAccount(ATTENDEE, id);
+  return {
+    count: countOf(paidIn(attendee)),
+    lastPaidAt: largestOf(paidIn(attendee), (leg) => leg.occurredAt),
+    total: externalCashOf(attendee),
+  };
+};
 
-const world = (role: Role): LegTest => onSide(role, WORLD.type, WORLD.id);
-
-/** The payment summary of each attendee in `attendeeIds`, keyed by id. A
- * refund returns money that a payment brought in, so every attendee with a
- * refund also has a payment. */
+/** The payment summary of each attendee in `attendeeIds`, keyed by id. */
 export const paymentSummaries = async (
   attendeeIds: readonly number[],
 ): Promise<Map<number, PaymentSummary>> => {
-  const ids = attendeeIds.map(String);
-  const attendees = (role: Role) => sideAmong(role, literal(ATTENDEE), ids);
-  const paid = every(world("source"), attendees("dest"));
-  const refunded = every(attendees("source"), world("dest"));
-  const attendeeOf = (leg: Leg) =>
-    when<string>([[paid(leg), leg.destId]], leg.sourceId);
-  const rows = await readRows(
-    ledgerLegs()
-      .where((leg) => or(paid(leg), refunded(leg)))
-      .groupBy((leg) => [attendeeOf(leg)])
-      .select((leg) => ({
-        attendee_id: attendeeOf(leg),
-        count: sum(when<number>([[paid(leg), literal(1)]], literal(0))),
-        last_paid_at: valued<number | null>(
-          sql`MAX(CASE WHEN ${paid(leg)} THEN ${leg.occurredAt} END)`,
-        ),
-        total: signedSum(paid, refunded)(leg),
-      })),
-  );
-  const summaries = new Map(
-    rows.map((row): [number, PaymentSummary] => [
-      Number(row.attendee_id),
+  const read = await readMeasuresByAccount(attendeeIds, paymentMeasures);
+  return new Map(
+    [...read].map(([id, { count, lastPaidAt, total }]) => [
+      id,
       {
-        count: Number(row.count),
-        lastPaidAt: epochMsToIso(
-          Number(
-            requireValue(
-              row.last_paid_at,
-              `Attendee ${row.attendee_id} has a refund but no payment`,
-            ),
-          ),
-        ),
-        total: Number(row.total),
+        count,
+        lastPaidAt: lastPaidAt === null ? null : epochMsToIso(lastPaidAt),
+        total,
       },
     ]),
-  );
-  return new Map(
-    attendeeIds.map((id) => [id, summaries.get(id) ?? NO_PAYMENTS]),
   );
 };

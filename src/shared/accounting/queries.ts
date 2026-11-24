@@ -21,17 +21,20 @@ import {
 } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_LISTING_INCOME } from "#accounting/manual-entries.ts";
+import { readMeasures } from "#accounting/measure-reads.ts";
 import {
   accountBalanceSubquery,
+  accountsAmong,
   attendeeOwedSubquery,
+  balanceIn,
   creditsLessWriteoffDebits,
   type Leg,
   type LegTest,
   ledgerLegs,
   modifierLeg,
-  onSide,
-  sideAmong,
+  oneAccount,
   signedSum,
+  touching,
 } from "#accounting/projection-sql.ts";
 import {
   LEDGER_ROW,
@@ -90,13 +93,13 @@ type Side = "source" | "dest";
 const accountsScope = (accounts: readonly AccountRef[]): SqlStatement =>
   or(
     ...[...Map.groupBy(accounts, ({ type }) => type)].flatMap(
-      ([type, sameType]) => {
-        const ids = sameType.map(({ id }) => id);
-        return [
-          sideAmong("source", type, ids)(LEDGER_ROW),
-          sideAmong("dest", type, ids)(LEDGER_ROW),
-        ];
-      },
+      ([type, sameType]) =>
+        touching(
+          accountsAmong(
+            type,
+            sameType.map(({ id }) => id),
+          ),
+        )(LEDGER_ROW),
     ),
   );
 
@@ -189,16 +192,6 @@ const VISIBLE_TRANSFER_SCOPE = wholeCondition(
   sql`(source_type != ${sqlLiteral(EXTERNAL)} AND dest_type != ${sqlLiteral(EXTERNAL)} OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = ${sqlLiteral(KIND.serviceCost)})`,
 );
 
-/** The row has an account of `type` with one of `ids` on some side. The type
- *  is a constant of the code. */
-const touchesAccounts =
-  (type: string, ids: readonly string[]): LegTest =>
-  (leg) =>
-    or(
-      sideAmong("dest", literal(type), ids)(leg),
-      sideAmong("source", literal(type), ids)(leg),
-    );
-
 /** The legs that touch the revenue account or the cost account of one of
  *  these listings, for the by-listing filter. A null keeps every leg. A
  *  service cost leg sits on the cost account, so both types are read. An
@@ -209,8 +202,8 @@ const listingLegScope =
     if (listingIds === null) return true;
     const ids = listingIds.map((id) => String(id));
     return or(
-      touchesAccounts(REVENUE, ids)(leg),
-      touchesAccounts(COST, ids)(leg),
+      touching(accountsAmong(literal(REVENUE), ids))(leg),
+      touching(accountsAmong(literal(COST), ids))(leg),
     );
   };
 
@@ -319,58 +312,11 @@ export const ledgerTotals = async (
   };
 };
 
-type BalanceRow = { id: string; balance: number | bigint };
-
-/** Net balances grouped by account id. Each transfer counts as +amount for its
- *  destination and -amount for its source. `whereDest`/`whereSource` pick which
- *  accounts to include. This one query backs every balance read below. */
-const groupedBalances = (
-  whereDest: LegTest,
-  whereSource: LegTest,
-): Promise<BalanceRow[]> =>
-  queryAll<BalanceRow>(
-    sql`SELECT id, COALESCE(SUM(delta), 0) AS balance FROM (
-       SELECT ${LEDGER_ROW.destId} AS id, amount AS delta FROM transfers AS transfer WHERE ${whereDest(LEDGER_ROW)}
-       UNION ALL
-       SELECT ${LEDGER_ROW.sourceId} AS id, -amount AS delta FROM transfers AS transfer WHERE ${whereSource(LEDGER_ROW)}
-     ) GROUP BY id`,
-  );
-
-const toBalanceMap = (rows: BalanceRow[]): Map<string, number> =>
-  new Map(rows.map((row) => [row.id, Number(row.balance)]));
-
-/**
- * Balance of each given account id of one type, in a single query — for a page
- * of attendees/listings rather than the whole type. An empty id list is a no-op
- * (no query). Ids absent from the result have balance 0.
- */
-export const accountBalancesForIds = async (
-  type: string,
-  ids: readonly string[],
-): Promise<Map<string, number>> => {
-  if (ids.length === 0) return new Map();
-  return toBalanceMap(
-    await groupedBalances(
-      sideAmong("dest", type, ids),
-      sideAmong("source", type, ids),
-    ),
-  );
-};
-
-/** Balance of one account: money in (as destination) minus money out (as
- *  source), summed in SQL. Zero when the account has no transfers. This is a
- *  direct scalar read rather than the grouped many-account query, so it shares
- *  the side test that the projections use. */
-export const accountBalance = async (acct: AccountRef): Promise<number> => {
-  const asDest = onSide("dest", acct.type, acct.id);
-  const asSource = onSide("source", acct.type, acct.id);
-  const row = await requireOne(
-    ledgerLegs()
-      .where((leg) => or(asDest(leg), asSource(leg)))
-      .select((leg) => ({ balance: signedSum(asDest, asSource)(leg) })),
-  );
-  return Number(row.balance);
-};
+/** Balance of one account: money in as the destination, less money out as
+ *  the source. Zero when the account has no transfers. */
+export const accountBalance = async (acct: AccountRef): Promise<number> =>
+  (await readMeasures({ balance: balanceIn(oneAccount(acct.type, acct.id)) }))
+    .balance;
 
 /**
  * Read a single projected money figure (a scalar `transfers` subquery) THROUGH an

@@ -13,7 +13,8 @@
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { asOrderLegs, mapBooking, mapRefund } from "#accounting/mappers.ts";
-import { accountBalancesForIds } from "#accounting/queries.ts";
+import { readMeasuresByAccount } from "#accounting/measure-reads.ts";
+import { countOf, oneAccount, touching } from "#accounting/projection-sql.ts";
 import { insertIfNewStatements } from "#accounting/rows.ts";
 import { executeBatch, queryAll, queryIdColumn } from "#db/client.ts";
 import {
@@ -49,7 +50,8 @@ type PaidRow = {
  * the isolate evicted mid-run. The lock stayed held, and every request 503ed.
  *
  * The ceiling is libsql's 32766 bound-variable limit. {@link alreadyLedgered}
- * lists a page's ids twice, so a page holds at most ~16k attendees. 5000 leaves
+ * binds each id of a page once, and the row read binds it once more, so a
+ * page holds at most ~16k attendees. 5000 leaves
  * wide margin and still clears a 100k-attendee site in ~20 round-trips.
  */
 const ATTENDEE_PAGE = 5000;
@@ -71,9 +73,15 @@ const paidRowsForAttendees = (ids: number[]): Promise<PaidRow[]> =>
 
 /** The ids, among `ids`, whose attendee account already holds ledger legs — a
  *  booking the live dual-write path recorded, which the backfill must not
- *  repost. An account appears in the balance map iff it has at least one leg. */
-const alreadyLedgered = async (ids: number[]): Promise<Set<string>> =>
-  new Set((await accountBalancesForIds(ATTENDEE, ids.map(String))).keys());
+ *  repost. */
+const alreadyLedgered = async (ids: number[]): Promise<Set<string>> => {
+  const legs = await readMeasuresByAccount(ids, (id) => ({
+    legs: countOf(touching(oneAccount(ATTENDEE, id))),
+  }));
+  return new Set(
+    [...legs].filter(([, row]) => row.legs > 0).map(([id]) => String(id)),
+  );
+};
 
 /** Build the booking — and, when refunded, refund — legs for one attendee. */
 const attendeeLegs = async (
