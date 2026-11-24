@@ -6,7 +6,7 @@
  * row is read and rewritten directly, because no page shows what it holds. */
 
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import {
   openCheckoutBundle,
   rewriteCheckoutBundle,
@@ -14,12 +14,11 @@ import {
 import { requireValue } from "#shared/required-value.ts";
 import {
   type CardShop,
-  checkOut,
   deliverPayment,
-  openCardShop,
   returnPage,
   rosterOf,
   THANK_YOU_URL,
+  useCardShop,
 } from "#test/blackbox/card-shop.ts";
 import type { FakeCheckout } from "#test/blackbox/fake-stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -55,95 +54,148 @@ const receiptOf = (shop: CardShop) => ({
   items: JSON.stringify([{ e: shop.listing.id, p: 2000, q: 2 }]),
 });
 
-describeWithEnv("a settled sealed checkout order", { db: true }, () => {
-  let shop: CardShop | undefined;
-  const open = async () => {
-    shop = await openCardShop();
-    return shop;
-  };
-  afterEach(async () => {
-    await shop?.fake.close();
-    shop = undefined;
+/** The listing stops taking bookings and Stripe turns refunds down, so a
+ * paid callback can neither book nor return the money. */
+const blockBookingAndRefund = async (shop: CardShop) => {
+  await shop.api.put(`/api/admin/listings/${shop.listing.id}`, {
+    active: false,
   });
+  shop.fake.refuseRefunds();
+};
 
-  /** The listing stops taking bookings and Stripe turns refunds down, so a
-   * paid callback can neither book nor return the money. */
-  const blockBookingAndRefund = async (opened: CardShop) => {
-    await opened.api.put(`/api/admin/listings/${opened.listing.id}`, {
-      active: false,
-    });
-    opened.fake.refuseRefunds();
-  };
+/** One way a checkout's callbacks can go: the work before the callbacks,
+ * the callbacks, and what is left. `refunded` lists the amount of each
+ * refund. A null `booked` means that the case does not read the roster.
+ * `failsLoudly` marks a case whose callback logs an error on purpose. */
+type Outcome = {
+  readonly before?: (shop: CardShop, checkout: FakeCheckout) => Promise<void>;
+  readonly deliver: (
+    shop: CardShop,
+    checkout: FakeCheckout,
+  ) => Promise<Response[]>;
+  readonly statuses: readonly number[];
+  readonly refunded: readonly number[];
+  readonly keeps: "order" | "receipt";
+  readonly booked: readonly [string, number][] | null;
+  readonly failsLoudly?: true;
+};
 
-  test("a checkout keeps the whole order until its session is settled", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+const BOOKED: [string, number][] = [["Sealed Buyer", 2]];
 
-    expect(await stored(checkout)).toEqual(holding(orderOf(opened)));
-  });
+const once =
+  (options?: Parameters<typeof deliverPayment>[2]) =>
+  async (shop: CardShop, checkout: FakeCheckout) => [
+    await deliverPayment(shop, checkout, options),
+  ];
 
-  test("a booked session keeps only a receipt with no personal details", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
-
-    expect((await deliverPayment(opened, checkout)).status).toBe(200);
-
-    expect(await stored(checkout)).toEqual(holding(receiptOf(opened)));
-    expect(await rosterOf(opened)).toEqual([["Sealed Buyer", 2]]);
-  });
-
-  test("a session that ends refunded keeps only a receipt", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
-
-    expect(
-      (await deliverPayment(opened, checkout, { charged: 1999 })).status,
-    ).toBe(200);
-
-    expect(opened.fake.refunds).toEqual([
-      { amount: 1999, paymentIntent: checkout.paymentIntent },
-    ]);
-    expect(await stored(checkout)).toEqual(holding(receiptOf(opened)));
-  });
-
-  test("a refund that Stripe turns down keeps the whole order for the retry", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
-    await blockBookingAndRefund(opened);
-    using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
-
-    const answer = await deliverPayment(opened, checkout);
-
-    expect(answer.status).toBe(503);
-    expect(opened.fake.refunds).toEqual([
-      { amount: 2000, paymentIntent: checkout.paymentIntent },
-    ]);
-    expect(await stored(checkout)).toEqual(holding(orderOf(opened)));
-    expect(await rosterOf(opened)).toEqual([]);
-  });
-
-  test("a second callback that arrives while the first is at work leaves the whole order", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
-    await blockBookingAndRefund(opened);
-    using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
-
-    const answers = await Promise.all([
-      deliverPayment(opened, checkout),
-      deliverPayment(opened, checkout),
-    ]);
-
+const OUTCOMES: [string, Outcome][] = [
+  [
+    "a checkout with no callback keeps the whole order",
+    {
+      booked: null,
+      deliver: async () => [],
+      keeps: "order",
+      refunded: [],
+      statuses: [],
+    },
+  ],
+  [
+    "a booked session keeps only a receipt with no personal details",
+    {
+      booked: BOOKED,
+      deliver: once(),
+      keeps: "receipt",
+      refunded: [],
+      statuses: [200],
+    },
+  ],
+  [
+    "a session that ends refunded keeps only a receipt",
+    {
+      booked: null,
+      deliver: once({ charged: 1999 }),
+      keeps: "receipt",
+      refunded: [1999],
+      statuses: [200],
+    },
+  ],
+  [
+    "a refund that Stripe turns down keeps the whole order for the retry",
+    {
+      before: blockBookingAndRefund,
+      booked: [],
+      deliver: once(),
+      failsLoudly: true,
+      keeps: "order",
+      refunded: [2000],
+      statuses: [503],
+    },
+  ],
+  [
     // One callback holds the session and fails. The other is told to wait.
-    expect(answers.map((answer) => answer.status).toSorted()).toEqual([
-      409, 503,
-    ]);
-    expect(opened.fake.refunds).toHaveLength(1);
-    expect(await stored(checkout)).toEqual(holding(orderOf(opened)));
-  });
+    "a second callback that arrives while the first is at work leaves the whole order",
+    {
+      before: blockBookingAndRefund,
+      booked: null,
+      deliver: (shop, checkout) =>
+        Promise.all([
+          deliverPayment(shop, checkout),
+          deliverPayment(shop, checkout),
+        ]),
+      failsLoudly: true,
+      keeps: "order",
+      refunded: [2000],
+      statuses: [409, 503],
+    },
+  ],
+  [
+    "a replay writes the receipt that the first delivery failed to write",
+    {
+      before: async (shop, checkout) => {
+        await deliverPayment(shop, checkout);
+        await rewriteCheckoutBundle(tokenOf(checkout), orderOf(shop));
+      },
+      booked: BOOKED,
+      deliver: once(),
+      keeps: "receipt",
+      refunded: [],
+      statuses: [200],
+    },
+  ],
+];
+
+describeWithEnv("a settled sealed checkout order", { db: true }, () => {
+  const { checkedOut } = useCardShop();
+
+  for (const [name, outcome] of OUTCOMES) {
+    test(name, async () => {
+      const { checkout, opened } = await checkedOut();
+      await outcome.before?.(opened, checkout);
+      using _env = withEnv(
+        outcome.failsLoudly ? { TEST_EXPECT_ERROR: "1" } : {},
+      );
+
+      const answers = await outcome.deliver(opened, checkout);
+
+      expect(answers.map(({ status }) => status).toSorted()).toEqual(
+        outcome.statuses,
+      );
+      expect(opened.fake.refunds).toEqual(
+        outcome.refunded.map((amount) => ({
+          amount,
+          paymentIntent: checkout.paymentIntent,
+        })),
+      );
+      const kept = outcome.keeps === "order" ? orderOf : receiptOf;
+      expect(await stored(checkout)).toEqual(holding(kept(opened)));
+      if (outcome.booked !== null) {
+        expect(await rosterOf(opened)).toEqual(outcome.booked);
+      }
+    });
+  }
 
   test("the receipt keeps the order's own thank-you link, and the return page offers it", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
     await rewriteCheckoutBundle(tokenOf(checkout), {
       ...orderOf(opened),
       thank_you_url: OWN_THANKS,
@@ -164,8 +216,7 @@ describeWithEnv("a settled sealed checkout order", { db: true }, () => {
   });
 
   test("the return page after the webhook booked still offers the listing's thank-you link", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
     await deliverPayment(opened, checkout);
 
     const sent = await returnPage(checkout);
@@ -173,17 +224,5 @@ describeWithEnv("a settled sealed checkout order", { db: true }, () => {
 
     expect(sent.status).toBe(302);
     expect(page.html).toContain(`href="${THANK_YOU_URL}"`);
-  });
-
-  test("a replay writes the receipt that the first delivery failed to write", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
-    await deliverPayment(opened, checkout);
-    await rewriteCheckoutBundle(tokenOf(checkout), orderOf(opened));
-
-    await deliverPayment(opened, checkout);
-
-    expect(await stored(checkout)).toEqual(holding(receiptOf(opened)));
-    expect(await rosterOf(opened)).toEqual([["Sealed Buyer", 2]]);
   });
 });
