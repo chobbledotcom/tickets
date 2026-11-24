@@ -219,19 +219,15 @@ const resourceFieldDocs = (
     return specFieldDocs(declared.fields, declared.extras, closed);
   }
   const { createBodySchema, updateBodySchema } = entry;
-  const missing = new Error(
-    `${entry.label} has no declared field list and no body schemas`,
-  );
-  if (createBodySchema === undefined) throw missing;
-  if (updateBodySchema !== undefined) {
-    return {
-      create: schemaRows(createBodySchema),
-      update: schemaRows(updateBodySchema),
-    };
+  if (createBodySchema === undefined || updateBodySchema === undefined) {
+    throw new Error(
+      `${entry.label} has no declared field list and no body schemas`,
+    );
   }
-  // A resource that serves no update needs no update body.
-  if (adminApiServes(entry, "update")) throw missing;
-  return { create: schemaRows(createBodySchema), update: [] };
+  return {
+    create: schemaRows(createBodySchema),
+    update: schemaRows(updateBodySchema),
+  };
 };
 
 /** The five standard admin-CRUD doc entries for a resource. The paths, the

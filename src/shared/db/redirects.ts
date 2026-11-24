@@ -25,7 +25,7 @@ import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { requestCachedRows } from "#db/table-cache.ts";
 import { deleteFrom } from "#db/write.ts";
-import type { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
+import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { redirectKeyOfTarget } from "#shared/redirect-paths.ts";
 import type { FieldsInput } from "#shared/rest/field-specs.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -109,7 +109,10 @@ export const createRedirect = (
     const [row] = resultRows(
       await tx.execute(
         await recordsOf(tables.redirects).insertStatement(
-          newRecordOf(tables.redirects)({
+          newRecordOf(
+            tables.redirects,
+            REDIRECT_FIELDS,
+          )({
             ...input,
             fromIndex: from,
             toIndex: to,
