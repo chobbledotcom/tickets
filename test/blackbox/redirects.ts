@@ -29,8 +29,8 @@ export const addRedirect = async (
 export const refusalOf = (page: Page): string => {
   expect(page.status).toBe(200);
   const error = page.html.match(/<div [^>]*class="error"[^>]*>([^<]*)<\/div>/);
-  if (error === null) throw new Error("The page shows no error.");
-  return decodeEntities(error[1]!);
+  expect(error).not.toBeNull();
+  return decodeEntities(error![1]!);
 };
 
 /** The rows of the redirect list: each from page with its to page. */
@@ -47,8 +47,8 @@ export const listedRedirects = async (
 export const countShown = async (app: App): Promise<string> => {
   const html = (await app.get("/admin/settings-advanced")).html;
   const said = html.match(/You have ([^<]*) set up\./);
-  if (said === null) throw new Error("The page shows no redirect count.");
-  return said[1]!;
+  expect(said).not.toBeNull();
+  return said![1]!;
 };
 
 /** The id of the redirect that leaves `fromPath`, read off its delete link in
@@ -56,7 +56,7 @@ export const countShown = async (app: App): Promise<string> => {
 export const idOf = async (app: App, fromPath: string): Promise<number> => {
   const rows = await listedRedirects(app);
   const at = rows.findIndex(([from]) => from === fromPath);
-  if (at < 0) throw new Error(`No redirect leaves ${fromPath}.`);
+  expect(at).toBeGreaterThanOrEqual(0);
   const ids = [
     ...(await app.get(LIST)).html.matchAll(
       /\/admin\/redirects\/(\d+)\/delete/g,
