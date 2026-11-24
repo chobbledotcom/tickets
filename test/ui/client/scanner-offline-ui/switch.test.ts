@@ -65,6 +65,61 @@ const progress = (h: ScannerHarness) =>
   el(h.document, "scanner-offline-progress");
 const toggle = (h: ScannerHarness) => el(h.document, "scanner-offline-toggle");
 
+/** A door whose first cache page answers at once and whose second page
+ * waits for `held`. */
+const doorWithHeldSecondPage =
+  (held: Promise<Response>): FetchResponder =>
+  (url, init) =>
+    String(url).endsWith("after=7")
+      ? held
+      : doorWith({ 0: cachePage("first", 7, 250, 251) })(url, init);
+
+/** Turn the switch on and wait until the first page of 250 people is in. */
+const startDownload = async (h: ScannerHarness): Promise<void> => {
+  toggle(h).click();
+  await whenStatusShows(
+    progress(h),
+    "Downloading the ticket list (250 of 251 people)",
+  );
+};
+
+/** Start a download whose second page waits for `secondPage`. The caller
+ * disposes the returned fetch stub. */
+const startHeldDownload = async (fresh: () => ScannerHarness) => {
+  const secondPage = Promise.withResolvers<Response>();
+  const fetchStub = stubFetch(doorWithHeldSecondPage(secondPage.promise));
+  const h = fresh();
+  await startDownload(h);
+  return { fetchStub, h, secondPage };
+};
+
+/** The switch is off: nothing stored for it, and it reads as not pressed. */
+const expectSwitchOff = (h: ScannerHarness): void => {
+  expect(h.window.localStorage.getItem(MODE_KEY)).toBe(null);
+  expect(toggle(h).getAttribute("aria-pressed")).toBe("false");
+};
+
+/** Hop real turns until a stopped download ends, and prove the store never
+ * took its list. */
+const expectNoListStored = async (h: ScannerHarness): Promise<void> => {
+  await expect(whenStoreHolds(h, LIST_KEY)).rejects.toThrow(
+    `The store never held ${LIST_KEY}`,
+  );
+};
+
+/** The list the store holds, as the page wrote it. */
+const storedList = (h: ScannerHarness): { entries: unknown } =>
+  JSON.parse(String(h.window.localStorage.getItem(LIST_KEY)));
+
+/** The entries of the list the store holds. */
+const storedEntries = (h: ScannerHarness): unknown => storedList(h).entries;
+
+/** A device whose switch is on and whose saved list is still fresh. */
+const switchOnWithList = (store: Storage): void => {
+  store.setItem(MODE_KEY, "1");
+  store.setItem(LIST_KEY, savedList);
+};
+
 describe("scanner offline switch", {
   sanitizeOps: false,
   sanitizeResources: false,
@@ -72,57 +127,40 @@ describe("scanner offline switch", {
   const fresh = useScannerSuite();
 
   test("records the switch, downloads every page, then turns offline mode on", async () => {
-    const secondPage = Promise.withResolvers<Response>();
-    const fetchStub = stubFetch((url, init) =>
-      String(url).endsWith("after=7")
-        ? secondPage.promise
-        : doorWith({ 0: cachePage("first", 7, 250, 251) })(url, init),
+    // The first page is in and the second is still on its way: the door
+    // sees how far the download got, and the switch is not on yet.
+    const { fetchStub, h, secondPage } = await startHeldDownload(fresh);
+    using _fetch = fetchStub;
+    expect(progress(h).className).not.toContain("hidden");
+    expect(toggle(h).getAttribute("aria-busy")).toBe("true");
+    expectSwitchOff(h);
+    expect(h.window.localStorage.getItem(LIST_KEY)).toBe(null);
+
+    secondPage.resolve(Response.json(cachePage("second", null, 1, 251)));
+    await whenStatusShows(h.statusEl, READY);
+
+    expect(storedList(h)).toEqual({
+      entries: [
+        { hash: "first", tickets: 1 },
+        { hash: "second", tickets: 1 },
+      ],
+      storedAt: expect.any(Number),
+    });
+    expect(h.window.localStorage.getItem(MODE_KEY)).toBe("1");
+    expect(toggle(h).getAttribute("aria-pressed")).toBe("true");
+    expect(toggle(h).getAttribute("aria-busy")).toBe(null);
+    expect(progress(h).className).toContain("hidden");
+    expect(el(h.document, "scanner-offline-banner-text").textContent).toBe(
+      "Offline mode is on. Scans are queued and checked in when you are back online.",
     );
-    try {
-      const h = fresh();
-      toggle(h).click();
-
-      // The first page is in and the second is still on its way: the door
-      // sees how far the download got, and the switch is not on yet.
-      await whenStatusShows(
-        progress(h),
-        "Downloading the ticket list (250 of 251 people)",
-      );
-      expect(progress(h).className).not.toContain("hidden");
-      expect(toggle(h).getAttribute("aria-busy")).toBe("true");
-      expect(h.window.localStorage.getItem(MODE_KEY)).toBe(null);
-      expect(h.window.localStorage.getItem(LIST_KEY)).toBe(null);
-
-      secondPage.resolve(Response.json(cachePage("second", null, 1, 251)));
-      await whenStatusShows(h.statusEl, READY);
-
-      expect(
-        JSON.parse(String(h.window.localStorage.getItem(LIST_KEY))),
-      ).toEqual({
-        entries: [
-          { hash: "first", tickets: 1 },
-          { hash: "second", tickets: 1 },
-        ],
-        storedAt: expect.any(Number),
-      });
-      expect(h.window.localStorage.getItem(MODE_KEY)).toBe("1");
-      expect(toggle(h).getAttribute("aria-pressed")).toBe("true");
-      expect(toggle(h).getAttribute("aria-busy")).toBe(null);
-      expect(progress(h).className).toContain("hidden");
-      expect(el(h.document, "scanner-offline-banner-text").textContent).toBe(
-        "Offline mode is on. Scans are queued and checked in when you are back online.",
-      );
-      // The record went first, carrying the page's token, then each page.
-      expect(askedUrls(fetchStub)).toEqual([
-        OFFLINE_PATH,
-        `${SCAN_PATH}-cache?after=0`,
-        `${SCAN_PATH}-cache?after=7`,
-      ]);
-      const recordHeaders = new Headers(fetchStub.calls[0]?.args[1]?.headers);
-      expect(recordHeaders.get("x-csrf-token")).toBe("csrf-page-token");
-    } finally {
-      fetchStub.restore();
-    }
+    // The record went first, carrying the page's token, then each page.
+    expect(askedUrls(fetchStub)).toEqual([
+      OFFLINE_PATH,
+      `${SCAN_PATH}-cache?after=0`,
+      `${SCAN_PATH}-cache?after=7`,
+    ]);
+    const recordHeaders = new Headers(fetchStub.calls[0]?.args[1]?.headers);
+    expect(recordHeaders.get("x-csrf-token")).toBe("csrf-page-token");
   });
 
   test("shows no more people than the total when bookings land mid-download", async () => {
@@ -143,20 +181,15 @@ describe("scanner offline switch", {
   });
 
   test("downloads nothing when the door does not record the switch", async () => {
-    const fetchStub = stubFetch(() =>
+    using fetchStub = stubFetch(() =>
       Response.json({ error: "Not authenticated" }, { status: 401 }),
     );
-    try {
-      const h = fresh();
-      toggle(h).click();
-      await whenStatusShows(h.statusEl, FAILED);
-      expect(h.statusEl.className).toContain("scanner-status-error");
-      expect(askedUrls(fetchStub)).toEqual([OFFLINE_PATH]);
-      expect(h.window.localStorage.getItem(MODE_KEY)).toBe(null);
-      expect(toggle(h).getAttribute("aria-pressed")).toBe("false");
-    } finally {
-      fetchStub.restore();
-    }
+    const h = fresh();
+    toggle(h).click();
+    await whenStatusShows(h.statusEl, FAILED);
+    expect(h.statusEl.className).toContain("scanner-status-error");
+    expect(askedUrls(fetchStub)).toEqual([OFFLINE_PATH]);
+    expectSwitchOff(h);
   });
 
   test("keeps the saved list and leaves the switch off when a page fails", async () => {
@@ -165,34 +198,20 @@ describe("scanner offline switch", {
     toggle(h).click();
     await whenStatusShows(h.statusEl, FAILED);
     expect(h.window.localStorage.getItem(LIST_KEY)).toBe(savedList);
-    expect(h.window.localStorage.getItem(MODE_KEY)).toBe(null);
+    expectSwitchOff(h);
     expect(progress(h).className).toContain("hidden");
   });
 
   test("stops the download and stores nothing when the switch is clicked again", async () => {
-    const secondPage = Promise.withResolvers<Response>();
-    using _fetch = stubFetch((url, init) =>
-      String(url).endsWith("after=7")
-        ? secondPage.promise
-        : doorWith({ 0: cachePage("first", 7, 250, 251) })(url, init),
-    );
-    const h = fresh();
-    toggle(h).click();
-    await whenStatusShows(
-      progress(h),
-      "Downloading the ticket list (250 of 251 people)",
-    );
+    const { fetchStub, h, secondPage } = await startHeldDownload(fresh);
+    using _fetch = fetchStub;
 
     toggle(h).click();
     secondPage.resolve(Response.json(cachePage("second", null, 1, 251)));
-    // The stopped download runs to its end over real turns, and the store
-    // never takes its list.
-    await expect(whenStoreHolds(h, LIST_KEY)).rejects.toThrow(
-      `The store never held ${LIST_KEY}`,
-    );
+    await expectNoListStored(h);
 
     expect(h.window.localStorage.getItem(LIST_KEY)).toBe(null);
-    expect(h.window.localStorage.getItem(MODE_KEY)).toBe(null);
+    expectSwitchOff(h);
     expect(h.statusEl.textContent).not.toBe(FAILED);
     expect(h.statusEl.textContent).not.toBe(READY);
     expect(toggle(h).getAttribute("aria-busy")).toBe(null);
@@ -205,19 +224,13 @@ describe("scanner offline switch", {
     const newPage = Promise.withResolvers<Response>();
     let firstPages = 0;
     using _fetch = stubFetch((url, init) => {
-      if (String(url).endsWith("after=7")) return stoppedPage.promise;
-      if (String(url).endsWith("after=0")) {
-        firstPages += 1;
-        if (firstPages === 2) return newPage.promise;
-      }
-      return doorWith({ 0: cachePage("first", 7, 250, 251) })(url, init);
+      if (String(url).endsWith("after=0")) firstPages += 1;
+      return firstPages === 2 && String(url).endsWith("after=0")
+        ? newPage.promise
+        : doorWithHeldSecondPage(stoppedPage.promise)(url, init);
     });
     const h = fresh();
-    toggle(h).click();
-    await whenStatusShows(
-      progress(h),
-      "Downloading the ticket list (250 of 251 people)",
-    );
+    await startDownload(h);
     toggle(h).click();
     toggle(h).click();
     expect(toggle(h).getAttribute("aria-busy")).toBe("true");
@@ -225,17 +238,13 @@ describe("scanner offline switch", {
     // The stopped download runs to its end and must leave the new one's
     // progress on the page.
     stoppedPage.resolve(Response.json(cachePage("second", null, 1, 251)));
-    await expect(whenStoreHolds(h, LIST_KEY)).rejects.toThrow(
-      `The store never held ${LIST_KEY}`,
-    );
+    await expectNoListStored(h);
     expect(toggle(h).getAttribute("aria-busy")).toBe("true");
     expect(progress(h).className).not.toContain("hidden");
 
     newPage.resolve(Response.json(cachePage("fresh", null, 1, 1)));
     await whenStatusShows(h.statusEl, READY);
-    expect(
-      JSON.parse(String(h.window.localStorage.getItem(LIST_KEY))).entries,
-    ).toEqual([{ hash: "fresh", tickets: 1 }]);
+    expect(storedEntries(h)).toEqual([{ hash: "fresh", tickets: 1 }]);
     expect(toggle(h).getAttribute("aria-busy")).toBe(null);
   });
 
@@ -243,45 +252,29 @@ describe("scanner offline switch", {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh({
       onLine: false,
-      seed: (store) => {
-        store.setItem(MODE_KEY, "1");
-        store.setItem(LIST_KEY, savedList);
-      },
+      seed: switchOnWithList,
     });
     toggle(h).click();
-    expect(h.window.localStorage.getItem(MODE_KEY)).toBe(null);
+    expectSwitchOff(h);
     expect(h.window.localStorage.getItem(LIST_KEY)).toBe(null);
-    expect(toggle(h).getAttribute("aria-pressed")).toBe("false");
   });
 
   test("downloads a fresh list on load while the switch is on, without a new record", async () => {
-    const fetchStub = stubFetch(
+    using fetchStub = stubFetch(
       doorWith({ 0: cachePage("fresh", null, 1, 1) }),
     );
-    try {
-      const h = fresh({
-        seed: (store) => {
-          store.setItem(MODE_KEY, "1");
-          store.setItem(LIST_KEY, savedList);
-        },
-      });
-      await whenStatusShows(h.statusEl, READY);
-      expect(
-        JSON.parse(String(h.window.localStorage.getItem(LIST_KEY))).entries,
-      ).toEqual([{ hash: "fresh", tickets: 1 }]);
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache?after=0`]);
-    } finally {
-      fetchStub.restore();
-    }
+    const h = fresh({
+      seed: switchOnWithList,
+    });
+    await whenStatusShows(h.statusEl, READY);
+    expect(storedEntries(h)).toEqual([{ hash: "fresh", tickets: 1 }]);
+    expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache?after=0`]);
   });
 
   test("keeps the switch on and the saved list when the load's download fails", async () => {
     using _fetch = stubFetch(doorWith({}));
     const h = fresh({
-      seed: (store) => {
-        store.setItem(MODE_KEY, "1");
-        store.setItem(LIST_KEY, savedList);
-      },
+      seed: switchOnWithList,
     });
     await whenStatusShows(h.statusEl, FAILED);
     expect(h.window.localStorage.getItem(MODE_KEY)).toBe("1");
@@ -290,20 +283,16 @@ describe("scanner offline switch", {
   });
 
   test("downloads nothing on load while another door's switch is on", async () => {
-    const fetchStub = stubFetch(doorWith({}));
-    try {
-      const h = fresh({
-        seed: (store) =>
-          store.setItem("scanner-offline-mode-/admin/listing/9/scan", "1"),
-      });
-      expect(askedUrls(fetchStub)).toEqual([]);
-      expect(toggle(h).getAttribute("aria-pressed")).toBe("false");
-      expect(el(h.document, "scanner-offline-banner").className).toContain(
-        "hidden",
-      );
-    } finally {
-      fetchStub.restore();
-    }
+    using fetchStub = stubFetch(doorWith({}));
+    const h = fresh({
+      seed: (store) =>
+        store.setItem("scanner-offline-mode-/admin/listing/9/scan", "1"),
+    });
+    expect(askedUrls(fetchStub)).toEqual([]);
+    expect(toggle(h).getAttribute("aria-pressed")).toBe("false");
+    expect(el(h.document, "scanner-offline-banner").className).toContain(
+      "hidden",
+    );
   });
 
   test("drops the list and says so when the store refuses the switch", async () => {

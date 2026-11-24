@@ -6,6 +6,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { type App, createApp, inProcess } from "#test/blackbox/driver.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -32,8 +33,28 @@ const cachePage = async (
   return { body: JSON.parse(page.html), status: page.status };
 };
 
-/** Turn offline mode on at a door, the way its scanner page does: a JSON
- * POST that carries the CSRF token of the scanner page at `pageDoor`. */
+/** Post the JSON a scanner page sends to turn offline mode on at `door`.
+ * The request carries `csrf` as its token, or no token when it is null. */
+const postOffline = (
+  app: App,
+  door: string,
+  csrf: string | null,
+): Promise<Response> =>
+  app.target(
+    new Request(`http://localhost${door}/scan-offline`, {
+      body: "{}",
+      headers: {
+        "content-type": "application/json",
+        cookie: app.cookieHeader(),
+        host: "localhost",
+        ...(csrf === null ? {} : { "x-csrf-token": csrf }),
+      },
+      method: "POST",
+    }),
+  );
+
+/** Turn offline mode on at a door, the way its scanner page does: with the
+ * CSRF token of the scanner page at `pageDoor`. */
 const turnOfflineOn = async (
   app: App,
   door: string,
@@ -44,18 +65,7 @@ const turnOfflineOn = async (
     /<meta name="csrf-token" content="([^"]+)"/,
   )?.[1];
   if (csrf === undefined) throw new Error("The scanner page has no token.");
-  return await app.target(
-    new Request(`http://localhost${door}/scan-offline`, {
-      body: "{}",
-      headers: {
-        "content-type": "application/json",
-        cookie: app.cookieHeader(),
-        host: "localhost",
-        "x-csrf-token": csrf,
-      },
-      method: "POST",
-    }),
-  );
+  return await postOffline(app, door, csrf);
 };
 
 describeWithEnv("offline mode at a scanner door", { db: true }, () => {
@@ -162,43 +172,31 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     }
   });
 
-  test("logs who turned offline mode on at a listing door", async () => {
+  test("logs who turned offline mode on at each kind of door", async () => {
     const app = await loggedIn();
     const listing = await createTestListing({ name: "Summer Gala" });
-    const answer = await turnOfflineOn(app, `/admin/listing/${listing.id}`);
-    expect({ body: await answer.json(), status: answer.status }).toEqual({
-      body: { status: "ok" },
-      status: 200,
-    });
-    expect((await app.get("/admin/log")).html).toContain(
-      "<td>Offline scanning turned on for 'Summer Gala' by 'jo'</td><td></td><td><a href=\"/admin/listing/",
-    );
-  });
-
-  test("logs who turned offline mode on at a group door", async () => {
-    const app = await loggedIn();
     const group = await createTestGroup({ name: "Winter Barn" });
-    const answer = await turnOfflineOn(app, `/admin/groups/${group.id}`);
-    expect(answer.status).toBe(200);
-    expect((await app.get("/admin/log")).html).toContain(
+    for (const door of [
+      `/admin/listing/${listing.id}`,
+      `/admin/groups/${group.id}`,
+    ]) {
+      const answer = await turnOfflineOn(app, door);
+      expect({ body: await answer.json(), status: answer.status }).toEqual({
+        body: { status: "ok" },
+        status: 200,
+      });
+    }
+    // The listing door's entry links its listing. The group door's does not.
+    expectIncludesAll((await app.get("/admin/log")).html, [
+      `<td>Offline scanning turned on for 'Summer Gala' by 'jo'</td><td></td><td><a href="/admin/listing/${listing.id}">`,
       "<td>Offline scanning turned on for 'Winter Barn' by 'jo'</td><td></td><td></td>",
-    );
+    ]);
   });
 
   test("refuses offline mode without the page's token", async () => {
     const app = await loggedIn();
     const listing = await createTestListing({ name: "Tokenless Gala" });
-    const answer = await app.target(
-      new Request(`http://localhost/admin/listing/${listing.id}/scan-offline`, {
-        body: "{}",
-        headers: {
-          "content-type": "application/json",
-          cookie: app.cookieHeader(),
-          host: "localhost",
-        },
-        method: "POST",
-      }),
-    );
+    const answer = await postOffline(app, `/admin/listing/${listing.id}`, null);
     expect(answer.status).toBe(403);
     expect((await app.get("/admin/log")).html).not.toContain(
       "Offline scanning turned on",

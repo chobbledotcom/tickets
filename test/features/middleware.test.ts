@@ -170,10 +170,13 @@ describe("JSON paths", () => {
   }
 
   test("near-miss API paths do not match", () => {
-    expect(isJsonApiPath("/admin/listing/x/scan")).toBe(false);
-    expect(isJsonApiPath("/admin/listing/12/scan-offlines")).toBe(false);
-    expect(isJsonApiPath("/apis/listings")).toBe(false);
-    expect(isJsonApiPath("/v10/devices/one")).toBe(false);
+    const nearMisses = [
+      "/admin/listing/x/scan",
+      "/admin/listing/12/scan-offlines",
+      "/apis/listings",
+      "/v10/devices/one",
+    ];
+    expect(nearMisses.filter(isJsonApiPath)).toEqual([]);
   });
 });
 
