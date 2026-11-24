@@ -413,7 +413,7 @@ src/shared/records/images.ts::uploadImageFiles.filename~1k7olk9  image filename�
 src/shared/records/images.ts::uploadImageFiles.filenameThumb~1phf0ix  image thumbnail filename→"" audited:05jtm1l # the label reaches only the error for an empty name; uploadImageTargets names every file with generateWebpFilename, a UUID plus .webp, so the name is never empty
 src/shared/records/images.ts::imageRule.metadata~0s6dubv  ??→|| audited:05jtm1l # input.altText is a string or undefined; its one falsy string is "", which both operators send to ""
 src/shared/records/images.ts::updateInTransaction.missing~10n891b  ??→|| audited:05jtm1l # input.items is an array, null, or undefined; an array is never falsy, so ?? and || pick the same value
-src/shared/rest/field-reads.ts::CREATE_VALUES.switch~0d33tyd  ??→|| audited:19mfqpa # a switch default is true, false, or absent, and false and absent both read as false under ?? and ||
+src/shared/rest/field-reads.ts::CREATE_VALUES.switch~0d33tyd  ??→|| audited:1lkgmcb # a switch default is true, false, or absent, and false and absent both read as false under ?? and ||
 src/shared/rest/field-values.ts::KIND_VALUES.count~16n3kul  ??→|| audited:1lg2eim # a count minimum is a number or absent, and the only falsy number, 0, falls back to 0 either way
 src/shared/rest/field-values.ts::apiRefusal~1dtjlxu ??→||  audited:1lg2eim   # every special refusal is a non-empty message, so ?? and || pick the same side
 src/shared/rest/record.ts::buildRecord.rule~0wug6os  ??→|| audited:12mmqi8 # spec.rule is a function or undefined; a function is never falsy, so ?? and || pick the same value
@@ -449,3 +449,4 @@ src/shared/rest/field-specs.ts::closedReasonOrNull~1mg5p9w  ??→|| audited:02d9
 src/shared/validation/string.ts::NonEmptyStringSchema~19qgdi8  NonEmptyString→"" audited:177e60r # valibot stores the brand label on the schema and no validation reads it, so no input behaves differently
 src/features/admin/images.ts::handleImageEditGet~07bwflp  ! → ∅ audited:0qhp2w3 # applyFlash only records the form id from the form search value, and neither the image edit form (it has no id) nor the layout reads that id for this page, so applying or skipping it gives the same page
 src/shared/receipt-replay.ts::newReceiptLegs.legs~0bk9mk3  api-receipt → "" audited:09ztsws # The label only feeds the digest that names a receipt's event. The code reads that digest for equality alone, and no other event group starts with an empty label, so each receipt still gets its own event.
+src/shared/rest/field-reads.ts::unshownFieldOrNull~1fs2egm  ??→|| audited:1lkgmcb # find answers a declared field key or undefined, and a declared key is a field name that is never the empty string, so ?? and || fall back on exactly the same values
