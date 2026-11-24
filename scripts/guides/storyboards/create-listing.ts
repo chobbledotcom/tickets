@@ -10,7 +10,7 @@
  * clickable".
  */
 
-import type { GuideStoryboard } from "../storyboard.ts";
+import type { GuideStoryboard } from "#scripts/guides/storyboard.ts";
 
 /* jscpd:ignore-start -- a guide is a static list of real user actions */
 export const createListingGuide: GuideStoryboard = {

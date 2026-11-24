@@ -5,7 +5,7 @@ import type { Browser, Page } from "playwright";
 import sharp from "sharp";
 import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { startGuideRenderServer } from "#scripts/guides/render/server.ts";
-import type { GuideTimeline } from "#scripts/guides/timeline.ts";
+import { focusEvent, guideTimeline, pointerEvent } from "./guides-fixtures.ts";
 import { launchScreenshotBrowser } from "./screenshots-browser-helpers.ts";
 
 const VIEWPORT = { height: 720, width: 1280 };
@@ -42,9 +42,11 @@ const frameWithBlock = async (
       .toBuffer(),
   );
 
+type PixelTest = (red: number, green: number, blue: number) => boolean;
+
 const countPixels = async (
   png: Uint8Array,
-  wanted: (red: number, green: number, blue: number) => boolean,
+  wanted: PixelTest,
 ): Promise<number> => {
   const { data, info } = await sharp(png)
     .raw()
@@ -69,27 +71,27 @@ const renderAt = (page: Page, atMs: number): Promise<RenderResult> =>
     return render(time);
   }, atMs);
 
-const timeline: GuideTimeline = {
-  durationMs: 2000,
-  events: [
-    { atMs: 0, kind: "cursor", x: 100, y: 100 },
-    {
-      atMs: 200,
-      kind: "focus",
-      rect: { height: 100, width: 200, x: 100, y: 100 },
-      scale: 0.5,
-      transitionMs: 200,
-    },
-    { atMs: 400, kind: "click", x: 100, y: 100 },
+const timeline = guideTimeline(
+  2000,
+  [
+    pointerEvent("cursor", 0, 100, 100),
+    focusEvent(200, { height: 100, width: 200, x: 100, y: 100 }, 0.5, 200),
+    pointerEvent("click", 400, 100, 100),
     { atMs: 1000, kind: "blur", transitionMs: 200 },
   ],
-  frames: [
-    { atMs: 0, file: "frame-00001.jpg" },
-    { atMs: 1000, file: "frame-00002.jpg" },
-  ],
-  guide: { slug: "renderer-test", title: "Renderer test" },
-  schemaVersion: 1,
-  viewport: { fps: 30, ...VIEWPORT },
+  1000,
+);
+
+const isRed: PixelTest = (red, green, blue) =>
+  red > 200 && green < 80 && blue < 80;
+
+const isBlue: PixelTest = (red, green, blue) =>
+  blue > 100 && red < 80 && green < 80;
+
+/** Expects the page to show at least one pixel that passes the test. */
+const expectPixelShown = async (page: Page, wanted: PixelTest) => {
+  const png = await page.screenshot({ type: "png" });
+  expect(await countPixels(png, wanted)).toBeGreaterThan(0);
 };
 
 describe("guide renderer browser contract", () => {
@@ -131,55 +133,45 @@ describe("guide renderer browser contract", () => {
     return page;
   };
 
-  test("shows the first frame and hides nothing before a focus", async () => {
+  const withRendererPage = async (
+    run: (page: Page) => Promise<void>,
+  ): Promise<void> => {
     const page = await openPage();
     try {
-      const result = await renderAt(page, 0);
-      expect(result.frame).toBe("frame-00001.jpg");
+      await run(page);
+    } finally {
+      await page.close();
+    }
+  };
+
+  /** Renders one moment and expects its frame file and a pixel colour. */
+  const showsFrame = async (
+    page: Page,
+    atMs: number,
+    file: string,
+    wanted: PixelTest,
+  ): Promise<RenderResult> => {
+    const result = await renderAt(page, atMs);
+    expect(result.frame).toBe(file);
+    await expectPixelShown(page, wanted);
+    return result;
+  };
+
+  test("shows the first frame and hides nothing before a focus", () =>
+    withRendererPage(async (page) => {
+      const result = await showsFrame(page, 0, "frame-00001.jpg", isRed);
       expect(result.camera.zoom).toBe(1);
-      const png = await page.screenshot({ type: "png" });
-      expect(
-        await countPixels(
-          png,
-          (red, green, blue) => red > 200 && green < 80 && blue < 80,
-        ),
-      ).toBeGreaterThan(0);
       expect(
         await page
           .locator("#cursor")
           .evaluate((element) => Reflect.get(element.style, "opacity")),
       ).toBe("1");
-    } finally {
-      await page.close();
-    }
-  });
+    }));
 
-  test("zooms into a focused rectangle and changes frame on time", async () => {
-    const page = await openPage();
-    try {
-      const focused = await renderAt(page, 300);
-      expect(focused.frame).toBe("frame-00001.jpg");
+  test("zooms into a focused rectangle and changes frame on time", () =>
+    withRendererPage(async (page) => {
+      const focused = await showsFrame(page, 300, "frame-00001.jpg", isRed);
       expect(focused.camera.zoom).toBeGreaterThan(1);
-      const red = await page.screenshot({ type: "png" });
-      expect(
-        await countPixels(
-          red,
-          (value, green, blue) => value > 200 && green < 80 && blue < 80,
-        ),
-      ).toBeGreaterThan(0);
-
-      const changed = await renderAt(page, 1100);
-      expect(changed.frame).toBe("frame-00002.jpg");
-      const blue = await page.screenshot({ type: "png" });
-      expect(
-        await countPixels(
-          blue,
-          (redValue, green, value) =>
-            value > 100 && redValue < 80 && green < 80,
-        ),
-      ).toBeGreaterThan(0);
-    } finally {
-      await page.close();
-    }
-  });
+      await showsFrame(page, 1100, "frame-00002.jpg", isBlue);
+    }));
 });

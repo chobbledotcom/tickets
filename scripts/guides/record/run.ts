@@ -5,6 +5,9 @@
  */
 
 import { withCleanup } from "#scripts/cleanup.ts";
+import { withGuideBrowserPage } from "#scripts/guides/browser.ts";
+import type { GuideStoryboard } from "#scripts/guides/storyboard.ts";
+import type { GuideTimeline } from "#scripts/guides/timeline.ts";
 import { startScreenshotAppServer } from "#scripts/screenshots/app-server.ts";
 import {
   DESKTOP_SCREENSHOT_PROFILE,
@@ -12,9 +15,6 @@ import {
 } from "#scripts/screenshots/profile.ts";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
 import { setUpScreenshotAdmin } from "#scripts/screenshots/setup.ts";
-import { withGuideBrowserPage } from "../browser.ts";
-import type { GuideStoryboard } from "../storyboard.ts";
-import type { GuideTimeline } from "../timeline.ts";
 import { executeGuideActions } from "./actions.ts";
 import { mutedRecorder, recordSession } from "./session.ts";
 

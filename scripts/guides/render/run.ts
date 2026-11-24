@@ -4,14 +4,12 @@
 import { join } from "@std/path";
 import type { Page } from "playwright";
 import { withCleanup } from "#scripts/cleanup.ts";
-import { withGuideBrowserPage } from "../browser.ts";
-import { type GuideTimeline, parseGuideTimeline } from "../timeline.ts";
+import { withGuideBrowserPage } from "#scripts/guides/browser.ts";
+import {
+  type GuideTimeline,
+  parseGuideTimeline,
+} from "#scripts/guides/timeline.ts";
 import { startGuideRenderServer } from "./server.ts";
-
-interface RendererWindow {
-  renderAt: (atMs: number) => Promise<unknown>;
-  rendererReady: boolean;
-}
 
 const waitForRenderer = (page: Page): Promise<unknown> =>
   page.waitForFunction(() => Reflect.get(globalThis, "rendererReady") === true);
@@ -40,10 +38,13 @@ const renderFrames = async (
   await Deno.mkdir(framesDir, { recursive: true });
   for (let index = 0; index < frameCount; index += 1) {
     const atMs = Math.round((index * 1000) / viewport.fps);
-    await page.evaluate(
-      (time) => (globalThis as unknown as RendererWindow).renderAt(time),
-      atMs,
-    );
+    await page.evaluate((time) => {
+      const renderAt: unknown = Reflect.get(globalThis, "renderAt");
+      if (typeof renderAt !== "function") {
+        throw new Error("The guide renderer page has no renderAt function");
+      }
+      return renderAt(time);
+    }, atMs);
     const png = await page.screenshot({
       animations: "disabled",
       caret: "hide",

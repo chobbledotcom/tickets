@@ -1,7 +1,7 @@
 /** Every tutorial this repository can record. Adding a guide is a new file
  * here and a baseline beside it; the recorder and the check need no change. */
 
-import type { GuideStoryboard } from "../storyboard.ts";
+import type { GuideStoryboard } from "#scripts/guides/storyboard.ts";
 import { createListingGuide } from "./create-listing.ts";
 
 export const GUIDE_STORYBOARDS = [createListingGuide] as const;

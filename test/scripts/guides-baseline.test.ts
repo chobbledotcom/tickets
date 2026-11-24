@@ -1,26 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { toBase64 } from "#crypto/utils.ts";
+import { parseGuideFreshnessBaseline } from "#scripts/guides/baseline.ts";
 import {
-  type GuideFreshnessBaseline,
-  parseGuideFreshnessBaseline,
-} from "#scripts/guides/baseline.ts";
+  expectEachRefused,
+  guideBaseline,
+  listingFormAnchor,
+} from "./guides-fixtures.ts";
 
-const baseline: GuideFreshnessBaseline = {
-  anchors: [
-    {
-      captureId: "listing-form",
-      caseId: "booking.group-page-journey",
-      grayscale: toBase64(new Uint8Array(1024)),
-      sha256: "a".repeat(64),
-    },
-  ],
-  evidenceCommit: "b".repeat(40),
-  guide: { slug: "create-a-listing", title: "Create a listing" },
-  profile: "desktop",
-  recordedCommit: "c".repeat(40),
-  schemaVersion: 1,
-};
+const baseline = guideBaseline([listingFormAnchor(0, "a")]);
 
 describe("guide freshness baseline", () => {
   test("reads a committed baseline", () => {
@@ -28,7 +15,7 @@ describe("guide freshness baseline", () => {
   });
 
   test("rejects a baseline the check cannot compare", () => {
-    const invalid = [
+    expectEachRefused(parseGuideFreshnessBaseline, [
       [{ ...baseline, anchors: [] }, "length"],
       [{ ...baseline, profile: "tablet" }, "tablet"],
       [{ ...baseline, recordedCommit: "short" }, "recorded commit"],
@@ -41,10 +28,6 @@ describe("guide freshness baseline", () => {
         "sha256",
       ],
       [{ ...baseline, schemaVersion: 2 }, "2"],
-    ] as const;
-
-    for (const [input, message] of invalid) {
-      expect(() => parseGuideFreshnessBaseline(input)).toThrow(message);
-    }
+    ]);
   });
 });

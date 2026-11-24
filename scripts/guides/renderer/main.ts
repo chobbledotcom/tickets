@@ -5,8 +5,8 @@ import {
   cursorStateAt,
   focusRectAt,
   pageToScreen,
-} from "../camera.ts";
-import { frameAt, type GuideTimeline } from "../timeline.ts";
+} from "#scripts/guides/camera.ts";
+import { frameAt, type GuideTimeline } from "#scripts/guides/timeline.ts";
 
 interface RenderResult {
   camera: { vignette: number; x: number; y: number; zoom: number };

@@ -5,9 +5,12 @@
  */
 
 import type { Locator, Page } from "playwright";
+import type { GuideAction } from "#scripts/guides/storyboard.ts";
+import type {
+  GuideRect,
+  GuideTimelineEvent,
+} from "#scripts/guides/timeline.ts";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
-import type { GuideAction } from "../storyboard.ts";
-import type { GuideRect, GuideTimelineEvent } from "../timeline.ts";
 
 const CURSOR_MOVE_MS = 300;
 const DEFAULT_PER_CHARACTER_MS = 70;

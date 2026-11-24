@@ -1,16 +1,12 @@
 /** Bundle the three.js renderer for the browser the same way the app bundles
  * its client code: esbuild plus the repository's Deno import map. */
 
-import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { join } from "@std/path";
 import * as esbuild from "esbuild";
 import { projectRoot } from "#scripts/project-root.ts";
+import { denoLoaderPlugins } from "#scripts/static-assets/deno-loader.ts";
 
 const ENTRY = join(projectRoot, "scripts", "guides", "renderer", "main.ts");
-const CONFIG = join(projectRoot, "deno.json");
-
-const denoLoaderPlugins = (): esbuild.Plugin[] =>
-  denoPlugins({ configPath: CONFIG }) as unknown as esbuild.Plugin[];
 
 export const bundleGuideRenderer = async (): Promise<string> => {
   try {

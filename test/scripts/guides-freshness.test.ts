@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { toBase64 } from "#crypto/utils.ts";
-import type { GuideFreshnessBaseline } from "#scripts/guides/baseline.ts";
 import type { GuideFingerprint } from "#scripts/guides/fingerprint.ts";
 import {
   buildFreshnessReport,
@@ -11,36 +9,26 @@ import {
   staleGuides,
   statusForPercent,
 } from "#scripts/guides/freshness.ts";
-
-const thumbnail = (grey: number): string =>
-  toBase64(new Uint8Array(1024).fill(grey));
+import {
+  guideBaseline,
+  listingFormAnchor,
+  thumbnail,
+} from "./guides-fixtures.ts";
 
 const fingerprint = (grey: number, sha: string): GuideFingerprint => ({
   grayscale: thumbnail(grey),
   sha256: sha.repeat(64),
 });
 
-const baseline: GuideFreshnessBaseline = {
-  anchors: [
-    {
-      captureId: "listing-form",
-      caseId: "booking.group-page-journey",
-      grayscale: thumbnail(0),
-      sha256: "a".repeat(64),
-    },
-    {
-      captureId: "public-booking-page",
-      caseId: "minimum-quantity.choices-skip-below-the-minimum",
-      grayscale: thumbnail(0),
-      sha256: "b".repeat(64),
-    },
-  ],
-  evidenceCommit: "c".repeat(40),
-  guide: { slug: "create-a-listing", title: "Create a listing" },
-  profile: "desktop",
-  recordedCommit: "d".repeat(40),
-  schemaVersion: 1,
-};
+const baseline = guideBaseline([
+  listingFormAnchor(0, "a"),
+  {
+    captureId: "public-booking-page",
+    caseId: "minimum-quantity.choices-skip-below-the-minimum",
+    grayscale: thumbnail(0),
+    sha256: "b".repeat(64),
+  },
+]);
 
 describe("guide freshness", () => {
   test("grades each anchor and the guide", () => {
@@ -133,9 +121,14 @@ describe("guide freshness", () => {
   });
 
   test("marks the warning boundary exactly", () => {
-    expect(statusForPercent(99)).toBe("fresh");
-    expect(statusForPercent(98)).toBe("aging");
-    expect(statusForPercent(80)).toBe("aging");
-    expect(statusForPercent(79)).toBe("stale");
+    const boundaries = [
+      [99, "fresh"],
+      [98, "aging"],
+      [80, "aging"],
+      [79, "stale"],
+    ] as const;
+    for (const [percent, status] of boundaries) {
+      expect(statusForPercent(percent)).toBe(status);
+    }
   });
 });

@@ -6,12 +6,12 @@
 
 import { join } from "@std/path";
 import type { Page } from "playwright";
-import type { GuideAction } from "../storyboard.ts";
+import type { GuideAction } from "#scripts/guides/storyboard.ts";
 import type {
   GuideFrame,
   GuideTimeline,
   GuideTimelineEvent,
-} from "../timeline.ts";
+} from "#scripts/guides/timeline.ts";
 import { type ActionRecorder, executeGuideActions } from "./actions.ts";
 import { type Screencast, withScreencast } from "./screencast.ts";
 

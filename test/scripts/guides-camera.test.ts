@@ -10,31 +10,29 @@ import {
   pageToScreen,
 } from "#scripts/guides/camera.ts";
 import type { GuideTimelineEvent } from "#scripts/guides/timeline.ts";
+import { focusEvent, pointerEvent } from "./guides-fixtures.ts";
 
 const viewport = { height: 500, width: 1000 };
+const focusRect = { height: 100, width: 200, x: 400, y: 100 };
+const zoomTwice = (y: number) => ({ vignette: 1, x: 0, y, zoom: 2 });
 
 const events: GuideTimelineEvent[] = [
-  { atMs: 0, kind: "cursor", x: 100, y: 100 },
-  {
-    atMs: 1000,
-    kind: "focus",
-    rect: { height: 100, width: 200, x: 400, y: 100 },
-    scale: 0.5,
-    transitionMs: 500,
-  },
-  { atMs: 2000, kind: "cursor", x: 500, y: 100 },
-  { atMs: 2000, kind: "click", x: 500, y: 100 },
+  pointerEvent("cursor", 0, 100, 100),
+  focusEvent(1000, focusRect, 0.5, 500),
+  pointerEvent("cursor", 2000, 500, 100),
+  pointerEvent("click", 2000, 500, 100),
   { atMs: 3000, kind: "blur", transitionMs: 500 },
 ];
 
 describe("guide camera", () => {
   test("turns a page rectangle into a camera position and zoom", () => {
-    expect(
-      cameraForRect({ height: 100, width: 200, x: 400, y: 100 }, viewport, 0.5),
-    ).toEqual({ vignette: 1, x: 0, y: 100, zoom: 2.4 });
-    expect(
-      cameraForRect({ height: 500, width: 1000, x: 0, y: 0 }, viewport, 0.72),
-    ).toEqual({ vignette: 1, x: 0, y: 0, zoom: 1 });
+    expect([
+      cameraForRect(focusRect, viewport, 0.5),
+      cameraForRect({ ...viewport, x: 0, y: 0 }, viewport, 0.72),
+    ]).toEqual([
+      { vignette: 1, x: 0, y: 100, zoom: 2.4 },
+      { vignette: 1, x: 0, y: 0, zoom: 1 },
+    ]);
     const nearEdge = cameraForRect(
       { height: 40, width: 200, x: 400, y: 450 },
       viewport,
@@ -67,78 +65,38 @@ describe("guide camera", () => {
 
   test("keeps the focused rectangle through a blur fade", () => {
     expect(focusRectAt(events, 500)).toBeNull();
-    expect(focusRectAt(events, 1000)).toEqual({
-      height: 100,
-      width: 200,
-      x: 400,
-      y: 100,
-    });
-    expect(focusRectAt(events, 3500)).toEqual({
-      height: 100,
-      width: 200,
-      x: 400,
-      y: 100,
-    });
+    expect(focusRectAt(events, 1000)).toEqual(focusRect);
+    expect(focusRectAt(events, 3500)).toEqual(focusRect);
   });
 
   test("maps a page point through the camera", () => {
-    expect(pageToScreen({ x: 100, y: 200 }, identityCamera, viewport)).toEqual({
-      x: 100,
-      y: 200,
-    });
-    expect(
-      pageToScreen(
-        { x: 500, y: 250 },
-        { vignette: 1, x: 0, y: 0, zoom: 2 },
-        viewport,
-      ),
-    ).toEqual({ x: 500, y: 250 });
-    expect(
-      pageToScreen(
-        { x: 600, y: 250 },
-        { vignette: 1, x: 0, y: 0, zoom: 2 },
-        viewport,
-      ),
-    ).toEqual({ x: 700, y: 250 });
-    expect(
-      pageToScreen(
-        { x: 500, y: 150 },
-        cameraForRect(
-          { height: 100, width: 200, x: 400, y: 100 },
-          viewport,
-          0.5,
-        ),
-        viewport,
-      ),
-    ).toEqual({ x: 500, y: 250 });
-    expect(
-      pageToScreen(
-        { x: 600, y: 300 },
-        { vignette: 1, x: 0, y: 50, zoom: 2 },
-        viewport,
-      ),
-    ).toEqual({ x: 700, y: 450 });
+    const cases = [
+      [100, 200, identityCamera, 100, 200],
+      [500, 250, zoomTwice(0), 500, 250],
+      [600, 250, zoomTwice(0), 700, 250],
+      [500, 150, cameraForRect(focusRect, viewport, 0.5), 500, 250],
+      [600, 300, zoomTwice(50), 700, 450],
+    ] as const;
+    for (const [x, y, camera, screenX, screenY] of cases) {
+      expect(pageToScreen({ x, y }, camera, viewport)).toEqual({
+        x: screenX,
+        y: screenY,
+      });
+    }
   });
 
   test("moves the pointer into the next action and pulses the click", () => {
-    expect(cursorStateAt(events, 0)).toEqual({
-      pulse: 0,
+    const visibleAt = (pulse: number, x: number) => ({
+      pulse,
       visible: true,
-      x: 100,
+      x,
       y: 100,
     });
-    expect(cursorStateAt(events, 1840)).toEqual({
-      pulse: 0,
-      visible: true,
-      x: 300,
-      y: 100,
-    });
-    expect(cursorStateAt(events, 2000)).toEqual({
-      pulse: 1,
-      visible: true,
-      x: 500,
-      y: 100,
-    });
+    expect([0, 1840, 2000].map((atMs) => cursorStateAt(events, atMs))).toEqual([
+      visibleAt(0, 100),
+      visibleAt(0, 300),
+      visibleAt(1, 500),
+    ]);
     expect(cursorStateAt(events, 2130).pulse).toBeCloseTo(0.5, 6);
     expect(cursorStateAt([], 100)).toEqual({
       pulse: 0,
