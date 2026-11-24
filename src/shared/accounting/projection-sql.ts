@@ -187,18 +187,18 @@ const amountWhen =
   (leg: Leg): Expr<number> =>
     when<number>([[test(leg), leg.amount]], literal(0));
 
-/** How a measure folds its rows into one value. */
-type Fold = "count" | "largest" | "sum";
+/** How a measure folds its rows into one value, and what the value reads as.
+ * `largest` finds no value when no row passes. */
+type FoldedValue = { count: Counted; largest: number | null; sum: Counted };
+type Fold = keyof FoldedValue;
 
 /** One figure over the ledger: the rows that it reads, the value of each row,
  * and how the values fold into one. A read of several measures makes one pass
  * over the rows that any of them reads, and each measure folds only its own. */
-export type Measure<Value> = {
-  readonly fold: Fold;
+export type Measure<Folds extends Fold = Fold> = {
+  readonly fold: Folds;
   readonly rows: LegTest;
   readonly value: (leg: Leg) => Expr<number>;
-  /** Phantom: the type that the folded value reads as. */
-  readonly folded?: Value;
 };
 
 /** The rows that add, less the rows that subtract. Zero with no row. The
@@ -208,7 +208,7 @@ export const net = (
   adds: LegTest,
   subtracts: LegTest,
   rows: LegTest = some(adds, subtracts),
-): Measure<Counted> => ({
+): Measure<"sum"> => ({
   fold: "sum",
   rows,
   value: signedAmount(adds, subtracts),
@@ -222,7 +222,7 @@ export const amountOf = (rows: LegTest): Measure<Counted> => ({
 });
 
 /** How many rows pass `rows`. */
-export const countOf = (rows: LegTest): Measure<Counted> => ({
+export const countOf = (rows: LegTest): Measure<"count"> => ({
   fold: "count",
   rows,
   value: () => literal(1),
@@ -232,7 +232,7 @@ export const countOf = (rows: LegTest): Measure<Counted> => ({
 export const largestOf = (
   rows: LegTest,
   value: (leg: Leg) => Expr<number>,
-): Measure<number | null> => ({ fold: "largest", rows, value });
+): Measure<"largest"> => ({ fold: "largest", rows, value });
 
 const FOLDS: Record<
   Fold,
@@ -245,19 +245,21 @@ const FOLDS: Record<
 
 /** The folded value of `measure` over a read of `leg`. With `alone`, the read
  * keeps only the rows of the measure. Otherwise the fold filters them. */
-export const foldOf = <Value>(
-  measure: Measure<Value>,
+export const foldOf = <Folds extends Fold>(
+  measure: Measure<Folds>,
   leg: Leg,
   alone: boolean,
-): Expr<Value> =>
+): Expr<FoldedValue[Folds]> =>
   FOLDS[measure.fold](
     measure.value(leg),
     alone ? sql`` : sql` FILTER (WHERE ${measure.rows(leg)})`,
-  ) as Expr<Value>;
+  ) as Expr<FoldedValue[Folds]>;
 
 /** One measure as a value of another statement. The read keeps only the rows
  * of the measure, so an index backs it. */
-export const measureOf = <Value>(measure: Measure<Value>): Expr<Value> =>
+export const measureOf = <Folds extends Fold>(
+  measure: Measure<Folds>,
+): Expr<FoldedValue[Folds]> =>
   ledgerLegs()
     .where(measure.rows)
     .aggregate((leg) => foldOf(measure, leg, true));
@@ -289,7 +291,7 @@ export const touching = (accounts: Accounts): LegTest =>
   some(accounts("dest"), accounts("source"));
 
 /** Money in as the destination, less money out as the source. */
-export const balanceIn = (accounts: Accounts): Measure<Counted> =>
+export const balanceIn = (accounts: Accounts): Measure<"sum"> =>
   net(accounts("dest"), accounts("source"));
 
 /** The row has the outside world on its `role` side. */
@@ -302,7 +304,7 @@ export const paidIn = (accounts: Accounts): LegTest =>
 
 /** Net cash from the outside world: payments in, less refunds back out. Other
  * ledger legs do not represent cash. */
-export const externalCashOf = (accounts: Accounts): Measure<Counted> =>
+export const externalCashOf = (accounts: Accounts): Measure<"sum"> =>
   net(paidIn(accounts), every(accounts("source"), onWorld("dest")));
 
 /** One booking's recognised ticket price, including signed tax corrections. */
