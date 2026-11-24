@@ -1,10 +1,12 @@
 /**
- * Offline mode at a scanner door: the logged opt-in, and the paged download
- * of the door's offline ticket list.
+ * Offline mode at a scanner door: the paged download of the door's offline
+ * ticket list. The first page writes the activity log entry, and each later
+ * page needs the signed cursor that the page before it issued.
  */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { type App, createApp, inProcess } from "#test/blackbox/driver.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -12,9 +14,13 @@ import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts"
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 
 /** The people one page of the list reads. */
 const PAGE_PEOPLE = 250;
+
+/** The words of one download's log entry. */
+const DOWNLOADED = "Offline ticket list downloaded for";
 
 const loggedIn = async (): Promise<App> => {
   const app = createApp(inProcess);
@@ -22,83 +28,69 @@ const loggedIn = async (): Promise<App> => {
   return app;
 };
 
-/** One page of a door's list, read as the scanner page reads it. */
+/** One page of a door's list, read as the scanner page reads it: the first
+ * page with no `from`, and each later page with the cursor it was given. */
 const cachePage = async (
   app: App,
   door: string,
-  after?: string,
+  from?: string,
 ): Promise<{ status: number; body: unknown }> => {
-  const query = after === undefined ? "" : `?after=${after}`;
+  const query = from === undefined ? "" : `?from=${encodeURIComponent(from)}`;
   const page = await app.get(`${door}/scan-cache${query}`);
   return { body: JSON.parse(page.html), status: page.status };
 };
 
-/** Post the JSON a scanner page sends to turn offline mode on at `door`.
- * The request carries `csrf` as its token, or no token when it is null. */
-const postOffline = (
-  app: App,
-  door: string,
-  csrf: string | null,
-): Promise<Response> =>
-  app.target(
-    new Request(`http://localhost${door}/scan-offline`, {
-      body: "{}",
-      headers: {
-        "content-type": "application/json",
-        cookie: app.cookieHeader(),
-        host: "localhost",
-        ...(csrf === null ? {} : { "x-csrf-token": csrf }),
-      },
-      method: "POST",
-    }),
-  );
-
-/** Turn offline mode on at a door, the way its scanner page does: with the
- * CSRF token of the scanner page at `pageDoor`. */
-const turnOfflineOn = async (
-  app: App,
-  door: string,
-  pageDoor: string = door,
-): Promise<Response> => {
-  const scanner = await app.get(`${pageDoor}/scanner`);
-  const csrf = scanner.html.match(
-    /<meta name="csrf-token" content="([^"]+)"/,
-  )?.[1];
-  if (csrf === undefined) throw new Error("The scanner page has no token.");
-  return await postOffline(app, door, csrf);
+/** The cursor that a page names for the page after it. */
+const nextOf = (page: { body: unknown }): string => {
+  const { next } = page.body as { next: unknown };
+  if (typeof next !== "string") throw new Error("The page names no cursor.");
+  return next;
 };
 
+/** How many download entries the activity log holds. */
+const downloadsLogged = async (app: App): Promise<number> =>
+  (await app.get("/admin/log")).html.split(DOWNLOADED).length - 1;
+
+/** A door of 251 people: one full page, then a page of one. */
+const twoPageDoor = async (): Promise<string> => {
+  const listing = await createTestListing({ maxAttendees: 1000 });
+  await seedFillerAttendees(listing.id, PAGE_PEOPLE + 1);
+  return `/admin/listing/${listing.id}`;
+};
+
+const REFUSED = { body: { error: "Invalid page cursor" }, status: 400 };
+
 describeWithEnv("offline mode at a scanner door", { db: true }, () => {
-  test("reads a big door's list in pages of people, with the total", async () => {
+  test("reads a big door's list in pages of people, and logs it once", async () => {
     const app = await loggedIn();
-    const listing = await createTestListing({ maxAttendees: 1000 });
-    await seedFillerAttendees(listing.id, PAGE_PEOPLE + 1);
-    const door = `/admin/listing/${listing.id}`;
+    const door = await twoPageDoor();
 
     const first = await cachePage(app, door);
-    expect(first.status).toBe(200);
     // Every filler ticket carries the same token, so each page holds one
     // entry for the whole booking.
-    expect(first.body).toEqual({
-      entries: [{ hash: expect.any(String), tickets: 1 }],
-      next: expect.any(Number),
-      people: PAGE_PEOPLE,
-      total: PAGE_PEOPLE + 1,
+    expect(first).toEqual({
+      body: {
+        entries: [{ hash: expect.any(String), tickets: 1 }],
+        next: expect.stringMatching(/^sc1\./),
+        people: PAGE_PEOPLE,
+        total: PAGE_PEOPLE + 1,
+      },
+      status: 200,
     });
-    const { entries, next } = first.body as {
-      entries: unknown[];
-      next: number;
-    };
+    const { entries } = first.body as { entries: unknown[] };
 
     // The cursor names the last person read, so the next page reads the
     // one person left: no one skipped and no one read twice.
-    expect((await cachePage(app, door, String(next))).body).toEqual({
+    expect((await cachePage(app, door, nextOf(first))).body).toEqual({
       entries,
       next: null,
       people: 1,
       total: PAGE_PEOPLE + 1,
     });
-    expect((await cachePage(app, door, "0")).body).toEqual(first.body);
+    // The later page writes no entry of its own. A new download does.
+    expect(await downloadsLogged(app)).toBe(1);
+    expect((await cachePage(app, door)).body).toEqual(first.body);
+    expect(await downloadsLogged(app)).toBe(2);
   });
 
   test("answers no next page when the people fill one page exactly", async () => {
@@ -115,25 +107,23 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     );
   });
 
-  test("serves both offline routes as private JSON under the site's policy", async () => {
+  test("serves the list as private JSON under the site's policy", async () => {
     const app = await loggedIn();
     const listing = await createTestListing();
-    const door = `/admin/listing/${listing.id}`;
-    const read = await app.get(`${door}/scan-cache`);
-    const record = await turnOfflineOn(app, door);
-    for (const headers of [read.headers, record.headers]) {
-      expect({
-        cache: headers.get("cache-control"),
-        policy: headers
-          .get("content-security-policy")
-          ?.includes("default-src 'self'"),
-        type: headers.get("content-type"),
-      }).toEqual({
-        cache: "private, no-store",
-        policy: true,
-        type: "application/json; charset=utf-8",
-      });
-    }
+    const { headers } = await app.get(
+      `/admin/listing/${listing.id}/scan-cache`,
+    );
+    expect({
+      cache: headers.get("cache-control"),
+      policy: headers
+        .get("content-security-policy")
+        ?.includes("default-src 'self'"),
+      type: headers.get("content-type"),
+    }).toEqual({
+      cache: "private, no-store",
+      policy: true,
+      type: "application/json; charset=utf-8",
+    });
   });
 
   test("keeps every line of one person on the same page", async () => {
@@ -162,62 +152,63 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     );
   });
 
-  test("refuses a page cursor that is not a whole number", async () => {
+  test("refuses a cursor that the page before did not issue", async () => {
     const app = await loggedIn();
-    const listing = await createTestListing();
-    for (const after of ["-1", "abc", "1.5"]) {
-      expect(
-        await cachePage(app, `/admin/listing/${listing.id}`, after),
-      ).toEqual({ body: { error: "Invalid page cursor" }, status: 400 });
+    const door = await twoPageDoor();
+    const cursor = nextOf(await cachePage(app, door));
+    const [prefix = "", payload = "", sig = ""] = cursor.split(".");
+    // A cursor that names another attendee keeps the old signature.
+    const forged = `${prefix}.${payload.slice(0, -2)}AA.${sig}`;
+    for (const from of ["", "0", "abc", "sc1.x.y", forged]) {
+      expect(await cachePage(app, door, from), from).toEqual(REFUSED);
     }
+    expect(await downloadsLogged(app)).toBe(1);
   });
 
-  test("logs who turned offline mode on at each kind of door", async () => {
+  test("refuses a cursor on another door or for another person", async () => {
+    const app = await loggedIn();
+    const door = await twoPageDoor();
+    const other = await createTestListing();
+    const cursor = nextOf(await cachePage(app, door));
+    expect(await cachePage(app, `/admin/listing/${other.id}`, cursor)).toEqual(
+      REFUSED,
+    );
+
+    // Another person who skips the logged first page cannot use it.
+    const scanner = createApp(
+      inProcess,
+      (await createTestScannerSession()).cookie,
+    );
+    expect(await cachePage(scanner, door, cursor)).toEqual(REFUSED);
+    expect(await downloadsLogged(app)).toBe(1);
+  });
+
+  test("refuses a cursor more than an hour old", async () => {
+    const app = await loggedIn();
+    const door = await twoPageDoor();
+    const cursor = nextOf(await cachePage(app, door));
+    using _time = new FakeTime(Date.now() + 61 * 60 * 1000);
+    expect(await cachePage(app, door, cursor)).toEqual(REFUSED);
+  });
+
+  test("logs who downloaded the list at each kind of door", async () => {
     const app = await loggedIn();
     const listing = await createTestListing({ name: "Summer Gala" });
     const group = await createTestGroup({ name: "Winter Barn" });
-    for (const door of [
-      `/admin/listing/${listing.id}`,
-      `/admin/groups/${group.id}`,
-    ]) {
-      const answer = await turnOfflineOn(app, door);
-      expect({ body: await answer.json(), status: answer.status }).toEqual({
-        body: { status: "ok" },
-        status: 200,
-      });
-    }
+    await cachePage(app, `/admin/listing/${listing.id}`);
+    await cachePage(app, `/admin/groups/${group.id}`);
     // The listing door's entry links its listing. The group door's does not.
     expectIncludesAll((await app.get("/admin/log")).html, [
-      `<td>Offline scanning turned on for 'Summer Gala' by 'jo'</td><td></td><td><a href="/admin/listing/${listing.id}">`,
-      "<td>Offline scanning turned on for 'Winter Barn' by 'jo'</td><td></td><td></td>",
+      `<td>${DOWNLOADED} 'Summer Gala' by 'jo'</td><td></td><td><a href="/admin/listing/${listing.id}">`,
+      `<td>${DOWNLOADED} 'Winter Barn' by 'jo'</td><td></td><td></td>`,
     ]);
   });
 
-  test("refuses offline mode without the page's token", async () => {
+  test("logs nothing for a No check-in listing", async () => {
     const app = await loggedIn();
-    const listing = await createTestListing({ name: "Tokenless Gala" });
-    const answer = await postOffline(app, `/admin/listing/${listing.id}`, null);
-    expect(answer.status).toBe(403);
-    expect((await app.get("/admin/log")).html).not.toContain(
-      "Offline scanning turned on",
-    );
-  });
-
-  test("answers 404 for offline mode at a No check-in listing", async () => {
-    const app = await loggedIn();
-    const open = await createTestListing();
-    const closed = await createTestListing({
-      name: "Shop Only",
-      purchaseOnly: true,
-    });
-    const answer = await turnOfflineOn(
-      app,
-      `/admin/listing/${closed.id}`,
-      `/admin/listing/${open.id}`,
-    );
-    expect(answer.status).toBe(404);
-    expect((await app.get("/admin/log")).html).not.toContain(
-      "Offline scanning turned on",
-    );
+    const closed = await createTestListing({ purchaseOnly: true });
+    const page = await app.get(`/admin/listing/${closed.id}/scan-cache`);
+    expect(page.status).toBe(404);
+    expect(await downloadsLogged(app)).toBe(0);
   });
 });

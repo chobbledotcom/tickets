@@ -27,7 +27,8 @@ import { askedUrls } from "#test/ui/client/scanner/offline-door.ts";
 import { type FetchResponder, stubFetch } from "#test-utils/fetch-stub.ts";
 
 const LIST_KEY = `scanner-tickets-${SCAN_PATH}`;
-const OFFLINE_PATH = "/admin/groups/5/scan-offline";
+/** The first page's address: a request with no cursor. */
+const FIRST_PAGE = `${SCAN_PATH}-cache`;
 const READY = "Offline mode is on. The ticket list is saved on this device.";
 const FAILED =
   "The ticket list did not download. Check your connection, then try again.";
@@ -35,7 +36,7 @@ const FAILED =
 /** One cache page, as the door's cache endpoint answers it. */
 const cachePage = (
   hash: string,
-  next: number | null,
+  next: string | null,
   people: number,
   total: number,
 ) => ({ entries: [{ hash, tickets: 1 }], next, people, total });
@@ -46,16 +47,14 @@ const savedList = JSON.stringify({
   storedAt: Date.now(),
 });
 
-/** Answers the switch's record with the door's ok, and each cache page by
- * the cursor it asks for. A cursor with no page answers 500. */
+/** Answers each cache page by the cursor it asks for. The first page asks
+ * for none, and its key is "". A cursor with no page answers 500. */
 const doorWith =
   (pages: Record<string, unknown>): FetchResponder =>
   (url) => {
-    if (String(url) === OFFLINE_PATH) return Response.json({ status: "ok" });
-    const after = new URL(String(url), "http://localhost").searchParams.get(
-      "after",
-    );
-    const page = after === null ? undefined : pages[after];
+    const from =
+      new URL(String(url), "http://localhost").searchParams.get("from") ?? "";
+    const page = pages[from];
     return page === undefined
       ? Response.json({}, { status: 500 })
       : Response.json(page);
@@ -70,9 +69,9 @@ const toggle = (h: ScannerHarness) => el(h.document, "scanner-offline-toggle");
 const doorWithHeldSecondPage =
   (held: Promise<Response>): FetchResponder =>
   (url, init) =>
-    String(url).endsWith("after=7")
+    String(url).endsWith("from=c7")
       ? held
-      : doorWith({ 0: cachePage("first", 7, 250, 251) })(url, init);
+      : doorWith({ "": cachePage("first", "c7", 250, 251) })(url, init);
 
 /** Turn the switch on and wait until the first page of 250 people is in. */
 const startDownload = async (h: ScannerHarness): Promise<void> => {
@@ -153,21 +152,16 @@ describe("scanner offline switch", {
     expect(el(h.document, "scanner-offline-banner-text").textContent).toBe(
       "Offline mode is on. Scans are queued and checked in when you are back online.",
     );
-    // The record went first, carrying the page's token, then each page.
-    expect(askedUrls(fetchStub)).toEqual([
-      OFFLINE_PATH,
-      `${SCAN_PATH}-cache?after=0`,
-      `${SCAN_PATH}-cache?after=7`,
-    ]);
-    const recordHeaders = new Headers(fetchStub.calls[0]?.args[1]?.headers);
-    expect(recordHeaders.get("x-csrf-token")).toBe("csrf-page-token");
+    // The first page asks with no cursor. Each later page asks with the
+    // cursor the page before it named.
+    expect(askedUrls(fetchStub)).toEqual([FIRST_PAGE, `${FIRST_PAGE}?from=c7`]);
   });
 
   test("shows no more people than the total when bookings land mid-download", async () => {
     using _fetch = stubFetch(
       doorWith({
-        0: cachePage("first", 3, 2, 2),
-        3: cachePage("second", null, 1, 2),
+        "": cachePage("first", "c3", 2, 2),
+        c3: cachePage("second", null, 1, 2),
       }),
     );
     const h = fresh();
@@ -180,7 +174,7 @@ describe("scanner offline switch", {
     );
   });
 
-  test("downloads nothing when the door does not record the switch", async () => {
+  test("leaves the switch off when the door refuses the first page", async () => {
     using fetchStub = stubFetch(() =>
       Response.json({ error: "Not authenticated" }, { status: 401 }),
     );
@@ -188,12 +182,14 @@ describe("scanner offline switch", {
     toggle(h).click();
     await whenStatusShows(h.statusEl, FAILED);
     expect(h.statusEl.className).toContain("scanner-status-error");
-    expect(askedUrls(fetchStub)).toEqual([OFFLINE_PATH]);
+    expect(askedUrls(fetchStub)).toEqual([FIRST_PAGE]);
     expectSwitchOff(h);
   });
 
   test("keeps the saved list and leaves the switch off when a page fails", async () => {
-    using _fetch = stubFetch(doorWith({ 0: cachePage("first", 7, 250, 251) }));
+    using _fetch = stubFetch(
+      doorWith({ "": cachePage("first", "c7", 250, 251) }),
+    );
     const h = fresh({ seed: (store) => store.setItem(LIST_KEY, savedList) });
     toggle(h).click();
     await whenStatusShows(h.statusEl, FAILED);
@@ -224,8 +220,8 @@ describe("scanner offline switch", {
     const newPage = Promise.withResolvers<Response>();
     let firstPages = 0;
     using _fetch = stubFetch((url, init) => {
-      if (String(url).endsWith("after=0")) firstPages += 1;
-      return firstPages === 2 && String(url).endsWith("after=0")
+      if (String(url) === FIRST_PAGE) firstPages += 1;
+      return firstPages === 2 && String(url) === FIRST_PAGE
         ? newPage.promise
         : doorWithHeldSecondPage(stoppedPage.promise)(url, init);
     });
@@ -261,14 +257,14 @@ describe("scanner offline switch", {
 
   test("downloads a fresh list on load while the switch is on, without a new record", async () => {
     using fetchStub = stubFetch(
-      doorWith({ 0: cachePage("fresh", null, 1, 1) }),
+      doorWith({ "": cachePage("fresh", null, 1, 1) }),
     );
     const h = fresh({
       seed: switchOnWithList,
     });
     await whenStatusShows(h.statusEl, READY);
     expect(storedEntries(h)).toEqual([{ hash: "fresh", tickets: 1 }]);
-    expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache?after=0`]);
+    expect(askedUrls(fetchStub)).toEqual([FIRST_PAGE]);
   });
 
   test("keeps the switch on and the saved list when the load's download fails", async () => {
@@ -296,7 +292,7 @@ describe("scanner offline switch", {
   });
 
   test("drops the list and says so when the store refuses the switch", async () => {
-    using _fetch = stubFetch(doorWith({ 0: cachePage("first", null, 1, 1) }));
+    using _fetch = stubFetch(doorWith({ "": cachePage("first", null, 1, 1) }));
     const h = fresh();
     // The store takes the list, then refuses the switch's own write.
     const stored = h.window.localStorage;

@@ -66,22 +66,24 @@ export const isCacheFresh = (cache) => {
 export const removeTicketCache = (scanPath) =>
   localStorage.removeItem(TICKETS_KEY_PREFIX + scanPath);
 
-/** Whether a value is one page of a door's list. `next` is the cursor for
- * the next page, or null on the last one. `people` counts the door's people
+/** Whether a value is one page of a door's list. `next` is the signed
+ * cursor for the next page, or null on the last one. `people` counts the door's people
  * this page read, out of `total`. */
 const isCachePage = (value) =>
   typeof value === "object" &&
   value !== null &&
   isCacheList(value.entries) &&
-  (value.next === null || Number.isSafeInteger(value.next)) &&
+  (value.next === null || typeof value.next === "string") &&
   Number.isSafeInteger(value.people) &&
   Number.isSafeInteger(value.total);
 
-/** Fetch one page of a door's list after the attendee id `after`. Throws
- * when the request or the body fails. */
-const fetchCachePage = async (scanPath, after, signal) => {
+/** Fetch one page of a door's list: the first page when `from` is null,
+ * else the page that the signed cursor `from` names. The first page is the
+ * request the server logs. Throws when the request or the body fails. */
+const fetchCachePage = async (scanPath, from, signal) => {
   const base = scanPath.replace(/\/scan$/, "/scan-cache");
-  const res = await fetch(`${base}?after=${after}`, { signal });
+  const url = from === null ? base : `${base}?from=${encodeURIComponent(from)}`;
+  const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`The ticket cache for ${scanPath} answered ${res.status}`);
   }
@@ -98,17 +100,17 @@ const fetchCachePage = async (scanPath, after, signal) => {
  * any list the door already holds stands. */
 export const downloadTicketCache = async (scanPath, onProgress, signal) => {
   const entries = [];
-  let after = 0;
+  let from = null;
   let read = 0;
-  while (after !== null) {
-    const page = await fetchCachePage(scanPath, after, signal);
+  do {
+    const page = await fetchCachePage(scanPath, from, signal);
     entries.push(...page.entries);
     read += page.people;
     // People booked during the download can push the total past the
     // first page's count, so the shown count never passes the total.
     onProgress(Math.min(read, page.total), page.total);
-    after = page.next;
-  }
+    from = page.next;
+  } while (from !== null);
   signal.throwIfAborted();
   storeTicketCache(scanPath, entries);
 };

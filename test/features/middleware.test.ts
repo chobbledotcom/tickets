@@ -160,7 +160,6 @@ describe("JSON paths", () => {
 
   for (const path of [
     "/admin/listing/12/scan",
-    "/admin/groups/3/scan-offline",
     "/api/listings",
     "/v1/devices/one",
   ]) {
@@ -172,7 +171,6 @@ describe("JSON paths", () => {
   test("near-miss API paths do not match", () => {
     const nearMisses = [
       "/admin/listing/x/scan",
-      "/admin/listing/12/scan-offlines",
       "/apis/listings",
       "/v10/devices/one",
     ];

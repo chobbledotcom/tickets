@@ -224,10 +224,8 @@ export const offlineScan = async (
 
 /** Wire the offline side of one scanner page and return the panel the camera
  * loop hands each offline scan to. `settleDelivery` posts a queued
- * check-in's delivery and answers the door's final word for it.
- * `announceOffline` records a person turning offline mode on. */
+ * check-in's delivery and answers the door's final word for it. */
 export const initOfflineScanner = ({
-  announceOffline,
   messages,
   scanPath,
   settleDelivery,
@@ -266,7 +264,6 @@ export const initOfflineScanner = ({
   };
 
   const offlineSwitch = wireOfflineSwitch({
-    announceOffline,
     messages,
     onChange: renderOfflineState,
     // Turning off settles what the door queued while the switch held the

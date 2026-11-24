@@ -284,34 +284,5 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
       expect(response.status).toBe(403);
     }
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
-
-    // Turning offline mode on is a door write too.
-    for (const { cookie } of [editor, agent]) {
-      for (const door of [`listing/${listing.id}`, `groups/${group.id}`]) {
-        const response = await scanAsScanner(
-          `/admin/${door}/scan-offline`,
-          cookie,
-          token,
-        );
-        expect(response.status, door).toBe(403);
-      }
-    }
-  });
-
-  test("lets a scanner turn offline mode on at both kinds of door", async () => {
-    const listing = await createTestListing({ name: "Door Gala" });
-    const group = await createTestGroup({ name: "Door Barn" });
-    const { cookie } = await createTestScannerSession();
-    for (const door of [`listing/${listing.id}`, `groups/${group.id}`]) {
-      const response = await scanAsScanner(
-        `/admin/${door}/scan-offline`,
-        cookie,
-        "",
-      );
-      expect({ body: await response.json(), status: response.status }).toEqual({
-        body: { status: "ok" },
-        status: 200,
-      });
-    }
   });
 });

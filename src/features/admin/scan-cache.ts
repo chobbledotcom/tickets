@@ -7,7 +7,9 @@
  * count. The device never holds the tokens of tickets it has not scanned,
  * and never holds any guest detail from this endpoint. */
 
+import * as v from "valibot";
 import { remainingTickets } from "#booking/remaining-tickets.ts";
+import { defineSignedToken } from "#crypto/define-signed-token.ts";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { toBase64Url } from "#crypto/utils.ts";
 import { logActivity } from "#db/activity-log.ts";
@@ -25,10 +27,12 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { type AuthSession, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
+import { expiresIn } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { hmacHex, importHmacKey } from "#shared/sha256.ts";
-import { parseNonNegativeInt } from "#shared/validation/number.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
 import { groupScope, listingScope, type ScanScope } from "./scan-answer.ts";
 import { owingListings, scanAdmits } from "./scan-decision.ts";
@@ -60,12 +64,12 @@ const CACHE_PAGE_PEOPLE = 250;
  * supply when the check-in lands. */
 export type TicketCacheEntry = { hash: string; tickets: number };
 
-/** One page of a door's cache. `next` is the cursor for the next page, or
- * null on the last page. `people` counts the door's people this page read,
- * out of `total`. */
+/** One page of a door's cache. `next` is the signed cursor for the next
+ * page, or null on the last page. `people` counts the door's people this
+ * page read, out of `total`. */
 type TicketCachePage = {
   entries: TicketCacheEntry[];
-  next: number | null;
+  next: string | null;
   people: number;
   total: number;
 };
@@ -83,6 +87,7 @@ const ticketCachePage = async (
   scope: ScanScope,
   doorKey: Uint8Array,
   afterId: number,
+  cursorAfter: (attendeeId: number) => Promise<string>,
 ): Promise<TicketCachePage> => {
   // Booking order — the (start, listing) order the scan's own decision
   // groups a booking's lines by — so the count names what that scan admits.
@@ -137,13 +142,13 @@ const ticketCachePage = async (
     // Digest order, so every device saves the same list for the same door
     // and the same tokens.
     entries: sortedByString((entry: TicketCacheEntry) => entry.hash)(entries),
-    next: page.nextAfter,
+    next: page.nextAfter === null ? null : await cursorAfter(page.nextAfter),
     people: page.people,
     total: page.total,
   };
 };
 
-/** One door as its cache routes see it. `door` is the name its key derives
+/** One door as its cache route sees it. `door` is the name its key derives
  * from. `name` is the door's own name for the activity log. `listingId` is
  * the listing the log entry belongs to, or null for a group door. */
 type CacheDoor = {
@@ -157,46 +162,35 @@ type CacheDoor = {
  * not exist, or a listing marked "No check-in". */
 type CacheDoorLoader = (id: number) => Promise<CacheDoor | null>;
 
-/** The attendee id a cache page starts after: absent means the first page. */
-const cacheCursorOrNull = (request: Request): number | null => {
-  const after = new URL(request.url).searchParams.get("after");
-  return after === null ? 0 : parseNonNegativeInt(after);
-};
+/** How long one page's cursor stays valid. A download that stops for longer
+ * starts again from the first page, which logs again. */
+const CURSOR_MAX_AGE_S = 60 * 60;
 
-/** One route at one door. It loads the door by id and hands it to
- * `answer`. A door that does not exist answers 404. */
-const doorRoute =
-  (
-    answer: (
-      door: CacheDoor,
-      request: Request,
-      session: AuthSession,
-    ) => Promise<Response>,
-  ) =>
-  (load: CacheDoorLoader): IdRouteHandler =>
-  (request, { id }) =>
-    withAuth(request, SCANNER_JSON, async (session) => {
-      const loaded = await load(id);
-      return loaded ? answer(loaded, request, session) : notFoundResponse();
-    });
+/** A cache page cursor: the last attendee id the page read, and its expiry. */
+type CursorPayload = { a: number; e: number };
 
-/** One page of the door's digest set, after the cursor the request names. */
-const handleScanCacheGet = doorRoute(async (loaded, request) => {
-  const afterId = cacheCursorOrNull(request);
-  if (afterId === null) return apiErrorResponse("Invalid page cursor");
-  return jsonResponse(
-    await ticketCachePage(
-      loaded.scope,
-      deriveDoorCacheKey(loaded.door),
-      afterId,
-    ),
-  );
+/** Who a cursor belongs to. Its HMAC binds it to one door and one user.
+ * Nobody can read later pages on a cursor from another person's first page. */
+type CursorOwner = { door: string; userId: number };
+
+const CursorPayloadSchema = v.strictObject({
+  a: integerAtLeast(1),
+  e: v.number(),
 });
 
-/** Record that one person turned offline mode on at one door. The scanner
- * page posts this before it downloads the door's list, so every download a
- * person starts has its log entry. */
-const handleScanOfflinePost = doorRoute(async (loaded, _request, session) => {
+const cacheCursor = defineSignedToken<CursorPayload, CursorOwner>({
+  maxAgeS: CURSOR_MAX_AGE_S,
+  message: ({ door, userId }, encoded) =>
+    `scan-cache-cursor:${door}:${userId}:${encoded}`,
+  parse: (raw) => parseOrNull(CursorPayloadSchema, raw),
+  prefix: "sc1.",
+});
+
+/** Write the log entry for one person who starts to download a door's list. */
+const logListDownload = async (
+  loaded: CacheDoor,
+  session: AuthSession,
+): Promise<void> => {
   const username = await decryptUsername(
     requireValue(
       await getUserById(session.userId),
@@ -204,11 +198,40 @@ const handleScanOfflinePost = doorRoute(async (loaded, _request, session) => {
     ),
   );
   await logActivity(
-    `Offline scanning turned on for '${loaded.name}' by '${username}'`,
+    `Offline ticket list downloaded for '${loaded.name}' by '${username}'`,
     loaded.listingId,
   );
-  return jsonResponse({ status: "ok" });
-});
+};
+
+/** One page of the door's digest set. A request with no `from` is the first
+ * page, and it writes the activity log entry. Every later page needs the
+ * signed cursor that the page before it issued, so no page reaches a device
+ * without a logged first page. */
+const handleScanCacheGet =
+  (load: CacheDoorLoader): IdRouteHandler =>
+  (request, { id }) =>
+    withAuth(request, SCANNER_JSON, async (session) => {
+      const loaded = await load(id);
+      if (!loaded) return notFoundResponse();
+      const owner = { door: loaded.door, userId: session.userId };
+      const from = new URL(request.url).searchParams.get("from");
+      const cursor =
+        from === null ? { a: 0 } : await cacheCursor.verify(owner, from);
+      if (cursor === null) return apiErrorResponse("Invalid page cursor");
+      if (from === null) await logListDownload(loaded, session);
+      return jsonResponse(
+        await ticketCachePage(
+          loaded.scope,
+          deriveDoorCacheKey(loaded.door),
+          cursor.a,
+          (attendeeId) =>
+            cacheCursor.sign(owner, {
+              a: attendeeId,
+              e: expiresIn(CURSOR_MAX_AGE_S),
+            }),
+        ),
+      );
+    });
 
 /** The listing door. A "No check-in" listing has no door, so a guessed URL
  * meets the same answer as an unknown listing. */
@@ -238,12 +261,8 @@ const loadGroupDoor: CacheDoorLoader = async (id) => {
     : null;
 };
 
-/** The offline routes of both door kinds: one page of the door's list, and
- * the record of a person turning offline mode on. */
-export const offlineDoorRoutes = {
+/** The cache routes of both door kinds: one page of the door's list. */
+export const scanCacheRoutes = {
   "GET /admin/groups/:id/scan-cache": handleScanCacheGet(loadGroupDoor),
   "GET /admin/listing/:id/scan-cache": handleScanCacheGet(loadListingDoor),
-  "POST /admin/groups/:id/scan-offline": handleScanOfflinePost(loadGroupDoor),
-  "POST /admin/listing/:id/scan-offline":
-    handleScanOfflinePost(loadListingDoor),
 };

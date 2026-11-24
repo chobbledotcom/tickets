@@ -105,9 +105,7 @@ export const AREAS_M_Z = {
     },
     write: {
       groupScan: openInReadOnly("/admin/groups/:id/scan"),
-      groupScanOffline: openInReadOnly("/admin/groups/:id/scan-offline"),
       listingScan: openInReadOnly("/admin/listing/:id/scan"),
-      listingScanOffline: openInReadOnly("/admin/listing/:id/scan-offline"),
     },
   },
   servicing: {

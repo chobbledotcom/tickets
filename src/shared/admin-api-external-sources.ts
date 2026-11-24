@@ -18,6 +18,7 @@ import {
   apiBodyPair,
   textField,
 } from "#shared/rest/api-body-fields.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
 
 /** The writable fields of one source as an answer carries them. They are the
  *  name an admin reads and the URL pattern the source uses for one external
@@ -73,7 +74,7 @@ export type AdminApiCreateExternalSourceBody = ApiBody<
  *  external_id out when the other system has not named the record yet. */
 export const CreateExternalLinkBodySchema = v.object({
   external_id: v.optional(v.string()),
-  link_id: v.pipe(v.number(), v.safeInteger(), v.minValue(1)),
+  link_id: integerAtLeast(1),
   link_type: ExternalLinkKindSchema,
 });
 export type AdminApiCreateExternalLinkBody = v.InferOutput<

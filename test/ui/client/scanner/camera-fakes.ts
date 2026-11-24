@@ -38,7 +38,7 @@ export const seedTicketCache = async (
 export const withEmptyCache =
   (checkIns: FetchResponder): FetchResponder =>
   (url, init) =>
-    String(url).includes("/scan-cache?")
+    String(url).includes("/scan-cache")
       ? Response.json({ entries: [], next: null, people: 0, total: 0 })
       : checkIns(url, init);
 

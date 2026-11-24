@@ -175,12 +175,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
    * the role gate runs — this suite's form body can neither be admitted nor
    * refused by the role, so the gates are proved by the scanner feature
    * suite instead of here. */
-  const JSON_API_WRITE_IDS = new Set([
-    "groupScan",
-    "groupScanOffline",
-    "listingScan",
-    "listingScanOffline",
-  ]);
+  const JSON_API_WRITE_IDS = new Set(["groupScan", "listingScan"]);
 
   /** The same routes, less the ones this suite cannot ask: the session-ending
    * logout, and the JSON scanner APIs. Asking `POST /admin/logout` as a role
@@ -315,11 +310,11 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   });
 
   test("covers the write routes the surface declares", () => {
-    expect(writableRoutes().length).toBe(221);
+    expect(writableRoutes().length).toBe(219);
     expect(insiderWritableRoutes().length).toBe(216);
     // The DELETE beside the confirmed POST deletes: each method's gate is
     // its own, so the walks above must ask both.
-    expect(writeMethodPairs()).toBe(223);
+    expect(writeMethodPairs()).toBe(221);
     // The writable routes whose GET serves a page at the same path — a
     // write's own form page, or a view page whose POST the walks ask too.
     // The refusal walk asks those GETs like the writes, so this pins their

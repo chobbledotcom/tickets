@@ -2,7 +2,7 @@
  * Admin QR scanner page template
  */
 
-import { t } from "#i18n";
+import { t, tWithHoles } from "#i18n";
 import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -87,38 +87,38 @@ export const ticketCountText = (count: number): string =>
   );
 
 const scannerMessages = (): ScannerMessages => ({
-  alreadyCheckedIn: t("admin.scanner.already_checked_in", {
-    listingName: "{listingName}",
-    name: "{name}",
-    tickets: "{tickets}",
-  }),
-  checkedIn: t("admin.scanner.checked_in", {
-    listingName: "{listingName}",
-    name: "{name}",
-    tickets: "{tickets}",
-  }),
-  checkedInPartial: t("admin.scanner.checked_in_partial", {
-    listingName: "{listingName}",
-    name: "{name}",
-    tickets: "{tickets}",
-    total: "{total}",
-  }),
-  idMismatch: t("admin.scanner.id_mismatch", { name: "{name}" }),
+  alreadyCheckedIn: tWithHoles(
+    "admin.scanner.already_checked_in",
+    "listingName",
+    "name",
+    "tickets",
+  ),
+  checkedIn: tWithHoles(
+    "admin.scanner.checked_in",
+    "listingName",
+    "name",
+    "tickets",
+  ),
+  checkedInPartial: tWithHoles(
+    "admin.scanner.checked_in_partial",
+    "listingName",
+    "name",
+    "tickets",
+    "total",
+  ),
+  idMismatch: tWithHoles("admin.scanner.id_mismatch", "name"),
   noDoor: t("admin.scanner.no_door"),
-  refunded: t("admin.scanner.refunded", { name: "{name}" }),
-  selectQuantity: t("admin.scanner.select_quantity", { name: "{name}" }),
-  skipped: t("admin.scanner.skipped", { name: "{name}" }),
-  ticketCountOne: t("admin.scanner.ticket_count_one", { count: "{count}" }),
-  ticketCountOther: t("admin.scanner.ticket_count_other", {
-    count: "{count}",
-  }),
-  verifyIdConfirm: t("admin.scanner.verify_id_confirm", {
-    name: "{name}",
-  }),
-  wrongListingConfirm: t("admin.scanner.wrong_listing_confirm", {
-    listingName: "{listingName}",
-    name: "{name}",
-  }),
+  refunded: tWithHoles("admin.scanner.refunded", "name"),
+  selectQuantity: tWithHoles("admin.scanner.select_quantity", "name"),
+  skipped: tWithHoles("admin.scanner.skipped", "name"),
+  ticketCountOne: tWithHoles("admin.scanner.ticket_count_one", "count"),
+  ticketCountOther: tWithHoles("admin.scanner.ticket_count_other", "count"),
+  verifyIdConfirm: tWithHoles("admin.scanner.verify_id_confirm", "name"),
+  wrongListingConfirm: tWithHoles(
+    "admin.scanner.wrong_listing_confirm",
+    "listingName",
+    "name",
+  ),
 });
 
 /* jscpd:ignore-start -- a list of strings, not code */
@@ -156,24 +156,25 @@ const OFFLINE_PLAIN_MESSAGE_KEYS = [
  * page is the only surface the offline scanner serves. */
 const offlineMessageAttrs = (): Record<string, string> => ({
   ...plainMessageAttrs(OFFLINE_PLAIN_MESSAGE_KEYS),
-  "data-message-offline-downloading": t("admin.scanner.offline_downloading", {
-    done: "{done}",
-    total: "{total}",
-  }),
-  "data-message-queue-count-one": t("admin.scanner.queue_count_one", {
-    count: "{count}",
-  }),
-  "data-message-queue-count-other": t("admin.scanner.queue_count_other", {
-    count: "{count}",
-  }),
-  "data-message-queue-item-over-admitted": t(
+  "data-message-offline-downloading": tWithHoles(
+    "admin.scanner.offline_downloading",
+    "done",
+    "total",
+  ),
+  "data-message-queue-count-one": tWithHoles(
+    "admin.scanner.queue_count_one",
+    "count",
+  ),
+  "data-message-queue-count-other": tWithHoles(
+    "admin.scanner.queue_count_other",
+    "count",
+  ),
+  "data-message-queue-item-over-admitted": tWithHoles(
     "admin.scanner.queue_item_over_admitted",
-    {
-      admitted: "{admitted}",
-      bought: "{bought}",
-      name: "{name}",
-      named: "{named}",
-    },
+    "admitted",
+    "bought",
+    "name",
+    "named",
   ),
 });
 
@@ -360,13 +361,16 @@ export const adminScannerPage = (
           action={scanPath}
           {...sharedScanMessageAttrs(messageTemplates)}
           data-manual-checkin
-          data-message-ticket-option={t("admin.scanner.ticket_option", {
-            name: "{name}",
-            tickets: "{tickets}",
-          })}
-          data-message-ticket-option-detail={t(
+          data-message-ticket-option={tWithHoles(
+            "admin.scanner.ticket_option",
+            "name",
+            "tickets",
+          )}
+          data-message-ticket-option-detail={tWithHoles(
             "admin.scanner.ticket_option_detail",
-            { detail: "{detail}", name: "{name}", tickets: "{tickets}" },
+            "detail",
+            "name",
+            "tickets",
           )}
           data-message-verify-id-note={t("admin.scanner.verify_id_note")}
           data-scan-path={scanPath}

@@ -141,10 +141,9 @@ export const PUBLIC_SITE_PATH = new RegExp(
 export const isWebhookPath = (path: string): boolean =>
   path === "/payment/webhook" || path === "/sms/webhook";
 
-/** Pattern matching scan API paths (the scanner posts JSON check-ins, reads
- * its offline ticket cache as JSON, and posts JSON to turn offline mode on) */
-const SCAN_API_PATTERN =
-  /^\/admin\/(listing|groups)\/\d+\/scan(?:-cache|-offline)?$/;
+/** Pattern matching scan API paths (the scanner posts JSON check-ins and
+ * reads its offline ticket cache as JSON) */
+const SCAN_API_PATTERN = /^\/admin\/(listing|groups)\/\d+\/scan(?:-cache)?$/;
 
 /** Pattern for public API paths */
 const API_PATH_PATTERN = /^\/api\//;

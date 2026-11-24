@@ -35,8 +35,8 @@ import {
 } from "./scan-answer.ts";
 import {
   doorCacheName,
-  offlineDoorRoutes,
   pageDoorCacheKey,
+  scanCacheRoutes,
 } from "./scan-cache.ts";
 
 /** The door-safe facts that tell two people with the same name apart. They
@@ -201,7 +201,7 @@ const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
 
 /** Scanner routes */
 export const adminHandlers = defineAdminRoutes({
-  ...offlineDoorRoutes,
+  ...scanCacheRoutes,
   "GET /admin/groups/:id/scanner": handleGroupScannerGet,
   "GET /admin/listing/:id/scanner": handleScannerGet,
   "GET /admin/scanner": handleDoorsGet,

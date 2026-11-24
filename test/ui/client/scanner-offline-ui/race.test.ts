@@ -158,24 +158,21 @@ describe("scanner offline races", {
   });
 
   test("validates a scan against the list the switch downloaded", async () => {
-    // Turning offline mode on records the switch with the door, downloads
-    // the door's ticket list from the cache endpoint, and stores it. A scan
+    // Turning offline mode on downloads the door's ticket list from the
+    // cache endpoint and stores it. A scan
     // made offline reads that stored list alone: the ticket it holds
     // queues, and a stranger the list does not hold is sent away. No test
     // hand writes the store's list.
-    const fetchStub = stubFetch(async (url) => {
-      if (String(url).endsWith("/scan-offline")) {
-        return Response.json({ status: "ok" });
-      }
-      return String(url).includes("/scan-cache?")
+    const fetchStub = stubFetch(async (url) =>
+      String(url).includes("/scan-cache")
         ? Response.json({
             entries: [{ hash: await hmacHex(DOOR_KEY, TOKEN), tickets: 1 }],
             next: null,
             people: 1,
             total: 1,
           })
-        : Response.json({}, { status: 500 });
-    });
+        : Response.json({}, { status: 500 }),
+    );
     try {
       const h = fresh();
       using fakes = cameraFakes(h);
@@ -207,11 +204,8 @@ describe("scanner offline races", {
         "This ticket cannot be checked in offline. Scan it again when you are back online to see why.",
       );
       expect(JSON.parse(String(storedQueue(h)))).toHaveLength(1);
-      // No scan left the page: only the switch's two requests ran.
-      expect(askedUrls(fetchStub)).toEqual([
-        "/admin/groups/5/scan-offline",
-        `${SCAN_PATH}-cache?after=0`,
-      ]);
+      // No scan left the page: only the switch's one page request ran.
+      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
     } finally {
       fetchStub.restore();
     }

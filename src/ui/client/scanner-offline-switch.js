@@ -16,14 +16,11 @@ import {
 const say = (statusEl, messages, key, fallback, type) =>
   showStatus(statusEl, getMessage(messages, key, fallback), type);
 
-/** Wire one door's switch. `announceOffline` records on the server that a
- * person turned offline mode on, and must resolve before any download
- * starts. `onChange` redraws the banner, the switch, and the queue.
+/** Wire one door's switch. `onChange` redraws the banner, the switch, and the queue.
  * `onTurnedOff` settles what the door queued while the switch held the
  * scans. Returns `refresh`, the download a page load starts while the
  * switch is already on. */
 export const wireOfflineSwitch = ({
-  announceOffline,
   messages,
   onChange,
   onTurnedOff,
@@ -72,14 +69,13 @@ export const wireOfflineSwitch = ({
   /** Download the door's list page by page. A failed download stores
    * nothing. A door that turns offline mode on stays off. A door already on
    * keeps the list it holds until that list expires. */
-  const download = async (announce) => {
+  const download = async () => {
     const stop = new AbortController();
     running = stop;
     toggle.setAttribute("aria-busy", "true");
     progress.classList.remove("hidden");
     showProgress(0, 0);
     try {
-      if (announce) await announceOffline();
       await downloadTicketCache(scanPath, showProgress, stop.signal);
       keepDownloadedList();
     } catch {
@@ -134,12 +130,12 @@ export const wireOfflineSwitch = ({
   toggle.addEventListener("click", () => {
     const stopped = stopDownload();
     if (readManualMode(scanPath)) turnOff();
-    else if (!stopped) download(true);
+    else if (!stopped) download();
   });
 
   return {
     refresh: () => {
-      if (readManualMode(scanPath) && navigator.onLine) download(false);
+      if (readManualMode(scanPath) && navigator.onLine) download();
     },
   };
 };
