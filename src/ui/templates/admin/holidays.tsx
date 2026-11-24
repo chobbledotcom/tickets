@@ -11,7 +11,7 @@ import type { Holiday } from "#db/holidays.ts";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { adminPath, adminPattern } from "#shared/admin-surface.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
@@ -24,9 +24,9 @@ import {
   type AdminResourcePages,
   confirmByName,
   defineRecordPages,
+  listWithAddButton,
   pageLabels,
 } from "#templates/admin/resource-pages.tsx";
-import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import type { AdminSession } from "#types";
@@ -96,20 +96,12 @@ export const getHolidayPages = (): AdminResourcePages<Holiday> =>
       ),
     },
     labels: pageLabels("holidays"),
-    list: {
-      actions: (
-        <ActionButton href={adminPattern("holidayNew")} icon="plus">
-          {t("holidays.add_holiday")}
-        </ActionButton>
-      ),
+    list: listWithAddButton({
+      add: { label: t("holidays.add_holiday"), route: "holidayNew" },
       columns: holidayColumns(),
-      empty: <p>{t("holidays.no_holidays")}</p>,
-      guideFooter: (
-        <GuideFooter href={`${adminPattern("guide")}#holidays`}>
-          {t("holidays.guide_link")}
-        </GuideFooter>
-      ),
-    },
+      empty: t("holidays.no_holidays"),
+      guide: { anchor: "holidays", label: t("holidays.guide_link") },
+    }),
     renderFields: () => <Raw html={getHolidayForm().render()} />,
   });
 

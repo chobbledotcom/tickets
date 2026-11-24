@@ -275,6 +275,10 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/questions.ts"),
     ["entity-pages", "modifiers", "notes", "questions", "validation"],
   ),
+  redirects: area(
+    () => import("#routes/admin/redirects.ts"),
+    ["entity-pages", "redirects", "validation"],
+  ),
   // The scanner serves three segments: the doors list, the listing page's
   // scanner, and the group page's. The group scanner page also reads the
   // group-field copy, while the doors list and the listing scanner never need

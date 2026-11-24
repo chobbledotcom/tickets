@@ -59,5 +59,11 @@ export const settingsForPath = (path: string): readonly string[] => {
   const bundle = Object.hasOwn(prefixSettings, prefix)
     ? prefixSettings[prefix]
     : undefined;
-  return [...INFRA_SETTINGS, ...(bundle ?? ALL_SNAPSHOT_SETTINGS)];
+  // The missing-page check skips its lookup while no redirect exists, and it
+  // can run on any path.
+  return [
+    ...INFRA_SETTINGS,
+    CONFIG_KEYS.REDIRECT_COUNT,
+    ...(bundle ?? ALL_SNAPSHOT_SETTINGS),
+  ];
 };

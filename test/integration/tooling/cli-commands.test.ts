@@ -70,6 +70,7 @@ describe("CLI describe", () => {
       "images",
       "listings",
       "questions",
+      "redirects",
       "site-pages",
     ]);
     // The attendee resource describes only the create and the update verbs.
