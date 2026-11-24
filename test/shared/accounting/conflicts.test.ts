@@ -31,6 +31,23 @@ describe("db > accounting > conflicts", () => {
       expect((await allTransfers()).length).toBe(1);
     });
 
+    test("names each fact that the replayed leg changed", async () => {
+      await postTransfers([tx({ amount: 5000, reference: "sale-1" })]);
+      const error = await rejection(
+        postTransfers([
+          tx({
+            amount: 9999,
+            destination: account("fee_income", "booking"),
+            reference: "sale-1",
+          }),
+        ]),
+      );
+      assertStringIncludes(
+        error.message,
+        "stored leg differs in destination, amount",
+      );
+    });
+
     test("rejects a replay that adds a leg to a posted event", async () => {
       await postTransfers(saleAndPayment());
       const error = await rejection(
@@ -103,9 +120,8 @@ describe("db > accounting > conflicts", () => {
       expect(voided.postedBy).toBe("user:5");
       expect(voided.reversesId).toBe(origId);
       const orig = (await transfersByEventGroup("e0"))[0]!;
-      expect(orig.reversesId).toBeUndefined();
       // A kindless leg round-trips to an omitted kind, like reverses_id.
-      expect(orig.kind).toBeUndefined();
+      expect([orig.reversesId, orig.kind]).toEqual([undefined, undefined]);
     });
   });
 

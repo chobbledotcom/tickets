@@ -102,6 +102,43 @@ describe("activity log templates", () => {
       ]);
     });
 
+    test("puts a space between the Square settings link and the message", () => {
+      const message = formatErrorMessage({
+        code: ErrorCode.SQUARE_SIGNATURE,
+        detail: "mismatch",
+      });
+      const html = adminGlobalActivityLogPage(
+        [logEntry({ message })],
+        false,
+        OWNER_SESSION,
+        emptyRefs(),
+      );
+      assertStringIncludes(html, `</a> ${message}`);
+    });
+
+    test("shows no truncation message when the caller does not say", () => {
+      const html = adminGlobalActivityLogPage(
+        [logEntry({ message: "Action" })],
+        undefined,
+        OWNER_SESSION,
+        emptyRefs(),
+      );
+      assert(!html.includes("Showing the most recent 200 entries"));
+    });
+
+    test("links to the activity log section of the guide", () => {
+      const html = adminGlobalActivityLogPage(
+        [],
+        false,
+        OWNER_SESSION,
+        emptyRefs(),
+      );
+      assertStringIncludes(
+        html,
+        '<a class="guide-link" href="/admin/guide#activity-log">',
+      );
+    });
+
     test("does not add the Square settings link to unrelated messages", () => {
       const entries = [logEntry({ message: "Payment received" })];
       const html = adminGlobalActivityLogPage(

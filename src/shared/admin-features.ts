@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 import { sql } from "#db/sql.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";

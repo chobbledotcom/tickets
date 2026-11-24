@@ -278,4 +278,18 @@ describeAdminSettings(() => {
     }
     expect(await storedFeatureEnabled("modifiers")).toBe(true);
   });
+
+  test("a feature write works when the stored list lacks a newer feature", async () => {
+    const { invoices: _absent, ...saved } = parseEnabledFeatures("");
+    await getDb().execute(
+      sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${JSON.stringify(saved)})`,
+    );
+
+    await getDb().execute(
+      sql`INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-11-23', 10, 1)`,
+    );
+
+    expect(await storedFeatureEnabled("invoices")).toBe(false);
+    expect(await storedFeatureEnabled("logistics")).toBe(true);
+  });
 });
