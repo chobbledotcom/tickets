@@ -76,6 +76,7 @@ const KIND_FORMS: Record<FieldKind, (field: FieldSpec) => ValueForm> = {
     form: "or_empty",
     of: { form: "one_of", names: RecurringIntervalSchema.options },
   }),
+  sealedText: () => TEXT,
   switch: () => ({ form: "switch" }),
   text: () => TEXT,
   weekdays: () => ({

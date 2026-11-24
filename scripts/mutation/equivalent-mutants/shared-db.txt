@@ -261,6 +261,7 @@ src/shared/db/select/expression.ts::and~0es27cz  1 → 0 audited:18f8anp # With 
 src/shared/db/attributes.ts::buildAttributeGroups.group~1mkbbbm  ?? → || audited:107v3ak # Map.get answers a group object or undefined, and an object is never falsy
 src/shared/db/attributes.ts::attributeFromRows~0ce2746  ?? → || audited:107v3ak # the first grouped attribute is an object or undefined, and an object is never falsy
 src/shared/db/attendee-statuses.ts::writtenStatus~18ifnw3  The status write gave back no row → "" audited:0b6zj6c # an insert or update with a returning clause always gives back its row inside the write transaction, so requireValue never throws
+src/shared/db/codecs/fields.ts::KIND_CODECS.optionalDatetime.encode~1f02l1u  ??→|| audited:02l8io9 # the value is a string or null, and the only falsy string is "", so null ?? "" and "" ?? "" give the same text as null || "" and "" || ""
 
 # checkout-bundles.ts: openCheckoutBundle catches every error of the read and
 # answers `unreadable`, so the label of the JSON reader has no observer.

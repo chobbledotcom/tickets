@@ -8,10 +8,11 @@ import type { ShownField, ShownKind } from "#shared/rest/field-specs.ts";
 import { validateDate } from "#templates/fields/validators.ts";
 
 /** The box type each kind shows. */
-const BOX_TYPES = { date: "date", name: "text" } as const satisfies Record<
-  ShownKind,
-  InputField["type"]
->;
+const BOX_TYPES = {
+  date: "date",
+  name: "text",
+  sealedText: "text",
+} as const satisfies Record<ShownKind, InputField["type"]>;
 
 /** The box one field shows. Every declared field is required. */
 type FieldBox<Key extends string> = InputField<Key> & {
@@ -23,6 +24,7 @@ type FieldBox<Key extends string> = InputField<Key> & {
 const BOX_RULES: Record<ShownKind, Pick<InputField, "validate">> = {
   date: { validate: validateDate },
   name: {},
+  sealedText: {},
 };
 
 /** One translated box text, or nothing when the field declares none. */

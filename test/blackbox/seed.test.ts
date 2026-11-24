@@ -44,6 +44,7 @@ const answering = (answer: Answer) => {
       return Promise.resolve(answer);
     },
     put: () => Promise.resolve(answer),
+    statusOf: () => Promise.resolve(answer.status),
   };
   return { api, posted };
 };

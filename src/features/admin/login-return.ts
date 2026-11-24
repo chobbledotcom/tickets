@@ -9,6 +9,8 @@
  * value keeps today's dashboard landing.
  */
 
+import { hasControlCharacter, hasPathEscapeShape } from "#shared/url-safety.ts";
+
 /** The name of the return target in a page address. */
 export const RETURN_URL_PARAM = "return_url";
 
@@ -16,15 +18,6 @@ export const RETURN_URL_PARAM = "return_url";
  *  normalization. A climb like `/admin/..%2F..%2Fpublic` cannot then slip out
  *  of the admin area. */
 const ADMIN_PREFIX = "/admin/";
-
-/** A control character (C0 or DEL) in a page address is never a real page.
- *  It is invisible in a Location header, and an attacker can use it to inject
- *  a header. */
-const hasControlCharacter = (text: string): boolean =>
-  [...text].some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 0x1f || code === 0x7f;
-  });
 
 /** The safe target a return value names, or null when the value is absent
  *  or unsafe. The check reads the decoded path, so an encoded attack shape
@@ -58,13 +51,7 @@ export const adminReturnPath = (
   // here. They are a protocol-relative address, a backslash (browsers read
   // it as a slash), and a climb out of the admin area. The percent-encoded
   // forms (%2F%2F, %5C) decode to these.
-  if (
-    decodedPathname.includes("//") ||
-    decodedPathname.includes("\\") ||
-    decodedPathname.split("/").includes("..")
-  ) {
-    return null;
-  }
+  if (hasPathEscapeShape(decodedPathname)) return null;
   // A return to the login page loops, and logout after a successful login
   // is nonsense.
   if (isRefusedLoginPage(decodedPathname)) return null;

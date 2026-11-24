@@ -5,6 +5,7 @@ import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 
 const ID_LIST = { form: "list_of", of: { form: "whole_number", min: 1 } };
@@ -23,6 +24,7 @@ describe("declared write fields", () => {
       ["groups", GROUP_FIELDS],
       ["holidays", HOLIDAY_FIELDS],
       ["listings", LISTING_FIELDS],
+      ["redirects", REDIRECT_FIELDS],
     ]);
   });
 
@@ -50,11 +52,12 @@ describe("declared write fields", () => {
     });
   });
 
-  test("a status, an attribute, and a holiday take no key outside their list", () => {
+  test("a status, an attribute, a holiday, and a redirect take no key outside their list", () => {
     expect([
       DECLARED_FIELDS["attendee-statuses"]?.extras,
       DECLARED_FIELDS.attributes?.extras,
       DECLARED_FIELDS.holidays?.extras,
-    ]).toEqual([{}, {}, {}]);
+      DECLARED_FIELDS.redirects?.extras,
+    ]).toEqual([{}, {}, {}, {}]);
   });
 });

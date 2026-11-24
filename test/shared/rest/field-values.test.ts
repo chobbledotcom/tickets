@@ -29,6 +29,7 @@ const PLAIN_FIELDS = [
 /* jscpd:ignore-end */
 
 /** Every field kind, so a new kind joins the whole-number check. */
+/* jscpd:ignore-start -- static data, not code */
 const FIELD_KINDS: Record<FieldKind, true> = {
   contactFields: true,
   count: true,
@@ -42,10 +43,12 @@ const FIELD_KINDS: Record<FieldKind, true> = {
   price: true,
   privateText: true,
   recurringInterval: true,
+  sealedText: true,
   switch: true,
   text: true,
   weekdays: true,
 };
+/* jscpd:ignore-end */
 
 const FIELDS = [
   ...PLAIN_FIELDS,
