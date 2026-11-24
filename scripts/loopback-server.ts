@@ -1,3 +1,6 @@
+/** A tiny loopback-only HTTP server for a browser page the tooling serves
+ * itself, such as the evidence capture pages and the guide renderer. */
+
 export interface LoopbackServer {
   baseUrl: string;
   close: () => Promise<void>;
