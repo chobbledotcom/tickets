@@ -1,4 +1,4 @@
-import { assert } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { setItemsForImage } from "#db/images.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -56,6 +56,49 @@ describeWithEnv(
         ]);
         // The gallery card is an index: no prose block, no full description.
         assert(!html.includes('<div class="prose"><h2>Gallery Product</h2>'));
+      });
+    });
+
+    test("image mode shows the header image as a placeholder on a card with no picture", async () => {
+      await enablePublicSite();
+      await createTestListing({ name: "Gallery Bare" });
+
+      await withSetting(
+        { header_image_url: "logo.png", listing_mode: "image" },
+        async () => {
+          const html = await assertPublicHtml("/listings", "Gallery Bare");
+          expectIncludesAll(html, [
+            'class="card-image card-image-placeholder"',
+            "/image/logo.png",
+          ]);
+          // The header image also renders once in the page header.
+          assertEquals(html.split("/image/logo.png").length - 1, 2);
+        },
+      );
+    });
+
+    test("image mode keeps a card's own picture over the header image", async () => {
+      await enablePublicSite();
+      const listing = await createTestListing({ name: "Gallery Pictured" });
+      await attachImage(listing.id, "Gallery Pictured Poster");
+
+      await withSetting(
+        { header_image_url: "logo.png", listing_mode: "image" },
+        async () => {
+          const html = await assertPublicHtml("/listings", "Gallery Pictured");
+          assert(!html.includes("card-image-placeholder"));
+          assertEquals(html.split("/image/logo.png").length - 1, 1);
+        },
+      );
+    });
+
+    test("image mode adds no placeholder when no header image is set", async () => {
+      await enablePublicSite();
+      await createTestListing({ name: "Gallery Unbranded" });
+
+      await withSetting({ listing_mode: "image" }, async () => {
+        const html = await assertPublicHtml("/listings", "Gallery Unbranded");
+        assert(!html.includes("card-image"));
       });
     });
 

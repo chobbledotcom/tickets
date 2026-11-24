@@ -1,5 +1,6 @@
 import type { TicketListing } from "#booking/model.ts";
 import type { ListingAttributesById } from "#db/attributes.ts";
+import { settings } from "#db/settings.ts";
 import { joinStrings, partition } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -277,6 +278,16 @@ const galleryDetailHtml = (listing: TicketListing["listing"]): string =>
   listingPriceHtml(listing) +
   cardDetailLinesHtml(listing, (content) => `<span>${content}</span>`);
 
+/** A gallery card's picture. A listing with no picture shows the site's header
+ *  image (usually the logo) as a faded watermark, when one is set. */
+const galleryCardImageHtml = (listing: TicketListing["listing"]): string =>
+  listing.imageUrl
+    ? renderListingImage(listing, "card-image", { thumb: true })
+    : renderListingImage(
+        { imageThumbUrl: "", imageUrl: settings.headerImageUrl },
+        "card-image card-image-placeholder",
+      );
+
 /** Render one listing as a product-gallery card — the shop-index look image
  *  mode gives the listings page. The shared media
  *  card (image, name, detail lines) reuses the order gallery's and news
@@ -290,7 +301,7 @@ const renderGalleryCard = cardRenderer(({ info, childStateOf, dateFilter }) => {
   const cta = renderListingCardCta(info, childStateOf(listing.id), dateState);
   const body = cardInner({
     detailHtml: galleryDetailHtml(listing),
-    imageHtml: renderListingImage(listing, "card-image", { thumb: true }),
+    imageHtml: galleryCardImageHtml(listing),
     name: listing.name,
   });
   const dateQuery =
