@@ -48,6 +48,8 @@ const seedChoiceQuestion = async (
   return { answerId: chosen.id, questionId: question.id };
 };
 
+type FreeTexts = ReadonlyMap<string, string>;
+
 describeWithEnv("order answer lines", { db: true }, () => {
   const bookedBuyer = async (listingName: string) => {
     const listing = await createTestListing({ name: listingName });
@@ -72,7 +74,7 @@ describeWithEnv("order answer lines", { db: true }, () => {
   const shownLines = async (
     attendeeId: number,
     listings: readonly { id: number; name: string }[],
-    freeTexts?: ReadonlyMap<string, string>,
+    freeTexts?: FreeTexts,
   ) => {
     const lines = await loadOrderAnswerLines(
       listings.map(({ id, name }) =>
@@ -137,31 +139,37 @@ describeWithEnv("order answer lines", { db: true }, () => {
     ]);
   });
 
-  test("spends fixed database reads however many entries the order has", async () => {
-    const { attendee, listing } = await buyerWithChosenAnswer("Fete");
-    const entry = makeEntry({ id: listing.id }, { id: attendee.id });
+  /** Orders that spend two reads: how many entries the order has, and the
+   * free texts it holds. A free text that rests in no package reads no
+   * package names. */
+  const TWO_READS: [string, number, (listingId: number) => FreeTexts][] = [
+    ["however many entries the order has", 2, () => new Map()],
+    [
+      "with free texts that rest in no package",
+      1,
+      (listingId) =>
+        new Map([
+          ["12", "Coming by bus"],
+          [`question13_line${listingId}_0_0_ticket0`, "Ava"],
+        ]),
+    ],
+  ];
 
-    const calls = await countDatabaseCalls(2, () =>
-      loadOrderAnswerLines([entry, entry]),
-    );
+  for (const [name, entryCount, freeTexts] of TWO_READS) {
+    test(`spends fixed database reads ${name}`, async () => {
+      const { attendee, listing } = await buyerWithChosenAnswer("Fete");
+      const entry = makeEntry({ id: listing.id }, { id: attendee.id });
 
-    expect(calls).toBe(2);
-  });
+      const calls = await countDatabaseCalls(2, () =>
+        loadOrderAnswerLines(
+          Array.from({ length: entryCount }, () => entry),
+          freeTexts(listing.id),
+        ),
+      );
 
-  test("reads no package names for free texts that rest in no package", async () => {
-    const { attendee, listing } = await buyerWithChosenAnswer("Fete");
-    const entry = makeEntry({ id: listing.id }, { id: attendee.id });
-    const freeTexts = new Map([
-      ["12", "Coming by bus"],
-      [`question13_line${listing.id}_0_0_ticket0`, "Ava"],
-    ]);
-
-    const calls = await countDatabaseCalls(2, () =>
-      loadOrderAnswerLines([entry], freeTexts),
-    );
-
-    expect(calls).toBe(2);
-  });
+      expect(calls).toBe(2);
+    });
+  }
 });
 
 describe("order answer lines from staged question data", () => {
