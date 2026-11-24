@@ -83,7 +83,7 @@ const flowOf = (accounts: Accounts, flow: Flow): LegTest =>
 export const figureOf = (
   name: FigureName,
   accounts: Accounts,
-): Measure<Counted> => {
+): Measure<"sum"> => {
   const spec: FigureSpec = FIGURES[name];
   const adds = flowOf(accounts, spec.adds);
   return spec.subtracts === undefined
@@ -92,7 +92,7 @@ export const figureOf = (
 };
 
 /** What the accounts owe: their balance with the sides swapped. */
-export const owedBy = (accounts: Accounts): Measure<Counted> =>
+export const owedBy = (accounts: Accounts): Measure<"sum"> =>
   balanceIn((role) => accounts(role === "dest" ? "source" : "dest"));
 
 const INCOME_PARTS = [
@@ -105,11 +105,11 @@ const INCOME_PARTS = [
 export const incomeParts = (revenue: Accounts) =>
   Object.fromEntries(
     INCOME_PARTS.map((name) => [name, figureOf(name, revenue)]),
-  ) as Record<(typeof INCOME_PARTS)[number], Measure<Counted>>;
+  ) as Record<(typeof INCOME_PARTS)[number], Measure<"sum">>;
 
 /** Recognised income over the revenue accounts: its three parts as one
  * figure. Write-offs count, and a refund leaves the earned amount alone. */
-export const recognisedIncomeOf = (revenue: Accounts): Measure<Counted> => {
+export const recognisedIncomeOf = (revenue: Accounts): Measure<"sum"> => {
   const specs: FigureSpec[] = INCOME_PARTS.map((name) => FIGURES[name]);
   return net(
     some(...specs.map((spec) => flowOf(revenue, spec.adds))),

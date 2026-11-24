@@ -215,7 +215,7 @@ export const net = (
 });
 
 /** The amounts of the rows that pass `rows`, added up. Zero with no row. */
-export const amountOf = (rows: LegTest): Measure<Counted> => ({
+export const amountOf = (rows: LegTest): Measure<"sum"> => ({
   fold: "sum",
   rows,
   value: (leg) => leg.amount,
