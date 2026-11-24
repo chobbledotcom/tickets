@@ -1,18 +1,16 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-/** Question visibility: show custom questions only when at least one
- * associated listing is active. Questions are tagged .custom-question.
- * Questions without data-listing-ids are always visible (single-listing pages).
+/** Show a .custom-question only while one of its listings is active. A
+ * question without data-listing-ids always shows (single-listing pages).
  *
  * "Active" includes folded children. A question for a child listing shows, and
  * is required, while that child is chosen under an in-cart parent (see
- * selectedListingIds). The server enforces requiredness for the chosen child
- * only. This mirrors it in the browser, so the buyer sees the field to fill.
+ * selectedListingIds). This mirrors the server, which requires it only then.
  *
  * A field for one ticket of one booking line carries `data-unit` and the
- * controls its line's quantity comes from (`data-sources`). It shows while the
- * line takes that ticket. A hidden one is disabled, so the form never posts
- * an answer for a ticket that the order does not take. */
+ * controls of its line's quantity (`data-sources`). It shows while the line
+ * takes that ticket. A hidden one is disabled, so the form never posts an
+ * answer for a ticket that the order does not take. */
 import {
   namedControlQty,
   onSelectionChange,
