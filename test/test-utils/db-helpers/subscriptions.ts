@@ -116,7 +116,8 @@ export const bookingIdOf = async (booking: TestBooking): Promise<number> =>
     `Booking ${booking.attendeeId} has no row`,
   ).id;
 
-/** How SQLite plans the first statement that `run` sends whose text holds
+/** How SQLite plans the first single statement that `run` sends whose text
+ * holds
  * `needle`, one line for each step. */
 export const queryPlanOfSent = async (
   needle: string,
@@ -124,19 +125,15 @@ export const queryPlanOfSent = async (
 ): Promise<string> => {
   const client = getDb();
   const executes = spy(client, "execute");
-  const batches = spy(client, "batch");
   try {
     await run();
   } finally {
     executes.restore();
-    batches.restore();
   }
-  const sent = [
-    ...executes.calls.map((call) => call.args[0]),
-    ...batches.calls.flatMap((call) => call.args[0]),
-  ];
   const statement = requireValue(
-    sent.find((item) => item.sql.includes(needle)),
+    executes.calls
+      .map((call) => call.args[0])
+      .find((item) => item.sql.includes(needle)),
     `No statement holds ${needle}`,
   );
   const plan = await queryAll<{ detail: string }>(
