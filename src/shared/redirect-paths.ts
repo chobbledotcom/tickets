@@ -31,8 +31,9 @@ const RESERVED_PREFIXES = ["/admin", "/api"] as const;
 const BASE = "http://redirects.invalid";
 
 /** The key that a path is matched by: lower case, with no trailing slash.
- *  The key of the home page is "/". */
-const keyOfPath = (path: string): string => {
+ *  The key of the home page is "/". A request path and a saved "from"
+ *  address meet at this key. */
+export const redirectKeyOfRequest = (path: string): string => {
   const lower = path.toLowerCase();
   const trimmed = lower.replace(/\/+$/, "");
   return trimmed === "" ? "/" : trimmed;
@@ -42,13 +43,8 @@ const keyOfPath = (path: string): string => {
  *  cannot, so the lookup does not run for it. */
 export const redirectsServe = (requestPath: string): boolean =>
   !RESERVED_PREFIXES.some((prefix) =>
-    isPathUnder(keyOfPath(requestPath), prefix),
+    isPathUnder(redirectKeyOfRequest(requestPath), prefix),
   );
-
-/** The key of a request path. The same key is made for a saved "from"
- *  address, so the two meet. */
-export const redirectKeyOfRequest = (requestPath: string): string =>
-  keyOfPath(requestPath);
 
 /** The path of an address: everything before its query or fragment. */
 const pathPart = (address: string): string => address.replace(/[?#].*$/s, "");
@@ -75,7 +71,7 @@ export const checkRedirectFrom = (
   if (!address.startsWith("/")) return errorResult("not_a_path");
   if (/[?#]/.test(address)) return errorResult("has_query");
   if (escapesTheSite(address)) return errorResult("unsafe");
-  const key = keyOfPath(new URL(address, BASE).pathname);
+  const key = redirectKeyOfRequest(new URL(address, BASE).pathname);
   return redirectsServe(key) ? okResult(key) : errorResult("reserved");
 };
 
@@ -107,5 +103,5 @@ export const checkRedirectTo = (
  *  names another site. */
 export const redirectKeyOfTarget = (target: string): string | null => {
   if (!target.startsWith("/")) return null;
-  return keyOfPath(new URL(pathPart(target), BASE).pathname);
+  return redirectKeyOfRequest(new URL(pathPart(target), BASE).pathname);
 };
