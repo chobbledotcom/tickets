@@ -117,8 +117,7 @@ export const bookingIdOf = async (booking: TestBooking): Promise<number> =>
   ).id;
 
 /** How SQLite plans the first single statement that `run` sends whose text
- * holds
- * `needle`, one line for each step. */
+ * holds `needle`, one line for each step. */
 export const queryPlanOfSent = async (
   needle: string,
   run: () => Promise<unknown>,
