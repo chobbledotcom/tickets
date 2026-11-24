@@ -23,7 +23,7 @@ import { parseOrNull } from "#shared/validation/parse.ts";
 export type ExpiringPayload = { e: number };
 
 /** A payload that names one record by its id `a` and expires at `e`. */
-export type IdPayload = { a: number; e: number };
+export type IdPayload = ExpiringPayload & { a: number };
 
 const IdPayloadSchema = v.strictObject({
   a: v.number(),
