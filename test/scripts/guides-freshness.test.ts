@@ -1,0 +1,141 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { toBase64 } from "#crypto/utils.ts";
+import type { GuideFreshnessBaseline } from "#scripts/guides/baseline.ts";
+import type { GuideFingerprint } from "#scripts/guides/fingerprint.ts";
+import {
+  buildFreshnessReport,
+  freshnessReportLines,
+  GUIDE_WARN_BELOW_PERCENT,
+  gradeGuide,
+  staleGuides,
+  statusForPercent,
+} from "#scripts/guides/freshness.ts";
+
+const thumbnail = (grey: number): string =>
+  toBase64(new Uint8Array(1024).fill(grey));
+
+const fingerprint = (grey: number, sha: string): GuideFingerprint => ({
+  grayscale: thumbnail(grey),
+  sha256: sha.repeat(64),
+});
+
+const baseline: GuideFreshnessBaseline = {
+  anchors: [
+    {
+      captureId: "listing-form",
+      caseId: "booking.group-page-journey",
+      grayscale: thumbnail(0),
+      sha256: "a".repeat(64),
+    },
+    {
+      captureId: "public-booking-page",
+      caseId: "minimum-quantity.choices-skip-below-the-minimum",
+      grayscale: thumbnail(0),
+      sha256: "b".repeat(64),
+    },
+  ],
+  evidenceCommit: "c".repeat(40),
+  guide: { slug: "create-a-listing", title: "Create a listing" },
+  profile: "desktop",
+  recordedCommit: "d".repeat(40),
+  schemaVersion: 1,
+};
+
+describe("guide freshness", () => {
+  test("grades each anchor and the guide", () => {
+    const result = gradeGuide(baseline, {
+      "listing-form": fingerprint(0, "a"),
+      "public-booking-page": fingerprint(255, "e"),
+    });
+
+    expect(result.percent).toBe(50);
+    expect(result.status).toBe("stale");
+    expect(result.anchors).toEqual([
+      {
+        captureId: "listing-form",
+        caseId: "booking.group-page-journey",
+        percent: 100,
+        status: "fresh",
+      },
+      {
+        captureId: "public-booking-page",
+        caseId: "minimum-quantity.choices-skip-below-the-minimum",
+        percent: 0,
+        status: "stale",
+      },
+    ]);
+  });
+
+  test("names a capture the evidence run no longer produces", () => {
+    expect(() =>
+      gradeGuide(baseline, { "listing-form": fingerprint(0, "a") }),
+    ).toThrow("No desktop evidence capture public-booking-page");
+  });
+
+  test("reports the guide and the overall score", () => {
+    const report = buildFreshnessReport([
+      {
+        anchors: [],
+        percent: 100,
+        slug: "create-a-listing",
+        status: "fresh",
+        title: "Create a listing",
+      },
+      {
+        anchors: [],
+        percent: 50,
+        slug: "manage-listings",
+        status: "stale",
+        title: "Manage listings",
+      },
+    ]);
+
+    expect(report.overallPercent).toBe(75);
+    expect(report.warnBelowPercent).toBe(GUIDE_WARN_BELOW_PERCENT);
+    expect(staleGuides(report).map(({ guide }) => guide.slug)).toEqual([
+      "manage-listings",
+    ]);
+    expect(freshnessReportLines(report)).toEqual([
+      "Guide freshness against the Cucumber evidence",
+      "",
+      "create-a-listing  100%  fresh  (Create a listing)",
+      "manage-listings  50%  stale  (Manage listings)",
+      "",
+      "Overall 75%  (warn below 80%)",
+    ]);
+  });
+
+  test("needs attention when one anchor falls below the line", () => {
+    const report = buildFreshnessReport([
+      {
+        anchors: [
+          {
+            captureId: "listing-form",
+            caseId: "booking.group-page-journey",
+            percent: 73,
+            status: "stale",
+          },
+        ],
+        percent: 87,
+        slug: "create-a-listing",
+        status: "aging",
+        title: "Create a listing",
+      },
+    ]);
+    const attention = staleGuides(report);
+
+    expect(attention).toHaveLength(1);
+    expect(attention[0]?.guide.percent).toBe(87);
+    expect(attention[0]?.anchors.map(({ captureId }) => captureId)).toEqual([
+      "listing-form",
+    ]);
+  });
+
+  test("marks the warning boundary exactly", () => {
+    expect(statusForPercent(99)).toBe("fresh");
+    expect(statusForPercent(98)).toBe("aging");
+    expect(statusForPercent(80)).toBe("aging");
+    expect(statusForPercent(79)).toBe("stale");
+  });
+});

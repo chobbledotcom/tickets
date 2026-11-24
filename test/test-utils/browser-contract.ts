@@ -11,8 +11,8 @@ import {
   defineScreenshotBrowserLauncher,
   withStrictBrowserTimeouts,
 } from "#scripts/browser-options.ts";
+import { defineLoopbackServer } from "#scripts/loopback-server.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
-import { defineLoopbackServer } from "#scripts/specs/evidence/server.ts";
 import { denoServeHandler } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import type { DescribeEnvOptions } from "#test-utils/internal.ts";

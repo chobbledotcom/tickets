@@ -109,6 +109,7 @@ Given(
     const browser = await adminBrowser(this);
     const id = await createListingThroughChooser(browser);
     await rememberListingById(this, LISTING, id);
+    leaveEvidencePage(this, ["listing-form"], `/admin/listing/${id}/edit`);
     await askSizeQuestion(browser, id);
     this.bookingPath = await groupTheListing(browser);
   },
