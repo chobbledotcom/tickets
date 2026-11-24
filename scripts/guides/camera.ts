@@ -127,18 +127,18 @@ export const cameraStateAt = (
     );
   }
 
-  let current = keyframes[0]!;
+  let previous = keyframes[0]!;
+  let current = previous;
   for (const keyframe of keyframes) {
     if (keyframe.atMs > atMs) break;
+    previous = current;
     current = keyframe;
   }
   if (current.transitionMs === 0) return current.state;
-  const index = keyframes.indexOf(current);
-  const from = index === 0 ? identityCamera : keyframes[index - 1]!.state;
   const progress = easeInOutCubic(
     clamp((atMs - current.atMs) / current.transitionMs, 0, 1),
   );
-  return lerpCamera(from, current.state, progress);
+  return lerpCamera(previous.state, current.state, progress);
 };
 
 /** The rectangle the last focus asked for. A blur keeps it, because the

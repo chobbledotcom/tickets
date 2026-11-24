@@ -4,6 +4,7 @@ import {
   buildFreshnessReport,
   freshnessReportLines,
   GUIDE_WARN_BELOW_PERCENT,
+  type GuideFreshness,
   gradeGuide,
   staleGuides,
   statusForPercent,
@@ -13,6 +14,25 @@ import { guideBaseline, hashOf, LISTING_GUIDE } from "./fixtures.ts";
 const baseline = guideBaseline({
   "listing-form": hashOf("f"),
   "public-booking-page": hashOf("f"),
+});
+
+/** The create-a-listing guide with its listing form anchor at one score. */
+const listingGuideAt = (
+  anchorPercent: number,
+  guidePercent: number,
+): GuideFreshness => ({
+  anchors: [
+    {
+      captureId: "listing-form",
+      caseId: "booking.group-page-journey",
+      percent: anchorPercent,
+      status: statusForPercent(anchorPercent),
+    },
+  ],
+  percent: guidePercent,
+  slug: "create-a-listing",
+  status: statusForPercent(guidePercent),
+  title: "Create a listing",
 });
 
 describe("guide freshness", () => {
@@ -75,13 +95,7 @@ describe("guide freshness", () => {
 
   test("reports the guide and the overall score", () => {
     const report = buildFreshnessReport([
-      {
-        anchors: [],
-        percent: 100,
-        slug: "create-a-listing",
-        status: "fresh",
-        title: "Create a listing",
-      },
+      listingGuideAt(100, 100),
       {
         anchors: [],
         percent: 50,
@@ -100,29 +114,21 @@ describe("guide freshness", () => {
       "Guide freshness against the Cucumber evidence",
       "",
       "create-a-listing  100%  fresh  (Create a listing)",
+      "  listing-form  100%  fresh  (booking.group-page-journey)",
       "manage-listings  50%  stale  (Manage listings)",
       "",
       "Overall 75%  (warn below 80%)",
     ]);
   });
 
+  test("refuses a report without guides", () => {
+    expect(() => buildFreshnessReport([])).toThrow(
+      "A score needs at least one value",
+    );
+  });
+
   test("needs attention when one anchor falls below the line", () => {
-    const report = buildFreshnessReport([
-      {
-        anchors: [
-          {
-            captureId: "listing-form",
-            caseId: "booking.group-page-journey",
-            percent: 73,
-            status: "stale",
-          },
-        ],
-        percent: 87,
-        slug: "create-a-listing",
-        status: "aging",
-        title: "Create a listing",
-      },
-    ]);
+    const report = buildFreshnessReport([listingGuideAt(73, 87)]);
     const attention = staleGuides(report);
 
     expect(attention).toHaveLength(1);
