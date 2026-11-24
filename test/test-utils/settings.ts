@@ -180,6 +180,17 @@ export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
   await s.update.paymentProvider("stripe");
 };
 
+/** Take payments through SumUp with test credentials. */
+export const setupSumUp = async (
+  apiKey = "sk_test_x",
+  merchantCode = "MC1",
+): Promise<void> => {
+  const { settings: s } = await import("#db/settings.ts");
+  await s.update.sumup.apiKey(apiKey);
+  await s.update.sumup.merchantCode(merchantCode);
+  await s.update.paymentProvider("sumup");
+};
+
 /** Set up the ambiguous sales-off state that asks an operator which provider
  * took existing payments. */
 export const requirePaymentProviderRecovery = async (): Promise<void> => {

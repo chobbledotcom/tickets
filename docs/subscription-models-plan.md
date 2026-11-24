@@ -1,6 +1,6 @@
 # Subscription model checks
 
-Status: approved. A human approved this contract before tests and implementation.
+Status: built. A human approved this contract before tests and implementation.
 This plan follows [the pull request workflow](pr-workflow.md) and the
 [model verification guide](model-verification.md).
 
@@ -11,9 +11,6 @@ It adds executable evidence for checkout, renewals, cancellation, retained recor
 It corrects renewal VAT at half-unit boundaries with exact integer arithmetic.
 It rejects stale subscription writes even when no paid renewal exists.
 Provider configuration and the production schema remain unchanged.
-
-The branch is `subscription-tla-models`. Its base is `main`.
-The four lower pull requests keep their existing order and scope.
 
 ## Trusted facts
 
@@ -77,7 +74,7 @@ Existing rendered-page tests retain responsibility for access, labels, links, an
 | Start an eligible checkout | Keep the initial payment separate from the first later recurring charge. Bind the plan to the subscribed listing. |
 | Complete or replay a paid checkout | Store one booking and its observed plan. Use the payment intent from the session's first invoice, not a later renewal. Durable booked or orphaned ledger dispositions prevent cancellation and refund. |
 | Refuse a paid subscription checkout | Preserve the valid observed plan before cancellation. An observed ended status must precede refund. An already-observed end needs no extra provider call. |
-| Read a paid renewal | Ignore the first invoice, non-renewal reasons, and zero payments. Post eligible invoices at their observed amounts and times. |
+| Read a paid renewal | Ignore the first invoice, zero payments, and an invoice in another currency. Post every other paid invoice at its observed amount and time. |
 | Repeat an invoice | The stored legs remain equal. A different amount under the same identity fails loudly. |
 | Observe a live status | Write only over the expected live status. Keep a concurrent ended status. |
 | Observe an ended status | Record the returned paid renewals and the ended status in one local commit. |

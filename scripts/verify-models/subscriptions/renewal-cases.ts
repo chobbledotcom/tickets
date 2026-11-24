@@ -11,6 +11,8 @@ export type InvoiceInput = {
   id: string;
   paidAt?: number;
   reason: string | null;
+  /** The invoice is in a currency other than the site currency. */
+  foreign?: boolean;
 };
 
 export type RenewalPass = {
@@ -65,10 +67,12 @@ const refusedReadCase = (
 ): RenewalCase =>
   scenario(`read_${read}`, [pass([cycle()], { observed: "canceled", read })]);
 
-const NON_RENEWAL_REASONS = {
+/** Paid invoices after the first one that a later period did not make. Each
+ * one still posts. */
+const OTHER_REASONS = {
   changed: "subscription_update",
-  first: "subscription_create",
   manual: "manual",
+  threshold: "subscription_threshold",
 } as const;
 
 /** Each pass supplies a separate provider list, even when invoice ids repeat. */
@@ -81,12 +85,22 @@ export const RENEWAL_CASES: readonly RenewalCase[] = [
   scenario("non_renewals", [
     pass([
       cycle(0, "zero"),
-      ...Object.entries(NON_RENEWAL_REASONS).map(([id, reason]) => ({
+      { ...cycle(600, "first"), reason: "subscription_create" },
+    ]),
+  ]),
+  scenario("other_reasons", [
+    pass([
+      ...Object.entries(OTHER_REASONS).map(([id, reason]) => ({
         ...cycle(600, id),
         reason,
       })),
       { ...cycle(600, "unknown"), reason: null },
     ]),
+  ]),
+  scenario("currencies", [
+    pass([cycle(600, "home"), { ...cycle(600, "away"), foreign: true }], {
+      observed: "canceled",
+    }),
   ]),
   scenario("hundred", [
     pass(

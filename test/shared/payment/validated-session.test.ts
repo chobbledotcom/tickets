@@ -158,6 +158,21 @@ describe("validatedPaymentSession", () => {
     );
   });
 
+  it("keeps the subscription on malformed_charge without a checkout time", () => {
+    const build = validatedPaymentSession({
+      ...basePaid,
+      amountTotal: null,
+      createdAt: undefined,
+      currency: "GBP",
+      paymentReference: "pi_123",
+      subscription,
+    });
+    expect(build).toEqual(
+      expect.objectContaining({ reason: "malformed_charge", subscription }),
+    );
+    expect("createdAt" in build).toBe(false);
+  });
+
   for (const amountTotal of [1000, null]) {
     it(`throws for a paid subscription session with no charge and amount ${amountTotal}`, () => {
       expect(() =>
