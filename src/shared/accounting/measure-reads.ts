@@ -20,15 +20,13 @@ import {
 } from "#db/sql.ts";
 
 /** Named measures, read together. */
-export type Measures = Readonly<
-  Record<string, Measure<Counted> | Measure<number | null>>
->;
+export type Measures = Readonly<Record<string, Measure>>;
 
 /** The value of each measure. A measure that can find no row reads null. */
 export type MeasuresRow<Set extends Measures> = {
-  [Name in keyof Set]: Set[Name] extends Measure<Counted>
-    ? number
-    : number | null;
+  [Name in keyof Set]: Set[Name] extends Measure<"largest">
+    ? number | null
+    : number;
 };
 
 type StoredRow = Record<string, Counted | null>;
