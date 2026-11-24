@@ -111,6 +111,15 @@
   @include square-thumb;
 }
 
+/* A card with no picture shows the site's header image as a centred, faded
+   watermark. No background colour, so a transparent logo stays clean. */
+.card-image-placeholder {
+  object-fit: contain;
+  opacity: 0.25;
+  padding: var(--space-m);
+  box-sizing: border-box;
+}
+
 .card-body {
   display: flex;
   flex-direction: column;
