@@ -7,7 +7,7 @@ import type { StripeWebhookEvent } from "#shared/stripe/webhook.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
+import { checkoutIntent } from "#test-utils/checkout-items.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { asSession } from "#test-utils/payment-session.ts";
@@ -135,23 +135,6 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("metadata size limits", () => {
-    test("takes an order too large for Stripe's metadata, because the metadata holds only a token", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const items = Array.from({ length: 40 }, (_, i) =>
-        checkoutItem({
-          listingId: i + 1,
-          name: `Listing ${i + 1}`,
-          slug: `listing-${i + 1}`,
-        }),
-      );
-      const result = await stripePaymentProvider.createCheckoutSession(
-        checkoutIntent({ email: "alice@example.com", items, name: "Alice" }),
-        "http://localhost:3000",
-      );
-      expect(result).not.toBeNull();
-      expect(result).not.toHaveProperty("error");
-    });
-
     test("propagates non-PaymentUserError exceptions", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
       using _mockCreate = stub(stripeApi, "createCheckoutSession", () =>

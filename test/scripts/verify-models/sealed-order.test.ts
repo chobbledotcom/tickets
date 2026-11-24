@@ -1,27 +1,88 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  isHeldResult,
-  settlesSession,
-} from "#routes/api/payment-processing/index.ts";
-import { callbackAnswerFor } from "#routes/api/payment-processing/missing-order.ts";
-import { standingOf } from "#routes/api/payment-processing/session-standing.ts";
 import { sealedOrderDataWithFault } from "#scripts/verify-models/sealed-order.ts";
 import { members, records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
 
 const { data: sealedOrderModelData, controls } = registeredModel("SealedOrder");
-const [earlyReceiptData, settledAlarmData, lostOrderRefundData] = controls.map(
-  (control) => control.data,
-);
+const [
+  earlyReceiptData,
+  settledAlarmData,
+  missedAlarmData,
+  lostOrderRefundData,
+] = controls.map((control) => control.data);
 
-/** A delivery fact as the clean module emits it. */
-const delivery = (fields: Record<string, string | boolean>) => ({
+type Fields = Record<string, string | number | boolean>;
+
+/** A delivery fact as the clean module emits it: the bundle, the row and the
+ * ledger it finds, its answer, and what it changes. */
+const fact = (
+  bundle: string,
+  rowBefore: string,
+  ledgerBefore: string,
+  answer: string,
+  change: Fields = {},
+) => ({
   alarms: false,
+  answer,
   books: false,
+  bundle,
+  ledgerAfter: ledgerBefore,
+  ledgerBefore,
   refunds: false,
-  ...fields,
+  rowAfter: rowBefore,
+  rowBefore,
+  ...change,
 });
+
+const ALARM = { alarms: true };
+
+/** Every delivery that finds no readable order. Only a session that is not
+ * settled raises the alarm. */
+const MISSING = [
+  fact("gone", "none", "unrecorded", "unreadable", ALARM),
+  fact("gone", "none", "recorded", "settled"),
+  fact("gone", "reserved", "unrecorded", "unreadable", ALARM),
+  fact("gone", "reserved", "recorded", "settled"),
+  fact("gone", "finalized", "unrecorded", "settled"),
+  fact("gone", "finalized", "recorded", "settled"),
+  fact("gone", "failed", "unrecorded", "settled"),
+  fact("gone", "failed", "recorded", "settled"),
+];
+
+const HEALED_BOOKED = { rowAfter: "finalized" };
+const HEALED_FAILED = { rowAfter: "failed" };
+
+/** Every delivery that reads an order or a receipt. */
+const READABLE = [
+  fact("receipt", "none", "unrecorded", "booked", {
+    books: true,
+    ledgerAfter: "recorded",
+    rowAfter: "finalized",
+  }),
+  fact("order", "none", "recorded", "booked", HEALED_BOOKED),
+  fact("order", "none", "recorded", "settled", HEALED_FAILED),
+  fact("receipt", "none", "recorded", "booked", HEALED_BOOKED),
+  fact("receipt", "none", "recorded", "settled", HEALED_FAILED),
+  fact("order", "reserved", "unrecorded", "held"),
+  fact("receipt", "reserved", "unrecorded", "held"),
+  fact("order", "reserved", "recorded", "held"),
+  fact("receipt", "reserved", "recorded", "held"),
+  fact("order", "finalized", "unrecorded", "booked"),
+  fact("receipt", "finalized", "unrecorded", "booked"),
+  fact("order", "finalized", "recorded", "booked"),
+  fact("receipt", "finalized", "recorded", "booked"),
+  fact("order", "failed", "unrecorded", "settled"),
+  fact("receipt", "failed", "unrecorded", "settled"),
+  fact("order", "failed", "recorded", "settled"),
+  fact("receipt", "failed", "recorded", "settled"),
+];
+
+const deliveries = async (data: () => Promise<string>) =>
+  records(await data(), "DeliveryFacts");
+
+const goneOnly = (facts: Fields[]) =>
+  facts.filter((delivery) => delivery.bundle === "gone");
 
 describe("sealed order checker data", () => {
   test("names the bundle, row and ledger states", async () => {
@@ -38,143 +99,32 @@ describe("sealed order checker data", () => {
   });
 
   test("answers a missing order as settled once the session is settled, and raises the alarm otherwise", async () => {
-    const facts = records(await sealedOrderModelData(), "DeliveryFacts");
-    const missing = facts.filter((fact) => fact.bundle === "gone");
-
-    expect(missing).toHaveLength(8);
-    expect(missing).toContainEqual(
-      delivery({
-        answer: "settled",
-        bundle: "gone",
-        ledgerAfter: "recorded",
-        ledgerBefore: "recorded",
-        rowAfter: "none",
-        rowBefore: "none",
-      }),
-    );
-    expect(missing).toContainEqual(
-      delivery({
-        answer: "settled",
-        bundle: "gone",
-        ledgerAfter: "unrecorded",
-        ledgerBefore: "unrecorded",
-        rowAfter: "failed",
-        rowBefore: "failed",
-      }),
-    );
-    const alarmed = missing.filter((fact) => fact.alarms === true);
-    expect(alarmed.map((fact) => fact.rowBefore).toSorted()).toEqual([
-      "none",
-      "reserved",
-    ]);
-    for (const fact of alarmed) {
-      expect(fact).toMatchObject({
-        answer: "unreadable",
-        ledgerBefore: "unrecorded",
-        refunds: false,
-      });
-    }
+    expect(goneOnly(await deliveries(sealedOrderModelData))).toEqual(MISSING);
   });
 
-  test("replays a readable order from the row or the ledger, and books only from a receipt with no leg", async () => {
-    const facts = records(await sealedOrderModelData(), "DeliveryFacts");
-    const readable = facts.filter((fact) => fact.bundle !== "gone");
+  test("replays a readable order from the row or the ledger, and books only from a receipt with no row and no leg", async () => {
+    const facts = await deliveries(sealedOrderModelData);
 
-    expect(readable).toContainEqual(
-      delivery({
-        answer: "held",
-        bundle: "order",
-        ledgerAfter: "unrecorded",
-        ledgerBefore: "unrecorded",
-        rowAfter: "reserved",
-        rowBefore: "reserved",
-      }),
-    );
-    expect(
-      readable
-        .filter((fact) => fact.rowBefore === "none")
-        .filter((fact) => fact.ledgerBefore === "recorded")
-        .map((fact) => fact.rowAfter)
-        .toSorted(),
-    ).toEqual(["failed", "failed", "finalized", "finalized"]);
-    expect(readable.filter((fact) => fact.books === true)).toEqual([
-      delivery({
-        answer: "booked",
-        books: true,
-        bundle: "receipt",
-        ledgerAfter: "recorded",
-        ledgerBefore: "unrecorded",
-        rowAfter: "finalized",
-        rowBefore: "none",
-      }),
-    ]);
-  });
-
-  test("a standing decision that reads a refunded session as open reaches the facts", async () => {
-    const faulty = sealedOrderDataWithFault({
-      standing: (facts) =>
-        facts.failure === null ? standingOf(facts) : { kind: "open" },
-    });
-
-    const lost = records(await faulty(), "DeliveryFacts").filter(
-      (fact) => fact.bundle === "gone" && fact.rowBefore === "failed",
-    );
-
-    expect(lost).toEqual([
-      delivery({
-        alarms: true,
-        answer: "unreadable",
-        bundle: "gone",
-        ledgerAfter: "unrecorded",
-        ledgerBefore: "unrecorded",
-        rowAfter: "failed",
-        rowBefore: "failed",
-      }),
-      delivery({
-        alarms: true,
-        answer: "unreadable",
-        bundle: "gone",
-        ledgerAfter: "recorded",
-        ledgerBefore: "recorded",
-        rowAfter: "failed",
-        rowBefore: "failed",
-      }),
-    ]);
-  });
-
-  test("an answer table that reports a ledger-only session as lost reaches the facts", async () => {
-    const faulty = sealedOrderDataWithFault({
-      answerFor: (kind) =>
-        kind === "recorded"
-          ? { outcome: { kind: "unreadable" }, reportsLostOrder: true }
-          : callbackAnswerFor(kind),
-    });
-
-    const facts = records(await faulty(), "DeliveryFacts");
-
-    expect(facts).toContainEqual(
-      delivery({
-        alarms: true,
-        answer: "unreadable",
-        bundle: "gone",
-        ledgerAfter: "recorded",
-        ledgerBefore: "recorded",
-        rowAfter: "none",
-        rowBefore: "none",
-      }),
+    expect(facts.filter((delivery) => delivery.bundle !== "gone")).toEqual(
+      READABLE,
     );
   });
 
-  test("a settle rule that counts a held callback as settled reaches the facts", async () => {
-    const faulty = sealedOrderDataWithFault({
-      settles: (result) => settlesSession(result) || isHeldResult(result),
-    });
-
-    expect(records(await faulty(), "ReceiptFacts")).toEqual([
-      { rowBefore: "reserved" },
+  test("writes a receipt only after a final row", async () => {
+    expect(records(await sealedOrderModelData(), "ReceiptFacts")).toEqual([
       { rowBefore: "finalized" },
       { rowBefore: "failed" },
     ]);
+  });
+
+  test("a settle rule that splits the results of one row stops the producer", async () => {
+    const faulty = sealedOrderDataWithFault({
+      settles: (result) => result.success || result.refunded === true,
+    });
+
+    await expect(faulty()).rejects.toThrow(
+      "The results that leave a failed row disagree on the receipt.",
+    );
   });
 
   test("a callback answer that the model does not hold stops the producer", async () => {
@@ -190,44 +140,44 @@ describe("sealed order checker data", () => {
     );
   });
 
-  test("writes a receipt only after a final row", async () => {
-    const data = await sealedOrderModelData();
-
-    expect(records(data, "ReceiptFacts")).toEqual([
+  test("the early-receipt control writes a receipt after a reserved row too", async () => {
+    expect(records(await earlyReceiptData!(), "ReceiptFacts")).toEqual([
+      { rowBefore: "reserved" },
       { rowBefore: "finalized" },
       { rowBefore: "failed" },
     ]);
   });
 
-  test("the early-receipt control also writes a receipt on an open row", async () => {
-    const data = await earlyReceiptData!();
+  test("the settled-alarm control raises the alarm for a refunded session, and changes nothing else", async () => {
+    const refunded = (delivery: Fields) =>
+      delivery.rowBefore === "failed"
+        ? { ...delivery, alarms: true, answer: "unreadable" }
+        : delivery;
 
-    expect(records(data, "ReceiptFacts").map((fact) => fact.rowBefore)).toEqual(
-      ["none", "reserved", "finalized", "failed"],
+    expect(goneOnly(await deliveries(settledAlarmData!))).toEqual(
+      MISSING.map(refunded),
     );
   });
 
-  test("the settled-alarm control raises the alarm for every missing order", async () => {
-    const facts = records(await settledAlarmData!(), "DeliveryFacts");
-    const missing = facts.filter((fact) => fact.bundle === "gone");
+  test("the missed-alarm control settles an open session quietly, and changes nothing else", async () => {
+    const quiet = (delivery: Fields) =>
+      delivery.alarms === true
+        ? { ...delivery, alarms: false, answer: "settled" }
+        : delivery;
 
-    expect(missing).toHaveLength(8);
-    for (const fact of missing) {
-      expect(fact).toMatchObject({ alarms: true, answer: "unreadable" });
-    }
-    expect(facts.filter((fact) => fact.bundle !== "gone")).toEqual(
-      records(await sealedOrderModelData(), "DeliveryFacts").filter(
-        (fact) => fact.bundle !== "gone",
-      ),
+    expect(goneOnly(await deliveries(missedAlarmData!))).toEqual(
+      MISSING.map(quiet),
     );
   });
 
   test("the lost-order refund control refunds only the alarmed deliveries", async () => {
-    const facts = records(await lostOrderRefundData!(), "DeliveryFacts");
+    const facts = await deliveries(lostOrderRefundData!);
 
-    expect(facts.filter((fact) => fact.refunds === true)).toHaveLength(2);
-    for (const fact of facts.filter((fact) => fact.refunds === true)) {
-      expect(fact.alarms).toBe(true);
-    }
+    expect(facts.filter((delivery) => delivery.refunds === true)).toEqual(
+      MISSING.filter((delivery) => delivery.alarms).map((delivery) => ({
+        ...delivery,
+        refunds: true,
+      })),
+    );
   });
 });

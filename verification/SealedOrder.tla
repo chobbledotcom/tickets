@@ -11,14 +11,15 @@ EXTENDS Apalache, Integers, ModelRules, SealedOrderData
 \* return page. Both read the order and give the same answer.
 \* The temporary payment row remembers a reservation or a final result.
 \* The ledger is the durable account record of money. A leg is one entry in
-\* it. A booking and a refunded placeholder both write legs.
+\* it. A booking and a refunded placeholder both write legs. A refund for an
+\* order that fails its checks writes none.
 
 \* When a session is settled, the sealed order is replaced by a receipt
 \* with no personal details. Later the prune deletes the row. Callbacks and
 \* return visits can arrive at any time, and two can overlap.
 \* The bad outcomes: a second ticket, a ticket made from a receipt, a
-\* lost-order alarm for a session that is already settled, or a refund of a
-\* lost order. For example, the webhook books, the receipt replaces the
+\* lost-order alarm for a session that is already settled, a lost order of a
+\* session that is not settled with no alarm, or a refund of a lost order. For example, the webhook books, the receipt replaces the
 \* order, the prune deletes it, and a late return visit must not raise the
 \* alarm.
 \* scripts/verify-models/sealed-order.ts builds SealedOrderData. It keys the
@@ -35,7 +36,10 @@ EXTENDS Apalache, Integers, ModelRules, SealedOrderData
 \* handleReservationConflict and replaySessionFromLedger in
 \* src/features/api/payment-processing/index.ts.
 \* Those facts are transcribed. No fact is an observed callback result or an
-\* SQL race result.
+\* SQL race result. The refunds field of every fact is false by
+\* transcription: no missing-order branch calls a provider. The integration
+\* tests in test/integration/server/webhooks/sealed-order-gone.test.ts hold
+\* the refund list empty for each lost order.
 \* The proof checks Init against Safety, then checks that each Next step
 \* from any state that satisfies Safety keeps Safety. This is induction. It
 \* does not prove all production inputs, durable atomicity or completion.
@@ -67,6 +71,10 @@ VARIABLES
   \* Remember whether every lost order so far was refused with no refund.
   \* @type: Bool;
   noLostOrderRefund,
+  \* Remember whether every lost order of a session that is not settled so
+  \* far raised the alarm.
+  \* @type: Bool;
+  noMissedAlarm,
   \* Remember whether every ticket so far came from a whole order.
   \* @type: Bool;
   noReceiptBooking
@@ -80,6 +88,7 @@ TypeOK ==
   /\ bookings \in 0..1
   /\ noFalseAlarm \in BOOLEAN
   /\ noLostOrderRefund \in BOOLEAN
+  /\ noMissedAlarm \in BOOLEAN
   /\ noReceiptBooking \in BOOLEAN
 
 \* A row that holds a booking or a final outcome.
@@ -96,6 +105,13 @@ Settled(rowState, ledgerState) ==
 AlarmsWhenSettled(fact) ==
   fact.alarms /\ Settled(fact.rowBefore, fact.ledgerBefore)
 
+\* A lost order of a session that is not settled must reach the admin.
+\* @type: ($deliveryFactsFact) => Bool;
+MissesAlarm(fact) ==
+  /\ fact.bundle = "gone"
+  /\ ~Settled(fact.rowBefore, fact.ledgerBefore)
+  /\ ~fact.alarms
+
 \* A lost order must answer retryably and must never send money back.
 \* @type: ($deliveryFactsFact) => Bool;
 RefundsLostOrder(fact) == fact.alarms /\ fact.refunds
@@ -104,16 +120,17 @@ RefundsLostOrder(fact) == fact.alarms /\ fact.refunds
 \* @type: ($deliveryFactsFact) => Bool;
 BooksFromReceipt(fact) == fact.books /\ fact.bundle = "receipt"
 
-\* A ticket and a final row both need ledger legs, because one batch writes
-\* them together. This law also supplies the induction premise.
+\* A ticket and a booked row need ledger legs, because one batch writes them
+\* together. A failed row may have none. This law also supplies the
+\* induction premise.
 LedgerMatchesSettlement ==
   /\ (bookings >= 1) => (ledger = "recorded")
-  /\ (row \in FinalRows) => (ledger = "recorded")
+  /\ (row = "finalized") => (ledger = "recorded")
 
-\* A receipt exists only for a session with ledger legs. A receipt written
-\* while the session is open would let a later delivery book from it.
-ReceiptOnlyWhenRecorded ==
-  (bundle = "receipt") => (ledger = "recorded")
+\* A receipt exists only for a settled session. A receipt written while the
+\* session is open would let a later delivery book from it.
+ReceiptOnlyWhenSettled ==
+  (bundle = "receipt") => Settled(row, ledger)
 
 \* Safety combines the domains, the two state relations and the three kept
 \* verdicts. It must stay true in every model state. It is often called an
@@ -122,9 +139,10 @@ Safety ==
   /\ TypeOK
   /\ noFalseAlarm
   /\ noLostOrderRefund
+  /\ noMissedAlarm
   /\ noReceiptBooking
   /\ LedgerMatchesSettlement
-  /\ ReceiptOnlyWhenRecorded
+  /\ ReceiptOnlyWhenSettled
 
 \* Start after checkout and before the first delivery. The sealed order
 \* exists, and there is no row and no ledger leg.
@@ -135,6 +153,7 @@ Init ==
   /\ bookings := 0
   /\ noFalseAlarm := TRUE
   /\ noLostOrderRefund := TRUE
+  /\ noMissedAlarm := TRUE
   /\ noReceiptBooking := TRUE
 
 \* Select a supplied fact whose bundle, row and ledger match the current
@@ -154,6 +173,7 @@ DeliveryStep ==
     /\ noFalseAlarm' := ChecksStillPass(noFalseAlarm, ~AlarmsWhenSettled(fact))
     /\ noLostOrderRefund' :=
          ChecksStillPass(noLostOrderRefund, ~RefundsLostOrder(fact))
+    /\ noMissedAlarm' := ChecksStillPass(noMissedAlarm, ~MissesAlarm(fact))
     /\ noReceiptBooking' :=
          ChecksStillPass(noReceiptBooking, ~BooksFromReceipt(fact))
     /\ UNCHANGED bundle
@@ -167,7 +187,7 @@ ReserveStep ==
   /\ ledger = "unrecorded"
   /\ row' := "reserved"
   /\ UNCHANGED <<bundle, ledger, bookings, noFalseAlarm, noLostOrderRefund,
-                 noReceiptBooking>>
+                 noMissedAlarm, noReceiptBooking>>
 
 \* The reserved delivery books. One batch writes the ticket, the legs and the
 \* finalized row. This step assumes that atomic boundary. The kept verdict
@@ -179,17 +199,18 @@ SettleBooked ==
   /\ ledger' := "recorded"
   /\ bookings' := bookings + 1
   /\ noReceiptBooking' := ChecksStillPass(noReceiptBooking, bundle # "receipt")
-  /\ UNCHANGED <<bundle, noFalseAlarm, noLostOrderRefund>>
+  /\ UNCHANGED <<bundle, noFalseAlarm, noLostOrderRefund, noMissedAlarm>>
 
-\* The reserved delivery ends with a final handled outcome, such as a sold-out
-\* refund. It keeps a placeholder with legs, and the row records the outcome.
+\* The reserved delivery ends with a final handled outcome, and the row
+\* records it. A sold-out refund keeps a placeholder with legs. A refund for
+\* an order that fails its checks writes no leg.
 SettleFailed ==
   /\ row = "reserved"
   /\ ledger = "unrecorded"
   /\ row' := "failed"
-  /\ ledger' := "recorded"
+  /\ \E legs \in LedgerStates : ledger' := legs
   /\ UNCHANGED <<bundle, bookings, noFalseAlarm, noLostOrderRefund,
-                 noReceiptBooking>>
+                 noMissedAlarm, noReceiptBooking>>
 
 \* The payment row goes from one of the named states and nothing else
 \* changes. The sealed row and the ledger stay as they are.
@@ -198,7 +219,7 @@ RowGoes(fromRows) ==
   /\ row \in fromRows
   /\ row' := "none"
   /\ UNCHANGED <<bundle, ledger, bookings, noFalseAlarm, noLostOrderRefund,
-                 noReceiptBooking>>
+                 noMissedAlarm, noReceiptBooking>>
 
 \* A retryable failure or the stale cleanup releases a reserved row. The whole
 \* order stays, so the provider's retry can book.
@@ -214,7 +235,7 @@ KeepReceipt ==
     /\ bundle = "order"
     /\ bundle' := "receipt"
     /\ UNCHANGED <<row, ledger, bookings, noFalseAlarm, noLostOrderRefund,
-                   noReceiptBooking>>
+                   noMissedAlarm, noReceiptBooking>>
 
 \* The prune deletes the sealed row once its windows are over. The model lets
 \* it happen at any time. A row that will not open has the same effect.
@@ -222,11 +243,17 @@ PruneBundle ==
   /\ bundle # "gone"
   /\ bundle' := "gone"
   /\ UNCHANGED <<row, ledger, bookings, noFalseAlarm, noLostOrderRefund,
-                 noReceiptBooking>>
+                 noMissedAlarm, noReceiptBooking>>
 
-\* Retention can delete a final row. The ledger keeps its legs, so a later
-\* delivery still reads the session as settled.
-DeleteRow == RowGoes(FinalRows)
+\* Retention can delete a final row, but only after the sealed row: the
+\* bundle is never kept longer than a payment row (bundleRetentionMs in
+\* src/shared/db/checkout-bundles.ts), and it is written first. The ledger
+\* keeps any legs, so a later delivery still reads a booked session as
+\* settled. A failed session with no leg is then forgotten, and a later
+\* delivery raises the alarm for it.
+DeleteRow ==
+  /\ bundle = "gone"
+  /\ RowGoes(FinalRows)
 
 \* Next defines the allowed actions, unlike Safety, which describes one state.
 \* \/ offers alternatives. UNCHANGED permits delay. No rule requires an
@@ -241,7 +268,7 @@ Next ==
   \/ PruneBundle
   \/ DeleteRow
   \/ UNCHANGED <<bundle, row, ledger, bookings, noFalseAlarm,
-                 noLostOrderRefund, noReceiptBooking>>
+                 noLostOrderRefund, noMissedAlarm, noReceiptBooking>>
 
 \* Limits: one session, one sealed row, and the four row and two ledger
 \* labels. The model assumes the atomic booking batch. It does not prove SQL

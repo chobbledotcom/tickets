@@ -258,6 +258,7 @@ export const VERIFICATION_MODULES = [
       "src/features/api/payment-processing/session-standing.ts",
       "src/features/api/payment-processing/settled-order.ts",
       "src/shared/db/checkout-bundles.ts",
+      "src/shared/db/processed-payments.ts",
     ],
     controls: [
       {
@@ -268,6 +269,11 @@ export const VERIFICATION_MODULES = [
       {
         data: sealedOrder((m) => m.settledAlarmData),
         name: "a lost-order alarm for a settled session",
+        phase: "step",
+      },
+      {
+        data: sealedOrder((m) => m.missedAlarmData),
+        name: "a lost order that raises no alarm",
         phase: "step",
       },
       {

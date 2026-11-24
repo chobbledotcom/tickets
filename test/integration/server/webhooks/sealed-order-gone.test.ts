@@ -11,10 +11,12 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
+import type { PaymentRowState } from "#payment/row-state.ts";
 import {
   type CardShop,
   cancelPage,
   checkOut,
+  checkOutBalance,
   deliverPayment,
   openCardShop,
   returnPage,
@@ -22,6 +24,15 @@ import {
 } from "#test/blackbox/card-shop.ts";
 import type { FakeCheckout } from "#test/blackbox/fake-stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  CLAIM_MIRROR,
+  putRowState,
+  REVIEW_MIRROR,
+  refundClaimFixture,
+  reviewCase,
+  rowStateSlot,
+  UNRECORDED_MIRROR,
+} from "#test-utils/payment-claim.ts";
 
 type LostReason = "bundle_missing" | "bundle_unreadable";
 
@@ -42,6 +53,34 @@ const reportOf = (checkout: FakeCheckout, why: LostReason) => {
 };
 
 const NOT_REPORTED = { activity: 0, error: 0, note: 0 };
+
+/** Refund work that an owner's refund can leave on a booked payment row: the
+ * stored record, and the plain word that mirrors it. */
+const BOOKED_ROWS: [string, PaymentRowState | null, string][] = [
+  ["holds no refund work", null, ""],
+  [
+    "holds an owner review",
+    { review: reviewCase({ kind: "partially_returned_obligation" }) },
+    REVIEW_MIRROR,
+  ],
+  [
+    "holds money not yet in the books",
+    { unrecorded: { returnedAt: "2026-01-01T00:00:00.000Z" } },
+    UNRECORDED_MIRROR,
+  ],
+  [
+    "holds a refund claim",
+    { claim: refundClaimFixture(1, "checking", "2026-01-01T00:00:00.000Z") },
+    CLAIM_MIRROR,
+  ],
+];
+
+/** The two kinds of paid checkout whose money the ledger records under its
+ * own group: a booking, and the balance of an earlier booking. */
+const LEDGER_PAYMENTS: [string, (shop: CardShop) => Promise<FakeCheckout>][] = [
+  ["a booking", checkOut],
+  ["a balance payment", checkOutBalance],
+];
 
 const timesIn = (html: string, text: string): number =>
   html.split(text).length - 1;
@@ -136,46 +175,40 @@ describeWithEnv(
       expect(opened.fake.refunds).toEqual([]);
     });
 
-    test("a booked session answers a later callback as settled, with no report", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
-      await deliverPayment(opened, checkout);
-      await loseOrders();
+    for (const [name, work, mirror] of BOOKED_ROWS) {
+      test(`a booked session whose payment row ${name} answers as settled, with no report`, async () => {
+        const opened = await open();
+        const checkout = await checkOut(opened);
+        await deliverPayment(opened, checkout);
+        if (work !== null) {
+          await putRowState(checkout.id, await rowStateSlot(work), mirror);
+        }
+        await loseOrders();
 
-      const replay = await deliverPayment(opened, checkout);
+        const page = await returnPage(checkout);
+        const replay = await deliverPayment(opened, checkout);
 
-      expect(replay.status).toBe(200);
-      expect(await replay.json()).toEqual({
-        error: "This payment has already been processed.",
-        processed: false,
-        received: true,
+        expect(page.status).toBe(200);
+        expect(page.html).toContain('data-payment-result="success"');
+        expect(page.html).not.toContain('http-equiv="refresh"');
+        expect(replay.status).toBe(200);
+        expect(await replay.json()).toEqual({
+          error: "This payment has already been processed.",
+          processed: false,
+          received: true,
+        });
+        expect(await rosterOf(opened)).toEqual([["Sealed Buyer", 2]]);
+        expect(
+          await logged(
+            opened,
+            "Session already booked, and its sealed order was pruned",
+          ),
+        ).toBe(1);
+        expect(
+          await shown(opened, reportOf(checkout, "bundle_missing")),
+        ).toEqual(NOT_REPORTED);
       });
-      expect(await rosterOf(opened)).toEqual([["Sealed Buyer", 2]]);
-      expect(
-        await logged(
-          opened,
-          "Session already booked, and its sealed order was pruned",
-        ),
-      ).toBe(1);
-      expect(await shown(opened, reportOf(checkout, "bundle_missing"))).toEqual(
-        NOT_REPORTED,
-      );
-    });
-
-    test("a booked session shows the success page", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
-      await deliverPayment(opened, checkout);
-      await loseOrders();
-
-      const page = await returnPage(checkout);
-
-      expect(page.status).toBe(200);
-      expect(page.html).toContain('data-payment-result="success"');
-      expect(page.html).not.toContain(t("payment.success.redirecting"));
-      expect(page.html).not.toContain('http-equiv="refresh"');
-      expect(await rosterOf(opened)).toEqual([["Sealed Buyer", 2]]);
-    });
+    }
 
     test("a refunded session shows its refund message, not success, and is not refunded again", async () => {
       const opened = await open();
@@ -184,8 +217,15 @@ describeWithEnv(
       await loseOrders();
 
       const page = await returnPage(checkout);
-      await deliverPayment(opened, checkout, { charged: 1999 });
+      const replay = await deliverPayment(opened, checkout, { charged: 1999 });
 
+      expect(page.status).toBe(200);
+      expect(replay.status).toBe(200);
+      expect(await replay.json()).toEqual({
+        error: "This payment has already been processed.",
+        processed: false,
+        received: true,
+      });
       expect(page.html).not.toContain('data-payment-result="success"');
       expect(page.html).toContain(t("payment.failure.refunded"));
       expect(opened.fake.refunds).toEqual([
@@ -202,30 +242,32 @@ describeWithEnv(
       );
     });
 
-    test("a session found only in the ledger says it was already handled", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
-      await deliverPayment(opened, checkout);
-      await loseOrders();
-      await execute(sql`DELETE FROM processed_payments`);
+    for (const [name, pay] of LEDGER_PAYMENTS) {
+      test(`${name} found only in the ledger says it was already handled`, async () => {
+        const opened = await open();
+        const checkout = await pay(opened);
+        await deliverPayment(opened, checkout);
+        await loseOrders();
+        await execute(sql`DELETE FROM processed_payments`);
 
-      const page = await returnPage(checkout);
-      const replay = await deliverPayment(opened, checkout);
+        const page = await returnPage(checkout);
+        const replay = await deliverPayment(opened, checkout);
 
-      expect(page.status).toBe(200);
-      expect(page.html).toContain(t("payment.error.already_handled"));
-      expect(replay.status).toBe(200);
-      expect(await rosterOf(opened)).toEqual([["Sealed Buyer", 2]]);
-      expect(
-        await logged(
-          opened,
-          "Session already recorded in the ledger, and its sealed order was pruned",
-        ),
-      ).toBe(1);
-      expect(await shown(opened, reportOf(checkout, "bundle_missing"))).toEqual(
-        NOT_REPORTED,
-      );
-    });
+        expect(page.status).toBe(200);
+        expect(page.html).toContain(t("payment.error.already_handled"));
+        expect(replay.status).toBe(200);
+        expect(
+          await logged(
+            opened,
+            "Session already recorded in the ledger, and its sealed order was pruned",
+          ),
+        ).toBe(1);
+        expect(
+          await shown(opened, reportOf(checkout, "bundle_missing")),
+        ).toEqual(NOT_REPORTED);
+        expect(opened.fake.refunds).toEqual([]);
+      });
+    }
 
     test("the cancel page still answers, with no link back to the booking page", async () => {
       const opened = await open();

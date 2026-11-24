@@ -7,9 +7,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   openCheckoutBundle,
+  rewriteCheckoutBundle,
   sealCheckoutBundle,
 } from "#db/checkout-bundles.ts";
-import { execute, queryOne } from "#db/client.ts";
+import { execute, queryAll, queryOne } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -30,6 +31,31 @@ describeWithEnv("checkout bundles", { db: true }, () => {
       record: ORDER,
       status: "opened",
     });
+  });
+
+  test("rewrites the bundle of its own token only, and keeps the time it was sealed", async () => {
+    const settled = await sealCheckoutBundle(ORDER);
+    const other = await sealCheckoutBundle({
+      ...ORDER,
+      email: "sam@example.com",
+    });
+    const sealedAt = () =>
+      queryAll<{ created_at: string }>(
+        sql`SELECT created_at FROM checkout_bundles ORDER BY created_at`,
+      );
+    const before = await sealedAt();
+
+    await rewriteCheckoutBundle(settled, { items: ORDER.items });
+
+    expect(await openCheckoutBundle(settled)).toEqual({
+      record: { items: ORDER.items },
+      status: "opened",
+    });
+    expect(await openCheckoutBundle(other)).toEqual({
+      record: { ...ORDER, email: "sam@example.com" },
+      status: "opened",
+    });
+    expect(await sealedAt()).toEqual(before);
   });
 
   test("refuses to seal a record that holds a value that is not text", async () => {

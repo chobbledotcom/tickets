@@ -1,7 +1,11 @@
 import type { BundleRead } from "#db/checkout-bundles.ts";
+import type { RowHolding } from "#db/processed-payments.ts";
 import type { StoredPaymentFailure } from "#payment/row-state.ts";
 import type { CallbackOutcome } from "#routes/api/payment-callback.ts";
-import { settlesSession } from "#routes/api/payment-processing/index.ts";
+import {
+  isHeldResult,
+  settlesSession,
+} from "#routes/api/payment-processing/index.ts";
 import { callbackAnswerFor } from "#routes/api/payment-processing/missing-order.ts";
 import { standingOf } from "#routes/api/payment-processing/session-standing.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
@@ -97,6 +101,23 @@ const HANDLED_OUTCOME: StoredPaymentFailure = {
   refunded: true,
 };
 
+/** What each row state holds, as `rowHolding` reads it: a booking, a final
+ * outcome, or nothing. A reserved row holds neither yet. */
+const HOLDING_FOR_ROW: Record<RowState, RowHolding> = {
+  failed: { failure: HANDLED_OUTCOME, kind: "handled" },
+  finalized: { attendeeId: 1, kind: "booked" },
+  none: { kind: "none" },
+  reserved: { kind: "none" },
+};
+
+/** What a delivery that finds a row answers: a reserved row is held, a
+ * booking replays as booked, and a final outcome replays as settled. */
+const ROW_REPLAY: Record<Exclude<RowState, "none">, Answer> = {
+  failed: "settled",
+  finalized: "booked",
+  reserved: "held",
+};
+
 /** The answer of a callback outcome. An outcome outside the model stops the
  * producer, so a new production answer cannot pass as one of these. */
 const answerOf = (kind: CallbackOutcome["kind"]): Answer => {
@@ -118,11 +139,8 @@ const missingOrderDelivery = (
   { answerFor, standing }: Pick<OrderDecisions, "answerFor" | "standing">,
 ): Delivery => {
   const answer = answerFor(
-    standing({
-      attendeeId: row === "finalized" ? 1 : null,
-      failure: row === "failed" ? HANDLED_OUTCOME : null,
-      recorded: ledger === "recorded",
-    }).kind,
+    standing({ recorded: ledger === "recorded", row: HOLDING_FOR_ROW[row] })
+      .kind,
   );
   return {
     alarms: answer.reportsLostOrder,
@@ -159,9 +177,14 @@ const readOrderDeliveries = (
     rowBefore: row,
   } as const;
   if (row !== "none") {
-    const answer = row === "reserved" ? "held" : "booked";
     return [
-      { ...base, answer, books: false, ledgerAfter: ledger, rowAfter: row },
+      {
+        ...base,
+        answer: ROW_REPLAY[row],
+        books: false,
+        ledgerAfter: ledger,
+        rowAfter: row,
+      },
     ];
   }
   if (ledger === "recorded") {
@@ -202,36 +225,51 @@ const deliveriesWith = (decisions: OrderDecisions): Delivery[] =>
 
 const DELIVERIES: readonly Delivery[] = deliveriesWith(PRODUCTION_DECISIONS);
 
-/** The result that `processPaymentSession` holds when it leaves each row
- * state, and so decides whether to write the receipt. */
-const RESULT_FOR_ROW: Record<RowState, PaymentResult> = {
-  // A final handled outcome, such as a refunded placeholder.
-  failed: {
-    error: "The payment was refunded.",
-    refunded: true,
-    success: false,
-  },
+/** The results that `processPaymentSession` can hold when it leaves each row
+ * state, and so decide whether to write the receipt. */
+const RESULTS_FOR_ROW: Record<RowState, readonly PaymentResult[]> = {
+  failed: [
+    // A refund that went through, such as a refunded placeholder.
+    { error: "The payment was refunded.", refunded: true, success: false },
+    // A session that the ledger already holds with no live booking. It
+    // names no refund at all.
+    {
+      error: "This payment has already been processed.",
+      status: 200,
+      success: false,
+    },
+  ],
   // A booking.
-  finalized: {
-    attendee: { id: 1 },
-    listingId: 1,
-    success: true,
-    ticketTokens: [],
-  },
+  finalized: [
+    { attendee: { id: 1 }, listingId: 1, success: true, ticketTokens: [] },
+  ],
   // A refund that did not go through. The row is released for the retry.
-  none: { error: "The refund failed.", refunded: false, success: false },
+  none: [{ error: "The refund failed.", refunded: false, success: false }],
   // Another delivery holds the reservation.
-  reserved: {
-    error: "Another delivery is at work.",
-    status: 409,
-    success: false,
-  },
+  reserved: [
+    { error: "Another delivery is at work.", status: 409, success: false },
+  ],
 };
+
+/** Whether the order gives way to a receipt after a row state. Every result
+ * that leaves the same row must agree, so a rule that splits them stops the
+ * producer. */
+const writesReceiptAfter =
+  (settles: OrderDecisions["settles"]) =>
+  (row: RowState): boolean => {
+    const answers = new Set(RESULTS_FOR_ROW[row].map(settles));
+    if (answers.size !== 1) {
+      throw new Error(
+        `The results that leave a ${row} row disagree on the receipt.`,
+      );
+    }
+    return answers.has(true);
+  };
 
 /** The row states after which the order gives way to a receipt, observed
  * from the production rule. */
 const receiptRowsWith = (settles: OrderDecisions["settles"]): RowState[] =>
-  ROW_STATES.filter((row) => settles(RESULT_FOR_ROW[row]));
+  ROW_STATES.filter(writesReceiptAfter(settles));
 
 const RECEIPT_ROWS: readonly RowState[] = receiptRowsWith(
   PRODUCTION_DECISIONS.settles,
@@ -260,7 +298,8 @@ const corruptedDeliveries = corruptedDataFor(DELIVERIES, (deliveries) =>
 );
 
 /** The facts that the producer builds when a production decision has a
- * fault. A test uses it to show that the fault reaches the facts. */
+ * fault. Each control below is one such fault, and the checker must reject
+ * it. */
 export const sealedOrderDataWithFault = (
   fault: Partial<OrderDecisions>,
 ): ModelDataSource => {
@@ -276,20 +315,24 @@ export const sealedOrderModelData: ModelDataSource = modelDataFor(() =>
 );
 
 /** The negative control for a receipt written while the session is still
- *  open: the receipt step also runs on a reserved row or no row. The checker
- *  must reject it. */
-export const earlyReceiptData: ModelDataSource = modelDataFor(() =>
-  moduleFor(DELIVERIES, ROW_STATES),
-);
+ *  open: the settle rule also counts a held answer as settled. */
+export const earlyReceiptData: ModelDataSource = sealedOrderDataWithFault({
+  settles: (result) => settlesSession(result) || isHeldResult(result),
+});
 
-/** The negative control for an alarm that skips the settled check: every
- *  delivery with no readable order raises the alarm. */
-export const settledAlarmData: ModelDataSource = corruptedDeliveries(
-  (delivery) =>
-    delivery.bundle === "gone"
-      ? { ...delivery, alarms: true, answer: "unreadable" }
-      : delivery,
-);
+/** The negative control for an alarm for a settled session: the standing
+ *  reads a refunded session as open. */
+export const settledAlarmData: ModelDataSource = sealedOrderDataWithFault({
+  standing: (facts) =>
+    facts.row.kind === "handled" ? { kind: "open" } : standingOf(facts),
+});
+
+/** The negative control for a lost order that the admin never hears of: the
+ *  answer table answers an open session as it answers one that the ledger
+ *  holds, settled and quiet. */
+export const missedAlarmData: ModelDataSource = sealedOrderDataWithFault({
+  answerFor: (kind) => callbackAnswerFor(kind === "open" ? "recorded" : kind),
+});
 
 /** The negative control for a refund on a lost order. */
 export const lostOrderRefundData: ModelDataSource = corruptedDeliveries(

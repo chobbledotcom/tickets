@@ -113,3 +113,45 @@ export const extractSessionMetadata = (
   }
   return fields;
 };
+
+/** Whether the receipt of a settled order keeps each order field. It keeps
+ * what a replay or the buyer's return page reads. Every field that names the
+ * buyer, holds what they wrote or picked, or proves the price goes. */
+/* jscpd:ignore-start -- static data, not code */
+const RECEIPT_KEEPS: Record<keyof SessionMetadata, boolean> = {
+  _origin: true,
+  address: false,
+  allocations: true,
+  answer_ids: false,
+  balance_attendee_id: true,
+  bundle: false,
+  date: false,
+  day_count: false,
+  email: false,
+  items: true,
+  listing: false,
+  modifiers: false,
+  name: false,
+  phone: false,
+  price_proof: false,
+  reservation_amount: false,
+  site_token_index: false,
+  special_instructions: false,
+  tax_policy: false,
+  text_answer_ids: false,
+  thank_you_url: true,
+};
+/* jscpd:ignore-end */
+
+const RECEIPT_FIELDS: readonly string[] = Object.entries(RECEIPT_KEEPS)
+  .filter(([, keeps]) => keeps)
+  .map(([field]) => field);
+
+/** The receipt of a settled order: the order's record with every field that
+ * the receipt does not keep taken out. */
+export const receiptRecord = (
+  record: Readonly<Record<string, string>>,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(record).filter(([field]) => RECEIPT_FIELDS.includes(field)),
+  );
