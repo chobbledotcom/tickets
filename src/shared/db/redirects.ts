@@ -25,7 +25,9 @@ import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { requestCachedRows } from "#db/table-cache.ts";
 import { deleteFrom } from "#db/write.ts";
+import type { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { redirectKeyOfTarget } from "#shared/redirect-paths.ts";
+import type { FieldsInput } from "#shared/rest/field-specs.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
@@ -33,7 +35,7 @@ export type Redirect = DecodedRowOf<"redirects">;
 
 /** A redirect to write: the key of the missing page and the new address, both
  *  already checked and normalised by the redirect rule. */
-export type RedirectInput = { fromPath: string; toUrl: string };
+export type RedirectInput = FieldsInput<typeof REDIRECT_FIELDS>;
 
 /** Why a create writes nothing. The missing page already has a redirect, or
  *  the new address is a page that already redirects, or a redirect already

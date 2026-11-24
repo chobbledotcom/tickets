@@ -8,9 +8,10 @@ import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { adminPath } from "#shared/admin-surface.ts";
-import { columnName } from "#shared/column-names.ts";
+import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { redirectRecord } from "#shared/records/redirects.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
+import { fieldTableColumns } from "#templates/admin/field-columns.tsx";
 import {
   type AdminResourcePages,
   defineRecordPages,
@@ -22,13 +23,7 @@ import { translatedTableColumn } from "#templates/components/translated-table-co
 import { getRedirectForm } from "#templates/fields/redirect.ts";
 
 const redirectColumns = (): TableColumn<Redirect>[] => [
-  ...(["fromPath", "toUrl"] as const).map((key) =>
-    translatedTableColumn(
-      key,
-      `redirects.col.${columnName(key)}`,
-      (redirect: Redirect) => redirect[key],
-    ),
-  ),
+  ...fieldTableColumns(REDIRECT_FIELDS),
   translatedTableColumn("actions", "common.actions", (redirect: Redirect) => (
     <WritableLink href={adminPath("redirectDelete", { id: redirect.id })}>
       {t("common.delete")}

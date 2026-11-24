@@ -4,7 +4,9 @@
  */
 
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { redirectRecord } from "#shared/records/redirects.ts";
+import { formInput } from "#shared/rest/field-reads.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { getRedirectPages } from "#templates/admin/redirects.tsx";
 import { getRedirectForm } from "#templates/fields/redirect.ts";
@@ -16,7 +18,7 @@ const pages = recordPages(redirectRecord, {
     getRedirectPages().listPage(rows, session, undefined, success),
   renderNew: (...args) => getRedirectPages().newPage(...args),
   skip: ["edit"],
-  toInput: ({ fromPath, toUrl }) => ({ fromPath, toUrl }),
+  toInput: formInput(REDIRECT_FIELDS),
 });
 
 export const adminHandlers = defineAdminRoutes({

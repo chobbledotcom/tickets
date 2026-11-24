@@ -30,6 +30,7 @@ import {
 import { markdownSource } from "#shared/markdown-source.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import {
   type ApiBody,
@@ -119,17 +120,7 @@ const holidayApi = fieldResource(apiFieldsOf(HOLIDAY_FIELDS), "create");
 export const HolidayRowSchema = holidayApi.row;
 export type AdminApiHoliday = v.InferOutput<typeof HolidayRowSchema>;
 
-/** The two addresses of a redirect. The API names them as the pages do: the
- *  missing page, and the page it redirects to. A redirect is never edited. */
-const redirectFields = {
-  from_path: textField("from_path"),
-  to_url: textField("to_url"),
-};
-const redirectBodies = apiBodyPair(redirectFields);
-const RedirectRowSchema = idRow({
-  from_path: v.string(),
-  to_url: v.string(),
-});
+const redirectApi = fieldResource(apiFieldsOf(REDIRECT_FIELDS), "create");
 
 /** One listing as the admin API answers with it: the fields the client's
  *  callers read. The server owns the rest of the stored row. */
@@ -461,8 +452,8 @@ export const ADMIN_API_RESOURCES = {
     updateBodySchema: questionBodies.update,
   },
   redirects: {
-    createBodySchema: redirectBodies.create,
-    ...resourceTableRow("Redirect", "redirects", RedirectRowSchema),
+    createBodySchema: redirectApi.bodies.create,
+    ...resourceTableRow("Redirect", "redirects", redirectApi.row),
     // An operator adds and deletes a redirect. Nothing reads or edits one by
     // its id.
     serves: { create: true, delete: true, list: true },

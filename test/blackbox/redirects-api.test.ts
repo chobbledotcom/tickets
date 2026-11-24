@@ -93,13 +93,18 @@ describeWithEnv("redirects over the admin API", { db: true }, () => {
       expect(await listed(api)).toEqual([["/taken", "/b"]]);
     });
 
-    test("answers 400 for a body that is missing a field or is not text", async () => {
+    test("answers 400 for a body that is missing a field, is blank, or is not text", async () => {
       const { api } = await openShop();
-      const statuses = await Promise.all([
+      const answers = await Promise.all([
         added(api, { from_path: "/a" }),
         added(api, { from_path: 5, to_url: "/b" }),
+        added(api, { from_path: "  ", to_url: "/b" }),
       ]);
-      expect(statuses.map(([status]) => status)).toEqual([400, 400]);
+      expect(answers).toEqual([
+        [400, "to_url is required"],
+        [400, "from_path must be a string"],
+        [400, "from_path is required"],
+      ]);
       expect(await listed(api)).toEqual([]);
     });
 

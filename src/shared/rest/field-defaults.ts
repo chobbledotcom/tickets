@@ -27,6 +27,7 @@ const NEW_ROW_VALUES: Record<FieldKind, (field: FieldSpec) => unknown> = {
   price: (field) => field.default,
   privateText: () => "",
   recurringInterval: (field) => field.default,
+  sealedText: () => undefined,
   switch: (field) => field.default === true,
   text: () => undefined,
   // A new list must not share the array of the declaration.

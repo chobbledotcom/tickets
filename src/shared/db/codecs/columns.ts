@@ -41,6 +41,7 @@ import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { LOGISTICS_AGENT_FIELDS } from "#shared/records/logistics-agent-fields.ts";
+import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import type {
   RecurringIntervalChoice,
@@ -173,10 +174,9 @@ export const CODECS = {
     text: sealed,
   },
   redirects: {
+    ...fieldCodecs("redirects", REDIRECT_FIELDS),
     from_index: typed<BlindIndex>(),
-    from_path: sealed,
     to_index: typed<BlindIndex | null>(),
-    to_url: sealed,
   },
   site_page_items: { item_type: typed<SitePageItemType>() },
   site_pages: { ...SEALED_PAGE_TEXT, hidden: yesNo },
