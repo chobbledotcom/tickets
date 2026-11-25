@@ -39,20 +39,22 @@ const holding = (record: Record<string, string>) => ({
   status: "opened",
 });
 
+/** What the order and its receipt share: the origin and the lines. */
+const linesOf = (shop: CardShop) => ({
+  _origin: "localhost",
+  items: JSON.stringify([{ e: shop.listing.id, p: 2000, q: 2 }]),
+});
+
 /** The whole order of the shop's standard checkout: two places at 1000. */
 const orderOf = (shop: CardShop) => ({
-  _origin: "localhost",
+  ...linesOf(shop),
   email: "buyer@example.com",
-  items: JSON.stringify([{ e: shop.listing.id, p: 2000, q: 2 }]),
   name: "Sealed Buyer",
   tax_policy: JSON.stringify({ mode: "none" }),
 });
 
-/** Its receipt: the lines, and nothing of the buyer. */
-const receiptOf = (shop: CardShop) => ({
-  _origin: "localhost",
-  items: JSON.stringify([{ e: shop.listing.id, p: 2000, q: 2 }]),
-});
+/** Its receipt: the lines and the receipt mark, and nothing of the buyer. */
+const receiptOf = (shop: CardShop) => ({ ...linesOf(shop), _receipt: "1" });
 
 /** The listing stops taking bookings and Stripe turns refunds down, so a
  * paid callback can neither book nor return the money. */
