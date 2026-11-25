@@ -62,7 +62,6 @@ describe("attendeeBookingsFromLines", () => {
     // Every stored field is carried through, flags coerced, the count kept.
     expect(bookings).toEqual([
       {
-        assignBuiltSite: false,
         checkedIn: 1,
         endAt: "2026-06-03T00:00:00Z",
         listingActive: false,
