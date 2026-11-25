@@ -279,3 +279,30 @@ src/ui/client/dom.ts::csrfTokenFor~0yx2rmg ??→|| audited:0r4ynj5 # the field's
 
 # The scanner service worker (src/ui/client/scanner-sw.ts).
 src/ui/client/scanner-sw.ts::networkFirst~0gf3pm3 ??→|| audited:027in26 # the cache answers a Response or nothing, and a Response is truthy, so ?? and || agree
+
+# The offline UI (src/ui/client/scanner-offline-ui.ts): its words come from the page, which
+# always renders them, and the scanner words test pins each fallback to the page's own words.
+src/ui/client/scanner-offline-ui.ts::updateOfflineBanner.bannerText%2etextContent~1mep61v messageOfflineBannerManual→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::updateOfflineBanner.bannerText%2etextContent~1mep61v Offline mode is on. Scans are queued and checked in when you are back online.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::updateOfflineBanner.bannerText%2etextContent~0m1qius messageOfflineBannerAuto→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::updateOfflineBanner.bannerText%2etextContent~0m1qius No connection. Scans are queued and checked in when you are back online.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::doorKeyBytes~0d7kk5a The scanner page carries no data-door-cache-key→"" audited:0797elh # the scanner catches this setup error and runs online only, so nobody reads its words
+src/ui/client/scanner-offline-ui.ts::replayWindowMs~131xdc1 The scanner page carries no usable data-scan-operation-retention-days→"" audited:0797elh # the scanner catches this setup error and runs online only, so nobody reads its words
+src/ui/client/scanner-offline-ui.ts::offlineScan~0ves897 messageOfflineCacheMissing→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::offlineScan~0ves897 No offline ticket list yet. Go online and reload this page first.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::offlineScan~0a53m51 messageOfflineCacheExpired→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::offlineScan~0a53m51 The offline ticket list has expired. Go online and reload this page.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::offlineScan~0ots2hq messageOfflineInvalid→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::offlineScan~0ots2hq This ticket cannot be checked in offline. Scan it again when you are back online to see why.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::offlineScan~1xent2x messageOfflineAlreadyQueued→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::offlineScan~1xent2x This ticket is already queued. Do not let them in again.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::offlineScan.quantity~1qj319i messageOfflineQuantityAsk→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::offlineScan.quantity~1qj319i How many people are you checking in?→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::offlineScan~0fth6sa messageOfflineNotQueued→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::offlineScan~0fth6sa Nothing was queued. Scan the ticket again to check them in.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::offlineScan~0vehkoq messageOfflineSaveFailed→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::offlineScan~0vehkoq This scan was not saved. Free up space on this device, then scan it again.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::offlineScan~1hq0dun messageOfflineQueued→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::offlineScan~1hq0dun Ticket looks valid. It will be checked in when you are back online.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-ui.ts::initOfflineScanner~10w2zdo messageOfflineModeSaveFailed→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-ui.ts::initOfflineScanner~10w2zdo Your change was not saved. Free up space on this device, then try again.→"" audited:0797elh # the page always renders this message, so its fallback words never show
