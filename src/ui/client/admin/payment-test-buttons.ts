@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import { csrfPost } from "./csrf.ts";
+import { postForJson } from "#src/ui/client/dom.ts";
 
 /** The answer a connection-test endpoint returns: whether the connection
  * passed, and the lines to show. These are words the server rendered from
@@ -46,9 +46,13 @@ const setupTestButton = (provider: string) => {
       const csrfInput = button
         .closest("form")
         ?.querySelector<HTMLInputElement>('input[name="csrfToken"]');
-      const answer: ConnectionAnswer = await csrfPost(
+      const answer: ConnectionAnswer = await postForJson(
         `/admin/settings/${provider}/test`,
-        csrfInput?.value ?? "",
+        {
+          body: `csrfToken=${encodeURIComponent(csrfInput?.value ?? "")}`,
+          credentials: "same-origin",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+        },
       );
       showTestResult(
         resultDiv,

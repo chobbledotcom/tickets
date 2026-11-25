@@ -211,8 +211,10 @@ export const cameraFakes = (h: ScannerHarness) => {
   const getContext = (type: string): unknown => {
     fakes.contextTypes.push(type);
     return {
-      drawImage: (...args: unknown[]) => {
-        fakes.drawn.push(args);
+      // The frame source is recorded as a flag: a failing assertion that
+      // printed the whole video element would take seconds to format.
+      drawImage: (source: unknown, x: unknown, y: unknown) => {
+        fakes.drawn.push([source === video, x, y]);
       },
       getImageData: (...args: unknown[]) => {
         fakes.reads.push(args);

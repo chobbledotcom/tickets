@@ -11,15 +11,28 @@ import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
 import type { HTMLElement as HappyHTMLElement } from "happy-dom";
 import { hmacHex } from "#shared/sha256.ts";
-import { postedScanBodies, whenStatusShows } from "./camera-fakes.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+import {
+  type CameraFakes,
+  cameraFakes,
+  postedScanBodies,
+  scanFirst,
+  seedTicketCache,
+  start,
+  whenStatusShows,
+} from "./camera-fakes.ts";
 import {
   DOOR_KEY,
   el,
+  fullStore,
   queuedItem,
   SCAN_PATH,
   type ScannerGlobals,
   type ScannerHarness,
   storedQueue,
+  TOKEN,
+  whenMessageShows,
+  whenTextShows,
 } from "./fixture.ts";
 
 /** Every fetch the page made, as the urls it asked for. */
@@ -81,6 +94,39 @@ export const queueSeeded = (): ScannerGlobals => ({
   seed: (store) => store.setItem("scanner-queue", JSON.stringify([queuedItem])),
 });
 
+/** A door that answers every request with a server error. */
+export const refusingDoor = () =>
+  stubFetch(() => Response.json({}, { status: 500 }));
+
+/** The page globals for a door whose offline switch the person turned on. */
+export const switchArmed: ScannerGlobals = {
+  seed: (store) => store.setItem("scanner-offline-mode", "1"),
+};
+
+/** The page element with this id, for a harness. */
+export const elementOf = (id: string) => (h: ScannerHarness) =>
+  el(h.document, id);
+
+/** Move the device on or offline, and tell the page. */
+export const setConnection = (h: ScannerHarness, onLine: boolean): void => {
+  h.stash.set("navigator", { onLine });
+  h.window.dispatchEvent(new h.window.Event(onLine ? "online" : "offline"));
+};
+
+/** The words the queue panel's count shows. */
+export const queueSummary = (h: ScannerHarness): string | null =>
+  el(h.document, "scanner-queue-summary").textContent;
+
+/** A page that loads with one queued check-in, whose delivery the door
+ * answers with the ID check, and waits at the prompt. */
+export const idAskedOnQueue = async (
+  fresh: (globals: ScannerGlobals) => ScannerHarness,
+): Promise<ScannerHarness> => {
+  const h = fresh(queueSeeded());
+  await whenMessageShows(h, 'Does their ID match "Ada"?');
+  return h;
+};
+
 /** What one settled sync leaves: the done words, the store empty, the
  * panel count at zero, and the deliveries the door received, in order —
  * each named by the ticket digest it carried. */
@@ -132,3 +178,120 @@ export const settledCheckIn = (): Response =>
     status: "checked_in",
     total: 1,
   });
+
+/** The held ticket digest: release opens the gate, and disposing restores
+ * the platform's own sign. */
+export interface HeldTicketDigest {
+  release: () => void;
+  [Symbol.dispose]: () => void;
+}
+
+/** Holds the platform's ticket digest until the test opens the gate: the
+ * scan's hmac then waits mid-flight, the way a slow device digests. Compute
+ * every seed digest before the hold starts, or the seed waits on it too. */
+const holdTicketDigest = (): HeldTicketDigest => {
+  const gate = Promise.withResolvers<void>();
+  const realSign = globalThis.crypto.subtle.sign.bind(globalThis.crypto.subtle);
+  globalThis.crypto.subtle.sign = (async (
+    algorithm: AlgorithmIdentifier,
+    key: CryptoKey,
+    data: BufferSource,
+  ) => {
+    await gate.promise;
+    return realSign(algorithm, key, data);
+  }) as typeof globalThis.crypto.subtle.sign;
+  return {
+    release: (): void => gate.resolve(),
+    [Symbol.dispose]: (): void => {
+      globalThis.crypto.subtle.sign = realSign;
+    },
+  };
+};
+
+/** Seeds the door's cache with the token's digest, holds the platform's
+ * digest so the scan waits mid-hmac, opens the camera, and decodes the
+ * token once. The scan waits on the gate the test opens. */
+export const scanWaitingOnDigest = async (
+  h: ScannerHarness,
+  fakes: CameraFakes,
+  token: string,
+): Promise<HeldTicketDigest> => {
+  await seedTicketCache(h, token, Date.now());
+  const digest = holdTicketDigest();
+  await start(h);
+  await scanFirst(fakes, token);
+  return digest;
+};
+
+/** One offline scan: the camera opens with the door's cache holding the
+ * given ticket — or, when `cache` is null, with nothing seeded — and the
+ * first decode reaches the page. */
+export const scanOffline = async (
+  h: ScannerHarness,
+  scanned: string,
+  cache: { token?: string; storedAt?: number } | null = {},
+): Promise<void> => {
+  using fakes = cameraFakes(h);
+  fakes.ready(4);
+  if (cache !== null) {
+    await seedTicketCache(
+      h,
+      cache.token ?? scanned,
+      cache.storedAt ?? Date.now(),
+    );
+  }
+  await start(h);
+  await scanFirst(fakes, scanned);
+};
+
+/** An armed switch on a device whose store refuses writes: the click changes
+ * nothing, and the page says why. The mode stays stored, the banner stays
+ * up, and the switch reads as pressed. */
+export const expectSwitchRefused = async (h: ScannerHarness): Promise<void> => {
+  fullStore(h);
+  el(h.document, "scanner-offline-toggle").click();
+
+  await whenTextShows(
+    h.statusEl,
+    "Your change was not saved. Free up space on this device, then try again.",
+  );
+  expect(h.statusEl.className).toContain("scanner-status-error");
+  expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe("1");
+  expect(el(h.document, "scanner-offline-banner").className).not.toContain(
+    "hidden",
+  );
+  expect(
+    el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
+  ).toBe("true");
+};
+
+/** One offline scan of a booking the saved list says owes three places.
+ * The ask is on the page when this settles; the caller answers it. */
+export const scanPartyOfThree = async (h: ScannerHarness): Promise<void> => {
+  using fakes = cameraFakes(h);
+  fakes.ready(4);
+  await seedTicketCache(h, TOKEN, Date.now(), 3);
+  await start(h);
+  await scanFirst(fakes, TOKEN);
+  // The digest runs on the platform's own crypto promise, so the ask shows
+  // over real event-loop turns.
+  await whenStatusShows(
+    el(h.document, "scanner-quantity-message"),
+    "How many people are you checking in?",
+  );
+};
+
+/** A door that cancels the quantity ask queues nothing and is told so. */
+export const expectCancelQueuesNothing = async (
+  h: ScannerHarness,
+): Promise<void> => {
+  await scanPartyOfThree(h);
+  el(h.document, "scanner-quantity-cancel").click();
+
+  await whenStatusShows(
+    h.statusEl,
+    "Nothing was queued. Scan the ticket again to check them in.",
+  );
+  expect(h.statusEl.className).toContain("scanner-status-warning");
+  expect(storedQueue(h)).toBe(null);
+};
