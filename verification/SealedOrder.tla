@@ -15,13 +15,17 @@ EXTENDS Apalache, Integers, ModelRules, SealedOrderData
 \* order that fails its checks writes none.
 
 \* When a session is settled, the sealed order is replaced by a receipt
-\* with no personal details. Later the prune deletes the row. Callbacks and
-\* return visits can arrive at any time, and two can overlap.
+\* with no personal details. Later the prune deletes the sealed row and the
+\* payment row, in two separate bounded batches that run in either order.
+\* Callbacks and return visits can arrive at any time, and two can overlap.
 \* The bad outcomes: a second ticket, a ticket made from a receipt, a
 \* lost-order alarm for a session that is already settled, a lost order of a
-\* session that is not settled with no alarm, or a refund of a lost order. For example, the webhook books, the receipt replaces the
-\* order, the prune deletes it, and a late return visit must not raise the
-\* alarm.
+\* session that is not settled with no alarm, or a refund of a lost order.
+\* For example, the webhook books, the receipt replaces the order, the prune
+\* deletes it, and a late return visit must not raise the alarm. A refunded
+\* session with no leg can lose its row first and keep its receipt. A visit
+\* then finds a receipt of a session that nothing settled, and that is a lost
+\* order, never a booking.
 \* scripts/verify-models/sealed-order.ts builds SealedOrderData. It keys the
 \* bundle states on BundleRead in src/shared/db/checkout-bundles.ts and the
 \* answers on CallbackOutcome in src/features/api/payment-callback.ts.
@@ -105,10 +109,12 @@ Settled(rowState, ledgerState) ==
 AlarmsWhenSettled(fact) ==
   fact.alarms /\ Settled(fact.rowBefore, fact.ledgerBefore)
 
-\* A lost order of a session that is not settled must reach the admin.
+\* A lost order of a session that is not settled must reach the admin. A
+\* receipt stands for an order only when the session settled.
 \* @type: ($deliveryFactsFact) => Bool;
 MissesAlarm(fact) ==
-  /\ fact.bundle = "gone"
+  /\ fact.bundle # "order"
+  /\ ~(fact.bundle = "receipt" /\ Settled(fact.rowBefore, fact.ledgerBefore))
   /\ ~Settled(fact.rowBefore, fact.ledgerBefore)
   /\ ~fact.alarms
 
@@ -127,10 +133,13 @@ LedgerMatchesSettlement ==
   /\ (bookings >= 1) => (ledger = "recorded")
   /\ (row = "finalized") => (ledger = "recorded")
 
-\* A receipt exists only for a settled session. A receipt written while the
-\* session is open would let a later delivery book from it.
-ReceiptOnlyWhenSettled ==
-  (bundle = "receipt") => Settled(row, ledger)
+\* A receipt is written after a final row, and a delivery that reads a receipt
+\* never reserves the row. So no reservation sits beside a receipt. The
+\* payment row can go before the receipt does, so a receipt can outlive the
+\* settlement of its session. That state is allowed, and no delivery books
+\* from it.
+NoReservationBesideReceipt ==
+  (bundle = "receipt") => (row # "reserved")
 
 \* Safety combines the domains, the two state relations and the three kept
 \* verdicts. It must stay true in every model state. It is often called an
@@ -142,7 +151,7 @@ Safety ==
   /\ noMissedAlarm
   /\ noReceiptBooking
   /\ LedgerMatchesSettlement
-  /\ ReceiptOnlyWhenSettled
+  /\ NoReservationBesideReceipt
 
 \* Start after checkout and before the first delivery. The sealed order
 \* exists, and there is no row and no ledger leg.
@@ -180,9 +189,10 @@ DeliveryStep ==
 
 \* A delivery that reads an order and finds no row and no leg reserves the
 \* row. This exposes the gap before the outcome. A second delivery in the
-\* gap finds the reserved row and takes the held fact.
+\* gap finds the reserved row and takes the held fact. A receipt never
+\* reserves: it has no buyer to book.
 ReserveStep ==
-  /\ bundle # "gone"
+  /\ bundle = "order"
   /\ row = "none"
   /\ ledger = "unrecorded"
   /\ row' := "reserved"
@@ -245,15 +255,13 @@ PruneBundle ==
   /\ UNCHANGED <<row, ledger, bookings, noFalseAlarm, noLostOrderRefund,
                  noMissedAlarm, noReceiptBooking>>
 
-\* Retention can delete a final row, but only after the sealed row: the
-\* bundle is never kept longer than a payment row (bundleRetentionMs in
-\* src/shared/db/checkout-bundles.ts), and it is written first. The ledger
-\* keeps any legs, so a later delivery still reads a booked session as
-\* settled. A failed session with no leg is then forgotten, and a later
-\* delivery raises the alarm for it.
-DeleteRow ==
-  /\ bundle = "gone"
-  /\ RowGoes(FinalRows)
+\* Retention can delete a final row while the sealed row, or its receipt,
+\* still stands. The two deletes run as separate bounded batches, and a
+\* batch that fills leaves the older rows for the next run. The ledger keeps
+\* any legs, so a later delivery still reads a booked session as settled. A
+\* failed session with no leg is then forgotten, and a later delivery raises
+\* the alarm for it, whether it finds a receipt or nothing.
+DeleteRow == RowGoes(FinalRows)
 
 \* Next defines the allowed actions, unlike Safety, which describes one state.
 \* \/ offers alternatives. UNCHANGED permits delay. No rule requires an
