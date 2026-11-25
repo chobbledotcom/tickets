@@ -113,18 +113,20 @@ export const listingFormClass = (template: ListingTemplate): string =>
 const listingFormClassFor = (
   template: ListingTemplate | null,
   defaults: ListingDefaults,
-): string =>
-  [
-    "listing-form",
+): string | undefined => {
+  const classes = [
     template ? listingFormClass(template) : "",
     listingDefaultFormClasses(defaults),
   ]
     .filter(Boolean)
     .join(" ");
+  return classes || undefined;
+};
 
 export const listingFormClassAttr = (
   template: ListingTemplate | null,
   defaults: ListingDefaults,
-): { class: string } => ({
-  class: listingFormClassFor(template, defaults),
-});
+): { class?: string } => {
+  const classes = listingFormClassFor(template, defaults);
+  return classes ? { class: classes } : {};
+};

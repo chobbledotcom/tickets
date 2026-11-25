@@ -192,19 +192,19 @@ describe("renderField", () => {
 
     test("uses commas as delimiters and trims each selected value", () => {
       expect(renderField(days, "Monday, Wednesday")).toBe(
-        '<fieldset class="field-group"><legend>Days</legend><fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday" checked> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday" checked> Wednesday</label></fieldset></fieldset>',
+        '<fieldset><legend>Days</legend><div class="checkboxes"><label><input type="checkbox" name="days" value="Monday" checked> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday" checked> Wednesday</label></div></fieldset>',
       );
     });
 
     test("renders no checked attributes for an empty value", () => {
       expect(renderField(days, "")).toBe(
-        '<fieldset class="field-group"><legend>Days</legend><fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday"> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday"> Wednesday</label></fieldset></fieldset>',
+        '<fieldset><legend>Days</legend><div class="checkboxes"><label><input type="checkbox" name="days" value="Monday"> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday"> Wednesday</label></div></fieldset>',
       );
     });
 
     test("renders a declared either/or pair as the attributes the client reads, onto every checkbox of the group", () => {
       const expected =
-        '<fieldset class="field-group"><legend class="visually-hidden">Days</legend><fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday" data-exclusive-why="One cancels the other" data-exclusive-with="can_pay_more"> Monday</label></fieldset></fieldset>';
+        '<fieldset><legend>Days</legend><div class="checkboxes"><label><input type="checkbox" name="days" value="Monday" data-exclusive-why="One cancels the other" data-exclusive-with="can_pay_more"> Monday</label></div></fieldset>';
       const days = field({
         exclusive: {
           other: "can_pay_more",

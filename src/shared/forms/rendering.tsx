@@ -53,7 +53,7 @@ const renderCheckboxGroup = (
   selectedValues: Set<string>,
   dataAttrs: string,
 ): string =>
-  `<fieldset class="checkboxes">${options
+  `<div class="checkboxes">${options
     .map(
       (option) =>
         `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(
@@ -62,7 +62,7 @@ const renderCheckboxGroup = (
           selectedValues.has(option.value) ? " checked" : ""
         }${dataAttrs}> ${escapeHtml(option.label)}</label>`,
     )
-    .join("")}</fieldset>`;
+    .join("")}</div>`;
 
 const renderDatetimeInputs = (
   name: string,
@@ -247,18 +247,16 @@ export const renderField = (field: Field, value: string = ""): string => {
       {publicLinkHint(field, value)}
     </>
   );
-  // A checkbox group needs a fieldset and a legend. Nesting it inside a
-  // <label> puts one label inside another, which HTML forbids.
+  // A checkbox group is one fieldset: its legend names the field, and the
+  // options sit in a .checkboxes row beneath it. Nesting it inside a <label>
+  // puts one label inside another, which HTML forbids.
   if (field.type === "checkbox-group") {
-    const singleOption = field.options.length === 1;
     return (
       (field.beforeHtml ?? "") +
       String(
         <>
-          <fieldset class="field-group">
-            <legend class={singleOption ? "visually-hidden" : undefined}>
-              {label}
-            </legend>
+          <fieldset>
+            <legend>{label}</legend>
             {renderFieldInput(field, value)}
             {hints}
           </fieldset>

@@ -175,11 +175,11 @@ describe("listingFormClassAttr", () => {
     const withDefault = { hidden: true };
     expect(listingFormClassAttr(templated, withDefault)).toEqual({
       class:
-        "listing-form listing-form--templated listing-form--hide-type listing-form--hide-date listing-form--default-hidden",
+        "listing-form--templated listing-form--hide-type listing-form--hide-date listing-form--default-hidden",
     });
     expect(listingFormClassAttr(null, withDefault)).toEqual({
-      class: "listing-form listing-form--default-hidden",
+      class: "listing-form--default-hidden",
     });
-    expect(listingFormClassAttr(null, {})).toEqual({ class: "listing-form" });
+    expect(listingFormClassAttr(null, {})).toEqual({});
   });
 });
