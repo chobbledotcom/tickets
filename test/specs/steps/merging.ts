@@ -2,7 +2,6 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { attendeeAccount, WRITEOFF } from "#accounting/accounts.ts";
-import { accountBalance } from "#accounting/queries.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
@@ -32,6 +31,7 @@ import {
   theBooking,
   theListing,
 } from "#test/specs/support/world.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 
 Given(
   "the same person paid twice for a {word} place",

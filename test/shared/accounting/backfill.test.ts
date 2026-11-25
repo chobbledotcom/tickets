@@ -7,11 +7,7 @@ import {
 } from "#accounting/accounts.ts";
 import { backfillTransfers } from "#accounting/backfill.ts";
 import { type BookingFacts, mapBooking } from "#accounting/mappers.ts";
-import {
-  accountBalance,
-  allTransfers,
-  transfersByAccount,
-} from "#accounting/queries.ts";
+import { allTransfers, transfersByAccount } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
 import type { ListingBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -19,6 +15,7 @@ import { getDb } from "#db/client.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { sql } from "#db/sql.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   seedPreDropLedgerColumns,

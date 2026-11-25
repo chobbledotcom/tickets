@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { allTransfers } from "#accounting/queries.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import {
   createAttendeeAtomicImpl as createAttendeeAtomic,
@@ -26,6 +26,7 @@ import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { assessTax } from "#shared/tax/assessment.ts";
 import { NO_TAX } from "#shared/tax/types.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

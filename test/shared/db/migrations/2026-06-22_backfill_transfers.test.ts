@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { allTransfers } from "#accounting/queries.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import backfillTransfersMigration from "#db/migrations/2026-06-22_backfill_transfers.ts";
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import {
   seedPreDropLedgerColumns,
   stampHistoricalPricePaid,
