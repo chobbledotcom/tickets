@@ -12,7 +12,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
-import { isJsonApiPath } from "#routes/middleware.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -176,32 +175,6 @@ const setupLoginAndRawScan = async (
 };
 
 describeWithEnv("QR Scanner", { db: true }, () => {
-  describe("isJsonApiPath", () => {
-    test("matches scan endpoint with numeric listing ID", () => {
-      expect(isJsonApiPath("/admin/listing/123/scan")).toBe(true);
-    });
-
-    test("matches scan endpoint with single-digit listing ID", () => {
-      expect(isJsonApiPath("/admin/listing/1/scan")).toBe(true);
-    });
-
-    test("does not match non-scan admin paths", () => {
-      expect(isJsonApiPath("/admin/listing/123/edit")).toBe(false);
-    });
-
-    test("does not match paths without listing ID", () => {
-      expect(isJsonApiPath("/admin/listing//scan")).toBe(false);
-    });
-
-    test("does not match webhook path", () => {
-      expect(isJsonApiPath("/payment/webhook")).toBe(false);
-    });
-
-    test("does not match with non-numeric listing ID", () => {
-      expect(isJsonApiPath("/admin/listing/abc/scan")).toBe(false);
-    });
-  });
-
   describe("Content-Type validation for scan endpoint", () => {
     test("accepts JSON content type for scan endpoint", async () => {
       const { response } = await setupLoginAndScan({ token: "nonexistent" });

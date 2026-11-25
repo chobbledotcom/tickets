@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  accountBalance,
   transfersByAccount,
   transfersByAccounts,
 } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { account, accountKey } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
 const world = account("external", "world");
