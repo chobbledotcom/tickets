@@ -37,10 +37,13 @@ const paymentMeasures = (id: AccountId) => {
 export const paymentSummaries = async (
   attendeeIds: readonly number[],
 ): Promise<Map<number, PaymentSummary>> => {
-  const read = await readMeasuresByAccount(attendeeIds, paymentMeasures);
+  const read = await readMeasuresByAccount(
+    attendeeIds.map(String),
+    paymentMeasures,
+  );
   return new Map(
     [...read].map(([id, { count, lastPaidAt, total }]) => [
-      id,
+      Number(id),
       {
         count,
         lastPaidAt: lastPaidAt === null ? null : epochMsToIso(lastPaidAt),

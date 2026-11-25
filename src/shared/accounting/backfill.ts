@@ -75,12 +75,10 @@ const paidRowsForAttendees = (ids: number[]): Promise<PaidRow[]> =>
  *  booking the live dual-write path recorded, which the backfill must not
  *  repost. */
 const alreadyLedgered = async (ids: number[]): Promise<Set<string>> => {
-  const legs = await readMeasuresByAccount(ids, (id) => ({
+  const legs = await readMeasuresByAccount(ids.map(String), (id) => ({
     legs: countOf(touching(oneAccount(ATTENDEE, id))),
   }));
-  return new Set(
-    [...legs].filter(([, row]) => row.legs > 0).map(([id]) => String(id)),
-  );
+  return new Set([...legs].filter(([, row]) => row.legs > 0).map(([id]) => id));
 };
 
 /** Build the booking — and, when refunded, refund — legs for one attendee. */
