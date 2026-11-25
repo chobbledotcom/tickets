@@ -424,7 +424,9 @@ export const attendeeTables = declaredTables([
     // is keyed by the HMAC of the token. The data key is wrapped with the
     // token, so a database dump cannot open any row. A settled session keeps
     // only a receipt with no personal details. The prune deletes the row when
-    // the checkout window and the provider retry window are over.
+    // the checkout window and the provider retry window are over. A Square
+    // row also names its checkout by the HMAC of the session id. Square does
+    // not end its own link, so the row waits for that handle row to be gone.
     "checkout_bundles",
     /* jscpd:ignore-start -- static data, not code */
     {
@@ -433,6 +435,7 @@ export const attendeeTables = declaredTables([
         ["wrapped_key", text],
         ["sealed", text],
         ["created_at", text],
+        ["session_index", textOrNull],
       ],
     },
     /* jscpd:ignore-end */

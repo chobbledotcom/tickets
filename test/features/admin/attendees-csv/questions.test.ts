@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import type { Attendee } from "#types";
 
 /** Build a question with answers that each have a distinct numeric id. */
 const question = (
@@ -76,13 +77,20 @@ const GLOW_Q = lineQuestion(5, "Glow name", "listing");
 const ticketAnswer = (
   questionId: number,
   text: string,
-  { parentListingId = 0, quantity = 1, unit = 0 } = {},
+  {
+    packageGroupId = 0,
+    parentListingId = 0,
+    quantity = 1,
+    startAt = null as string | null,
+    unit = 0,
+  } = {},
 ) => ({
-  listingId: 7,
-  packageGroupId: 0,
+  listingId: 1,
+  packageGroupId,
   parentListingId,
   quantity,
   questionId,
+  startAt,
   text,
   unit,
 });
@@ -266,19 +274,11 @@ describe("CSV with custom questions", () => {
       [",Ava,Amy", ",Ben,"],
     ],
     [
-      "a question for each line takes one column, and joins the answers of an attendee's lines",
+      "a question for each line takes one column",
       GLOW_Q,
-      [
-        [
-          1,
-          [
-            ticketAnswer(5, "Kit", { parentListingId: 1 }),
-            ticketAnswer(5, "Kim", { parentListingId: 2 }),
-          ],
-        ],
-      ],
+      [[1, [ticketAnswer(5, "Kit")]]],
       ",Glow name",
-      [",Kit; Kim", ","],
+      [",Kit", ","],
     ],
     [
       "an answer for a ticket that is no longer booked stays out of the ticket columns",
@@ -304,6 +304,68 @@ describe("CSV with custom questions", () => {
       expect(lines.map((line, at) => line.slice(-ends[at]!.length))).toEqual(
         ends,
       );
+    });
+  }
+
+  /** One attendee with two booking rows of one listing: the rows that the
+   * export holds, the attendee's answers, and how each row ends. A row holds
+   * only the answers of its own booking row. */
+  const ROW_CSVS: [
+    string,
+    QuestionWithAnswers,
+    Partial<Attendee>[],
+    ReturnType<typeof ticketAnswer>[],
+    string[],
+  ][] = [
+    [
+      "a standalone row and a package row",
+      PUPIL_Q,
+      [{ package_group_id: 0 }, { package_group_id: 9 }],
+      [ticketAnswer(4, "Ann"), ticketAnswer(4, "Ben", { packageGroupId: 9 })],
+      [",Ann", ",Ben"],
+    ],
+    [
+      "the same listing under two parents",
+      GLOW_Q,
+      [{ parent_listing_id: 3 }, { parent_listing_id: 4 }],
+      [
+        ticketAnswer(5, "Kit", { parentListingId: 3 }),
+        ticketAnswer(5, "Kim", { parentListingId: 4 }),
+      ],
+      [",Kit", ",Kim"],
+    ],
+    [
+      "the same listing on two dates",
+      PUPIL_Q,
+      [{ date: "2026-06-01" }, { date: "2026-06-08" }],
+      [
+        ticketAnswer(4, "Ann", { startAt: "2026-06-01T00:00:00Z" }),
+        ticketAnswer(4, "Ben", { startAt: "2026-06-08T00:00:00Z" }),
+      ],
+      [",Ann", ",Ben"],
+    ],
+  ];
+
+  for (const [name, asked, rows, answers, rowEnds] of ROW_CSVS) {
+    test(`an attendee with ${name} exports each row with its own answers`, () => {
+      const lines = generateAttendeesCsv(
+        rows.map((row) => testAttendee({ id: 1, ...row })),
+        false,
+        undefined,
+        {
+          attendeeAnswerMap: new Map(),
+          lineAnswerMap: new Map([[1, answers]]),
+          questions: [asked],
+        },
+      ).split("\n");
+
+      expect(
+        lines.slice(1).map((line, at) => line.slice(-rowEnds[at]!.length)),
+      ).toEqual(rowEnds);
+      expect(lines.slice(1).map((line) => line.split(",").length)).toEqual([
+        lines[0]!.split(",").length,
+        lines[0]!.split(",").length,
+      ]);
     });
   }
 });

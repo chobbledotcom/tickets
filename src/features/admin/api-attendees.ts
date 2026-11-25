@@ -71,12 +71,13 @@ import { logLinkActivity } from "./api-external-sources.ts";
  * the same way slug_index goes from listing responses. */
 export type AdminApiAttendee = Omit<
   Attendee,
-  "pii_blob" | "ticket_token_index"
+  "parent_listing_id" | "pii_blob" | "ticket_token_index"
 >;
 
 /** One attendee as the API answers with it. The answer leaves out the
  *  sealed fields, and each key whose feature is off. */
 export const toApiAttendee = ({
+  parent_listing_id: ___,
   pii_blob: _,
   ticket_token_index: __,
   ...attendee

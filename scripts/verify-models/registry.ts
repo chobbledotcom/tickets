@@ -262,8 +262,8 @@ export const VERIFICATION_MODULES = [
     ],
     controls: [
       {
-        data: sealedOrder((m) => m.earlyReceiptData),
-        name: "a receipt while the session is open",
+        data: sealedOrder((m) => m.receiptBooksData),
+        name: "a booking made from a receipt",
         phase: "step",
       },
       {

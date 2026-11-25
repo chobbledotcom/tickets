@@ -18,6 +18,20 @@ export type LineAnswerRow = {
   name: string;
 };
 
+/** The names, with a number for each id that no record holds now. Deleting a
+ * parent listing or a package leaves the child bookings and their answers. A
+ * missing name reads as its number, as the bookings table shows it. */
+const namesWithMissing = (
+  names: ReadonlyMap<number, string>,
+  ids: readonly number[],
+): Map<number, string> =>
+  new Map([
+    ...ids
+      .filter((id) => id !== 0 && !names.has(id))
+      .map((id): [number, string] => [id, `#${id}`]),
+    ...names,
+  ]);
+
 /** The attendee's answers for each line and ticket in `scope`. A deleted
  * question or line takes its answers, so each answer here names both. */
 export const loadLineAnswerRows = async (
@@ -37,8 +51,14 @@ export const loadLineAnswerRows = async (
   ]);
   const questionById = new Map(questions.map((q) => [q.id, q]));
   const names = {
-    listings: new Map(listings.map((listing) => [listing.id, listing.name])),
-    packages,
+    listings: namesWithMissing(
+      new Map(listings.map((listing) => [listing.id, listing.name])),
+      answers.map((answer) => answer.parentListingId),
+    ),
+    packages: namesWithMissing(
+      packages,
+      answers.map((answer) => answer.packageGroupId),
+    ),
   };
   return answers.map((answer) => {
     const question = requiredMapValue(questionById, answer.questionId);
