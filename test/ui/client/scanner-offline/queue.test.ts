@@ -35,6 +35,7 @@ import {
   digestOf,
   expectOfflineRefusal,
   expectOneStoredCheckIn,
+  scanPartyOfThree,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -88,22 +89,6 @@ describe("scanner offline queue", {
       fetchStub.restore();
     }
   });
-
-  /** One offline scan of a booking the saved list says owes three places.
-   * The ask is on the page when this settles; the caller answers it. */
-  const scanPartyOfThree = async (h: ScannerHarness): Promise<void> => {
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    await seedTicketCache(h, TOKEN, Date.now(), 3);
-    await start(h);
-    await scanFirst(fakes, TOKEN);
-    // The digest runs on the platform's own crypto promise, so the ask
-    // shows over real event-loop turns.
-    await whenStatusShows(
-      el(h.document, "scanner-quantity-message"),
-      "How many people are you checking in?",
-    );
-  };
 
   test("asks how many people the check-in admits and queues the pick", async () => {
     // The booking owed three places when the list was built, so the scan

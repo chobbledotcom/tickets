@@ -91,9 +91,8 @@ export const queueSeeded = (): ScannerGlobals => ({
   seed: (store) => store.setItem("scanner-queue", JSON.stringify([queuedItem])),
 });
 
-/** A door that answers every request with a server error. */
-export const refusingDoor = () =>
-  stubFetch(() => Response.json({}, { status: 500 }));
+/** A door that answers its one request with a server error. */
+export const refusingDoor = () => stubFetch(Response.json({}, { status: 500 }));
 
 /** The page globals for a door whose offline switch the person turned on. */
 export const switchArmed: ScannerGlobals = {
