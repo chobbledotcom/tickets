@@ -8,7 +8,7 @@ import {
   revenueAccount,
   WRITEOFF,
 } from "#accounting/accounts.ts";
-import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   addBalanceEntry,
@@ -48,6 +48,7 @@ import {
   type TicketsWorld,
   theBooking,
 } from "#test/specs/support/world.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const LISTING_TOLD = "Listing income corrected.";

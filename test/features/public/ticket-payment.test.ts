@@ -2,13 +2,14 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { allTransfers } from "#accounting/queries.ts";
 import type { TicketListing } from "#booking/model.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectNoAttendeesForListings,

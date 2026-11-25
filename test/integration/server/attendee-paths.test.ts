@@ -2,12 +2,12 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
-import { accountBalance } from "#accounting/queries.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { loadExistingLines } from "#db/attendees/atomic-update.ts";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { sql } from "#db/sql.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import {
   attendeeLineIndex,
   expectIncludesAll,

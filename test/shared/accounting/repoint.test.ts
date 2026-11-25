@@ -5,7 +5,7 @@ import {
   revenueAccount,
   WORLD,
 } from "#accounting/accounts.ts";
-import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { repointAttendeeStatements } from "#accounting/repoint.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { executeBatch } from "#db/client.ts";
@@ -16,6 +16,7 @@ import {
   readTaxAssessments,
 } from "#shared/tax/store.ts";
 import { NO_TAX } from "#shared/tax/types.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** A paid booking on one attendee: sale (attendee→revenue) + payment. */

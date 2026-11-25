@@ -6,11 +6,11 @@ import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
 } from "#accounting/manual-entries.ts";
-import { accountBalance } from "#accounting/queries.ts";
 import { emptyRange } from "#accounting/range.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { account } from "#shared/ledger/account.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

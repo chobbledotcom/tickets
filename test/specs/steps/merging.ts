@@ -2,7 +2,6 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { attendeeAccount, WRITEOFF } from "#accounting/accounts.ts";
-import { accountBalance } from "#accounting/queries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
@@ -31,6 +30,7 @@ import {
   theBooking,
   theListing,
 } from "#test/specs/support/world.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 
 Given(

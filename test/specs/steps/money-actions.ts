@@ -6,7 +6,7 @@ import {
   BOOKING_FEE_INCOME,
   revenueAccount,
 } from "#accounting/accounts.ts";
-import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
@@ -32,6 +32,7 @@ import {
   worldBalance,
 } from "#test/specs/support/money-reads.ts";
 import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { singleItem } from "#test-utils/factories.ts";
 
