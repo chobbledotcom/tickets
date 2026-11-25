@@ -11,7 +11,14 @@ import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
 import type { HTMLElement as HappyHTMLElement } from "happy-dom";
 import { hmacHex } from "#shared/sha256.ts";
-import { postedScanBodies, whenStatusShows } from "./camera-fakes.ts";
+import {
+  type CameraFakes,
+  postedScanBodies,
+  scanFirst,
+  seedTicketCache,
+  start,
+  whenStatusShows,
+} from "./camera-fakes.ts";
 import {
   DOOR_KEY,
   el,
@@ -132,3 +139,47 @@ export const settledCheckIn = (): Response =>
     status: "checked_in",
     total: 1,
   });
+
+/** The held ticket digest: release opens the gate, and disposing restores
+ * the platform's own sign. */
+export interface HeldTicketDigest {
+  release: () => void;
+  [Symbol.dispose]: () => void;
+}
+
+/** Holds the platform's ticket digest until the test opens the gate: the
+ * scan's hmac then waits mid-flight, the way a slow device digests. Compute
+ * every seed digest before the hold starts, or the seed waits on it too. */
+const holdTicketDigest = (): HeldTicketDigest => {
+  const gate = Promise.withResolvers<void>();
+  const realSign = globalThis.crypto.subtle.sign.bind(globalThis.crypto.subtle);
+  globalThis.crypto.subtle.sign = (async (
+    algorithm: AlgorithmIdentifier,
+    key: CryptoKey,
+    data: BufferSource,
+  ) => {
+    await gate.promise;
+    return realSign(algorithm, key, data);
+  }) as typeof globalThis.crypto.subtle.sign;
+  return {
+    release: (): void => gate.resolve(),
+    [Symbol.dispose]: (): void => {
+      globalThis.crypto.subtle.sign = realSign;
+    },
+  };
+};
+
+/** Seeds the door's cache with the token's digest, holds the platform's
+ * digest so the scan waits mid-hmac, opens the camera, and decodes the
+ * token once. The scan waits on the gate the test opens. */
+export const scanWaitingOnDigest = async (
+  h: ScannerHarness,
+  fakes: CameraFakes,
+  token: string,
+): Promise<HeldTicketDigest> => {
+  await seedTicketCache(h, token, Date.now());
+  const digest = holdTicketDigest();
+  await start(h);
+  await scanFirst(fakes, token);
+  return digest;
+};

@@ -17,12 +17,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHex } from "#shared/sha256.ts";
 import {
-  type CameraFakes,
   cameraFakes,
   drain,
   scanFirst,
   scanNext,
-  seedTicketCache,
   start,
   whenStatusShows,
   whenStoreHolds,
@@ -31,9 +29,7 @@ import {
 import {
   DOOR_KEY,
   el,
-  queuedItem,
   SCAN_PATH,
-  type ScannerHarness,
   storedQueue,
   TOKEN,
   useScannerSuite,
@@ -42,57 +38,11 @@ import {
   askedUrls,
   digestOf,
   expectOneStoredCheckIn,
-  expectSyncSettled,
   firstRow,
   postedDeliveryHashes,
-  rowWords,
-  settledCheckIn,
+  scanWaitingOnDigest,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-
-/** The held ticket digest: release opens the gate, and disposing restores
- * the platform's own sign. */
-interface HeldTicketDigest {
-  release: () => void;
-  [Symbol.dispose]: () => void;
-}
-
-/** Holds the platform's ticket digest until the test opens the gate: the
- * scan's hmac then waits mid-flight, the way a slow device digests. Compute
- * every seed digest before the hold starts, or the seed waits on it too. */
-const holdTicketDigest = (): HeldTicketDigest => {
-  const gate = Promise.withResolvers<void>();
-  const realSign = globalThis.crypto.subtle.sign.bind(globalThis.crypto.subtle);
-  globalThis.crypto.subtle.sign = (async (
-    algorithm: AlgorithmIdentifier,
-    key: CryptoKey,
-    data: BufferSource,
-  ) => {
-    await gate.promise;
-    return realSign(algorithm, key, data);
-  }) as typeof globalThis.crypto.subtle.sign;
-  return {
-    release: (): void => gate.resolve(),
-    [Symbol.dispose]: (): void => {
-      globalThis.crypto.subtle.sign = realSign;
-    },
-  };
-};
-
-/** Seeds the door's cache with the token's digest, holds the platform's
- * digest so the scan waits mid-hmac, opens the camera, and decodes the
- * token once. The scan waits on the gate the test opens. */
-const scanWaitingOnDigest = async (
-  h: ScannerHarness,
-  fakes: CameraFakes,
-  token: string,
-): Promise<HeldTicketDigest> => {
-  await seedTicketCache(h, token, Date.now());
-  const digest = holdTicketDigest();
-  await start(h);
-  await scanFirst(fakes, token);
-  return digest;
-};
 
 describe("scanner offline races", {
   sanitizeOps: false,
@@ -214,54 +164,5 @@ describe("scanner offline races", {
     await expect(whenStoreHolds(h, "scanner-queue")).rejects.toThrow(
       "The store never held scanner-queue",
     );
-  });
-
-  test("settles a scan queued while the sync is already running", async () => {
-    // The sync waits on the queued check-in's answer, and the scan's digest
-    // waits on the platform's crypto. Both gates stage the reachable order:
-    // the sync starts while the scan is still digesting its token.
-    const answerGate = Promise.withResolvers<void>();
-    const fetchStub = stubFetch(
-      withEmptyCache(async () => {
-        await answerGate.promise;
-        return settledCheckIn();
-      }),
-    );
-    try {
-      const h = fresh({
-        onLine: false,
-        seed: (store) =>
-          store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-      });
-      using fakes = cameraFakes(h);
-      fakes.ready(4);
-      // The scan's own token, not the queued one: the queue refuses a
-      // ticket it already holds.
-      const scanToken = "tokB67890";
-      using digest = await scanWaitingOnDigest(h, fakes, scanToken);
-
-      // The connection returns and the sync starts while the scan is still
-      // digesting. The digest then comes back, and the new check-in must
-      // join the rows the running sync settles instead of a rebuild that
-      // detaches them.
-      h.stash.set("navigator", { onLine: true });
-      h.window.dispatchEvent(new h.window.Event("online"));
-      digest.release();
-      await whenStatusShows(
-        h.statusEl,
-        "Ticket looks valid. It will be checked in when you are back online.",
-      );
-      answerGate.resolve();
-
-      // The running sync settles the queued check-in and the new one: both
-      // rows read their answer, the store empties, and the panel agrees.
-      await expectSyncSettled(h, whenStatusShows, fetchStub, [
-        TOKEN,
-        scanToken,
-      ]);
-      expect(rowWords(h)).toEqual(["Checked in", "Checked in"]);
-    } finally {
-      fetchStub.restore();
-    }
   });
 });

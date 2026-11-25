@@ -14,8 +14,13 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { withEmptyCache } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
+  cameraFakes,
+  whenStatusShows,
+  withEmptyCache,
+} from "#test/ui/client/scanner/camera-fakes.ts";
+import {
+  queuedItem,
   type ScannerHarness,
   TOKEN,
   useScannerSuite,
@@ -28,6 +33,7 @@ import {
   queuedItems,
   queueSeeded,
   rowWords,
+  scanWaitingOnDigest,
   settledCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -115,6 +121,55 @@ describe("scanner offline sync races", {
         "tok2",
       ]);
       // The settled row keeps the answer the page's own check-in got.
+      expect(rowWords(h)).toEqual(["Checked in", "Checked in"]);
+    } finally {
+      fetchStub.restore();
+    }
+  });
+
+  test("settles a scan queued while the sync is already running", async () => {
+    // The sync waits on the queued check-in's answer, and the scan's digest
+    // waits on the platform's crypto. Both gates stage the reachable order:
+    // the sync starts while the scan is still digesting its token.
+    const answerGate = Promise.withResolvers<void>();
+    const fetchStub = stubFetch(
+      withEmptyCache(async () => {
+        await answerGate.promise;
+        return settledCheckIn();
+      }),
+    );
+    try {
+      const h = fresh({
+        onLine: false,
+        seed: (store) =>
+          store.setItem("scanner-queue", JSON.stringify([queuedItem])),
+      });
+      using fakes = cameraFakes(h);
+      fakes.ready(4);
+      // The scan's own token, not the queued one: the queue refuses a
+      // ticket it already holds.
+      const scanToken = "tokB67890";
+      using digest = await scanWaitingOnDigest(h, fakes, scanToken);
+
+      // The connection returns and the sync starts while the scan is still
+      // digesting. The digest then comes back, and the new check-in must
+      // join the rows the running sync settles instead of a rebuild that
+      // detaches them.
+      h.stash.set("navigator", { onLine: true });
+      h.window.dispatchEvent(new h.window.Event("online"));
+      digest.release();
+      await whenStatusShows(
+        h.statusEl,
+        "Ticket looks valid. It will be checked in when you are back online.",
+      );
+      answerGate.resolve();
+
+      // The running sync settles the queued check-in and the new one: both
+      // rows read their answer, the store empties, and the panel agrees.
+      await expectSyncSettled(h, whenStatusShows, fetchStub, [
+        TOKEN,
+        scanToken,
+      ]);
       expect(rowWords(h)).toEqual(["Checked in", "Checked in"]);
     } finally {
       fetchStub.restore();

@@ -54,6 +54,23 @@ const OUTCOME_WORDS: Partial<Record<ScanAnswer["status"], Words>> = {
   wrong_listing: ["messageNoDoor", "This ticket has no door to check in at."],
 };
 
+/** The queue count's words: one waiting check-in, or any other number. */
+const COUNT_ONE_WORDS: Words = [
+  "messageQueueCountOne",
+  "{count} queued check-in",
+];
+const COUNT_OTHER_WORDS: Words = [
+  "messageQueueCountOther",
+  "{count} queued check-ins",
+];
+
+/** The sync's closing words: the queue settled, or some check-ins remain. */
+const SYNC_DONE_WORDS: Words = ["messageSyncDone", "Queued tickets are done."];
+const SYNC_STILL_QUEUED_WORDS: Words = [
+  "messageSyncStillQueued",
+  "Some tickets are still queued. The page will try to check them in again.",
+];
+
 /** The row words for a status with none of its own. The ID check and the
  * quantity ask reach the queue only as declined asks. */
 const NOT_CHECKED_IN_WORDS: Words = [
@@ -92,12 +109,10 @@ const queueOutcome = (messages: Messages, answer: ScanAnswer): string => {
  * elsewhere. */
 const renderQueueCount = (panel: QueuePanel, messages: Messages): void => {
   const count = readQueue().length;
-  panel.summary.textContent = formatMessage(
-    messages,
-    count === 1 ? "messageQueueCountOne" : "messageQueueCountOther",
-    "{count} queued check-ins",
-    { count },
-  );
+  const [key, fallback] = count === 1 ? COUNT_ONE_WORDS : COUNT_OTHER_WORDS;
+  panel.summary.textContent = formatMessage(messages, key, fallback, {
+    count,
+  });
   panel.container.classList.toggle(
     "hidden",
     count === 0 && panel.rows.length === 0,
@@ -241,15 +256,12 @@ export const syncQueue = async (
   /** The sync's closing words: what the queue's send left behind. */
   const showSyncOutcome = (): void => {
     const settledAll = readQueue().length === 0;
+    const [key, fallback] = settledAll
+      ? SYNC_DONE_WORDS
+      : SYNC_STILL_QUEUED_WORDS;
     showStatus(
       statusEl,
-      getMessage(
-        messages,
-        settledAll ? "messageSyncDone" : "messageSyncStillQueued",
-        settledAll
-          ? "Queued tickets are done."
-          : "Some tickets are still queued. The page will try to check them in again.",
-      ),
+      getMessage(messages, key, fallback),
       settledAll ? "success" : "warning",
     );
   };

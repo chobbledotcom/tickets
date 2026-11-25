@@ -43,7 +43,7 @@ describe("the scanner page's words", () => {
     // One message per key the client reads today. A change here means the
     // client started or stopped reading a message: re-check the page
     // carries it, then update this count.
-    expect(messages.length).toBe(38);
+    expect(messages.length).toBe(39);
     const html = adminScannerPage(
       { name: "Doors" },
       "/admin/groups/5/scan",
