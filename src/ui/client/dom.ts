@@ -63,23 +63,35 @@ export const fetchOrNetworkError = async (
   }
 };
 
+/** How a POST reaches the server. */
+type Send = (url: string, init: RequestInit) => Promise<Response>;
+
 /** POST a request and read the JSON answer. Every client POST that wants JSON
  *  back ends here. */
-export const postForJson = async (path: string, request: RequestInit) => {
-  const res = await fetchOrNetworkError(path, { ...request, method: "POST" });
+export const postForJson = async (
+  path: string,
+  request: RequestInit,
+  send: Send = fetch,
+) => {
+  const res = await send(path, { ...request, method: "POST" });
   return res.json();
 };
 
 /** POST one JSON body with the page's CSRF token, and read the JSON answer.
- *  The door's scan API and the manual check-in form both talk this way. */
+ *  The door's scan API talks this way. A request that never reached the
+ *  server throws `NetworkError`, so the door can queue or say so. */
 export const postJson = (path: string, csrfToken: string, body: unknown) =>
-  postForJson(path, {
-    body: JSON.stringify(body),
-    headers: {
-      "content-type": "application/json",
-      "x-csrf-token": csrfToken,
+  postForJson(
+    path,
+    {
+      body: JSON.stringify(body),
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": csrfToken,
+      },
     },
-  });
+    fetchOrNetworkError,
+  );
 
 /** The one element under `root` that `selector` names. A missing element
  *  throws and names the selector, so a markup change fails where it starts. */
