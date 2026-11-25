@@ -19,6 +19,7 @@ import {
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
 import {
+  among,
   amongConstants,
   and,
   type Condition,
@@ -56,17 +57,38 @@ export const ledgerLegs = () => from(tables.transfers).as("leg");
 export type AccountId = Expr<number | string | null> | string;
 
 /** The side of a ledger row that an account sits on. */
-type Role = "source" | "dest";
+export type Role = "source" | "dest";
 
 /** Ledger ids are TEXT, so an integer column is CAST to match. */
 const asText = (id: AccountId): Expr<string> =>
   valued(sql`CAST(${id} AS TEXT)`);
 
-/** The row has this account type and this account id on its `role` side. */
-export const onSide =
-  (role: Role, type: Operand<string>, id: Operand<string>): LegTest =>
+/** The row has an account of `type` on its `role` side, and its id passes
+ *  `idTest`. */
+const onSideWhere =
+  (
+    role: Role,
+    type: Operand<string>,
+    idTest: (id: Expr<string>) => Expr<boolean>,
+  ): LegTest =>
   (leg) =>
-    and(equal(leg[`${role}Type`], type), equal(leg[`${role}Id`], id));
+    and(equal(leg[`${role}Type`], type), idTest(leg[`${role}Id`]));
+
+/** The row has this account type and this account id on its `role` side. */
+export const onSide = (
+  role: Role,
+  type: Operand<string>,
+  id: Operand<string>,
+): LegTest => onSideWhere(role, type, (column) => equal(column, id));
+
+/** The row has an account of `type` with one of `ids` on its `role` side. The
+ *  type and the ids are bound, so a caller can pass an account from a
+ *  request. */
+export const sideAmong = (
+  role: Role,
+  type: Operand<string>,
+  ids: readonly string[],
+): LegTest => onSideWhere(role, type, (column) => among(column, ids));
 
 /** The row has the account on its `role` side. The type is a constant of the
  *  code, written into the SQL text. */
@@ -84,7 +106,7 @@ const inEventGroup =
     equal(leg.eventGroup, eventGroup);
 
 /** The row passes every test. */
-const every =
+export const every =
   (...tests: readonly LegTest[]): LegTest =>
   (leg) =>
     and(...tests.map((test) => test(leg)));

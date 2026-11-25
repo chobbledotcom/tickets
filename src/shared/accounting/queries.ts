@@ -30,6 +30,7 @@ import {
   ledgerLegs,
   modifierLeg,
   onSide,
+  sideAmong,
   signedSum,
 } from "#accounting/projection-sql.ts";
 import {
@@ -51,13 +52,11 @@ import {
 } from "#db/client.ts";
 import {
   among,
-  and,
   type Condition,
   desc,
   type Expr,
   equal,
   literal,
-  type Operand,
   or,
   valued,
   whereTail,
@@ -85,13 +84,6 @@ const newestTransfers = (
   );
 
 type Side = "source" | "dest";
-
-/** The row has an account of `type` with one of `ids` on its `side`. The type
- *  and the ids are bound, so a caller can pass an account from a request. */
-const sideAmong =
-  (side: Side, type: Operand<string>, ids: readonly string[]): LegTest =>
-  (leg) =>
-    and(equal(leg[`${side}Type`], type), among(leg[`${side}Id`], ids));
 
 /** The WHERE scope for "every transfer touching any of these accounts".
  *  One group per account type. */

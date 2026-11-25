@@ -1,6 +1,7 @@
 /** The Subscriptions page: who subscribed, to what, and where Stripe says each
  * subscription stands. Only an owner can cancel a subscription. */
 
+import { paymentSummaries } from "#accounting/attendee-payments.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
 import { listingNamesByIds } from "#db/listings/records.ts";
@@ -31,23 +32,24 @@ const idsOf = (
   pick: (row: SubscribedRow) => number,
 ): number[] => unique(map(pick)(rows));
 
-/** Pair each row with its subscriber and ticket names. A failed checkout can
- * retain a zero-quantity row after the ticket was removed. */
+/** Pair each row with its subscriber and ticket names, and what the
+ * subscriber paid. A failed checkout can retain a zero-quantity row after the
+ * ticket was removed. */
 const subscriberRows = async (
   rows: SubscribedRow[],
 ): Promise<SubscriberRow[]> => {
-  const [names, tickets] = await Promise.all([
-    getAttendeeNamesByIds(
-      idsOf(rows, (row) => row.attendeeId),
-      await requireRequestPrivateKey(),
-    ),
+  const attendeeIds = idsOf(rows, (row) => row.attendeeId);
+  const [names, tickets, payments] = await Promise.all([
+    getAttendeeNamesByIds(attendeeIds, await requireRequestPrivateKey()),
     listingNamesByIds(idsOf(rows, (row) => row.listingId)),
+    paymentSummaries(attendeeIds),
   ]);
   return rows.map((row) => ({
     attendeeId: row.attendeeId,
     bookingId: row.id,
     interval: row.recurringInterval,
     name: requiredMapValue(names, row.attendeeId),
+    payments: requiredMapValue(payments, row.attendeeId),
     price: row.recurringPrice,
     status: row.subscriptionStatus,
     stripeId: row.subscriptionId,
