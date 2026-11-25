@@ -1,3 +1,4 @@
+import pLimit from "promise-limit";
 import { sha256Hex } from "#shared/sha256.ts";
 
 export interface StaticCdnConfig {
@@ -13,6 +14,16 @@ export interface StaticCdnAsset {
   bytes: Uint8Array;
   contentType: string;
   filename: string;
+}
+
+/** One object in the CDN storage zone. The path is relative to the zone root
+ * and may carry directories. `label` names the object in an error when the
+ * caller wants a shorter name than the full path. */
+export interface CdnObject {
+  bytes: Uint8Array;
+  contentType: string;
+  label?: string;
+  path: string;
 }
 
 export interface PublishedStaticAssets {
@@ -135,16 +146,18 @@ const purge = async (
   );
 };
 
-const releaseHash = async (assets: StaticCdnAsset[]): Promise<string> => {
+/** The hash of a set of CDN objects: sorted paths, content types, lengths, and
+ * bytes. A content-addressed release names the same bytes in every run. */
+export const cdnObjectsHash = async (
+  objects: readonly CdnObject[],
+): Promise<string> => {
   const encoder = new TextEncoder();
-  const sorted = assets.toSorted((a, b) =>
-    a.filename.localeCompare(b.filename),
-  );
-  const parts = sorted.flatMap((asset) => [
+  const sorted = objects.toSorted((a, b) => a.path.localeCompare(b.path));
+  const parts = sorted.flatMap((object) => [
     encoder.encode(
-      `${asset.filename}\0${asset.contentType}\0${asset.bytes.length}\0`,
+      `${object.path}\0${object.contentType}\0${object.bytes.length}\0`,
     ),
-    asset.bytes,
+    object.bytes,
   ]);
   const bytes = await new Blob(
     parts.map((part) => Uint8Array.from(part).buffer),
@@ -152,23 +165,17 @@ const releaseHash = async (assets: StaticCdnAsset[]): Promise<string> => {
   return sha256Hex(new Uint8Array(bytes));
 };
 
-const publicUrl = (
-  config: StaticCdnConfig,
-  releasePath: string,
-  filename: string,
-): string => `${config.cdnUrl}/${releasePath}/${filename}`;
-
 /** A media type without its parameters, lower-cased for comparison. */
 const bareMediaType = (value: string): string =>
   value.replace(/;.*$/, "").trim().toLowerCase();
 
-/** The per-asset upload and verify steps for one publish run, bound to its
- * config and fetch so the two steps share their plumbing — the request path
- * and the "Failed to <action> static CDN asset <name>" failure shape. */
-const createAssetSteps = (config: StaticCdnConfig, fetcher: typeof fetch) => {
-  const fetchAssetOrThrow = (
+/** The per-object upload and verify steps for one publish run, bound to its
+ * config and fetch so the two steps share their plumbing. */
+const createObjectSteps = (config: StaticCdnConfig, fetcher: typeof fetch) => {
+  const objectName = (object: CdnObject): string => object.label ?? object.path;
+  const fetchObjectOrThrow = (
     action: "upload" | "verify",
-    asset: StaticCdnAsset,
+    object: CdnObject,
     url: string,
     init?: RequestInit,
   ): Promise<Response> =>
@@ -176,48 +183,48 @@ const createAssetSteps = (config: StaticCdnConfig, fetcher: typeof fetch) => {
       fetcher,
       url,
       init,
-      `Failed to ${action} static CDN asset ${asset.filename}`,
+      `Failed to ${action} static CDN asset ${objectName(object)}`,
     );
 
   const upload = async (
     objectPath: string,
-    asset: StaticCdnAsset,
+    object: CdnObject,
   ): Promise<void> => {
-    await fetchAssetOrThrow(
+    await fetchObjectOrThrow(
       "upload",
-      asset,
+      object,
       `https://${config.storageHost}/${config.storageName}/${objectPath}`,
       {
-        body: asset.bytes as BodyInit,
+        body: object.bytes as BodyInit,
         headers: {
           AccessKey: config.storageKey,
-          Checksum: (await sha256Hex(asset.bytes)).toUpperCase(),
-          "Content-Type": asset.contentType,
+          Checksum: (await sha256Hex(object.bytes)).toUpperCase(),
+          "Content-Type": object.contentType,
         },
         method: "PUT",
       },
     );
   };
 
-  const verify = async (url: string, asset: StaticCdnAsset): Promise<void> => {
-    const response = await fetchAssetOrThrow("verify", asset, url);
+  const verify = async (url: string, object: CdnObject): Promise<void> => {
+    const response = await fetchObjectOrThrow("verify", object, url);
     const contentType = response.headers.get("content-type");
     if (contentType === null) {
       throw new Error(
-        `Static CDN asset ${asset.filename} is missing its content type`,
+        `Static CDN asset ${objectName(object)} is missing its content type`,
       );
     }
     const servedMediaType = bareMediaType(contentType);
-    const expectedMediaType = bareMediaType(asset.contentType);
+    const expectedMediaType = bareMediaType(object.contentType);
     if (servedMediaType !== expectedMediaType) {
       throw new Error(
-        `Static CDN asset ${asset.filename} has content type ${servedMediaType}; expected ${expectedMediaType}`,
+        `Static CDN asset ${objectName(object)} has content type ${servedMediaType}; expected ${expectedMediaType}`,
       );
     }
     const served = new Uint8Array(await response.arrayBuffer());
-    if ((await sha256Hex(served)) !== (await sha256Hex(asset.bytes))) {
+    if ((await sha256Hex(served)) !== (await sha256Hex(object.bytes))) {
       throw new Error(
-        `Static CDN asset ${asset.filename} does not match the uploaded file`,
+        `Static CDN asset ${objectName(object)} does not match the uploaded file`,
       );
     }
   };
@@ -225,12 +232,54 @@ const createAssetSteps = (config: StaticCdnConfig, fetcher: typeof fetch) => {
   return { upload, verify };
 };
 
-/** Run one per-asset step (upload or verify) over every asset in parallel. */
-const forEveryAsset = async (
-  assets: StaticCdnAsset[],
-  step: (asset: StaticCdnAsset) => Promise<void>,
+const storageBaseFor = (config: StaticCdnConfig): string =>
+  new URL(config.cdnUrl).pathname.replace(/^\/|\/$/g, "");
+
+const storagePathFor = (
+  config: StaticCdnConfig,
+  objectPath: string,
+): string => {
+  const base = storageBaseFor(config);
+  return base === "" ? objectPath : `${base}/${objectPath}`;
+};
+
+const publicUrlFor = (config: StaticCdnConfig, objectPath: string): string =>
+  `${config.cdnUrl}/${objectPath}`;
+
+/** The number of upload or verify requests one publish run keeps in flight. */
+const CDN_CONCURRENCY = 8;
+
+const runEveryObject = async (
+  objects: readonly CdnObject[],
+  limit: ReturnType<typeof pLimit>,
+  run: (object: CdnObject) => Promise<void>,
 ): Promise<void> => {
-  await Promise.all(assets.map(step));
+  await Promise.all(objects.map((object) => limit(() => run(object))));
+};
+
+/** Publish objects under their given paths, purge the pull zone, and verify
+ * every served object. The caller owns the paths and their stability. */
+export const publishCdnObjects = async (
+  config: StaticCdnConfig,
+  objects: readonly CdnObject[],
+  fetcher: typeof fetch = fetch,
+): Promise<Record<string, string>> => {
+  const paths = new Set(objects.map((object) => object.path));
+  if (paths.size !== objects.length) {
+    throw new Error("CDN object paths must be unique");
+  }
+  const steps = createObjectSteps(config, fetcher);
+  const limit = pLimit(CDN_CONCURRENCY);
+  await runEveryObject(objects, limit, (object) =>
+    steps.upload(storagePathFor(config, object.path), object),
+  );
+  await purge(config, fetcher);
+  await runEveryObject(objects, limit, (object) =>
+    steps.verify(publicUrlFor(config, object.path), object),
+  );
+  return Object.fromEntries(
+    objects.map((object) => [object.path, publicUrlFor(config, object.path)]),
+  );
 };
 
 export const publishStaticCdnAssets = async (
@@ -242,26 +291,30 @@ export const publishStaticCdnAssets = async (
   if (filenames.size !== assets.length) {
     throw new Error("Static CDN asset filenames must be unique");
   }
-  const version = await releaseHash(assets);
-  const releasePath = `assets/${version}`;
-  const storageBase = new URL(config.cdnUrl).pathname.replace(/^\/|\/$/g, "");
-  const storagePath = storageBase
-    ? `${storageBase}/${releasePath}`
-    : releasePath;
-  const steps = createAssetSteps(config, fetcher);
-  await forEveryAsset(assets, (asset) =>
-    steps.upload(`${storagePath}/${asset.filename}`, asset),
+  const version = await cdnObjectsHash(
+    assets.map((asset) => ({
+      bytes: asset.bytes,
+      contentType: asset.contentType,
+      path: asset.filename,
+    })),
   );
-  await purge(config, fetcher);
-  await forEveryAsset(assets, (asset) =>
-    steps.verify(publicUrl(config, releasePath, asset.filename), asset),
+  const releasePath = `assets/${version}`;
+  const urls = await publishCdnObjects(
+    config,
+    assets.map(({ bytes, contentType, filename }) => ({
+      bytes,
+      contentType,
+      label: filename,
+      path: `${releasePath}/${filename}`,
+    })),
+    fetcher,
   );
   return {
     origin: new URL(config.cdnUrl).origin,
     urls: Object.fromEntries(
       assets.map((asset) => [
         asset.filename,
-        publicUrl(config, releasePath, asset.filename),
+        urls[`${releasePath}/${asset.filename}`]!,
       ]),
     ),
   };

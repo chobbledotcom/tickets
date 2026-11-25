@@ -12,7 +12,14 @@ permissions:
   contents: read
 
 jobs:
+  guide-animations:
+    uses: $/.github/workflows/publish-guides.yml
+    with:
+      environment: production
+    secrets: inherit
+
   release:
+    needs: guide-animations
     permissions:
       contents: write
     runs-on: ubicloud-standard-4
@@ -52,6 +59,7 @@ jobs:
           cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
           cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
           bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+          guide_cdn_base: ${{ needs.guide-animations.outputs.guide_base }}
 
       - name: Create release
         id: create-release

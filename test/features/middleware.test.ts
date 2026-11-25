@@ -44,7 +44,22 @@ describe("buildCspHeader", () => {
     expect(
       buildCspHeader(false, undefined, false, "https://assets.example.com"),
     ).toBe(
-      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; style-src 'self' https://assets.example.com; form-action 'self'",
+      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; frame-src https://assets.example.com; style-src 'self' https://assets.example.com; form-action 'self'",
+    );
+  });
+
+  test("allows a guide origin that differs from the asset origin", () => {
+    expect(
+      buildCspHeader(
+        true,
+        undefined,
+        false,
+        "https://assets.example.com",
+        false,
+        "https://guides.example.com",
+      ),
+    ).toBe(
+      "default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; frame-src https://assets.example.com https://guides.example.com; style-src 'self' https://assets.example.com; form-action 'self'",
     );
   });
 
@@ -64,7 +79,7 @@ describe("buildCspHeader", () => {
         true,
       ),
     ).toBe(
-      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; style-src 'self' https://assets.example.com https://fonts.bunny.net; font-src 'self' https://fonts.bunny.net; form-action 'self'",
+      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; frame-src https://assets.example.com; style-src 'self' https://assets.example.com https://fonts.bunny.net; font-src 'self' https://fonts.bunny.net; form-action 'self'",
     );
   });
 

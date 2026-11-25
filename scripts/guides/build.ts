@@ -21,6 +21,7 @@ import {
 } from "./evidence.ts";
 import { type GuideGitState, guideGitState } from "./git.ts";
 import { recordGuideSession } from "./record/run.ts";
+import { removeTree } from "./remove-tree.ts";
 import { renderGuideFromSession } from "./render/run.ts";
 import {
   type GuideStoryboard,
@@ -29,6 +30,7 @@ import {
 } from "./storyboard.ts";
 import { guideStoryboard } from "./storyboards/index.ts";
 import { type GuideTimeline, parseGuideTimeline } from "./timeline.ts";
+import { writeJson } from "./write-json.ts";
 
 const REPORTS = join(projectRoot, "reports", "guides");
 const GUIDES = join(projectRoot, "guides");
@@ -42,12 +44,6 @@ const exists = async (path: string): Promise<boolean> => {
     throw error;
   }
 };
-
-const writeJson = (path: string, value: unknown): Promise<void> =>
-  Deno.writeTextFile(path, `${JSON.stringify(value, null, 2)}\n`);
-
-const removeTree = (path: string): Promise<void> =>
-  removeIfPresent(path, (target) => Deno.remove(target, { recursive: true }));
 
 const withGuideLock = async <T>(
   slug: string,

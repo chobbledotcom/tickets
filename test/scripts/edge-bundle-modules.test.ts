@@ -85,6 +85,7 @@ describe("buildAssetPathsModule", () => {
         `export const CSS_PATH = "/style.css?ts=1234";`,
         `export const EMBED_JS_PATH = "/embed.js";`,
         "export const ASSET_CDN_ORIGIN = null;",
+        "export const GUIDE_CDN_BASE = null;",
       ].join("\n"),
     );
   });
@@ -100,6 +101,19 @@ describe("buildAssetPathsModule", () => {
       `export const CSS_PATH = "https://assets.example.com/assets/release/style.css";`,
       `export const EMBED_JS_PATH = "/embed.js";`,
       `export const ASSET_CDN_ORIGIN = "https://assets.example.com";`,
+      "export const GUIDE_CDN_BASE = null;",
+    ]);
+  });
+
+  test("bakes the published guide base into the bundle", () => {
+    const paths = buildAssetPathsModule(
+      PATH_DEFS,
+      1234,
+      undefined,
+      "https://assets.example.com/guides/release",
+    );
+    expectIncludesAll(paths, [
+      `export const GUIDE_CDN_BASE = "https://assets.example.com/guides/release";`,
     ]);
   });
 });

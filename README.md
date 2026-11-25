@@ -553,7 +553,13 @@ database.
 `deno task guide:check` compares the Cucumber evidence with the screenshots each
 video used. It prints a freshness score and warns when a guide falls below 80
 percent. The check is advisory: it offers to refresh the guide or leave it for a
-separate branch. See [Guide videos](./docs/guide-videos.md).
+separate branch.
+
+`deno task guide:publish` packages the same journey as an HTML/WebGL player and
+publishes it to the Bunny CDN. The deploy runs this before the edge build. The
+create listing form then shows a video camera link beside its title, and the link
+opens the animation in the admin modal. See
+[Guide videos](./docs/guide-videos.md).
 
 ```bash
 # Enter the development shell (installs the pinned Deno and the other tools),

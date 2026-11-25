@@ -707,6 +707,9 @@ automatic.
 - `deno task guide:check [--guide <slug>]` — compare the committed guide
   baselines with the Cucumber evidence and print a freshness score. The check
   warns below 80 percent. It does not fail
+- `deno task guide:publish` — record each guide storyboard, package an HTML
+  player with WebP frames, and publish it to the Bunny CDN. The deploy workflows
+  run this before the edge build
 - `deno task lint` — format and lint code with Biome
   (`check --write
   --unsafe`). Format through this task. Fixable findings —

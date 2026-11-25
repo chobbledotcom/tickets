@@ -5,10 +5,9 @@ import { join } from "@std/path";
 import type { Page } from "playwright";
 import { withCleanup } from "#scripts/cleanup.ts";
 import { withGuideBrowserPage } from "#scripts/guides/browser.ts";
-import {
-  type GuideTimeline,
-  parseGuideTimeline,
-} from "#scripts/guides/timeline.ts";
+import { frameFileName } from "#scripts/guides/frame-name.ts";
+import { readGuideTimeline } from "#scripts/guides/session-timeline.ts";
+import type { GuideTimeline } from "#scripts/guides/timeline.ts";
 import { startGuideRenderServer } from "./server.ts";
 
 const waitForRenderer = (page: Page): Promise<unknown> =>
@@ -56,10 +55,7 @@ const renderFrames = async (
       },
       type: "png",
     });
-    await Deno.writeFile(
-      join(framesDir, `frame-${String(index + 1).padStart(5, "0")}.png`),
-      png,
-    );
+    await Deno.writeFile(join(framesDir, frameFileName(index + 1, "png")), png);
   }
   return frameCount;
 };
@@ -70,7 +66,7 @@ export const renderGuide = async (
   const { timeline } = input;
   const server = await startGuideRenderServer(
     input.sessionDir,
-    timeline.viewport,
+    timeline.guide.title,
   );
   return withCleanup(
     () =>
@@ -96,8 +92,6 @@ export const renderGuideFromSession = async (
   sessionDir: string,
   framesDir: string,
 ): Promise<RenderOutput> => {
-  const timeline = parseGuideTimeline(
-    JSON.parse(await Deno.readTextFile(join(sessionDir, "timeline.json"))),
-  );
+  const timeline = await readGuideTimeline(sessionDir);
   return renderGuide({ framesDir, sessionDir, timeline });
 };

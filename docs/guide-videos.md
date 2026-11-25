@@ -37,6 +37,33 @@ deno task guide:check
 deno task guide:check --guide create-a-listing
 ```
 
+Publish the HTML animations to the Bunny CDN:
+
+```bash
+deno task guide:publish
+```
+
+The deploy workflows run this command before they build the edge script. The
+command needs the CDN secrets that the deploy already uses.
+
+Preview a guide on the local site:
+
+```bash
+deno task guide:record create-a-listing --allow-dirty --keep-session
+deno task guide:package create-a-listing
+deno task guide:serve
+```
+
+Start the app with the preview base in another terminal:
+
+```bash
+deno task guide:dev
+```
+
+Open the create-listing page. The video camera link appears and the player loads from
+the local preview server. The edge build replaces the asset module and bakes in
+the production base. The local environment is a development override.
+
 ## How the recorder works
 
 A storyboard is a list of real actions: open a page, click a link, type text one
@@ -51,6 +78,35 @@ same screenshot shows a pointer that eases into each action.
 The recorder never leaves the local site. It runs a temporary database with
 fixed test keys and fake data. It blocks every request outside the loopback
 address.
+
+## CDN animations
+
+The MP4 is for sharing. The admin page uses an HTML animation instead. The
+player runs the same three.js scene in an iframe. It loads a timeline and WebP
+frames from the CDN. It does not load a video file.
+
+`guide:publish` records every storyboard again. For each guide it writes:
+
+- `index.html`
+- `timeline.json`
+- `frames/frame-*.webp`
+- one shared `player.js`
+
+The player keeps every other recorded frame and converts it to WebP at quality
+60. The result is about 15 frames each second. A smaller modal download keeps
+the motion readable.
+
+The objects go under `guides/<hash>/`. The hash comes from every packaged byte.
+The app receives the base URL only after every object is uploaded and verified.
+A failed publish stops the deploy, so the app never links to a missing guide.
+
+The deploy build bakes the base URL into `GUIDE_CDN_BASE`. The create listing
+form shows a small video camera link beside its title when the base is set. The link
+opens the animation in the admin modal. Without the base, such as on a local dev
+server, the page shows no link.
+
+The parent page needs `frame-src` for the CDN origin. The security header adds
+it when the CDN origin is configured.
 
 ## Freshness
 

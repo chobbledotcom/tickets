@@ -48,6 +48,7 @@ export const buildAssetPathsModule = (
   assetDefs: AssetDef[],
   buildTs: number,
   published?: PublishedAssetUrls,
+  guideCdnBase?: string | null,
 ): string => {
   const paths = assetDefs
     .filter(([, , , pathConst]) => pathConst)
@@ -62,6 +63,9 @@ export const buildAssetPathsModule = (
     });
   const cdnOrigin = published ? published.origin : null;
   paths.push(`export const ASSET_CDN_ORIGIN = ${JSON.stringify(cdnOrigin)};`);
+  paths.push(
+    `export const GUIDE_CDN_BASE = ${JSON.stringify(guideCdnBase ?? null)};`,
+  );
   return paths.join("\n");
 };
 

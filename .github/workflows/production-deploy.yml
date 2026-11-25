@@ -17,7 +17,14 @@ permissions:
   contents: write
 
 jobs:
+  guide-animations:
+    uses: $/.github/workflows/publish-guides.yml
+    with:
+      environment: production
+    secrets: inherit
+
   deploy:
+    needs: guide-animations
     runs-on: ubicloud-standard-4
     # The secrets this job reads live in this environment, which only main can use.
     environment: production
@@ -74,6 +81,7 @@ jobs:
           cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
           cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
           bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+          guide_cdn_base: ${{ needs.guide-animations.outputs.guide_base }}
 
       # Back up the production site's database before deploying (it migrates on
       # its next request). Fails unless exactly one site matches the script id.

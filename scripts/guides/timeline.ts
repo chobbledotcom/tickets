@@ -12,7 +12,7 @@ const WholeNumberSchema = integerAtLeast(0);
 const PositiveNumberSchema = v.pipe(v.number(), v.minValue(0));
 const FrameFileSchema = v.pipe(
   v.string(),
-  v.regex(/^frame-\d{5}\.jpg$/, "Invalid frame file"),
+  v.regex(/^frame-\d{5}\.(jpg|webp)$/, "Invalid frame file"),
 );
 
 export interface GuideRect {

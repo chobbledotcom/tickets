@@ -52,6 +52,12 @@ export type GuideAction =
       transitionMs?: number | undefined;
     }
   | { kind: "blur"; transitionMs?: number | undefined }
+  | {
+      kind: "upload";
+      selector: string;
+      name: string;
+      altText?: string | undefined;
+    }
   | { kind: "wait"; ms: number }
   | { kind: "evidence"; captureId: string; caseId: string };
 
@@ -105,6 +111,12 @@ const ActionSchema: v.GenericSchema<GuideAction> = v.variant("kind", [
   v.strictObject({
     kind: v.literal("blur"),
     transitionMs: v.optional(WholeNumberSchema),
+  }),
+  v.strictObject({
+    altText: v.optional(NonEmptyTextSchema),
+    kind: v.literal("upload"),
+    name: NonEmptyTextSchema,
+    selector: NonEmptyTextSchema,
   }),
   v.strictObject({ kind: v.literal("wait"), ms: WholeNumberSchema }),
   v.strictObject({

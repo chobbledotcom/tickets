@@ -3,7 +3,7 @@
  */
 
 import { settings } from "#db/settings.ts";
-import { compact } from "#fp";
+import { compact, unique } from "#fp";
 import { BUNNY_FONTS_ORIGIN } from "#routes/public/bunny-fonts.ts";
 import { encodeBody } from "#routes/response.ts";
 import { ASSET_CDN_ORIGIN } from "#shared/asset-paths.ts";
@@ -13,6 +13,7 @@ import {
   isSecureMode,
 } from "#shared/config.ts";
 import { buildFrameAncestors } from "#shared/embed-hosts.ts";
+import { currentGuideCdnBase } from "#shared/guide-cdn-base.ts";
 import { paymentProviderUsesSandbox } from "#shared/payment-provider-status.ts";
 import { providerCheckoutFormOrigins } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#types";
@@ -45,6 +46,7 @@ export const buildCspHeader = (
   botpoisonEnabled = false,
   assetCdnOrigin: string | null = ASSET_CDN_ORIGIN,
   bunnyFonts = false,
+  guideCdnBase: string | null = currentGuideCdnBase(),
 ): string => {
   const directives = [
     "default-src 'self'",
@@ -55,6 +57,15 @@ export const buildCspHeader = (
 
   if (assetCdnOrigin) {
     directives.push(`script-src 'self' ${assetCdnOrigin}`);
+  }
+
+  // The admin guide modal embeds the guide player. Its origin can differ from
+  // the asset origin during a local preview.
+  const guideOrigin =
+    guideCdnBase === null ? null : new URL(guideCdnBase).origin;
+  const frameOrigins = unique(compact([assetCdnOrigin, guideOrigin]));
+  if (frameOrigins.length > 0) {
+    directives.push(`frame-src ${frameOrigins.join(" ")}`);
   }
 
   if (assetCdnOrigin || bunnyFonts) {

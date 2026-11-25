@@ -124,6 +124,12 @@ html[data-admin-modal-page-dim="true"]::before {
   filter: brightness(0.5);
 }
 
+/* A dim window's iframe must not swallow the press that gives the window its
+   focus back. The next press reaches the player. */
+.admin-modal.is-dim .admin-modal-body iframe {
+  pointer-events: none;
+}
+
 /* The title bar is the drag surface. It spans the padded content box, so the
    surface matches the box below it. */
 .admin-modal-bar {

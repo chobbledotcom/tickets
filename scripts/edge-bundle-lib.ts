@@ -60,6 +60,8 @@ export interface EdgeBundleOptions {
   entryPoint: string;
   /** Extra assertions beyond the shared React-runtime guard. */
   guards?: EdgeBundleGuard[];
+  /** Base URL of the CDN guide animations, when one was published. */
+  guideCdnBase?: string | null;
   /** Human label used in guard messages and the completion log ("Edge"/"Deploy"). */
   label: string;
   /** Basename esbuild writes under `./dist`, e.g. `"edge.js"`. */
@@ -115,6 +117,7 @@ const inlineAssetsPlugin = (
   buildTs: number,
   staticAssets: Record<string, string>,
   published?: Awaited<ReturnType<typeof publishStaticCdnAssets>>,
+  guideCdnBase?: string | null,
 ): Plugin => ({
   name: "inline-assets",
   setup(build) {
@@ -125,7 +128,7 @@ const inlineAssetsPlugin = (
 
     // Replace asset paths module with cache-busted version
     inlineGeneratedModule(build, /asset-paths\.ts$/, "inline-asset-paths", () =>
-      buildAssetPathsModule(ASSET_DEFS, buildTs, published),
+      buildAssetPathsModule(ASSET_DEFS, buildTs, published, guideCdnBase),
     );
 
     // Replace the assets module with inlined content
@@ -222,7 +225,13 @@ export const buildEdgeBundle = async (
     outdir: "./dist",
     platform: "browser",
     plugins: [
-      inlineAssetsPlugin(buildIso, buildTs, inlinedAssets, published),
+      inlineAssetsPlugin(
+        buildIso,
+        buildTs,
+        inlinedAssets,
+        published,
+        options.guideCdnBase,
+      ),
       wasmPlugin,
       // The loader pins older structural esbuild types; its runtime plugins
       // implement the same API used by our newer esbuild package.

@@ -3,6 +3,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
+  type CdnObject,
+  cdnObjectsHash,
+  publishCdnObjects,
   publishStaticCdnAssets,
   type StaticCdnAsset,
 } from "#scripts/static-cdn.ts";
@@ -14,6 +17,25 @@ import {
   verificationFetcher,
   WASM_ASSET,
 } from "./static-cdn-fixtures.ts";
+
+const GUIDE_OBJECTS: CdnObject[] = [
+  {
+    bytes: new TextEncoder().encode("console.log(1)"),
+    contentType: "text/javascript; charset=utf-8",
+    path: "guides/release/player.js",
+  },
+  {
+    bytes: new TextEncoder().encode("<!doctype html>"),
+    contentType: "text/html; charset=utf-8",
+    path: "guides/release/create-a-listing/index.html",
+  },
+];
+
+const guideObjectFor = (url: string): CdnObject => {
+  const found = GUIDE_OBJECTS.find((object) => url.endsWith(object.path));
+  if (!found) throw new Error(`Unexpected guide object URL ${url}`);
+  return found;
+};
 
 const STALLED_REQUESTS = [
   { method: "PUT", stage: "upload" },
@@ -46,6 +68,77 @@ const stalledFetcher =
     onStart();
     return stalled;
   };
+
+describe("publishCdnObjects", () => {
+  test("uploads each object under its own path and verifies it", async () => {
+    const requests: Request[] = [];
+    const published = await publishCdnObjects(
+      CONFIG,
+      GUIDE_OBJECTS,
+      (input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        if (request.method === "GET") {
+          const object = guideObjectFor(request.url);
+          return Promise.resolve(
+            new Response(Uint8Array.from(object.bytes).buffer, {
+              headers: { "content-type": object.contentType },
+            }),
+          );
+        }
+        return Promise.resolve(
+          new Response(null, { status: request.method === "PUT" ? 201 : 204 }),
+        );
+      },
+    );
+
+    expect(published).toEqual({
+      "guides/release/create-a-listing/index.html":
+        "https://assets.example.com/static/guides/release/create-a-listing/index.html",
+      "guides/release/player.js":
+        "https://assets.example.com/static/guides/release/player.js",
+    });
+    expect(
+      requests.filter(({ method }) => method === "PUT").map(({ url }) => url),
+    ).toEqual([
+      "https://storage.bunnycdn.com/tickets-assets/static/guides/release/player.js",
+      "https://storage.bunnycdn.com/tickets-assets/static/guides/release/create-a-listing/index.html",
+    ]);
+    expect(requests.find(({ method }) => method === "POST")?.url).toBe(
+      "https://api.bunny.net/pullzone/12345/purgeCache",
+    );
+    expect(
+      requests.filter(({ method }) => method === "GET").map(({ url }) => url),
+    ).toEqual([
+      "https://assets.example.com/static/guides/release/player.js",
+      "https://assets.example.com/static/guides/release/create-a-listing/index.html",
+    ]);
+  });
+
+  test("rejects duplicate paths before uploading", async () => {
+    let requested = false;
+    await expect(
+      publishCdnObjects(CONFIG, [GUIDE_OBJECTS[0]!, GUIDE_OBJECTS[0]!], () => {
+        requested = true;
+        return Promise.reject(new Error("Unexpected network request"));
+      }),
+    ).rejects.toThrow("must be unique");
+    expect(requested).toBe(false);
+  });
+
+  test("hashes the same objects the same way in any order", async () => {
+    const first = await cdnObjectsHash(GUIDE_OBJECTS);
+    const reversed = await cdnObjectsHash([...GUIDE_OBJECTS].reverse());
+    const changed = await cdnObjectsHash([
+      { ...GUIDE_OBJECTS[0]!, bytes: new Uint8Array([1]) },
+      GUIDE_OBJECTS[1]!,
+    ]);
+
+    expect(reversed).toBe(first);
+    expect(changed).not.toBe(first);
+    expect(first).toMatch(/^[a-f0-9]{64}$/);
+  });
+});
 
 describe("publishStaticCdnAssets", () => {
   test("uploads one immutable release and returns its public URLs", async () => {

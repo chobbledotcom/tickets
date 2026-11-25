@@ -34,6 +34,7 @@ await buildEdgeBundle({
   },
   entryPoint: "./src/edge.ts",
   guards: [bundleSizeGuard(BUNNY_MAX_SCRIPT_SIZE)],
+  guideCdnBase: Deno.env.get("GUIDE_CDN_BASE") || null,
   label: "Edge",
   outfile: "edge.js",
   // Re-point the source map link at the deployed filename (esbuild names it

@@ -113,7 +113,7 @@ describe("guide renderer browser contract", () => {
       join(directory, "timeline.json"),
       JSON.stringify(timeline),
     );
-    server = await startGuideRenderServer(directory, VIEWPORT);
+    server = await startGuideRenderServer(directory, "Renderer test");
     browser = await launchScreenshotBrowser();
   });
 

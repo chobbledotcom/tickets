@@ -1,0 +1,69 @@
+name: Publish guide animations
+
+# A deploy calls this workflow before it builds the edge script. The publish
+# verifies every CDN object, then returns the base that the app bakes in.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Deployment environment that holds the CDN secrets.
+        required: true
+        type: string
+    outputs:
+      guide_base:
+        description: Verified CDN base of the published guide animations.
+        value: ${{ jobs.publish.outputs.guide_base }}
+
+permissions:
+  contents: read
+
+env:
+  STRIPE_MOCK_VERSION: "0.188.0"
+
+jobs:
+  publish:
+    runs-on: ubicloud-standard-4
+    environment: ${{ inputs.environment }}
+    outputs:
+      guide_base: ${{ steps.publish.outputs.guide_base }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Check the CDN secrets
+        shell: bash
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          CDN_URL: ${{ secrets.CDN_URL }}
+          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+        run: |
+          scripts/ci/require-env.sh BUNNY_ACCESS_KEY \
+            --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID
+
+      - name: Set up devenv
+        uses: $/.github/actions/setup-devenv
+        with:
+          profile: browser
+
+      - name: Cache stripe-mock
+        uses: actions/cache@v4.3.0
+        with:
+          path: .bin
+          key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
+
+      - name: Publish guide animations
+        id: publish
+        shell: devenv --profile browser shell bash -- -e {0}
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          CDN_URL: ${{ secrets.CDN_URL }}
+          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+        run: deno task guide:publish

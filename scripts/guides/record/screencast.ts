@@ -7,6 +7,7 @@
 import { join } from "@std/path";
 import type { CDPSession, Page } from "playwright";
 import { withCleanup } from "#scripts/cleanup.ts";
+import { frameFileName } from "../frame-name.ts";
 
 const FIRST_FRAME_TIMEOUT_MS = 10_000;
 
@@ -46,7 +47,7 @@ export const startScreencast = async (
           ? Date.now()
           : event.metadata.timestamp * 1000;
       startWallClockMs ??= wallMs;
-      const file = `frame-${String(frames.length + 1).padStart(5, "0")}.jpg`;
+      const file = frameFileName(frames.length + 1, "jpg");
       await Deno.writeFile(join(outputDir, file), decodableFrame(event.data));
       frames.push({
         atMs: Math.max(0, Math.round(wallMs - startWallClockMs)),
