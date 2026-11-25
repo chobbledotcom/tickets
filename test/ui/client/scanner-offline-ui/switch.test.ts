@@ -14,7 +14,11 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { drain, withEmptyCache } from "#test/ui/client/scanner/camera-fakes.ts";
+import {
+  drain,
+  whenStatusShows,
+  withEmptyCache,
+} from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
   queuedItem,
@@ -227,7 +231,7 @@ describe("scanner offline switch and banner", {
     const h = fresh({ onLine: false, ...queueSeeded() });
 
     await scanOffline(h, "tokB67890");
-    await whenTextShows(
+    await whenStatusShows(
       h.statusEl,
       "Ticket looks valid. It will be checked in when you are back online.",
     );
