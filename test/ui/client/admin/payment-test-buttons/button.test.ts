@@ -36,7 +36,13 @@ describe("pressing a payment test-connection button", () => {
       data: { lines: ["API Key: Invalid"], ok: false },
     });
     expect(asked).toEqual([
-      { body: "csrfToken=token-sumup", url: "/admin/settings/sumup/test" },
+      {
+        body: "csrfToken=token-sumup",
+        credentials: "same-origin",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        method: "POST",
+        url: "/admin/settings/sumup/test",
+      },
     ]);
   });
 
@@ -107,7 +113,13 @@ describe("pressing a payment test-connection button", () => {
       data: { lines: ["Access Token: Valid (sandbox mode)"], ok: true },
     });
     expect(asked).toEqual([
-      { body: "csrfToken=token-square", url: "/admin/settings/square/test" },
+      {
+        body: "csrfToken=token-square",
+        credentials: "same-origin",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        method: "POST",
+        url: "/admin/settings/square/test",
+      },
     ]);
   });
 

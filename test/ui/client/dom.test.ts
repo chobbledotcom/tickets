@@ -2,7 +2,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
+  cloneContent,
   createButton,
+  createHiddenInput,
+  createThumbnail,
   csrfTokenFor,
   forEachMatch,
   postJson,
@@ -21,6 +24,33 @@ describe("client dom helpers", () => {
     expect(button.tagName).toBe("BUTTON");
     expect(button.type).toBe("button");
     expect(button.className).toBe("cart-add");
+  });
+
+  test("createHiddenInput makes a hidden input carrying its name and value", () => {
+    dom.installDom("");
+    const input = createHiddenInput("csrfToken", "page-token");
+    expect(input.tagName).toBe("INPUT");
+    expect(input.type).toBe("hidden");
+    expect(input.name).toBe("csrfToken");
+    expect(input.value).toBe("page-token");
+  });
+
+  test("createThumbnail makes a picture with its source, hint, and no alt text", () => {
+    dom.installDom("");
+    const lazy = createThumbnail("/image/one.webp", "lazy");
+    expect(lazy.tagName).toBe("IMG");
+    expect(lazy.getAttribute("alt")).toBe("");
+    expect(lazy.loading).toBe("lazy");
+    expect(lazy.getAttribute("src")).toBe("/image/one.webp");
+    expect(createThumbnail("/image/two.webp", "eager").loading).toBe("eager");
+  });
+
+  test("cloneContent copies the whole subtree into a new node", () => {
+    dom.installDom('<div id="source"><span>inner</span></div>');
+    const source = requiredChild<HTMLElement>(document, "#source");
+    const copy = cloneContent(source);
+    expect(copy).not.toBe(source);
+    expect(requiredChild(copy, "span").textContent).toBe("inner");
   });
 
   test("postJson posts the body with the CSRF header and reads the JSON answer", async () => {
