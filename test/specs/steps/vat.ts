@@ -2,7 +2,7 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { attendeeAccount, TAX_VAT, WORLD } from "#accounting/accounts.ts";
-import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { assessTax } from "#shared/tax/assessment.ts";
@@ -29,6 +29,7 @@ import {
   worldBalance,
 } from "#test/specs/support/money-reads.ts";
 import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { openAttendeeEditor } from "#test-utils/e2e.ts";
 import { setupStripe } from "#test-utils/settings.ts";

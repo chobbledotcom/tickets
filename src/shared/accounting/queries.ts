@@ -37,7 +37,6 @@ import {
   ledgerLegs,
   modifierLeg,
   ofKind,
-  oneAccount,
   touching,
 } from "#accounting/projection-sql.ts";
 import {
@@ -274,12 +273,6 @@ export const ledgerTotals = (range: LedgerRange): Promise<LedgerTotals> =>
     },
     range,
   );
-
-/** Balance of one account: money in as the destination, less money out as
- *  the source. Zero when the account has no transfers. */
-export const accountBalance = async (acct: AccountRef): Promise<number> =>
-  (await readMeasures({ balance: balanceIn(oneAccount(acct.type, acct.id)) }))
-    .balance;
 
 /**
  * Read a single projected money figure (a scalar `transfers` subquery) THROUGH an
