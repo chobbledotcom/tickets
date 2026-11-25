@@ -46,6 +46,11 @@ describe("Cucumber evidence schema", () => {
     );
   });
 
+  test("accepts the desktop profile a guide video uses", () => {
+    const desktop = { ...declaration, profiles: ["desktop"] };
+    expect(parseEvidenceDeclarations([desktop], catalog)).toEqual([desktop]);
+  });
+
   test("rejects invalid or duplicate capture declarations", () => {
     const invalid = [
       [[{ ...declaration, id: "Not Stable" }], "capture id"],
@@ -56,6 +61,7 @@ describe("Cucumber evidence schema", () => {
         "whole address",
       ],
       [[{ ...declaration, profiles: [] }], "profile"],
+      [[{ ...declaration, profiles: ["tablet"] }], "tablet"],
       [[{ ...declaration, profiles: ["mobile", "mobile"] }], "unique"],
       [[{ ...declaration, presentation: "sales" }], "canonical"],
       [
@@ -120,6 +126,33 @@ describe("Cucumber evidence schema", () => {
         schemaVersion: 3,
       }).success,
     ).toBe(false);
+    const manifestCapture = requireValue(
+      manifest.captures[0],
+      "Manifest capture is missing",
+    );
+    const manifestAsset = requireValue(
+      manifestCapture.assets[0],
+      "Manifest asset is missing",
+    );
+    const desktopManifest = {
+      ...manifest,
+      captures: [
+        {
+          ...manifestCapture,
+          assets: [
+            {
+              ...manifestAsset,
+              path: "assets/payment-result--desktop.png",
+              profile: "desktop",
+              viewport: { deviceScaleFactor: 1, height: 720, width: 1280 },
+            },
+          ],
+        },
+      ],
+    };
+    expect(v.parse(EvidenceManifestSchema, desktopManifest)).toEqual(
+      desktopManifest,
+    );
     expect(
       v.safeParse(EvidenceManifestSchema, {
         ...manifest,
