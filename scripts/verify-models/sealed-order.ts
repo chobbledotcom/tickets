@@ -2,12 +2,12 @@ import type { BundleRead } from "#db/checkout-bundles.ts";
 import type { RowHolding } from "#db/processed-payments.ts";
 import type { StoredPaymentFailure } from "#payment/row-state.ts";
 import type { CallbackOutcome } from "#routes/api/payment-callback.ts";
-import {
-  isHeldResult,
-  settlesSession,
-} from "#routes/api/payment-processing/index.ts";
+import { settlesSession } from "#routes/api/payment-processing/index.ts";
 import { callbackAnswerFor } from "#routes/api/payment-processing/missing-order.ts";
-import { standingOf } from "#routes/api/payment-processing/session-standing.ts";
+import {
+  receiptServes,
+  standingOf,
+} from "#routes/api/payment-processing/session-standing.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import {
   corruptedDataFor,
@@ -81,16 +81,20 @@ type Delivery = {
 
 /** The production decisions that the producer executes: `standingOf` in
  * session-standing.ts and `callbackAnswerFor` in missing-order.ts answer a
- * session with no readable order, and `settlesSession` in index.ts says
- * which results write the receipt. A test replaces one to inject a fault. */
+ * session with no readable order, `receiptServes` in session-standing.ts says
+ * whether a receipt stands for the order, and `settlesSession` in index.ts
+ * says which results write the receipt. A test replaces one to inject a
+ * fault. */
 export type OrderDecisions = {
   readonly answerFor: typeof callbackAnswerFor;
+  readonly receiptServes: typeof receiptServes;
   readonly settles: typeof settlesSession;
   readonly standing: typeof standingOf;
 };
 
 const PRODUCTION_DECISIONS: OrderDecisions = {
   answerFor: callbackAnswerFor,
+  receiptServes,
   settles: settlesSession,
   standing: standingOf,
 };
@@ -132,11 +136,14 @@ const answerOf = (kind: CallbackOutcome["kind"]): Answer => {
  * decisions. The standing comes from what the row and the ledger hold: a
  * finalized row names a booking, and a failed row holds a final outcome. The
  * answer table then says whether the admin is told, and what the callback
- * answers. No branch of that path calls a provider, so it refunds nothing. */
+ * answers. No branch of that path calls a provider, so it refunds nothing. A
+ * receipt of a session that nothing settled takes this path too, so `bundle`
+ * says which row the delivery found. */
 const missingOrderDelivery = (
   row: RowState,
   ledger: LedgerState,
   { answerFor, standing }: Pick<OrderDecisions, "answerFor" | "standing">,
+  bundle: BundleState = "gone",
 ): Delivery => {
   const answer = answerFor(
     standing({ recorded: ledger === "recorded", row: HOLDING_FOR_ROW[row] })
@@ -146,7 +153,7 @@ const missingOrderDelivery = (
     alarms: answer.reportsLostOrder,
     answer: answerOf(answer.outcome.kind),
     books: false,
-    bundle: "gone",
+    bundle,
     ledgerAfter: ledger,
     ledgerBefore: ledger,
     refunds: false,
@@ -162,12 +169,14 @@ const missingOrderDelivery = (
  * - no row with a recorded ledger replays from the ledger and heals the row,
  *   to finalized for a live owner or to failed for an orphaned one;
  * - no row with no ledger leg books fresh. That path is the reserve and
- *   settle actions of the model, except from a receipt, where this fact keeps
- *   what production would do: book from a copy with no buyer details. */
+ *   settle actions of the model. A receipt has no buyer, so it stands for the
+ *   order only when `receiptServes` says so. In production it does not for a
+ *   session that nothing settled, which then reads as a lost order. */
 const readOrderDeliveries = (
   bundle: BundleState,
   row: RowState,
   ledger: LedgerState,
+  decisions: OrderDecisions,
 ): Delivery[] => {
   const base = {
     alarms: false,
@@ -197,15 +206,21 @@ const readOrderDeliveries = (
     }));
   }
   if (bundle === "receipt") {
-    return [
-      {
-        ...base,
-        answer: "booked",
-        books: true,
-        ledgerAfter: "recorded",
-        rowAfter: "finalized",
-      },
-    ];
+    const standing = decisions.standing({
+      recorded: false,
+      row: HOLDING_FOR_ROW[row],
+    });
+    return decisions.receiptServes(standing)
+      ? [
+          {
+            ...base,
+            answer: "booked",
+            books: true,
+            ledgerAfter: "recorded",
+            rowAfter: "finalized",
+          },
+        ]
+      : [missingOrderDelivery(row, ledger, decisions, "receipt")];
   }
   return [];
 };
@@ -217,7 +232,7 @@ const deliveriesWith = (decisions: OrderDecisions): Delivery[] =>
   ROW_STATES.flatMap((row) =>
     LEDGER_STATES.flatMap((ledger) => [
       ...readableBundles.flatMap((bundle) =>
-        readOrderDeliveries(bundle, row, ledger),
+        readOrderDeliveries(bundle, row, ledger, decisions),
       ),
       missingOrderDelivery(row, ledger, decisions),
     ]),
@@ -314,10 +329,10 @@ export const sealedOrderModelData: ModelDataSource = modelDataFor(() =>
   moduleFor(DELIVERIES, RECEIPT_ROWS),
 );
 
-/** The negative control for a receipt written while the session is still
- *  open: the settle rule also counts a held answer as settled. */
-export const earlyReceiptData: ModelDataSource = sealedOrderDataWithFault({
-  settles: (result) => settlesSession(result) || isHeldResult(result),
+/** The negative control for a booking made from a receipt: a receipt stands
+ *  for the order of a session that nothing settled. */
+export const receiptBooksData: ModelDataSource = sealedOrderDataWithFault({
+  receiptServes: () => true,
 });
 
 /** The negative control for an alarm for a settled session: the standing

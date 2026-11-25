@@ -4,6 +4,7 @@
 import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
 import { expandChildAllocations } from "#db/attendees/order-parents.ts";
 import type {
+  AnswerRowDate,
   LineSlot,
   LineTextAnswer,
   LineTicket,
@@ -45,6 +46,14 @@ export const lineKey = ({
   packageGroupId,
   parentListingId,
 }: LineSlot): string => `${listingId}_${parentListingId}_${packageGroupId}`;
+
+/** One answer for each question, ticket and booking row. A row of one slot
+ * on another date holds its own answer. */
+export const answerKey = (
+  questionId: number,
+  ticket: LineTicket & AnswerRowDate,
+): string =>
+  `${questionId}:${lineKey(ticket)}:${ticket.startAt ?? ""}:${ticket.unit}`;
 
 /** The form field that holds the answer to a question for one ticket. */
 export const ticketFieldName = (questionId: number, ticket: LineTicket) =>

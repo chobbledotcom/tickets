@@ -56,7 +56,7 @@ export const sealedOrder: ModelGuide = {
   ],
   module: "SealedOrder",
   safety:
-    "Every allowed state has ledger legs for a ticket and a booked row, and a receipt only for a settled session. Every delivery so far kept the alarm for sessions that are not settled and only for them, refunded no lost order, and made no ticket from a receipt.",
+    "Every allowed state has ledger legs for a ticket and a booked row, and no reserved row beside a receipt. Every delivery so far kept the alarm for sessions that are not settled and only for them, refunded no lost order, and made no ticket from a receipt.",
   steps: [
     {
       code: [
@@ -98,16 +98,16 @@ export const sealedOrder: ModelGuide = {
           path: "src/shared/db/checkout-bundles.ts",
           symbol: "rewriteCheckoutBundle",
         },
-        { path: PRODUCER, symbol: "earlyReceiptData" },
+        { path: PRODUCER, symbol: "receiptBooksData" },
       ],
-      rules: ["KeepReceipt", "FinalRows", "ReceiptOnlyWhenSettled"],
+      rules: ["KeepReceipt", "FinalRows", "NoReservationBesideReceipt"],
       title: "A settled session keeps only a receipt",
       values: [
         { name: "row before", value: "finalized or failed" },
         { name: "bundle before", value: "order" },
         { name: "bundle after", value: "receipt" },
       ],
-      what: "After the outcome, a separate write replaces the order with a receipt. A crash can leave the order in place, and a replay of the final row then writes the receipt again. The early-receipt control counts a held answer as settled, so a receipt replaces the order of a reserved row. The checker finds a receipt for a session that is not settled.",
+      what: "After the outcome, a separate write replaces the order with a receipt. A crash can leave the order in place, and a replay of the final row then writes the receipt again. A delivery that reads a receipt never reserves the row. The receipt-books control lets a receipt stand for the order of a session that nothing settled. The checker then finds a booking made from a receipt.",
     },
     {
       code: [
@@ -123,7 +123,7 @@ export const sealedOrder: ModelGuide = {
         { name: "retention", value: "finalized or failed becomes none" },
         { name: "ledger", value: "unchanged" },
       ],
-      what: "The prune deletes the sealed row after the checkout and retry windows. A bundle is never kept longer than a payment row, and it is written first, so retention deletes a final payment row only after the sealed row. The model lets each happen at any time in that order. The ledger keeps its legs.",
+      what: "The prune deletes the sealed row after the checkout and retry windows. The prune deletes the sealed rows and the payment rows in two separate batches, so a receipt can outlive its payment row. The model lets each happen at any time. The ledger keeps its legs.",
     },
     {
       code: [
@@ -173,7 +173,7 @@ export const sealedOrder: ModelGuide = {
         { name: "final row", value: "replay" },
         { name: "no row, recorded ledger", value: "replay and heal the row" },
       ],
-      what: "A delivery that reads an order or a receipt answers held for a reserved row and replays a final row. With no row and a recorded ledger, it replays from the ledger. A receipt exists only for a settled session, so the fact that books from a receipt can never apply.",
+      what: "A delivery that reads an order or a receipt answers held for a reserved row and replays a final row. With no row and a recorded ledger, it replays from the ledger. A receipt with no row and no leg is a lost order of a session that nothing settled. It raises the alarm and books nothing.",
     },
     {
       code: [{ path: PRODUCER, symbol: "sealedOrderModelData" }],
@@ -181,7 +181,7 @@ export const sealedOrder: ModelGuide = {
       title: "Safety joins the relations and the verdicts",
       values: [
         { name: "ticket or booked row", value: "needs a ledger leg" },
-        { name: "receipt", value: "needs a settled session" },
+        { name: "receipt", value: "never beside a reserved row" },
         { name: "verdicts", value: "four flags that stay TRUE" },
       ],
       what: "Safety joins TypeOK, the four kept verdicts, and the two state relations. Next permits a delivery, the reserve, either settle, the release, the receipt, the prune, the row deletion, or no change.",
