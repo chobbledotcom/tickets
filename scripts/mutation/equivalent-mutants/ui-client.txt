@@ -77,8 +77,8 @@ src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etit
 # property below is "" before the assignment, so `=` and `+=` finish identical.
 src/ui/client/admin/image-picker-template.ts::optionButton.item%2etitle~0ui2juv  = → += audited:0w9n4n2 # item.title: fresh button from createButton, "" before
 src/ui/client/admin/image-picker-template.ts::refusalMessage.template%2einnerHTML~1vmdtw6  = → += audited:0w9n4n2 # template.innerHTML: fresh template, "" before
-src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0qvtdnq # image.alt: fresh element, "" before, and "" + "" is ""
-src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0qvtdnq # image.src: fresh element, "" before
+src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0r4ynj5 # image.alt: fresh element, "" before, and "" + "" is ""
+src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0r4ynj5 # image.src: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
 # /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
 # (Number trims whitespace and "N." is the same decimal) — no typed input can
@@ -270,3 +270,9 @@ src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow~0k9a955@1 renderQueue
 src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2eclassName~0jf4238 =→+= audited:1s6pc69 # the row has no class when it settles, so adding to its class equals setting it
 src/ui/client/scanner-offline-sync.ts::syncQueue~1ozove5 messageSyncRunning→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
 src/ui/client/scanner-offline-sync.ts::syncQueue~1ozove5 Checking in queued tickets...→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+
+# The DOM helpers (src/ui/client/dom.ts): a fresh element's properties start empty, and the
+# token field reads as an empty string when it holds nothing.
+src/ui/client/dom.ts::createHiddenInput.input%2ename~0c3eqyi =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
+src/ui/client/dom.ts::createHiddenInput.input%2evalue~1t6bjgm =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
+src/ui/client/dom.ts::csrfTokenFor~0yx2rmg ??→|| audited:0r4ynj5 # the field's value is a string, so ?? and || differ only on the empty string, which gives the same empty answer

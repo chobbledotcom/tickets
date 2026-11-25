@@ -113,7 +113,7 @@ src/shared/runtime.ts::buildRuntimeInfo.nodeCompatVersion~1m2e610  ?? → || aud
 src/shared/runtime.ts::buildRuntimeInfo.os~05o6squ  ?? → || audited:0r5asoe # os is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.typescriptVersion~14e4wx7  ?? → || audited:0r5asoe # typescriptVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.userAgent~17udaa2  ?? → || audited:0r5asoe # userAgent is string|undefined and falls back to "", so both operators agree
-src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → += audited:0zlhva4 # createElement returns a new button with className "", so both assignments produce the supplied class string
+src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → += audited:0r4ynj5 # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only
 # callers; optional collections are arrays (always truthy); parsed day counts and
