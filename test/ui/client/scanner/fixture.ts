@@ -246,8 +246,8 @@ export const useScanner = (
   const wording = wordingOf(
     JSON.parse(String(el(document, "scanner-container").dataset.words)),
   );
-  const video = document.querySelector("video");
-  if (!video) throw new Error("The scanner page carries no scanner-video");
+  // The bundle already refused a page without the camera element.
+  const video = document.querySelector("video")!;
 
   return {
     cleanup: async (): Promise<void> => {

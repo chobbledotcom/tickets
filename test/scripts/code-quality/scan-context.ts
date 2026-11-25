@@ -50,19 +50,28 @@ export type ScanContext = {
 const getAllTsFiles = (dir: string): Promise<string[]> =>
   getAllFilesWithExt(dir, ".ts");
 
-/** `.js`/`.jsx` files in every in-scope tree (src, test, scripts, cli,
- *  e2e-payments) — hand-written browser source like
- *  `src/ui/client/scanner.js`, distinct from build artifacts. The
- *  parent-import rule scans these so a script entry cannot bypass it just by
- *  sitting in a `.js` file. {@link isBuildArtifactPath} filters out the
- *  `src/ui/static/` esbuild output and `dist/` edge bundle. */
+/** Hand-written `.js`/`.jsx` files in every in-scope tree (src, test,
+ *  scripts, cli, e2e-payments). The parent-import rule scans these, so a
+ *  script entry cannot bypass it by sitting in a `.js` file. The walk skips
+ *  the `src/ui/static/` esbuild output and the `dist/` edge bundle. */
 const getAllJsFiles = async (): Promise<string[]> => {
   const dirs = [SRC_DIR, TEST_DIR, SCRIPTS_DIR, CLI_DIR, E2E_PAYMENTS_DIR];
-  const exts = [".js", ".jsx"];
-  const perDirExt = await Promise.all(
-    dirs.flatMap((dir) => exts.map((ext) => getAllFilesWithExt(dir, ext))),
-  );
-  return perDirExt.flat().filter((f) => !isBuildArtifactPath(f));
+  const files = (await Promise.all(dirs.map(sourceFilesUnder))).flat();
+  return files.filter((path) => /\.jsx?$/.test(path));
+};
+
+/** Every file under `dir`. The walk skips every build output directory, so
+ *  it never reads a bundle. */
+const sourceFilesUnder = async (dir: string): Promise<string[]> => {
+  const found: string[] = [];
+  for await (const entry of Deno.readDir(dir)) {
+    const fullPath = join(dir, entry.name);
+    if (!entry.isDirectory) found.push(fullPath);
+    else if (!isBuildArtifactPath(`${fullPath}${sep}`)) {
+      found.push(...(await sourceFilesUnder(fullPath)));
+    }
+  }
+  return found;
 };
 
 /** `.tsx` files across every in-scope tree. The template-aware rules

@@ -118,7 +118,12 @@ const startScanner = (video: HTMLVideoElement, page: CameraPage): void => {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (ctx === null) throw new Error("The canvas gives no 2d context");
-  const state = { lastScanTime: 0, lastToken: "", processing: false };
+  const state = {
+    forgetTimer: 0,
+    lastScanTime: 0,
+    lastToken: "",
+    processing: false,
+  };
   const again = () => setTimeout(scan, SCAN_INTERVAL_MS);
 
   /** The token of the frame the camera shows, or null when it holds none. */
@@ -145,8 +150,10 @@ const startScanner = (video: HTMLVideoElement, page: CameraPage): void => {
     state.lastScanTime = Date.now();
     state.processing = true;
     state.lastToken = token;
-    setTimeout(() => {
-      if (state.lastToken === token) state.lastToken = "";
+    // Each new token restarts the window in which a rescan is the same scan.
+    clearTimeout(state.forgetTimer);
+    state.forgetTimer = setTimeout(() => {
+      state.lastToken = "";
     }, FADE_DELAY_MS);
     settleToken(page, token)
       .catch(page.reportFailure)

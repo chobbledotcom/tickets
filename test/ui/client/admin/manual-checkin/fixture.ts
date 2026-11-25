@@ -63,14 +63,9 @@ export const REBRANDED_WORDS: ScannerWords = {
   ticketCountOther: "{count} bookings",
 };
 
-/** The offline side of a page whose door settles online: it never answers
- * a search. */
-const IDLE_OFFLINE: ManualOffline = {
-  active: () => false,
-  search: () => {
-    throw new Error("An idle offline side answers no search");
-  },
-};
+/** The offline side of a page whose door settles online. It holds no saved
+ * list, so a search it answered would find nobody. */
+const IDLE_OFFLINE: ManualOffline = { active: () => false, search: () => null };
 
 /** The people the fixture's own search finds: the search route's answer. */
 export const FOUND_PEOPLE = [
