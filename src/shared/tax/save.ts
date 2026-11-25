@@ -116,14 +116,13 @@ const ledgerUnchanged = (
             foldOf(
               largestOf(rows, (row) => row.id),
               leg,
-              true,
             ),
             0,
           ),
           highWater,
         ),
-        equal(foldOf(countOf(rows), leg, true), count),
-        equal(foldOf(balanceIn(attendee), leg, true), balance),
+        equal(foldOf(countOf(rows), leg), count),
+        equal(foldOf(balanceIn(attendee), leg), balance),
       ),
     )})`;
 };

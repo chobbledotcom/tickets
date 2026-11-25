@@ -37,7 +37,7 @@ import {
 import { from } from "#db/select/query.ts";
 import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql } from "#db/sql.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 
 /** One row of the ledger, as a test or a figure reads it. */
@@ -180,7 +180,7 @@ type Signed<Value> = (
  * in SQL, so no two balance reads can disagree on which side credits.
  */
 export const signedSum: Signed<Counted> = (adds, subtracts) => (leg) =>
-  foldOf(net(adds, subtracts), leg, true);
+  foldOf(net(adds, subtracts), leg);
 
 /** The amount of one row with the sign of {@link signedSum}. */
 const signedAmount: Signed<number> = (adds, subtracts) => (leg) =>
@@ -232,26 +232,19 @@ export const largestOf = (
   value: (leg: Leg) => Expr<number>,
 ): Measure<"largest"> => ({ fold: "largest", rows, value });
 
-const FOLDS: Record<
-  Fold,
-  (value: Expr<number>, only: SqlStatement) => Expr<Counted | null>
-> = {
-  count: (_value, only) => valued(sql`COUNT(*)${only}`),
-  largest: (value, only) => valued(sql`MAX(${value})${only}`),
-  sum: (value, only) => orZero(valued(sql`SUM(${value})${only}`)),
+const FOLDS: Record<Fold, (value: Expr<number>) => Expr<Counted | null>> = {
+  count: (_value) => valued(sql`COUNT(*)`),
+  largest: (value) => valued(sql`MAX(${value})`),
+  sum: (value) => orZero(valued(sql`SUM(${value})`)),
 };
 
-/** The folded value of `measure` over a read of `leg`. With `alone`, the read
- * keeps only the rows of the measure. Otherwise the fold filters them. */
+/** The folded value of `measure` over a read of `leg`. The read keeps only
+ * the rows of the measure, so an index backs it. */
 export const foldOf = <Folds extends Fold>(
   measure: Measure<Folds>,
   leg: Leg,
-  alone: boolean,
 ): Expr<FoldedValue[Folds]> =>
-  FOLDS[measure.fold](
-    measure.value(leg),
-    alone ? sql`` : sql` FILTER (WHERE ${measure.rows(leg)})`,
-  ) as Expr<FoldedValue[Folds]>;
+  FOLDS[measure.fold](measure.value(leg)) as Expr<FoldedValue[Folds]>;
 
 /** One measure as a value of another statement. The read keeps only the rows
  * of the measure, so an index backs it. */
@@ -260,7 +253,7 @@ export const measureOf = <Folds extends Fold>(
 ): Expr<FoldedValue[Folds]> =>
   ledgerLegs()
     .where(measure.rows)
-    .aggregate((leg) => foldOf(measure, leg, true));
+    .aggregate((leg) => foldOf(measure, leg));
 
 /** Which accounts a figure covers, as a test of each side of a row. */
 export type Accounts = (role: Role) => LegTest;
