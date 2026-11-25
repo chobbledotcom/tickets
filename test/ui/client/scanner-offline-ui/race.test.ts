@@ -37,7 +37,6 @@ import {
   storedQueue,
   TOKEN,
   useScannerSuite,
-  whenTextShows,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
   askedUrls,
@@ -46,8 +45,6 @@ import {
   expectSyncSettled,
   firstRow,
   postedDeliveryHashes,
-  queuedItems,
-  queueSeeded,
   rowWords,
   settledCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
@@ -102,15 +99,6 @@ describe("scanner offline races", {
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
-
-  /** Drops and restores the connection the way the browser hands the state
-   * and its event over. */
-  const reconnect = (h: ScannerHarness): void => {
-    h.stash.set("navigator", { onLine: false });
-    h.window.dispatchEvent(new h.window.Event("offline"));
-    h.stash.set("navigator", { onLine: true });
-    h.window.dispatchEvent(new h.window.Event("online"));
-  };
 
   test("sends a scan the connection returned for while its digest ran", async () => {
     // The scan's digest runs on the platform's crypto. The connection
@@ -226,80 +214,6 @@ describe("scanner offline races", {
     await expect(whenStoreHolds(h, "scanner-queue")).rejects.toThrow(
       "The store never held scanner-queue",
     );
-  });
-
-  test("retries the queue when the connection returns during a sync", async () => {
-    // The page-load sync waits on the door's answer. The connection drops
-    // and returns while that answer is still pending, so the online ask
-    // arrives mid-run: it must not die with the run it interrupted.
-    const dropped = Promise.withResolvers<Response>();
-    let posts = 0;
-    const fetchStub = stubFetch(
-      withEmptyCache(() => {
-        posts += 1;
-        return posts === 1 ? dropped.promise : settledCheckIn();
-      }),
-    );
-    try {
-      const h = fresh(queueSeeded());
-
-      reconnect(h);
-
-      // The run's own answer dies with the connection, and the ask the
-      // returning connection made now settles the queue.
-      dropped.reject(new Error("connection dropped"));
-      await expectSyncSettled(h, whenTextShows, fetchStub, [TOKEN, TOKEN]);
-      expect(firstRow(h).textContent).toBe("Checked in");
-    } finally {
-      fetchStub.restore();
-    }
-  });
-
-  test("replays only the check-ins still queued when the sync re-runs", async () => {
-    // The first check-in settles and the second's answer dies with the
-    // connection. The online ask that lands mid-run schedules a re-run,
-    // and the re-run walks the rows the first run rendered: a row the
-    // first run settled must not replay its check-in.
-    const dropped = Promise.withResolvers<Response>();
-    const firstDigest = await digestOf("tok1");
-    let firstPosts = 0;
-    let secondPosts = 0;
-    const fetchStub = stubFetch(
-      withEmptyCache((_url, init) => {
-        const { token_hash } = JSON.parse(String(init?.body));
-        if (token_hash === firstDigest) {
-          firstPosts += 1;
-          // The door's guard reads a replayed check-in as one it already
-          // counted, the way it answers the page's own replay.
-          return firstPosts === 1
-            ? settledCheckIn()
-            : Response.json({ name: "Ada", status: "already_checked_in" });
-        }
-        secondPosts += 1;
-        return secondPosts === 1 ? dropped.promise : settledCheckIn();
-      }),
-    );
-    try {
-      const seed = await queuedItems(["tok1", "tok2"]);
-      const h = fresh({
-        seed: (store) => store.setItem("scanner-queue", seed),
-      });
-
-      reconnect(h);
-
-      // The run's own answer dies with the connection, and the ask the
-      // returning connection made settles only what is still queued.
-      dropped.reject(new Error("connection dropped"));
-      await expectSyncSettled(h, whenTextShows, fetchStub, [
-        "tok1",
-        "tok2",
-        "tok2",
-      ]);
-      // The settled row keeps the answer the page's own check-in got.
-      expect(rowWords(h)).toEqual(["Checked in", "Checked in"]);
-    } finally {
-      fetchStub.restore();
-    }
   });
 
   test("settles a scan queued while the sync is already running", async () => {

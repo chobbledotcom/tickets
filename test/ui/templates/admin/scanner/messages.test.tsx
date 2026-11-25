@@ -18,16 +18,24 @@ import {
 const clientMessages = (source: string): [string, string][] =>
   [
     ...source.matchAll(
-      /(?:getMessage|formatMessage|nameAndTicketsMessage|askConfirm)\(\s*messages\s*,\s*["'](\w+)["']\s*,\s*(["'])((?:\\.|(?!\2).)*)\2/g,
+      /(?:getMessage|formatMessage|nameAndTicketsMessage|askConfirm)\(\s*messages\s*,\s*["'](\w+)["']\s*,\s*(["'])((?:\\.|(?!\2).)*)\2|\[\s*["'](message\w+)["']\s*,\s*(["'])((?:\\.|(?!\5).)*)\5\s*\]/g,
     ),
-  ].map(([, key, , fallback]) => [key, fallback] as [string, string]);
+  ].map(
+    ([, key, , fallback, pairKey, , pairFallback]) =>
+      [key ?? pairKey, fallback ?? pairFallback] as [string, string],
+  );
 
 describe("the scanner page's words", () => {
   beforeAll(setupAdminPageTest);
 
   test("carries every message the client reads, in the client's own words", async () => {
     const sources = await Promise.all(
-      ["scanner.ts", "scanner-admit.ts"].map((file) =>
+      [
+        "scanner.ts",
+        "scanner-admit.ts",
+        "scanner-offline-sync.ts",
+        "scanner-offline-ui.ts",
+      ].map((file) =>
         Deno.readTextFile(relativeToProject(`src/ui/client/${file}`)),
       ),
     );
@@ -35,7 +43,7 @@ describe("the scanner page's words", () => {
     // One message per key the client reads today. A change here means the
     // client started or stopped reading a message: re-check the page
     // carries it, then update this count.
-    expect(messages.length).toBe(16);
+    expect(messages.length).toBe(38);
     const html = adminScannerPage(
       { name: "Doors" },
       "/admin/groups/5/scan",

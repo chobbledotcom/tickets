@@ -51,7 +51,7 @@ const OUTCOME_WORDS: Partial<Record<ScanAnswer["status"], Words>> = {
   checked_in: ["messageQueueItemCheckedIn", "Checked in"],
   not_found: ["messageNotFound", "Ticket not found"],
   refunded: ["messageQueueItemRefunded", "Refunded — not checked in"],
-  wrong_listing: ["messageNoDoor", "This ticket has no door to check in at"],
+  wrong_listing: ["messageNoDoor", "This ticket has no door to check in at."],
 };
 
 /** The row words for a status with none of its own. The ID check and the
