@@ -1,8 +1,24 @@
-import { attendeeAccount, MODIFIER, REVENUE } from "#accounting/accounts.ts";
+import {
+  ATTENDEE,
+  attendeeAccount,
+  MODIFIER,
+  REVENUE,
+} from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
+import {
+  balanceIn,
+  countOf,
+  foldOf,
+  largestOf,
+  ledgerLegs,
+  oneAccount,
+  touching,
+} from "#accounting/projection-sql.ts";
+import { LEDGER_ROW } from "#accounting/range.ts";
 import { eventGroup } from "#accounting/refs.ts";
 import { insertStatement, selectTransfersScope } from "#accounting/rows.ts";
 import { queryBatchPrimary, queryOnePrimary } from "#db/client.ts";
+import { and, coalesce, equal } from "#db/select/expression.ts";
 import { parseTaxPolicy } from "#db/settings/tax.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
@@ -81,6 +97,37 @@ const addLegacyAssessments = (
   }
 };
 
+/** The attendee's ledger still holds what the save read: the same newest row,
+ * the same count of rows, and the same balance. */
+const ledgerUnchanged = (
+  accountId: string,
+  highWater: number,
+  count: number,
+  balance: number,
+): SqlStatement => {
+  const attendee = oneAccount(ATTENDEE, accountId);
+  const rows = touching(attendee);
+  return sql`(${ledgerLegs()
+    .where(rows)
+    .aggregate((leg) =>
+      and(
+        equal(
+          coalesce(
+            foldOf(
+              largestOf(rows, (row) => row.id),
+              leg,
+              true,
+            ),
+            0,
+          ),
+          highWater,
+        ),
+        equal(foldOf(countOf(rows), leg, true), count),
+        equal(foldOf(balanceIn(attendee), leg, true), balance),
+      ),
+    )})`;
+};
+
 /** Primary reads plus commit fences keep previews separate from authority. */
 export const buildTaxSavePlan = async (
   attendeeId: number,
@@ -89,7 +136,7 @@ export const buildTaxSavePlan = async (
   const accountId = String(attendeeId);
   const legs = await selectTransfersScope(
     queryBatchPrimary,
-    sql`(source_type = 'attendee' AND source_id = ${accountId}) OR (dest_type = 'attendee' AND dest_id = ${accountId})`,
+    touching(oneAccount(ATTENDEE, accountId))(LEDGER_ROW),
   );
   const setting = await queryOnePrimary<{ value: string }>(
     sql`SELECT value FROM settings WHERE key = 'tax'`,
@@ -118,7 +165,7 @@ export const buildTaxSavePlan = async (
       sql`COALESCE((SELECT value FROM settings WHERE key = 'tax'), '') = ${rawPolicy}`,
     ),
     taxAssessmentGuard(
-      sql`(SELECT COALESCE(MAX(transfer.id), 0) = ${highWater} AND COUNT(*) = ${legs.length} AND COALESCE(SUM(CASE WHEN transfer.dest_type = 'attendee' AND transfer.dest_id = ${accountId} THEN transfer.amount ELSE -transfer.amount END), 0) = ${-beforeBalance} FROM transfers AS transfer WHERE (transfer.source_type = 'attendee' AND transfer.source_id = ${accountId}) OR (transfer.dest_type = 'attendee' AND transfer.dest_id = ${accountId}))`,
+      ledgerUnchanged(accountId, highWater, legs.length, -beforeBalance),
     ),
     taxAssessmentGuard(
       sql`(SELECT COUNT(*) FROM booking_tax_assessments AS assessment WHERE assessment.attendee_id = ${attendeeId}) = ${stored.length}`,

@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Embed host validation and parsing utilities
  */

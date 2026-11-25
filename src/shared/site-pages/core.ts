@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * The pure, total functional core of the site-pages feature. Every function
  * here is deterministic and side-effect

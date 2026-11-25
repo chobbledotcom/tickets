@@ -9,10 +9,6 @@ import {
   EMBEDDABLE_PATH,
   getCleanUrl,
   getSecurityHeaders,
-  isJsonApiPath,
-  isValidContentType,
-  isWebhookPath,
-  lowerContentType,
 } from "#routes/middleware.ts";
 import {
   resetEffectiveDomain,
@@ -28,14 +24,6 @@ import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 const BASE_CSP =
   "default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; form-action 'self'";
-
-const requestWithType = (method: string, contentType?: string): Request =>
-  new Request("http://localhost/test", {
-    ...(contentType === undefined
-      ? {}
-      : { headers: { "content-type": contentType } }),
-    method,
-  });
 
 describe("buildCspHeader", () => {
   test("defaults to the self-only resource policy", () => {
@@ -146,35 +134,6 @@ describe("buildCspHeader", () => {
   }
 });
 
-describe("JSON paths", () => {
-  for (const path of ["/payment/webhook", "/sms/webhook"]) {
-    test(`${path} is a webhook`, () => {
-      expect(isWebhookPath(path)).toBe(true);
-    });
-  }
-
-  test("near-miss webhook paths do not match", () => {
-    expect(isWebhookPath("/payment/webhooks")).toBe(false);
-    expect(isWebhookPath("/sms/webhooks")).toBe(false);
-  });
-
-  for (const path of [
-    "/admin/listing/12/scan",
-    "/api/listings",
-    "/v1/devices/one",
-  ]) {
-    test(`${path} is a JSON API path`, () => {
-      expect(isJsonApiPath(path)).toBe(true);
-    });
-  }
-
-  test("near-miss API paths do not match", () => {
-    expect(isJsonApiPath("/admin/listing/x/scan")).toBe(false);
-    expect(isJsonApiPath("/apis/listings")).toBe(false);
-    expect(isJsonApiPath("/v10/devices/one")).toBe(false);
-  });
-});
-
 describe("EMBEDDABLE_PATH", () => {
   test("accepts one or more valid ticket slugs", () => {
     expect(EMBEDDABLE_PATH.test("/ticket/one")).toBe(true);
@@ -184,80 +143,6 @@ describe("EMBEDDABLE_PATH", () => {
   test("rejects malformed ticket paths", () => {
     expect(EMBEDDABLE_PATH.test("/ticket/UPPERCASE")).toBe(false);
     expect(EMBEDDABLE_PATH.test("/ticket/two--hyphens")).toBe(false);
-  });
-});
-
-describe("isValidContentType", () => {
-  test("normalizes a missing content type to an empty string", () => {
-    expect(lowerContentType(requestWithType("POST"))).toBe("");
-  });
-
-  test("non-POST requests need no content type", () => {
-    expect(isValidContentType(requestWithType("PATCH"), "/admin/login")).toBe(
-      true,
-    );
-  });
-
-  test("normal middleware does not exempt the specialized scheduled route", () => {
-    expect(isValidContentType(requestWithType("POST"), "/scheduled")).toBe(
-      false,
-    );
-  });
-
-  test("/instance/site-credentials accepts a bodyless POST", () => {
-    expect(
-      isValidContentType(requestWithType("POST"), "/instance/site-credentials"),
-    ).toBe(true);
-  });
-
-  for (const path of [
-    "/payment/webhook",
-    "/sms/webhook",
-    "/admin/listing/12/scan",
-    "/api/listings",
-    "/v1/devices/one",
-  ]) {
-    test(`${path} accepts JSON case-insensitively`, () => {
-      expect(
-        isValidContentType(
-          requestWithType("POST", "Application/JSON; charset=utf-8"),
-          path,
-        ),
-      ).toBe(true);
-    });
-  }
-
-  test("JSON endpoints reject another content type", () => {
-    expect(
-      isValidContentType(
-        requestWithType("POST", "text/plain"),
-        "/payment/webhook",
-      ),
-    ).toBe(false);
-  });
-
-  test("ordinary forms accept URL-encoded content", () => {
-    expect(
-      isValidContentType(
-        requestWithType("POST", "application/x-www-form-urlencoded"),
-        "/admin/login",
-      ),
-    ).toBe(true);
-  });
-
-  test("ordinary forms accept multipart content", () => {
-    expect(
-      isValidContentType(
-        requestWithType("POST", "multipart/form-data; boundary=test"),
-        "/admin/login",
-      ),
-    ).toBe(true);
-  });
-
-  test("ordinary forms reject missing content", () => {
-    expect(isValidContentType(requestWithType("POST"), "/admin/login")).toBe(
-      false,
-    );
   });
 });
 

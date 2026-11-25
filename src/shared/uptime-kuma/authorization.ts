@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 import { bearerAuthorization, bearerTokenOrNull } from "#shared/bearer.ts";
 import { parseJson } from "#shared/validation/parse.ts";

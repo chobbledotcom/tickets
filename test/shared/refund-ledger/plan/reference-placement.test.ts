@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { allTransfers } from "#accounting/queries.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import {
   legacyReference,
@@ -9,6 +9,7 @@ import {
   refundCashAmounts,
   sessionReference,
 } from "#test/shared/refund-ledger/helpers.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 

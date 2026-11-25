@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Spreadable route-table factories for admin sections.
  *

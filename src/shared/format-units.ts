@@ -1,3 +1,4 @@
+// effects: pure
 /** Sizes and durations in the words a person reads: bytes as B/KB/MB, and
  * milliseconds or seconds in the biggest rung they reach. */
 

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
 import { type BookingFacts, mapBooking } from "#accounting/mappers.ts";
-import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { getDb, setDb } from "#db/client.ts";
 import type { RefundPaymentReference } from "#db/payment-references.ts";
@@ -9,6 +9,7 @@ import type { SqlStatement } from "#db/sql.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
