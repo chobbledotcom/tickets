@@ -18,12 +18,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
-import { accountBalance } from "#accounting/queries.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
 } from "#db/listings/records.ts";
 import { TICKET_COUNTS_PREDICATE } from "#db/migrations/schema/listing-aggregates.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectListingAggregateSplit,

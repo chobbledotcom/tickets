@@ -105,7 +105,7 @@ in
       ++ lib.optionals (!config.container.isBuilding) (
         [ pkgs.gh ]
         ++ lib.optionals modelTools [ apalache ]
-        ++ lib.optionals browserTools [ pkgs.chromium ]
+        ++ lib.optionals browserTools [ pkgs.chromium pkgs.ffmpeg ]
       );
 
     scripts.pc.exec = ''exec deno task precommit "$@"'';

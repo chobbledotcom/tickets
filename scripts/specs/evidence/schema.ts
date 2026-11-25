@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { SCREENSHOT_PROFILE_NAMES } from "#scripts/screenshots/profile.ts";
 import {
   type SpecCatalog,
   specCasesWithContext,
@@ -24,7 +25,7 @@ const stableId = (label: string) =>
 
 const PositiveIntegerSchema = integerAtLeast(1);
 
-const EvidenceProfileNameSchema = v.picklist(["mobile"]);
+const EvidenceProfileNameSchema = v.picklist(SCREENSHOT_PROFILE_NAMES);
 
 const EvidencePresentationSchema = v.picklist([
   "canonical",

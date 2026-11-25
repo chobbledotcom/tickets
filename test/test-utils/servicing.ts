@@ -22,7 +22,6 @@
 import { assert, assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { costAccount } from "#accounting/accounts.ts";
-import { accountBalance } from "#accounting/queries.ts";
 import type { ListingBooking } from "#db/attendee-types.ts";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { ATTENDEE_FIELDS, attendeeColumns } from "#db/attendees/select.ts";
@@ -30,6 +29,7 @@ import { getDb, queryAll, queryOne } from "#db/client.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { nowMs } from "#shared/now.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

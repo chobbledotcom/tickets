@@ -1,11 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { settings } from "#db/settings.ts";
 import { account } from "#shared/ledger/account.ts";
 import { readTaxAssessments } from "#shared/tax/store.ts";
 import type { TaxPolicy } from "#shared/tax/types.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
