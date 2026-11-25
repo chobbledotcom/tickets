@@ -95,7 +95,7 @@ describe("scanner camera", {
 
     // The first frame draws but decodes nothing: the clock starts inside
     // the cooldown, so the loop only draws and reschedules at 150 ms.
-    expect(fakes.drawn).toEqual([[h.video, 0, 0]]);
+    expect(fakes.drawn).toEqual([[true, 0, 0]]);
     expect(fakes.reads).toEqual([]);
     expect(fakes.scheduledDelay()).toBe(150);
 
@@ -124,7 +124,7 @@ describe("scanner camera", {
 
     fakes.ready(4);
     fakes.advance(150);
-    expect(fakes.drawn).toEqual([[h.video, 0, 0]]);
+    expect(fakes.drawn).toEqual([[true, 0, 0]]);
   });
 
   test("admits one decoded ticket, then keeps scanning", async () => {
