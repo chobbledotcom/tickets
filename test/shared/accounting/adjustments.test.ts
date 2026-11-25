@@ -4,9 +4,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { revenueAccount, WRITEOFF } from "#accounting/accounts.ts";
 import { writeoffAdjustmentInserts } from "#accounting/adjustments.ts";
-import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { allTransfers } from "#accounting/queries.ts";
 import { accountKey } from "#shared/ledger/account.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import {
   postWriteoffAdjustment,
   useTransactionalDb,

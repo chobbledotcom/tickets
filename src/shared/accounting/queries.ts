@@ -21,18 +21,15 @@ import {
 } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_LISTING_INCOME } from "#accounting/manual-entries.ts";
-import { readMeasures } from "#accounting/measure-reads.ts";
 import {
   accountBalanceSubquery,
   accountsAmong,
   attendeeOwedSubquery,
-  balanceIn,
   creditsLessWriteoffDebits,
   type Leg,
   type LegTest,
   ledgerLegs,
   modifierLeg,
-  oneAccount,
   signedSum,
   touching,
 } from "#accounting/projection-sql.ts";
@@ -311,12 +308,6 @@ export const ledgerTotals = async (
     servicingCosts: Number(row.servicing_costs),
   };
 };
-
-/** Balance of one account: money in as the destination, less money out as
- *  the source. Zero when the account has no transfers. */
-export const accountBalance = async (acct: AccountRef): Promise<number> =>
-  (await readMeasures({ balance: balanceIn(oneAccount(acct.type, acct.id)) }))
-    .balance;
 
 /**
  * Read a single projected money figure (a scalar `transfers` subquery) THROUGH an

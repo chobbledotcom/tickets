@@ -82,7 +82,6 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   // Whole-ledger reads. Tests assert money movements with them; production
   // reads the ledger by account, by event, or by page.
   "shared/accounting/queries.ts:allTransfers",
-  "shared/accounting/queries.ts:accountBalance",
   // The Overview figures worked out from a list of attendees. The site reads
   // them with SQL. Tests use this as the reference that the SQL must match.
   "ui/templates/admin/listings/overview.tsx:overviewStatsFromAttendees",

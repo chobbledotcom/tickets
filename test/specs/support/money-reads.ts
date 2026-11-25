@@ -6,15 +6,12 @@ import {
   revenueAccount,
   WORLD,
 } from "#accounting/accounts.ts";
-import {
-  accountBalance,
-  allTransfers,
-  transfersByAccount,
-} from "#accounting/queries.ts";
+import { allTransfers, transfersByAccount } from "#accounting/queries.ts";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { articleOutOf } from "#test/specs/support/browser.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { adminGet } from "#test-utils/session.ts";
 

@@ -17,11 +17,7 @@ import {
   orderTotalSubquery,
   reservationSubtotalSubquery,
 } from "#accounting/projection-sql.ts";
-import {
-  accountBalance,
-  ledgerTotals,
-  transfersByAccount,
-} from "#accounting/queries.ts";
+import { ledgerTotals, transfersByAccount } from "#accounting/queries.ts";
 import { emptyRange } from "#accounting/range.ts";
 import { postTransferGroups, postTransfers } from "#accounting/store.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
@@ -40,6 +36,7 @@ import {
   postBooking,
   sessionReference,
 } from "#test/shared/refund-ledger/helpers.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";

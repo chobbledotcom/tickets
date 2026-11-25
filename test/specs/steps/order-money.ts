@@ -2,7 +2,6 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { revenueAccount } from "#accounting/accounts.ts";
-import { accountBalance } from "#accounting/queries.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   orderCatalog,
@@ -10,6 +9,7 @@ import {
   placedOrder,
 } from "#test/specs/support/orders.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import {
   expectStoredOrder,
