@@ -145,6 +145,8 @@ describe("the scanner service worker's stored assets", () => {
     const answered = await fireFetch("/scanner.js");
 
     expect(answered?.status).toBe(503);
+    expect(answered?.statusText).toBe("Offline");
+    expect(await answered?.text()).toBe("");
     expect([...cache.entries.keys()]).toEqual([]);
   });
 

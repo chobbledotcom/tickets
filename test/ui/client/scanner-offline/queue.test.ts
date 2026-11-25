@@ -36,6 +36,7 @@ import {
   digestOf,
   expectOfflineRefusal,
   expectOneStoredCheckIn,
+  scanOffline,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -44,27 +45,6 @@ describe("scanner offline queue", {
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
-
-  /** One offline scan: the camera opens with the door's cache holding the
-   * given ticket — or, when `cache` is null, with nothing seeded — and the
-   * first decode reaches the page. */
-  const scanOffline = async (
-    h: ScannerHarness,
-    scanned: string,
-    cache: { token?: string; storedAt?: number } | null = {},
-  ): Promise<void> => {
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    if (cache !== null) {
-      await seedTicketCache(
-        h,
-        cache.token ?? scanned,
-        cache.storedAt ?? Date.now(),
-      );
-    }
-    await start(h);
-    await scanFirst(fakes, scanned);
-  };
 
   test("queues a valid scan offline without posting it", async () => {
     const fetchStub = stubFetch(() => Response.json({}, { status: 500 }));

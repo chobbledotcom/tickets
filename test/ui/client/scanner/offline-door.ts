@@ -13,6 +13,7 @@ import type { HTMLElement as HappyHTMLElement } from "happy-dom";
 import { hmacHex } from "#shared/sha256.ts";
 import {
   type CameraFakes,
+  cameraFakes,
   postedScanBodies,
   scanFirst,
   seedTicketCache,
@@ -22,11 +23,13 @@ import {
 import {
   DOOR_KEY,
   el,
+  fullStore,
   queuedItem,
   SCAN_PATH,
   type ScannerGlobals,
   type ScannerHarness,
   storedQueue,
+  whenTextShows,
 } from "./fixture.ts";
 
 /** Every fetch the page made, as the urls it asked for. */
@@ -182,4 +185,46 @@ export const scanWaitingOnDigest = async (
   await start(h);
   await scanFirst(fakes, token);
   return digest;
+};
+
+/** One offline scan: the camera opens with the door's cache holding the
+ * given ticket — or, when `cache` is null, with nothing seeded — and the
+ * first decode reaches the page. */
+export const scanOffline = async (
+  h: ScannerHarness,
+  scanned: string,
+  cache: { token?: string; storedAt?: number } | null = {},
+): Promise<void> => {
+  using fakes = cameraFakes(h);
+  fakes.ready(4);
+  if (cache !== null) {
+    await seedTicketCache(
+      h,
+      cache.token ?? scanned,
+      cache.storedAt ?? Date.now(),
+    );
+  }
+  await start(h);
+  await scanFirst(fakes, scanned);
+};
+
+/** An armed switch on a device whose store refuses writes: the click changes
+ * nothing, and the page says why. The mode stays stored, the banner stays
+ * up, and the switch reads as pressed. */
+export const expectSwitchRefused = async (h: ScannerHarness): Promise<void> => {
+  fullStore(h);
+  el(h.document, "scanner-offline-toggle").click();
+
+  await whenTextShows(
+    h.statusEl,
+    "Your change was not saved. Free up space on this device, then try again.",
+  );
+  expect(h.statusEl.className).toContain("scanner-status-error");
+  expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe("1");
+  expect(el(h.document, "scanner-offline-banner").className).not.toContain(
+    "hidden",
+  );
+  expect(
+    el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
+  ).toBe("true");
 };

@@ -15,7 +15,6 @@ import {
   cameraFakes,
   postedScanBodies,
   scanFirst,
-  seedTicketCache,
   start,
   whenStatusShows,
 } from "#test/ui/client/scanner/camera-fakes.ts";
@@ -25,7 +24,6 @@ import {
   queuedItem,
   SCAN_PATH,
   SCANNER_PAGE_WITHOUT_REPLAY_WINDOW,
-  type ScannerHarness,
   storedQueue,
   TOKEN,
   useScannerSuite,
@@ -33,6 +31,7 @@ import {
 import {
   askedUrls,
   expectOfflineRefusal,
+  scanOffline,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -41,19 +40,6 @@ describe("scanner offline door", {
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
-
-  /** One offline scan: the camera opens and the first decode reaches the page. */
-  const scanOffline = async (
-    h: ScannerHarness,
-    scanned: string,
-    storedAt?: number,
-  ): Promise<void> => {
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    await seedTicketCache(h, scanned, storedAt ?? Date.now());
-    await start(h);
-    await scanFirst(fakes, scanned);
-  };
 
   test("stores the offline switch the door turns on", () => {
     const h = fresh();
@@ -102,7 +88,7 @@ describe("scanner offline door", {
     const fetchStub = stubFetch(new Error("offline"));
     try {
       const h = fresh({ onLine: false });
-      await scanOffline(h, TOKEN, Date.now() + 60_000);
+      await scanOffline(h, TOKEN, { storedAt: Date.now() + 60_000 });
       await whenStatusShows(
         h.statusEl,
         "The offline ticket list has expired. Go online and reload this page.",
