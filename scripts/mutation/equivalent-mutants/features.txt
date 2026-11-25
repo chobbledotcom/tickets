@@ -40,7 +40,6 @@ src/features/public/ticket-payment.ts::getTicketContext.packages~0yyoaiz ??→||
 src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.existingBooking~1genp17  ?? → || audited:1pm1i84 # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.listing~1y7j49h  ?? → || audited:1pm1i84 # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::isPaymentLockedLine~1cyk75e  ?? → || audited:1pm1i84 # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
-src/features/admin/booking-warnings.ts::computeWarnings.warns~1e9bm1v  ?? → || audited:0wzoevf # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0axstbd  ?? → || audited:1e4qpmi # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
 src/features/admin/attendee-page-data.ts::assembleTemplateData.hasMixedTimings~1hmlq9c  ?? → || audited:1e4qpmi # hasMixedTimings is boolean|undefined, and false equals the fallback
 src/features/admin/attendee-page-data.ts::assembleTemplateData.selectedAnswerIds~1og9d80  ?? → || audited:1e4qpmi # selectedAnswerIds is an array when present, and arrays are always truthy

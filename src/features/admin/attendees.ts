@@ -66,6 +66,7 @@ import {
   handleAttendeeNewGet,
   handleAttendeeNewPost,
 } from "./attendee-form-routes.ts";
+import { hiddenAnswerHandlers } from "./attendee-hidden-answers.ts";
 import { handleAttendeeLogisticsPost } from "./attendee-logistics-routes.ts";
 import { attendeePage } from "./attendee-page.ts";
 import { paymentReviewHandlers } from "./attendee-payment-review.ts";
@@ -364,7 +365,11 @@ const resendNotification = async (
   const privateKey = await requireRequestPrivateKey();
   const [bookingTexts, lineAnswers] = await Promise.all([
     getAttendeeTextAnswers(attendeeId, privateKey),
-    getAttendeeLineAnswers(attendeeId, () => Promise.resolve(privateKey)),
+    getAttendeeLineAnswers(
+      attendeeId,
+      () => Promise.resolve(privateKey),
+      "all",
+    ),
   ]);
   const freeTexts = heldFreeTexts(textAnswersOf(bookingTexts), lineAnswers);
 
@@ -447,6 +452,7 @@ const handleResendNotification = attendeeActions[
 export const adminHandlers = defineAdminRoutes({
   ...entityTabRoutes(adminPattern("attendee"), attendeePage),
   ...paymentReviewHandlers,
+  ...hiddenAnswerHandlers,
   ...destinationRoutes({
     attendee: { post: handleAttendeeEditPost },
     attendeeDelete: {

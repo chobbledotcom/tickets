@@ -12,6 +12,7 @@ import type { InvoiceSummary } from "#db/invoices.ts";
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import type { AttendeePageWarnings } from "#routes/admin/attendee-warnings.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -26,6 +27,7 @@ import {
   type NotesViewProps,
 } from "#templates/admin/attendee-notes.tsx";
 import { pendingNotificationBadges } from "#templates/admin/attendee-notification-badges.tsx";
+import { AttendeeWarningsBox } from "#templates/admin/attendee-warnings.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { MaybeButtonLink } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
@@ -356,20 +358,25 @@ export const ContactHistory = ({
 
 /**
  * The always-visible banner above the tab strip: the attendee's status (only
- * when more than one status exists) and the notes block — system alerts must
- * not hide behind a tab, and the add/delete note links work from any tab.
+ * when more than one status exists), the warnings, and the notes block —
+ * alerts must not hide behind a tab, and the add/delete note links work from
+ * any tab.
  */
 export const attendeeBanner = ({
   attendee,
   statuses,
   notes,
   isOwner,
+  warnings,
 }: {
   attendee: Attendee;
   statuses: AttendeeStatus[];
+  warnings: AttendeePageWarnings;
 } & NotesViewProps): JSX.Element | null => {
   const showStatus = statuses.length > 1;
-  if (!showStatus && notes.length === 0) return null;
+  if (!showStatus && notes.length === 0 && warnings.warnings.length === 0) {
+    return null;
+  }
   const status = statuses.find((s) => s.id === attendee.status_id);
   return (
     <PageBlock className="attendee-banner">
@@ -382,6 +389,7 @@ export const attendeeBanner = ({
           </h2>
         </div>
       )}
+      <AttendeeWarningsBox attendeeId={attendee.id} {...warnings} />
       <AttendeeNotesSection isOwner={isOwner} notes={notes} />
     </PageBlock>
   );

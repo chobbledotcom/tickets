@@ -296,12 +296,15 @@ describeWithEnv("the record page wiring", { db: true }, () => {
     expect(editor).toBeNull();
   });
 
-  test("proseExtra offers the add-note link to staff and nothing to an editor", async () => {
+  test("the note link slot offers the add-note link to staff and nothing to an editor", async () => {
     const group = await createTestGroup({ name: "Prose record" });
+    const slots = groupNoteFeature.page.slotsFor(
+      (loaded: { record: typeof group }) => loaded.record,
+    );
 
     const staff = await withTestSession(() =>
-      groupNoteFeature.page.proseExtra(
-        group,
+      slots.proseExtra(
+        { record: group },
         ctxFor({ ...SESSION, adminLevel: "manager" }),
       ),
     );
@@ -310,10 +313,11 @@ describeWithEnv("the record page wiring", { db: true }, () => {
       `/admin/groups/${group.id}/note?return_url=%2Fadmin%2Fgroups%2F${group.id}`,
     );
 
-    const editor = await groupNoteFeature.page.proseExtra(
-      group,
+    const editor = await slots.proseExtra(
+      { record: group },
       ctxFor({ ...SESSION, adminLevel: "editor" }),
     );
     expect(editor).toBeNull();
+    expect(slots.recordId({ record: group })).toBe(group.id);
   });
 });

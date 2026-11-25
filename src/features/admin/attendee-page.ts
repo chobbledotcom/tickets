@@ -7,16 +7,12 @@
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
-import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
 import { getAttendeeInvoices, type InvoiceSummary } from "#db/invoices.ts";
 import {
   loadPaymentMoveSnapshot,
   type PaymentMoveSnapshot,
 } from "#db/payment-admit-move.ts";
-import {
-  hasAnyPaymentReference,
-  type RefundPaymentReferenceSet,
-} from "#db/payment-references.ts";
+import type { RefundPaymentReferenceSet } from "#db/payment-references.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
@@ -57,7 +53,6 @@ import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-p
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import { adminPattern, adminRecordPath } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
 import {
   AttendeeAnswersTable,
@@ -80,6 +75,7 @@ import {
   invoiceCreatePath,
 } from "./attendee-invoice-link.ts";
 import { attendeeNoteFeature } from "./attendee-notes.ts";
+import { loadAttendeePageWarnings } from "./attendee-warnings.ts";
 
 type AttendeePageEntity = LoadedAttendee & {
   /** Whether the site offers to invoice this booking — one fact, read by the
@@ -286,34 +282,15 @@ const overview: TabDef<AttendeePageEntity> = overviewTab([
       renderListings,
       [],
     );
-    // One site serves every plan row this buyer holds, so the cue asks
-    // whether the buyer has a site at all — not per row. A sale that never
-    // completed cannot owe a site, so an incomplete payment shows no cue.
-    const bookings = attendeeBookingsFromLines(parsed.lines);
-    // A refunded plan's claim still holds the buyer's site, so its row
-    // joins the lookup instead of hiding behind its refund.
-    const planListingIds = bookings
-      .filter((booking) => booking.assignBuiltSite)
-      .map((booking) => booking.listingId);
     return AttendeeBookingsTable({
-      bookings,
-      planSaleMissingSite:
-        planListingIds.length > 0 &&
-        // The same test the failed-payments delete uses.
-        !isIncompletePayment(
-          attendee,
-          // A site plan is a paid listing by definition.
-          true,
-          await hasAnyPaymentReference(attendee),
-        ) &&
-        !(await hasAssignedBuiltSite(attendee.id, planListingIds)),
+      bookings: attendeeBookingsFromLines(parsed.lines),
     });
   }),
   customSection(async ({ attendee, existing }) =>
     AttendeeAnswersTable(await loadQuestionsForExisting(attendee.id, existing)),
   ),
   customSection(async ({ attendee }) =>
-    AttendeeLineAnswersTable(await loadLineAnswerRows(attendee.id)),
+    AttendeeLineAnswersTable(await loadLineAnswerRows(attendee.id, "booked")),
   ),
   {
     kind: "custom",
@@ -362,6 +339,7 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
       isOwner: ctx.session.adminLevel === "owner",
       notes,
       statuses: await attendeeStatuses.getAll(),
+      warnings: await loadAttendeePageWarnings(attendee.id),
     });
   },
   destination: "attendee",
@@ -369,9 +347,9 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
   // A single attendee is a page *within* the Attendees section: highlight the
   // top-level link, but never re-open the section's "Add" sub-nav beside it.
   navActive: { section: adminPattern("attendees") },
-  proseExtra: ({ attendee }, ctx) =>
-    attendeeNoteFeature.page.proseExtra(attendee, ctx),
-  recordId: ({ attendee }) => attendee.id,
+  ...attendeeNoteFeature.page.slotsFor(
+    ({ attendee }: AttendeePageEntity) => attendee,
+  ),
   tabs: [
     overview,
     writeFormTab<AttendeePageEntity>("edit", "entity.tab.edit", loadEditPanel),

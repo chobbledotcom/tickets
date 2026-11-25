@@ -246,10 +246,10 @@ describeWithEnv("the attendee page", { db: true }, () => {
 });
 
 describeWithEnv(
-  "the overview's missing-site cue",
+  "the missing-site warning",
   { db: true, env: { CAN_BUILD_SITES: "true" } },
   () => {
-    test("shows the cue on a paid plan row whose buyer holds no site", async () => {
+    test("shows on every tab for a paid plan whose buyer holds no site", async () => {
       const plan = await planListing("Cue Plan");
       const attendee = await createPaidTestAttendee(
         plan.id,
@@ -257,13 +257,15 @@ describeWithEnv(
         "pat@example.com",
         "pay_cue_missing",
       );
-      assertStringIncludes(
-        await tabHtml(attendee.id, ""),
-        "No site assigned yet",
-      );
+      for (const tab of ["", "edit", "actions"]) {
+        assertStringIncludes(
+          await tabHtml(attendee.id, tab),
+          "Cue Plan: no site is assigned yet.",
+        );
+      }
     });
 
-    test("hides the cue once the buyer's site is assigned", async () => {
+    test("goes away once the buyer's site is assigned", async () => {
       const plan = await planListing("Served Cue Plan");
       const attendee = await createPaidTestAttendee(
         plan.id,
@@ -279,14 +281,14 @@ describeWithEnv(
         plan.id,
       );
       assert(
-        !(await tabHtml(attendee.id, "")).includes("No site assigned yet"),
+        !(await tabHtml(attendee.id, "")).includes("no site is assigned yet"),
       );
     });
 
-    test("hides the cue while the sale carries no payment reference", async () => {
+    test("stays away while the sale carries no payment reference", async () => {
       const plan = await planListing("Unrecorded Cue Plan");
       // A recorded sale with no payment id: the money has no provider
-      // reference, so the sale never completed and the cue stays quiet.
+      // reference, so the sale never completed and owes no site yet.
       const attendee = await createPaidTestAttendee(
         plan.id,
         "Unrecorded Plan",
@@ -295,7 +297,7 @@ describeWithEnv(
         plan.unitPrice,
       );
       assert(
-        !(await tabHtml(attendee.id, "")).includes("No site assigned yet"),
+        !(await tabHtml(attendee.id, "")).includes("no site is assigned yet"),
       );
     });
   },

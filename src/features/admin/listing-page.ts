@@ -172,9 +172,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   // A single listing is a page *within* the Listings section: `{ section }`
   // highlights that top link and leaves the "Add"/"Import" sub-nav out.
   navActive: { section: adminPattern("listings") },
-  proseExtra: ({ listing }, ctx) =>
-    listingNoteFeature.page.proseExtra(listing, ctx),
-  recordId: ({ listing }) => listing.id,
+  ...listingNoteFeature.page.slotsFor(({ listing }: LoadedListing) => listing),
   tabs: [
     overview,
     panelTab(

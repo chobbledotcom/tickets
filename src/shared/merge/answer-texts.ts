@@ -44,8 +44,8 @@ export const mergedFreeTexts = async (
     await Promise.all([
       getAttendeeTextAnswers(targetId, privateKey),
       getAttendeeTextAnswers(sourceId, privateKey),
-      getAttendeeLineAnswers(targetId, ownerKey),
-      getAttendeeLineAnswers(sourceId, ownerKey),
+      getAttendeeLineAnswers(targetId, ownerKey, "all"),
+      getAttendeeLineAnswers(sourceId, ownerKey, "all"),
     ]);
   return {
     lineAnswers: joinedLineAnswers(targetLines, sourceLines),

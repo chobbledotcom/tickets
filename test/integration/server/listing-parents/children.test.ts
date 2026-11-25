@@ -221,7 +221,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     assert(!html.includes("requires a child listing"));
   });
 
-  test("editing an attendee who booked only a parent warns its child is missing (usability #6)", async () => {
+  test("the edit tab of an attendee who booked only a parent warns its child is missing (usability #6)", async () => {
     const { bookAttendee } = await import(
       "#test-utils/db-helpers/attendee-payments.ts"
     );
@@ -232,11 +232,11 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const html = await attendeeEditHtml(result);
     assertStringIncludes(
       html,
-      "requires one of its child listings to be booked too (Add-on)",
+      "Base unit needs one of its child listings booked too (Add-on). Add one on the Edit tab.",
     );
   });
 
-  test("editing an attendee who booked both parent and child shows no missing-child warning", async () => {
+  test("the edit tab of an attendee who booked both parent and child shows no missing-child warning", async () => {
     const { attendeesApi } = await import("#db/attendees/api.ts");
     const { parent, child } = await linkedParentChild();
     // Both lines booked on the one attendee — the gate is satisfied.
@@ -246,7 +246,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
       name: "Ada",
     });
     const html = await attendeeEditHtml(result);
-    assert(!html.includes("requires one of its child listings"));
+    assert(!html.includes("needs one of its child listings"));
   });
 
   test("notes when there are no other listings to choose from", async () => {

@@ -18,7 +18,6 @@ import { DAY_MS } from "#shared/now.ts";
  * dates, status — shown in the bookings table at the top of the edit page.
  */
 export type AttendeeBooking = {
-  assignBuiltSite: boolean;
   listingId: number;
   listingName: string;
   listingActive: boolean;
@@ -69,7 +68,6 @@ export const attendeeBookingsFromLines = (
     const { existingBooking: booking, listing } = line;
     if (!booking || !listing) return null;
     return {
-      assignBuiltSite: listing.assignBuiltSite,
       checkedIn: booking.checked_in,
       endAt: booking.end_at,
       listingActive: listing.active,

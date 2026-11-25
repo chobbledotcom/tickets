@@ -1,11 +1,11 @@
 /**
- * Warnings the manual attendee form shows beside booked lines: over-duration,
- * overbooking, and incomplete parent bookings. All are allowed for admin
- * saves, so they surface as warnings, not errors.
+ * Warnings the manual attendee form shows beside booked lines: over-duration
+ * and overbooking. Both are allowed for admin saves, so they surface as
+ * warnings, not errors. A parent booked without a child is a fact about the
+ * saved booking, so the attendee page warns about it on every tab.
  */
 
 import { checkLinesCapacity } from "#db/attendees/capacity/checks.ts";
-import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import { compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
@@ -92,42 +92,6 @@ const overbookedListingIds = async (
   return overbooked;
 };
 
-/**
- * Incomplete-parent warnings, keyed by parent listing id. A warning fires
- * for a booked line that is a parent (has required-child edges) whose
- * required child is NOT also booked on this attendee. The manual add/edit
- * form books plain lines and never folds a child. An operator who books a
- * parent alone, or opens an attendee in that state, ends with a booking the
- * gate considers incomplete. The message names the children to add so it is
- * obvious and easily fixed (usability #6). Reuses the relationship
- * accessor. No-op (no query) when no booked line is a parent.
- */
-const incompleteParentWarnings = async (
-  booked: AttendeeFormLine[],
-): Promise<Map<number, string>> => {
-  const bookedIds = new Set(booked.map((line) => line.listingId));
-  const { listingsByKey: childrenByParent } = await hydrateListingLinks(
-    listingChildren,
-    [...bookedIds],
-  );
-  const warnings = new Map<number, string>();
-  for (const line of booked) {
-    // Hydration only returns listings that ARE parents (at least one child).
-    const children = childrenByParent.get(line.listingId);
-    if (!children || children.some((child) => bookedIds.has(child.id))) {
-      continue;
-    }
-    warnings.set(
-      line.listingId,
-      t("attendee_form.warn_incomplete_parent", {
-        children: children.map((child) => child.name).join(", "),
-        title: line.listing!.name,
-      }),
-    );
-  }
-  return warnings;
-};
-
 /** Overbooking message for one listing's summed booked lines. */
 const overbookMessage = (line: AttendeeFormLine, quantity: number): string =>
   t("attendee_form.warn_overbooked", {
@@ -136,20 +100,20 @@ const overbookMessage = (line: AttendeeFormLine, quantity: number): string =>
   });
 
 /**
- * Over-duration + overbooking + incomplete-parent warnings for every booked
- * line, keyed by listing id plus a flat list for the top-of-form summary. All
- * are allowed for admin saves, so they surface as warnings, not errors. The
- * capacity side is one batched query for the whole form, not one per line.
+ * Over-duration + overbooking warnings for every booked line, keyed by
+ * listing id plus a flat list for the top-of-form summary. The capacity side
+ * is one batched query for the whole form, not one per line.
  */
 export const computeWarnings = async (
   parsed: ParsedAttendeeForm,
   excludeAttendeeId: number | undefined,
 ): Promise<{ byListing: Map<number, string[]>; top: string[] }> => {
   const booked = parsed.lines.filter(isBookedLine);
-  const [overbooked, incompleteParents] = await Promise.all([
-    overbookedListingIds(booked, parsed, excludeAttendeeId),
-    incompleteParentWarnings(booked),
-  ]);
+  const overbooked = await overbookedListingIds(
+    booked,
+    parsed,
+    excludeAttendeeId,
+  );
   const byListing = new Map<number, string[]>();
   const top: string[] = [];
   // One warning set per LISTING (its lines share capacity and the date range).
@@ -164,7 +128,6 @@ export const computeWarnings = async (
     const warns = compact([
       overDurationWarning(line, parsed.dayCount),
       overbooked.has(line.listingId) ? overbookMessage(line, total) : null,
-      incompleteParents.get(line.listingId) ?? null,
     ]);
     if (warns.length > 0) {
       byListing.set(line.listingId, warns);

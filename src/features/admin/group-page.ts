@@ -114,8 +114,7 @@ export const groupPage: EntityPage<LoadedGroup> = defineEntityPage<LoadedGroup>(
     // A single group is a page *within* the Groups section — highlight the top
     // link, no "Add" sub-nav (see attendee-page.ts).
     navActive: { section: adminPattern("groups") },
-    proseExtra: groupNoteFeature.page.proseExtra,
-    recordId: (group) => group.id,
+    ...groupNoteFeature.page.slotsFor((group: LoadedGroup) => group),
     tabs: [
       panelTab<LoadedGroup>(
         "",

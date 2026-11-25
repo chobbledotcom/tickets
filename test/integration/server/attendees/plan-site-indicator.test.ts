@@ -1,4 +1,5 @@
 import { assert, assertStringIncludes } from "@std/assert";
+import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
@@ -22,6 +23,37 @@ import { withEnv } from "#test-utils/env.ts";
 import { postListingSale, refundBookedOrder } from "#test-utils/ledger.ts";
 import { adminGet } from "#test-utils/session.ts";
 
+/** The words of the warning about a plan with no site. */
+const PLAN_WARNING =
+  "Site Plan: no site is assigned yet. Add or build sites on the Built Sites page, then send the notification again.";
+
+const nothingMore = (): Promise<void> => Promise.resolve();
+
+/** A paid plan sale: its payment reference (empty for none), what happens
+ * after the sale, and whether the attendee page warns. A sale with no
+ * payment reference never completed, so it owes no site yet. A refunded
+ * sale owes none. */
+const PAID_PLAN_CASES: [
+  string,
+  string,
+  (attendeeId: number, listingId: number) => Promise<unknown>,
+  boolean,
+][] = [
+  ["an incomplete payment shows no warning", "", nothingMore, false],
+  [
+    "a fully paid plan sale with one payment reference warns that no site is assigned",
+    "pi_site_plan_paid",
+    nothingMore,
+    true,
+  ],
+  [
+    "a refunded plan sale shows no warning",
+    "pi_site_plan_refunded",
+    refundBookedOrder,
+    false,
+  ],
+];
+
 describeWithEnv(
   "server (admin attendees) > plan bookings without a site",
   { db: true },
@@ -40,7 +72,7 @@ describeWithEnv(
 
         const owed = await adminGet(`/admin/attendees/${attendee.id}`);
         const before = await owed.text();
-        expectIncludesAll(before, ["Site Plan", "No site assigned yet"]);
+        expectIncludesAll(before, ["Site Plan", "no site is assigned yet"]);
 
         await insertBuiltSite("Pooled", "pooled.test", "", "", true);
         const pool = await getAssignableBuiltSites();
@@ -54,47 +86,29 @@ describeWithEnv(
         const served = await adminGet(`/admin/attendees/${attendee.id}`);
         const after = await served.text();
         assertStringIncludes(after, "Site Plan");
-        assert(!after.includes("No site assigned yet"));
+        assert(!after.includes("no site is assigned yet"));
       });
 
-      test("an incomplete payment shows no repair cue", async () => {
-        using _env = withEnv({ CAN_BUILD_SITES: "true" });
-        await createTierListing();
-        const plan = await planListing("Site Plan");
-        // A sale leg with no payment reference: the payment never completed,
-        // so the notification never ran and no repair is owed yet.
-        const attendee = await createPaidTestAttendee(
-          plan.id,
-          "Unpaid Buyer",
-          "unpaid@test.com",
-          "",
-          300,
-        );
+      for (const [name, paymentId, afterSale, shown] of PAID_PLAN_CASES) {
+        test(name, async () => {
+          using _env = withEnv({ CAN_BUILD_SITES: "true" });
+          await createTierListing();
+          const plan = await planListing("Site Plan");
+          const attendee = await createPaidTestAttendee(
+            plan.id,
+            "Plan Buyer",
+            "buyer@test.com",
+            paymentId,
+            300,
+          );
+          await afterSale(attendee.id, plan.id);
 
-        const page = await adminGet(`/admin/attendees/${attendee.id}`);
-        const html = await page.text();
-        assertStringIncludes(html, "Site Plan");
-        assert(!html.includes("No site assigned yet"));
-      });
-
-      test("a fully paid plan sale with one payment reference still shows the cue", async () => {
-        using _env = withEnv({ CAN_BUILD_SITES: "true" });
-        await createTierListing();
-        const plan = await planListing("Site Plan");
-        // One payment reference completes the sale, so the buyer is owed a
-        // site even though the pool is empty.
-        const attendee = await createPaidTestAttendee(
-          plan.id,
-          "Paid Buyer",
-          "paid@test.com",
-          "pi_site_plan_paid",
-          300,
-        );
-
-        const page = await adminGet(`/admin/attendees/${attendee.id}`);
-        const html = await page.text();
-        expectIncludesAll(html, ["Site Plan", "No site assigned yet"]);
-      });
+          const page = await adminGet(`/admin/attendees/${attendee.id}`);
+          const html = await page.text();
+          assertStringIncludes(html, "Site Plan");
+          expect(html.includes(PLAN_WARNING)).toBe(shown);
+        });
+      }
 
       test("a claim on a refunded plan row still serves the active plan", async () => {
         using _env = withEnv({ CAN_BUILD_SITES: "true" });
@@ -122,7 +136,7 @@ describeWithEnv(
           listingId: refundedPlan.id,
         });
         const owed = await adminGet(`/admin/attendees/${attendee.id}`);
-        assertStringIncludes(await owed.text(), "No site assigned yet");
+        assertStringIncludes(await owed.text(), "no site is assigned yet");
 
         await insertBuiltSite("Stale Claim", "stale.test", "", "", true);
         const pool = await getAssignableBuiltSites();
@@ -138,7 +152,7 @@ describeWithEnv(
         const html = await page.text();
         // The claim on the refunded plan holds the buyer's one site, so no
         // row asks for a second one.
-        assert(!html.includes("No site assigned yet"));
+        assert(!html.includes("no site is assigned yet"));
       });
 
       test("one site serves a combined purchase of two plan listings", async () => {
@@ -160,7 +174,7 @@ describeWithEnv(
         const served = await adminGet(`/admin/attendees/${attendee.id}`);
         const after = await served.text();
         expectIncludesAll(after, ["First Plan", "Second Plan"]);
-        assert(!after.includes("No site assigned yet"));
+        assert(!after.includes("no site is assigned yet"));
       });
     });
   },

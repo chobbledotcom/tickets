@@ -3,6 +3,12 @@
 import { queryAll } from "#db/client.ts";
 import { type SqlStatement, sqlList } from "#db/sql.ts";
 
+/** A read for a list of records that gives back one value for each record
+ *  that has one, keyed by its id. */
+export type ReadByIds<Value> = (
+  ids: readonly number[],
+) => Promise<Map<number, Value>>;
+
 /** The rows that `read` gives for these ids. No id reads no row and sends no
  *  query, because `IN ()` is not valid SQL. */
 export const readForIds = <Row>(

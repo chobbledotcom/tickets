@@ -9,6 +9,7 @@ import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
   custom,
   faq,
+  faqSection,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
 import { listingTable } from "#templates/admin/listing-table.tsx";
@@ -21,6 +22,16 @@ const defaultOrderParagraph = (template: string): JSX.Element => (
     {t("guide.table_columns.default_order")} <code>{template}</code>
   </p>
 );
+
+/* jscpd:ignore-start -- a list of strings, not code */
+/** The attendees section's FAQ entry ids, in the order it shows them. */
+const ATTENDEE_ENTRY_IDS = [
+  "what_is_attendees_list",
+  "export_attendees_csv",
+  "where_are_attendee_actions",
+  "what_are_attendee_warnings",
+] as const;
+/* jscpd:ignore-end */
 
 export const operationsSections = (): GuideSection[] => [
   {
@@ -75,15 +86,7 @@ export const operationsSections = (): GuideSection[] => [
     id: "attendee-statuses",
     titleKey: "attendee_statuses",
   },
-  {
-    entries: [
-      faq("what_is_attendees_list"),
-      faq("export_attendees_csv"),
-      faq("where_are_attendee_actions"),
-    ],
-    id: "attendees",
-    titleKey: "attendees",
-  },
+  faqSection("attendees", ATTENDEE_ENTRY_IDS, "attendees"),
   {
     entries: [
       faq("what_is_the_backup_feature"),
