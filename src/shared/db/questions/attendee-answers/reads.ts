@@ -246,6 +246,8 @@ type OwnerKeyReader = () => Promise<CryptoKey>;
 /** One answer for one ticket of one booking line, with the line's booked
  * quantity. A ticket at or above the quantity is no longer booked. */
 export type LineAnswer = LineTicket & {
+  /** The date of the booking row that holds the answer. */
+  startAt: string | null;
   questionId: number;
   quantity: number;
   text: string;
@@ -258,6 +260,7 @@ type LineAnswerRow = {
   parent_listing_id: number;
   quantity: number;
   question_id: number;
+  start_at: string | null;
   unit_index: number;
 };
 
@@ -270,7 +273,7 @@ const readLineAnswers = async (
   const rows = await queryAll<LineAnswerRow & { attendee_id: number }>(
     sql`SELECT attendee_answer.attendee_id, line.listing_id,
          line.parent_listing_id, line.package_group_id, line.quantity,
-         attendee_answer.question_id, attendee_answer.unit_index,
+         line.start_at, attendee_answer.question_id, attendee_answer.unit_index,
          string.encrypted_text
        FROM attendee_answers AS attendee_answer
        INNER JOIN listing_attendees AS line
@@ -292,6 +295,7 @@ const readLineAnswers = async (
     }),
     quantity: row.quantity,
     questionId: row.question_id,
+    startAt: row.start_at,
     text: await decryptWithOwnerKey(row.encrypted_text, key),
     unit: row.unit_index,
   }))(rows);

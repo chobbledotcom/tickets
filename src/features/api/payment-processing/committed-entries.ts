@@ -23,6 +23,7 @@ type CommittedBookingRow = {
   kind: string;
   listing_id: number;
   package_group_id: number;
+  parent_listing_id: number;
   price_paid: number;
   quantity: number;
   remaining_balance: number;
@@ -47,6 +48,7 @@ export const committedEntries = async (
                    attendee.kind,
                    listingAttendee.listing_id,
                    listingAttendee.package_group_id,
+                   listingAttendee.parent_listing_id,
                    ${pricePaidFromLedger(BOOKING_ROW)},
                    listingAttendee.quantity,
                    ${remainingBalanceFromLedger(ATTENDEE_ROW.id)},
@@ -71,6 +73,7 @@ export const committedEntries = async (
     listing_id: row.listing_id,
     lng: "",
     package_group_id: row.package_group_id,
+    parent_listing_id: row.parent_listing_id,
     payment_id: session.paymentReference,
     pii_blob: "",
     price_paid: String(row.price_paid),

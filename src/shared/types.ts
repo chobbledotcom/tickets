@@ -300,9 +300,9 @@ export interface Attendee extends ContactInfo {
   listing_id: number;
   /** Longitude the operator pinned for the address ("" = not pinned). */
   lng: string;
-  /** The package group this booking row belongs to (0 = not a package).
-   * Stamped on every row of a package order so tickets/emails group under it. */
+  /** The package group of this row (0 = none) and its parent listing (0 = none). */
   package_group_id: number;
+  parent_listing_id: number;
   payment_id: string;
   /** Owner-key-encrypted PII blob; "" on a just-created in-memory echo. */
   pii_blob: OwnerKeyEncrypted | "";

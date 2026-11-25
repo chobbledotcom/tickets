@@ -115,10 +115,16 @@ export type LineSlot = {
  *  each line asks unit 0 only. */
 export type LineTicket = LineSlot & { unit: number };
 
-/** A free-text answer for one ticket of one booking line. */
-export type LineTextAnswer = TextAnswer & LineTicket;
+/** The date of the booking row that holds an answer. Two rows of one slot
+ *  differ by date, so a stored answer names its row's date (null for a row
+ *  with none). An answer typed at checkout names none: its order holds one
+ *  row for each slot. */
+export type AnswerRowDate = { startAt?: string | null };
 
-export type LineTextAnswerId = TextAnswerId & LineTicket;
+/** A free-text answer for one ticket of one booking line. */
+export type LineTextAnswer = TextAnswer & LineTicket & AnswerRowDate;
+
+export type LineTextAnswerId = TextAnswerId & LineTicket & AnswerRowDate;
 
 /** A free-text answer resolved to its interned string id. */
 export type TextAnswerId = { questionId: number; stringId: number };

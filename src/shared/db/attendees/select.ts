@@ -227,7 +227,8 @@ export type AttendeeField =
   | "price_paid"
   | "end_date"
   | "attachment_downloads"
-  | "package_group_id";
+  | "package_group_id"
+  | "parent_listing_id";
 
 /** Every selectable field. */
 export const ATTENDEE_FIELDS = [
@@ -237,6 +238,7 @@ export const ATTENDEE_FIELDS = [
   "end_date",
   "attachment_downloads",
   "package_group_id",
+  "parent_listing_id",
 ] as const satisfies readonly AttendeeField[];
 
 /**
@@ -302,6 +304,7 @@ const FIELD_SQL: Record<AttendeeField, (join: AttendeeJoin) => SqlStatement> = {
     listingIntColumn(join, "attachment_downloads"),
   end_date: () => sql`SUBSTR(listingAttendee.end_at, 1, 10) as end_date`,
   package_group_id: (join) => listingIntColumn(join, "package_group_id"),
+  parent_listing_id: (join) => listingIntColumn(join, "parent_listing_id"),
   price_paid: () => pricePaidFromLedger(BOOKING_ROW),
   refunded: () => refundedFromLedger(refundedRowOf(BOOKING_ROW)),
   remaining_balance: () => remainingBalanceFromLedger(ATTENDEE_ROW.id),

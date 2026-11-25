@@ -8,10 +8,10 @@ import {
   type LineAnswer,
   textAnswersOf,
 } from "#db/questions/attendee-answers/reads.ts";
-import { lineKey } from "#db/questions/line-answers.ts";
+import { answerKey } from "#db/questions/line-answers.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 
-/** The line answers of both attendees, one for each question, line and
+/** The line answers of both attendees, one for each question, booking row and
  * ticket. Two answers for one key join into one comma-separated text, the
  * target's first. A text that both give is not repeated. */
 export const joinedLineAnswers = (
@@ -19,9 +19,8 @@ export const joinedLineAnswers = (
   source: readonly LineAnswer[],
 ): LineTextAnswer[] =>
   [
-    ...Map.groupBy(
-      [...target, ...source],
-      (answer) => `${answer.questionId}:${lineKey(answer)}:${answer.unit}`,
+    ...Map.groupBy([...target, ...source], (answer) =>
+      answerKey(answer.questionId, answer),
     ).values(),
   ].map((same) => {
     const { quantity: _quantity, ...first } = same[0]!;
