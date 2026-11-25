@@ -701,6 +701,12 @@ automatic.
 - `deno task specs:check` — parse and validate every Feature
 - `deno task specs:files <feature>... [--tags <expression>]` — run selected
   Features
+- `deno task guide:record <slug>` — record a tutorial video from a real admin
+  session. The video and poster land under `reports/guides/`. See
+  [Guide videos](docs/guide-videos.md)
+- `deno task guide:check [--guide <slug>]` — compare the committed guide
+  baselines with the Cucumber evidence and print a freshness score. The check
+  warns below 80 percent. It does not fail
 - `deno task lint` — format and lint code with Biome
   (`check --write
   --unsafe`). Format through this task. Fixable findings —

@@ -1,5 +1,6 @@
 import { lazyRef } from "#fp";
-import { getCleanUrl, lowerContentType } from "#routes/middleware.ts";
+import { shouldBufferRequestBody } from "#routes/content-type-rules.ts";
+import { getCleanUrl } from "#routes/middleware.ts";
 import {
   emptyCustomCssResponse,
   isCssResponse,
@@ -11,21 +12,6 @@ import {
 import { isPathUnder } from "#shared/url-safety.ts";
 
 const CUSTOM_CSS_PATH = "/custom.css";
-
-const BUFFERED_POST_CONTENT_TYPES = [
-  "application/x-www-form-urlencoded",
-  "multipart/form-data",
-  "application/json",
-] as const;
-
-/** Whether this request body must be captured before any asynchronous setup. */
-export const shouldBufferRequestBody = (request: Request): boolean => {
-  if (request.method !== "POST") return false;
-  const contentType = lowerContentType(request);
-  return BUFFERED_POST_CONTENT_TYPES.some((type) =>
-    contentType.startsWith(type),
-  );
-};
 
 /** Buffer request bodies that handlers read after asynchronous setup. */
 export const bufferRequestIfNeeded: RequestTransform = (request) =>

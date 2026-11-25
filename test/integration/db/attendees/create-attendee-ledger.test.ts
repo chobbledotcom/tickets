@@ -5,16 +5,13 @@ import {
   revenueAccount,
   WORLD,
 } from "#accounting/accounts.ts";
-import {
-  accountBalance,
-  allTransfers,
-  transfersByAccount,
-} from "#accounting/queries.ts";
+import { allTransfers, transfersByAccount } from "#accounting/queries.ts";
 import { postTransfersTx } from "#accounting/store.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import type { TxScope } from "#db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 

@@ -13,7 +13,6 @@ import {
   accountBalanceSubquery,
   attendeeOwedSubquery,
   bookingSaleTotalSubquery,
-  creditsLessWriteoffDebits,
   externalCashBalanceSubquery,
   type Leg,
   ledgerLegs,
@@ -45,7 +44,7 @@ const side = (role: string, type: string, id: string): string =>
 
 /** The signed sum of the ledger amounts, as the projections write it. */
 const signed = (adds: string, subtracts: string): string =>
-  `COALESCE(SUM(CASE WHEN ${adds} THEN leg.amount WHEN ${subtracts} THEN -leg.amount ELSE 0 END), 0)`;
+  `COALESCE(SUM((CASE WHEN ${adds} THEN leg.amount ELSE 0 END - CASE WHEN ${subtracts} THEN leg.amount ELSE 0 END)), 0)`;
 
 /** A figure of its own over the rows that add or subtract. */
 const figure = (adds: string, subtracts: string, scope = ""): string =>
@@ -138,18 +137,6 @@ describe("bookingSaleTotalSubquery", () => {
       `(SELECT ${signed(credit, debit)} FROM transfers AS leg WHERE ((${saleLegText})` +
         ` OR (leg.kind = '${KIND.taxSale}' AND leg.event_group IN (${corrected})` +
         ` AND ((${credit}) OR (${debit})))))`,
-    );
-  });
-});
-
-describe("creditsLessWriteoffDebits", () => {
-  test("sums dest credits minus writeoff-directed source debits, scanning only both legs", () => {
-    const credited = `${side("dest", REVENUE, "listing.id")} AND NOT leg.kind IN ('${KIND.refundTaxSale}', '${KIND.refundTaxModifier}')`;
-    const writtenOff =
-      side("source", REVENUE, "listing.id") +
-      ` AND (leg.dest_type = '${WRITEOFF_TYPE}' OR leg.kind IN ('${KIND.taxSale}', '${KIND.taxModifier}'))`;
-    expect(creditsLessWriteoffDebits(REVENUE, listing.id).sql).toBe(
-      figure(credited, writtenOff),
     );
   });
 });
