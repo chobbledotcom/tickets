@@ -6,7 +6,7 @@
 import * as v from "valibot";
 import { SearchAnswerSchema } from "#shared/roster-option.ts";
 import type { Wording } from "#shared/scanner-words.ts";
-import { fetchOrNetworkError } from "#src/ui/client/scan-flow.ts";
+import { fetchOrNetworkError } from "#src/ui/client/dom.ts";
 import type { Say } from "#src/ui/client/scanner-messages.ts";
 
 /** One person a search found, from the door's search route or from the

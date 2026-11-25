@@ -127,13 +127,13 @@ src/ui/client/confirm-dialog.ts::askOverlay.finish~1vwbyrm listeners.abort();→
 # word for word — so a missed lookup lands on the same words, and a mutated
 # fallback copy is never shown.
 
-# The scanner bundle's wording helpers (src/ui/client/scanner-messages.js):
+# The scanner bundle's wording helpers (src/ui/client/scanner-messages.ts):
 # their direct suite (test/ui/client/scanner-messages.test.ts) pins the
 # module's other mutants. A lookup key whose fallback holds a rebrandable
 # word ("ticket") has no record here: the rebrand tests kill it, as the
 # scanner.js block below states.
 
-# The camera scanner bundle (src/ui/client/scanner.js): the template renders
+# The camera scanner bundle (src/ui/client/scanner.ts): the template renders
 # every data-message attribute the bundle reads (sharedScanMessageAttrs on
 # the camera page plus the camera-only messages), and the en copy of each
 # surviving lookup key equals the bundle's fallback word for word — so a

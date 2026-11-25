@@ -8,7 +8,7 @@ import {
 } from "#shared/ticket-cache.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
-import { fetchOrNetworkError } from "./scan-flow.ts";
+import { fetchOrNetworkError } from "./dom.ts";
 
 /** How long a stored ticket-hash set stays valid. After this the set answers
  * nothing: an expired set admits tickets against stale check-in state. */

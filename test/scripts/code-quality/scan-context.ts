@@ -1,4 +1,4 @@
-import { dirname, join, sep } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { once } from "#fp";
 import { getAllFilesWithExt } from "#test/scripts/code-quality/detectors.ts";
@@ -35,10 +35,6 @@ export type ScanContext = {
    *  production code or a test). */
   allTsxFiles: string[];
   allTsxContents: Map<string, string>;
-  /** Hand-written `.js`/`.jsx` files in every in-scope tree. Scanned by the
-   *  parent-import rule so a script entry in `.js` cannot bypass it. */
-  jsFiles: string[];
-  jsContents: Map<string, string>;
   scriptsFiles: string[];
   scriptsContents: Map<string, string>;
   cliFiles: string[];
@@ -49,30 +45,6 @@ export type ScanContext = {
 
 const getAllTsFiles = (dir: string): Promise<string[]> =>
   getAllFilesWithExt(dir, ".ts");
-
-/** Hand-written `.js`/`.jsx` files in every in-scope tree (src, test,
- *  scripts, cli, e2e-payments). The parent-import rule scans these, so a
- *  script entry cannot bypass it by sitting in a `.js` file. The walk skips
- *  the `src/ui/static/` esbuild output and the `dist/` edge bundle. */
-const getAllJsFiles = async (): Promise<string[]> => {
-  const dirs = [SRC_DIR, TEST_DIR, SCRIPTS_DIR, CLI_DIR, E2E_PAYMENTS_DIR];
-  const files = (await Promise.all(dirs.map(sourceFilesUnder))).flat();
-  return files.filter((path) => /\.jsx?$/.test(path));
-};
-
-/** Every file under `dir`. The walk skips every build output directory, so
- *  it never reads a bundle. */
-const sourceFilesUnder = async (dir: string): Promise<string[]> => {
-  const found: string[] = [];
-  for await (const entry of Deno.readDir(dir)) {
-    const fullPath = join(dir, entry.name);
-    if (!entry.isDirectory) found.push(fullPath);
-    else if (!isBuildArtifactPath(`${fullPath}${sep}`)) {
-      found.push(...(await sourceFilesUnder(fullPath)));
-    }
-  }
-  return found;
-};
 
 /** `.tsx` files across every in-scope tree. The template-aware rules
  *  (parent-import is the first one) scan these in addition to the `.ts`
@@ -85,16 +57,6 @@ const getAllTsxFiles = async (): Promise<string[]> => {
   return perDir.flat();
 };
 
-/** Whether `fullPath` is a generated/build-output path (skipped by every
- *  source-scanning rule). `src/ui/static/` holds esbuild's bundled `.js`
- *  output (rebuilt from `.ts` by `scripts/build-static-assets.ts`) and
- *  `dist/` holds the bundled edge script, so neither is source. */
-const isBuildArtifactPath = (fullPath: string): boolean =>
-  fullPath.includes(`${sep}ui${sep}static${sep}`) ||
-  fullPath.includes("/ui/static/") ||
-  fullPath.includes(`${sep}dist${sep}`) ||
-  fullPath.includes("/dist/");
-
 /** Read all files once and cache contents in a Map keyed by path */
 const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
   const entries = await Promise.all(
@@ -104,12 +66,11 @@ const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
 };
 
 const loadScanContext = async (): Promise<ScanContext> => {
-  const [src, test, srcTsx, allTsx, js, scripts, cli, e2e] = await Promise.all([
+  const [src, test, srcTsx, allTsx, scripts, cli, e2e] = await Promise.all([
     getAllTsFiles(SRC_DIR),
     getAllTsFiles(TEST_DIR),
     getAllFilesWithExt(SRC_DIR, ".tsx"),
     getAllTsxFiles(),
-    getAllJsFiles(),
     getAllTsFiles(SCRIPTS_DIR),
     getAllTsFiles(CLI_DIR),
     getAllTsFiles(E2E_PAYMENTS_DIR),
@@ -119,7 +80,6 @@ const loadScanContext = async (): Promise<ScanContext> => {
     testContents,
     srcTsxContents,
     allTsxContents,
-    jsContents,
     scriptsContents,
     cliContents,
     e2eContents,
@@ -128,7 +88,6 @@ const loadScanContext = async (): Promise<ScanContext> => {
     readAllFiles(test),
     readAllFiles(srcTsx),
     readAllFiles(allTsx),
-    readAllFiles(js),
     readAllFiles(scripts),
     readAllFiles(cli),
     readAllFiles(e2e),
@@ -140,8 +99,6 @@ const loadScanContext = async (): Promise<ScanContext> => {
     cliFiles: cli,
     e2eContents,
     e2eFiles: e2e,
-    jsContents,
-    jsFiles: js,
     scriptsContents,
     scriptsFiles: scripts,
     srcContents,
@@ -267,7 +224,6 @@ export const scanSourceFiles = async (
     ...collectFileViolations(scan.srcFiles, scan.srcContents, detect),
     ...collectFileViolations(scan.testFiles, scan.testContents, detect),
     ...collectFileViolations(scan.allTsxFiles, scan.allTsxContents, detect),
-    ...collectFileViolations(scan.jsFiles, scan.jsContents, detect),
     ...collectFileViolations(scan.scriptsFiles, scan.scriptsContents, detect),
     ...collectFileViolations(scan.cliFiles, scan.cliContents, detect),
     ...collectFileViolations(scan.e2eFiles, scan.e2eContents, detect),

@@ -44,6 +44,43 @@ export const csrfTokenFor = (element: Element): string =>
     .closest("form")
     ?.querySelector<HTMLInputElement>('input[name="csrfToken"]')?.value ?? "";
 
+/** The request never reached the server: the device has no connection. */
+export class NetworkError extends Error {}
+
+/** Fetch one request. A request that never reached the server, or one the
+ *  page stopped, throws `NetworkError`. Any answer, a refusal included,
+ *  comes back. */
+export const fetchOrNetworkError = async (
+  url: string,
+  init?: RequestInit,
+): Promise<Response> => {
+  try {
+    return await fetch(url, init);
+  } catch (cause) {
+    throw new NetworkError(`The request to ${url} never reached the server`, {
+      cause,
+    });
+  }
+};
+
+/** POST a request and read the JSON answer. Every client POST that wants JSON
+ *  back ends here. */
+export const postForJson = async (path: string, request: RequestInit) => {
+  const res = await fetchOrNetworkError(path, { ...request, method: "POST" });
+  return res.json();
+};
+
+/** POST one JSON body with the page's CSRF token, and read the JSON answer.
+ *  The door's scan API and the manual check-in form both talk this way. */
+export const postJson = (path: string, csrfToken: string, body: unknown) =>
+  postForJson(path, {
+    body: JSON.stringify(body),
+    headers: {
+      "content-type": "application/json",
+      "x-csrf-token": csrfToken,
+    },
+  });
+
 /** The one element under `root` that `selector` names. A missing element
  *  throws and names the selector, so a markup change fails where it starts. */
 export const requiredChild = <TElement extends Element>(

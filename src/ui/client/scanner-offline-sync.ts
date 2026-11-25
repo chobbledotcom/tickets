@@ -7,8 +7,8 @@
 // back. It marks the answer on its own row.
 
 import type { PlainWord, Wording } from "#shared/scanner-words.ts";
+import { NetworkError } from "./dom.ts";
 import type { ScanAnswer } from "./scan-answer.ts";
-import { NetworkError } from "./scan-flow.ts";
 import type { Say } from "./scanner-messages.ts";
 import {
   deliveryExpired,

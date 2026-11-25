@@ -6,6 +6,7 @@
 import * as v from "valibot";
 import type { Wording } from "#shared/scanner-words.ts";
 import { showConfirm } from "./confirm-dialog.ts";
+import { NetworkError, postJson } from "./dom.ts";
 import { showQuantitySelect } from "./quantity-select.ts";
 import {
   type AnswerOf,
@@ -14,41 +15,13 @@ import {
 } from "./scan-answer.ts";
 import type { Say, StatusType } from "./scanner-messages.ts";
 
-/** The request never reached the server: the device has no connection. */
-export class NetworkError extends Error {}
-
-/** Fetch one request. A request that never reached the server, or one the
- * page stopped, throws `NetworkError`. Any answer, a refusal included,
- * comes back. */
-export const fetchOrNetworkError = async (
-  url: string,
-  init?: RequestInit,
-): Promise<Response> => {
-  try {
-    return await fetch(url, init);
-  } catch (cause) {
-    throw new NetworkError(`The request to ${url} never reached the server`, {
-      cause,
-    });
-  }
-};
-
 /** Post one JSON body to a door's scan route and parse its answer. */
 export const postScanBody = async (
   scanPath: string,
   csrfToken: string,
   body: Record<string, unknown>,
-): Promise<ScanAnswer> => {
-  const res = await fetchOrNetworkError(scanPath, {
-    body: JSON.stringify(body),
-    headers: {
-      "content-type": "application/json",
-      "x-csrf-token": csrfToken,
-    },
-    method: "POST",
-  });
-  return v.parse(ScanAnswerSchema, await res.json());
-};
+): Promise<ScanAnswer> =>
+  v.parse(ScanAnswerSchema, await postJson(scanPath, csrfToken, body));
 
 /** What the door answered so far for one scan. */
 export type Given = { force?: true; id_verified?: true; quantity?: number };

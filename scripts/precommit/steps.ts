@@ -58,6 +58,12 @@ const STEPS = [
     cmd: ["task", "check:alias-exports"],
     name: "check:alias-exports",
   },
+  // The repository tracks no JavaScript file: every authored file is
+  // TypeScript (see "Runtime Environment" in AGENTS.md).
+  {
+    cmd: ["task", "check:no-js"],
+    name: "check:no-js",
+  },
   // Every catch block must recover, re-raise, or comment its fallback (see
   // "Offensive Programming" in AGENTS.md).
   {

@@ -6,7 +6,8 @@
 // load downloads it again while the switch is on.
 
 import type { Wording } from "#shared/scanner-words.ts";
-import { isStoreFull, NetworkError } from "./scan-flow.ts";
+import { NetworkError } from "./dom.ts";
+import { isStoreFull } from "./scan-flow.ts";
 import type { Say } from "./scanner-messages.ts";
 import {
   downloadTicketCache,
