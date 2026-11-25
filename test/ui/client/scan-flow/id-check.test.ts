@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { fireEvent } from "#test-utils/happy-dom.ts";
 import {
   checkedIn,
   type ManualCheckinPage,
   useManualCheckinPage,
   waitUntilSettled,
-} from "./fixture.ts";
+} from "#test/ui/client/admin/manual-checkin/fixture.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { fireEvent } from "#test-utils/happy-dom.ts";
 
 /** The first POST answers verify_id, so the confirm overlay appears; wait
  *  for it, then answer through its buttons. */
@@ -19,7 +19,7 @@ const waitForConfirm = (): Promise<void> =>
   );
 
 describe("manual check-in ID verification", () => {
-  const { pickedPage, setup } = useManualCheckinPage();
+  const { pickedPage } = useManualCheckinPage();
 
   test("the bounded wait fails loudly when the page never settles", async () => {
     await expect(
@@ -28,7 +28,7 @@ describe("manual check-in ID verification", () => {
   });
 
   /** What a dismissed prompt leaves: one POST with no verified resubmit, the
-   *  prompt's own question, "Skipped Bea", the pick and the input cleared,
+   *  prompt's own question, "ID does not match Bea", the pick and the input cleared,
    *  and a form ready for the next pick. */
   const SKIPPED = {
     bodies: [{ attendee_id: 12 }] as unknown[],
@@ -36,8 +36,8 @@ describe("manual check-in ID verification", () => {
     disabled: false,
     input: "",
     prompt: 'Does their ID match "Bea"?',
-    status: "Skipped Bea",
-    statusClass: "checkin-status checkin-status-warning",
+    status: "ID does not match Bea",
+    statusClass: "checkin-status checkin-status-error",
   };
 
   /** Submit a pick whose first answer is verify_id, then dismiss the prompt
@@ -102,9 +102,7 @@ describe("manual check-in ID verification", () => {
       { attendee_id: 12 },
       { attendee_id: 12, id_verified: true },
     ]);
-    expect(page.status.textContent).toBe(
-      "Bea checked in for Ceilidh (1 pass) - check ID",
-    );
+    expect(page.status.textContent).toBe("Bea checked in for Ceilidh (1 pass)");
   });
 
   test("a declined ID verification skips the person and sends nothing more", async () => {
@@ -140,18 +138,6 @@ describe("manual check-in ID verification", () => {
         ),
       ),
     ).toEqual(SKIPPED);
-  });
-
-  test("ID verification uses its fallback note when no message is configured", async () => {
-    const page = await setup();
-    delete page.form.dataset.messageVerifyIdNote;
-    page.pick("12");
-
-    await confirmIdThen(page, BEA_IN);
-
-    expect(page.status.textContent).toBe(
-      "Bea checked in for Ceilidh (1 pass) \u2014 verify their ID",
-    );
   });
 
   test("an ask that comes back after the door answered it shows the error", async () => {

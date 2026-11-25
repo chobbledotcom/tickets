@@ -15,7 +15,6 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { HTMLSelectElement as HappyHTMLSelectElement } from "happy-dom";
-import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   el,
@@ -35,20 +34,23 @@ const forcedOverride = (
   answers: Record<string, unknown>[],
 ): {
   bodies: unknown[];
-  done: Promise<void>;
+  done: Promise<unknown>;
   fetchStub: ReturnType<typeof stubFetch>;
 } => {
   const bodies: unknown[] = [];
   const fetchStub = stubFetch((_url, init) => {
     bodies.push(JSON.parse(String(init?.body)));
-    return Response.json(answers[bodies.length - 1] ?? { status: "error" });
+    const answer = answers[bodies.length - 1];
+    if (answer === undefined)
+      throw new Error("The test serves no more answers");
+    return Response.json(answer);
   });
   const done = h.module.admitScan(
     "/admin/groups/5/scan",
     "tok",
     "csrf",
-    h.statusEl,
-    h.messages,
+    h.say,
+    h.wording,
   );
   return { bodies, done, fetchStub };
 };
@@ -203,6 +205,7 @@ describe("scanner confirmations", {
         listingName: "Standard",
         name: "Ada",
         quantity: 2,
+        remaining: 0,
         status: "checked_in",
         total: 2,
       },
@@ -237,23 +240,5 @@ describe("scanner confirmations", {
     expect(h.statusEl.textContent).toBe(
       "Ada checked in for Standard (2 tickets)",
     );
-  });
-
-  test("the camera and the manual form share one question queue", async () => {
-    // The camera loop ships in the scanner bundle and the manual form in the
-    // admin bundle, so each carries its own copy of the dialog code. A click
-    // must still answer only the question the operator sees.
-    const h = fresh();
-
-    const camera = h.module.showConfirm("Let this person in anyway?");
-    const manual = showConfirm("Check her ID?");
-
-    await whenMessageShows(h, "Let this person in anyway?");
-    h.confirm.yes.click();
-    expect(await camera).toBe(true);
-
-    await whenMessageShows(h, "Check her ID?");
-    h.confirm.no.click();
-    expect(await manual).toBe(false);
   });
 });

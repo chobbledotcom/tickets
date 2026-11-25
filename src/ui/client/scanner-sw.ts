@@ -84,7 +84,10 @@ const storeFresh = async (
 ): Promise<void> => {
   try {
     await cache.put(key, response.clone());
-  } catch (_error) {}
+  } catch {
+    // A full store is the documented fallback: the fresh answer still
+    // serves the door, and the next online visit writes the store again.
+  }
 };
 
 self.addEventListener("fetch", (event) => {

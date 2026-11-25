@@ -8,15 +8,14 @@
 
 import { fromBase64Url } from "#crypto/utils.ts";
 import { DAY_MS } from "#shared/now.ts";
+import type { Wording } from "#shared/scanner-words.ts";
 import { hmacHex } from "#shared/sha256.ts";
 import type { TicketCacheEntry } from "#shared/ticket-cache.ts";
-import type { ManualOffline, Person, Say } from "./admin/manual-search.ts";
+import type { ManualOffline, Person } from "./admin/manual-search.ts";
+import { requiredById } from "./dom.ts";
 import { showQuantitySelect } from "./quantity-select.ts";
-import {
-  formatTicketCount,
-  getMessage,
-  showStatus,
-} from "./scanner-messages.js";
+import { failLoudly } from "./scan-flow.ts";
+import type { Say } from "./scanner-messages.ts";
 import {
   isCacheFresh,
   isSyncing,
@@ -49,28 +48,26 @@ export type QueuePanel = {
   sync: () => void;
 };
 
+/** One door's offline side: the scan route it settles for, the page's
+ * words, and its queue panel. */
+export type OfflineDoor = {
+  panel: QueuePanel;
+  scanPath: string;
+  wording: Wording;
+};
+
 /** Show or hide the offline banner, worded for why the mode is on. */
 const updateOfflineBanner = (
   banner: HTMLElement,
   bannerText: HTMLElement,
-  messages: DOMStringMap,
+  wording: Wording,
   scanPath: string,
 ): void => {
   const active = offlineModeActive(scanPath);
   banner.classList.toggle("hidden", !active);
-  if (active) {
-    bannerText.textContent = navigator.onLine
-      ? getMessage(
-          messages,
-          "messageOfflineBannerManual",
-          "Offline mode is on. Scans are queued and checked in when you are back online.",
-        )
-      : getMessage(
-          messages,
-          "messageOfflineBannerAuto",
-          "No connection. Scans are queued and checked in when you are back online.",
-        );
-  }
+  bannerText.textContent = wording.word(
+    navigator.onLine ? "offlineBannerManual" : "offlineBannerAuto",
+  );
 };
 
 /** The door's cache key the page carries, decoded to the raw bytes a keyed
@@ -88,7 +85,7 @@ const doorKeyBytes = (pageKey: string | undefined): Uint8Array => {
  * keeps one queued delivery's replay record for this window. Past it the
  * server cannot tell a resend from a first send, so the page sends no
  * queued check-in this old. A page that carries no usable day count
- * throws, and the page degrades to the online-only scanner. */
+ * throws. */
 const replayWindowMs = (pageDays: string | undefined): number => {
   const days = Number(pageDays);
   if (!Number.isSafeInteger(days) || days <= 0) {
@@ -106,30 +103,14 @@ const SEARCH_MAX_RESULTS = 20;
  * check-in. Null after the door hears why it cannot: no list on this
  * device, or an expired one. */
 const withUsableList = <Result>(
-  scanPath: string,
+  { scanPath, wording }: OfflineDoor,
   say: Say,
-  messages: DOMStringMap,
   use: (entries: TicketCacheEntry[]) => Result,
 ): Result | null => {
   const cache = readTicketCacheOrNull(scanPath);
-  if (!cache) {
+  if (cache === null || !isCacheFresh(cache)) {
     say(
-      getMessage(
-        messages,
-        "messageOfflineCacheMissing",
-        "No offline ticket list on this device. Go online and turn on offline mode first.",
-      ),
-      "error",
-    );
-    return null;
-  }
-  if (!isCacheFresh(cache)) {
-    say(
-      getMessage(
-        messages,
-        "messageOfflineCacheExpired",
-        "The offline ticket list has expired. Go online and reload this page.",
-      ),
+      wording.word(cache ? "offlineCacheExpired" : "offlineCacheMissing"),
       "error",
     );
     return null;
@@ -140,11 +121,9 @@ const withUsableList = <Result>(
 /** Queue the check-in of one saved list entry. A camera scan reaches it by
  * the scanned ticket's digest, and a manual pick by the person's name. */
 const queueSavedEntry = async (
-  scanPath: string,
+  { panel, scanPath, wording }: OfflineDoor,
   entry: TicketCacheEntry,
   say: Say,
-  messages: DOMStringMap,
-  panel: QueuePanel,
 ): Promise<void> => {
   // The door's own last-token guard expires after the status fades, so the
   // same ticket can reach this line twice. A second item sends the
@@ -154,14 +133,7 @@ const queueSavedEntry = async (
       (item) => item.scanPath === scanPath && item.tokenHash === entry.hash,
     )
   ) {
-    say(
-      getMessage(
-        messages,
-        "messageOfflineAlreadyQueued",
-        "This ticket is already queued. Do not let them in again.",
-      ),
-      "error",
-    );
+    say(wording.word("offlineAlreadyQueued"), "error");
     return;
   }
   // The door picks how many people this check-in admits, offline as
@@ -173,56 +145,23 @@ const queueSavedEntry = async (
     entry.quantity > 1
       ? await showQuantitySelect(
           entry.quantity,
-          getMessage(
-            messages,
-            "messageOfflineQuantityAsk",
-            "How many people are you checking in?",
-          ),
-          (count: number) => formatTicketCount(messages, count),
+          wording.word("offlineQuantityAsk"),
+          wording.ticketCount,
         )
       : 1;
-  if (!quantity) {
-    say(
-      getMessage(
-        messages,
-        "messageOfflineNotQueued",
-        "Nothing was queued. Scan the ticket again to check them in.",
-      ),
-      "warning",
-    );
+  if (quantity === null) {
+    say(wording.word("offlineNotQueued"), "warning");
     return;
   }
-  // A storage failure here leaves the scan unqueued, and the save-failed
-  // message tells the door to scan again.
-  let queued: ReturnType<typeof queueCheckIn>;
-  try {
-    queued = queueCheckIn(scanPath, entry.hash, quantity);
-  } catch {
-    say(
-      getMessage(
-        messages,
-        "messageOfflineSaveFailed",
-        "This scan was not saved. Free up space on this device, then scan it again.",
-      ),
-      "error",
-    );
-    return;
-  }
+  const queued = queueCheckIn(scanPath, entry.hash, quantity);
   // A running sync owns the panel's rows: the new row joins the rows the
   // sync settles. A rebuild detaches the rows the sync writes to.
   if (isSyncing()) {
-    appendQueuedRow(panel, messages, queued);
+    appendQueuedRow(panel, wording, queued);
   } else {
-    renderQueuePanel(panel, messages);
+    renderQueuePanel(panel, wording);
   }
-  say(
-    getMessage(
-      messages,
-      "messageOfflineQueued",
-      "Ticket looks valid. It will be checked in when you are back online.",
-    ),
-    "success",
-  );
+  say(wording.word("offlineQueued"), "success");
   // The connection can return while the scan's digest is still computing,
   // and the returning connection finds an empty store. The queued check-in
   // asks for the sync itself. A running sync takes the ask. An armed
@@ -236,50 +175,36 @@ const queueSavedEntry = async (
  * downloads the set, and so does a page load while the switch is on. An
  * expired set answers nothing until the door reloads the page. */
 export const offlineScan = async (
-  scanPath: string,
+  door: OfflineDoor,
   token: string,
-  statusEl: HTMLElement,
-  messages: DOMStringMap,
-  panel: QueuePanel,
+  say: Say,
 ): Promise<void> => {
-  const say: Say = (text, type) => showStatus(statusEl, text, type);
-  await withUsableList(scanPath, say, messages, async (entries) => {
-    const hash = await hmacHex(panel.doorKey, token);
+  await withUsableList(door, say, async (entries) => {
+    const hash = await hmacHex(door.panel.doorKey, token);
     const entry = entries.find((saved) => saved.hash === hash);
-    if (!entry) {
-      say(
-        getMessage(
-          messages,
-          "messageOfflineInvalid",
-          "This ticket cannot be checked in offline. Scan it again when you are back online to see why.",
-        ),
-        "error",
-      );
+    if (entry === undefined) {
+      say(door.wording.word("offlineInvalid"), "error");
       return;
     }
-    await queueSavedEntry(scanPath, entry, say, messages, panel);
+    await queueSavedEntry(door, entry, say);
   });
 };
 
 /** The manual check-in's offline side for one door. A saved person's
  * check-in queues offline, and the door is done with the pick either
  * way. */
-export const offlinePeople = (
-  scanPath: string,
-  messages: DOMStringMap,
-  panel: QueuePanel,
-): ManualOffline => ({
-  active: () => offlineModeActive(scanPath),
+export const offlinePeople = (door: OfflineDoor): ManualOffline => ({
+  active: () => offlineModeActive(door.scanPath),
   search: (text, say) => {
     const wanted = text.toLowerCase();
-    return withUsableList(scanPath, say, messages, (entries) =>
+    return withUsableList(door, say, (entries) =>
       entries
         .filter((entry) => entry.name.toLowerCase().includes(wanted))
         .slice(0, SEARCH_MAX_RESULTS)
         .map(
           (entry): Person => ({
             checkIn: async (sayTo) => {
-              await queueSavedEntry(scanPath, entry, sayTo, messages, panel);
+              await queueSavedEntry(door, entry, sayTo);
               return true;
             },
             details: entry.details,
@@ -296,72 +221,71 @@ export const offlinePeople = (
  * loop hands each offline scan to. `settleDelivery` posts a queued
  * check-in's delivery and answers the door's final word for it. */
 export const initOfflineScanner = ({
-  messages,
+  say,
   scanPath,
   settleDelivery,
-  statusEl,
+  wording,
 }: {
-  messages: DOMStringMap;
+  say: Say;
   scanPath: string;
   settleDelivery: SettleDelivery;
-  statusEl: HTMLElement;
+  wording: Wording;
 }): QueuePanel => {
-  /** The page's one element for `id`, or a hard stop when the page lacks it. */
-  const lookup = (id: string): HTMLElement => {
-    const found = document.getElementById(id);
-    if (found) return found;
-    throw new Error(`The scanner page carries no ${id}`);
-  };
+  const container = requiredById("scanner-container");
+  const reportFailure = failLoudly(wording, say);
+  /** The queue's sync, wired to this page's door. Its failure reaches the
+   * door like any other. */
+  const sync = () =>
+    syncQueue(say, wording, panel, settleDelivery).catch(reportFailure);
   const panel: QueuePanel = {
-    container: lookup("scanner-queue"),
-    doorKey: doorKeyBytes(lookup("scanner-container").dataset.doorCacheKey),
-    list: lookup("scanner-queue-items"),
+    container: requiredById("scanner-queue"),
+    doorKey: doorKeyBytes(container.dataset.doorCacheKey),
+    list: requiredById("scanner-queue-items"),
     replayWindowMs: replayWindowMs(
-      lookup("scanner-container").dataset.scanOperationRetentionDays,
+      container.dataset.scanOperationRetentionDays,
     ),
     rows: [],
-    summary: lookup("scanner-queue-summary"),
-    /** The queue's sync, wired to this page's door. A check-in the door
-     * queued as the connection returned asks for it once it lands. */
-    sync: () => syncQueue(statusEl, messages, panel, settleDelivery),
+    summary: requiredById("scanner-queue-summary"),
+    sync,
   };
-  const banner = lookup("scanner-offline-banner");
-  const bannerText = lookup("scanner-offline-banner-text");
-  const toggle = lookup("scanner-offline-toggle");
+  const banner = requiredById("scanner-offline-banner");
+  const bannerText = requiredById("scanner-offline-banner-text");
+  const toggle = requiredById("scanner-offline-toggle");
 
   /** The switch, the banner, and the queue all read one offline state. */
   const renderOfflineState = () => {
     toggle.setAttribute("aria-pressed", String(readManualMode(scanPath)));
-    updateOfflineBanner(banner, bannerText, messages, scanPath);
+    updateOfflineBanner(banner, bannerText, wording, scanPath);
     // While a sync runs it owns the queue's rows: a rebuild here detaches
     // the row elements the sync still writes its outcomes to.
-    if (!isSyncing()) renderQueuePanel(panel, messages);
+    if (!isSyncing()) renderQueuePanel(panel, wording);
   };
 
   const offlineSwitch = wireOfflineSwitch({
-    messages,
     onChange: renderOfflineState,
     // Turning off settles what the door queued while the switch held the
     // scans, the same way a reload or a returning connection does.
-    onTurnedOff: panel.sync,
-    progress: lookup("scanner-offline-progress"),
+    onTurnedOff: sync,
+    progress: requiredById("scanner-offline-progress"),
+    reportFailure,
+    say,
     scanPath,
-    statusEl,
     toggle,
+    wording,
   });
 
   // Connectivity coming back settles whatever the door queued, and both
   // connection flips re-word the banner.
   window.addEventListener("online", () => {
     renderOfflineState();
-    syncQueue(statusEl, messages, panel, settleDelivery);
+    sync();
   });
-  window.addEventListener("offline", () => renderOfflineState());
+  window.addEventListener("offline", renderOfflineState);
 
-  registerScannerWorker();
+  registerScannerWorker().catch(reportFailure);
   offlineSwitch.refresh();
   renderOfflineState();
-  syncQueue(statusEl, messages, panel, settleDelivery);
+  sync();
 
   return panel;
 };

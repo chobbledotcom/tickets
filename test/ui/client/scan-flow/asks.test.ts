@@ -1,12 +1,13 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { fireEvent } from "#test-utils/happy-dom.ts";
 import {
   checkedIn,
   useManualCheckinPage,
   waitUntilSettled,
-} from "./fixture.ts";
+} from "#test/ui/client/admin/manual-checkin/fixture.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { fireEvent } from "#test-utils/happy-dom.ts";
 
 describe("manual check-in scan answers", () => {
   const { pickedPage, stubScans } = useManualCheckinPage();
@@ -119,5 +120,71 @@ describe("manual check-in scan answers", () => {
     ]);
     expect(page.status.textContent).toBe("Check-in failed");
     assertStringIncludes(page.status.className, "checkin-status-error");
+  });
+
+  /** Answer a wrong-door ask the way the door does, and answer the bodies
+   * the page sent. */
+  const answerWrongDoor = async (
+    button: "no" | "yes",
+    afterForce: Record<string, unknown>,
+  ) => {
+    const sent = stubScans([
+      { listingName: "Tour", name: "Ada", status: "wrong_listing" },
+      afterForce,
+    ]);
+    const page = await startSubmitFor("11");
+    await waitUntilSettled(
+      () =>
+        document.getElementById("scanner-confirm-message")!.textContent !== "",
+      "the wrong-door ask",
+    );
+    expect(
+      document.getElementById("scanner-confirm-message")!.textContent,
+    ).toBe('Ada is registered for "Tour", not this listing. Check in anyway?');
+    document.getElementById(`scanner-confirm-${button}`)!.click();
+    await settle(page);
+    return { page, sent };
+  };
+
+  test("asks before it checks in a person registered for another listing", async () => {
+    const { page, sent } = await answerWrongDoor("yes", checkedIn());
+
+    expect(sent).toEqual([
+      { attendee_id: 11 },
+      { attendee_id: 11, force: true },
+    ]);
+    expect(page.status.textContent).toBe(
+      "Ada checked in for Ceilidh (2 tickets)",
+    );
+  });
+
+  test("skips the person when the door declines the other listing", async () => {
+    const { page, sent } = await answerWrongDoor("no", checkedIn());
+
+    expect(sent).toEqual([{ attendee_id: 11 }]);
+    expect(page.status.textContent).toBe("Skipped Ada");
+    assertStringIncludes(page.status.className, "checkin-status-warning");
+    expect(page.buttonLabel()).toBe("Search");
+  });
+
+  test("posts each scan to the door's route as JSON under the page's token", async () => {
+    const page = await pickedPage("11");
+    using fetchStub = stubFetch(Response.json(checkedIn()));
+
+    await page.submit();
+
+    expect(fetchStub.calls.map((call) => call.args)).toEqual([
+      [
+        "/admin/listing/7/scan",
+        {
+          body: JSON.stringify({ attendee_id: 11 }),
+          headers: {
+            "content-type": "application/json",
+            "x-csrf-token": "csrf",
+          },
+          method: "POST",
+        },
+      ],
+    ]);
   });
 });

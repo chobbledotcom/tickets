@@ -13,7 +13,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   cameraFakes,
-  postedScanBodies,
   scanFirst,
   seedTicketCache,
   start,
@@ -27,6 +26,7 @@ import {
   type ScannerHarness,
   storedQueue,
   TOKEN,
+  useScanner,
   useScannerSuite,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
@@ -110,7 +110,7 @@ describe("scanner offline door", {
       await expectOfflineRefusal(
         h,
         fetchStub,
-        "This scan was not saved. Free up space on this device, then scan it again.",
+        "This was not saved because this device has no room left for this site. Turn offline mode off to free the space.",
       );
     } finally {
       fetchStub.restore();
@@ -122,33 +122,11 @@ describe("scanner offline door on a page without the replay window", {
   sanitizeOps: false,
   sanitizeResources: false,
 }, () => {
-  const fresh = useScannerSuite(SCANNER_PAGE_WITHOUT_REPLAY_WINDOW);
-
-  test("scans online only when the page carries no replay window", async () => {
+  test("refuses to start, naming the missing replay window", () => {
     // The client bounds its replay window by the count the page carries.
-    // Without it the offline side is absent furniture: the scan goes
-    // online, the way the page worked before the offline side existed.
-    const fetchStub = stubFetch(() =>
-      Response.json({
-        listingName: "Standard",
-        name: "Ada",
-        quantity: 1,
-        status: "checked_in",
-        total: 1,
-      }),
+    // A page without it is a broken page, so the scanner names the fault.
+    expect(() => useScanner(SCANNER_PAGE_WITHOUT_REPLAY_WINDOW)).toThrow(
+      "The scanner page carries no usable data-scan-operation-retention-days",
     );
-    try {
-      const h = fresh({ onLine: false });
-      using fakes = cameraFakes(h);
-      fakes.ready(4);
-      await start(h);
-      await scanFirst(fakes, TOKEN);
-
-      // The check-in went out as a live scan, and nothing was queued.
-      expect(postedScanBodies(fetchStub)).toEqual([{ token: TOKEN }]);
-      expect(storedQueue(h)).toBe(null);
-    } finally {
-      fetchStub.restore();
-    }
   });
 });

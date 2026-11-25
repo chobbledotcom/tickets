@@ -128,6 +128,7 @@ export const settledCheckIn = (): Response =>
     listingName: "Standard",
     name: "Ada",
     quantity: 1,
+    remaining: 0,
     status: "checked_in",
     total: 1,
   });

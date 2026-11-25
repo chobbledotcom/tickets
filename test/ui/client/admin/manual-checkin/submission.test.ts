@@ -68,17 +68,6 @@ describe("manual check-in submission", () => {
     );
   });
 
-  test("successful submission uses empty text for an unknown message value", async () => {
-    const page = await setup();
-    page.form.dataset.messageCheckedIn = "{name}:{missing}";
-    page.pick("11");
-    using _fetch = stubFetch(Response.json(checkedIn()));
-
-    await page.submit();
-
-    expect(page.status.textContent).toBe("Ada:");
-  });
-
   test("a full check-in removes every matching option", async () => {
     const page = await setup();
     const option = page.listbox.querySelector<HTMLElement>("[data-key='11']")!;
@@ -117,29 +106,23 @@ describe("manual check-in submission", () => {
     expect(option.textContent).toBe("Cy (1 pass)");
   });
 
-  test("already checked in results show a warning", async () => {
-    const page = await setup();
-    page.form.dataset.messageAlreadyCheckedIn = "{name} already ({tickets})";
-    page.pick("11");
-    using _fetch = stubFetch(
-      Response.json(alreadyIn({ quantity: 0, total: 0 })),
-    );
+  test("already checked in results show a warning with their ticket quantity", async () => {
+    for (const [quantity, words] of [
+      [0, "Ada already checked in for Ceilidh (0 tickets)"],
+      [2, "Ada already checked in for Ceilidh (2 tickets)"],
+    ] as const) {
+      const page = await pickedPage("11");
+      using _fetch = stubFetch(
+        Response.json(alreadyIn({ quantity, total: quantity })),
+      );
 
-    await page.submit();
+      await page.submit();
 
-    expect(page.status.textContent).toBe("Ada already (0 tickets)");
-    expect(page.status.className).toBe("checkin-status checkin-status-warning");
-  });
-
-  test("already checked in results keep their ticket quantity", async () => {
-    const page = await setup();
-    page.form.dataset.messageAlreadyCheckedIn = "{tickets}";
-    page.pick("11");
-    using _fetch = stubFetch(Response.json(alreadyIn()));
-
-    await page.submit();
-
-    expect(page.status.textContent).toBe("2 tickets");
+      expect(page.status.textContent).toBe(words);
+      expect(page.status.className).toBe(
+        "checkin-status checkin-status-warning",
+      );
+    }
   });
 
   for (const scanError of [
@@ -154,18 +137,13 @@ describe("manual check-in submission", () => {
       result: { status: "not_found" },
     },
     {
-      expected: "Scan failed",
-      name: "unknown results prefer their error",
-      result: { error: "Scan failed", message: "Ignored" },
-    },
-    {
-      expected: "Try again",
-      name: "unknown results fall back to their message",
-      result: { message: "Try again" },
+      expected: "Invalid quantity",
+      name: "a refusal shows the API's own words",
+      result: { error: "Invalid quantity" },
     },
     {
       expected: "Check-in failed",
-      name: "unknown results use the configured error message",
+      name: "an answer with no words shows the page's error words",
       result: {},
     },
   ]) {
@@ -180,55 +158,6 @@ describe("manual check-in submission", () => {
     });
   }
 
-  for (const fallback of [
-    {
-      expected: "Ada already checked in for Ceilidh (2 tickets)",
-      key: "messageAlreadyCheckedIn",
-      name: "already checked in results use their fallback message",
-      result: alreadyIn(),
-    },
-    {
-      expected: "Ada has been refunded",
-      key: "messageRefunded",
-      name: "refunded results use their fallback message",
-      result: { name: "Ada", status: "refunded" },
-    },
-    {
-      expected: "Ticket not found",
-      key: "messageNotFound",
-      name: "not found results use their fallback message",
-      result: { status: "not_found" },
-    },
-    {
-      expected: "Error",
-      key: "messageError",
-      name: "unknown results use their fallback error message",
-      result: {},
-    },
-  ]) {
-    test(fallback.name, async () => {
-      const page = await setup();
-      delete page.form.dataset[fallback.key];
-      page.pick("11");
-      using _fetch = stubFetch(Response.json(fallback.result));
-
-      await page.submit();
-
-      expect(page.status.textContent).toBe(fallback.expected);
-    });
-  }
-
-  test("an empty configured message stays empty", async () => {
-    const page = await setup();
-    page.form.dataset.messageNotFound = "";
-    page.pick("11");
-    using _fetch = stubFetch(Response.json({ status: "not_found" }));
-
-    await page.submit();
-
-    expect(page.status.textContent).toBe("");
-  });
-
   test("network failures show an error and re-enable submission", async () => {
     const page = await pickedPage("11");
     using _fetch = stubFetch(new Error("offline"));
@@ -238,16 +167,5 @@ describe("manual check-in submission", () => {
     expect(page.status.textContent).toBe("Could not reach server");
     expect(page.status.className).toBe("checkin-status checkin-status-error");
     expect(page.submitButton.disabled).toBe(false);
-  });
-
-  test("network failures use the fallback message when none is configured", async () => {
-    const page = await setup();
-    delete page.form.dataset.messageNetworkError;
-    page.pick("11");
-    using _fetch = stubFetch(new Error("offline"));
-
-    await page.submit();
-
-    expect(page.status.textContent).toBe("Network error");
   });
 });

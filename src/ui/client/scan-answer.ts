@@ -6,6 +6,7 @@
 
 import * as v from "valibot";
 import { integerAtLeast } from "#shared/validation/number.ts";
+import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 /** One known answer: its status, and the fields a page reads for it. */
 const answerOf = <Status extends string, Entries extends v.ObjectEntries>(
@@ -48,7 +49,7 @@ const KnownAnswerSchema = v.variant("status", [
  * status this page has no words for. It parses as the status "other", so
  * every answer is keyed by its status. */
 const OtherAnswerSchema = v.pipe(
-  v.object({ error: v.optional(v.string()) }),
+  v.object({ error: v.optional(NonEmptyTextSchema) }),
   v.transform((other) => ({ ...other, status: "other" as const })),
 );
 

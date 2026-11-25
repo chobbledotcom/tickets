@@ -5,6 +5,12 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import * as v from "valibot";
+import {
+  SCANNER_WORDS,
+  ScannerWordsSchema,
+  type WordName,
+} from "#shared/scanner-words.ts";
 import { type App, createApp, inProcess } from "#test/blackbox/driver.ts";
 import { expectPrivateJson } from "#test/blackbox/headers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -160,6 +166,26 @@ describeWithEnv(
           body: { error: "Search text is too short" },
           status: 400,
         });
+      }
+    });
+
+    test("sends the page's words once, each with the holes it fills", async () => {
+      const app = await loggedIn();
+      const listing = await createTestListing();
+      const page = await app.get(`/admin/listing/${listing.id}/scanner`);
+      const attribute = page.html.match(/data-words="([^"]*)"/)?.[1];
+      if (attribute === undefined) throw new Error("The page sends no words.");
+      const words = v.parse(
+        ScannerWordsSchema,
+        JSON.parse(
+          attribute.replaceAll("&quot;", '"').replaceAll("&amp;", "&"),
+        ),
+      );
+      for (const [name, { holes }] of Object.entries(SCANNER_WORDS)) {
+        const found = [...words[name as WordName].matchAll(/\{(\w+)\}/g)].map(
+          (match) => match[1],
+        );
+        expect([...new Set(found)].sort(), name).toEqual([...holes].sort());
       }
     });
 

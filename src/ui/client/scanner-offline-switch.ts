@@ -5,7 +5,9 @@
 // door's ticket list downloads when a person turns the switch on. A page
 // load downloads it again while the switch is on.
 
-import { getMessage, interpolate, showStatus } from "./scanner-messages.js";
+import type { Wording } from "#shared/scanner-words.ts";
+import { isStoreFull, NetworkError } from "./scan-flow.ts";
+import type { Say } from "./scanner-messages.ts";
 import {
   downloadTicketCache,
   readManualMode,
@@ -13,101 +15,75 @@ import {
   writeManualMode,
 } from "./scanner-offline.ts";
 
-/** Show one status line in the page's own words. */
-const say = (
-  statusEl: HTMLElement,
-  messages: DOMStringMap,
-  key: string,
-  fallback: string,
-  type: "success" | "error",
-): void => showStatus(statusEl, getMessage(messages, key, fallback), type);
-
-/** Wire one door's switch. `onChange` redraws the banner, the switch, and the queue.
- * `onTurnedOff` settles what the door queued while the switch held the
- * scans. Returns `refresh`, the download a page load starts while the
- * switch is already on. */
+/** Wire one door's switch. `onChange` redraws the banner, the switch, and
+ * the queue. `onTurnedOff` settles what the door queued while the switch
+ * held the scans. `reportFailure` shows the door a failure this switch has
+ * no words for. Returns `refresh`, the download a page load starts while
+ * the switch is already on. */
 export const wireOfflineSwitch = ({
-  messages,
   onChange,
   onTurnedOff,
   progress,
+  reportFailure,
+  say,
   scanPath,
-  statusEl,
   toggle,
+  wording,
 }: {
-  messages: DOMStringMap;
   onChange: () => void;
   onTurnedOff: () => void;
   progress: HTMLElement;
+  reportFailure: (error: unknown) => void;
+  say: Say;
   scanPath: string;
-  statusEl: HTMLElement;
   toggle: HTMLElement;
+  wording: Wording;
 }): { refresh: () => void } => {
   /** The running download's stop handle, or null when none runs. */
-  let running: AbortController | null = null;
+  const download: { running: AbortController | null } = { running: null };
 
   const showProgress = (done: number, total: number) => {
-    progress.textContent = interpolate(
-      getMessage(
-        messages,
-        "messageOfflineDownloading",
-        "Downloading the ticket list ({done} of {total} people)",
-      ),
-      { done, total },
-    );
+    progress.textContent = wording.fill("offlineDownloading", { done, total });
   };
 
-  /** Keep the list the download stored: turn the switch on, or drop the
-   * list when the store refuses the switch. */
-  const keepDownloadedList = () => {
-    if (writeManualMode(scanPath, true)) {
-      say(
-        statusEl,
-        messages,
-        "messageOfflineReady",
-        "Offline mode is on. The ticket list is saved on this device.",
-        "success",
-      );
+  /** Tell the door why the download kept no list. A stopped download is the
+   * switch turning off, so it says nothing. A list too big for this
+   * browser's store is removed, so no half-kept list stays behind. */
+  const sayDownloadFailure = (stop: AbortController, error: unknown) => {
+    if (stop.signal.aborted) return;
+    if (error instanceof NetworkError) {
+      say(wording.word("offlineDownloadFailed"), "error");
       return;
     }
-    removeTicketCache(scanPath);
-    say(
-      statusEl,
-      messages,
-      "messageOfflineModeSaveFailed",
-      "Your change was not saved. Free up space on this device, then try again.",
-      "error",
-    );
+    if (isStoreFull(error)) {
+      removeTicketCache(scanPath);
+      say(wording.word("offlineListTooBig"), "error");
+      return;
+    }
+    throw error;
   };
 
-  /** Download the door's list page by page. A failed download stores
-   * nothing. A door that turns offline mode on stays off. A door already on
-   * keeps the list it holds until that list expires. */
-  const download = async () => {
+  /** Download the door's list page by page, then turn the switch on. A
+   * failed download keeps no list. A door that turns offline mode on stays
+   * off. A door already on keeps the list it holds until that list
+   * expires. */
+  const fetchList = async () => {
     const stop = new AbortController();
-    running = stop;
+    download.running = stop;
     toggle.setAttribute("aria-busy", "true");
     progress.classList.remove("hidden");
     showProgress(0, 0);
     try {
       await downloadTicketCache(scanPath, showProgress, stop.signal);
-      keepDownloadedList();
-    } catch {
-      // A stopped download is the switch turning off: say nothing.
-      if (!stop.signal.aborted) {
-        say(
-          statusEl,
-          messages,
-          "messageOfflineDownloadFailed",
-          "The ticket list did not download. Check your connection, then try again.",
-          "error",
-        );
-      }
+      writeManualMode(scanPath, true);
+      say(wording.word("offlineReady"), "success");
+    } catch (error) {
+      sayDownloadFailure(stop, error);
     } finally {
-      if (running === stop) running = null;
+      if (download.running === stop) download.running = null;
       // A stopped download can end after a new one starts. The new one keeps
       // its own busy state and progress.
-      if (running === null) {
+      if (download.running === null) {
         toggle.removeAttribute("aria-busy");
         progress.classList.add("hidden");
       }
@@ -115,25 +91,21 @@ export const wireOfflineSwitch = ({
     }
   };
 
+  const startDownload = () => {
+    fetchList().catch(reportFailure);
+  };
+
   /** Stop a running download. Answers whether one was running. */
   const stopDownload = () => {
-    if (!running) return false;
-    running.abort();
-    running = null;
+    const stop = download.running;
+    if (stop === null) return false;
+    stop.abort();
+    download.running = null;
     return true;
   };
 
   const turnOff = () => {
-    if (!writeManualMode(scanPath, false)) {
-      say(
-        statusEl,
-        messages,
-        "messageOfflineModeSaveFailed",
-        "Your change was not saved. Free up space on this device, then try again.",
-        "error",
-      );
-      return;
-    }
+    writeManualMode(scanPath, false);
     removeTicketCache(scanPath);
     onChange();
     onTurnedOff();
@@ -144,12 +116,12 @@ export const wireOfflineSwitch = ({
   toggle.addEventListener("click", () => {
     const stopped = stopDownload();
     if (readManualMode(scanPath)) turnOff();
-    else if (!stopped) download();
+    else if (!stopped) startDownload();
   });
 
   return {
     refresh: () => {
-      if (readManualMode(scanPath) && navigator.onLine) download();
+      if (readManualMode(scanPath) && navigator.onLine) startDownload();
     },
   };
 };

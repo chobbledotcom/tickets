@@ -70,7 +70,7 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
       const { body } = await createListingAndGetScannerBody();
       expectIncludesAll(body, [
         "Manual Check-in",
-        "data-manual-checkin",
+        'id="manual-checkin"',
         'id="ticket-options"',
         'role="listbox"',
         'role="combobox"',
@@ -126,8 +126,8 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
       // The manual check-in rides in the scanner bundle, beside the offline
       // side it searches and queues through, not in admin.js.
       expectIncludesAll(await response.text(), [
-        "#manual-checkin-input",
-        "messageSearchTooShort",
+        "manual-checkin-input",
+        "searchTooShort",
       ]);
     });
   });

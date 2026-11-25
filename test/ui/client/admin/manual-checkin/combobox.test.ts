@@ -1,15 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { wordingOf } from "#shared/scanner-words.ts";
 import { initManualCheckin } from "#src/ui/client/admin/manual-checkin.ts";
 import { fireEvent } from "#test-utils/happy-dom.ts";
-import { useManualCheckinPage } from "./fixture.ts";
+import { FORM_WORDS, useManualCheckinPage } from "./fixture.ts";
 
 describe("manual check-in combobox", () => {
   const { dom, fresh, pickedPage, setup } = useManualCheckinPage();
 
-  test("does nothing when the manual check-in form is absent", () => {
+  test("fails loudly on a page without the manual check-in form", () => {
     dom.installDom("<p>Other page</p>");
-    expect(() => initManualCheckin(null)).not.toThrow();
+    expect(() =>
+      initManualCheckin({
+        csrfToken: "csrf",
+        offline: { active: () => false, search: () => null },
+        scanPath: "/admin/listing/7/scan",
+        wording: wordingOf(FORM_WORDS),
+      }),
+    ).toThrow("Missing element: #manual-checkin-input");
   });
 
   test("arrow keys move through the found people and wrap", async () => {
@@ -82,7 +90,7 @@ describe("manual check-in combobox", () => {
 
   test("clicking an option replaces the current selection", async () => {
     const page = await pickedPage("11");
-    expect(page.input.value).toBe("Ada (2 tickets) — Camping · 12 Jun");
+    expect(page.input.value).toBe("Ada (2 tickets) - Camping · 12 Jun");
     const option = document.querySelector<HTMLElement>("[data-key='12']")!;
 
     fireEvent(option, new page.window.Event("click", { bubbles: true }));
@@ -98,17 +106,7 @@ describe("manual check-in combobox", () => {
     fireEvent(option, new page.window.Event("click", { bubbles: true }));
 
     expect(page.buttonLabel()).toBe("Check In");
-    expect(page.input.value).toBe("Ada (2 tickets) — Camping · 12 Jun");
-  });
-
-  test("clicking an option uses the singular fallback message when unset", async () => {
-    const page = await setup();
-    delete page.form.dataset.messageTicketCountOne;
-    const option = document.querySelector<HTMLElement>("[data-key='12']")!;
-
-    fireEvent(option, new page.window.Event("click", { bubbles: true }));
-
-    expect(page.input.value).toBe("Bea (1 ticket)");
+    expect(page.input.value).toBe("Ada (2 tickets) - Camping · 12 Jun");
   });
 
   test("Enter selects the active option", async () => {
@@ -120,7 +118,7 @@ describe("manual check-in combobox", () => {
 
     expect(enter.defaultPrevented).toBe(true);
     expect(page.buttonLabel()).toBe("Check In");
-    expect(page.input.value).toBe("Ada (2 tickets) — Camping · 12 Jun");
+    expect(page.input.value).toBe("Ada (2 tickets) - Camping · 12 Jun");
     expect(page.listbox.classList.contains("hidden")).toBe(true);
     expect(page.input.getAttribute("aria-expanded")).toBe("false");
   });

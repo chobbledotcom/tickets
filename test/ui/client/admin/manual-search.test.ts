@@ -3,10 +3,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import type {
   ManualOffline,
   Person,
-  Say,
 } from "#src/ui/client/admin/manual-search.ts";
+import type { Say } from "#src/ui/client/scanner-messages.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { type ManualCheckinPage, useManualCheckinPage } from "./fixture.ts";
+import {
+  type ManualCheckinPage,
+  useManualCheckinPage,
+} from "./manual-checkin/fixture.ts";
 
 /** The labels the options show, in order. */
 const optionLabels = (page: ManualCheckinPage): (string | null)[] =>
@@ -97,7 +100,7 @@ describe("manual check-in search", () => {
       [
         "another shape",
         Response.json({ options: [{ attendeeId: "41", name: "Ada" }] }),
-        "Could not reach server",
+        "Something went wrong. Reload this page, then try again.",
         "error",
       ],
     ];

@@ -15,7 +15,7 @@ import { createGlobalStash } from "#test-utils/happy-dom.ts";
 
 // The worker registers its listeners on import; the test dispatches fetch
 // events at the page's own global scope.
-import "#src/ui/client/scanner-sw.js";
+import "#src/ui/client/scanner-sw.ts";
 
 /** The store the worker reads as the browser's Cache Storage, holding its
  * entries where a test can read them. */
@@ -285,6 +285,22 @@ describe("the scanner service worker's fetch boundaries", () => {
     return response;
   };
 
+  /** Whether the worker answers a request at all. A request it leaves
+   * alone goes to the network as if no worker ran. */
+  const answersRequest = (path: string, init?: RequestInit): boolean => {
+    const request = new Request(`${SITE}${path}`, init);
+    if (init?.mode === "navigate") {
+      Object.defineProperty(request, "mode", { value: "navigate" });
+    }
+    let answered = false;
+    self.dispatchEvent(
+      new FakeFetchEvent(request, () => {
+        answered = true;
+      }),
+    );
+    return answered;
+  };
+
   test("answers an offline scanner navigation with the offline notice", async () => {
     using _fetch = stubFetch(new Error("offline"));
 
@@ -314,23 +330,17 @@ describe("the scanner service worker's fetch boundaries", () => {
   });
 
   test("leaves a scan post alone", async () => {
-    const answered = await fireRequest("/admin/scan", { method: "POST" });
-
     // The scan POST carries live door state. The worker never answers it.
-    expect(answered).toBeUndefined();
+    expect(answersRequest("/admin/scan", { method: "POST" })).toBe(false);
   });
 
   test("leaves a navigation the scanner does not own alone", async () => {
-    const answered = await fireRequest("/admin/dashboard", {
-      mode: "navigate",
-    });
-
-    expect(answered).toBeUndefined();
+    expect(answersRequest("/admin/dashboard", { mode: "navigate" })).toBe(
+      false,
+    );
   });
 
   test("leaves a GET that is not a stored asset alone", async () => {
-    const answered = await fireRequest("/admin.js");
-
-    expect(answered).toBeUndefined();
+    expect(answersRequest("/admin.js")).toBe(false);
   });
 });

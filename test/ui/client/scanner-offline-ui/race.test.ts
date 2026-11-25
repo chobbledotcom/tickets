@@ -124,6 +124,7 @@ describe("scanner offline races", {
           listingName: "Standard",
           name: "Ada",
           quantity: 1,
+          remaining: 0,
           status: "checked_in",
           total: 1,
         }),
@@ -280,7 +281,13 @@ describe("scanner offline races", {
           // counted, the way it answers the page's own replay.
           return firstPosts === 1
             ? settledCheckIn()
-            : Response.json({ name: "Ada", status: "already_checked_in" });
+            : Response.json({
+                listingName: "Standard",
+                name: "Ada",
+                quantity: 1,
+                status: "already_checked_in",
+                total: 1,
+              });
         }
         secondPosts += 1;
         return secondPosts === 1 ? dropped.promise : settledCheckIn();

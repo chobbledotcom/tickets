@@ -5,9 +5,9 @@
 
 import * as v from "valibot";
 import { SearchAnswerSchema } from "#shared/roster-option.ts";
-
-/** How the page reports one outcome to the door. */
-export type Say = (text: string, type: "success" | "warning" | "error") => void;
+import type { Wording } from "#shared/scanner-words.ts";
+import { fetchOrNetworkError } from "#src/ui/client/scan-flow.ts";
+import type { Say } from "#src/ui/client/scanner-messages.ts";
 
 /** One person a search found, from the door's search route or from the
  * saved list. `key` names the person's option on the page. `checkIn`
@@ -33,10 +33,10 @@ export type ManualOffline = {
  * the search route found. */
 export type SearchContext = {
   checkInById: (attendeeId: number) => Promise<boolean>;
-  failedText: string;
-  offline: ManualOffline | null;
+  offline: ManualOffline;
   say: Say;
   scanPath: string;
+  wording: Wording;
 };
 
 /** The fewest characters a search takes. The search route refuses fewer. */
@@ -48,12 +48,14 @@ export const SEARCH_MIN_LENGTH = 2;
  * throws, so the door sees the search fail instead of a wrong list. */
 export const findPeople = async (
   text: string,
-  { checkInById, failedText, offline, say, scanPath }: SearchContext,
+  { checkInById, offline, say, scanPath, wording }: SearchContext,
 ): Promise<Person[] | null> => {
-  if (offline?.active()) return offline.search(text, say);
-  const res = await fetch(`${scanPath}-search?q=${encodeURIComponent(text)}`);
+  if (offline.active()) return offline.search(text, say);
+  const res = await fetchOrNetworkError(
+    `${scanPath}-search?q=${encodeURIComponent(text)}`,
+  );
   if (!res.ok) {
-    say(failedText, "error");
+    say(wording.word("searchFailed"), "error");
     return null;
   }
   const { options } = v.parse(SearchAnswerSchema, await res.json());

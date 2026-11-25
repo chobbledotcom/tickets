@@ -154,7 +154,7 @@ describe("scanner offline sync", {
 
     await whenTextShows(
       h.statusEl,
-      "Your change was not saved. Free up space on this device, then try again.",
+      "This was not saved because this device has no room left for this site. Turn offline mode off to free the space.",
     );
     expect(h.statusEl.className).toContain("scanner-status-error");
     // The armed switch keeps its position: the mode stays stored, the
@@ -206,6 +206,7 @@ describe("scanner offline sync", {
         listingName: "Standard",
         name: "Ada",
         quantity: 1,
+        remaining: 0,
         status: "checked_in",
         total: 1,
       }),
@@ -225,7 +226,7 @@ describe("scanner offline sync", {
 
     await whenTextShows(
       h.statusEl,
-      "This device could not save the queued check-ins. Free up space, then reload this page.",
+      "This was not saved because this device has no room left for this site. Turn offline mode off to free the space.",
     );
 
     // The door answered, so the item stays for a replay that reads as
@@ -279,7 +280,7 @@ describe("scanner offline sync", {
       expect(rowWords(h)).toEqual([
         "Was already checked in",
         "Refunded — not checked in",
-        "Ticket not found",
+        "This ticket was not found. Check that it is for this event.",
       ]);
     } finally {
       fetchStub.restore();
@@ -298,6 +299,7 @@ describe("scanner offline sync", {
               listingName: "Standard",
               name: "Ada",
               quantity: 1,
+              remaining: 0,
               status: "checked_in",
               total: 1,
             })
@@ -376,6 +378,7 @@ describe("scanner offline sync", {
           name: "Ada",
           overAdmission: { admitted: 1, bought: 4, named: 3 },
           quantity: 1,
+          remaining: 0,
           status: "checked_in",
           total: 4,
         },
@@ -412,6 +415,7 @@ describe("scanner offline sync", {
           listingName: "Standard",
           name: "Ada",
           quantity: 1,
+          remaining: 0,
           status: "checked_in",
           total: 1,
         },

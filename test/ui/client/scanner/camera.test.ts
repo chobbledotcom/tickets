@@ -22,26 +22,13 @@ import {
   scanNext,
   start,
 } from "./camera-fakes.ts";
-import {
-  el,
-  evaluateBundle,
-  SCANNER_PAGE,
-  useScannerSuite,
-} from "./fixture.ts";
-
-/** The scanner page without its offline banner: a page the offline side
- * cannot wire, whose camera must still come up. */
-const ONLINE_ONLY_PAGE = SCANNER_PAGE.replace(
-  / {4}<aside[\s\S]*?<\/aside>\n/,
-  "",
-);
+import { el, evaluateBundle, useScannerSuite } from "./fixture.ts";
 
 describe("scanner camera", {
   sanitizeOps: false,
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
-  const freshCameraOnly = useScannerSuite(ONLINE_ONLY_PAGE);
 
   /** A started camera whose every scan gets the same answer, with the
    * count of scans sent so far. Dispose the fetch stub with `using`. */
@@ -84,7 +71,7 @@ describe("scanner camera", {
     expect(fakes.cameraCalls).toEqual([
       [{ video: { facingMode: "environment" } }],
     ]);
-    expect(h.video.srcObject).toBeTruthy();
+    expect(h.video.srcObject).toEqual({ getTracks: expect.any(Function) });
     expect(fakes.played).toBe(1);
     assertStringIncludes(el(h.document, "scanner-start").className, "hidden");
     assert(!h.video.className.includes("hidden"));
@@ -93,17 +80,19 @@ describe("scanner camera", {
     assertStringIncludes(h.statusEl.className, "scanner-status-success");
     assert(!h.statusEl.className.includes("hidden"));
 
-    // The first frame draws but decodes nothing: the clock starts inside
-    // the cooldown, so the loop only draws and reschedules at 150 ms.
-    expect(fakes.drawn).toEqual([[h.video, 0, 0]]);
+    // The clock starts inside the cooldown, so the loop draws nothing and
+    // reschedules at 150 ms.
+    expect(fakes.drawn).toEqual([]);
     expect(fakes.reads).toEqual([]);
     expect(fakes.scheduledDelay()).toBe(150);
 
     fakes.advance(150);
     expect(fakes.reads).toEqual([]);
 
-    // Once the clock passes the cooldown the frame is read and decoded.
+    // Once the clock passes the cooldown the frame is drawn, read and
+    // decoded.
     fakes.advance(850);
+    expect(fakes.drawn).toEqual([[h.video, 0, 0]]);
     expect(fakes.reads).toEqual([[0, 0, 640, 480]]);
     expect(fakes.decodeCalls).toBe(1);
     // The loop asks the canvas for its drawing context exactly once, by the
@@ -122,8 +111,9 @@ describe("scanner camera", {
     expect(fakes.drawn).toEqual([]);
     expect(fakes.scheduledDelay()).toBe(150);
 
+    // Once the camera is ready and the cooldown has passed, a frame draws.
     fakes.ready(4);
-    fakes.advance(150);
+    fakes.advance(1_000);
     expect(fakes.drawn).toEqual([[h.video, 0, 0]]);
   });
 
@@ -223,7 +213,7 @@ describe("scanner camera", {
     await start(h);
     await scanFirst(fakes, "not-a-token!");
 
-    expect(h.statusEl.textContent).toBe("Invalid QR code");
+    expect(h.statusEl.textContent).toBe("This QR code is not a ticket.");
     assertStringIncludes(h.statusEl.className, "scanner-status-error");
     expect(bodies).toEqual([]);
     // The unreadable code spent its cooldown, and the loop moved on.
@@ -243,7 +233,7 @@ describe("scanner camera", {
 
     // ...an unreadable code at 4000...
     await scanNext(fakes, "not-a-token!", 2000);
-    expect(h.statusEl.textContent).toBe("Invalid QR code");
+    expect(h.statusEl.textContent).toBe("This QR code is not a ticket.");
     expect(h.statusEl.classList.contains("scanner-status-success")).toBe(false);
 
     // ...and a second ticket at 6000: each scan's cooldown counts from its
@@ -306,7 +296,9 @@ describe("scanner camera", {
     await start(h);
     await scanFirst(fakes, "tok12345");
 
-    expect(h.statusEl.textContent).toBe("Network error");
+    expect(h.statusEl.textContent).toBe(
+      "Could not reach the server. Check your connection, then try again.",
+    );
     assertStringIncludes(h.statusEl.className, "scanner-status-error");
     // The failed scan settled too, and its cooldown spent, so the loop went
     // back to reading frames.
@@ -378,28 +370,18 @@ describe("scanner camera", {
     expect(fakes.tracks.map((track) => track.stopped)).toEqual([true, true]);
   });
 
-  test("stays silent on a page the template did not render whole", () => {
-    // Re-running the bundle on a page missing an element must not wire half
-    // a scanner: init bows out when any of its elements is missing.
-    for (const id of ["scanner-video", "scanner-start"]) {
+  test("fails loudly on a page the template did not render whole", () => {
+    // Re-running the bundle on a page missing an element names the element
+    // instead of wiring half a scanner.
+    for (const id of [
+      "scanner-video",
+      "scanner-start",
+      "scanner-offline-banner",
+      "manual-checkin-input",
+    ]) {
       const h = fresh();
       el(h.document, id).remove();
-      expect(() => evaluateBundle()).not.toThrow();
+      expect(() => evaluateBundle(), id).toThrow(`Missing element: #${id}`);
     }
-  });
-
-  test("keeps the camera working when the offline side cannot wire", async () => {
-    const h = freshCameraOnly();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-
-    await start(h);
-    await scanFirst(fakes, "tok12345");
-
-    // No fetch stub: the online POST fails, and its network-error words
-    // prove the scan took the online path the offline side must not take
-    // down.
-    await drain();
-    expect(h.statusEl.textContent).toBe("Network error");
   });
 });

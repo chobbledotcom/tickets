@@ -9,13 +9,14 @@ import {
 } from "#shared/scanner-words.ts";
 import { initManualCheckin } from "./admin/manual-checkin.ts";
 import { showConfirm } from "./confirm-dialog.ts";
-import { requiredChild } from "./dom.ts";
+import { requiredById, requiredChild } from "./dom.ts";
 import {
   failLoudly,
   type Given,
   postScanBody,
   type Settled,
   sayAnswer,
+  settleLiveScan,
   settleScan,
 } from "./scan-flow.ts";
 import { FADE_DELAY_MS, type Say, showStatus } from "./scanner-messages.ts";
@@ -78,16 +79,11 @@ const admitScan = async (
   csrfToken: string,
   say: Say,
   wording: Wording,
-): Promise<Settled> => {
-  const settled = await settleScan(
-    (given) => postScan(scanPath, token, csrfToken, given),
-    ["select_quantity", "verify_id", "wrong_listing"],
-    wording,
+): Promise<Settled> =>
+  settleLiveScan((given) => postScan(scanPath, token, csrfToken, given), {
     say,
-  );
-  if (!settled.declined) sayAnswer(settled.answer, wording, say);
-  return settled;
-};
+    wording,
+  });
 
 /** What the camera loop needs from the page. */
 type CameraPage = {
@@ -108,7 +104,11 @@ const settleToken = (page: CameraPage, token: string): Promise<unknown> => {
     return Promise.resolve();
   }
   return offlineModeActive(page.scanPath)
-    ? offlineScan(page.scanPath, token, page.say, page.wording, page.panel)
+    ? offlineScan(
+        { panel: page.panel, scanPath: page.scanPath, wording: page.wording },
+        token,
+        page.say,
+      )
     : admitScan(page.scanPath, token, page.csrfToken, page.say, page.wording);
 };
 
@@ -161,10 +161,10 @@ const startScanner = (video: HTMLVideoElement, page: CameraPage): void => {
 
 /** Wire one scanner page. The page always renders every element below. */
 const init = (): void => {
-  const container = requiredChild<HTMLElement>(document, "#scanner-container");
-  const video = requiredChild<HTMLVideoElement>(document, "#scanner-video");
-  const statusEl = requiredChild<HTMLElement>(document, "#scanner-status");
-  const startBtn = requiredChild<HTMLElement>(document, "#scanner-start");
+  const container = requiredById<HTMLElement>("scanner-container");
+  const video = requiredById<HTMLVideoElement>("scanner-video");
+  const statusEl = requiredById<HTMLElement>("scanner-status");
+  const startBtn = requiredById<HTMLElement>("scanner-start");
   const csrfToken = requiredChild<HTMLMetaElement>(
     document,
     'meta[name="csrf-token"]',
@@ -195,8 +195,7 @@ const init = (): void => {
     const settled = await settleScan(
       (given) => postScanBody(item.scanPath, csrfToken, { ...body, ...given }),
       ["verify_id"],
-      wording,
-      say,
+      { say, wording },
     );
     return settled.answer;
   };
@@ -209,7 +208,7 @@ const init = (): void => {
   });
   initManualCheckin({
     csrfToken,
-    offline: offlinePeople(scanPath, wording, panel),
+    offline: offlinePeople({ panel, scanPath, wording }),
     scanPath,
     wording,
   });
@@ -227,7 +226,8 @@ const init = (): void => {
       video.srcObject = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
-    } catch (_error) {
+    } catch {
+      // A refused or missing camera is the door's own setting to change.
       say(wording.word("cameraDenied"), "error");
       return;
     }
@@ -246,11 +246,11 @@ const init = (): void => {
   });
 };
 
-// The page's only script tag is type="module", so the document has finished
-// parsing by the time this runs and init can start at once.
+// The page's only script tag is type="module", so the document is parsed
+// when this runs, and init can start at once.
 init();
 
-// The tail that makes this a module bundle: the served script tag is
-// type="module", and these exports are the pieces the direct test drives
-// through the built bundle.
+// The tail that makes this a module bundle. The served script tag is
+// type="module". The direct test drives these exports through the built
+// bundle.
 export { admitScan, extractToken, sayAnswer, showConfirm, showStatus };

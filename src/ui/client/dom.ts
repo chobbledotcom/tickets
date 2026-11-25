@@ -55,6 +55,12 @@ export const requiredChild = <TElement extends Element>(
   return element;
 };
 
+/** The one element of the document with this id. A missing element throws
+ *  and names the id. */
+export const requiredById = <TElement extends Element = HTMLElement>(
+  id: string,
+): TElement => requiredChild<TElement>(document, `#${id}`);
+
 /** Copy a complete template subtree into the current document. */
 export const cloneContent = <T extends Node>(node: T): T =>
   document.importNode(node, true);

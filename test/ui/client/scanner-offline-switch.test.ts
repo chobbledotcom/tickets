@@ -172,21 +172,25 @@ describe("scanner offline switch", {
     );
   });
 
-  test("leaves the switch off when the door refuses the first page", async () => {
+  test("leaves the switch off and asks for a reload when the door refuses the first page", async () => {
     using fetchStub = stubFetch(() =>
       Response.json({ error: "Not authenticated" }, { status: 401 }),
     );
     const h = fresh();
     toggle(h).click();
-    await whenStatusShows(h.statusEl, FAILED);
+    await whenStatusShows(
+      h.statusEl,
+      "Something went wrong. Reload this page, then try again.",
+    );
     expect(h.statusEl.className).toContain("scanner-status-error");
     expect(askedUrls(fetchStub)).toEqual([FIRST_PAGE]);
     expectSwitchOff(h);
   });
 
-  test("keeps the saved list and leaves the switch off when a page fails", async () => {
+  test("keeps the saved list and leaves the switch off when the connection drops mid-download", async () => {
     using _fetch = stubFetch(
-      doorWith({ "": cachePage("first", "c7", 250, 251) }),
+      Response.json(cachePage("first", "c7", 250, 251)),
+      new Error("offline"),
     );
     const h = fresh({ seed: (store) => store.setItem(LIST_KEY, savedList) });
     toggle(h).click();
@@ -265,8 +269,8 @@ describe("scanner offline switch", {
     expect(askedUrls(fetchStub)).toEqual([FIRST_PAGE]);
   });
 
-  test("keeps the switch on and the saved list when the load's download fails", async () => {
-    using _fetch = stubFetch(doorWith({}));
+  test("keeps the switch on and the saved list when the load's download finds no connection", async () => {
+    using _fetch = stubFetch(new Error("offline"));
     const h = fresh({
       seed: switchOnWithList,
     });
@@ -299,7 +303,9 @@ describe("scanner offline switch", {
       Object.create(stored, {
         setItem: {
           value: (key: string, value: string) => {
-            if (key === MODE_KEY) throw new Error("The store is full");
+            if (key === MODE_KEY) {
+              throw new DOMException("The store is full", "QuotaExceededError");
+            }
             stored.setItem(key, value);
           },
         },
@@ -308,7 +314,7 @@ describe("scanner offline switch", {
     toggle(h).click();
     await whenStatusShows(
       h.statusEl,
-      "Your change was not saved. Free up space on this device, then try again.",
+      "The ticket list is too big to save on this device. Keep scanning online.",
     );
     expect(stored.getItem(LIST_KEY)).toBe(null);
     expect(stored.getItem(MODE_KEY)).toBe(null);

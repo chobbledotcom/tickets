@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { fireEvent } from "#test-utils/happy-dom.ts";
 import {
-  REBRANDED_FORM,
+  REBRANDED_WORDS,
   useManualCheckinPage,
   waitUntilSettled,
 } from "./fixture.ts";
 
 describe("manual check-in under the ticket-to-booking rebrand", () => {
-  const { pickedPage, stubScans } = useManualCheckinPage(REBRANDED_FORM);
+  const { pickedPage, stubScans } = useManualCheckinPage(REBRANDED_WORDS);
 
   test("asks how many bookings at the quantity ask", async () => {
     stubScans([
