@@ -2,13 +2,13 @@
  * Build static client assets (admin, scanner, iframe-resizer, embed loader).
  */
 
-import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { fromFileUrl, resolve } from "@std/path";
 import * as esbuild from "esbuild";
 import * as sass from "sass";
 import { projectRoot } from "./project-root.ts";
 import { withStaticAssetBuildLock } from "./static-assets/build-lock.ts";
 import { writeStaticAssetManifest } from "./static-assets/cache.ts";
+import { denoLoaderPlugins } from "./static-assets/deno-loader.ts";
 import { fileInputs } from "./static-assets/inputs.ts";
 import {
   CSS_ENTRY,
@@ -24,22 +24,6 @@ import {
   type StaticBundle,
   settleAll,
 } from "./static-assets/session.ts";
-
-/**
- * deno.json path the deno-loader uses to resolve every bundle's imports —
- * the `#` import map, npm/jsr specifiers, and each package's browser entry —
- * exactly as the edge build (`build-edge.ts`) does. This replaces the
- * per-package hand-rolled resolve plugins this file used to carry.
- */
-const configPath = fromFileUrl(new URL("../deno.json", import.meta.url));
-
-/**
- * The loader ships its own esbuild type declarations, whose PluginBuild type can
- * drift from the npm esbuild package even though the runtime plugin shape is the
- * same. Keep that incompatibility at this adapter boundary.
- */
-const denoLoaderPlugins = (): esbuild.Plugin[] =>
-  denoPlugins({ configPath }) as unknown as esbuild.Plugin[];
 
 /** Compile the SCSS stylesheet to the served CSS file, reporting every
  *  stylesheet it read so the build cache can watch them all. */

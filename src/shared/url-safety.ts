@@ -54,3 +54,25 @@ export const validateSafeServerFetchUrl = (
   raw: string | undefined,
   message: string,
 ): string | null => (raw && !isSafeServerFetchUrl(raw) ? message : null);
+
+/** A control character (C0 or DEL) in an address is never a real page. It is
+ *  invisible in a Location header, and an attacker can use it to inject a
+ *  header. */
+export const hasControlCharacter = (text: string): boolean =>
+  [...text].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+
+/** True when a decoded path holds a shape that escapes the site. The shapes
+ *  are a protocol-relative address (`//`), a backslash (browsers read it as a
+ *  slash), and a climb (`..`). */
+export const hasPathEscapeShape = (decodedPath: string): boolean =>
+  decodedPath.includes("//") ||
+  decodedPath.includes("\\") ||
+  decodedPath.split("/").includes("..");
+
+/** True when `path` is `prefix` or a path under it. `/admin` holds `/admin`
+ *  and `/admin/x`, and does not hold `/administration`. */
+export const isPathUnder = (path: string, prefix: string): boolean =>
+  path === prefix || path.startsWith(`${prefix}/`);

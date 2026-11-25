@@ -351,6 +351,19 @@ describe("the record read defaults", () => {
     );
   });
 
+  test("a domain write that declares no update refuses an update", () => {
+    const record = bareRecord({
+      write: {
+        create: () => Promise.resolve({ kind: "refused", message: "No" }),
+        remove: () => Promise.resolve({ kind: "not-found" }),
+      },
+    });
+
+    expect(() => record.update(1, { name: "Edited" })).toThrow(
+      "The record for holidays declares no update",
+    );
+  });
+
   test("a read bundle serves both reads and the write read-back", async () => {
     const row: IdNameRow = { id: 3, name: "Bundled" };
     const record = bareRecord({

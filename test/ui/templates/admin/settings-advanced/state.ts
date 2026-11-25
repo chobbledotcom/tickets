@@ -35,6 +35,7 @@ export const advancedDefaultState: AdvancedSettingsPageState = {
   logisticsRunSheetBody: "",
   logisticsRunSheetHeading: "",
   paymentProviderRecoveryNeeded: false,
+  redirectCount: 0,
   scheduledTaskKey: "",
   showPublicApi: false,
   smsGatewayBaseUrl: "",

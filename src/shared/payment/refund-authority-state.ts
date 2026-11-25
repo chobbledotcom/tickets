@@ -98,6 +98,11 @@ const CompletedRecordedRefundStateSchema = v.strictObject({
   nextActionAt: v.null(),
 });
 
+const CompletedRefundStateSchema = v.union([
+  CompletedDueRefundStateSchema,
+  CompletedRecordedRefundStateSchema,
+]);
+
 const attentionFields = {
   evidenceRevision: integerAtLeast(1),
   local: NotDueSchema,
@@ -176,8 +181,7 @@ const RefundAuthorityStateSchema = v.union([
   ReadyRefundStateSchema,
   SendArmedRefundStateSchema,
   ObservingRefundStateSchema,
-  CompletedDueRefundStateSchema,
-  CompletedRecordedRefundStateSchema,
+  CompletedRefundStateSchema,
   NeedsOwnerChoiceRefundStateSchema,
   NeedsProviderCheckRefundStateSchema,
 ]);
@@ -212,6 +216,12 @@ export type ProviderConflictOwnerChoiceRefundState = Extract<
   { reason: "provider_conflict" }
 >;
 
+/** An owner choice that any provider evidence can open, without a conflict. */
+export type OrdinaryOwnerChoiceRefundState = Exclude<
+  NeedsOwnerChoiceRefundState,
+  ProviderConflictOwnerChoiceRefundState
+>;
+
 /** When the provider finished returning this money, or null before then.
  * Total over every state, so callers that know the money came back can take
  * the instant through `requireValue` without an unreachable branch. */
@@ -224,9 +234,38 @@ export const readRefundAuthorityState = storedState.read;
 
 export const writeRefundAuthorityState = storedState.write;
 
-export const validateRefundAuthorityState = (
-  state: unknown,
-): RefundAuthorityState => v.parse(RefundAuthorityStateSchema, state);
+/** Read one state through the schema for its own shape. A transition builder
+ *  then returns the kind it parsed, so a wrong shape is a compile error or a
+ *  thrown error, never an unchecked cast. */
+const stateReader =
+  <State>(schema: v.GenericSchema<unknown, State>) =>
+  (state: unknown): State =>
+    v.parse(schema, state);
+
+export const validateReadyRefundState = stateReader<ReadyRefundState>(
+  ReadyRefundStateSchema,
+);
+export const validateSendArmedRefundState = stateReader<SendArmedRefundState>(
+  SendArmedRefundStateSchema,
+);
+export const validateObservingRefundState = stateReader<ObservingRefundState>(
+  ObservingRefundStateSchema,
+);
+export const validateCompletedRefundState = stateReader<CompletedRefundState>(
+  CompletedRefundStateSchema,
+);
+export const validateOwnerChoiceRefundState =
+  stateReader<OrdinaryOwnerChoiceRefundState>(
+    OrdinaryOwnerChoiceRefundStateSchema,
+  );
+export const validateProviderConflictRefundState =
+  stateReader<ProviderConflictOwnerChoiceRefundState>(
+    ProviderConflictOwnerChoiceRefundStateSchema,
+  );
+export const validateNeedsProviderCheckRefundState =
+  stateReader<NeedsProviderCheckRefundState>(
+    NeedsProviderCheckRefundStateSchema,
+  );
 
 export const refundStateMirror = (
   state: RefundAuthorityState,

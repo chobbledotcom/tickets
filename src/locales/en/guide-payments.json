@@ -5,6 +5,7 @@
   "guide.sections.refunds": "Refunds",
   "guide.sections.ledger": "Money",
   "guide.sections.invoices": "Invoices",
+  "guide.sections.subscriptions": "Subscriptions",
   "guide.sections.daily_listings_and_holidays": "Daily listings & holidays",
   "guide.q.supported_payment_providers": "Which payment companies can I use?",
   "guide.a.supported_payment_providers": "<p><strong>Stripe</strong>, <strong>Square</strong>, and <strong>SumUp</strong>. Choose one in Settings and enter your key. You can switch between them at any time.</p><p><strong>SumUp</strong> works only with some currencies (mostly European ones, plus GBP, USD, and BRL). If your site's currency is not on their list, the Settings page refuses the details and asks you to pick a different company.</p>",
@@ -88,5 +89,13 @@
   "guide.q.invoices_turning_on": "How do I turn invoices on?",
   "guide.a.invoices_turning_on": "<p>Open <a href=\"/admin/settings\">Settings</a>, then <strong>Features</strong>, and set <strong>Invoices</strong> to Enabled. The Invoices menu then appears. If your site already has invoices, the site keeps the menu shown.</p>",
   "guide.q.invoices_without_email": "What if the site cannot email the invoice?",
-  "guide.a.invoices_without_email": "<p>The site emails an invoice only when an email provider is set up and the customer's address is usable. When it does not send, the invoice page says so.</p><p>Copy the share link from the invoice page and send it to the customer yourself. The link never expires, so it still opens after you cancel the invoice.</p>"
+  "guide.a.invoices_without_email": "<p>The site emails an invoice only when an email provider is set up and the customer's address is usable. When it does not send, the invoice page says so.</p><p>Copy the share link from the invoice page and send it to the customer yourself. The link never expires, so it still opens after you cancel the invoice.</p>",
+  "guide.q.subscriptions_selling": "How do I sell a ticket that charges every week, month, or year?",
+  "guide.a.subscriptions_selling": "<p>You need Stripe for this. Open <a href=\"/admin/settings\">Settings</a>, then <strong>Features</strong>, and set <strong>Subscriptions</strong> to Enabled.</p><p>On the listing, enter a <strong>Recurring price</strong> and choose how often in <strong>Charge again every</strong>. The buyer pays the ticket price today. Stripe then charges the recurring price one period later, and again every period after that. VAT follows your tax settings.</p><p>An order can hold one of these tickets. It cannot be part of a package or an add-on, and its ticket price must be more than zero.</p>",
+  "guide.q.subscriptions_page": "Where do I see who subscribed and what they paid?",
+  "guide.a.subscriptions_page": "<p>Open <strong>Subscriptions</strong> in the menu. Owners and managers can see it. It lists each subscriber, their ticket, the charge, and the status that Stripe reports.</p><p>An owner also sees how many payments each subscriber made, the total, and the date of the last one. These count every payment into the subscriber's booking, including the first one. The total takes off each refund. Click the number of payments to see each payment in Money.</p><p>The site asks Stripe about each subscription every hour, and each time Stripe sends news about one. Each payment goes into Money on the day Stripe takes it. That includes a charge from a change you make in Stripe.</p><p>A payment in another currency does not go into Money. The <strong>Activity log</strong> names it. Record it yourself with <strong>Add money change</strong>.</p>",
+  "guide.q.subscriptions_cancelling": "How do I cancel a subscription?",
+  "guide.a.subscriptions_cancelling": "<p>Open <strong>Subscriptions</strong> and select <strong>Cancel subscription</strong>. Only an owner can do this.</p><p>Stripe stops every later payment at once. The site refunds nothing, and the booking stays. To refund a payment, refund it in Stripe, then record it with <strong>Add money change</strong>.</p>",
+  "guide.q.subscriptions_still_charging": "Why does the site ask me to cancel a subscription first?",
+  "guide.a.subscriptions_still_charging": "<p>The booking has a subscription that still charges. The site will not delete it, merge it away, or remove its ticket, because Stripe would keep charging with no booking to show for it. Cancel the subscription first, then try again.</p><p>You also cannot turn the Subscriptions feature off while a subscription still charges or a listing has a recurring price.</p>"
 }

@@ -10,9 +10,10 @@
 import * as v from "valibot";
 import { getLiveRowBySubscriptionIdOrNull } from "#db/subscriptions.ts";
 import { ResourceIdSchema } from "#payment/resource-id.ts";
+import type { KindOnly } from "#shared/kind-only.ts";
 import type { WebhookEvent } from "#shared/payments.ts";
 import type { SubscriptionWebhookEvent } from "#shared/stripe/webhook-events.ts";
-import { recordStripeReport } from "./record.ts";
+import { type ReportOutcome, recordStripeReport } from "./record.ts";
 
 /** An invoice of the pinned API version names the subscription that made it
  * under the parent. An invoice that no subscription made names none. */
@@ -61,12 +62,17 @@ const SUBSCRIPTION_ID_OF: ReadonlyMap<string, IdReader> = new Map<
 );
 
 /** What one delivery asked of the site. `retry` asks Stripe to send the
- * delivery again. */
-export type SubscriptionDelivery =
-  | { readonly kind: "not_a_subscription" }
-  | { readonly kind: "no_live_row" }
-  | { readonly kind: "recorded" }
-  | { readonly kind: "retry" };
+ * delivery again. `refused` means that Stripe answered with no usable
+ * subscription, so a second delivery cannot do better. */
+export type SubscriptionDelivery = KindOnly<
+  "not_a_subscription" | "no_live_row" | "recorded" | "refused" | "retry"
+>;
+
+const DELIVERY_OF: Record<ReportOutcome, SubscriptionDelivery> = {
+  recorded: { kind: "recorded" },
+  refused: { kind: "refused" },
+  unavailable: { kind: "retry" },
+};
 
 /**
  * Record what one webhook delivery reports. A delivery about a subscription
@@ -74,8 +80,9 @@ export type SubscriptionDelivery =
  * ledger, then the status reaches the row.
  *
  * A delivery that names no subscription, or a subscription that this site
- * holds no live row for, owes no work. `retry` means that a Stripe read was
- * refused, so the row still owes work that the next delivery can do.
+ * holds no live row for, owes no work. `retry` means that Stripe did not
+ * answer, so the row still owes work that the next delivery can do. The
+ * scheduled check keeps a refused row and logs it on each pass.
  */
 export const recordSubscriptionDelivery = async (
   delivery: WebhookEvent,
@@ -88,7 +95,5 @@ export const recordSubscriptionDelivery = async (
   if (subscriptionId === null) return { kind: "not_a_subscription" };
   const row = await getLiveRowBySubscriptionIdOrNull(subscriptionId);
   if (row === null) return { kind: "no_live_row" };
-  return (await recordStripeReport(row))
-    ? { kind: "recorded" }
-    : { kind: "retry" };
+  return DELIVERY_OF[await recordStripeReport(row)];
 };

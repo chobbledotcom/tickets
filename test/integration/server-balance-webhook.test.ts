@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeeAccount } from "#accounting/accounts.ts";
-import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
@@ -15,6 +15,7 @@ import {
   expectSettled,
   stubBalanceSession,
 } from "#test/integration/balance-helpers.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";

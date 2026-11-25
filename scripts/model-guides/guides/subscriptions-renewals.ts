@@ -18,7 +18,7 @@ export const subscriptionRenewals: ModelGuide = {
     },
     {
       meaning:
-        "One paid charge from Stripe. A cycle invoice for a later period is a renewal.",
+        "One paid charge from Stripe. Each paid invoice after the first one is a renewal.",
       term: "invoice",
     },
     {
@@ -33,7 +33,7 @@ export const subscriptionRenewals: ModelGuide = {
     },
     {
       meaning:
-        "An invoice with reason subscription_cycle and an amount above zero.",
+        "A paid invoice in the site currency with an amount above zero. The first invoice of the checkout is not eligible.",
       term: "eligible invoice",
     },
     {
@@ -43,7 +43,7 @@ export const subscriptionRenewals: ModelGuide = {
     },
   ],
   claim:
-    "This page follows one Stripe renewal report into the ledger. A paid cycle invoice posts its cash, sale, and VAT roles for the right attendee and listing. A replay leaves those same legs in place. A changed booking identity posts no money.",
+    "This page follows one Stripe renewal report into the ledger. A paid renewal posts its cash, sale, and VAT roles for the right attendee and listing. A replay leaves those same legs in place. A changed booking identity posts no money.",
   limits: [
     "The examples use a month plan of 600 with 100 VAT, 100 invoices in one case, and all eight statuses.",
     "Provider replies are synthetic assumptions. The model does not prove provider truth.",
@@ -99,7 +99,6 @@ export const subscriptionRenewals: ModelGuide = {
       ],
       rules: [
         "Coverage",
-        "CurrencyCases",
         "ArithmeticCases",
         "RequiredReads",
         "ReadCoverage",
@@ -107,13 +106,12 @@ export const subscriptionRenewals: ModelGuide = {
       ],
       title: "Every declared input needs one result",
       values: [
-        { name: "scenarios", value: "18" },
-        { name: "passes", value: "21" },
-        { name: "captured reads", value: "24" },
-        { name: "currency cases", value: "site, foreign, and mixed" },
+        { name: "scenarios", value: "20" },
+        { name: "passes", value: "23" },
+        { name: "captured reads", value: "23" },
         { name: "arithmetic cases", value: "11" },
       ],
-      what: "Coverage requires one observed result for each declared input. The inputs come before the calls. The producer declares 18 scenario names and 21 passes. Each pass has one renewal read. Each of the 3 currency cases has one read at the Stripe client, which makes 24 reads. The producer keeps every read argument, so a repeated call with equal arguments stays visible. A renewal read must name the subscription of its attempt. A currency read must name sub_currency.",
+      what: "Coverage requires one observed result for each declared input. The inputs come before the calls. The producer declares 20 scenario names and 23 passes. Each pass has one renewal read, which makes 23 reads. The producer keeps every read argument, so a repeated call with equal arguments stays visible. A renewal read must name the subscription of its attempt.",
     },
     {
       code: [
@@ -168,7 +166,7 @@ export const subscriptionRenewals: ModelGuide = {
         { name: "VAT leg", value: "100 from the attendee to tax:vat" },
         { name: "zero role", value: "No leg and no account." },
       ],
-      what: "A paid cycle invoice posts three legs. Cash moves from external:world to the attendee. Sale moves the amount without VAT from the attendee to the listing revenue account. VAT moves to tax:vat. The law checks each role before the sum. A role with expected amount zero needs no leg. A positive role needs exactly one leg with the right account, reference, and paid time. Cash must equal sale plus VAT.",
+      what: "An eligible invoice posts three legs. Cash moves from external:world to the attendee. Sale moves the amount without VAT from the attendee to the listing revenue account. VAT moves to tax:vat. The law checks each role before the sum. A role with expected amount zero needs no leg. A positive role needs exactly one leg with the right account, reference, and paid time. Cash must equal sale plus VAT.",
     },
     {
       code: [
@@ -241,7 +239,7 @@ export const subscriptionRenewals: ModelGuide = {
           value: "Stays TRUE only when every check passes.",
         },
       ],
-      what: "Three separate checks do not depend on the pass order. InspectArithmetic compares every arithmetic fact with TaxShare and every currency fact with its read result. InspectJoins rechecks both joins. InspectReads rechecks every captured read identity. Each check keeps an earlier failure visible in checksHold.",
+      what: "Three separate checks do not depend on the pass order. InspectArithmetic compares every arithmetic fact with TaxShare. InspectJoins rechecks both joins. InspectReads rechecks every captured read identity. Each check keeps an earlier failure visible in checksHold.",
     },
     {
       code: [

@@ -5,7 +5,7 @@ import {
   BOOKING_FEE_INCOME,
   modifierAccount,
 } from "#accounting/accounts.ts";
-import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { settings } from "#db/settings.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
@@ -29,6 +29,7 @@ import {
   type TicketsWorld,
   theBooking,
 } from "#test/specs/support/world.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 

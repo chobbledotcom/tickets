@@ -28,6 +28,7 @@ export type FieldKind =
   | "price"
   | "privateText"
   | "recurringInterval"
+  | "sealedText"
   | "switch"
   | "text"
   | "weekdays";
@@ -82,7 +83,7 @@ export type FieldSpecs = readonly FieldSpec[];
 export type KeyAccess = Pick<FieldSpec, "feature" | "key" | "lockedFor">;
 
 /** The kinds the shared form and the shared list can show. */
-export type ShownKind = "date" | "name";
+export type ShownKind = "date" | "name" | "sealedText";
 
 /** A field the shared form and the shared list show, with their texts. */
 export type ShownField = FieldSpec & {
@@ -105,6 +106,7 @@ export type StoredValue = {
   price: number;
   privateText: string;
   recurringInterval: RecurringIntervalChoice;
+  sealedText: string;
   switch: boolean;
   text: string;
   weekdays: string[];

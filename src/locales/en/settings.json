@@ -1,4 +1,8 @@
 {
+  "settings.advanced.redirects_title": "Redirects",
+  "settings.advanced.redirects_intro": "Set up redirects to send visitors from an old page to a new page. A redirect only works for a page that is missing.",
+  "settings.advanced.redirects_count": "You have {count, plural, one {# redirect} other {# redirects}} set up.",
+  "settings.advanced.redirects_link": "Manage redirects",
   "settings.advanced.scheduled_title": "Scheduled maintenance",
   "settings.advanced.scheduled_intro": "Use this key in the monitor for this site.",
   "settings.advanced.scheduled_unset": "No scheduled maintenance key is set on this site.",

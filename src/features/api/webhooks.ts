@@ -129,14 +129,15 @@ const PLAIN_RESPONSES: Record<
   unverifiable: () => webhookAckResponse(),
 };
 
-/** The answer a subscription delivery gets. Only a refused Stripe read is
- * retried: every other outcome leaves nothing owing. */
+/** The answer a subscription delivery gets. Only a read that Stripe did not
+ * answer is retried: a second delivery cannot change any other outcome. */
 const SUBSCRIPTION_RESPONSES: Record<
   Exclude<SubscriptionDelivery["kind"], "not_a_subscription">,
   () => Response
 > = {
   no_live_row: () => webhookAckResponse(),
   recorded: () => webhookAckResponse({ processed: true }),
+  refused: () => webhookAckResponse(),
   retry: () => plainResponse("Subscription could not be read", 503),
 };
 
@@ -147,6 +148,7 @@ const SUBSCRIPTION_NOTES: Record<
 > = {
   no_live_row: "Ignoring a delivery for a subscription with no live row",
   recorded: "Stored what Stripe reported for a subscription",
+  refused: "Acknowledging a delivery whose subscription Stripe refused",
   retry: "Refusing a subscription delivery retryably",
 };
 
@@ -283,7 +285,8 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   const { provider, listing } = auth;
 
   // A subscription delivery records what Stripe reports now. Its read is the
-  // only thing that can leave work owing, so only a refused read is retried.
+  // only thing that can leave work owing, so only an unanswered read is
+  // retried.
   const delivery = await recordSubscriptionDelivery(listing);
   if (delivery.kind !== "not_a_subscription") {
     logDebug("Webhook", SUBSCRIPTION_NOTES[delivery.kind]);

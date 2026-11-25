@@ -8,7 +8,7 @@ import {
   type SubscriptionStart,
 } from "#shared/subscriptions/plan.ts";
 import {
-  readForSubscriptionOrNull,
+  readForSubscription,
   recordObserved,
 } from "#shared/subscriptions/record.ts";
 
@@ -49,10 +49,10 @@ export const cancelOwnerSubscription = async (
   row: LiveRow,
 ): Promise<OwnerCancel> => {
   if (!isCancellable(row.subscriptionStatus)) return "ended";
-  const subscription = await readForSubscriptionOrNull(row, cancelOrRead);
-  if (subscription === null) return "not_cancelled";
-  const observed = subscription.status;
+  const subscription = await readForSubscription(row, cancelOrRead);
+  if (subscription.status !== "found") return "not_cancelled";
+  const observed = subscription.resource.status;
   const recorded = await recordObserved(row, observed);
   if (SUBSCRIPTION_NODE_OF[observed] !== "ended") return "not_cancelled";
-  return recorded ? "cancelled" : "behind";
+  return recorded === "recorded" ? "cancelled" : "behind";
 };

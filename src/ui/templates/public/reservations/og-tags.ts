@@ -1,3 +1,4 @@
+// effects: pure
 /** OpenGraph head tags for a public listing page. */
 
 import { escapeHtml } from "#jsx/escape-html.ts";

@@ -55,8 +55,9 @@ export type CheckoutItem = {
    *  beside a "(1 Month)" plan buys three months of one site, not three
    *  sites. Display only: fulfilment reads its own facts. */
   purchaseUnit?: PurchaseUnit | undefined;
-  /** The recurring price before VAT for one unit, and how often Stripe
-   *  charges it. Absent for an ordinary ticket. */
+  /** The recurring price of one unit as the listing states it, and how often
+   *  Stripe charges it. The tax mode of the site decides whether VAT is inside
+   *  the price or added to it. Absent for an ordinary ticket. */
   recurring?: { interval: RecurringInterval; price: number } | undefined;
 };
 

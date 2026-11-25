@@ -6,15 +6,12 @@ import {
   revenueAccount,
   WORLD,
 } from "#accounting/accounts.ts";
-import {
-  accountBalance,
-  allTransfers,
-  transfersByAccount,
-} from "#accounting/queries.ts";
+import { allTransfers, transfersByAccount } from "#accounting/queries.ts";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { articleOutOf } from "#test/specs/support/browser.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { adminGet } from "#test-utils/session.ts";
 
@@ -100,7 +97,7 @@ export const assertStatementBalance: CheckMoneyShown = async (
 /**
  * Assert the listing EDIT page's "Current income" input renders the given
  * minor-unit figure (`value="£X"`). The edit page shows GROSS credits minus only
- * manual write-offs (`creditsLessWriteoffDebits`), so — unlike the statement —
+ * manual write-offs (`listingIncomeSubquery`), so — unlike the statement —
  * an ordinary refund does NOT reduce it (matching the legacy `SUM(price_paid)`),
  * while a manual write-off does. The two surfaces therefore agree only when no
  * refund has touched the account.

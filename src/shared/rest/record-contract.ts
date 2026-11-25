@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * The one admin record contract: its storage, its single write rule, its
  * lifecycle hooks, its commands, and the page route that declares its
@@ -118,7 +119,8 @@ export type RecordWrites<
 > = {
   readonly create: WriteCommand<Input, Create>;
   readonly remove: DeleteCommand<Remove>;
-  readonly update: UpdateCommand<Input, Update>;
+  /** A record that no form or API body edits declares none. */
+  readonly update?: UpdateCommand<Input, Update>;
 };
 
 /** The guard a JSON delete answers beyond the confirmation check. */

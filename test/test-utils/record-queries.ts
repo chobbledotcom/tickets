@@ -29,6 +29,34 @@ export const wrapDbClient = (hooks: DbCallHooks): (() => void) => {
   return () => setDb(real);
 };
 
+/** Report every statement that a transaction runs, whether it runs one at a
+ *  time or as a batch. The statements still run. Returns a restore function. */
+export const observeTransactions = (
+  observe: (statement: SqlStatement) => void,
+): (() => void) => {
+  const real = getDb();
+  setDb(
+    proxyMembers(real, {
+      transaction: async (
+        ...args: Parameters<StatementClient["transaction"]>
+      ) => {
+        const tx = await real.transaction(...args);
+        return proxyMembers(tx, {
+          batch: (statements: SqlStatement[]) => {
+            for (const statement of statements) observe(statement);
+            return tx.batch(statements);
+          },
+          execute: (statement: SqlStatement) => {
+            observe(statement);
+            return tx.execute(statement);
+          },
+        });
+      },
+    }),
+  );
+  return () => setDb(real);
+};
+
 /** Run one callback immediately before the next database transaction starts. */
 export const beforeNextTransaction = (
   before: () => Promise<void>,
