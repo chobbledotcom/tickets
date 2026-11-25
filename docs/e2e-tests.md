@@ -140,6 +140,8 @@ Execution is equally strict:
 - `deno task specs:check` — parse every Feature and validate the authored
   profile and the stable catalog
 - `deno task specs:evidence` — the cases with declared screenshot captures
+- `deno task guide:check` — compare the guide video baselines with the latest
+  evidence. See [Guide videos](guide-videos.md)
 
 The full list, with what each writes where, is in
 [AGENTS.md](../AGENTS.md#scripts).

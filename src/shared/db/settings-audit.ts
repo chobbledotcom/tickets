@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Dev and test only. A route that reads a setting it never declared in its
  * prefix bundle gets a default or stale value SILENTLY. This is the failure

@@ -6,7 +6,7 @@ import {
   revenueAccount,
 } from "#accounting/accounts.ts";
 import { mapBooking } from "#accounting/mappers.ts";
-import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { allTransfers } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
 import {
   type BookingBatchPlan,
@@ -16,6 +16,7 @@ import { queryOne, withTransaction } from "#db/client.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import { sql } from "#db/sql.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   buildPlan,

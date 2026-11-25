@@ -108,13 +108,14 @@ export const redirectTargetWithoutFlash = (response: Response): string => {
 export const postAttendeePayment = async (
   attendeeId: number,
   amount = "12.34",
+  entryType = MANUAL_ATTENDEE_PAYMENT,
 ): Promise<void> => {
   const returnUrl = `/admin/attendees/${attendeeId}`;
   const { response } = await adminFormPost(
     `/admin/ledger/attendee/${attendeeId}/add`,
     {
       amount,
-      entryType: MANUAL_ATTENDEE_PAYMENT,
+      entryType,
       occurredAt: "2026-06-22T09:30",
       returnUrl,
     },

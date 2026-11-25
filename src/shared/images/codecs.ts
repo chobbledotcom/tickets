@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * The `.wasm` bytes are initialised manually rather than left to jSquash's own
  * loader. That loader relies on `fetch` and filesystem paths that do not

@@ -56,11 +56,11 @@
   "test/ui/client/admin/payment-test-buttons/button.test.ts": 1,
   "test/ui/templates/admin/attendee-logistics-tab/others.test.ts": 1,
   "test/ui/templates/admin/settings/schema-form.test.tsx": 2,
-  "scripts/build-static-assets.ts": 1,
   "scripts/check-empty-catch/rules.ts": 4,
   "scripts/check-ste/prose.ts": 4,
   "scripts/edge-bundle-lib.ts": 1,
   "scripts/mutation/anchor.ts": 1,
+  "scripts/static-assets/deno-loader.ts": 1,
   "scripts/unread-fields/fields/steps.ts": 2,
   "scripts/unread-fields/fields/type-visitor.ts": 1
 }
