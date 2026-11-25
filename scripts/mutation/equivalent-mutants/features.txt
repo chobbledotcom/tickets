@@ -1,7 +1,7 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage~0r9wwy4  ?? → || audited:1i6yq97 # titleNav is undefined or a Promise from its declared type; every Promise is truthy, and both operators send undefined to null
-src/features/auth.ts::recordPageGuardFor~01c7xvj  ?? → || audited:03bfead # audience is undefined or a readonly AdminLevel array; every array is truthy, and both operators send undefined to the route audience
+src/features/auth.ts::recordPageGuardFor~01c7xvj  ?? → || audited:0szx1ok # audience is undefined or a readonly AdminLevel array; every array is truthy, and both operators send undefined to the route audience
 
 src/features/response.ts::maybeStashForm.source~05i3xv9  ?? → || audited:1ajtx8a # Explicit forms are URLSearchParams objects or undefined. Captured forms are FormParams objects or null. Every present object is truthy.
 src/features/response.ts::redirect.flash~0r1iimg  ?? → || audited:1ajtx8a # maybeStashForm returns null or a non-empty token from generateSecureToken. Both operators select undefined only for null.
@@ -15,7 +15,7 @@ src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3p
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → || audited:1i6yq97 # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → || audited:0ylj68l # listingsByKey holds only non-empty ListingWithCount[], so get() is an array or undefined and an array is always truthy
 src/features/admin/site-content-page.ts::defineSiteContentPage.extraTabs~0786g3u  ?? → || audited:0aietun # extraTabs is an array when present, and arrays are always truthy
-src/ui/templates/admin/holidays.tsx::HolidayEditPanel.html~1nrsidb  ?? → || audited:1c3im2m # values is a render-values object when present, so it is always truthy
+src/ui/templates/admin/holidays.tsx::HolidayEditPanel.html~1nrsidb  ?? → || audited:1srabrn # values is a render-values object when present, so it is always truthy
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.filterOptions.text~0hoqwoy  ?? → || audited:1jdc1my # textContent is string|null; its only falsy string is the empty fallback itself
 src/ui/client/admin/order-gallery.ts::initOrderGallery.refresh.timer~1xo126t  ?? → || audited:1fyzmqa # states is a record object when present, so it is always truthy
 
@@ -73,9 +73,9 @@ src/features/admin/catalog-transfer/schema.ts::ListingDataSchema~0mwju9v  ?? →
 # middleware.ts's Content-Type fallback already equals the only falsy string.
 # Once a tracking key is found, continuing instead of breaking can only
 # rediscover more tracking keys without changing the final boolean.
-src/features/middleware.ts::lowerContentType~06bb1lp  ?? → || audited:1eagonn # Content-Type is string|null; the only falsy non-null string is "", which is also the fallback
-src/features/middleware.ts::getCleanUrl~0l5b2wp  break; → (removed) audited:1eagonn # later keys cannot reverse hasTracking
-src/features/middleware.ts::buildCspHeader.provider~130hma6 ??→|| audited:1eagonn # payment.provider is PaymentProviderType|null; every non-null member is a non-empty provider word, so ?? and || agree
+src/features/content-type-rules.ts::lowerContentType~06bb1lp  ?? → || audited:15e0yun # Content-Type is string|null; the only falsy non-null string is "", which is also the fallback
+src/features/middleware.ts::getCleanUrl~0l5b2wp  break; → (removed) audited:00jsdaf # later keys cannot reverse hasTracking
+src/features/middleware.ts::buildCspHeader.provider~130hma6 ??→|| audited:00jsdaf # payment.provider is PaymentProviderType|null; every non-null member is a non-empty provider word, so ?? and || agree
 
 # group-page-data fallbacks have operands whose only falsy non-null value
 # coincides with the fallback.
@@ -90,7 +90,7 @@ src/shared/db/contact-tokens.ts::syncChannelToken~1dp5quy  ?? → || audited:1oy
 
 # Admin segment dispatch (admin/index.ts) — one provably-equivalent survivor
 # from the routeAdmin run over the manifest + footer suites.
-src/features/admin/index.ts::buildSegmentRouters.areas~1hp6gg8  ?? → || audited:1cqxzlk # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
+src/features/admin/index.ts::buildSegmentRouters.areas~1hp6gg8  ?? → || audited:02exm5q # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
 
 # Admin refund waves (refunds/waves.ts) — one provably-equivalent survivor from
 # the packByReferenceCount run.
@@ -107,12 +107,12 @@ src/features/admin/calendar-csv.ts::logisticsColumns.value~1mtw1ii  ?? → || au
 src/shared/forms/rendering.tsx::splitDatetime.date~1f0kxzu   → "mutated" audited:04c5s6o # split("T")[0] always exists, and the empty input returned before this line
 src/shared/forms/rendering.tsx::publicLinkHint~0wwelzf  || → && audited:04c5s6o # publicLinkPath is absent or a function, so both boolean terms always agree
 src/shared/forms/rendering.tsx::renderField~1vcsvsj  ?? → || audited:04c5s6o # beforeHtml is string|undefined and falls back to "", so both operators agree
-src/shared/runtime.ts::buildRuntimeInfo.arch~00dnfok  ?? → || audited:0r5asoe # arch is string|undefined and falls back to "", so both operators agree
-src/shared/runtime.ts::buildRuntimeInfo.denoVersion~1pyb0qg  ?? → || audited:0r5asoe # denoVersion is string|undefined and falls back to "", so both operators agree
-src/shared/runtime.ts::buildRuntimeInfo.nodeCompatVersion~1m2e610  ?? → || audited:0r5asoe # nodeCompatVersion is string|undefined and falls back to "", so both operators agree
-src/shared/runtime.ts::buildRuntimeInfo.os~05o6squ  ?? → || audited:0r5asoe # os is string|undefined and falls back to "", so both operators agree
-src/shared/runtime.ts::buildRuntimeInfo.typescriptVersion~14e4wx7  ?? → || audited:0r5asoe # typescriptVersion is string|undefined and falls back to "", so both operators agree
-src/shared/runtime.ts::buildRuntimeInfo.userAgent~17udaa2  ?? → || audited:0r5asoe # userAgent is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts::buildRuntimeInfo.arch~00dnfok  ?? → || audited:04annj8 # arch is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts::buildRuntimeInfo.denoVersion~1pyb0qg  ?? → || audited:04annj8 # denoVersion is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts::buildRuntimeInfo.nodeCompatVersion~1m2e610  ?? → || audited:04annj8 # nodeCompatVersion is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts::buildRuntimeInfo.os~05o6squ  ?? → || audited:04annj8 # os is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts::buildRuntimeInfo.typescriptVersion~14e4wx7  ?? → || audited:04annj8 # typescriptVersion is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts::buildRuntimeInfo.userAgent~17udaa2  ?? → || audited:04annj8 # userAgent is string|undefined and falls back to "", so both operators agree
 src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → += audited:0zlhva4 # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only
@@ -192,19 +192,19 @@ src/features/admin/listings-edit.ts::resolveErrorTemplateId~1v3vh1c  ?? → || a
 src/features/admin/listings-switch.ts::wouldBeStartDates.bookableDays~1cjnzpk ??→||  audited:0k6r30c   # input.bookableDays is a string array or undefined, and an array is always truthy, even when empty
 src/features/admin/listings-switch.ts::wouldBeStartDates.durationDays~17u5l16 ??→||  audited:0k6r30c   # input.durationDays is undefined or a whole number the durationDays field validates to 1 or more, so it is never falsy
 src/features/admin/listings-switch.ts::AssignProbe.constructor~1e9p7fd  the assign probe always rolls back → "" audited:0k6r30c # probeAssignDates catches every AssignProbe by instanceof and returns only its fits, so no caller can read the message
-src/features/auth.ts::loadAuthUserFields~0qjvs2i  ?? → || audited:03bfead # getUserAuthFieldsById gives back a user-fields object or null, and objects are always truthy
-src/features/auth.ts::cookieSessionOrFailure~1y4flpo  ?? → || audited:03bfead # getAuthenticatedSession gives back an AuthSession object or null, and objects are always truthy
-src/features/auth.ts::parseCsrfBody.err~0lmzdfk  ?? → || audited:03bfead # Headers.get gives back a string or null, and the only falsy string is the empty fallback itself
-src/features/auth.ts::parseCsrfBody.err~0lmzdfk   → "mutated" audited:03bfead # the fallback is only reached when the header is absent, and every value that is not a signed token fails verification the same way
-src/features/auth.ts::parseCsrfBody~091hnp4  ?? → || audited:03bfead # err is a Response object or null, and objects are always truthy
-src/features/auth.ts::parseCsrfBody.err~0z5gl2h ??→||  audited:0t1mdrg   # FormData.get gives back a string, a File, or null; a File is truthy so both operators keep it, and the only falsy string is the empty fallback itself
-src/features/auth.ts::parseCsrfBody.err~0z5gl2h →"mutated"  audited:0t1mdrg   # the fallback is only reached when the field is absent, and every value that is not a signed token fails verification the same way
-src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → || audited:03bfead # err is a Response object or null, and objects are always truthy
+src/features/auth.ts::loadAuthUserFields~0qjvs2i  ?? → || audited:0szx1ok # getUserAuthFieldsById gives back a user-fields object or null, and objects are always truthy
+src/features/auth.ts::cookieSessionOrFailure~1y4flpo  ?? → || audited:0szx1ok # getAuthenticatedSession gives back an AuthSession object or null, and objects are always truthy
+src/features/auth.ts::parseCsrfBody.err~0lmzdfk  ?? → || audited:0szx1ok # Headers.get gives back a string or null, and the only falsy string is the empty fallback itself
+src/features/auth.ts::parseCsrfBody.err~0lmzdfk   → "mutated" audited:0szx1ok # the fallback is only reached when the header is absent, and every value that is not a signed token fails verification the same way
+src/features/auth.ts::parseCsrfBody~091hnp4  ?? → || audited:0szx1ok # err is a Response object or null, and objects are always truthy
+src/features/auth.ts::parseCsrfBody.err~0z5gl2h ??→||  audited:0szx1ok   # FormData.get gives back a string, a File, or null; a File is truthy so both operators keep it, and the only falsy string is the empty fallback itself
+src/features/auth.ts::parseCsrfBody.err~0z5gl2h →"mutated"  audited:0szx1ok   # the fallback is only reached when the field is absent, and every value that is not a signed token fails verification the same way
+src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → || audited:0szx1ok # err is a Response object or null, and objects are always truthy
 src/features/admin/users.ts::toDisplayUser.inviteExpired~1fwmcbe  false → true audited:0pbb6y8 # the flag has one reader, userStatus, which answers "Active" from the activated flag before it looks at this one, so the value it takes for an activated user is never read
 src/features/admin/users.ts::userRecord.activityName~0yj4u4w  User → "" audited:0pbb6y8 # activityName is read only by recordPages' createPost, editPost and deletePost and the record's create, update and remove commands they call; users.ts overrides createPost and deletePost, never binds editPost, and its own delete logs through confirmDeleteWithLog with a literal "User"
 src/features/admin/entity-write-tab.ts::defineEditEntityPage.extraTabs~1333wen  ?? → || audited:0rwzerr # configuredExtraTabs is an array of tab definitions or undefined, and an array is always truthy, so || keeps exactly what ?? keeps
 src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → || audited:017u8kr # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself
-src/features/admin/route-tables.ts::idParamOf.name~0rg3o3r   → "mutated" audited:0aoff5w # the stand-in name for a path with no "/:" is only ever fed to the guard below, which throws for every name that is not "id" and does not end with "Id", and the message it throws names the pattern rather than the name
+src/features/admin/route-tables.ts::idParamOf.name~0rg3o3r   → "mutated" audited:1wg5gnj # the stand-in name for a path with no "/:" is only ever fed to the guard below, which throws for every name that is not "id" and does not end with "Id", and the message it throws names the pattern rather than the name
 
 # Route ordering (router.ts) — two array fallbacks, and a replacement string
 # whose length cancels out of the only comparison that reads it.
