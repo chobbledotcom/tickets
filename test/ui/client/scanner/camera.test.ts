@@ -7,7 +7,7 @@
  * The camera half of the scanner bundle: starting the camera from its
  * button, the frame loop's pacing (loading guard, cooldown, one scan at a
  * time), what a decoded ticket does, and the camera's release when the page
- * hides. The confirm and answer flows live in `scanner/answers.test.ts`.
+ * hides. The confirm and answer flows live in `scanner-admit/answers.test.ts`.
  */
 
 import { assert, assertStringIncludes } from "@std/assert";
@@ -84,7 +84,7 @@ describe("scanner camera", {
     expect(fakes.cameraCalls).toEqual([
       [{ video: { facingMode: "environment" } }],
     ]);
-    expect(h.video.srcObject).toBeTruthy();
+    expect(h.video.srcObject).toEqual({ getTracks: expect.any(Function) });
     expect(fakes.played).toBe(1);
     assertStringIncludes(el(h.document, "scanner-start").className, "hidden");
     assert(!h.video.className.includes("hidden"));

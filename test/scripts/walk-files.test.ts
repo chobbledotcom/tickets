@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  collectScriptFiles,
-  collectSourceFiles,
-  directoryEntries,
-} from "#scripts/walk-files.ts";
+import { collectSourceFiles, directoryEntries } from "#scripts/walk-files.ts";
 
 /** A small tree on disk, removed when the test ends. */
 const inTempTree = async (
@@ -37,27 +33,12 @@ const TREE = [
 ];
 
 describe("collectSourceFiles", () => {
-  test("takes the TypeScript files, at any depth, in order", async () => {
+  test("takes the TypeScript files, at any depth, in order, and no JavaScript", async () => {
     await inTempTree(TREE, async (root) => {
       expect(below(root, await collectSourceFiles(root))).toEqual([
         "a.ts",
         "b.tsx",
         "nested/g.ts",
-      ]);
-    });
-  });
-});
-
-describe("collectScriptFiles", () => {
-  test("takes the JavaScript files too, and nothing that is not code", async () => {
-    await inTempTree(TREE, async (root) => {
-      expect(below(root, await collectScriptFiles(root))).toEqual([
-        "a.ts",
-        "b.tsx",
-        "c.js",
-        "d.mjs",
-        "nested/g.ts",
-        "nested/h.js",
       ]);
     });
   });
