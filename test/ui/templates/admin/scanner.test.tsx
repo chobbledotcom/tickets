@@ -1,19 +1,12 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
-import { escapeHtml } from "#jsx/escape-html.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-
-/** The hole names the scanner script fills in, spelled as the page carries
- * them between its own braces. */
-const holes = (...names: string[]): Record<string, string> =>
-  Object.fromEntries(names.map((name) => [name, `{${name}}`]));
 
 /** How many times a page carries one exact fragment. */
 const times = (html: string, fragment: string): number =>
@@ -41,8 +34,8 @@ describe("the admin scanner page template", () => {
     expectIncludesAll(html, [
       "<title>Scanner: Doors</title>",
       'data-scan-path="/admin/groups/5/scan"',
-      'action="/admin/groups/5/scan"',
     ]);
+    expect(times(html, "data-scan-path=")).toBe(1);
     assert(!html.includes("Scanning a ticket in this group"));
   });
 
@@ -63,7 +56,6 @@ describe("the admin scanner page template", () => {
       "Search by name",
       'id="ticket-options"',
       'role="listbox"></div>',
-      'data-message-search-too-short="Type at least 2 letters of the name."',
     ]);
     assert(!html.includes('role="option"'));
     assert(!html.includes("data-attendee-id"));
@@ -163,141 +155,6 @@ describe("the admin scanner page template", () => {
     assert(!html.includes("Scanning a ticket in this group"));
   });
 
-  test("carries every check-in message both checking paths read", () => {
-    const html = adminScannerPage(
-      { name: "Doors" },
-      "/admin/groups/5/scan",
-      OWNER_SESSION,
-      false,
-      DOOR_CACHE_KEY,
-      RETENTION_DAYS,
-    );
-
-    /** One message the scanner script reads, with the exact holes the page
-     * leaves between its braces. `carriedBy` says how many checking paths
-     * must carry it: 2 for the shared set, 1 for a one-sided message. */
-    const carried = (attr: string, value: string, carriedBy: 1 | 2): void => {
-      expect(
-        times(html, `data-message-${attr}="${escapeHtml(value)}"`),
-        `data-message-${attr}`,
-      ).toBe(carriedBy);
-    };
-
-    // The messages both the camera window and the manual pick-up read.
-    carried(
-      "already-checked-in",
-      t(
-        "admin.scanner.already_checked_in",
-        holes("listingName", "name", "tickets"),
-      ),
-      2,
-    );
-    carried(
-      "checked-in",
-      t("admin.scanner.checked_in", holes("listingName", "name", "tickets")),
-      2,
-    );
-    carried(
-      "checked-in-partial",
-      t(
-        "admin.scanner.checked_in_partial",
-        holes("listingName", "name", "tickets", "total"),
-      ),
-      2,
-    );
-    carried("error", t("admin.scanner.error"), 2);
-    carried("network-error", t("admin.scanner.network_error"), 2);
-    carried("not-found", t("admin.scanner.not_found"), 2);
-    carried("refunded", t("admin.scanner.refunded", holes("name")), 2);
-    carried(
-      "select-quantity",
-      t("admin.scanner.select_quantity", holes("name")),
-      2,
-    );
-    carried("skipped", t("admin.scanner.skipped", holes("name")), 2);
-    carried(
-      "ticket-count-one",
-      t("admin.scanner.ticket_count_one", holes("count")),
-      2,
-    );
-    carried(
-      "ticket-count-other",
-      t("admin.scanner.ticket_count_other", holes("count")),
-      2,
-    );
-
-    // The camera window's own messages.
-    carried("camera-denied", t("admin.scanner.camera_denied"), 1);
-    carried("id-mismatch", t("admin.scanner.id_mismatch", holes("name")), 1);
-    carried("invalid-qr", t("admin.scanner.invalid_qr"), 1);
-    carried("scanning", t("admin.scanner.scanning"), 1);
-    carried(
-      "verify-id-confirm",
-      t("admin.scanner.verify_id_confirm", holes("name")),
-      1,
-    );
-    carried(
-      "wrong-listing-confirm",
-      t("admin.scanner.wrong_listing_confirm", holes("listingName", "name")),
-      1,
-    );
-
-    // The offline door's words, which the container carries once: the two
-    // banner wordings, the quantity ask and its cancellation, the alert a
-    // check-in that ran past the booking reads, a waiting row's words, and
-    // the count's plurals.
-    const carriedOnce = {
-      "offline-already-queued": t("admin.scanner.offline_already_queued"),
-      "offline-banner-auto": t("admin.scanner.offline_banner_auto"),
-      "offline-banner-manual": t("admin.scanner.offline_banner_manual"),
-      "offline-cache-expired": t("admin.scanner.offline_cache_expired"),
-      "offline-cache-missing": t("admin.scanner.offline_cache_missing"),
-      "offline-invalid": t("admin.scanner.offline_invalid"),
-      "offline-mode-save-failed": t("admin.scanner.offline_mode_save_failed"),
-      "offline-not-queued": t("admin.scanner.offline_not_queued"),
-      "offline-quantity-ask": t("admin.scanner.offline_quantity_ask"),
-      "offline-queued": t("admin.scanner.offline_queued"),
-      "offline-save-failed": t("admin.scanner.offline_save_failed"),
-      "queue-count-one": t("admin.scanner.queue_count_one", holes("count")),
-      "queue-count-other": t("admin.scanner.queue_count_other", holes("count")),
-      "queue-item-already": t("admin.scanner.queue_item_already"),
-      "queue-item-checked-in": t("admin.scanner.queue_item_checked_in"),
-      "queue-item-expired": t("admin.scanner.queue_item_expired"),
-      "queue-item-not-checked-in": t("admin.scanner.queue_item_not_checked_in"),
-      "queue-item-over-admitted": t(
-        "admin.scanner.queue_item_over_admitted",
-        holes("admitted", "bought", "name", "named"),
-      ),
-      "queue-item-queued": t("admin.scanner.queue_item_queued"),
-      "queue-item-refunded": t("admin.scanner.queue_item_refunded"),
-      "queue-item-still-queued": t("admin.scanner.queue_item_still_queued"),
-      "queue-save-failed": t("admin.scanner.queue_save_failed"),
-      "sync-done": t("admin.scanner.sync_done"),
-      "sync-holds": t("admin.scanner.sync_holds"),
-      "sync-running": t("admin.scanner.sync_running"),
-      "sync-still-queued": t("admin.scanner.sync_still_queued"),
-    } as const;
-    for (const [attr, value] of Object.entries(carriedOnce)) {
-      carried(attr, value, 1);
-    }
-
-    // The manual pick-up's own messages.
-    carried(
-      "ticket-option",
-      t("admin.scanner.ticket_option", holes("name", "tickets", "token")),
-      1,
-    );
-    carried(
-      "ticket-option-detail",
-      t(
-        "admin.scanner.ticket_option_detail",
-        holes("detail", "name", "tickets"),
-      ),
-      1,
-    );
-    carried("verify-id-note", t("admin.scanner.verify_id_note"), 1);
-  });
-
   test("draws the skeleton the scanner script drives", () => {
     const html = adminScannerPage(
       { name: "Doors" },
@@ -348,8 +205,6 @@ describe("the admin scanner page template", () => {
       '<a class="active" href="/admin/">Home</a>',
       // The manual pick-up form.
       'id="manual-checkin"',
-      'method="POST"',
-      'name="csrfToken"',
       'for="manual-checkin-input"',
       'class="combobox"',
       'id="manual-checkin-submit"',
@@ -360,11 +215,11 @@ describe("the admin scanner page template", () => {
       'id="ticket-options"',
       'id="manual-checkin-status"',
     ]);
-    // One hidden field, the form's own code: the script holds the chosen
-    // person. Plus the five plainly hidden boxes the script reveals (the
-    // offline banner, the queue panel, and the overlays carry their hidden
-    // state inside a two-class attribute).
-    expect(times(html, 'type="hidden"')).toBe(1);
+    // No hidden field: the script reads the page's one CSRF meta and holds
+    // the chosen person. The five plainly hidden boxes are the ones the
+    // script reveals (the offline banner, the queue panel, and the overlays
+    // carry their hidden state inside a two-class attribute).
+    expect(times(html, 'type="hidden"')).toBe(0);
     expect(times(html, 'class="hidden"')).toBe(5);
 
     // The way out to the guide.

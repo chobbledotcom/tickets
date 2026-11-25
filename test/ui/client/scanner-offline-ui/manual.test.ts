@@ -19,7 +19,6 @@ import {
   el,
   MODE_KEY,
   SCAN_PATH,
-  SCANNER_PAGE,
   TOKEN,
   useScannerSuite,
 } from "#test/ui/client/scanner/fixture.ts";
@@ -28,31 +27,6 @@ import {
   expectOneStoredCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-
-/** The manual check-in form the scanner page renders below the camera. */
-const MANUAL_FORM = `
-  <form
-    data-manual-checkin
-    data-message-check-in-button="Check In"
-    data-message-search-button="Search"
-    data-message-search-failed="The search did not work. Check your connection, then try again."
-    data-message-search-none="Nobody at this door matches that name."
-    data-message-search-too-short="Type at least 2 letters of the name."
-    data-message-ticket-count-one="{count} ticket"
-    data-message-ticket-count-other="{count} tickets"
-    data-message-ticket-option="{name} ({tickets})"
-    data-message-ticket-option-detail="{name} ({tickets}) — {detail}"
-    data-scan-path="${SCAN_PATH}"
-    id="manual-checkin"
-    method="POST"
-  >
-    <input name="csrfToken" type="hidden" value="csrf-page-token" />
-    <input id="manual-checkin-input" role="combobox" type="text" />
-    <div class="combobox-list hidden" id="ticket-options" role="listbox"></div>
-    <div class="hidden" id="manual-checkin-status"></div>
-    <button id="manual-checkin-submit" type="submit"><span>Search</span></button>
-  </form>
-`;
 
 /** The manual form's name box, checked to be the input the page renders. */
 const nameBox = (h: ReturnType<ReturnType<typeof useScannerSuite>>) => {
@@ -81,7 +55,7 @@ describe("scanner manual check-in while offline mode is on", {
   sanitizeOps: false,
   sanitizeResources: false,
 }, () => {
-  const fresh = useScannerSuite(SCANNER_PAGE + MANUAL_FORM);
+  const fresh = useScannerSuite();
 
   test("finds a person in the saved list and queues the pick", async () => {
     using fetchStub = stubFetch(new Error("offline"));
