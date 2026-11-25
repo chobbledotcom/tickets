@@ -424,8 +424,8 @@ export const attendeeTables = declaredTables([
     // is keyed by the HMAC of the token. The data key is wrapped with the
     // token, so a database dump cannot open any row. The payments clock prunes
     // the row, which keeps it past every provider retry and replay. A Square
-    // row also names its checkout by the HMAC of the session id, and waits for
-    // that checkout's handle row to be gone: Square does not end its own link.
+    // row also names its checkout by the HMAC of the session id. Square does
+    // not end its own link, so the row waits for that handle row to be gone.
     "checkout_bundles",
     /* jscpd:ignore-start -- static data, not code */
     {

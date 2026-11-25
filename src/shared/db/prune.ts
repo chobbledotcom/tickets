@@ -143,8 +143,8 @@ const pruneStatements = (): PruneStatement[] => [
   ),
   // A sealed order outlives every provider retry and replay, because the
   // payments clock is never shorter than the retry window. A Square order
-  // also waits for its link to end, on the same two terms as the answers: its
-  // handle row must be gone, or Square's own page lifetime must have passed.
+  // also waits for its link to end, on the same terms as the answers. Its
+  // handle row must be gone, or Square's own page lifetime must be over.
   boundedDelete(
     "checkout_bundles",
     sql`created_at < ${isoBefore(PRUNE_PAYMENTS_RETENTION_MS)}
