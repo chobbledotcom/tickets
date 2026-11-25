@@ -22,7 +22,7 @@ describe("denoCliDeps", () => {
     expect(await Deno.readTextFile(`${dir.path}/out.txt`)).toBe("kept");
   });
 
-  test("selects exactly authored scripts from a mixed isolated tree", async () => {
+  test("selects exactly authored TypeScript from a mixed isolated tree", async () => {
     using dir = tempDir();
     const names = [
       "entry.ts",
@@ -45,16 +45,9 @@ describe("denoCliDeps", () => {
       await Deno.writeTextFile(path, "");
     }
     expect(await denoCliDeps().listFiles(dir.path)).toEqual(
-      [
-        "component.jsx",
-        "entry.ts",
-        "legacy.cjs",
-        "nested/client.js",
-        "nested/module.mjs",
-        "types.mts",
-        "view.tsx",
-        "worker.cts",
-      ].map((name) => join(dir.path, name)),
+      ["entry.ts", "types.mts", "view.tsx", "worker.cts"].map((name) =>
+        join(dir.path, name),
+      ),
     );
   });
 

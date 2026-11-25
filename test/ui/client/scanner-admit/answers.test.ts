@@ -16,7 +16,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { HTMLSelectElement as HappyHTMLSelectElement } from "happy-dom";
 import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   el,
   forcedNoDoorScan,
@@ -25,7 +24,8 @@ import {
   useScannerSuite,
   whenMessageShows,
   whenTextShows,
-} from "./fixture.ts";
+} from "#test/ui/client/scanner/fixture.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 /** A forced scan waiting at its override prompt: the helper serves the
  * given answers one per POST, starts the scan, and hands back the running

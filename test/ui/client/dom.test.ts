@@ -5,8 +5,10 @@ import {
   createButton,
   csrfTokenFor,
   forEachMatch,
+  postJson,
   requiredChild,
 } from "#src/ui/client/dom.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
 
 describe("client dom helpers", () => {
@@ -19,6 +21,23 @@ describe("client dom helpers", () => {
     expect(button.tagName).toBe("BUTTON");
     expect(button.type).toBe("button");
     expect(button.className).toBe("cart-add");
+  });
+
+  test("postJson posts the body with the CSRF header and reads the JSON answer", async () => {
+    using _fetch = stubFetch((url, init) => {
+      expect(url).toBe("/admin/scan");
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toEqual({
+        "content-type": "application/json",
+        "x-csrf-token": "csrf-token",
+      });
+      expect(JSON.parse(String(init?.body))).toEqual({ token: "abc" });
+      return Response.json({ status: "checked_in" });
+    });
+
+    expect(
+      await postJson("/admin/scan", "csrf-token", { token: "abc" }),
+    ).toEqual({ status: "checked_in" });
   });
 
   test("requiredChild answers the one element the selector names", () => {

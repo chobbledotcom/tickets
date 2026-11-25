@@ -33,7 +33,7 @@ const isSharedSpecCode = inProjectFolders([
  *  under `test/`, so the repo's own tooling can be mutation-tested too. */
 const testPrefix = (sourceFile: string): string => {
   const withoutExtension = relativeToProject(sourceFile).replace(
-    /\.(?:js|ts|tsx)$/,
+    /\.(?:ts|tsx)$/,
     "",
   );
   return withoutExtension.startsWith("src/")
