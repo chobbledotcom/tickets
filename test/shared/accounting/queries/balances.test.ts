@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   accountBalance,
-  accountBalancesForIds,
   transfersByAccount,
   transfersByAccounts,
 } from "#accounting/queries.ts";
@@ -31,27 +30,6 @@ describe("db > accounting > balance queries", () => {
     expect(await accountBalance(revenue)).toBe(5000);
     expect(await accountBalance(attendee)).toBe(-3000); // still owes 3000
     expect(await accountBalance(account("revenue", 404))).toBe(0);
-  });
-
-  test("accountBalancesForIds scopes to given ids; empty is a no-op", async () => {
-    await postTransfers([
-      tx({
-        amount: 1000,
-        destination: account("revenue", 1),
-        reference: "r1",
-        source: account("attendee", 1),
-      }),
-      tx({
-        amount: 3000,
-        destination: account("revenue", 2),
-        reference: "r2",
-        source: account("attendee", 2),
-      }),
-    ]);
-    const scoped = await accountBalancesForIds("revenue", ["1"]);
-    expect(scoped.get("1")).toBe(1000);
-    expect(scoped.has("2")).toBe(false);
-    expect((await accountBalancesForIds("revenue", [])).size).toBe(0);
   });
 
   test("SQL balance agrees with the in-memory projection", async () => {

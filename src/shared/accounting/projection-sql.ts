@@ -19,9 +19,9 @@ import {
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
 import {
+  among,
   amongConstants,
   and,
-  type Condition,
   type Counted,
   type Expr,
   equal,
@@ -31,14 +31,13 @@ import {
   type Operand,
   or,
   orZero,
-  sum,
   valued,
   when,
 } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
-import { sql } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 
 /** One row of the ledger, as a test or a figure reads it. */
@@ -56,17 +55,38 @@ export const ledgerLegs = () => from(tables.transfers).as("leg");
 export type AccountId = Expr<number | string | null> | string;
 
 /** The side of a ledger row that an account sits on. */
-type Role = "source" | "dest";
+export type Role = "source" | "dest";
 
 /** Ledger ids are TEXT, so an integer column is CAST to match. */
 const asText = (id: AccountId): Expr<string> =>
   valued(sql`CAST(${id} AS TEXT)`);
 
-/** The row has this account type and this account id on its `role` side. */
-export const onSide =
-  (role: Role, type: Operand<string>, id: Operand<string>): LegTest =>
+/** The row has an account of `type` on its `role` side, and its id passes
+ *  `idTest`. */
+const onSideWhere =
+  (
+    role: Role,
+    type: Operand<string>,
+    idTest: (id: Expr<string>) => Expr<boolean>,
+  ): LegTest =>
   (leg) =>
-    and(equal(leg[`${role}Type`], type), equal(leg[`${role}Id`], id));
+    and(equal(leg[`${role}Type`], type), idTest(leg[`${role}Id`]));
+
+/** The row has this account type and this account id on its `role` side. */
+export const onSide = (
+  role: Role,
+  type: Operand<string>,
+  id: Operand<string>,
+): LegTest => onSideWhere(role, type, (column) => equal(column, id));
+
+/** The row has an account of `type` with one of `ids` on its `role` side. The
+ *  type and the ids are bound, so a caller can pass an account from a
+ *  request. */
+export const sideAmong = (
+  role: Role,
+  type: Operand<string>,
+  ids: readonly string[],
+): LegTest => onSideWhere(role, type, (column) => among(column, ids));
 
 /** The row has the account on its `role` side. The type is a constant of the
  *  code, written into the SQL text. */
@@ -84,13 +104,13 @@ const inEventGroup =
     equal(leg.eventGroup, eventGroup);
 
 /** The row passes every test. */
-const every =
+export const every =
   (...tests: readonly LegTest[]): LegTest =>
   (leg) =>
     and(...tests.map((test) => test(leg)));
 
 /** The row passes some test. */
-const some =
+export const some =
   (...tests: readonly LegTest[]): LegTest =>
   (leg) =>
     or(...tests.map((test) => test(leg)));
@@ -146,37 +166,137 @@ export const paymentLegExists = (
     )
     .exists();
 
+/** A value of one row with the sign of the ledger: `adds` adds, and
+ * `subtracts` subtracts. */
+type Signed<Value> = (
+  adds: LegTest,
+  subtracts: LegTest,
+) => (leg: Leg) => Expr<Value>;
+
 /**
  * The signed sum every net-balance read shares. Amounts on rows that pass
  * `adds` add, and amounts on rows that pass `subtracts` subtract. The sum is
  * zero when no row passes. The one home for the sign convention of the ledger
  * in SQL, so no two balance reads can disagree on which side credits.
  */
-export const signedSum =
-  (adds: LegTest, subtracts: LegTest) =>
-  (leg: Leg): Expr<Counted> =>
-    orZero(
-      sum(
-        when<number>(
-          [
-            [adds(leg), leg.amount],
-            [subtracts(leg), valued<number>(sql`-${leg.amount}`)],
-          ],
-          literal(0),
-        ),
-      ),
-    );
+export const signedSum: Signed<Counted> = (adds, subtracts) => (leg) =>
+  foldOf(net(adds, subtracts), leg, true);
 
-/** A figure of its own: the rows that add, less the rows that subtract. It
- * reads only those rows, so an index backs it. `scope` narrows the rows. */
-const signedLegSum = (
+/** The amount of one row with the sign of {@link signedSum}. */
+const signedAmount: Signed<number> = (adds, subtracts) => (leg) =>
+  when<number>(
+    [
+      [adds(leg), leg.amount],
+      [subtracts(leg), valued<number>(sql`-${leg.amount}`)],
+    ],
+    literal(0),
+  );
+
+/** How a measure folds its rows into one value, and what the value reads as.
+ * `largest` finds no value when no row passes. */
+type FoldedValue = { count: Counted; largest: number | null; sum: Counted };
+type Fold = keyof FoldedValue;
+
+/** One figure over the ledger: the rows that it reads, the value of each row,
+ * and how the values fold into one. A read of several measures makes one pass
+ * over the rows that any of them reads, and each measure folds only its own. */
+export type Measure<Folds extends Fold = Fold> = {
+  readonly fold: Folds;
+  readonly rows: LegTest;
+  readonly value: (leg: Leg) => Expr<number>;
+};
+
+/** The rows that add, less the rows that subtract. Zero with no row. The
+ * measure reads `rows`, by default the rows that add or subtract. A row that
+ * does neither counts zero. */
+export const net = (
   adds: LegTest,
   subtracts: LegTest,
-  scope: (leg: Leg) => Condition = () => true,
-): Expr<Counted> =>
+  rows: LegTest = some(adds, subtracts),
+): Measure<"sum"> => ({
+  fold: "sum",
+  rows,
+  value: signedAmount(adds, subtracts),
+});
+
+/** How many rows pass `rows`. */
+export const countOf = (rows: LegTest): Measure<"count"> => ({
+  fold: "count",
+  rows,
+  value: () => literal(1),
+});
+
+/** The largest `value` among the rows that pass `rows`, or null with no row. */
+export const largestOf = (
+  rows: LegTest,
+  value: (leg: Leg) => Expr<number>,
+): Measure<"largest"> => ({ fold: "largest", rows, value });
+
+const FOLDS: Record<
+  Fold,
+  (value: Expr<number>, only: SqlStatement) => Expr<Counted | null>
+> = {
+  count: (_value, only) => valued(sql`COUNT(*)${only}`),
+  largest: (value, only) => valued(sql`MAX(${value})${only}`),
+  sum: (value, only) => orZero(valued(sql`SUM(${value})${only}`)),
+};
+
+/** The folded value of `measure` over a read of `leg`. With `alone`, the read
+ * keeps only the rows of the measure. Otherwise the fold filters them. */
+export const foldOf = <Folds extends Fold>(
+  measure: Measure<Folds>,
+  leg: Leg,
+  alone: boolean,
+): Expr<FoldedValue[Folds]> =>
+  FOLDS[measure.fold](
+    measure.value(leg),
+    alone ? sql`` : sql` FILTER (WHERE ${measure.rows(leg)})`,
+  ) as Expr<FoldedValue[Folds]>;
+
+/** One measure as a value of another statement. The read keeps only the rows
+ * of the measure, so an index backs it. */
+export const measureOf = <Folds extends Fold>(
+  measure: Measure<Folds>,
+): Expr<FoldedValue[Folds]> =>
   ledgerLegs()
-    .where((leg) => [scope(leg), some(adds, subtracts)(leg)])
-    .aggregate(signedSum(adds, subtracts));
+    .where(measure.rows)
+    .aggregate((leg) => foldOf(measure, leg, true));
+
+/** Which accounts a figure covers, as a test of each side of a row. */
+export type Accounts = (role: Role) => LegTest;
+
+/** One account. */
+export const oneAccount =
+  (type: string, id: AccountId): Accounts =>
+  (role) =>
+    onAccount(role, type, id);
+
+/** The accounts of `type` with one of `ids`. */
+export const accountsAmong =
+  (type: Operand<string>, ids: readonly string[]): Accounts =>
+  (role) =>
+    sideAmong(role, type, ids);
+
+/** The row has one of the accounts on either side. */
+export const touching = (accounts: Accounts): LegTest =>
+  some(accounts("dest"), accounts("source"));
+
+/** Money in as the destination, less money out as the source. */
+export const balanceIn = (accounts: Accounts): Measure<"sum"> =>
+  net(accounts("dest"), accounts("source"));
+
+/** The row has the outside world on its `role` side. */
+const onWorld = (role: Role): LegTest =>
+  onSide(role, literal(WORLD.type), literal(WORLD.id));
+
+/** A payment: money from the outside world into one of the accounts. */
+export const paidIn = (accounts: Accounts): LegTest =>
+  every(accounts("dest"), onWorld("source"));
+
+/** Net cash from the outside world: payments in, less refunds back out. Other
+ * ledger legs do not represent cash. */
+export const externalCashOf = (accounts: Accounts): Measure<"sum"> =>
+  net(paidIn(accounts), every(accounts("source"), onWorld("dest")));
 
 /** One booking's recognised ticket price, including signed tax corrections. */
 export const bookingSaleTotalSubquery: OfBooking<Expr<Counted>> = (
@@ -198,9 +318,13 @@ export const bookingSaleTotalSubquery: OfBooking<Expr<Counted>> = (
       inQuery(leg.eventGroup, correctedGroups),
       some(credit, debit)(leg),
     );
-  return ledgerLegs()
-    .where(some(saleLeg(attendeeId, listingId, eventGroup), correction))
-    .aggregate(signedSum(credit, debit));
+  return measureOf(
+    net(
+      credit,
+      debit,
+      some(saleLeg(attendeeId, listingId, eventGroup), correction),
+    ),
+  );
 };
 
 /** Recognised income includes signed tax reclassifications and write-offs.
@@ -224,7 +348,7 @@ export const creditsLessWriteoffDebits: OfAccount<Expr<Counted>> = (
         amongConstants(leg.kind, [KIND.taxSale, KIND.taxModifier]),
       ),
     );
-  return signedLegSum(credited, writtenOff);
+  return measureOf(net(credited, writtenOff));
 };
 
 /** A booking order's `modifier` legs, as tests and values over one ledger
@@ -250,34 +374,29 @@ export const modifierLeg = {
  * the account's own legs, so an index backs it.
  */
 export const accountBalanceSubquery: OfAccount<Expr<Counted>> = (type, id) =>
-  signedLegSum(onAccount("dest", type, id), onAccount("source", type, id));
+  measureOf(balanceIn(oneAccount(type, id)));
 
-/** The row has the outside world on its `role` side. */
-const onWorld = (role: Role): LegTest =>
-  onSide(role, literal(WORLD.type), literal(WORLD.id));
-
-/** Net cash received from the outside world by one account. Payments into the
- * account add. Refunds and reversals back to the world subtract. Other ledger
- * legs do not represent cash and are ignored. */
+/** Net cash received from the outside world by one account. */
 export const externalCashBalanceSubquery: OfAccount<Expr<Counted>> = (
   type,
   id,
-) =>
-  signedLegSum(
-    every(onAccount("dest", type, id), onWorld("source")),
-    every(onAccount("source", type, id), onWorld("dest")),
-  );
+) => measureOf(externalCashOf(oneAccount(type, id)));
 
 const billedTotalSubquery = (
   kinds: readonly string[],
   type: string,
   id: AccountId,
-): Expr<Counted> =>
-  signedLegSum(
-    onAccount("source", type, id),
-    onAccount("dest", type, id),
-    (leg) => amongConstants(leg.kind, kinds),
+): Expr<Counted> => {
+  const billed = onAccount("source", type, id);
+  const credited = onAccount("dest", type, id);
+  return measureOf(
+    net(
+      billed,
+      credited,
+      every((leg) => amongConstants(leg.kind, kinds), some(billed, credited)),
+    ),
   );
+};
 
 /** The kinds that bill the customer for the booking itself, in the order the
  * subtotal reads them. Booking fees and later manual charges extend it. */

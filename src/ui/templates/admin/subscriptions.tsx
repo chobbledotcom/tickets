@@ -1,14 +1,18 @@
 /** The Subscriptions page: every booking that started a Stripe subscription. */
 
+import { ATTENDEE } from "#accounting/accounts.ts";
+import type { PaymentSummary } from "#accounting/attendee-payments.ts";
 import { t } from "#i18n";
 import { isCancellable } from "#payment/subscription-machine-spec.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import {
+  type AdminDestinationId,
   adminDestinationAllowed,
   adminPath,
   adminRecordPath,
 } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import {
@@ -34,6 +38,7 @@ export type SubscriberRow = {
   bookingId: number;
   interval: RecurringInterval;
   name: string;
+  payments: PaymentSummary;
   price: number;
   status: SubscriptionStatus;
   stripeId: string;
@@ -76,9 +81,38 @@ const subscriberTable = defineTable<SubscriberRow>([
   ),
 ]);
 
+/** What each subscriber paid. Only an owner sees money from the ledger, so the
+ * count links to the subscriber's ledger statement. */
+const paymentTable = defineTable<SubscriberRow>([
+  translatedTableColumn(
+    "payments",
+    "subscriptions.column.payments",
+    linkCell(
+      (row) =>
+        adminPath("ledgerAccount", {
+          ref: String(row.attendeeId),
+          type: ATTENDEE,
+        }),
+      (row) => String(row.payments.count),
+    ),
+  ),
+  translatedTableColumn(
+    "total_paid",
+    "subscriptions.column.total_paid",
+    (row) => formatCurrency(row.payments.total),
+  ),
+  translatedTableColumn(
+    "last_payment",
+    "subscriptions.column.last_payment",
+    ({ payments: { lastPaidAt } }) =>
+      lastPaidAt === null
+        ? t("subscriptions.no_payment")
+        : formatDatetimeShort(lastPaidAt),
+  ),
+]);
+
 /** A subscription that ended has nothing left to cancel. */
 const cancelTable = defineTable<SubscriberRow>([
-  ...subscriberTable.columns,
   translatedTableColumn("cancel", "subscriptions.column.cancel", (row) =>
     isCancellable(row.status) ? (
       <InlineFormButton
@@ -101,16 +135,19 @@ export const adminSubscriptionsPage = ({
   session: AuthSession;
   subscribers: SubscriberRow[];
 }): string => {
-  const canCancel = adminDestinationAllowed(
-    "subscriptionCancel",
-    session.adminLevel,
-    isReadOnly(),
-  );
+  const allowed = (destination: AdminDestinationId) =>
+    adminDestinationAllowed(destination, session.adminLevel, isReadOnly());
+  const canCancel = allowed("subscriptionCancel");
+  const columns = [
+    ...subscriberTable.columns,
+    ...(allowed("ledgerAccount") ? paymentTable.columns : []),
+    ...(canCancel ? cancelTable.columns : []),
+  ];
   return renderAdminPageSpec({
     active: "/admin/subscriptions",
     flash,
     list: {
-      columns: (canCancel ? cancelTable : subscriberTable).columns,
+      columns,
       empty: t("subscriptions.empty"),
       intro: (
         <>

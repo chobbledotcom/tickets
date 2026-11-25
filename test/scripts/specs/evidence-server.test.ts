@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { defineLoopbackServer } from "#scripts/specs/evidence/server.ts";
+import { defineLoopbackServer } from "#scripts/loopback-server.ts";
 
 describe("Cucumber evidence loopback server", () => {
   test("serves requests on an ephemeral local TCP port and closes", async () => {
