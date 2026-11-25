@@ -28,6 +28,7 @@ import {
   loadScreenshotScenario,
   type ScreenshotScenario,
 } from "./screenshots/scenario.ts";
+import { setUpScreenshotAdmin, submitServedForm } from "./screenshots/setup.ts";
 import {
   applySocialTarget,
   type SocialTargetName,
@@ -35,8 +36,6 @@ import {
 import { addScreenshotStyle } from "./screenshots/style.ts";
 
 const ROOT = dirname(dirname(fromFileUrl(import.meta.url)));
-const USERNAME = "screenshots";
-const PASSWORD = "screenshots-password";
 const TIMEOUT_MS = 60_000;
 const launchScreenshotBrowser = defineScreenshotBrowserLauncher(
   chromium,
@@ -120,49 +119,17 @@ const SCENES: Record<ScreenshotName, Scene> = {
   users: { path: at("/admin/users") },
 };
 
-const submit = async (page: Page, formSelector: string): Promise<void> => {
-  const form = page.locator(formSelector);
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "domcontentloaded" }),
-    form.evaluate((element) =>
-      Reflect.apply(Reflect.get(element, "submit"), element, []),
-    ),
-  ]);
-};
-
-const setupAdmin = async (
-  page: Page,
-  baseUrl: string,
-  username = USERNAME,
-): Promise<void> => {
-  await page.goto(`${baseUrl}/setup/`);
-  await page.locator('[name="adminUsername"]').fill(username);
-  await page.locator('[name="adminPassword"]').fill(PASSWORD);
-  await page.locator('[name="adminPasswordConfirm"]').fill(PASSWORD);
-  await page.locator('[name="acceptAgreement"]').check();
-  await submit(page, 'form[action="/setup/"]');
-
-  await page.goto(`${baseUrl}/`);
-  await page.locator('[name="username"]').fill(username);
-  await page.locator('[name="password"]').fill(PASSWORD);
-  await submit(page, 'form[action="/admin/login"]');
-
-  await page.goto(`${baseUrl}/admin/settings`);
-  await page.locator('[name="businessEmail"]').fill("hello@example.com");
-  await submit(page, 'form[action="/admin/settings/business-email"]');
-};
-
 const setupApp = async (
   page: Page,
   server: ScreenshotAppServer,
 ): Promise<SceneContext> => {
   const { baseUrl } = server;
-  await setupAdmin(page, baseUrl);
+  await setUpScreenshotAdmin(page, baseUrl);
   await server.enableStripe();
   await page.goto(`${baseUrl}/admin/seeds`);
   await page.locator('[name="listingCount"]').fill("5");
   await page.locator('[name="attendeesPerListing"]').fill("8");
-  await submit(page, 'form[action="/admin/seeds"]');
+  await submitServedForm(page, 'form[action="/admin/seeds"]');
 
   await page.goto(`${baseUrl}/admin/`);
   const listingHref = await page
@@ -200,7 +167,7 @@ const applyTheme = async (
   await form
     .locator('[name="customCss"]')
     .fill(`${await cssFor(theme)}\n${extraCss}`, { force: true });
-  await submit(page, 'form[action="/admin/settings/custom-css"]');
+  await submitServedForm(page, 'form[action="/admin/settings/custom-css"]');
 };
 
 const captureAndWrite = async (
@@ -265,7 +232,7 @@ const captureScenario = async (
     scenario.elementSelector ? isolateElementCss(scenario.elementSelector) : ""
   }`;
   if (scenario.adminSetup !== false) {
-    await setupAdmin(page, baseUrl, scenario.setupUsername);
+    await setUpScreenshotAdmin(page, baseUrl, scenario.setupUsername);
     await server.enableStripe();
     await applyTheme(page, baseUrl, "default", captureCss);
   }
@@ -276,7 +243,7 @@ const captureScenario = async (
     },
     baseUrl,
     page,
-    submit: (formSelector) => submit(page, formSelector),
+    submit: (formSelector) => submitServedForm(page, formSelector),
   });
   if (scenario.adminSetup === false) {
     await addScreenshotStyle(page, captureCss);

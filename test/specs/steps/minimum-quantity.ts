@@ -3,6 +3,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
 import { t } from "#i18n";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
   adminBrowser,
   browserSeenBy,
@@ -151,6 +152,7 @@ const openTheBookingPage = async (
 ): Promise<void> => {
   await enablePublicSite();
   const listing = listingNamed(world, name);
+  leaveEvidencePage(world, ["public-booking-page"], `/ticket/${listing.slug}`);
   rememberBrowser(
     world,
     VISITOR,
