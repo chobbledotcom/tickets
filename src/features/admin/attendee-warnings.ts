@@ -42,6 +42,12 @@ export type AttendeeWarning =
 
 type WarningKind = AttendeeWarning["kind"];
 
+/** The warnings of each attendee in a list that has some. */
+export type WarningsByAttendee = ReadonlyMap<
+  number,
+  readonly AttendeeWarning[]
+>;
+
 /** What every kind reads from: the attendees, and their booking lines. */
 type WarningSubject = {
   attendeeIds: readonly number[];

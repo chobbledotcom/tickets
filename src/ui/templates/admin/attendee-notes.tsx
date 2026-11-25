@@ -193,36 +193,54 @@ export const addNoteLinkProse = (href: string): Promise<JSX.Element | null> =>
 
 /**
  * A red expandable shown above an attendee list when any listed attendee has
- * notes: each attendee (linked) and their notes, in order. Read-only — managing
- * a note happens from its attendee page. Renders nothing when there are none.
+ * an alert: each attendee (linked) and their alerts, in order. Read-only —
+ * each alert is handled from its attendee page. Renders nothing when no
+ * attendee has one.
  */
-export const AttendeeNotesSummary = ({
-  notes,
+export const AttendeeAlertsSummary = <Alert,>({
+  alerts,
   names,
-  isOwner,
-}: NotesViewProps & { names: Map<number, string> }): JSX.Element | null => {
-  if (notes.length === 0) return null;
-  const grouped = groupNotesByTargetId(notes);
-  return (
+  render,
+  summary,
+}: {
+  alerts: ReadonlyMap<number, readonly Alert[]>;
+  names: Map<number, string>;
+  render: (alert: Alert) => JSX.Element;
+  summary: (count: number) => string;
+}): JSX.Element | null =>
+  alerts.size === 0 ? null : (
     <details class="system-note-alert attendee-notes-summary">
-      <summary>{t("notes.summary", { count: grouped.size })}</summary>
-      {[...grouped].map(([attendeeId, attendeeNotes]) => (
+      <summary>{summary(alerts.size)}</summary>
+      {[...alerts].map(([attendeeId, attendeeAlerts]) => (
         <div class="attendee-notes-summary-group">
           <strong>
             <a href={attendeeUrl(attendeeId)}>
               {names.get(attendeeId) ?? `#${attendeeId}`}
             </a>
           </strong>
-          {attendeeNotes.map((note) => (
-            <div class="system-note">
-              <NoteBody isOwner={isOwner} note={note} />
-            </div>
-          ))}
+          {attendeeAlerts.map(render)}
         </div>
       ))}
     </details>
   );
-};
+
+/** The notes summary above an attendee list: {@link AttendeeAlertsSummary}
+ * over each listed attendee's notes. */
+export const AttendeeNotesSummary = ({
+  notes,
+  names,
+  isOwner,
+}: NotesViewProps & { names: Map<number, string> }): JSX.Element | null =>
+  AttendeeAlertsSummary({
+    alerts: groupNotesByTargetId(notes),
+    names,
+    render: (note: SystemNote) => (
+      <div class="system-note">
+        <NoteBody isOwner={isOwner} note={note} />
+      </div>
+    ),
+    summary: (count) => t("notes.summary", { count }),
+  });
 
 /** The operator add-note page. `noteAction` is the record kind's POST target
  * (for example `/admin/questions/7/note`), and `activeSection` the nav section

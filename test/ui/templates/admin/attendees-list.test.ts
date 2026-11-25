@@ -67,6 +67,7 @@ const buildProps = (
     ),
     state: buildState(),
     systemNotes: [],
+    warnings: new Map(),
     ...rest,
   };
 };

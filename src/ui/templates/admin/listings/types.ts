@@ -2,6 +2,7 @@ import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import type { PairBookings } from "#booking/ticket-moves.ts";
 import type { ListingAggregateRecalculation } from "#db/listings/aggregates.ts";
 import type { SystemNote } from "#db/notes/types.ts";
+import type { WarningsByAttendee } from "#routes/admin/attendee-warnings.ts";
 import type { AssignPageContext } from "#routes/admin/listings-switch.ts";
 import type { ListingPublicPageState } from "#routes/public/page-listings.ts";
 import type {
@@ -45,6 +46,7 @@ export type ListingPanelOptions = ListingPanelSharedOptions & {
   childNames?: string[] | undefined;
   paymentReferenceAttendeeIds?: ReadonlySet<number> | undefined;
   pairBookings: PairBookings;
+  warnings: WarningsByAttendee;
 };
 
 export type OverviewStats = {

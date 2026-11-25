@@ -1,6 +1,7 @@
 import { beforeAll } from "@std/testing/bdd";
 import type { PairBookings } from "#booking/ticket-moves.ts";
 import { fieldById } from "#fp";
+import type { WarningsByAttendee } from "#routes/admin/attendee-warnings.ts";
 import { rosterListSetup } from "#routes/admin/listings-view.ts";
 import type {
   AttendeeFilter,
@@ -39,9 +40,10 @@ export const withoutBuilder = withBuilderEnv(undefined);
  *  the shared list view (setup + state) from them. */
 type DetailOptions = Omit<
   Parameters<typeof ListingRosterPanel>[0],
-  "list" | "isOwner" | "pairBookings"
+  "list" | "isOwner" | "pairBookings" | "warnings"
 > & {
   pairBookings?: PairBookings;
+  warnings?: WarningsByAttendee;
   activeFilter?: AttendeeFilter;
   dateFilter?: string | null;
   sort?: AttendeeSort | null;
@@ -114,6 +116,7 @@ export const renderRosterPanel = (opts: DetailOptions): string =>
             listingId: opts.listing.id,
           })),
         ),
+      warnings: opts.warnings ?? new Map(),
     }),
   );
 

@@ -336,5 +336,6 @@
   "attendee_warnings.no_hidden_answers": "This booking has no hidden answers to delete.",
   "attendee_warnings.parent_without_child": "{parent} needs one of its child listings booked too ({children}). Add one on the Edit tab.",
   "attendee_warnings.plan_without_site": "{listings}: no site is assigned yet. Add or build sites on the Built Sites page, then send the notification again.",
+  "attendee_warnings.summary": "{count, plural, one {# attendee has warnings} other {# attendees have warnings}}",
   "attendee_warnings.tag": "Warning"
 }
