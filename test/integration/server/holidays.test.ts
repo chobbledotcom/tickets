@@ -9,12 +9,11 @@ import {
   expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-import { requireJoinCsrfToken } from "#test-utils/csrf.ts";
+import { extractInputValue, requireJoinCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestHoliday,
   deleteTestHoliday,
-  testHoliday,
   updateTestHoliday,
 } from "#test-utils/db-helpers/holidays.ts";
 import {
@@ -129,13 +128,33 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("shows create holiday form", async () => {
       const response = await adminGet("/admin/holidays/new");
       await expectHtmlResponse(
-        response,
+        response.clone(),
         200,
         "Add holiday",
         "Holiday name",
         "Start date",
         "End date",
       );
+      const html = await response.text();
+      for (const field of ["name", "startDate", "endDate"]) {
+        expect(extractInputValue(html, field)).toBeNull();
+      }
+    });
+  });
+
+  describe("GET /admin/holidays/:id", () => {
+    test("fills the edit form with the stored holiday", async () => {
+      const holiday = await createTestHoliday({
+        endDate: "2026-01-02",
+        name: "Test",
+        startDate: "2026-01-01",
+      });
+      const html = await (
+        await adminGet(`/admin/holidays/${holiday.id}`)
+      ).text();
+      expect(extractInputValue(html, "name")).toBe("Test");
+      expect(extractInputValue(html, "startDate")).toBe("2026-01-01");
+      expect(extractInputValue(html, "endDate")).toBe("2026-01-02");
     });
   });
 
@@ -283,33 +302,6 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       const active = await getActiveHolidays();
       expect(active.length).toBe(1);
       expect(active[0]!.name).toBe("Future Holiday");
-    });
-  });
-
-  describe("holidayToFieldValues", () => {
-    test("returns empty defaults when no holiday provided", async () => {
-      const { holidayToFieldValues } = await import(
-        "#templates/admin/holidays.tsx"
-      );
-      const values = holidayToFieldValues();
-      expect(values.name).toBe("");
-      expect(values.startDate).toBe("");
-      expect(values.endDate).toBe("");
-    });
-
-    test("returns holiday values when holiday provided", async () => {
-      const { holidayToFieldValues } = await import(
-        "#templates/admin/holidays.tsx"
-      );
-      const holiday = testHoliday({
-        endDate: "2026-01-02",
-        name: "Test",
-        startDate: "2026-01-01",
-      });
-      const values = holidayToFieldValues(holiday);
-      expect(values.name).toBe("Test");
-      expect(values.startDate).toBe("2026-01-01");
-      expect(values.endDate).toBe("2026-01-02");
     });
   });
 });
