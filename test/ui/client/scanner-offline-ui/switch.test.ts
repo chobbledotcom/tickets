@@ -32,6 +32,7 @@ import {
 import {
   askedUrls,
   elementOf,
+  expectCancelQueuesNothing,
   expectSwitchRefused,
   firstRow,
   postedDeliveryHashes,
@@ -190,6 +191,11 @@ describe("scanner offline switch and banner", {
   test("keeps the switch on and says so when the store refuses the change", async () => {
     using _fetch = stubFetch(new Error("offline"));
     await expectSwitchRefused(fresh({ onLine: false, ...switchArmed }));
+  });
+
+  test("queues nothing when the door cancels the quantity ask", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    await expectCancelQueuesNothing(fresh({ onLine: false }));
   });
 
   test("queues a ticket beside one the door already holds", async () => {

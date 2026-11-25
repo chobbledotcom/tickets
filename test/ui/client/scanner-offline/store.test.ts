@@ -36,6 +36,7 @@ import {
 } from "#test/ui/client/scanner/fixture.ts";
 import {
   digestOf,
+  expectSwitchRefused,
   postedDeliveryHashes,
   queuedItems,
   queueSummary,
@@ -205,6 +206,11 @@ describe("scanner offline store", {
 
     toggle.click();
     expect(h.window.localStorage.getItem("scanner-offline-mode")).toBeNull();
+  });
+
+  test("keeps the switch on and says so when the store refuses the change", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    await expectSwitchRefused(fresh({ onLine: false, ...switchArmed }));
   });
 
   const unreadable: readonly [string, Record<string, string>][] = [

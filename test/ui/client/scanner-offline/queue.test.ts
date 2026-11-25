@@ -27,7 +27,6 @@ import {
 import {
   askedUrls,
   digestOf,
-  expectCancelQueuesNothing,
   expectOfflineRefusal,
   expectOneStoredCheckIn,
   scanOffline,
@@ -89,11 +88,6 @@ describe("scanner offline queue", {
     expect(item.operationId).toEqual(expect.any(String));
     // No scan left the page: only the page load's cache refresh ran.
     expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
-  });
-
-  test("queues nothing when the door cancels the quantity ask", async () => {
-    using _fetch = stubFetch(new Error("offline"));
-    await expectCancelQueuesNothing(fresh({ onLine: false }));
   });
 
   test("sends an unknown ticket away with the offline wording", async () => {
