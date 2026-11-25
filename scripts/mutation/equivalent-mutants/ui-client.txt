@@ -61,7 +61,7 @@ src/ui/client/order.ts::init.enhance.raw~03ascww  ?? → || audited:189c89x # pr
 src/ui/client/order.ts::init.enhance.raw~03ascww   → "mutated" audited:189c89x # fallback is unreachable for the matching selector
 src/ui/client/order.ts::init.enhance.current~03ascww  ?? → || audited:189c89x # present strings are truthy or empty; both operators keep the same value
 src/ui/client/order.ts::init.enhance.current~03ascww   → "mutated" audited:189c89x # absent fallback values resolve to neither listing nor package
-src/shared/site-pages/core.ts::buildNavModel.levelOf~0agplud  ?? → || audited:1h9pfwp # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/shared/site-pages/core.ts::buildNavModel.levelOf~0agplud  ?? → || audited:1jv6ua1 # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
 
 # --- Rich markdown editor (src/ui/client/admin/markdown-editor*.ts) ------------
 # Browser DOM-construction code, same class of equivalents as order.ts above:

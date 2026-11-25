@@ -1,5 +1,4 @@
 {
-  "test/features/api/booking/basics.test.ts": 5,
   "test/features/api/booking/payments.test.ts": 5,
   "test/features/api/packages/booking/capacity.test.ts": 1,
   "test/features/auth/session.test.ts": 3,
