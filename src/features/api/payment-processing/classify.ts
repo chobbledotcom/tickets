@@ -15,7 +15,10 @@ import {
   missingOrderReturnPage,
 } from "#routes/api/payment-processing/missing-order.ts";
 import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
-import { sessionStanding } from "#routes/api/payment-processing/session-standing.ts";
+import {
+  receiptServes,
+  sessionStanding,
+} from "#routes/api/payment-processing/session-standing.ts";
 import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import type {
   SessionValidation,
@@ -178,7 +181,10 @@ export const classifySessionIntent = async (
     order.status === "read" && !order.receipt
       ? null
       : await sessionStanding(session.id);
-  if (order.status === "read" && standing?.kind !== "open") {
+  if (
+    order.status === "read" &&
+    (standing === null || receiptServes(standing))
+  ) {
     return { intent: order.intent, kind: "ready", verdict };
   }
   return {
