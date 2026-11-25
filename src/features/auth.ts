@@ -15,8 +15,8 @@ import {
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { type AuthChannel, authFailure } from "#routes/auth-failures.ts";
+import { lowerContentType } from "#routes/content-type-rules.ts";
 import { applyFlash, parseFormData } from "#routes/csrf.ts";
-import { lowerContentType } from "#routes/middleware.ts";
 import { readJsonBody } from "#routes/read-json-body.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { parseCookies } from "#routes/url.ts";

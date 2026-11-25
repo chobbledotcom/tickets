@@ -9,13 +9,7 @@
  * figure inside another statement hides no table of that statement.
  */
 
-import {
-  ATTENDEE,
-  MODIFIER,
-  REVENUE,
-  WORLD,
-  WRITEOFF_TYPE,
-} from "#accounting/accounts.ts";
+import { ATTENDEE, MODIFIER, REVENUE, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
 import {
@@ -27,7 +21,7 @@ import {
   equal,
   inQuery,
   literal,
-  not,
+  minus,
   type Operand,
   or,
   orZero,
@@ -93,7 +87,7 @@ export const sideAmong = (
 export const onAccount = (role: Role, type: string, id: AccountId): LegTest =>
   onSide(role, literal(type), asText(id));
 
-const ofKind =
+export const ofKind =
   (kind: string): LegTest =>
   (leg) =>
     equal(leg.kind, literal(kind));
@@ -184,13 +178,14 @@ export const signedSum: Signed<Counted> = (adds, subtracts) => (leg) =>
 
 /** The amount of one row with the sign of {@link signedSum}. */
 const signedAmount: Signed<number> = (adds, subtracts) => (leg) =>
-  when<number>(
-    [
-      [adds(leg), leg.amount],
-      [subtracts(leg), valued<number>(sql`-${leg.amount}`)],
-    ],
-    literal(0),
-  );
+  minus(amountWhen(adds)(leg), amountWhen(subtracts)(leg));
+
+/** The amount of a row that passes `test`, else zero. A row between two
+ * accounts of one set passes both sides of a figure, so it cancels. */
+const amountWhen =
+  (test: LegTest) =>
+  (leg: Leg): Expr<number> =>
+    when<number>([[test(leg), leg.amount]], literal(0));
 
 /** How a measure folds its rows into one value, and what the value reads as.
  * `largest` finds no value when no row passes. */
@@ -217,6 +212,13 @@ export const net = (
   fold: "sum",
   rows,
   value: signedAmount(adds, subtracts),
+});
+
+/** The amounts of the rows that pass `rows`, added up. Zero with no row. */
+export const amountOf = (rows: LegTest): Measure<"sum"> => ({
+  fold: "sum",
+  rows,
+  value: (leg) => leg.amount,
 });
 
 /** How many rows pass `rows`. */
@@ -277,6 +279,13 @@ export const accountsAmong =
   (role) =>
     sideAmong(role, type, ids);
 
+/** Every account of `type`. */
+export const everyAccountOf =
+  (type: string): Accounts =>
+  (role) =>
+  (leg) =>
+    equal(leg[`${role}Type`], literal(type));
+
 /** The row has one of the accounts on either side. */
 export const touching = (accounts: Accounts): LegTest =>
   some(accounts("dest"), accounts("source"));
@@ -325,30 +334,6 @@ export const bookingSaleTotalSubquery: OfBooking<Expr<Counted>> = (
       some(saleLeg(attendeeId, listingId, eventGroup), correction),
     ),
   );
-};
-
-/** Recognised income includes signed tax reclassifications and write-offs.
- * Refunds leave that historical earned amount unchanged. */
-export const creditsLessWriteoffDebits: OfAccount<Expr<Counted>> = (
-  type,
-  id,
-) => {
-  const credited: LegTest = (leg) =>
-    and(
-      onAccount("dest", type, id)(leg),
-      not(
-        amongConstants(leg.kind, [KIND.refundTaxSale, KIND.refundTaxModifier]),
-      ),
-    );
-  const writtenOff: LegTest = (leg) =>
-    and(
-      onAccount("source", type, id)(leg),
-      or(
-        equal(leg.destType, literal(WRITEOFF_TYPE)),
-        amongConstants(leg.kind, [KIND.taxSale, KIND.taxModifier]),
-      ),
-    );
-  return measureOf(net(credited, writtenOff));
 };
 
 /** A booking order's `modifier` legs, as tests and values over one ledger

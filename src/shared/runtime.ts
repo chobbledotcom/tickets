@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Runtime introspection — collects non-secret details about the JavaScript
  * runtime the app is executing on (Deno version, V8, OS/arch, etc.).

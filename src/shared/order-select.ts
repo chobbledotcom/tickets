@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * One wire format, so the public `/order` gallery and the admin availability
  * checker speak the same language:

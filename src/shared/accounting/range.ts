@@ -12,6 +12,7 @@
 
 import { atLeast, type Condition, lessThan } from "#db/select/expression.ts";
 import { tableNode } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 
 /** The ledger row of a statement written by hand. The statement must name
@@ -32,14 +33,13 @@ export const emptyRange: LedgerRange = { endMs: null, startMs: null };
 
 /**
  * The `occurred_at` bounds of a range as conditions: one for each bound that
- * is set, none for an unbounded range. They read the ledger row of a statement
- * that names the table `transfers AS transfer`.
+ * is set, none for an unbounded range. They read `row`, by default the ledger
+ * row of a statement that names the table `transfers AS transfer`.
  */
-export const occurredAtRange = (range: LedgerRange): Condition[] => [
-  ...(range.startMs === null
-    ? []
-    : [atLeast(LEDGER_ROW.occurredAt, range.startMs)]),
-  ...(range.endMs === null
-    ? []
-    : [lessThan(LEDGER_ROW.occurredAt, range.endMs)]),
+export const occurredAtRange = (
+  range: LedgerRange,
+  row: Node<"transfers"> = LEDGER_ROW,
+): Condition[] => [
+  ...(range.startMs === null ? [] : [atLeast(row.occurredAt, range.startMs)]),
+  ...(range.endMs === null ? [] : [lessThan(row.occurredAt, range.endMs)]),
 ];

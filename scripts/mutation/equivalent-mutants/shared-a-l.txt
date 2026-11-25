@@ -107,9 +107,9 @@ src/shared/forms/saved-data.ts::getSavedFieldValue~1y12b7e  ?? → || audited:0b
 # resize.ts writes each output pixel's channels exactly once into a freshly
 # zeroed Uint8ClampedArray, so `out[o] = x` and `out[o] += x` are identical
 # (0 + x === x). No input can revisit an index, so no test can distinguish them.
-src/shared/images/resize.ts::areaAveragePixel.pixel%5b0%5d~04yvbjk  = → += audited:0mumpc0 # pixel[0] starts at 0 and is written once
-src/shared/images/resize.ts::areaAveragePixel.pixel%5b1%5d~1nh4hce  = → += audited:0mumpc0 # pixel[1] starts at 0 and is written once
-src/shared/images/resize.ts::areaAveragePixel.pixel%5b2%5d~1ho0of2  = → += audited:0mumpc0 # pixel[2] starts at 0 and is written once
+src/shared/images/resize.ts::areaAveragePixel.pixel%5b0%5d~04yvbjk  = → += audited:0m1vn40 # pixel[0] starts at 0 and is written once
+src/shared/images/resize.ts::areaAveragePixel.pixel%5b1%5d~1nh4hce  = → += audited:0m1vn40 # pixel[1] starts at 0 and is written once
+src/shared/images/resize.ts::areaAveragePixel.pixel%5b2%5d~1ho0of2  = → += audited:0m1vn40 # pixel[2] starts at 0 and is written once
 
 # listing-templates.ts's matchesSignature is a private helper consumed only as
 # an Array.prototype.find() predicate, which coerces its result with
@@ -183,8 +183,8 @@ src/shared/cache-registry.ts::registerTableInvalidation.set~1vxiav9  ?? → || a
 # "A <vowel> → An <vowel>" correction on the next line IS exercised — several
 # BUILDING_STATES/BAND_ADJECTIVES entries start with a vowel — and is covered
 # by dedicated tests instead of being listed here.)
-src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "" audited:0s41ioh # no template/pool ever produces a literal "An" token for this correction to act on
-src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "A $1 mutated" audited:0s41ioh # same as above
+src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "" audited:1jmmxxz # no template/pool ever produces a literal "An" token for this correction to act on
+src/shared/band-name-generator.ts::fixArticles~1rw9fca  A $1 → "A $1 mutated" audited:1jmmxxz # same as above
 
 # logistics-filter.ts's parseAgentFilter fallback is unobservable through
 # parsePositiveIntId's strict decimal-digit schema.

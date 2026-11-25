@@ -97,7 +97,7 @@ export const assertStatementBalance: CheckMoneyShown = async (
 /**
  * Assert the listing EDIT page's "Current income" input renders the given
  * minor-unit figure (`value="£X"`). The edit page shows GROSS credits minus only
- * manual write-offs (`creditsLessWriteoffDebits`), so — unlike the statement —
+ * manual write-offs (`listingIncomeSubquery`), so — unlike the statement —
  * an ordinary refund does NOT reduce it (matching the legacy `SUM(price_paid)`),
  * while a manual write-off does. The two surfaces therefore agree only when no
  * refund has touched the account.

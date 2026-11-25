@@ -19,11 +19,8 @@ describePublicApi(() => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toMatch(/^[A-Za-z0-9_-]{8,}$/);
-      expect(body.booking?.ticketUrl).toContain(
-        String(body.booking?.ticketToken),
-      );
-      expect(typeof body.booking?.ticketUrl).toBe("string");
+      expect(body.booking?.ticketToken).toMatch(/^[0-9A-F]{10}$/);
+      expect(body.booking?.ticketUrl).toContain(body.booking?.ticketToken);
       expectCorsHeaders(response);
     });
 
@@ -117,18 +114,24 @@ describePublicApi(() => {
       expect(body.error).toMatch(/not enough spots/);
     });
 
-    test("returns 400 for invalid JSON body", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      await assertJson(
-        handleRequest(
-          rawPostRequest(listing.slug, "application/json", "not valid json{{{"),
-        ),
-        400,
-        (body) => {
-          expect(body.error).toBe("Invalid JSON body");
-        },
-      );
-    });
+    // `null` and an array parse as JSON but are not a record, so they are
+    // refused like broken JSON.
+    for (const [title, body] of [
+      ["malformed JSON", "not valid json{{{"],
+      ["a null body", "null"],
+      ["an array body", "[1,2,3]"],
+    ] as const) {
+      test(`returns 400 for ${title}`, async () => {
+        const listing = await createTestListing({ maxAttendees: 10 });
+        await assertJson(
+          handleRequest(rawPostRequest(listing.slug, "application/json", body)),
+          400,
+          (parsed) => {
+            expect(parsed.error).toBe("Invalid JSON body");
+          },
+        );
+      });
+    }
 
     test("returns 400 for wrong content-type", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
@@ -153,7 +156,7 @@ describePublicApi(() => {
         quantity: 3,
       });
       expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toMatch(/^[A-Za-z0-9_-]{8,}$/);
+      expect(body.booking?.ticketToken).toMatch(/^[0-9A-F]{10}$/);
     });
 
     test("rejects a quantity above max_quantity instead of clamping it", async () => {
