@@ -14,6 +14,7 @@ import {
   amountOf,
   balanceIn,
   every,
+  everyAccountOf,
   type LegTest,
   type Measure,
   measureOf,
@@ -28,6 +29,7 @@ import {
   type Expr,
   equal,
   literal,
+  not,
 } from "#db/select/expression.ts";
 
 /** Rows of these kinds with one of the accounts on `role`. `writeoff` names
@@ -107,19 +109,24 @@ export const incomeParts = (revenue: Accounts) =>
     INCOME_PARTS.map((name) => [name, figureOf(name, revenue)]),
   ) as Record<(typeof INCOME_PARTS)[number], Measure<"sum">>;
 
-/** Recognised income over the revenue accounts: its three parts as one
- * figure. Write-offs count, and a refund leaves the earned amount alone. */
-export const recognisedIncomeOf = (revenue: Accounts): Measure<"sum"> => {
-  const specs: FigureSpec[] = INCOME_PARTS.map((name) => FIGURES[name]);
-  return net(
-    some(...specs.map((spec) => flowOf(revenue, spec.adds))),
-    some(
-      ...specs.flatMap((spec) =>
-        spec.subtracts === undefined ? [] : [flowOf(revenue, spec.subtracts)],
+/** Recognised income over the revenue accounts, by account type: any money
+ * into a revenue account counts. Money out to the write-off account or to
+ * another revenue account, and a tax reclassification, take it back. A refund
+ * leaves the earned amount alone. */
+export const recognisedIncomeOf = (revenue: Accounts): Measure<"sum"> =>
+  net(
+    every(revenue("dest"), (leg) =>
+      not(
+        amongConstants(leg.kind, [KIND.refundTaxSale, KIND.refundTaxModifier]),
+      ),
+    ),
+    every(
+      revenue("source"),
+      some(onWriteoff("dest"), everyAccountOf(REVENUE)("dest"), (leg) =>
+        amongConstants(leg.kind, [KIND.taxSale, KIND.taxModifier]),
       ),
     ),
   );
-};
 
 /** The recognised income of one listing, as a value of another statement. */
 export const listingIncomeSubquery = (id: AccountId): Expr<Counted> =>
