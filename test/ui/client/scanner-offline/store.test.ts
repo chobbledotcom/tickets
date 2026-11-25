@@ -185,6 +185,25 @@ describe("scanner offline store", {
     ).toBe("true");
   });
 
+  test("reads a store that refuses reads as a switch that is off", () => {
+    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
+    const h = fresh({
+      seed: (store) =>
+        Object.defineProperty(store, "getItem", {
+          value: () => {
+            throw new Error("The store is blocked");
+          },
+        }),
+    });
+
+    expect(
+      el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(el(h.document, "scanner-offline-banner").className).toContain(
+      "hidden",
+    );
+  });
+
   test("stores the mode the door turns on and clears it when the door turns it off", () => {
     using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
     const h = fresh({ onLine: false });

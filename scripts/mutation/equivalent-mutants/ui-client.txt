@@ -276,3 +276,6 @@ src/ui/client/scanner-offline-sync.ts::syncQueue~1ozove5 Checking in queued tick
 src/ui/client/dom.ts::createHiddenInput.input%2ename~0c3eqyi =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
 src/ui/client/dom.ts::createHiddenInput.input%2evalue~1t6bjgm =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
 src/ui/client/dom.ts::csrfTokenFor~0yx2rmg ??→|| audited:0r4ynj5 # the field's value is a string, so ?? and || differ only on the empty string, which gives the same empty answer
+
+# The scanner service worker (src/ui/client/scanner-sw.ts).
+src/ui/client/scanner-sw.ts::networkFirst~0gf3pm3 ??→|| audited:027in26 # the cache answers a Response or nothing, and a Response is truthy, so ?? and || agree
