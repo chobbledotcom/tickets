@@ -1,3 +1,4 @@
+import { linkCheckoutBundleToSession } from "#db/checkout-bundles.ts";
 import { settings } from "#db/settings.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
@@ -16,6 +17,7 @@ import { createWithClient, PaymentUserError } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { buildProviderLineItems } from "#shared/provider-line-items.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type {
   CreatePaymentLinkInput,
   GetSquareClient,
@@ -166,6 +168,10 @@ export const createSquarePaymentLink = async (
       result.orderId,
       result.linkId,
       squareLinkEndsAt(result.createdAt),
+    );
+    await linkCheckoutBundleToSession(
+      requireValue(metadata.bundle, "A Square checkout holds a sealed order"),
+      result.orderId,
     );
   }
   logDebug(
