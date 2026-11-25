@@ -14,7 +14,10 @@ import {
   refundLocalMirror,
   refundNextActionAt,
   refundStateMirror,
-  validateRefundAuthorityState,
+  validateCompletedRefundState,
+  validateNeedsProviderCheckRefundState,
+  validateOwnerChoiceRefundState,
+  validateProviderConflictRefundState,
   writeRefundAuthorityState,
 } from "#payment/refund-authority-state.ts";
 import {
@@ -80,7 +83,7 @@ describe("payment > stored refund authority state", () => {
     );
 
     expect(() =>
-      validateRefundAuthorityState({ ...state, evidenceRevision: 0 }),
+      validateOwnerChoiceRefundState({ ...state, evidenceRevision: 0 }),
     ).toThrow();
   });
 
@@ -143,7 +146,7 @@ describe("payment > stored refund authority state", () => {
     );
 
     expect(() =>
-      validateRefundAuthorityState({ ...expired, openedAt: 500 }),
+      validateOwnerChoiceRefundState({ ...expired, openedAt: 500 }),
     ).toThrow("Owner choice reason does not match the refund request");
   });
 
@@ -178,23 +181,17 @@ describe("payment > stored refund authority state", () => {
       },
     );
 
-    expect(validateRefundAuthorityState(ownerChoice).kind).toBe(
-      "needs_owner_choice",
-    );
-    expect(validateRefundAuthorityState(providerCheck).kind).toBe(
-      "needs_provider_check",
-    );
-    expect(validateRefundAuthorityState(partialReturn).kind).toBe(
-      "needs_owner_choice",
-    );
+    expect(ownerChoice.kind).toBe("needs_owner_choice");
+    expect(providerCheck.kind).toBe("needs_provider_check");
+    expect(partialReturn.kind).toBe("needs_owner_choice");
     expect(() =>
-      validateRefundAuthorityState({
+      validateProviderConflictRefundState({
         ...providerCheck,
         kind: "needs_owner_choice",
       }),
     ).toThrow("An owner-choice conflict must admit an owner decision");
     expect(() =>
-      validateRefundAuthorityState({
+      validateNeedsProviderCheckRefundState({
         ...ownerChoice,
         kind: "needs_provider_check",
       }),
@@ -210,12 +207,12 @@ describe("payment > stored refund authority state", () => {
       "owner",
     );
 
-    expect(validateRefundAuthorityState(ownerCompleted)).toMatchObject({
+    expect(validateCompletedRefundState(ownerCompleted)).toMatchObject({
       kind: "completed",
       proof: "owner",
     });
     expect(() =>
-      validateRefundAuthorityState({
+      validateCompletedRefundState({
         ...ownerCompleted,
         nextActionAt: 141,
       }),
