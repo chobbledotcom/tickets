@@ -28,22 +28,36 @@ export const requireActiveSentRefund = (
   return state;
 };
 
-/** The fields every active state shares, with its own kind and instant. The
- *  caller validates it through that kind's schema. */
-const activeStateFields = (
-  kind: "ready" | "send_armed" | "observing",
+/** The instant each active kind records. It is the one field that no other
+ *  active state has, so the shared builder writes the right field for its
+ *  kind. */
+const ACTIVE_INSTANT_FIELD = {
+  observing: "lastObservedAt",
+  ready: "readyAt",
+  send_armed: "armedAt",
+} as const satisfies {
+  readonly [Kind in AutomaticRefundState["kind"]]: Exclude<
+    keyof Extract<AutomaticRefundState, { kind: Kind }>,
+    keyof Exclude<AutomaticRefundState, { kind: Kind }>
+  >;
+};
+
+/** Build one active state, then read it back through the schema for its kind. */
+const buildActiveState = <State extends AutomaticRefundState>(
+  read: (state: unknown) => State,
+  kind: AutomaticRefundState["kind"],
   state: AutomaticRefundState,
-  atName: "armedAt" | "lastObservedAt" | "readyAt",
   at: number,
   nextActionAt: number,
-) => ({
-  evidenceRevision: state.evidenceRevision,
-  kind,
-  local: { kind: "not_due" },
-  nextActionAt,
-  request: state.request,
-  [atName]: at,
-});
+): State =>
+  read({
+    evidenceRevision: state.evidenceRevision,
+    kind,
+    local: { kind: "not_due" },
+    nextActionAt,
+    request: state.request,
+    [ACTIVE_INSTANT_FIELD[kind]]: at,
+  });
 
 export interface ReadyRefundFacts {
   readonly evidenceRevision: number;
@@ -77,8 +91,12 @@ export const armRefundSend = (
   nextActionAt: number,
 ): SendArmedRefundState => {
   if (state.kind !== "ready") throw new Error("Refund is not ready to arm");
-  return validateSendArmedRefundState(
-    activeStateFields("send_armed", state, "armedAt", armedAt, nextActionAt),
+  return buildActiveState(
+    validateSendArmedRefundState,
+    "send_armed",
+    state,
+    armedAt,
+    nextActionAt,
   );
 };
 
@@ -92,14 +110,12 @@ export const markRefundObservationDue = (
     state,
     "Refund is not armed for observation",
   );
-  return validateObservingRefundState(
-    activeStateFields(
-      "observing",
-      active,
-      "lastObservedAt",
-      observedAt,
-      nextActionAt,
-    ),
+  return buildActiveState(
+    validateObservingRefundState,
+    "observing",
+    active,
+    observedAt,
+    nextActionAt,
   );
 };
 
@@ -123,8 +139,12 @@ export const rearmKeyedRefund = (
     state,
     "Refund is not armed for a keyed replay",
   );
-  return validateSendArmedRefundState(
-    activeStateFields("send_armed", active, "armedAt", armedAt, nextActionAt),
+  return buildActiveState(
+    validateSendArmedRefundState,
+    "send_armed",
+    active,
+    armedAt,
+    nextActionAt,
   );
 };
 
@@ -139,8 +159,12 @@ export const returnRefundToReady = (
     state,
     "Refund is not armed, so it cannot be proved not sent",
   );
-  const ready = validateReadyRefundState(
-    activeStateFields("ready", active, "readyAt", readyAt, nextActionAt),
+  const ready = buildActiveState(
+    validateReadyRefundState,
+    "ready",
+    active,
+    readyAt,
+    nextActionAt,
   );
   return validateReadyRefundState({
     ...ready,
