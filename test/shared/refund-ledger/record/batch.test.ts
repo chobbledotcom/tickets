@@ -6,11 +6,7 @@ import {
   revenueAccount,
   WORLD,
 } from "#accounting/accounts.ts";
-import {
-  accountBalance,
-  allTransfers,
-  transfersByAccount,
-} from "#accounting/queries.ts";
+import { allTransfers, transfersByAccount } from "#accounting/queries.ts";
 import { legReference } from "#accounting/refs.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
@@ -32,6 +28,7 @@ import {
   withBrokenLedger,
   writesTransfers,
 } from "#test/shared/refund-ledger/helpers.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";

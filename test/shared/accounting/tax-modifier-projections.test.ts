@@ -12,11 +12,12 @@ import {
   orderTotalSubquery,
   reservationSubtotalSubquery,
 } from "#accounting/projection-sql.ts";
-import { accountBalance, allTransfers } from "#accounting/queries.ts";
+import { allTransfers } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { queryOne } from "#db/client.ts";
 import { literal } from "#db/select/expression.ts";
 import { sql } from "#db/sql.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
 const customerTotals = () =>

@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
+import { transfersByAccount } from "#accounting/queries.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { records } from "#db/record-table.ts";
 import { account } from "#shared/ledger/account.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import {
   assertJson,
   expectListingActivityLogContains,

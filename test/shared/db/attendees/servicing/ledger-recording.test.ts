@@ -4,14 +4,11 @@ import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
-import {
-  accountBalance,
-  allTransfers,
-  visibleTransfers,
-} from "#accounting/queries.ts";
+import { allTransfers, visibleTransfers } from "#accounting/queries.ts";
 import { emptyRange } from "#accounting/range.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";

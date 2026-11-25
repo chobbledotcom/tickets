@@ -542,6 +542,19 @@ folder as the stable `tickets-evidence` artifact with GitHub's 35-day retention.
 The Tickets website imports that artifact into a reviewed pull request and keeps
 its ordinary site build offline.
 
+### Guide videos
+
+`deno task guide:record create-a-listing` records a real admin session, adds
+three.js camera zooms and a focus vignette, and writes a silent MP4 under
+`reports/guides/`. The recorder drives the real forms one character at a time
+and scrolls at human speed. It uses a throwaway site, so it never touches a real
+database.
+
+`deno task guide:check` compares the Cucumber evidence with the screenshots each
+video used. It prints a freshness score and warns when a guide falls below 80
+percent. The check is advisory: it offers to refresh the guide or leave it for a
+separate branch. See [Guide videos](./docs/guide-videos.md).
+
 ```bash
 # Enter the development shell (installs the pinned Deno and the other tools),
 # then run all checks

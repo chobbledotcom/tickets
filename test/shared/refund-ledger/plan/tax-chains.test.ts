@@ -12,16 +12,11 @@ import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import { bookingEventGroup, mapRefund } from "#accounting/mappers.ts";
 import {
   bookingSaleTotalSubquery,
-  creditsLessWriteoffDebits,
   externalCashBalanceSubquery,
   orderTotalSubquery,
   reservationSubtotalSubquery,
 } from "#accounting/projection-sql.ts";
-import {
-  accountBalance,
-  ledgerTotals,
-  transfersByAccount,
-} from "#accounting/queries.ts";
+import { ledgerTotals, transfersByAccount } from "#accounting/queries.ts";
 import { emptyRange } from "#accounting/range.ts";
 import { postTransferGroups, postTransfers } from "#accounting/store.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
@@ -40,6 +35,7 @@ import {
   postBooking,
   sessionReference,
 } from "#test/shared/refund-ledger/helpers.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
@@ -317,14 +313,12 @@ describeWithEnv("refund ledger > tax assessment chains", { db: true }, () => {
     const group = await bookingEventGroup("tax-chain");
     const row = await queryOne<Record<string, number>>(sql`SELECT
       ${bookingSaleTotalSubquery(literal(ATTENDEE), literal(1), literal(group))} AS price,
-      ${creditsLessWriteoffDebits("revenue", literal(1))} AS income,
       ${orderTotalSubquery("attendee", literal(ATTENDEE))} AS total,
       ${reservationSubtotalSubquery("attendee", literal(ATTENDEE))} AS deposit_base,
       ${externalCashBalanceSubquery("attendee", literal(ATTENDEE))} AS cash`);
     expect(row).toEqual({
       cash: 1000,
       deposit_base: 1000,
-      income: 909,
       price: 909,
       total: 1000,
     });
@@ -337,10 +331,5 @@ describeWithEnv("refund ledger > tax assessment chains", { db: true }, () => {
     expect(after.recognisedIncome).toBe(909);
     expect(after.refunds).toBe(909);
     expect(after.netBalance).toBe(0);
-    expect(
-      (await queryOne<{ value: number }>(
-        sql`SELECT ${creditsLessWriteoffDebits("revenue", literal(1))} AS value`,
-      ))!.value,
-    ).toBe(909);
   });
 });

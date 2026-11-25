@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Request-scoped background work queue
  *

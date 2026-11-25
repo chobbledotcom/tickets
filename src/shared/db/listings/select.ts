@@ -9,10 +9,10 @@
  * `catalog.ts` and `groups/candidates.ts` do.
  */
 
+import { listingIncomeSubquery } from "#accounting/figures.ts";
 import {
   type AccountId,
   accountBalanceSubquery,
-  creditsLessWriteoffDebits,
 } from "#accounting/projection-sql.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { imageFilenameSubqueries, type SealedItemImages } from "#db/images.ts";
@@ -44,7 +44,7 @@ export const decodedListingRead = STORED_COLUMNS.decoded;
 /** A listing's recognised income and servicing cost, worked out from the ledger
  * rather than stored columns. */
 const listingMoneyProjections = (idExpression: AccountId): SqlStatement =>
-  sql`${creditsLessWriteoffDebits("revenue", idExpression)} AS income, -${accountBalanceSubquery("cost", idExpression)} AS cost`;
+  sql`${listingIncomeSubquery(idExpression)} AS income, -${accountBalanceSubquery("cost", idExpression)} AS cost`;
 
 /** A complete stored listing row plus its ledger, day-price, and image values. */
 const storedListingColumns = (): SqlStatement => {
