@@ -1,13 +1,28 @@
-/** Read ledger measures for each account. */
+/** Read ledger measures for the whole ledger or for each account. A read of
+ * a set makes one pass over the rows that any of its measures reads. */
 
 import {
   type AccountId,
+  foldOf,
+  ledgerLegs,
   type Measure,
   measureOf,
+  some,
 } from "#accounting/projection-sql.ts";
-import { queryAll } from "#db/client.ts";
+import {
+  emptyRange,
+  type LedgerRange,
+  occurredAtRange,
+} from "#accounting/range.ts";
+import { queryAll, requireOne } from "#db/client.ts";
 import { type Counted, valued } from "#db/select/expression.ts";
-import { sql, sqlCommas, sqlName, sqlRows } from "#db/sql.ts";
+import {
+  type RowsStatement,
+  sql,
+  sqlCommas,
+  sqlName,
+  sqlRows,
+} from "#db/sql.ts";
 
 /** Named measures, read together. */
 export type Measures = Readonly<Record<string, Measure>>;
@@ -21,6 +36,27 @@ export type MeasuresRow<Set extends Measures> = {
 
 type StoredRow = Record<string, Counted | null>;
 
+/** One read of every measure in `set`, over the rows inside `range`. */
+const measuresStatement = (
+  set: Measures,
+  range: LedgerRange,
+): RowsStatement<StoredRow> => {
+  const measures = Object.values(set);
+  return ledgerLegs()
+    .where((leg) => [
+      some(...measures.map((measure) => measure.rows))(leg),
+      ...occurredAtRange(range, leg),
+    ])
+    .select((leg) =>
+      Object.fromEntries(
+        Object.entries(set).map(([name, measure]) => [
+          name,
+          foldOf(measure, leg, false),
+        ]),
+      ),
+    ) as RowsStatement<StoredRow>;
+};
+
 /** SQLite can give a total back as a bigint. */
 const asNumbers = <Set extends Measures>(row: StoredRow): MeasuresRow<Set> =>
   Object.fromEntries(
@@ -29,6 +65,14 @@ const asNumbers = <Set extends Measures>(row: StoredRow): MeasuresRow<Set> =>
       value === null ? null : Number(value),
     ]),
   ) as MeasuresRow<Set>;
+
+/** Every measure of `set` over the rows inside `range`, by default the whole
+ * ledger. An aggregate read always gives one row. */
+export const readMeasures = async <Set extends Measures>(
+  set: Set,
+  range: LedgerRange = emptyRange,
+): Promise<MeasuresRow<Set>> =>
+  asNumbers<Set>(await requireOne(measuresStatement(set, range)));
 
 /** The account id of each row of {@link readMeasuresByAccount}. */
 const ACCOUNT_ID = valued<string>(sql`account.id`);

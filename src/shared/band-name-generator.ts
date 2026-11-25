@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Procedural rock/heavy-metal band-name, venue, and gig-description
  * generator for sample data.

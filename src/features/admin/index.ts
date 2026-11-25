@@ -15,7 +15,7 @@ import {
   ADMIN_AREA_LOADERS,
   type AdminAreaLoader,
 } from "#routes/admin/area-loaders.ts";
-import { isJsonApiPath } from "#routes/middleware.ts";
+import { isJsonApiPath } from "#routes/content-type-rules.ts";
 import { createRouter } from "#routes/router.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { adminPathSegment } from "#shared/admin-surface/definitions.ts";

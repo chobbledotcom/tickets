@@ -136,64 +136,6 @@ export const PUBLIC_SITE_PATH = new RegExp(
 );
 
 /**
- * Check if path is a webhook endpoint that accepts JSON
- */
-export const isWebhookPath = (path: string): boolean =>
-  path === "/payment/webhook" || path === "/sms/webhook";
-
-/** Pattern matching scan API paths (the scanner posts JSON check-ins and
- * reads its offline ticket cache as JSON) */
-const SCAN_API_PATTERN = /^\/admin\/(listing|groups)\/\d+\/scan(?:-cache)?$/;
-
-/** Pattern for public API paths */
-const API_PATH_PATTERN = /^\/api\//;
-
-/** Pattern for Apple Wallet web service paths (PassKit protocol) */
-const WALLET_WEBSERVICE_PATTERN = /^\/v1\//;
-
-/**
- * Check if path is a JSON API endpoint. The patterns live here so this
- * always-loaded middleware never drags route modules into boot for a regex.
- */
-export const isJsonApiPath = (path: string): boolean =>
-  SCAN_API_PATTERN.test(path) ||
-  API_PATH_PATTERN.test(path) ||
-  WALLET_WEBSERVICE_PATTERN.test(path);
-
-/**
- * Validate Content-Type for POST requests. A non-POST request is valid. A
- * POST request is valid when its Content-Type is correct. Webhook endpoints
- * accept application/json. All other endpoints require form-urlencoded.
- */
-/** The request's Content-Type header, lowercased — HTTP header values are
- * case-insensitive, so every caller matches casings uniformly. */
-export const lowerContentType = (request: Request): string =>
-  (request.headers.get("content-type") ?? "").toLowerCase();
-
-export const isValidContentType = (request: Request, path: string): boolean => {
-  if (request.method !== "POST") {
-    return true;
-  }
-  // The inter-instance credentials endpoint carries no body and authenticates
-  // via a bearer key, so there is nothing to CSRF-protect.
-  if (path === "/instance/site-credentials") {
-    return true;
-  }
-  const contentType = lowerContentType(request);
-
-  // Webhook and JSON API endpoints accept JSON
-  if (isWebhookPath(path) || isJsonApiPath(path)) {
-    return contentType.startsWith("application/json");
-  }
-
-  // All other POST endpoints require form-urlencoded or multipart (for file uploads)
-  return (
-    contentType.startsWith("application/x-www-form-urlencoded") ||
-    contentType.startsWith("multipart/form-data")
-  );
-};
-
-/**
  * Create Content-Type rejection response
  */
 export const contentTypeRejectionResponse = (): Response =>
