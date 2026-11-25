@@ -35,10 +35,10 @@ const assertContextRefusal = async (path: string) => {
 };
 
 describe("declared TLA source context", () => {
-  test("accepts declared TS, JS and TLA paths from the approved roots", () => {
+  test("accepts declared TS, TSX and TLA paths from the approved roots", () => {
     for (const path of [
       "src/shared/sample.ts",
-      "scripts/sample.js",
+      "src/ui/sample.tsx",
       "verification/Sample.tla",
     ]) {
       expect(approvedContextPath(path)).toBe(path);
@@ -55,6 +55,7 @@ describe("declared TLA source context", () => {
       "src/.private/file.ts",
       "src/file.sqlite",
       "src/file.json",
+      "scripts/file.js",
       "test/file.ts",
       "verification\\file.tla",
     ]) {

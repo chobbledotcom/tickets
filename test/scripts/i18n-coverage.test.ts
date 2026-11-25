@@ -155,7 +155,7 @@ describe("unused locale keys", () => {
     // A key that only a test names has no reader, so the scan leaves test/
     // out.
     const sources = [
-      ...walk(SRC_DIR, [".ts", ".tsx", ".js"]),
+      ...walk(SRC_DIR, [".ts", ".tsx"]),
       ...walk("cli", [".ts"]),
     ].filter((file) => !file.startsWith("src/locales/"));
     const references = keyReferences(
