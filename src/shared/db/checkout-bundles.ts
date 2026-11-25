@@ -94,6 +94,20 @@ export const rewriteCheckoutBundle = async (
   );
 };
 
+/** Name the checkout that a sealed order belongs to, after the provider
+ * makes it. A Square checkout can take payment until its handle row is gone,
+ * so the prune keeps the order that long (see `prune.ts`). */
+export const linkCheckoutBundleToSession = async (
+  token: string,
+  sessionId: string,
+): Promise<void> => {
+  await execute(
+    update(tables.checkout_bundles, {
+      sessionIndex: await hmacHash(sessionId),
+    }).where({ tokenIndex: await hmacHash(token) }),
+  );
+};
+
 /** Open the order that a token seals. A row that fails to unwrap, decrypt or
  * parse is damaged or was never ours. It reads as `unreadable`, and the caller
  * raises it. */

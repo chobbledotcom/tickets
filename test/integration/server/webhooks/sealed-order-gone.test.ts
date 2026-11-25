@@ -148,6 +148,25 @@ describeWithEnv(
       expect(opened.fake.refunds).toEqual([]);
     });
 
+    test("a receipt whose payment row was pruned books nobody, even after the listing reopens", async () => {
+      const opened = await open();
+      const checkout = await checkOut(opened);
+      const turnListing = (route: "deactivate" | "reactivate") =>
+        opened.api.post(
+          `/api/admin/listings/${opened.listing.id}/${route}`,
+          {},
+        );
+      await turnListing("deactivate");
+      await deliverPayment(opened, checkout);
+      await execute(sql`DELETE FROM processed_payments`);
+      await turnListing("reactivate");
+
+      const replay = await deliverPayment(opened, checkout);
+
+      expect(replay.status).toBe(503);
+      expect(await rosterOf(opened)).toEqual([]);
+    });
+
     test("the return page alone reports a paid session that is not settled", async () => {
       const { checkout, opened } = await checkedOut();
       await loseOrders();
