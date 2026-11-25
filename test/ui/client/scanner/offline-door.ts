@@ -31,6 +31,7 @@ import {
   type ScannerHarness,
   storedQueue,
   TOKEN,
+  whenMessageShows,
   whenTextShows,
 } from "./fixture.ts";
 
@@ -115,6 +116,16 @@ export const setConnection = (h: ScannerHarness, onLine: boolean): void => {
 /** The words the queue panel's count shows. */
 export const queueSummary = (h: ScannerHarness): string | null =>
   el(h.document, "scanner-queue-summary").textContent;
+
+/** A page that loads with one queued check-in, whose delivery the door
+ * answers with the ID check, and waits at the prompt. */
+export const idAskedOnQueue = async (
+  fresh: (globals: ScannerGlobals) => ScannerHarness,
+): Promise<ScannerHarness> => {
+  const h = fresh(queueSeeded());
+  await whenMessageShows(h, 'Does their ID match "Ada"?');
+  return h;
+};
 
 /** What one settled sync leaves: the done words, the store empty, the
  * panel count at zero, and the deliveries the door received, in order —

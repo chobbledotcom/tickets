@@ -28,13 +28,13 @@ import {
   storedQueue,
   TOKEN,
   useScannerSuite,
-  whenMessageShows,
   whenTextShows,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
   digestOf,
   expectSyncSettled,
   firstRow,
+  idAskedOnQueue,
   postedDeliveryHashes,
   queuedItems,
   queueSeeded,
@@ -197,9 +197,7 @@ describe("scanner offline sync", {
       }),
     );
     using _fetch = fetchStub;
-    const h = fresh(queueSeeded());
-
-    await whenMessageShows(h, 'Does their ID match "Ada"?');
+    const h = await idAskedOnQueue(fresh);
     h.confirm.no.click();
 
     await expectSyncSettled(h, whenStatusShows, fetchStub, [TOKEN]);

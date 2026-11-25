@@ -15,14 +15,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { whenStatusShows, withEmptyCache } from "./camera-fakes.ts";
-import {
-  queuedItem,
-  SCAN_PATH,
-  TOKEN,
-  useScannerSuite,
-  whenMessageShows,
-} from "./fixture.ts";
-import { expectSyncSettled, firstRow, queueSeeded } from "./offline-door.ts";
+import { queuedItem, SCAN_PATH, TOKEN, useScannerSuite } from "./fixture.ts";
+import { expectSyncSettled, firstRow, idAskedOnQueue } from "./offline-door.ts";
 
 describe("scanner delivery with an ID check", {
   sanitizeOps: false,
@@ -53,9 +47,7 @@ describe("scanner delivery with an ID check", {
       }),
     );
     using _fetch = fetchStub;
-    const h = fresh(queueSeeded());
-
-    await whenMessageShows(h, 'Does their ID match "Ada"?');
+    const h = await idAskedOnQueue(fresh);
     h.confirm.yes.click();
 
     // The second post and the settled row ride the platform's own promise
