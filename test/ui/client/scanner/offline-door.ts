@@ -29,6 +29,7 @@ import {
   type ScannerGlobals,
   type ScannerHarness,
   storedQueue,
+  TOKEN,
   whenTextShows,
 } from "./fixture.ts";
 
@@ -227,4 +228,35 @@ export const expectSwitchRefused = async (h: ScannerHarness): Promise<void> => {
   expect(
     el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
   ).toBe("true");
+};
+
+/** One offline scan of a booking the saved list says owes three places.
+ * The ask is on the page when this settles; the caller answers it. */
+export const scanPartyOfThree = async (h: ScannerHarness): Promise<void> => {
+  using fakes = cameraFakes(h);
+  fakes.ready(4);
+  await seedTicketCache(h, TOKEN, Date.now(), 3);
+  await start(h);
+  await scanFirst(fakes, TOKEN);
+  // The digest runs on the platform's own crypto promise, so the ask shows
+  // over real event-loop turns.
+  await whenStatusShows(
+    el(h.document, "scanner-quantity-message"),
+    "How many people are you checking in?",
+  );
+};
+
+/** A door that cancels the quantity ask queues nothing and is told so. */
+export const expectCancelQueuesNothing = async (
+  h: ScannerHarness,
+): Promise<void> => {
+  await scanPartyOfThree(h);
+  el(h.document, "scanner-quantity-cancel").click();
+
+  await whenStatusShows(
+    h.statusEl,
+    "Nothing was queued. Scan the ticket again to check them in.",
+  );
+  expect(h.statusEl.className).toContain("scanner-status-warning");
+  expect(storedQueue(h)).toBe(null);
 };

@@ -16,17 +16,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { HTMLSelectElement as HappyHTMLSelectElement } from "happy-dom";
-import {
-  cameraFakes,
-  scanFirst,
-  seedTicketCache,
-  start,
-  whenStatusShows,
-} from "#test/ui/client/scanner/camera-fakes.ts";
+import { whenStatusShows } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
   SCAN_PATH,
-  type ScannerHarness,
   storedQueue,
   TOKEN,
   useScannerSuite,
@@ -34,9 +27,11 @@ import {
 import {
   askedUrls,
   digestOf,
+  expectCancelQueuesNothing,
   expectOfflineRefusal,
   expectOneStoredCheckIn,
   scanOffline,
+  scanPartyOfThree,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -68,22 +63,6 @@ describe("scanner offline queue", {
       fetchStub.restore();
     }
   });
-
-  /** One offline scan of a booking the saved list says owes three places.
-   * The ask is on the page when this settles; the caller answers it. */
-  const scanPartyOfThree = async (h: ScannerHarness): Promise<void> => {
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    await seedTicketCache(h, TOKEN, Date.now(), 3);
-    await start(h);
-    await scanFirst(fakes, TOKEN);
-    // The digest runs on the platform's own crypto promise, so the ask
-    // shows over real event-loop turns.
-    await whenStatusShows(
-      el(h.document, "scanner-quantity-message"),
-      "How many people are you checking in?",
-    );
-  };
 
   test("asks how many people the check-in admits and queues the pick", async () => {
     // The booking owed three places when the list was built, so the scan
@@ -121,20 +100,8 @@ describe("scanner offline queue", {
   });
 
   test("queues nothing when the door cancels the quantity ask", async () => {
-    const fetchStub = stubFetch(new Error("offline"));
-    try {
-      const h = fresh({ onLine: false });
-      await scanPartyOfThree(h);
-      el(h.document, "scanner-quantity-cancel").click();
-
-      await whenStatusShows(
-        h.statusEl,
-        "Nothing was queued. Scan the ticket again to check them in.",
-      );
-      expect(storedQueue(h)).toBe(null);
-    } finally {
-      fetchStub.restore();
-    }
+    using _fetch = stubFetch(new Error("offline"));
+    await expectCancelQueuesNothing(fresh({ onLine: false }));
   });
 
   test("sends an unknown ticket away with the offline wording", async () => {

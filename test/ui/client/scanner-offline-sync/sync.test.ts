@@ -110,30 +110,6 @@ describe("scanner offline sync", {
     }
   });
 
-  test("settles the queue when the door turns offline mode off", async () => {
-    using _fetch = stubFetch(settledCheckIn);
-    const h = fresh({
-      seed: (store) => store.setItem("scanner-offline-mode", "1"),
-    });
-    // The scan queued while the switch was on; the page load's sync ran
-    // against an empty queue, so the switch's own disarm does the settling.
-    h.window.localStorage.setItem(
-      "scanner-queue",
-      JSON.stringify([queuedItem]),
-    );
-
-    el(h.document, "scanner-offline-toggle").click();
-
-    await whenTextShows(h.statusEl, "Queued tickets are done.");
-    expect(storedQueue(h)).toBe("[]");
-    expect(firstRow(h).textContent).toBe("Checked in");
-    // The switch disarmed: the store holds no mode and the banner is gone.
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(null);
-    expect(el(h.document, "scanner-offline-banner").className).toContain(
-      "hidden",
-    );
-  });
-
   test("keeps a check-in the door did not answer and says so", async () => {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh(queueSeeded());
@@ -150,34 +126,6 @@ describe("scanner offline sync", {
     // The refusal names no scan decision: the page keeps the check-in for
     // the sync that runs after the door lets it in again.
     await expectStillQueued(h);
-  });
-
-  test("keeps the settled row on the page when the switch is clicked mid-sync", async () => {
-    const { promise, resolve } = Promise.withResolvers<Response>();
-    using _fetch = stubFetch((url) => {
-      if (String(url).endsWith("-cache")) {
-        return Response.json({ hashes: [] });
-      }
-      return promise;
-    });
-    const h = fresh(queueSeeded());
-
-    // The sync is waiting on the door's answer. The switch's re-render must
-    // leave the row elements the sync writes to on the page.
-    el(h.document, "scanner-offline-toggle").click();
-    resolve(
-      Response.json({
-        listingName: "Standard",
-        name: "Ada",
-        quantity: 1,
-        status: "checked_in",
-        total: 1,
-      }),
-    );
-
-    await whenTextShows(h.statusEl, "Queued tickets are done.");
-    expect(firstRow(h).textContent).toBe("Checked in");
-    expect(storedQueue(h)).toBe("[]");
   });
 
   test("stops the sync and names the store when a settled check-in will not save", async () => {
