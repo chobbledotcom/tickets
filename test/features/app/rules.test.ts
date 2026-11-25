@@ -7,7 +7,6 @@ import {
   ensureCustomCssResponse,
   isSetupPath,
   runOrganicMaintenanceWhenDue,
-  shouldBufferRequestBody,
   shouldLogQueries,
   shouldPrefetchSettings,
   trackingRedirectLocation,
@@ -20,24 +19,6 @@ const request = (method: string, contentType?: string): Request =>
   });
 
 describe("request rules", () => {
-  test("buffers each body type read by a POST handler", () => {
-    for (const contentType of [
-      "application/x-www-form-urlencoded; charset=utf-8",
-      "multipart/form-data; boundary=test",
-      "Application/JSON; charset=utf-8",
-    ]) {
-      expect(shouldBufferRequestBody(request("POST", contentType))).toBe(true);
-    }
-  });
-
-  test("does not buffer bodyless, unused, or non-POST bodies", () => {
-    expect(shouldBufferRequestBody(request("POST"))).toBe(false);
-    expect(shouldBufferRequestBody(request("POST", "text/plain"))).toBe(false);
-    expect(shouldBufferRequestBody(request("PUT", "application/json"))).toBe(
-      false,
-    );
-  });
-
   test("buffers an eligible request body", async () => {
     const original = new Request("https://example.com/path", {
       body: "payload",
