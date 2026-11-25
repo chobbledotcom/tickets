@@ -48,9 +48,10 @@ const orderOf = (shop: CardShop) => ({
   tax_policy: JSON.stringify({ mode: "none" }),
 });
 
-/** Its receipt: the lines, and nothing of the buyer. */
+/** Its receipt: the lines and the receipt mark, and nothing of the buyer. */
 const receiptOf = (shop: CardShop) => ({
   _origin: "localhost",
+  _receipt: "1",
   items: JSON.stringify([{ e: shop.listing.id, p: 2000, q: 2 }]),
 });
 
