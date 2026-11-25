@@ -3,7 +3,7 @@
 # --- Payment test buttons (src/ui/client/admin/payment-test-buttons.ts) --------
 # The CSRF input's value is a string or undefined and the fallback is the
 # empty string, so the only falsy operand value equals the fallback itself.
-src/ui/client/admin/payment-test-buttons.ts::setupTestButton.answer~1dlz3y3  ?? → || audited:03oy5t2 # csrfInput?.value is a string or undefined; "" ?? "" === "" || ""
+src/ui/client/admin/payment-test-buttons.ts::setupTestButton.answer.body~1dlz3y3  ?? → || audited:06rhxtl # csrfInput?.value is a string or undefined; "" ?? "" === "" || ""
 
 # --- External order widget (src/ui/client/order.ts, src/ui/client/cart-dom.ts) --
 # URL matches and catalog entries are either non-empty strings/objects or absent,
@@ -228,3 +228,45 @@ src/ui/client/admin/listing-images.ts::chosenItem.button%2etextContent~0frpih7  
 # undefined. An object is never falsy, so both operators give the same value.
 src/ui/client/admin/listing-images.ts::setUpListingImages.reload.draft~06jz6of  ?? → ||  audited:15y3c6o   # find gives an option object or undefined, and an object is never falsy
 src/ui/client/admin/listing-images.ts::setUpListingImages.render~1gqg28i  ?? → ||  audited:15y3c6o   # served.get gives an element or undefined, and an element is never falsy
+
+# The offline queue sync (src/ui/client/scanner-offline-sync.ts): its message words come from
+# the page, which always renders them. The scanner words test pins each fallback to the page's
+# own words, so a lost key or a lost fallback shows the same words. The rest are the
+# empty-start writes and the failed-delivery render, whose reasons say why.
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.already_checked_in~03jfj1t messageQueueItemAlready→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.already_checked_in~03jfj1t Was already checked in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.checked_in~06fp0ww messageQueueItemCheckedIn→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.checked_in~06fp0ww Checked in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.not_found~0p9aeag messageNotFound→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.not_found~0p9aeag Ticket not found→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.refunded~07d3nzp messageQueueItemRefunded→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.refunded~07d3nzp Refunded — not checked in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.wrong_listing~02xi3u5 messageNoDoor→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.wrong_listing~02xi3u5 This ticket has no door to check in at.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::COUNT_ONE_WORDS~120glrm messageQueueCountOne→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::COUNT_ONE_WORDS~120glrm {count} queued check-in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::COUNT_OTHER_WORDS~1clzsqb messageQueueCountOther→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::COUNT_OTHER_WORDS~1clzsqb {count} queued check-ins→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::SYNC_DONE_WORDS~0nxk0gp messageSyncDone→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::SYNC_DONE_WORDS~0nxk0gp Queued tickets are done.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::SYNC_STILL_QUEUED_WORDS~0numb81 messageSyncStillQueued→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::SYNC_STILL_QUEUED_WORDS~0numb81 Some tickets are still queued. The page will try to check them in again.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::NOT_CHECKED_IN_WORDS~08cmanc messageQueueItemNotCheckedIn→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::NOT_CHECKED_IN_WORDS~08cmanc Not checked in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::queueOutcome~0bv6tjk messageQueueItemOverAdmitted→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::queueOutcome~0bv6tjk Alert: {name} — this check-in was for {named}, but the booking only had {admitted} left. The booking holds {bought} in total.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::queueOutcome~0gb4hog ??→|| audited:1s6pc69 # the words table holds a pair or nothing, and a pair is truthy, so ?? and || agree
+src/ui/client/scanner-offline-sync.ts::queuedRow.row%2etextContent~1geifw1 =→+= audited:1s6pc69 # the new row has no text yet, so adding to it equals setting it
+src/ui/client/scanner-offline-sync.ts::queuedRow.row%2etextContent~1uotcq8 messageQueueItemQueued→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::queuedRow.row%2etextContent~1uotcq8 Waiting — will be checked in when online→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::syncQueue.dropAnswered~12yybr3 messageQueueSaveFailed→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::syncQueue.dropAnswered~12yybr3 This device could not save the queued check-ins. Free up space, then reload this page.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2eclassName~1vuuwez =→+= audited:1s6pc69 # the row has no class when it settles, so adding to its class equals setting it
+src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2etextContent~0x2c2nx messageQueueItemExpired→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2etextContent~0x2c2nx This queued check-in is too old to send. Scan the ticket again while you are online.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2etextContent~0r1nb8v messageQueueItemStillQueued→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2etextContent~0r1nb8v Not sent yet — still queued→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow~0k9a955@1 renderQueueCount(panel, messages);→(removed) audited:1s6pc69 # a failed delivery changes neither the stored queue nor the rows, so the count and the panel already read right
+src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2eclassName~0jf4238 =→+= audited:1s6pc69 # the row has no class when it settles, so adding to its class equals setting it
+src/ui/client/scanner-offline-sync.ts::syncQueue~1ozove5 messageSyncRunning→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner-offline-sync.ts::syncQueue~1ozove5 Checking in queued tickets...→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show

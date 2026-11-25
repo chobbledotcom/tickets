@@ -20,6 +20,7 @@ import {
   withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
+  el,
   queuedItem,
   type ScannerHarness,
   TOKEN,
@@ -161,6 +162,10 @@ describe("scanner offline sync races", {
       await whenStatusShows(
         h.statusEl,
         "Ticket looks valid. It will be checked in when you are back online.",
+      );
+      // The new row joined the running sync, and the count counts it.
+      expect(el(h.document, "scanner-queue-summary").textContent).toBe(
+        "2 queued check-ins",
       );
       answerGate.resolve();
 
