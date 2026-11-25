@@ -1,13 +1,11 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
+import { lazyRef } from "#fp";
+import type { TicketCacheEntry } from "#routes/admin/scan-cache.ts";
 import { isRecord } from "#types";
 
-/** One ticket digest the door can admit, with the places one scan at its
- * door admits of the ticket's booking. */
-export type TicketEntry = { hash: string; tickets: number };
-
 /** One door's stored ticket list and the time this device stored it. */
-export type TicketCache = { entries: TicketEntry[]; storedAt: number };
+export type TicketCache = { entries: TicketCacheEntry[]; storedAt: number };
 
 /** One check-in that waits for a connection. */
 export type QueuedCheckIn = {
@@ -40,7 +38,7 @@ const isListOf =
 
 /** Whether a value is one ticket digest, with the places one scan at its
  * door admits of the ticket's booking. */
-const isTicketEntry = (entry: unknown): entry is TicketEntry =>
+const isTicketEntry = (entry: unknown): entry is TicketCacheEntry =>
   isRecord(entry) &&
   typeof entry.hash === "string" &&
   typeof entry.tickets === "number" &&
@@ -77,7 +75,7 @@ export const readTicketCache = (scanPath: string): TicketCache | null => {
  * clock a minute away cannot stretch or cut the window. */
 export const storeTicketCache = (
   scanPath: string,
-  entries: TicketEntry[],
+  entries: TicketCacheEntry[],
 ): void => {
   localStorage.setItem(
     TICKETS_KEY_PREFIX + scanPath,
@@ -249,10 +247,4 @@ export const dropFromQueue = (item: QueuedCheckIn): void =>
 
 /** Whether a sync is running. The camera loop holds its scans while the
  * queue settles, so one overlay asks one question at a time. */
-let syncing = false;
-
-export const isSyncing = (): boolean => syncing;
-
-export const setSyncing = (value: boolean): void => {
-  syncing = value;
-};
+export const [isSyncing, setSyncing] = lazyRef(() => false);

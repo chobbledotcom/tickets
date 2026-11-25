@@ -12,14 +12,14 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   el,
   REBRANDED_PAGE,
   type ScannerHarness,
   useScannerSuite,
   whenTextShows,
-} from "../scanner/fixture.ts";
+} from "#test/ui/client/scanner/fixture.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describe("scanner messages under the ticket-to-booking rebrand", {
   sanitizeOps: false,

@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import { postForJson } from "../dom.ts";
+import { postForJson } from "#src/ui/client/dom.ts";
 
 /** POST a form-encoded body with a CSRF token, return parsed JSON. */
 export const csrfPost = (

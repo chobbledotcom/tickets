@@ -44,7 +44,7 @@ const collectMatching =
     collectFiles(directory, (path) => pattern.test(path));
 
 /** Every TypeScript file beneath `directory`, sorted. */
-export const collectSourceFiles = collectMatching(/\.tsx?$/);
+export const collectSourceFiles = collectMatching(/\.[cm]?tsx?$/);
 
 /**
  * Files no code check reads: the browser bundles in `ui/static`, which esbuild

@@ -5,6 +5,8 @@
 // attributes. A lookup that misses falls back to the same words the page
 // renders.
 
+import { lazyRef } from "#fp";
+
 /** The words the page renders, keyed by their `data-message-*` name. */
 export type Messages = Readonly<Record<string, string | undefined>>;
 
@@ -45,7 +47,7 @@ export const formatTicketCount = (
 
 export const FADE_DELAY_MS = 5000;
 
-let fadeTimer = 0;
+const [getFadeTimer, setFadeTimer] = lazyRef(() => 0);
 
 /** Show a status message with color via CSS classes */
 export const showStatus = (
@@ -53,7 +55,7 @@ export const showStatus = (
   message: string,
   type: StatusType,
 ): void => {
-  clearTimeout(fadeTimer);
+  clearTimeout(getFadeTimer());
   el.textContent = message;
   el.classList.remove(
     "hidden",
@@ -65,8 +67,10 @@ export const showStatus = (
   el.classList.add("scanner-status", `scanner-status-${type}`);
 
   if (type === "success" || type === "warning") {
-    fadeTimer = setTimeout(() => {
-      el.classList.add("scanner-status-fade-out");
-    }, FADE_DELAY_MS);
+    setFadeTimer(
+      setTimeout(() => {
+        el.classList.add("scanner-status-fade-out");
+      }, FADE_DELAY_MS),
+    );
   }
 };

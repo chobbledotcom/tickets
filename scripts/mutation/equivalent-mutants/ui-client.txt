@@ -145,7 +145,7 @@ src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.count~0irieiu H
 # module's other mutants. A lookup key whose fallback holds a rebrandable
 # word ("ticket") has no record here: the rebrand tests kill it, as the
 # scanner.ts block below states.
-src/ui/client/scanner-messages.ts::getMessage~0dasa24 ??→|| audited:0ml7luc # a stored attribute value is a rendered non-empty copy or the key is absent; "" is never stored, so ?? and || agree
+src/ui/client/scanner-messages.ts::getMessage~0dasa24 ??→|| audited:1efykmi # a stored attribute value is a rendered non-empty copy or the key is absent; "" is never stored, so ?? and || agree
 
 # The camera scanner bundle (src/ui/client/scanner.ts): the template renders
 # every data-message attribute the bundle reads (sharedScanMessageAttrs on

@@ -7,6 +7,7 @@
 // each queued check-in to the door it was scanned at once the connection is
 // back. It marks the answer on its own row.
 
+import { lazyRef } from "#fp";
 import type { ScanAnswer } from "./scanner-answer.ts";
 import {
   formatMessage,
@@ -147,7 +148,7 @@ export const appendQueuedRow = (
 /** A sync asked for while another runs re-runs once the running one ends.
  * The ask that arrives mid-run — a returning connection, a disarm — must
  * not die with the run it interrupted. */
-let syncRequested = false;
+const [isSyncRequested, setSyncRequested] = lazyRef(() => false);
 
 /** Send every queued check-in and report each one's outcome on its own row.
  * An item leaves the queue only after the door answered it with a scan
@@ -161,7 +162,7 @@ export const syncQueue = async (
   settleDelivery: SettleDelivery,
 ): Promise<void> => {
   if (isSyncing()) {
-    syncRequested = true;
+    setSyncRequested(true);
     return;
   }
   if (!navigator.onLine || readQueue().length === 0) return;
@@ -279,8 +280,8 @@ export const syncQueue = async (
     showSyncOutcome();
   } finally {
     setSyncing(false);
-    if (syncRequested) {
-      syncRequested = false;
+    if (isSyncRequested()) {
+      setSyncRequested(false);
       syncQueue(statusEl, messages, panel, settleDelivery);
     }
   }

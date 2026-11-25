@@ -18,13 +18,6 @@
       "evidence": "handleUpdate's parent plan on an update body reads the field by key off the raw JSON body record"
     }
   ],
-  "src/features/admin/scan-cache.ts": [
-    {
-      "path": [{ "name": "TicketCacheEntry" }],
-      "kind": "external-output",
-      "evidence": "jsonResponse serialises the entries into the scan-cache GET body; the scanner page's hand-written browser code (scanner-offline.ts, scanner-offline-ui.ts) validates and reads tickets for the offline quantity ask"
-    }
-  ],
   "src/features/api/public-listing.ts": [
     {
       "path": [{ "name": "PublicListing" }],

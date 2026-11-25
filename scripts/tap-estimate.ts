@@ -23,7 +23,7 @@ const FILE_ARG_VALUE_FLAGS: Record<string, true> = {
 };
 
 const TEST_FILE_RE =
-  /(^|[/\\])__tests__[/\\].+\.tsx?$|(^|[/\\])[^/\\]+(?:[._]test)\.tsx?$/;
+  /(^|[/\\])__tests__[/\\].+\.[cm]?tsx?$|(^|[/\\])[^/\\]+(?:[._]test)\.[cm]?tsx?$/;
 
 const TEST_DECLARATION_RE = /(^|[^\w$.])(?:Deno\.test|describe|it|test)\s*\(/g;
 const TEST_OBJECT_DECLARATION_RE =
