@@ -3,11 +3,11 @@ import { join } from "@std/path";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
 import sharp from "sharp";
-import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { recordSession } from "#scripts/guides/record/session.ts";
 import type { GuideAction } from "#scripts/guides/storyboard.ts";
 import { parseGuideTimeline } from "#scripts/guides/timeline.ts";
 import { launchScreenshotBrowser } from "#test/scripts/screenshots-browser-helpers.ts";
+import { newGuidePage } from "./browser-helpers.ts";
 
 const VIEWPORT = { height: 600, width: 800 };
 
@@ -46,12 +46,12 @@ describe("guide recorder browser contract", () => {
   });
 
   test("records a typed field, a click, and a scroll", async () => {
-    const page = await browser.newPage({ viewport: VIEWPORT });
-    withStrictBrowserTimeouts(page);
+    const page = await newGuidePage(
+      browser,
+      VIEWPORT,
+      `data:text/html,${encodeURIComponent(pageHtml)}`,
+    );
     try {
-      await page.goto(`data:text/html,${encodeURIComponent(pageHtml)}`, {
-        waitUntil: "domcontentloaded",
-      });
       const timeline = await recordSession(page, {
         actions,
         fps: 30,

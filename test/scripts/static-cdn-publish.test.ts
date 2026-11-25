@@ -69,6 +69,20 @@ const stalledFetcher =
     return stalled;
   };
 
+/** Both publishers must reject a duplicate path before any request. */
+const expectDuplicateRejected = async (
+  publish: (fetcher: typeof fetch) => Promise<unknown>,
+): Promise<void> => {
+  let requested = false;
+  await expect(
+    publish(() => {
+      requested = true;
+      return Promise.reject(new Error("Unexpected network request"));
+    }),
+  ).rejects.toThrow("must be unique");
+  expect(requested).toBe(false);
+};
+
 describe("publishCdnObjects", () => {
   test("uploads each object under its own path and verifies it", async () => {
     const requests: Request[] = [];
@@ -116,14 +130,13 @@ describe("publishCdnObjects", () => {
   });
 
   test("rejects duplicate paths before uploading", async () => {
-    let requested = false;
-    await expect(
-      publishCdnObjects(CONFIG, [GUIDE_OBJECTS[0]!, GUIDE_OBJECTS[0]!], () => {
-        requested = true;
-        return Promise.reject(new Error("Unexpected network request"));
-      }),
-    ).rejects.toThrow("must be unique");
-    expect(requested).toBe(false);
+    await expectDuplicateRejected((fetcher) =>
+      publishCdnObjects(
+        CONFIG,
+        [GUIDE_OBJECTS[0]!, GUIDE_OBJECTS[0]!],
+        fetcher,
+      ),
+    );
   });
 
   test("hashes the same objects the same way in any order", async () => {
@@ -284,14 +297,9 @@ describe("publishStaticCdnAssets", () => {
       contentType: "application/javascript",
       filename: "admin.js",
     };
-    let requested = false;
-    await expect(
-      publishStaticCdnAssets(CONFIG, [asset, asset], () => {
-        requested = true;
-        return Promise.reject(new Error("Unexpected network request"));
-      }),
-    ).rejects.toThrow("must be unique");
-    expect(requested).toBe(false);
+    await expectDuplicateRejected((fetcher) =>
+      publishStaticCdnAssets(CONFIG, [asset, asset], fetcher),
+    );
   });
 
   test("fails the build when the pull-zone purge fails", async () => {

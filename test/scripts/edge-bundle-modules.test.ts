@@ -112,9 +112,9 @@ describe("buildAssetPathsModule", () => {
       undefined,
       "https://assets.example.com/guides/release",
     );
-    expectIncludesAll(paths, [
+    expect(paths).toContain(
       `export const GUIDE_CDN_BASE = "https://assets.example.com/guides/release";`,
-    ]);
+    );
   });
 });
 

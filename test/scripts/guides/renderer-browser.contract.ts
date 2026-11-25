@@ -3,9 +3,13 @@ import { join } from "@std/path";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser, Page } from "playwright";
 import sharp from "sharp";
-import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { startGuideRenderServer } from "#scripts/guides/render/server.ts";
 import { launchScreenshotBrowser } from "#test/scripts/screenshots-browser-helpers.ts";
+import {
+  closeGuideBrowser,
+  newGuidePage,
+  waitForGuideReady,
+} from "./browser-helpers.ts";
 import { focusEvent, guideTimeline, pointerEvent } from "./fixtures.ts";
 
 const VIEWPORT = { height: 720, width: 1280 };
@@ -117,19 +121,11 @@ describe("guide renderer browser contract", () => {
     browser = await launchScreenshotBrowser();
   });
 
-  afterAll(async () => {
-    await browser.close();
-    await server.close();
-    await Deno.remove(directory, { recursive: true });
-  });
+  afterAll(() => closeGuideBrowser(browser, server, directory));
 
-  const openPage = async () => {
-    const page = await browser.newPage({ viewport: VIEWPORT });
-    withStrictBrowserTimeouts(page);
-    await page.goto(server.baseUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForFunction(
-      () => Reflect.get(globalThis, "rendererReady") === true,
-    );
+  const openPage = async (): Promise<Page> => {
+    const page = await newGuidePage(browser, VIEWPORT, server.baseUrl);
+    await waitForGuideReady(page);
     return page;
   };
 

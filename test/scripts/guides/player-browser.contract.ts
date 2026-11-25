@@ -2,8 +2,6 @@ import { expect } from "@std/expect";
 import { join } from "@std/path";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
-import sharp from "sharp";
-import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { packageGuideAnimation } from "#scripts/guides/package.ts";
 import { bundleGuideRenderer } from "#scripts/guides/render/bundle.ts";
 import {
@@ -11,6 +9,12 @@ import {
   type LoopbackServer,
 } from "#scripts/loopback-server.ts";
 import { launchScreenshotBrowser } from "../screenshots-browser-helpers.ts";
+import {
+  closeGuideBrowser,
+  newGuidePage,
+  redAtCentre,
+  waitForGuideReady,
+} from "./browser-helpers.ts";
 import { writeGuideSession } from "./session-fixture.ts";
 
 const VIEWPORT = { height: 720, width: 1280 };
@@ -21,15 +25,6 @@ const contentTypeFor = (path: string): string => {
   if (path.endsWith(".json")) return "application/json; charset=utf-8";
   if (path.endsWith(".webp")) return "image/webp";
   return "application/octet-stream";
-};
-
-const centreRed = async (png: Uint8Array): Promise<number> => {
-  const { data, info } = await sharp(png)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const x = Math.floor(info.width / 2);
-  const y = Math.floor(info.height / 2);
-  return data[(y * info.width + x) * info.channels]!;
 };
 
 describe("guide player browser contract", () => {
@@ -62,29 +57,23 @@ describe("guide player browser contract", () => {
     browser = await launchScreenshotBrowser();
   });
 
-  afterAll(async () => {
-    await browser.close();
-    await server.close();
-    await Deno.remove(root, { recursive: true });
-  });
+  afterAll(() => closeGuideBrowser(browser, server, root));
 
   test("plays the recorded frames without an MP4", async () => {
-    const page = await browser.newPage({ viewport: VIEWPORT });
-    withStrictBrowserTimeouts(page);
+    const page = await newGuidePage(
+      browser,
+      VIEWPORT,
+      `${server.baseUrl}/create-a-listing/index.html`,
+    );
     try {
-      await page.goto(`${server.baseUrl}/create-a-listing/index.html`, {
-        waitUntil: "domcontentloaded",
-      });
-      await page.waitForFunction(
-        () => Reflect.get(globalThis, "rendererReady") === true,
-      );
+      await waitForGuideReady(page);
 
       await page.waitForTimeout(250);
-      const first = await centreRed(await page.screenshot({ type: "png" }));
+      const first = await redAtCentre(page);
       await page.waitForTimeout(1100);
-      const second = await centreRed(await page.screenshot({ type: "png" }));
+      const second = await redAtCentre(page);
       await page.waitForTimeout(2400);
-      const looped = await centreRed(await page.screenshot({ type: "png" }));
+      const looped = await redAtCentre(page);
 
       expect(first).toBeLessThan(20);
       expect(second).toBeGreaterThan(40);
