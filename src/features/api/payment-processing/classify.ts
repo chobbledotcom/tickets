@@ -15,7 +15,10 @@ import {
   missingOrderReturnPage,
 } from "#routes/api/payment-processing/missing-order.ts";
 import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
-import { sessionStanding } from "#routes/api/payment-processing/session-standing.ts";
+import {
+  receiptServes,
+  sessionStanding,
+} from "#routes/api/payment-processing/session-standing.ts";
 import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import type {
   SessionValidation,
@@ -32,6 +35,7 @@ import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import {
   paymentWaitingPage,
@@ -166,20 +170,29 @@ export const classifySessionIntent = async (
   const verdict = await classifySession(session);
   if (verdict.verdict === "ignore") return { kind: "unverifiable" };
   const order = await readSessionOrder(session);
-  if (order.status === "read") {
-    return { intent: order.intent, kind: "ready", verdict };
-  }
   if (order.status === "unreadable") {
     logUnreadableBooking("Signed payment's booking could not be read");
     return { kind: "unreadable" };
   }
-  // Each surface answers a missing order from where the session stands.
+  // Each surface answers a missing order from where the session stands. A
+  // receipt stands for an order that settled. It serves a replay, and it
+  // books nobody: a session that nothing settled lost its order.
+  const standing =
+    order.status === "read" && !order.receipt
+      ? null
+      : await sessionStanding(session.id);
+  if (
+    order.status === "read" &&
+    (standing === null || receiptServes(standing))
+  ) {
+    return { intent: order.intent, kind: "ready", verdict };
+  }
   return {
     kind: "missing",
     missing: {
-      reason: order.status,
+      reason: order.status === "read" ? "bundle_missing" : order.status,
       session,
-      standing: await sessionStanding(session.id),
+      standing: requireValue(standing, "A missing order has a standing"),
     },
   };
 };

@@ -126,8 +126,24 @@ describeWithEnv(
       await execute(
         sql`UPDATE square_link_ends SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`,
       );
+      // The create seals the order and links it to the checkout. The stub
+      // replaces the call that seals it, so this stores what it would have.
+      await execute(
+        sql`INSERT INTO checkout_bundles (token_index, wrapped_key, sealed, created_at, session_index)
+          VALUES (${`bundle_${sessionId}`}, 'wrapped', 'sealed', ${createdAt}, ${await hmacHash(sessionId)})`,
+      );
       await runDatabasePruning();
     };
+
+    /** How many sealed orders the Square checkout of a session still has. */
+    const sealedOrdersOf = async (sessionId: string): Promise<number> =>
+      Number(
+        (
+          await execute(
+            sql`SELECT COUNT(*) AS kept FROM checkout_bundles WHERE session_index = ${await hmacHash(sessionId)}`,
+          )
+        ).rows[0]?.kept,
+      );
 
     test("keeps a Square checkout's answers past the payments clock while its link can still take payment", async () => {
       await squareCheckoutAgedDays("sq_day_150", 150);
@@ -135,6 +151,27 @@ describeWithEnv(
       expect(await readCheckoutAnswers("sq_day_150")).toEqual(
         new Map([["7", "Coming by bus"]]),
       );
+    });
+
+    test("keeps a Square checkout's sealed order past the payments clock while its link can still take payment", async () => {
+      await squareCheckoutAgedDays("sq_order_150", 150);
+
+      expect(await sealedOrdersOf("sq_order_150")).toBe(1);
+    });
+
+    test("keeps a Square checkout's sealed order while a payment on the link's last day can still arrive", async () => {
+      await squareCheckoutAgedDays("sq_order_181", 181);
+
+      expect(await sealedOrdersOf("sq_order_181")).toBe(1);
+    });
+
+    test("prunes a Square checkout's sealed order once its link has ended and the webhook retries are over", async () => {
+      await squareCheckoutAgedDays(
+        "sq_order_184",
+        180 + WEBHOOK_RETRY_WINDOW_DAYS + 1,
+      );
+
+      expect(await sealedOrdersOf("sq_order_184")).toBe(0);
     });
 
     test("keeps a Square checkout's answers while a payment on the link's last day can still arrive", async () => {

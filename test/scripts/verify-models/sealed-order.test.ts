@@ -6,7 +6,7 @@ import { registeredModel } from "./registered-model.ts";
 
 const { data: sealedOrderModelData, controls } = registeredModel("SealedOrder");
 const [
-  earlyReceiptData,
+  receiptBooksData,
   settledAlarmData,
   missedAlarmData,
   lostOrderRefundData,
@@ -68,13 +68,9 @@ const ROW_DECIDES = ROW_ANSWERS.flatMap(([row, answer]) =>
 );
 
 /** Every delivery that reads an order or a receipt. With no row, a ledger
- * leg heals the row, and only a receipt with no leg books. */
+ * leg heals the row. A receipt with no row and no leg is a lost order. */
 const READABLE = [
-  fact("receipt", "none", "unrecorded", "booked", {
-    books: true,
-    ledgerAfter: "recorded",
-    rowAfter: "finalized",
-  }),
+  fact("receipt", "none", "unrecorded", "unreadable", ALARM),
   fact("order", "none", "recorded", "booked", HEALED_BOOKED),
   fact("order", "none", "recorded", "settled", HEALED_FAILED),
   fact("receipt", "none", "recorded", "booked", HEALED_BOOKED),
@@ -106,7 +102,7 @@ describe("sealed order checker data", () => {
     expect(goneOnly(await deliveries(sealedOrderModelData))).toEqual(MISSING);
   });
 
-  test("replays a readable order from the row or the ledger, and books only from a receipt with no row and no leg", async () => {
+  test("replays a readable order from the row or the ledger, and reads a receipt with no row and no leg as a lost order", async () => {
     const facts = await deliveries(sealedOrderModelData);
 
     expect(facts.filter((delivery) => delivery.bundle !== "gone")).toEqual(
@@ -144,12 +140,21 @@ describe("sealed order checker data", () => {
     );
   });
 
-  test("the early-receipt control writes a receipt after a reserved row too", async () => {
-    expect(records(await earlyReceiptData!(), "ReceiptFacts")).toEqual([
-      { rowBefore: "reserved" },
-      { rowBefore: "finalized" },
-      { rowBefore: "failed" },
-    ]);
+  test("the receipt-books control books from a receipt with no row and no leg, and changes nothing else", async () => {
+    const books = (delivery: Fields) =>
+      delivery.bundle === "receipt" &&
+      delivery.rowBefore === "none" &&
+      delivery.ledgerBefore === "unrecorded"
+        ? fact("receipt", "none", "unrecorded", "booked", {
+            books: true,
+            ledgerAfter: "recorded",
+            rowAfter: "finalized",
+          })
+        : delivery;
+
+    expect(await deliveries(receiptBooksData!)).toEqual(
+      (await deliveries(sealedOrderModelData)).map(books),
+    );
   });
 
   test("the settled-alarm control raises the alarm for a refunded session, and changes nothing else", async () => {
@@ -178,10 +183,9 @@ describe("sealed order checker data", () => {
     const facts = await deliveries(lostOrderRefundData!);
 
     expect(facts.filter((delivery) => delivery.refunds === true)).toEqual(
-      MISSING.filter((delivery) => delivery.alarms).map((delivery) => ({
-        ...delivery,
-        refunds: true,
-      })),
+      (await deliveries(sealedOrderModelData))
+        .filter((delivery) => delivery.alarms)
+        .map((delivery) => ({ ...delivery, refunds: true })),
     );
   });
 });
