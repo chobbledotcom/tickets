@@ -16,6 +16,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   cameraFakes,
+  drain,
   scanFirst,
   start,
   whenStatusShows,
@@ -216,6 +217,11 @@ describe("scanner offline sync", {
 
     await whenTextShows(
       h.statusEl,
+      "This device could not save the queued check-ins. Free up space, then reload this page.",
+    );
+    // The sync stops there: its error stays up instead of the closing words.
+    await drain();
+    expect(h.statusEl.textContent).toBe(
       "This device could not save the queued check-ins. Free up space, then reload this page.",
     );
 
