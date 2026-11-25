@@ -137,11 +137,22 @@ const RECEIPT_FIELDS: readonly string[] = Object.entries(RECEIPT_KEEPS)
   .filter(([, keeps]) => keeps)
   .map(([field]) => field);
 
-/** The receipt of a settled order: the order's record with every field that
- * the receipt does not keep taken out. */
+/** The field that marks a record as a receipt. An order never holds it. */
+const RECEIPT_MARK = "_receipt";
+
+/** The receipt of a settled order. It holds the fields of the order that a
+ * receipt keeps, and the mark that tells it from an order. */
 export const receiptRecord = (
   record: Readonly<Record<string, string>>,
-): Record<string, string> =>
-  Object.fromEntries(
+): Record<string, string> => ({
+  ...Object.fromEntries(
     Object.entries(record).filter(([field]) => RECEIPT_FIELDS.includes(field)),
-  );
+  ),
+  [RECEIPT_MARK]: "1",
+});
+
+/** Whether a sealed record is a receipt. A receipt has no buyer in it, so it
+ * can serve a replay of a settled session and can never book anyone. */
+export const isReceiptRecord = (
+  record: Readonly<Record<string, string>>,
+): boolean => record[RECEIPT_MARK] === "1";
