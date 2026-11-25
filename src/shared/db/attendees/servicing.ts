@@ -447,7 +447,7 @@ const restoreServicingState = async (
     id,
     servicingPii(before.name, before.ticketToken),
     desiredLinesFromExisting(existingBefore),
-    true,
+    { allowOverbook: true },
   );
   await saveAttendeeAnswers(new Map([[id, answersBefore]]));
 };
@@ -487,7 +487,7 @@ export const updateServicingEvent = async (
     id,
     servicingPii(name, current.ticketToken),
     desiredLines(input, existingBefore),
-    input.allowOverbook ?? false,
+    { allowOverbook: input.allowOverbook ?? false },
   );
   // Every failure shape carries listingIds ([] when no specific listing is to
   // blame), so one throw covers both: capacity failures name their listings,

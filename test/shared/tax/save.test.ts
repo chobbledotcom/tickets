@@ -140,14 +140,17 @@ const expectOriginalLegsKept = async (
   ).toEqual(original);
 };
 
+const taxWork = async (...args: Parameters<typeof attendeeTaxSaveWork>) => ({
+  work: await attendeeTaxSaveWork(...args),
+});
+
 const save = async (fixture: Booking, plan?: TaxSavePlan, name = "After") => {
   const current = plan ?? (await buildTaxSavePlan(fixture.attendee.id));
   return applyAttendeeAtomicEdit(
     fixture.attendee.id,
     { ...attendeePiiOf(fixture.attendee), name },
     fixture.desired,
-    false,
-    await attendeeTaxSaveWork(
+    await taxWork(
       fixture.attendee.id,
       fixture.attendee.status_id,
       true,
@@ -373,8 +376,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
           quantity: 0,
         }),
       ),
-      false,
-      await attendeeTaxSaveWork(
+      await taxWork(
         fixture.attendee.id,
         status.id,
         false,
@@ -458,8 +460,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
       fixture.attendee.id,
       { ...attendeePiiOf(fixture.attendee), name: "After" },
       fixture.desired,
-      false,
-      await attendeeTaxSaveWork(
+      await taxWork(
         fixture.attendee.id,
         fixture.attendee.status_id,
         true,

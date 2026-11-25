@@ -28,7 +28,7 @@ import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
 import { abortUnless } from "#db/guarded-writes.ts";
-import { among, valued, whereTail } from "#db/select/expression.ts";
+import { among, and, or, valued, whereTail } from "#db/select/expression.ts";
 import { tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
@@ -43,12 +43,12 @@ import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 /**
  * A guard statement that aborts the whole write batch when the immediately
  * preceding capacity-checked write affected zero rows. `changes()` reports
- * the prior statement's row count; on zero, this tries to insert a NULL
- * listing_id, which violates the NOT NULL constraint and rolls the batch back.
+ * the prior statement's row count. On zero, this tries to insert a NULL
+ * listing_id. That breaks the NOT NULL constraint and rolls the batch back.
  * When the prior write succeeded, `changes() > 0`, the WHERE matches nothing,
- * and the guard is a no-op. This is what makes the edit all-or-nothing on a
- * `batch()` — a zero-row capacity statement is not itself an error and would
- * otherwise commit alongside the unconditional PII/DELETE writes.
+ * and the guard is a no-op. This makes the edit all-or-nothing on a `batch()`.
+ * A zero-row capacity statement is not itself an error. Without the guard, it
+ * commits alongside the unconditional PII/DELETE writes.
  */
 export const CAPACITY_GUARD: SqlStatement = abortUnless(
   sql`listing_attendees (listing_id, attendee_id, quantity)`,
@@ -302,33 +302,53 @@ const removedLines = (
   );
 };
 
-/** A guard that aborts the batch while the booking row still has a running
- * subscription: its row with no listing breaks NOT NULL. It tests the current
- * plan, not changes(), so an absent ordinary row stays a no-op. */
-const livePlanGuard = (
+/** What an edit does with the answers of a line that it removes. A removed
+ * line takes its answers with it, so the default refuses the edit. */
+export type RemovedLineAnswers = "refuse" | "delete";
+
+/** The rule for a caller that did, or did not, ask to delete the answers. */
+export const removedLineAnswersFor = (
+  deleteAnswers: boolean,
+): RemovedLineAnswers => (deleteAnswers ? "delete" : "refuse");
+
+/** True for a booking row that holds answers. */
+const HOLDS_ANSWERS = valued<boolean>(
+  sql`EXISTS (SELECT 1 FROM attendee_answers AS answer
+    WHERE answer.booking_row_id = listingAttendee.id)`,
+);
+
+/** A guard that aborts the batch while a removed booking row must stay: it
+ * still has a running subscription, or it holds answers that the edit must
+ * not delete. Its row with no listing breaks NOT NULL. It tests the current
+ * row, not changes(), so an absent ordinary row stays a no-op. */
+const removedRowGuard = (
   attendeeId: number,
   booking: ListingAttendeeRow,
+  answers: RemovedLineAnswers,
 ): SqlStatement => {
   const row = tableNode(tables.listing_attendees, "listingAttendee");
   return sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
     SELECT NULL, NULL, 1 FROM listing_attendees AS listingAttendee${whereTail([
       ...inBookingSlot(attendeeId, booking)(row),
-      among(row.subscriptionStatus, CANCELLABLE_STATUSES),
+      or(
+        among(row.subscriptionStatus, CANCELLABLE_STATUSES),
+        answers === "refuse" && HOLDS_ANSWERS,
+      ),
     ])}`;
 };
 
-/** Each removed line has a live-plan guard before its delete. Capacity-checked
- * writes have CAPACITY_GUARD after them. The caller runs all statements as one
+/** Each removed line has a guard before its delete. Capacity-checked writes
+ * have CAPACITY_GUARD after them. The caller runs all statements as one
  * batch, so a refused write rolls the whole edit back. */
 export const buildAttendeeEditBatch = (
   attendeeId: number,
   desired: readonly DesiredListingLine[],
   existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
-  allowOverbook: boolean,
+  { allowOverbook, removedLineAnswers }: EditRules,
 ): SqlStatement[] => {
   const statements = removedLines(desired, existingByKey).flatMap(
     (booking): SqlStatement[] => [
-      livePlanGuard(attendeeId, booking),
+      removedRowGuard(attendeeId, booking, removedLineAnswers),
       bookingRowDelete(attendeeId, booking),
     ],
   );
@@ -348,7 +368,38 @@ export const buildAttendeeEditBatch = (
   return statements;
 };
 
-const EMPTY_EDIT_WORK: AttendeeEditWork = { after: [], before: [] };
+/** How an edit treats capacity and the answers of removed lines. */
+type EditRules = {
+  allowOverbook: boolean;
+  removedLineAnswers: RemovedLineAnswers;
+};
+
+/** The choices of one edit. Each one has a safe default: no overbooking, a
+ * refusal to delete answers, and no extra writes. */
+export type AttendeeEditOptions = Partial<EditRules> & {
+  work?: AttendeeEditWork;
+};
+
+/** The listings among the removed rows that hold answers. */
+const answeredListingIds = async (
+  attendeeId: number,
+  removed: readonly ListingAttendeeRow[],
+): Promise<number[]> => {
+  if (removed.length === 0) return [];
+  const row = tableNode(tables.listing_attendees, "listingAttendee");
+  const rows = await queryAll<{ listing_id: number }>(
+    sql`SELECT DISTINCT listingAttendee.listing_id
+      FROM listing_attendees AS listingAttendee${whereTail([
+        HOLDS_ANSWERS,
+        or(
+          ...removed.map((booking) =>
+            and(...inBookingSlot(attendeeId, booking)(row)),
+          ),
+        ),
+      ])}`,
+  );
+  return rows.map((found) => found.listing_id);
+};
 
 /**
  * Apply a desired final-state line set to an existing attendee atomically.
@@ -361,8 +412,11 @@ export const applyAttendeeAtomicEdit = async (
   attendeeId: number,
   pii: UpdateAttendeePIIInput,
   desired: DesiredListingLine[],
-  allowOverbook = false,
-  work: AttendeeEditWork = EMPTY_EDIT_WORK,
+  {
+    allowOverbook = false,
+    removedLineAnswers = "refuse",
+    work = { after: [], before: [] },
+  }: AttendeeEditOptions = {},
 ): Promise<UpdateAttendeeAtomicResult> => {
   if (desired.length === 0) {
     return { listingIds: [], reason: "no_lines", success: false };
@@ -380,7 +434,8 @@ export const applyAttendeeAtomicEdit = async (
 
   // A removed line loses its row, and a row with a running subscription must
   // stay until the owner cancels it.
-  const lostPlans = removedLines(desired, existingByKey).filter((booking) =>
+  const removed = removedLines(desired, existingByKey);
+  const lostPlans = removed.filter((booking) =>
     isCancellable(booking.subscription_status),
   );
   if (lostPlans.length > 0) {
@@ -389,6 +444,14 @@ export const applyAttendeeAtomicEdit = async (
       reason: "subscription_live",
       success: false,
     };
+  }
+  // A removed line also takes its answers, so the caller must say so.
+  const answered =
+    removedLineAnswers === "refuse"
+      ? await answeredListingIds(attendeeId, removed)
+      : [];
+  if (answered.length > 0) {
+    return { listingIds: answered, reason: "answers_held", success: false };
   }
 
   // Preflight: reject (without writing anything) when any changed line can't
@@ -407,12 +470,10 @@ export const applyAttendeeAtomicEdit = async (
   const statements: SqlStatement[] = [
     ...work.before,
     ...(await attendeePiiWriteStatements(attendeeId, pii)),
-    ...buildAttendeeEditBatch(
-      attendeeId,
-      desired,
-      existingByKey,
+    ...buildAttendeeEditBatch(attendeeId, desired, existingByKey, {
       allowOverbook,
-    ),
+      removedLineAnswers,
+    }),
     ...work.after,
   ];
 

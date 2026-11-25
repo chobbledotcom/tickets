@@ -239,13 +239,18 @@ const parseCreated = (raw: unknown): Result<string | undefined> => {
     : errorResult("created must be a valid instant as 2026-09-01T09:00:00Z");
 };
 
-/** Whether the booking owes its notifications. An absent value keeps the
- *  default (true). Only a real boolean is accepted, so a typo never silences
- *  a booking by accident. */
-const parseNotifications = (raw: unknown): Result<boolean> =>
-  raw === undefined || typeof raw === "boolean"
-    ? okResult(raw ?? true)
-    : errorResult("notifications must be true or false");
+/** A true-or-false field. An absent value keeps `fallback`. Only a real
+ *  boolean is accepted, so a typo never flips a choice by accident. */
+export const parseFlag =
+  (name: string, fallback: boolean) =>
+  (raw: unknown): Result<boolean> =>
+    raw === undefined || typeof raw === "boolean"
+      ? okResult(raw ?? fallback)
+      : errorResult(`${name} must be true or false`);
+
+/** Whether the booking owes its notifications. The default is true, so a
+ *  typo never silences a booking. */
+const parseNotifications = parseFlag("notifications", true);
 
 /** The status a create body asks for. A named status resolves by name. When
  * the body names none, the attendee takes the public default, the same
