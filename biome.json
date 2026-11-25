@@ -13,12 +13,10 @@
   "files": {
     "ignoreUnknown": true,
     "includes": [
-      "**/*.js",
       "**/*.ts",
       "**/*.tsx",
       "!src/static",
       "!src/ui/static",
-      "!src/ui/client/scanner.js",
       "!**/.pi-worktrees",
       "!**/.security-worktrees",
       "!**/.mutation-runs",
@@ -139,7 +137,7 @@
       }
     },
     {
-      "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
+      "includes": ["test/**/*.ts", "test/**/*.tsx"],
       "linter": {
         "rules": {
           "correctness": {
@@ -173,7 +171,7 @@
       }
     },
     {
-      "includes": ["src/ui/client/scanner.js", "src/ui/static/**"],
+      "includes": ["src/ui/static/**"],
       "linter": {
         "enabled": false
       }

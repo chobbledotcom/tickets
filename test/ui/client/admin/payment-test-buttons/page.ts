@@ -31,8 +31,17 @@ export type Reply = {
  * every press after it, so one answer serves a test that presses once. */
 export type Script = readonly [Reply, ...Reply[]];
 
+/** One request the script sent: what it posted, and how. */
+export type Asked = {
+  body: string;
+  credentials: string;
+  headers: Record<string, string>;
+  method: string;
+  url: string;
+};
+
 export type Page = {
-  asked: { body: string; url: string }[];
+  asked: Asked[];
   button: HTMLButtonElement;
   result: HTMLElement;
 };
@@ -82,11 +91,17 @@ export const usePaymentButtonPage = (): {
     html: (provider: string, withToken: boolean) => string = formHtml,
   ) => {
     const window = dom.installDom(html(provider, withToken));
-    const asked: { body: string; url: string }[] = [];
+    const asked: Asked[] = [];
     const queue = [first, ...rest];
     let reply: Reply = first;
-    stash.set("fetch", async (url: unknown, init: { body: string }) => {
-      asked.push({ body: init.body, url: String(url) });
+    stash.set("fetch", async (url: unknown, init: Omit<Asked, "url">) => {
+      asked.push({
+        body: init.body,
+        credentials: init.credentials,
+        headers: init.headers,
+        method: init.method,
+        url: String(url),
+      });
       // Each press takes the next scripted answer, and the last one stays.
       reply = queue.shift() ?? reply;
       await reply.hold?.promise;

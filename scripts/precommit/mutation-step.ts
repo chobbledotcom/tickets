@@ -86,8 +86,7 @@ export interface MutationStepDeps {
 }
 
 const isSourceFile = (path: string): boolean =>
-  path.startsWith("src/") &&
-  (path.endsWith(".ts") || path.endsWith(".tsx") || path.endsWith(".js"));
+  path.startsWith("src/") && (path.endsWith(".ts") || path.endsWith(".tsx"));
 
 const isTestFile = (path: string): boolean =>
   (path.startsWith("test/") &&

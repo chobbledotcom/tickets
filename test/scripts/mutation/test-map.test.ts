@@ -114,15 +114,15 @@ describe("mutation test map", () => {
     ]);
   });
 
-  test("supports JavaScript sources and removes duplicate paths", () => {
+  test("removes duplicate paths", () => {
     const result = buildMutationTestMap(
-      ["src/ui/scanner.js", "src/ui/scanner.js"],
+      ["src/ui/scanner.ts", "src/ui/scanner.ts"],
       ["test/ui/scanner.test.ts", "test/ui/scanner.test.ts"],
     );
     expect(result.targets).toEqual([
       {
         directTestFiles: ["test/ui/scanner.test.ts"],
-        sourceFile: "src/ui/scanner.js",
+        sourceFile: "src/ui/scanner.ts",
       },
     ]);
   });
