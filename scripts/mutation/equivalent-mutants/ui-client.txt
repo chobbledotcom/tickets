@@ -3,7 +3,7 @@
 # --- Payment test buttons (src/ui/client/admin/payment-test-buttons.ts) --------
 # The CSRF input's value is a string or undefined and the fallback is the
 # empty string, so the only falsy operand value equals the fallback itself.
-src/ui/client/admin/payment-test-buttons.ts::setupTestButton.answer~1dlz3y3  ?? → || audited:03oy5t2 # csrfInput?.value is a string or undefined; "" ?? "" === "" || ""
+src/ui/client/admin/payment-test-buttons.ts::setupTestButton.answer.body~1dlz3y3  ?? → || audited:06rhxtl # csrfInput?.value is a string or undefined; "" ?? "" === "" || ""
 
 # --- External order widget (src/ui/client/order.ts, src/ui/client/cart-dom.ts) --
 # URL matches and catalog entries are either non-empty strings/objects or absent,
@@ -77,8 +77,8 @@ src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etit
 # property below is "" before the assignment, so `=` and `+=` finish identical.
 src/ui/client/admin/image-picker-template.ts::optionButton.item%2etitle~0ui2juv  = → += audited:0w9n4n2 # item.title: fresh button from createButton, "" before
 src/ui/client/admin/image-picker-template.ts::refusalMessage.template%2einnerHTML~1vmdtw6  = → += audited:0w9n4n2 # template.innerHTML: fresh template, "" before
-src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0qvtdnq # image.alt: fresh element, "" before, and "" + "" is ""
-src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0qvtdnq # image.src: fresh element, "" before
+src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0r4ynj5 # image.alt: fresh element, "" before, and "" + "" is ""
+src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0r4ynj5 # image.src: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
 # /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
 # (Number trims whitespace and "N." is the same decimal) — no typed input can
@@ -189,3 +189,9 @@ src/ui/client/admin/listing-images.ts::chosenItem.button%2etextContent~0frpih7  
 src/ui/client/admin/listing-images.ts::setUpListingImages.reload.draft~06jz6of  ?? → ||  audited:15y3c6o   # find gives an option object or undefined, and an object is never falsy
 src/ui/client/admin/listing-images.ts::setUpListingImages.render~1gqg28i  ?? → ||  audited:15y3c6o   # served.get gives an element or undefined, and an element is never falsy
 src/ui/client/scan-flow.ts::ANSWER_WORDS.other~1tcdw7w  ?? → || audited:1lfwrpn   # the schema reads error as undefined or a non-empty string, so ?? and || pick the same side
+
+# The dom helpers and the scanner service worker.
+src/ui/client/dom.ts::createHiddenInput.input%2ename~0c3eqyi =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
+src/ui/client/dom.ts::createHiddenInput.input%2evalue~1t6bjgm =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
+src/ui/client/dom.ts::csrfTokenFor~0yx2rmg ??→|| audited:0r4ynj5 # the field's value is a string, so ?? and || differ only on the empty string, which gives the same empty answer
+src/ui/client/scanner-sw.ts::networkFirst~0gf3pm3 ??→|| audited:027in26 # the cache answers a Response or nothing, and a Response is truthy, so ?? and || agree

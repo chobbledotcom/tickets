@@ -98,6 +98,9 @@ export interface ScannerGlobals {
   /** Seed the page's local store before the bundle runs — a stored ticket
    * cache, a queued check-in, or a manual mode a reload would restore. */
   seed?: (store: Storage) => void;
+  /** The worker registry the page registers its service worker with. The
+   * default page's registry accepts every registration. */
+  serviceWorker?: { register: (path: string) => Promise<unknown> };
 }
 
 /** The built bundle's export tail, rewritten as a global stash: esbuild emits
@@ -233,7 +236,7 @@ export const useScanner = (
   stash.set("localStorage", window.localStorage);
   stash.set("navigator", {
     onLine: globals.onLine ?? true,
-    serviceWorker: { register: async () => ({}) },
+    serviceWorker: globals.serviceWorker ?? { register: async () => ({}) },
   });
   globals.seed?.(window.localStorage);
 
