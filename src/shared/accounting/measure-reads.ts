@@ -1,23 +1,15 @@
-/** Read ledger measures for the whole ledger or for each account. A read of
- * a set makes one pass over the rows that any of its measures reads. */
+/** Read ledger measures for each of a list of accounts, in one
+ * statement. */
 
 import {
   type AccountId,
-  foldOf,
-  ledgerLegs,
   type Measure,
   measureOf,
-  some,
 } from "#accounting/projection-sql.ts";
-import { queryAll, requireOne } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
 import { type Counted, valued } from "#db/select/expression.ts";
-import {
-  type RowsStatement,
-  sql,
-  sqlCommas,
-  sqlName,
-  sqlRows,
-} from "#db/sql.ts";
+import { sql, sqlCommas, sqlName, sqlRows } from "#db/sql.ts";
+import { requiredMapValue } from "#fp";
 
 /** Named measures, read together. */
 export type Measures = Readonly<Record<string, Measure>>;
@@ -31,21 +23,6 @@ export type MeasuresRow<Set extends Measures> = {
 
 type StoredRow = Record<string, Counted | null>;
 
-/** One read of every measure in `set`. */
-const measuresStatement = (set: Measures): RowsStatement<StoredRow> => {
-  const measures = Object.values(set);
-  return ledgerLegs()
-    .where(some(...measures.map((measure) => measure.rows)))
-    .select((leg) =>
-      Object.fromEntries(
-        Object.entries(set).map(([name, measure]) => [
-          name,
-          foldOf(measure, leg, false),
-        ]),
-      ),
-    ) as RowsStatement<StoredRow>;
-};
-
 /** SQLite can give a total back as a bigint. */
 const asNumbers = <Set extends Measures>(row: StoredRow): MeasuresRow<Set> =>
   Object.fromEntries(
@@ -55,22 +32,19 @@ const asNumbers = <Set extends Measures>(row: StoredRow): MeasuresRow<Set> =>
     ]),
   ) as MeasuresRow<Set>;
 
-/** Every measure of `set` over the whole ledger. An aggregate read always
- * gives one row. */
-export const readMeasures = async <Set extends Measures>(
-  set: Set,
-): Promise<MeasuresRow<Set>> =>
-  asNumbers<Set>(await requireOne(measuresStatement(set)));
-
 /** The account id of each row of {@link readMeasuresByAccount}. */
 const ACCOUNT_ID = valued<string>(sql`account.id`);
 
 /** The measures of each of `ids`, keyed by id, in one statement. Each measure
- * reads only the rows of its own account, so an index backs it. */
-export const readMeasuresByAccount = async <Set extends Measures>(
-  ids: readonly number[],
+ * reads only the rows of its own account, so an index backs it. Ledger ids
+ * are text, so a numeric id and a named one such as "vat" both work. */
+export const readMeasuresByAccount = async <
+  Set extends Measures,
+  Id extends number | string,
+>(
+  ids: readonly Id[],
   measuresFor: (id: AccountId) => Set,
-): Promise<Map<number, MeasuresRow<Set>>> => {
+): Promise<Map<Id, MeasuresRow<Set>>> => {
   if (ids.length === 0) return new Map();
   const measures = Object.entries(measuresFor(ACCOUNT_ID)).map(
     ([name, measure]) => sql`${measureOf(measure)} AS ${sqlName(name)}`,
@@ -79,7 +53,11 @@ export const readMeasuresByAccount = async <Set extends Measures>(
     sql`WITH account(id) AS (VALUES ${sqlRows(ids.map((id) => [String(id)]))})
      SELECT account.id AS id, ${sqlCommas(measures)} FROM account`,
   );
+  const idOfText = new Map(ids.map((id) => [String(id), id]));
   return new Map(
-    rows.map(({ id, ...row }) => [Number(id), asNumbers<Set>(row)]),
+    rows.map(({ id, ...row }) => [
+      requiredMapValue(idOfText, id),
+      asNumbers<Set>(row),
+    ]),
   );
 };
