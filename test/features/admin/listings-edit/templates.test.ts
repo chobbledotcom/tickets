@@ -12,6 +12,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   featureSetting,
@@ -55,6 +56,24 @@ describeWithEnv("opening the new listing form", { db: true }, () => {
 
     assertStringIncludes(html, FORM_HEADING);
     expect(carriedTemplate(html)).toBe("custom");
+  });
+
+  test("links the guide video when the build published one", async () => {
+    const previous = Deno.env.get("GUIDE_CDN_BASE");
+    Deno.env.set(
+      "GUIDE_CDN_BASE",
+      "https://assets.example.com/static/guides/abc",
+    );
+    try {
+      const html = await pageAt("/admin/listing/new?template=custom");
+      expectIncludesAll(html, [
+        "data-guide-video",
+        'href="https://assets.example.com/static/guides/abc/create-a-listing/index.html"',
+      ]);
+    } finally {
+      if (previous === undefined) Deno.env.delete("GUIDE_CDN_BASE");
+      else Deno.env.set("GUIDE_CDN_BASE", previous);
+    }
   });
 
   test("sends a logistics template back to the picker while the feature is off", async () => {
