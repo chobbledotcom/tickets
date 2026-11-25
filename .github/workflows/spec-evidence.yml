@@ -49,6 +49,9 @@ jobs:
       - name: Capture specification evidence
         run: deno task specs:evidence
 
+      - name: Check guide freshness
+        run: deno task guide:check
+
       - name: Upload specification evidence
         uses: actions/upload-artifact@v4.6.2
         with:

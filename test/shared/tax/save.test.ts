@@ -12,11 +12,7 @@ import {
   postManualLedgerEntry,
 } from "#accounting/manual-entries.ts";
 import { mapBooking, mapRefund } from "#accounting/mappers.ts";
-import {
-  accountBalance,
-  allTransfers,
-  transfersByAccount,
-} from "#accounting/queries.ts";
+import { allTransfers, transfersByAccount } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
 import {
   applyAttendeeAtomicEdit,
@@ -38,6 +34,7 @@ import { buildTaxSavePlan, type TaxSavePlan } from "#shared/tax/save.ts";
 import { readTaxAssessments } from "#shared/tax/store.ts";
 import { NO_TAX, type TaxPolicy } from "#shared/tax/types.ts";
 import { keepLine } from "#test/shared/db/attendees/atomic-update/helpers.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";

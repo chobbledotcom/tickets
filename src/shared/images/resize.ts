@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * The pipeline only ever shrinks, so the right filter is an *area average*
  * rather than a bilinear sample, which would drop detail and shimmer on a large

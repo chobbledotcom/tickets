@@ -6,7 +6,6 @@
 
 import { expect } from "@std/expect";
 import { WRITEOFF } from "#accounting/accounts.ts";
-import { accountBalance } from "#accounting/queries.ts";
 import { submitRenderedAdminForm } from "#test/specs/support/browser.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { worldBalance } from "#test/specs/support/money-reads.ts";
@@ -15,6 +14,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { accountBalance } from "#test-utils/account-balance.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 

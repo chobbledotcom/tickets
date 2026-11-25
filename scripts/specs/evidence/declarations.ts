@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import type { ScreenshotProfileName } from "#scripts/screenshots/profile.ts";
 import {
   type EvidenceCaptureDeclaration,
   EvidenceCaptureDeclarationSchema,
@@ -10,36 +11,47 @@ type DeclaredCapture<Id extends string> = EvidenceCaptureDeclaration & {
   id: Id;
 };
 
+type EvidencePresentation = EvidenceCaptureDeclaration["presentation"];
+
 /**
- * One branded mobile capture: the page an authored case leaves behind and the
- * part of it worth showing. What the page is dressed in is not said here: see
- * themes.ts, because a screenshot's look belongs to whoever publishes it.
+ * One capture: the page an authored case leaves behind and the part of it worth
+ * showing. What the page is dressed in is not said here: see themes.ts, because
+ * a screenshot's look belongs to whoever publishes it.
  *
  * A page that is always at the same address says so with `path`. A page whose
  * address the story only knows once it has run — a new listing's number, a
  * signed link, a one-way code — leaves `path` out, and the story hands the
  * finished address over with leaveEvidencePage.
  */
-const brandedMobileCapture = <Id extends string>(
-  caseId: string,
-  id: Id,
-  element: string,
-  path?: string,
-): DeclaredCapture<Id> => {
-  const declaration = {
-    caseId,
-    element,
-    id,
-    path,
-    presentation: "branded" as const,
-    profiles: ["mobile" as const],
+const captureFactory =
+  (profile: ScreenshotProfileName, presentation: EvidencePresentation) =>
+  <Id extends string>(
+    caseId: string,
+    id: Id,
+    element: string,
+    path?: string,
+  ): DeclaredCapture<Id> => {
+    const declaration = {
+      caseId,
+      element,
+      id,
+      path,
+      presentation,
+      profiles: [profile],
+    };
+    const checked = v.parse(EvidenceCaptureDeclarationSchema, declaration);
+    // The checked values are the ones to keep; the id is put back only to hold
+    // on to its own name in the type, and checking never changes an id.
+    return { ...checked, id };
   };
-  const checked = v.parse(EvidenceCaptureDeclarationSchema, declaration);
-  // The checked values are the ones to keep; the id is put back only to hold
-  // on to its own name in the type, and checking never changes an id.
-  return { ...checked, id };
-};
 
+const brandedMobileCapture = captureFactory("mobile", "branded");
+
+/** A desktop capture in the app's own look. A guide video records at this
+ * viewport, so its evidence anchors compare like with like. */
+const canonicalDesktopCapture = captureFactory("desktop", "canonical");
+
+/* jscpd:ignore-start -- the capture list is static data */
 export const EVIDENCE_CAPTURES = [
   brandedMobileCapture(
     "payment.free-booking-records-no-money",
@@ -182,7 +194,18 @@ export const EVIDENCE_CAPTURES = [
     "qr-code-check-in",
     "article:has(#manual-checkin)",
   ),
+  canonicalDesktopCapture(
+    "booking.group-page-journey",
+    "listing-form",
+    "#listing-edit-form",
+  ),
+  canonicalDesktopCapture(
+    "minimum-quantity.choices-skip-below-the-minimum",
+    "public-booking-page",
+    ".page-regions.public-page",
+  ),
 ];
+/* jscpd:ignore-end */
 
 /** Every screenshot this repo takes. A story can only leave a page for one of
  * these names, so a typo is a compile error rather than a screenshot of the

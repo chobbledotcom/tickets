@@ -1,28 +1,43 @@
 import type { BrowserContextOptions } from "playwright";
 
+export const SCREENSHOT_PROFILE_NAMES = ["mobile", "desktop"] as const;
+export type ScreenshotProfileName = (typeof SCREENSHOT_PROFILE_NAMES)[number];
+
 export interface ScreenshotProfile {
   colorScheme: "light";
   deviceScaleFactor: number;
   locale: string;
-  name: "mobile";
+  name: ScreenshotProfileName;
   reducedMotion: "reduce";
   timezoneId: string;
   viewport: { height: number; width: number };
 }
 
-export const MOBILE_SCREENSHOT_PROFILE: ScreenshotProfile = {
+const profile = (
+  name: ScreenshotProfileName,
+  deviceScaleFactor: number,
+  height: number,
+  width: number,
+): ScreenshotProfile => ({
   colorScheme: "light",
-  deviceScaleFactor: 2,
+  deviceScaleFactor,
   locale: "en-GB",
-  name: "mobile",
+  name,
   reducedMotion: "reduce",
   timezoneId: "UTC",
-  viewport: { height: 844, width: 390 },
-};
+  viewport: { height, width },
+});
+
+export const MOBILE_SCREENSHOT_PROFILE = profile("mobile", 2, 844, 390);
+
+/** The viewport a tutorial video is recorded at. Evidence anchors use the same
+ * shape, so a guide frame and its reference differ only by what the app shows. */
+export const DESKTOP_SCREENSHOT_PROFILE = profile("desktop", 1, 720, 1280);
 
 export const SCREENSHOT_PROFILES = {
+  desktop: DESKTOP_SCREENSHOT_PROFILE,
   mobile: MOBILE_SCREENSHOT_PROFILE,
-} as const satisfies Record<string, ScreenshotProfile>;
+} as const satisfies Record<ScreenshotProfileName, ScreenshotProfile>;
 
 export const screenshotContextOptions = (
   profile: ScreenshotProfile,
