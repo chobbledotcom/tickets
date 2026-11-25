@@ -6,7 +6,10 @@
 
 import { isServicing } from "#db/attendees/kind.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
-import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
+import type {
+  AttendeeQuestionData,
+  LineAnswer,
+} from "#db/questions/attendee-answers/reads.ts";
 import { asksEachLine } from "#db/questions/line-answers.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
@@ -102,30 +105,40 @@ export const listingInfoColumns = <T>(
     : []),
 ];
 
-/** The texts of one attendee's answers to one line question that are still
- * booked, in line and ticket order. */
+/** Whether an answer belongs to the booking row of an exported attendee: the
+ * same listing, package, parent and date. */
+const isRowAnswer =
+  (row: Attendee) =>
+  (answer: LineAnswer): boolean =>
+    answer.listingId === row.listing_id &&
+    answer.packageGroupId === row.package_group_id &&
+    answer.parentListingId === row.parent_listing_id &&
+    (answer.startAt?.slice(0, 10) ?? null) === row.date;
+
+/** The texts of one booking row's answers to one line question that are still
+ * booked, in ticket order. */
 const bookedLineTexts = (
   data: AttendeeQuestionData | undefined,
-  attendeeId: number,
+  row: Attendee,
   questionId: number,
 ): string[] =>
-  (data?.lineAnswerMap?.get(attendeeId) ?? [])
+  (data?.lineAnswerMap?.get(row.id) ?? [])
+    .filter(isRowAnswer(row))
     .filter((answer) => answer.questionId === questionId)
     .filter((answer) => answer.unit < answer.quantity)
     .map(({ text }) => text);
 
 /** The columns of a line question. A question for each ticket takes one
- * column for each ticket, up to the most tickets that an attendee holds. A
- * question for each line takes one column, and joins the answers of an
- * attendee's lines. */
+ * column for each ticket, up to the most tickets that a row holds. A question
+ * for each line takes one column, with the answer of the row's line. */
 const lineQuestionColumns = (
   q: QuestionWithAnswers,
   attendees: readonly Attendee[],
   data: AttendeeQuestionData | undefined,
 ): Column<Attendee>[] => {
-  const texts = (a: Attendee) => bookedLineTexts(data, a.id, q.id);
+  const texts = (a: Attendee) => bookedLineTexts(data, a, q.id);
   if (q.answerLevel !== "quantity") {
-    return [{ header: q.text, value: (a) => texts(a).join("; ") }];
+    return [{ header: q.text, value: (a) => texts(a)[0] ?? "" }];
   }
   const most = Math.max(1, ...attendees.map((a) => texts(a).length));
   return Array.from({ length: most }, (_, at) => ({

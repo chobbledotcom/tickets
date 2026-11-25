@@ -19,7 +19,10 @@ import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
-import { extractSessionMetadata } from "#shared/session-metadata.ts";
+import {
+  extractSessionMetadata,
+  isReceiptRecord,
+} from "#shared/session-metadata.ts";
 import { NO_TAX } from "#shared/tax/types.ts";
 
 /**
@@ -71,12 +74,15 @@ type HasMetadata = { readonly metadata: SessionMetadata };
  * opened differs from fields that do not make a booking. Only the sealed
  * order leaves a paid buyer with no record at all. */
 export type SessionOrder =
-  | { status: "read"; intent: BookingIntent }
+  | { status: "read"; intent: BookingIntent; receipt: boolean }
   | { status: "unreadable" }
   | { status: "bundle_missing" | "bundle_unreadable" };
 
 /** The booking that a set of order fields describes, or `unreadable`. */
-const orderFrom = (metadata: SessionMetadata): SessionOrder => {
+const orderFrom = (
+  metadata: SessionMetadata,
+  receipt: boolean,
+): SessionOrder => {
   const result = v.safeParse(BookingIntentSchema, {
     address: metadata.address,
     allocations: parseAnswerRefs(metadata.allocations),
@@ -98,7 +104,7 @@ const orderFrom = (metadata: SessionMetadata): SessionOrder => {
     thankYouUrl: metadata.thank_you_url || undefined,
   });
   return result.success
-    ? { intent: result.output, status: "read" }
+    ? { intent: result.output, receipt, status: "read" }
     : { status: "unreadable" };
 };
 
@@ -114,10 +120,13 @@ const orderFrom = (metadata: SessionMetadata): SessionOrder => {
 export const readSessionOrder = async ({
   metadata,
 }: HasMetadata): Promise<SessionOrder> => {
-  if (metadata.bundle === "") return orderFrom(metadata);
+  if (metadata.bundle === "") return orderFrom(metadata, false);
   const bundle = await openCheckoutBundle(metadata.bundle);
   if (bundle.status !== "opened") return { status: `bundle_${bundle.status}` };
-  return orderFrom(extractSessionMetadata(bundle.record));
+  return orderFrom(
+    extractSessionMetadata(bundle.record),
+    isReceiptRecord(bundle.record),
+  );
 };
 
 /** Read the booking a session's order describes, or null when it cannot be

@@ -157,6 +157,7 @@ const buildAttendeeView = (
   lng: "",
   name: "",
   package_group_id: booking.package_group_id,
+  parent_listing_id: booking.parent_listing_id,
   payment_id: "",
   phone: "",
   pii_blob: base.pii_blob,

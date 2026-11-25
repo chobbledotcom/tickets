@@ -9,13 +9,14 @@
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
 import { executeBatch, type TxScope, withTransaction } from "#db/client.ts";
 import type {
+  AnswerRowDate,
   LineTextAnswer,
   LineTextAnswerId,
   LineTicket,
   TextAnswer,
   TextAnswerId,
 } from "#db/question-types.ts";
-import { lineKey, lineSlotOf } from "#db/questions/line-answers.ts";
+import { answerKey, lineSlotOf } from "#db/questions/line-answers.ts";
 import {
   internWriteStatements,
   type PreparedStringRow,
@@ -57,15 +58,12 @@ const dedupeByQuestion = <T extends { questionId: number }>(
 
 /** One answer for each question and ticket: a repeat keeps the last. */
 const dedupeByQuestionAndTicket = <
-  T extends LineTicket & { questionId: number },
+  T extends LineTicket & AnswerRowDate & { questionId: number },
 >(
   answers: T[],
 ): T[] => [
   ...new Map(
-    answers.map((answer) => [
-      `${answer.questionId}:${lineKey(answer)}:${answer.unit}`,
-      answer,
-    ]),
+    answers.map((answer) => [answerKey(answer.questionId, answer), answer]),
   ).values(),
 ];
 
@@ -184,7 +182,9 @@ const lineAnswerStatements = (
   const rows = attendeeRows(normalized, (set) =>
     set.lineAnswers.map((answer) => ({
       ...lineSlotOf(answer),
+      pinned: answer.startAt !== undefined,
       questionId: answer.questionId,
+      startAt: answer.startAt ?? null,
       unit: answer.unit,
       value:
         "text" in answer
@@ -205,9 +205,11 @@ const lineAnswerStatements = (
           AND line.listing_id = selected.listing_id
           AND line.parent_listing_id = selected.parent_listing_id
           AND (selected.parent_listing_id != 0
-            OR line.package_group_id = selected.package_group_id)`,
+            OR line.package_group_id = selected.package_group_id)
+          AND (selected.start_pinned = 0
+            OR line.start_at IS selected.start_at)`,
     columns: sql`attendee_id, question_id, listing_id, parent_listing_id,
-      package_group_id, unit_index, string_id`,
+      package_group_id, unit_index, string_id, start_pinned, start_at`,
     rows,
     rowValues: (row) => [
       row.questionId,
@@ -216,6 +218,8 @@ const lineAnswerStatements = (
       row.packageGroupId,
       row.unit,
       stringIdOf(row.value),
+      row.pinned ? 1 : 0,
+      row.startAt,
     ],
   });
   return statements;

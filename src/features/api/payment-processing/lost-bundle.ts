@@ -6,7 +6,8 @@
  * only an admin decides what happens to the money. The admin is told in three
  * places: the error log, the listing's notes, and the activity log. The note
  * and the activity line land once per payment, however often the provider
- * retries.
+ * retries. A subscription keeps charging until somebody cancels it, so its
+ * note names the subscription.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
@@ -30,6 +31,25 @@ const REASON_TEXT = {
 
 export type LostBundleReason = keyof typeof REASON_TEXT;
 
+/** The subscription that the checkout started, for the error log. */
+const subscriptionDetail = (session: ValidatedPaymentSession): string =>
+  session.subscription === undefined
+    ? ""
+    : `, subscription=${session.subscription.id}`;
+
+/** The note on the listing. A checkout that started a subscription says so,
+ * because a refund of the payment does not end the subscription. */
+const noteFor = (
+  session: ValidatedPaymentSession,
+  facts: Record<string, string>,
+): string =>
+  session.subscription === undefined
+    ? t("payment.lost_order.note", facts)
+    : t("payment.lost_order.note_subscription", {
+        ...facts,
+        subscription: session.subscription.id,
+      });
+
 /** Tell the admin about a paid checkout that cannot be booked. */
 export const reportLostBundle = async (
   session: ValidatedPaymentSession,
@@ -41,7 +61,7 @@ export const reportLostBundle = async (
   );
   logError({
     code: ErrorCode.PAYMENT_SESSION,
-    detail: `Paid checkout has no usable sealed order: ${reason} (session=${session.id}, provider=${session.provider}, payment=${session.paymentReference}, amount=${session.amountTotal} ${session.currency})`,
+    detail: `Paid checkout has no usable sealed order: ${reason} (session=${session.id}, provider=${session.provider}, payment=${session.paymentReference}, amount=${session.amountTotal} ${session.currency}${subscriptionDetail(session)})`,
     listingId,
   });
   const facts = {
@@ -53,7 +73,7 @@ export const reportLostBundle = async (
   await withTransaction(async (tx) => {
     const written = await createSystemNote(
       noteTargets.of("listing")(listingId),
-      t("payment.lost_order.note", facts),
+      noteFor(session, facts),
       { key: await hmacHash(session.id), purpose: "checkout_bundle_lost" },
       tx,
     );

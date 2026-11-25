@@ -9,7 +9,6 @@ import {
 import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { readStoredLineAnswers } from "#test-utils/db-helpers/line-answers.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import {
@@ -17,6 +16,7 @@ import {
   createFreeTextQuestion,
   createMergePair,
   createQuestionWithAnswers,
+  mergedLineTexts,
   oneQuestion,
   runMerge,
   saveChoice,
@@ -204,12 +204,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         await saveLineAnswer(target.id, listing.id, question.id, forTarget);
         await saveLineAnswer(source.id, listing2.id, question.id, forSource);
 
-        const { result } = await runMerge({ source, target });
-
-        expect(result.success).toBe(true);
-        expect(
-          (await readStoredLineAnswers(target.id)).map(({ text }) => text),
-        ).toEqual(kept);
+        expect(await mergedLineTexts(source, target)).toEqual(kept);
       });
     }
 

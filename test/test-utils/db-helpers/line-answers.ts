@@ -53,3 +53,19 @@ export const readStoredLineAnswers = async (
   }
   return stored;
 };
+
+/** How many answers each booking row of the attendee holds, by the date of
+ * the row, in date order. */
+export const countStoredAnswersByDate = async (
+  attendeeId: number,
+): Promise<number[]> =>
+  (
+    await queryAll<{ answers: number }>(
+      sql`SELECT COUNT(*) AS answers
+         FROM attendee_answers AS given
+         JOIN listing_attendees AS row ON row.id = given.booking_row_id
+        WHERE given.attendee_id = ${attendeeId}
+        GROUP BY row.start_at
+        ORDER BY row.start_at`,
+    )
+  ).map(({ answers }) => answers);
