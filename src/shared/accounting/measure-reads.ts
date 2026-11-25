@@ -9,6 +9,11 @@ import {
   measureOf,
   some,
 } from "#accounting/projection-sql.ts";
+import {
+  emptyRange,
+  type LedgerRange,
+  occurredAtRange,
+} from "#accounting/range.ts";
 import { queryAll, requireOne } from "#db/client.ts";
 import { type Counted, valued } from "#db/select/expression.ts";
 import {
@@ -31,11 +36,17 @@ export type MeasuresRow<Set extends Measures> = {
 
 type StoredRow = Record<string, Counted | null>;
 
-/** One read of every measure in `set`. */
-const measuresStatement = (set: Measures): RowsStatement<StoredRow> => {
+/** One read of every measure in `set`, over the rows inside `range`. */
+const measuresStatement = (
+  set: Measures,
+  range: LedgerRange,
+): RowsStatement<StoredRow> => {
   const measures = Object.values(set);
   return ledgerLegs()
-    .where(some(...measures.map((measure) => measure.rows)))
+    .where((leg) => [
+      some(...measures.map((measure) => measure.rows))(leg),
+      ...occurredAtRange(range, leg),
+    ])
     .select((leg) =>
       Object.fromEntries(
         Object.entries(set).map(([name, measure]) => [
@@ -55,12 +66,13 @@ const asNumbers = <Set extends Measures>(row: StoredRow): MeasuresRow<Set> =>
     ]),
   ) as MeasuresRow<Set>;
 
-/** Every measure of `set` over the whole ledger. An aggregate read always
- * gives one row. */
+/** Every measure of `set` over the rows inside `range`, by default the whole
+ * ledger. An aggregate read always gives one row. */
 export const readMeasures = async <Set extends Measures>(
   set: Set,
+  range: LedgerRange = emptyRange,
 ): Promise<MeasuresRow<Set>> =>
-  asNumbers<Set>(await requireOne(measuresStatement(set)));
+  asNumbers<Set>(await requireOne(measuresStatement(set, range)));
 
 /** The account id of each row of {@link readMeasuresByAccount}. */
 const ACCOUNT_ID = valued<string>(sql`account.id`);
