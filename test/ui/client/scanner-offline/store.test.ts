@@ -36,10 +36,12 @@ import {
 } from "#test/ui/client/scanner/fixture.ts";
 import {
   digestOf,
-  expectSwitchRefused,
   postedDeliveryHashes,
   queuedItems,
+  queueSummary,
+  refusingDoor,
   settledCheckIn,
+  switchArmed,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -58,9 +60,6 @@ describe("scanner offline store", {
 }, () => {
   const fresh = useScannerSuite();
 
-  const summary = (h: ScannerHarness): string | null =>
-    el(h.document, "scanner-queue-summary").textContent;
-
   /** One offline scan against a list stored `ageMs` before the scan reads the
    * clock. The camera fakes move the clock one second at the scan, so the
    * list is stamped from the time that second will bring. */
@@ -74,32 +73,27 @@ describe("scanner offline store", {
     return h;
   };
 
-  test("takes a list stored at the very moment of the scan", async () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
-    const h = await scanListStoredAgo(0);
-    await whenStatusShows(h.statusEl, QUEUED_WORDS);
-  });
-
-  test("takes a list stored just inside twelve hours ago", async () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
-    const h = await scanListStoredAgo(12 * HOUR_MS - 1000);
-    await whenStatusShows(h.statusEl, QUEUED_WORDS);
-  });
-
-  test("refuses a list stored thirteen hours ago", async () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
-    const h = await scanListStoredAgo(13 * HOUR_MS);
-    await whenStatusShows(h.statusEl, EXPIRED_WORDS);
-  });
-
-  test("refuses a list stamped after the scan", async () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
-    const h = await scanListStoredAgo(-HOUR_MS);
-    await whenStatusShows(h.statusEl, EXPIRED_WORDS);
-  });
+  const listAges: readonly [string, number, string][] = [
+    ["takes a list stored at the very moment of the scan", 0, QUEUED_WORDS],
+    [
+      "takes a list stored just inside twelve hours ago",
+      12 * HOUR_MS - 1000,
+      QUEUED_WORDS,
+    ],
+    ["refuses a list stored thirteen hours ago", 13 * HOUR_MS, EXPIRED_WORDS],
+    ["refuses a list stamped after the scan", -HOUR_MS, EXPIRED_WORDS],
+  ];
+  for (const [name, ageMs, words] of listAges) {
+    test(name, async () => {
+      using _fetch = refusingDoor();
+      const h = await scanListStoredAgo(ageMs);
+      await whenStatusShows(h.statusEl, words);
+      expect(h.statusEl.textContent).toBe(words);
+    });
+  }
 
   test("drops a stored list it cannot read", async () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
+    using _fetch = refusingDoor();
     const h = fresh({
       onLine: false,
       seed: (store) => store.setItem(LIST_KEY, "not a list"),
@@ -133,33 +127,32 @@ describe("scanner offline store", {
     expect(typeof stored.storedAt).toBe("number");
   });
 
-  test("keeps no list from a door that refused the fetch", async () => {
-    using _fetch = stubFetch(() =>
-      Response.json(
-        { entries: [{ hash: "digest-one", tickets: 2 }] },
-        {
-          status: 500,
-        },
-      ),
-    );
-    const h = fresh();
-    await drain();
+  const badLists: readonly [string, () => Response][] = [
+    [
+      "refused the fetch",
+      () =>
+        Response.json(
+          { entries: [{ hash: "digest-one", tickets: 2 }] },
+          { status: 500 },
+        ),
+    ],
+    [
+      "sent a bad one",
+      () => Response.json({ entries: [{ hash: "digest-one", tickets: 0 }] }),
+    ],
+  ];
+  for (const [what, answer] of badLists) {
+    test(`keeps no list from a door that ${what}`, async () => {
+      using _fetch = stubFetch(answer);
+      const h = fresh();
+      await drain();
 
-    expect(h.window.localStorage.getItem(LIST_KEY)).toBeNull();
-  });
-
-  test("keeps no list from a door that sent a bad one", async () => {
-    using _fetch = stubFetch(() =>
-      Response.json({ entries: [{ hash: "digest-one", tickets: 0 }] }),
-    );
-    const h = fresh();
-    await drain();
-
-    expect(h.window.localStorage.getItem(LIST_KEY)).toBeNull();
-  });
+      expect(h.window.localStorage.getItem(LIST_KEY)).toBeNull();
+    });
+  }
 
   test("registers the scanner's own service worker", async () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
+    using _fetch = refusingDoor();
     const registered: string[] = [];
     fresh({
       serviceWorker: {
@@ -174,11 +167,8 @@ describe("scanner offline store", {
   });
 
   test("reads a stored mode back as the switch's position", () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
-    const h = fresh({
-      onLine: false,
-      seed: (store) => store.setItem("scanner-offline-mode", "1"),
-    });
+    using _fetch = refusingDoor();
+    const h = fresh({ onLine: false, ...switchArmed });
 
     expect(
       el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
@@ -186,7 +176,7 @@ describe("scanner offline store", {
   });
 
   test("reads a store that refuses reads as a switch that is off", () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
+    using _fetch = refusingDoor();
     const h = fresh({
       seed: (store) =>
         Object.defineProperty(store, "getItem", {
@@ -205,7 +195,7 @@ describe("scanner offline store", {
   });
 
   test("stores the mode the door turns on and clears it when the door turns it off", () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
+    using _fetch = refusingDoor();
     const h = fresh({ onLine: false });
     const toggle = el(h.document, "scanner-offline-toggle");
 
@@ -217,39 +207,23 @@ describe("scanner offline store", {
     expect(h.window.localStorage.getItem("scanner-offline-mode")).toBeNull();
   });
 
-  test("keeps the switch on and says so when the store refuses the change", async () => {
-    using _fetch = stubFetch(new Error("offline"));
-    await expectSwitchRefused(
-      fresh({
+  const unreadable: readonly [string, Record<string, string>][] = [
+    ["names no delivery", { operationId: "" }],
+    ["names no ticket digest", { tokenHash: "" }],
+  ];
+  for (const [what, change] of unreadable) {
+    test(`ignores a queued item that ${what}`, () => {
+      using _fetch = refusingDoor();
+      const queue = JSON.stringify([{ ...queuedItem, ...change }]);
+      const h = fresh({
         onLine: false,
-        seed: (store) => store.setItem("scanner-offline-mode", "1"),
-      }),
-    );
-  });
+        seed: (store) => store.setItem("scanner-queue", queue),
+      });
 
-  test("ignores a queued item that names no delivery", () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
-    const queue = JSON.stringify([{ ...queuedItem, operationId: "" }]);
-    const h = fresh({
-      onLine: false,
-      seed: (store) => store.setItem("scanner-queue", queue),
+      expect(queueSummary(h)).toBe("0 queued check-ins");
+      expect(storedQueue(h)).toBe(queue);
     });
-
-    expect(summary(h)).toBe("0 queued check-ins");
-    expect(storedQueue(h)).toBe(queue);
-  });
-
-  test("ignores a queued item that names no ticket digest", () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
-    const queue = JSON.stringify([{ ...queuedItem, tokenHash: "" }]);
-    const h = fresh({
-      onLine: false,
-      seed: (store) => store.setItem("scanner-queue", queue),
-    });
-
-    expect(summary(h)).toBe("0 queued check-ins");
-    expect(storedQueue(h)).toBe(queue);
-  });
+  }
 
   test("settles each queued check-in on its own and empties the store", async () => {
     const seed = await queuedItems(["tok1", "tok2"]);

@@ -31,20 +31,25 @@ describe("pressing a payment test-connection button", () => {
     ).not.toThrow();
   });
 
-  test("asks the chosen provider's own test route, with the form's token", async () => {
-    const { asked } = await page.press("sumup", {
-      data: { lines: ["API Key: Invalid"], ok: false },
+  const providerRoutes: readonly [string, { lines: string[]; ok: boolean }][] =
+    [
+      ["sumup", { lines: ["API Key: Invalid"], ok: false }],
+      ["square", { lines: ["Access Token: Valid (sandbox mode)"], ok: true }],
+    ];
+  for (const [provider, data] of providerRoutes) {
+    test(`asks ${provider}'s own test route, with the form's token`, async () => {
+      const { asked } = await page.press(provider, { data });
+      expect(asked).toEqual([
+        {
+          body: `csrfToken=token-${provider}`,
+          credentials: "same-origin",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
+          url: `/admin/settings/${provider}/test`,
+        },
+      ]);
     });
-    expect(asked).toEqual([
-      {
-        body: "csrfToken=token-sumup",
-        credentials: "same-origin",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        method: "POST",
-        url: "/admin/settings/sumup/test",
-      },
-    ]);
-  });
+  }
 
   test("posts an empty token when the form carries none", async () => {
     const open = page.open("stripe", [passing], false);
@@ -106,21 +111,6 @@ describe("pressing a payment test-connection button", () => {
 
     hold.resolve();
     await settle();
-  });
-
-  test("asks Square's own test route the same way", async () => {
-    const { asked } = await page.press("square", {
-      data: { lines: ["Access Token: Valid (sandbox mode)"], ok: true },
-    });
-    expect(asked).toEqual([
-      {
-        body: "csrfToken=token-square",
-        credentials: "same-origin",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        method: "POST",
-        url: "/admin/settings/square/test",
-      },
-    ]);
   });
 
   test("shows the server's lines, one per row", async () => {

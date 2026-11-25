@@ -306,3 +306,11 @@ src/ui/client/scanner-offline-ui.ts::offlineScan~1hq0dun messageOfflineQueued→
 src/ui/client/scanner-offline-ui.ts::offlineScan~1hq0dun Ticket looks valid. It will be checked in when you are back online.→"" audited:0797elh # the page always renders this message, so its fallback words never show
 src/ui/client/scanner-offline-ui.ts::initOfflineScanner~10w2zdo messageOfflineModeSaveFailed→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
 src/ui/client/scanner-offline-ui.ts::initOfflineScanner~10w2zdo Your change was not saved. Free up space on this device, then try again.→"" audited:0797elh # the page always renders this message, so its fallback words never show
+
+# The camera scanner (src/ui/client/scanner.ts).
+src/ui/client/scanner.ts::extractToken~0ma4ttp ??→|| audited:1qgu1n4 # the capture group matches one or more characters, so it is text or missing, and || agrees with ??
+src/ui/client/scanner.ts::startScanner.settleScan~1e62z4v messageSyncHolds→"" audited:1qgu1n4 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
+src/ui/client/scanner.ts::startScanner.settleScan~1e62z4v Checking in queued tickets. Scan again when done.→"" audited:1qgu1n4 # the page always renders this message, so its fallback words never show
+src/ui/client/scanner.ts::startScanner.scan.processing~1gtvkhn true→false audited:1qgu1n4 # the loop schedules the next scan only after this scan finishes, so no scan reads the flag while it is set
+src/ui/client/scanner.ts::init.csrfToken~13q1hyq ??→|| audited:1qgu1n4 # the meta tag's content is a string, so ?? and || differ only on the empty string, which gives the same empty token
+src/ui/client/scanner.ts::init.settleDelivery~10bjip9 ??→|| audited:1qgu1n4 # the declined answer is an object or null, and an object is truthy, so ?? and || agree

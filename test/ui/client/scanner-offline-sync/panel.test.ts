@@ -16,7 +16,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { drain, withEmptyCache } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
-  el,
   fullStore,
   queuedItem,
   type ScannerHarness,
@@ -25,11 +24,14 @@ import {
   whenTextShows,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
+  elementOf,
   firstRow,
   postedDeliveryHashes,
   queuedItems,
   queueSeeded,
+  queueSummary,
   rowWords,
+  setConnection,
   settledCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -45,11 +47,9 @@ describe("scanner offline queue panel", {
 }, () => {
   const fresh = useScannerSuite();
 
-  const summary = (h: ScannerHarness): string | null =>
-    el(h.document, "scanner-queue-summary").textContent;
-  const panel = (h: ScannerHarness) => el(h.document, "scanner-queue");
+  const panel = elementOf("scanner-queue");
   const rowCount = (h: ScannerHarness): number =>
-    el(h.document, "scanner-queue-items").children.length;
+    elementOf("scanner-queue-items")(h).children.length;
 
   /** A door that never answers, so the queue stays as the page drew it. */
   const silentDoor = () => stubFetch(() => new Promise(() => {}));
@@ -61,16 +61,11 @@ describe("scanner offline queue panel", {
     queuedAt: Date.now() - EIGHT_DAYS_MS,
   });
 
-  const goOnline = (h: ScannerHarness): void => {
-    h.stash.set("navigator", { onLine: true });
-    h.window.dispatchEvent(new h.window.Event("online"));
-  };
-
   test("hides the panel while nothing is queued", () => {
     using _fetch = silentDoor();
     const h = fresh();
 
-    expect(summary(h)).toBe("0 queued check-ins");
+    expect(queueSummary(h)).toBe("0 queued check-ins");
     expect(panel(h).className).toContain("hidden");
   });
 
@@ -78,7 +73,7 @@ describe("scanner offline queue panel", {
     using _fetch = silentDoor();
     const h = fresh(queueSeeded());
 
-    expect(summary(h)).toBe("1 queued check-in");
+    expect(queueSummary(h)).toBe("1 queued check-in");
     expect(panel(h).className).not.toContain("hidden");
     expect(h.statusEl.textContent).toBe("Checking in queued tickets...");
     expect(h.statusEl.className).toContain("scanner-status-success");
@@ -89,7 +84,7 @@ describe("scanner offline queue panel", {
     const seed = await queuedItems(["tok1", "tok2"]);
     const h = fresh({ seed: (store) => store.setItem("scanner-queue", seed) });
 
-    expect(summary(h)).toBe("2 queued check-ins");
+    expect(queueSummary(h)).toBe("2 queued check-ins");
     expect(rowWords(h)).toEqual([QUEUED_WORDS, QUEUED_WORDS]);
   });
 
@@ -99,7 +94,7 @@ describe("scanner offline queue panel", {
 
     await whenTextShows(h.statusEl, "Queued tickets are done.");
 
-    expect(summary(h)).toBe("0 queued check-ins");
+    expect(queueSummary(h)).toBe("0 queued check-ins");
     expect(panel(h).className).not.toContain("hidden");
     expect(firstRow(h).className).toBe("");
   });
@@ -116,40 +111,32 @@ describe("scanner offline queue panel", {
     h.window.dispatchEvent(new h.window.Event("offline"));
 
     expect(rowCount(h)).toBe(2);
-    expect(summary(h)).toBe("2 queued check-ins");
+    expect(queueSummary(h)).toBe("2 queued check-ins");
   });
 
   test("sends nothing while the device has no connection", () => {
-    const fetchStub = stubFetch(withEmptyCache(settledCheckIn));
-    try {
-      const h = fresh({ onLine: false, ...queueSeeded() });
+    using fetchStub = stubFetch(withEmptyCache(settledCheckIn));
+    const h = fresh({ onLine: false, ...queueSeeded() });
 
-      expect(postedDeliveryHashes(fetchStub)).toEqual([]);
-      expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
-      expect(h.statusEl.textContent).not.toBe("Checking in queued tickets...");
-    } finally {
-      fetchStub.restore();
-    }
+    expect(postedDeliveryHashes(fetchStub)).toEqual([]);
+    expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
+    expect(h.statusEl.textContent).not.toBe("Checking in queued tickets...");
   });
 
   test("retires a check-in past the replay window and shows the count at zero", () => {
-    const fetchStub = stubFetch(withEmptyCache(settledCheckIn));
-    try {
-      const h = fresh({
-        seed: (store) =>
-          store.setItem("scanner-queue", JSON.stringify([staleItem("c0")])),
-      });
+    using fetchStub = stubFetch(withEmptyCache(settledCheckIn));
+    const h = fresh({
+      seed: (store) =>
+        store.setItem("scanner-queue", JSON.stringify([staleItem("c0")])),
+    });
 
-      expect(rowWords(h)).toEqual([
-        "This queued check-in is too old to send. Scan the ticket again while you are online.",
-      ]);
-      expect(firstRow(h).className).toBe("");
-      expect(summary(h)).toBe("0 queued check-ins");
-      expect(storedQueue(h)).toBe("[]");
-      expect(postedDeliveryHashes(fetchStub)).toEqual([]);
-    } finally {
-      fetchStub.restore();
-    }
+    expect(rowWords(h)).toEqual([
+      "This queued check-in is too old to send. Scan the ticket again while you are online.",
+    ]);
+    expect(firstRow(h).className).toBe("");
+    expect(queueSummary(h)).toBe("0 queued check-ins");
+    expect(storedQueue(h)).toBe("[]");
+    expect(postedDeliveryHashes(fetchStub)).toEqual([]);
   });
 
   test("stops at a retired check-in the store will not let go", () => {
@@ -161,7 +148,7 @@ describe("scanner offline queue panel", {
     });
     fullStore(h);
 
-    goOnline(h);
+    setConnection(h, true);
 
     // The first retirement cannot save, so the sync stops there and its
     // error stays up instead of the still-queued warning.
@@ -171,31 +158,27 @@ describe("scanner offline queue panel", {
   });
 
   test("sends one check-in once when the door does not answer", async () => {
-    const fetchStub = stubFetch(
+    using fetchStub = stubFetch(
       withEmptyCache(() => {
         throw new Error("offline");
       }),
     );
-    try {
-      const h = fresh(queueSeeded());
+    const h = fresh(queueSeeded());
 
-      await whenTextShows(
-        h.statusEl,
-        "Some tickets are still queued. The page will try to check them in again.",
-      );
-      await drain();
+    await whenTextShows(
+      h.statusEl,
+      "Some tickets are still queued. The page will try to check them in again.",
+    );
+    await drain();
 
-      expect(postedDeliveryHashes(fetchStub)).toHaveLength(1);
-      expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
-    } finally {
-      fetchStub.restore();
-    }
+    expect(postedDeliveryHashes(fetchStub)).toHaveLength(1);
+    expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
   });
 
   test("runs again once, and only once, for a connection that returns mid-sync", async () => {
     const dropped = Promise.withResolvers<Response>();
     let posts = 0;
-    const fetchStub = stubFetch(
+    using _fetch = stubFetch(
       withEmptyCache(() => {
         posts += 1;
         if (posts === 1) return dropped.promise;
@@ -204,19 +187,14 @@ describe("scanner offline queue panel", {
         return new Promise<Response>(() => {});
       }),
     );
-    try {
-      const h = fresh(queueSeeded());
-      h.stash.set("navigator", { onLine: false });
-      h.window.dispatchEvent(new h.window.Event("offline"));
-      goOnline(h);
+    const h = fresh(queueSeeded());
+    setConnection(h, false);
+    setConnection(h, true);
 
-      dropped.reject(new Error("connection dropped"));
-      await drain();
+    dropped.reject(new Error("connection dropped"));
+    await drain();
 
-      expect(posts).toBe(2);
-      expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
-    } finally {
-      fetchStub.restore();
-    }
+    expect(posts).toBe(2);
+    expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
   });
 });

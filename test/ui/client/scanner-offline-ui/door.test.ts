@@ -64,56 +64,44 @@ describe("scanner offline door", {
   });
 
   test("refuses a second scan of a ticket already queued", async () => {
-    const fetchStub = stubFetch(() => Response.json({}, { status: 500 }));
-    try {
-      const h = fresh({
-        onLine: false,
-        seed: (store) =>
-          store.setItem("scanner-queue", JSON.stringify([queuedItem])),
-      });
-      await scanOffline(h, TOKEN);
-      await whenStatusShows(
-        h.statusEl,
-        "This ticket is already queued. Do not let them in again.",
-      );
-      // The first queue item stands alone, and no scan left the page.
-      expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
-    } finally {
-      fetchStub.restore();
-    }
+    using fetchStub = stubFetch(() => Response.json({}, { status: 500 }));
+    const h = fresh({
+      onLine: false,
+      seed: (store) =>
+        store.setItem("scanner-queue", JSON.stringify([queuedItem])),
+    });
+    await scanOffline(h, TOKEN);
+    await whenStatusShows(
+      h.statusEl,
+      "This ticket is already queued. Do not let them in again.",
+    );
+    // The first queue item stands alone, and no scan left the page.
+    expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
+    expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
   });
 
   test("treats a cache stamped in the future as expired", async () => {
-    const fetchStub = stubFetch(new Error("offline"));
-    try {
-      const h = fresh({ onLine: false });
-      await scanOffline(h, TOKEN, { storedAt: Date.now() + 60_000 });
-      await whenStatusShows(
-        h.statusEl,
-        "The offline ticket list has expired. Go online and reload this page.",
-      );
-      expect(storedQueue(h)).toBe(null);
-      expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
-    } finally {
-      fetchStub.restore();
-    }
+    using fetchStub = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+    await scanOffline(h, TOKEN, { storedAt: Date.now() + 60_000 });
+    await whenStatusShows(
+      h.statusEl,
+      "The offline ticket list has expired. Go online and reload this page.",
+    );
+    expect(storedQueue(h)).toBe(null);
+    expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
   });
 
   test("says a scan was not saved when the store refuses it", async () => {
-    const fetchStub = stubFetch(new Error("offline"));
-    try {
-      const h = fresh({ onLine: false });
-      fullStore(h);
-      await scanOffline(h, TOKEN);
-      await expectOfflineRefusal(
-        h,
-        fetchStub,
-        "This scan was not saved. Free up space on this device, then scan it again.",
-      );
-    } finally {
-      fetchStub.restore();
-    }
+    using fetchStub = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+    fullStore(h);
+    await scanOffline(h, TOKEN);
+    await expectOfflineRefusal(
+      h,
+      fetchStub,
+      "This scan was not saved. Free up space on this device, then scan it again.",
+    );
   });
 });
 
@@ -127,7 +115,7 @@ describe("scanner offline door on a page without the replay window", {
     // The client bounds its replay window by the count the page carries.
     // Without it the offline side is absent furniture: the scan goes
     // online, the way the page worked before the offline side existed.
-    const fetchStub = stubFetch(() =>
+    using fetchStub = stubFetch(() =>
       Response.json({
         listingName: "Standard",
         name: "Ada",
@@ -136,18 +124,14 @@ describe("scanner offline door on a page without the replay window", {
         total: 1,
       }),
     );
-    try {
-      const h = fresh({ onLine: false });
-      using fakes = cameraFakes(h);
-      fakes.ready(4);
-      await start(h);
-      await scanFirst(fakes, TOKEN);
+    const h = fresh({ onLine: false });
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+    await start(h);
+    await scanFirst(fakes, TOKEN);
 
-      // The check-in went out as a live scan, and nothing was queued.
-      expect(postedScanBodies(fetchStub)).toEqual([{ token: TOKEN }]);
-      expect(storedQueue(h)).toBe(null);
-    } finally {
-      fetchStub.restore();
-    }
+    // The check-in went out as a live scan, and nothing was queued.
+    expect(postedScanBodies(fetchStub)).toEqual([{ token: TOKEN }]);
+    expect(storedQueue(h)).toBe(null);
   });
 });

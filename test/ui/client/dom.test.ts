@@ -18,21 +18,21 @@ describe("client dom helpers", () => {
   const dom = createDomInstaller();
   afterEach(() => dom.cleanup());
 
-  test("createButton makes a type=button element with the given class", () => {
+  test("createButton and createHiddenInput make their elements", () => {
     dom.installDom("");
     const button = createButton("cart-add");
-    expect(button.tagName).toBe("BUTTON");
-    expect(button.type).toBe("button");
-    expect(button.className).toBe("cart-add");
-  });
-
-  test("createHiddenInput makes a hidden input carrying its name and value", () => {
-    dom.installDom("");
     const input = createHiddenInput("csrfToken", "page-token");
-    expect(input.tagName).toBe("INPUT");
-    expect(input.type).toBe("hidden");
-    expect(input.name).toBe("csrfToken");
-    expect(input.value).toBe("page-token");
+    expect([button.tagName, button.type, button.className]).toEqual([
+      "BUTTON",
+      "button",
+      "cart-add",
+    ]);
+    expect([input.tagName, input.type, input.name, input.value]).toEqual([
+      "INPUT",
+      "hidden",
+      "csrfToken",
+      "page-token",
+    ]);
   });
 
   test("createThumbnail makes a picture with its source, hint, and no alt text", () => {

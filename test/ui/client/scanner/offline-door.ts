@@ -11,6 +11,7 @@ import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
 import type { HTMLElement as HappyHTMLElement } from "happy-dom";
 import { hmacHex } from "#shared/sha256.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   type CameraFakes,
   cameraFakes,
@@ -91,6 +92,29 @@ export const rowWords = (h: ScannerHarness): (string | null)[] =>
 export const queueSeeded = (): ScannerGlobals => ({
   seed: (store) => store.setItem("scanner-queue", JSON.stringify([queuedItem])),
 });
+
+/** A door that answers every request with a server error. */
+export const refusingDoor = () =>
+  stubFetch(() => Response.json({}, { status: 500 }));
+
+/** The page globals for a door whose offline switch the person turned on. */
+export const switchArmed: ScannerGlobals = {
+  seed: (store) => store.setItem("scanner-offline-mode", "1"),
+};
+
+/** The page element with this id, for a harness. */
+export const elementOf = (id: string) => (h: ScannerHarness) =>
+  el(h.document, id);
+
+/** Move the device on or offline, and tell the page. */
+export const setConnection = (h: ScannerHarness, onLine: boolean): void => {
+  h.stash.set("navigator", { onLine });
+  h.window.dispatchEvent(new h.window.Event(onLine ? "online" : "offline"));
+};
+
+/** The words the queue panel's count shows. */
+export const queueSummary = (h: ScannerHarness): string | null =>
+  el(h.document, "scanner-queue-summary").textContent;
 
 /** What one settled sync leaves: the done words, the store empty, the
  * panel count at zero, and the deliveries the door received, in order —

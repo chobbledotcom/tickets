@@ -31,13 +31,16 @@ import {
 } from "#test/ui/client/scanner/fixture.ts";
 import {
   askedUrls,
-  expectCancelQueuesNothing,
+  elementOf,
   expectSwitchRefused,
   firstRow,
   postedDeliveryHashes,
   queueSeeded,
+  refusingDoor,
   scanOffline,
+  setConnection,
   settledCheckIn,
+  switchArmed,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -52,23 +55,14 @@ describe("scanner offline switch and banner", {
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
-  const toggleOf = (h: ScannerHarness) =>
-    el(h.document, "scanner-offline-toggle");
-  const bannerOf = (h: ScannerHarness) =>
-    el(h.document, "scanner-offline-banner");
+  const toggleOf = elementOf("scanner-offline-toggle");
+  const bannerOf = elementOf("scanner-offline-banner");
   const bannerWords = (h: ScannerHarness): string | null =>
-    el(h.document, "scanner-offline-banner-text").textContent;
-
-  const flip = (h: ScannerHarness, onLine: boolean): void => {
-    h.stash.set("navigator", { onLine });
-    h.window.dispatchEvent(new h.window.Event(onLine ? "online" : "offline"));
-  };
+    elementOf("scanner-offline-banner-text")(h).textContent;
 
   test("settles the queue when the door turns offline mode off", async () => {
     using _fetch = stubFetch(settledCheckIn);
-    const h = fresh({
-      seed: (store) => store.setItem("scanner-offline-mode", "1"),
-    });
+    const h = fresh(switchArmed);
     // The scan queued while the switch was on; the page load's sync ran
     // against an empty queue, so the switch's own disarm does the settling.
     h.window.localStorage.setItem(
@@ -117,117 +111,89 @@ describe("scanner offline switch and banner", {
   });
 
   test("words the banner for the connection each time it flips, and hides it online", () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
+    using _fetch = refusingDoor();
     const h = fresh({ onLine: false });
     expect(bannerWords(h)).toBe(AUTO_WORDS);
     expect(bannerOf(h).className).not.toContain("hidden");
 
-    flip(h, true);
+    setConnection(h, true);
     expect(bannerOf(h).className).toContain("hidden");
 
-    flip(h, false);
+    setConnection(h, false);
     expect(bannerWords(h)).toBe(AUTO_WORDS);
     expect(bannerOf(h).className).not.toContain("hidden");
   });
 
   test("words the banner for the switch while the connection holds", () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
-    const h = fresh({
-      seed: (store) => store.setItem("scanner-offline-mode", "1"),
-    });
+    using _fetch = refusingDoor();
+    const h = fresh(switchArmed);
 
     expect(bannerWords(h)).toBe(MANUAL_WORDS);
   });
 
   test("sends the queue when the connection returns", async () => {
-    const fetchStub = stubFetch(withEmptyCache(settledCheckIn));
-    try {
-      const h = fresh({ onLine: false, ...queueSeeded() });
-      expect(postedDeliveryHashes(fetchStub)).toEqual([]);
+    using fetchStub = stubFetch(withEmptyCache(settledCheckIn));
+    const h = fresh({ onLine: false, ...queueSeeded() });
+    expect(postedDeliveryHashes(fetchStub)).toEqual([]);
 
-      flip(h, true);
+    setConnection(h, true);
 
-      await whenTextShows(h.statusEl, "Queued tickets are done.");
-      expect(postedDeliveryHashes(fetchStub)).toEqual([queuedItem.tokenHash]);
-      expect(storedQueue(h)).toBe("[]");
-    } finally {
-      fetchStub.restore();
-    }
+    await whenTextShows(h.statusEl, "Queued tickets are done.");
+    expect(postedDeliveryHashes(fetchStub)).toEqual([queuedItem.tokenHash]);
+    expect(storedQueue(h)).toBe("[]");
   });
 
   test("sends the queue when the page loads online", async () => {
-    const fetchStub = stubFetch(withEmptyCache(settledCheckIn));
-    try {
-      const h = fresh(queueSeeded());
+    using fetchStub = stubFetch(withEmptyCache(settledCheckIn));
+    const h = fresh(queueSeeded());
 
-      await whenTextShows(h.statusEl, "Queued tickets are done.");
-      expect(postedDeliveryHashes(fetchStub)).toEqual([queuedItem.tokenHash]);
-    } finally {
-      fetchStub.restore();
-    }
+    await whenTextShows(h.statusEl, "Queued tickets are done.");
+    expect(postedDeliveryHashes(fetchStub)).toEqual([queuedItem.tokenHash]);
   });
 
-  test("asks for a fresh list when the door arms the switch online", () => {
-    const fetchStub = stubFetch(() => Response.json({}, { status: 500 }));
-    try {
-      const h = fresh();
+  const armings: readonly [string, boolean, string[]][] = [
+    [
+      "asks for a fresh list when the door arms the switch online",
+      true,
+      [CACHE_PATH],
+    ],
+    [
+      "asks for no list when the door arms the switch with no connection",
+      false,
+      [],
+    ],
+  ];
+  for (const [name, online, asked] of armings) {
+    test(name, () => {
+      using fetchStub = stubFetch(() => Response.json({}, { status: 500 }));
+      const h = fresh({ onLine: online });
       const before = askedUrls(fetchStub).length;
 
       toggleOf(h).click();
 
-      expect(askedUrls(fetchStub).slice(before)).toEqual([CACHE_PATH]);
-    } finally {
-      fetchStub.restore();
-    }
-  });
-
-  test("asks for no list when the door arms the switch with no connection", () => {
-    const fetchStub = stubFetch(() => Response.json({}, { status: 500 }));
-    try {
-      const h = fresh({ onLine: false });
-      const before = askedUrls(fetchStub).length;
-
-      toggleOf(h).click();
-
-      expect(askedUrls(fetchStub).slice(before)).toEqual([]);
-    } finally {
-      fetchStub.restore();
-    }
-  });
+      expect(askedUrls(fetchStub).slice(before)).toEqual(asked);
+    });
+  }
 
   test("holds the queue while the door arms the switch", async () => {
-    const fetchStub = stubFetch(withEmptyCache(settledCheckIn));
-    try {
-      const h = fresh({ onLine: false, ...queueSeeded() });
-      h.stash.set("navigator", { onLine: true });
+    using fetchStub = stubFetch(withEmptyCache(settledCheckIn));
+    const h = fresh({ onLine: false, ...queueSeeded() });
+    h.stash.set("navigator", { onLine: true });
 
-      toggleOf(h).click();
-      await drain();
+    toggleOf(h).click();
+    await drain();
 
-      expect(postedDeliveryHashes(fetchStub)).toEqual([]);
-      expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
-    } finally {
-      fetchStub.restore();
-    }
+    expect(postedDeliveryHashes(fetchStub)).toEqual([]);
+    expect(storedQueue(h)).toBe(JSON.stringify([queuedItem]));
   });
 
   test("keeps the switch on and says so when the store refuses the change", async () => {
     using _fetch = stubFetch(new Error("offline"));
-    await expectSwitchRefused(
-      fresh({
-        onLine: false,
-        seed: (store) => store.setItem("scanner-offline-mode", "1"),
-      }),
-    );
-  });
-
-  test("queues nothing when the door cancels the quantity ask", async () => {
-    using _fetch = stubFetch(new Error("offline"));
-    await expectCancelQueuesNothing(fresh({ onLine: false }));
+    await expectSwitchRefused(fresh({ onLine: false, ...switchArmed }));
   });
 
   test("queues a ticket beside one the door already holds", async () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
+    using _fetch = refusingDoor();
     const h = fresh({ onLine: false, ...queueSeeded() });
 
     await scanOffline(h, "tokB67890");
@@ -252,7 +218,7 @@ describe("scanner offline page with a one-day replay window", {
   );
 
   test("wires the offline side for the window", () => {
-    using _fetch = stubFetch(() => Response.json({}, { status: 500 }));
+    using _fetch = refusingDoor();
     const h = fresh();
 
     expect(el(h.document, "scanner-queue-summary").textContent).toBe(

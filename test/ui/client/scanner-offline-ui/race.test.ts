@@ -41,6 +41,7 @@ import {
   firstRow,
   postedDeliveryHashes,
   scanWaitingOnDigest,
+  setConnection,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -75,8 +76,7 @@ describe("scanner offline races", {
 
       // The connection returns while the digest still waits. The store is
       // empty, so the returning connection schedules nothing.
-      h.stash.set("navigator", { onLine: true });
-      h.window.dispatchEvent(new h.window.Event("online"));
+      setConnection(h, true);
       await drain();
       expect(storedQueue(h)).toBe(null);
       expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);

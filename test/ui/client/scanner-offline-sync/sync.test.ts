@@ -15,10 +15,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  cameraFakes,
   drain,
-  scanFirst,
-  start,
   whenStatusShows,
   withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
@@ -153,20 +150,6 @@ describe("scanner offline sync", {
     );
   });
 
-  test("tells the door a scan made during a sync is ignored", async () => {
-    using _fetch = stubFetch(() => new Promise(() => {}));
-    const h = fresh(queueSeeded());
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    await start(h);
-    await scanFirst(fakes, TOKEN);
-
-    expect(h.statusEl.textContent).toBe(
-      "Checking in queued tickets. Scan again when done.",
-    );
-    expect(h.statusEl.className).toContain("scanner-status-warning");
-  });
-
   test("shows each settled answer on its own row", async () => {
     const seed = await queuedItems(["tok1", "tok2", "tok3"]);
     const fetchStub = stubFetch(
@@ -201,59 +184,6 @@ describe("scanner offline sync", {
     } finally {
       fetchStub.restore();
     }
-  });
-
-  test("rides the ID check on the same delivery and answers once", async () => {
-    // A non-transferable listing asks for an ID check before it admits. The
-    // door makes the check now, and the answer rides the very delivery the
-    // check-in queued — the server records one delivery either way.
-    const fetchStub = stubFetch(
-      withEmptyCache((_url, init) => {
-        const { id_verified } = JSON.parse(String(init?.body));
-        return id_verified
-          ? Response.json({
-              listingName: "Standard",
-              name: "Ada",
-              quantity: 1,
-              status: "checked_in",
-              total: 1,
-            })
-          : Response.json({
-              listingName: "Standard",
-              name: "Ada",
-              status: "verify_id",
-            });
-      }),
-    );
-    using _fetch = fetchStub;
-    const h = fresh(queueSeeded());
-
-    await whenMessageShows(h, 'Does their ID match "Ada"?');
-    h.confirm.yes.click();
-
-    // The second post and the settled row ride the platform's own promise
-    // turns, so the wait hops real event-loop turns. Both posts carried the
-    // one delivery's digest.
-    await expectSyncSettled(h, whenStatusShows, fetchStub, [TOKEN, TOKEN]);
-    expect(firstRow(h).textContent).toBe("Checked in");
-    // Two posts went out for one delivery: the ask, then the answer that
-    // rides it — each naming the same digest and the same delivery id.
-    const bodies = fetchStub.calls
-      .filter((call) => String(call.args[0]) === SCAN_PATH)
-      .map((call) => JSON.parse(String(call.args[1]?.body)));
-    expect(bodies).toEqual([
-      {
-        operation_id: queuedItem.operationId,
-        quantity: 1,
-        token_hash: queuedItem.tokenHash,
-      },
-      {
-        id_verified: true,
-        operation_id: queuedItem.operationId,
-        quantity: 1,
-        token_hash: queuedItem.tokenHash,
-      },
-    ]);
   });
 
   test("reports an ID check the door declined on its row", async () => {

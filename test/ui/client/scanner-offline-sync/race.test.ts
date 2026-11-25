@@ -35,6 +35,7 @@ import {
   queueSeeded,
   rowWords,
   scanWaitingOnDigest,
+  setConnection,
   settledCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -156,8 +157,7 @@ describe("scanner offline sync races", {
       // digesting. The digest then comes back, and the new check-in must
       // join the rows the running sync settles instead of a rebuild that
       // detaches them.
-      h.stash.set("navigator", { onLine: true });
-      h.window.dispatchEvent(new h.window.Event("online"));
+      setConnection(h, true);
       digest.release();
       await whenStatusShows(
         h.statusEl,
