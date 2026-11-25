@@ -14,10 +14,10 @@ import { assertSettingsReadsDeclared } from "#db/settings-audit.ts";
 import { once } from "#fp";
 import { withMessageGroups } from "#i18n";
 import { SETUP_MESSAGE_GROUPS } from "#locales/groups.ts";
+import { isValidContentType } from "#routes/content-type-rules.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
-  isValidContentType,
 } from "#routes/middleware.ts";
 import { requestScopedHandler } from "#routes/request-scopes.ts";
 import {

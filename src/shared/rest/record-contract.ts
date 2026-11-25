@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * The one admin record contract: its storage, its single write rule, its
  * lifecycle hooks, its commands, and the page route that declares its

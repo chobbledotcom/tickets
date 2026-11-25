@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { withCleanup } from "#scripts/cleanup.ts";
+import type { LoopbackServer } from "#scripts/loopback-server.ts";
 import {
   SCREENSHOT_PROFILES,
   screenshotContextOptions,
@@ -18,7 +19,6 @@ import {
   type EvidenceCaptureDeclaration,
   parseEvidenceDeclarations,
 } from "./schema.ts";
-import type { LoopbackServer } from "./server.ts";
 import { storeEvidenceCss } from "./style.ts";
 import type { ReadEvidenceTheme } from "./themes.ts";
 

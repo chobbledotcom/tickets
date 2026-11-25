@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Shared question-text rendering: decides whether a question's text is simple
  * enough to sit inside a `<label>` (clickable, focuses the control) or complex
