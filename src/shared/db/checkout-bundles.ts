@@ -21,7 +21,7 @@ import { generateSecureToken } from "#crypto/utils.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
-import { insertInto } from "#db/write.ts";
+import { insertInto, update } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 import { stringRecordJson } from "#shared/validation/stored-json.ts";
 
@@ -53,6 +53,20 @@ export const sealCheckoutBundle = async (
     }),
   );
   return token;
+};
+
+/** Name the checkout that a sealed order belongs to, after the provider
+ * makes it. A Square checkout can take payment until its handle row is gone,
+ * so the prune keeps the order that long (see `prune.ts`). */
+export const linkCheckoutBundleToSession = async (
+  token: string,
+  sessionId: string,
+): Promise<void> => {
+  await execute(
+    update(tables.checkout_bundles, {
+      sessionIndex: await hmacHash(sessionId),
+    }).where({ tokenIndex: await hmacHash(token) }),
+  );
 };
 
 /** Open the order that a token seals. A row that fails to unwrap, decrypt or

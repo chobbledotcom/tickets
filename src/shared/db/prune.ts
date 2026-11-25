@@ -142,10 +142,20 @@ const pruneStatements = (): PruneStatement[] => [
        )`,
   ),
   // A sealed order outlives every provider retry and replay, because the
-  // payments clock is never shorter than the retry window.
+  // payments clock is never shorter than the retry window. A Square order
+  // also waits for its link to end, on the same two terms as the answers: its
+  // handle row must be gone, or Square's own page lifetime must have passed.
   boundedDelete(
     "checkout_bundles",
-    sql`created_at < ${isoBefore(PRUNE_PAYMENTS_RETENTION_MS)}`,
+    sql`created_at < ${isoBefore(PRUNE_PAYMENTS_RETENTION_MS)}
+       AND (
+         session_index IS NULL
+         OR created_at < ${isoBefore(SQUARE_LINK_RETENTION_MS)}
+         OR NOT EXISTS (
+           SELECT 1 FROM square_link_ends AS handle
+            WHERE handle.session_index = checkout_bundles.session_index
+         )
+       )`,
   ),
   // A Square link stops taking payment at Square's native lifetime (180 days)
   // at the latest, whatever the expiry task did, so a handle row older than
