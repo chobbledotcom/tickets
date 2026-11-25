@@ -7,7 +7,7 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, requireBuiltSiteByIdPrimary } from "#db/built-sites.ts";
-import { execute, withTransaction } from "#db/client.ts";
+import { execute, queryAll, withTransaction } from "#db/client.ts";
 import { type Expr, equal, plus, valued } from "#db/select/expression.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
@@ -47,6 +47,32 @@ export const hasAssignedBuiltSite: BuyerPlanRead<Promise<boolean>> = async (
 ) => {
   const exists = assignedBuiltSiteExistsStatement(attendeeId, listingIds);
   return (await execute(exists)).rows.length > 0;
+};
+
+/** The plan listings that each buyer holds a site for, in one read for the
+ * whole list. A buyer with no site is absent. Pair the result with each
+ * buyer's own plan listings: the read takes every listed buyer on every
+ * listed listing. */
+export const assignedSiteListings = async (
+  attendeeIds: readonly number[],
+  listingIds: readonly number[],
+): Promise<Map<number, Set<number>>> => {
+  const rows = await queryAll<{
+    assigned_attendee_id: number;
+    assigned_listing_id: number;
+  }>(
+    sql`SELECT assigned_attendee_id, assigned_listing_id FROM built_sites
+     WHERE assigned_attendee_id IN (${sqlList(attendeeIds)})
+       AND assigned_listing_id IN (${sqlList(listingIds)})`,
+  );
+  return new Map(
+    [...Map.groupBy(rows, (row) => row.assigned_attendee_id)].map(
+      ([attendeeId, sites]) => [
+        attendeeId,
+        new Set(sites.map((site) => site.assigned_listing_id)),
+      ],
+    ),
+  );
 };
 
 /** The claim as one statement: it takes the first still-assignable candidate,

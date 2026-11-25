@@ -8,20 +8,13 @@
 import { type BookedLine, getBookedLines } from "#db/attendees/booked-lines.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesByIds } from "#db/attendees/queries.ts";
-import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
+import { assignedSiteListings } from "#db/built-sites/claims.ts";
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { getAttendeeIdsWithPaymentReference } from "#db/payment-references.ts";
 import { countHiddenLineAnswers } from "#db/questions/attendee-answers/hidden.ts";
 import type { ReadByIds } from "#db/rows-for-ids.ts";
-import {
-  compact,
-  fieldById,
-  groupToMap,
-  mapParallel,
-  requiredMapValue,
-  unique,
-} from "#fp";
+import { compact, fieldById, groupToMap, requiredMapValue, unique } from "#fp";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -86,20 +79,18 @@ const parentsWithoutChild = (
  * site serves every plan row the buyer holds. A refunded plan's claim still
  * holds the site, so the claim check reads every plan row. A sale that never
  * completed cannot owe a site. */
-const planWarningOrNull = async (
+const planWarningOrNull = (
   rows: readonly Attendee[],
   hasPaymentReference: boolean,
+  assignedListings: ReadonlySet<number>,
   names: ReadonlyMap<number, string>,
-): Promise<AttendeeWarning | null> => {
+): AttendeeWarning | null => {
   const first = requireValue(rows[0], "A buyer's plan rows hold a row");
   const owed = rows.filter((row) => row.quantity >= 1 && !row.refunded);
   if (
     owed.length === 0 ||
     isIncompletePayment(first, true, hasPaymentReference) ||
-    (await hasAssignedBuiltSite(
-      first.id,
-      unique(rows.map((row) => row.listing_id)),
-    ))
+    rows.some((row) => assignedListings.has(row.listing_id))
   ) {
     return null;
   }
@@ -167,21 +158,22 @@ const WARNING_LOADERS: Record<WarningKind, WarningLoader> = {
       (row: Attendee) => row.id,
       (row: Attendee) => row,
     )(rows.filter((row) => planIds.has(row.listing_id)));
-    const withReference = await getAttendeeIdsWithPaymentReference(rows);
+    const [withReference, assigned] = await Promise.all([
+      getAttendeeIdsWithPaymentReference(rows),
+      assignedSiteListings(buyerIds, [...planIds]),
+    ]);
     const names = fieldById("name")(listings);
-    const found = await mapParallel(
-      async ([id, buyerRows]: [number, Attendee[]]) => ({
-        id,
-        warning: await planWarningOrNull(
-          buyerRows,
-          withReference.has(id),
-          names,
-        ),
-      }),
-    )([...planRows]);
     return new Map(
-      found.flatMap(({ id, warning }): [number, AttendeeWarning[]][] =>
-        warning === null ? [] : [[id, [warning]]],
+      [...planRows].flatMap(
+        ([id, buyerRows]): [number, AttendeeWarning[]][] => {
+          const warning = planWarningOrNull(
+            buyerRows,
+            withReference.has(id),
+            assigned.get(id) ?? new Set(),
+            names,
+          );
+          return warning === null ? [] : [[id, [warning]]];
+        },
       ),
     );
   },

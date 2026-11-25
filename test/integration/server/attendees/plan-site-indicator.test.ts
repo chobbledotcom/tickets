@@ -177,5 +177,31 @@ describeWithEnv(
         assert(!after.includes("no site is assigned yet"));
       });
     });
+
+    describe("GET /admin/attendees lists many plan buyers", () => {
+      test("sums up their warnings inside the database call budget", async () => {
+        using _env = withEnv({ CAN_BUILD_SITES: "true" });
+        await createTierListing();
+        const plan = await planListing("Site Plan");
+        const buyers = 45;
+        for (let at = 0; at < buyers; at++) {
+          await createPaidTestAttendee(
+            plan.id,
+            `Buyer ${at}`,
+            `buyer${at}@test.com`,
+            `pi_many_${at}`,
+            300,
+          );
+        }
+
+        const page = await adminGet("/admin/attendees");
+
+        expect(page.status).toBe(200);
+        assertStringIncludes(
+          await page.text(),
+          `${buyers} attendees have warnings`,
+        );
+      });
+    });
   },
 );
