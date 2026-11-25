@@ -217,3 +217,43 @@ export const addGlowPack = async (
   }
   return child;
 };
+
+const CreatedGroup = v.object({
+  group: v.object({ id: v.number(), slug: v.string() }),
+});
+
+/** A free "Party Pack" package of `members`, each `quantity` times in one
+ * pack. A hidden pack shows the buyer only its own name. */
+export const addPartyPack = async (
+  { api }: Discos,
+  members: readonly SeededListing[],
+  {
+    hidden = false,
+    quantity = 1,
+  }: { hidden?: boolean; quantity?: number } = {},
+): Promise<SeededListing> => {
+  const { group } = v.parse(
+    CreatedGroup,
+    (
+      await api.post("/api/admin/groups", {
+        hide_package_listings: hidden,
+        is_package: true,
+        max_attendees: 10,
+        name: "Party Pack",
+      })
+    ).body,
+  );
+  for (const member of members) {
+    await api.put(`/api/admin/listings/${member.id}`, {
+      group_ids: [group.id],
+    });
+  }
+  await api.put(`/api/admin/groups/${group.id}`, {
+    package_members: members.map((member) => ({
+      listing_id: member.id,
+      price: 0,
+      quantity,
+    })),
+  });
+  return group;
+};

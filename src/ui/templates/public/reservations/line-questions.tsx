@@ -25,7 +25,7 @@ import { savedFormValue } from "#shared/forms/saved-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { questionTextContent } from "#templates/components/question-text.tsx";
 
-/** One page control that a line's quantity comes from, for the visibility
+/** The page control that a line's quantity comes from, for the visibility
  * script:
  * - `q:<listing>`: a listing's own quantity
  * - `p:<package>:<fixed>`: a package count times the member's fixed quantity
@@ -33,8 +33,10 @@ import { questionTextContent } from "#templates/components/question-text.tsx";
 type LineSource = string;
 
 /** A booking line before its words: its slot, the most tickets it can take on
- * this page, and the controls its quantity comes from. */
-type LineShape = LineSlot & { cap: number; sources: LineSource[] };
+ * this page, and the control its quantity comes from. Each line comes from one
+ * page path: a package member that is a child of a page parent is not offered
+ * in the package. */
+type LineShape = LineSlot & { cap: number; source: LineSource };
 
 /** A booking line that the page can make, with its words. */
 export type PageLine = LineShape & { label: string };
@@ -54,12 +56,10 @@ const packageOf = (
 ): PackageBundleLimit<PagePackage> | undefined =>
   packageLimits.find(({ pkg }) => isMemberNodeOf(pkg.groupId)(node));
 
-/** The slot and cap of one shown top-level node. A listing that is a child of
- * a page parent books its own units on its plain row, as the booking does. */
+/** The slot and cap of one shown top-level node. */
 const topLevelLine = (
   node: BookingNode,
   { listings, packageLimits }: LinePageInput,
-  childIds: ReadonlySet<number>,
 ): LineShape => {
   const bundle = packageOf(node, packageLimits);
   const info = requiredMapValue(
@@ -77,26 +77,14 @@ const topLevelLine = (
   return {
     cap: fixed === null ? info.maxPurchasable : fixed.qty * fixed.limit,
     listingId: node.listingId,
-    packageGroupId:
-      bundle === undefined || childIds.has(node.listingId)
-        ? 0
-        : bundle.pkg.groupId,
+    packageGroupId: bundle === undefined ? 0 : bundle.pkg.groupId,
     parentListingId: 0,
-    sources: [
+    source:
       fixed === null
         ? `q:${node.listingId}`
         : `p:${fixed.groupId}:${fixed.qty}`,
-    ],
   };
 };
-
-/** Lines with one slot become one line: their caps and sources add up. */
-const joinLines = (lines: readonly LineShape[]): LineShape[] =>
-  [...Map.groupBy(lines, lineKey).values()].map((same) => ({
-    ...same[0]!,
-    cap: sum(same.map(({ cap }) => cap)),
-    sources: same.flatMap(({ sources }) => sources),
-  }));
 
 /** The booking lines a buyer can make on the page, in page order. First come
  * the shown paths, then each child under each parent that can carry it. A child line
@@ -105,15 +93,10 @@ const joinLines = (lines: readonly LineShape[]): LineShape[] =>
 export const pageAnswerLines = (input: LinePageInput): PageLine[] => {
   const { childrenByParentId, packageLimits, tree } = input;
   const packages = packageLimits.map(({ pkg }) => pkg);
-  const childIds = new Set(
-    [...childrenByParentId.values()].flat().map(({ listing }) => listing.id),
-  );
-  const topLevel = joinLines(
-    tree.nodes
-      .filter((node) => node.visibility === "SHOWN")
-      .map((node) => topLevelLine(node, input, childIds))
-      .filter((line) => !inHiddenPackage(line, packages)),
-  );
+  const topLevel = tree.nodes
+    .filter((node) => node.visibility === "SHOWN")
+    .map((node) => topLevelLine(node, input))
+    .filter((line) => !inHiddenPackage(line, packages));
   const parentCaps = Map.groupBy(topLevel, ({ listingId }) => listingId);
   const children = [...parentCaps].flatMap(([parentId, parentLines]) =>
     (childrenByParentId.get(parentId) ?? []).map(({ listing }) => ({
@@ -121,11 +104,11 @@ export const pageAnswerLines = (input: LinePageInput): PageLine[] => {
       listingId: listing.id,
       packageGroupId: 0,
       parentListingId: parentId,
-      sources: [`c:${parentId}:${listing.id}`],
+      source: `c:${parentId}:${listing.id}`,
     })),
   );
   const names = pageLineNames({ ...input, packages });
-  return [...topLevel, ...joinLines(children)].map((line) => ({
+  return [...topLevel, ...children].map((line) => ({
     ...line,
     label: lineLabel(line, names),
   }));
@@ -143,7 +126,7 @@ const ticketField = (
     <label
       class="custom-question"
       data-line={lineKey(line)}
-      data-sources={line.sources.join(" ")}
+      data-source={line.source}
       data-unit={String(unit)}
     >
       {question.answerLevel === "quantity"

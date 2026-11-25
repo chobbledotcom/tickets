@@ -40,9 +40,9 @@ const fieldOf = (
   { parent, value = "" }: { parent?: SeededListing; value?: string } = {},
 ) => {
   const line = `${listing.id}_${parent?.id ?? 0}_0`;
-  const sources =
+  const source =
     parent === undefined ? `q:${listing.id}` : `c:${parent.id}:${listing.id}`;
-  return `<label class="custom-question" data-line="${line}" data-sources="${sources}" data-unit="0">${words}<input maxlength="${LIMIT}" name="${fieldFor(question, listing, { parent })}" type="text" value="${value}"></label>`;
+  return `<label class="custom-question" data-line="${line}" data-source="${source}" data-unit="0">${words}<input maxlength="${LIMIT}" name="${fieldFor(question, listing, { parent })}" type="text" value="${value}"></label>`;
 };
 
 /** A question block: the legend, the listings it asks, and their fields. */

@@ -59,12 +59,12 @@ describe("custom question visibility", () => {
     expect(text.required).toBe(false);
   };
 
-  /** A ticket field: one ticket of one line, with the controls that the
+  /** A ticket field: one ticket of one line, with the control that the
    * line's quantity comes from. */
-  const ticketField = (sources: string, unit: number): ElementSpec => ({
+  const ticketField = (source: string, unit: number): ElementSpec => ({
     children: [textControl()],
     class: "custom-question",
-    data: { sources, unit: String(unit) },
+    data: { source, unit: String(unit) },
     tag: "label",
   });
 
@@ -89,10 +89,10 @@ describe("custom question visibility", () => {
     ],
   ];
 
-  for (const [name, sources, controls] of LINE_SOURCES) {
+  for (const [name, source, controls] of LINE_SOURCES) {
     test(`a line that takes two tickets from ${name} shows and requires two fields, and hides and disables the third`, () => {
       const roots = installFakeDom([
-        ...[0, 1, 2].map((unit) => ticketField(sources, unit)),
+        ...[0, 1, 2].map((unit) => ticketField(source, unit)),
         ...controls,
       ]);
       const texts = roots

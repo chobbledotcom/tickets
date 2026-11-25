@@ -335,3 +335,8 @@ src/shared/listings-actions.ts::listingDeleteError~137bf15  ?? → || audited:1w
 src/shared/listings-actions.ts::refuseUndatedListingSwitch~1lqe3go  ?? → || audited:1w2on5n # input.listingType is a non-empty picklist word when present, so the empty string never occurs
 src/shared/rest/crud-parsers.ts::requireEntityField.supplied~01dreo2  ?? → || audited:0ohtv95 # existing is a string or null, and null and the empty string both give "" under either operator
 src/shared/rest/crud-parsers.ts::requireEntityField.supplied~01dreo2   → "mutated" audited:0ohtv95 # the fallback only matters when existing is null, and then the create path ignores supplied.value and reads the field from the body
+src/shared/email/answers.ts::answerTextFor~0umtrty  ?? → || audited:0z3owlp # a held free text is never "": the booking parse, the line answer parse and the admin API parse each keep only a trimmed text that is not blank
+src/shared/email/answers.ts::answerTextFor~1u3kjbm  ?? → || audited:0z3owlp # chosen?.text answers an option text or undefined; answerTextForm requires the option text, so it is never ""
+src/shared/email/answers.ts::linesForEntry.chosen~0aui7kx  ?? → || audited:0z3owlp # the lookup answers an array of chosen ids or undefined; an array is always truthy
+src/shared/email/answers.ts::orderAnswerLines.linesByListing~1k3llfb  ?? → || audited:0z3owlp # the lookup answers a Map or undefined; a Map is always truthy
+src/shared/email/answers.ts::loadOrderAnswerLines.inPackage~1a79o0h  ?? → || audited:0z3owlp # the package is a number or undefined; its only falsy number is 0, which meets the same 0 fallback

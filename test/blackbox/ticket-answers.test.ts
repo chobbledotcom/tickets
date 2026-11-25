@@ -5,7 +5,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { requireValue } from "#shared/required-value.ts";
 import {
+  addPartyPack,
   attendeeIds,
   attendeePage,
   book,
@@ -144,6 +146,35 @@ describeWithEnv(
         expect(await attendeeIds(shop.api, shop.discoA)).toEqual([]);
       });
     }
+
+    test("the booking page of a package offers a field for each ticket that its packs can hold", async () => {
+      const shop = await ticketShop();
+      const pack = await addPartyPack(shop, [shop.discoA], { quantity: 2 });
+
+      const page = await createApp(inProcess).get(`/ticket/${pack.slug}`);
+
+      const packs = [
+        ...requireValue(
+          page.html.match(
+            new RegExp(
+              `<select[^>]*name="packageQuantity${pack.id}"[\\s\\S]*?</select>`,
+            ),
+          ),
+          "The page offers no pack count",
+        )[0].matchAll(/<option value="(\d+)"/g),
+      ].map(([, value]) => Number(value));
+      const tickets = [
+        ...page.html.matchAll(/name="(question\d+_line[^"]+)"/g),
+      ];
+      expect(tickets.map(([, name]) => name)).toEqual(
+        Array.from({ length: 2 * Math.max(...packs) }, (_, at) =>
+          fieldFor(shop.question, shop.discoA, {
+            packageId: pack.id,
+            ticket: at + 1,
+          }),
+        ),
+      );
+    });
 
     for (const [name, field, words] of CRAFTED) {
       test(`an answer for ${name} is refused, and books nothing`, async () => {

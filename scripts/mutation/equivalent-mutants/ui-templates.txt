@@ -184,3 +184,4 @@ src/ui/templates/admin/bulk-email.tsx::bulkEmailComposePage.checked~0aepv7o  ?? 
 # activity log page (ui/templates/admin/activity-log.tsx) — the route that the nav marks.
 src/ui/templates/admin/activity-log.tsx::activityLogPage.active~0wlvs02  /admin/log → "" audited:1i6vfn0 # No nav link or section names /admin/log, and none names the empty route, so the nav marks nothing for either value. The page renders the same HTML for every role.
 
+src/ui/templates/public/reservations/line-questions.tsx::pageAnswerLines.children~16574ma  ?? → || audited:1k78gqq # the lookup answers an array of children or undefined; an array is always truthy

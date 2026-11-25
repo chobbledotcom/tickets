@@ -8,7 +8,7 @@
  * selectedListingIds). This mirrors the server, which requires it only then.
  *
  * A field for one ticket of one booking line carries `data-unit` and the
- * controls of its line's quantity (`data-sources`). It shows while the line
+ * control of its line's quantity (`data-source`). It shows while the line
  * takes that ticket. A hidden one is disabled, so the form never posts an
  * answer for a ticket that the order does not take. */
 import {
@@ -22,7 +22,7 @@ import {
 const FIELD_CONTROLS =
   'input[type="radio"], input[type="text"], textarea, select';
 
-/** How many tickets one source gives a line: a listing's own quantity, a
+/** How many tickets a line takes from its source: a listing's own quantity, a
  * package count times the member's fixed quantity, or a child's quantity under
  * one parent. A parent's sole child takes all of the parent's tickets. */
 const sourceQty = (source: string): number => {
@@ -34,11 +34,6 @@ const sourceQty = (source: string): number => {
     ? parentUnits(first)
     : namedControlQty(`childQty${first}_${second}`);
 };
-
-/** How many tickets a line takes: the sum of its sources. Every line has at
- * least one source. */
-const lineQuantity = (sources: string): number =>
-  sources.split(" ").reduce((total, source) => total + sourceQty(source), 0);
 
 /** The text, choice and select controls of one field. */
 const controlsOf = (field: HTMLElement) => [
@@ -66,8 +61,7 @@ const showQuestion = (
 
 /** Show a ticket field while its line takes the ticket. */
 const showTicket = (field: HTMLElement) => {
-  const taken =
-    lineQuantity(field.dataset.sources!) > Number(field.dataset.unit);
+  const taken = sourceQty(field.dataset.source!) > Number(field.dataset.unit);
   field.hidden = !taken;
   for (const control of controlsOf(field)) {
     control.disabled = !taken;
