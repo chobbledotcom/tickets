@@ -228,9 +228,9 @@ src/ui/client/admin/listing-images.ts::chosenItem.button%2etextContent~0frpih7  
 # undefined. An object is never falsy, so both operators give the same value.
 src/ui/client/admin/listing-images.ts::setUpListingImages.reload.draft~06jz6of  ?? → ||  audited:15y3c6o   # find gives an option object or undefined, and an object is never falsy
 src/ui/client/admin/listing-images.ts::setUpListingImages.render~1gqg28i  ?? → ||  audited:15y3c6o   # served.get gives an element or undefined, and an element is never falsy
-src/ui/client/admin/custom-question-visibility.ts::sourceQty.kind~17n3p4g   → "mutated" audited:0h44ve7 # split always answers at least one part, so the default for the kind never applies
-src/ui/client/admin/custom-question-visibility.ts::sourceQty.first~11pqcbm   → "mutated" audited:0h44ve7 # the page writes every source as a kind and an id (q:<listing>, p:<package>:<fixed>, c:<parent>:<child>), so the default for the first part never applies
-src/ui/client/admin/custom-question-visibility.ts::sourceQty.second~03bn5zi   → "mutated" audited:0h44ve7 # a q: source never reads its second part, and the page writes p: and c: sources with one, so the default never reaches a read
+src/ui/client/admin/custom-question-visibility.ts::sourceQty.kind~17n3p4g   → "mutated" audited:00gnc97 # split always answers at least one part, so the default for the kind never applies
+src/ui/client/admin/custom-question-visibility.ts::sourceQty.first~11pqcbm   → "mutated" audited:00gnc97 # the page writes every source as a kind and an id (q:<listing>, p:<package>:<fixed>, c:<parent>:<child>), so the default for the first part never applies
+src/ui/client/admin/custom-question-visibility.ts::sourceQty.second~03bn5zi   → "mutated" audited:00gnc97 # a q: source never reads its second part, and the page writes p: and c: sources with one, so the default never reaches a read
 
 # The offline queue sync (src/ui/client/scanner-offline-sync.ts): its message words come from
 # the page, which always renders them. The scanner words test pins each fallback to the page's

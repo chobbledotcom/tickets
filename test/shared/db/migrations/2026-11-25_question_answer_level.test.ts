@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, executeBatch, getDb } from "#db/client.ts";
-import questionAnswerLevel from "#db/migrations/2026-11-23_question_answer_level.ts";
+import questionAnswerLevel from "#db/migrations/2026-11-25_question_answer_level.ts";
 import {
   applySchemaChanges,
   syncIndexes,

@@ -14,6 +14,7 @@
 import {
   namedControlQty,
   onSelectionChange,
+  parentInCart,
   parentUnits,
   selectedListingIds,
   soleChildId,
@@ -24,15 +25,17 @@ const FIELD_CONTROLS =
 
 /** How many tickets a line takes from its source: a listing's own quantity, a
  * package count times the member's fixed quantity, or a child's quantity under
- * one parent. A parent's sole child takes all of the parent's tickets. */
+ * one parent. A parent's sole child takes all of the parent's tickets. A child
+ * takes none while its parent is not in the cart, as the order books none. */
 const sourceQty = (source: string): number => {
   const [kind = "", first = "", second = ""] = source.split(":");
   if (kind === "q") return namedControlQty(`quantity${first}`);
   if (kind === "p")
     return namedControlQty(`packageQuantity${first}`) * Number(second);
-  return soleChildId(first) === second
-    ? parentUnits(first)
-    : namedControlQty(`childQty${first}_${second}`);
+  if (soleChildId(first) === second) return parentUnits(first);
+  return parentInCart(first)
+    ? namedControlQty(`childQty${first}_${second}`)
+    : 0;
 };
 
 /** The text, choice and select controls of one field. */

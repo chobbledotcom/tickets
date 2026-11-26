@@ -139,6 +139,39 @@ describeWithEnv("order answer lines", { db: true }, () => {
     ]);
   });
 
+  /** A line whose parent listing or package was deleted: the field of its
+   * answer, and the words the email shows for the line. */
+  const MISSING_NAMES: [string, (listingId: number) => string, string][] = [
+    [
+      "a deleted parent listing",
+      (listingId) => `_line${listingId}_900_0_ticket0`,
+      "Hall with #900",
+    ],
+    [
+      "a deleted package",
+      (listingId) => `_line${listingId}_0_901_ticket0`,
+      "Hall in #901",
+    ],
+  ];
+
+  for (const [name, fieldEnd, words] of MISSING_NAMES) {
+    test(`names a line by its number when it rests under ${name}`, async () => {
+      const { attendee, listing } = await bookedBuyer("Hall");
+      const { question } = await seedListingLevelQuestion(
+        [listing.id],
+        "Pupil name",
+        "quantity",
+      );
+      const field = `question${question.id}${fieldEnd(listing.id)}`;
+
+      expect(
+        await shownLines(attendee.id, [listing], new Map([[field, "Ava"]])),
+      ).toEqual([
+        [{ question: `Pupil name (${words}, ticket 1)`, text: "Ava" }],
+      ]);
+    });
+  }
+
   /** Orders that spend two reads: how many entries the order has, and the
    * free texts it holds. A free text that rests in no package reads no
    * package names. */

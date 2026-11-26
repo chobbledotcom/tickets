@@ -21,6 +21,7 @@ import {
   type LineNames,
   lineLabel,
   listingNamesOf,
+  namesWithMissing,
   ticketAnswerName,
   ticketFieldName,
   ticketOfFieldOrNull,
@@ -29,7 +30,7 @@ import {
   getQuestionsWithListingIds,
   type QuestionListingMap,
 } from "#db/questions/queries.ts";
-import { filter, requiredMapValue, unique, uniqueBy } from "#fp";
+import { compact, filter, requiredMapValue, unique, uniqueBy } from "#fp";
 import type { EmailEntry } from "#shared/email.ts";
 
 /** One answered question: the words the buyer saw, and the answer they gave. */
@@ -185,8 +186,11 @@ export const loadOrderAnswerLines = async (
 ): Promise<OrderAnswerLines> => {
   const listingIds = unique(entries.map((entry) => entry.listing.id));
   const attendeeIds = unique(entries.map((entry) => entry.attendee.id));
-  const inPackage = [...freeTexts.keys()].some(
-    (key) => (ticketOfFieldOrNull(key)?.ticket.packageGroupId ?? 0) !== 0,
+  const heldTickets = compact(
+    [...freeTexts.keys()].map((key) => ticketOfFieldOrNull(key)),
+  );
+  const inPackage = heldTickets.some(
+    ({ ticket }) => ticket.packageGroupId !== 0,
   );
   const [{ questions, questionListingMap }, chosen, packages] =
     await Promise.all([
@@ -198,8 +202,14 @@ export const loadOrderAnswerLines = async (
     chosenByAttendee: chosen,
     freeTexts,
     names: {
-      listings: listingNamesOf(entries),
-      packages,
+      listings: namesWithMissing(
+        listingNamesOf(entries),
+        compact(heldTickets.map(({ ticket }) => ticket.parentListingId)),
+      ),
+      packages: namesWithMissing(
+        packages,
+        heldTickets.map(({ ticket }) => ticket.packageGroupId),
+      ),
     },
     questionListingMap,
     questions,
