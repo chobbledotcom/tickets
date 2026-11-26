@@ -200,3 +200,9 @@ src/ui/client/scanner-sw.ts::networkFirst~0gf3pm3 ??→|| audited:1jxp2qh # the 
 # class writes start from the empty string.
 src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2eclassName~1vuuwez =→+= audited:03677q4 # only a row still queued can settle again, and a queued row has no class, so adding to its class equals setting it
 src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2eclassName~0jf4238 =→+= audited:03677q4 # only a row still queued can settle again, and a queued row has no class, so adding to its class equals setting it
+src/ui/client/scanner-offline-sync.ts::queuedRow.row%2etextContent~1s9n2ya =→+= audited:03677q4 # the row is a list item made on the line above, so its text starts empty and adding to it equals setting it
+
+# The offline store: page start-up catches the unreadable queue by its type
+# and shows its own words, and a later read reaches the door as the page
+# error. The error's message never shows.
+src/ui/client/scanner-offline.ts::readQueue~1t8liby The stored check-in queue is not in this build's shape→"" audited:05qer7z # start-up catches UnreadableQueueError by type and shows offlineQueueUnreadable; any later read shows pageError, so the message is never read

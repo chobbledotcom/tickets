@@ -1109,8 +1109,7 @@
     "banned-modal": 2
   },
   "src/shared/payment-webhook-url.ts": {
-    "long-sentence": 2,
-    "participle": 1
+    "long-sentence": 1
   },
   "src/shared/payments.ts": {
     "long-sentence": 8,

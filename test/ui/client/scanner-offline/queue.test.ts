@@ -19,6 +19,7 @@ import type { HTMLSelectElement as HappyHTMLSelectElement } from "happy-dom";
 import { whenStatusShows } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
+  queuedItem,
   storedQueue,
   TOKEN,
   useScannerSuite,
@@ -28,6 +29,7 @@ import {
   digestOf,
   expectOfflineRefusal,
   expectOneStoredCheckIn,
+  queueSeeded,
   scanOffline,
   scanPartyOfThree,
 } from "#test/ui/client/scanner/offline-door.ts";
@@ -127,5 +129,24 @@ describe("scanner offline queue", {
       fetchStub,
       "No offline ticket list on this device. Go online and turn on offline mode first.",
     );
+  });
+
+  test("queues a second ticket beside the one the door already holds", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false, ...queueSeeded() });
+    await scanOffline(h, "tokB67890");
+    // The digest runs on the platform's own crypto promise, so the count
+    // changes over real event-loop turns.
+    await whenStatusShows(
+      el(h.document, "scanner-queue-summary"),
+      "2 queued check-ins",
+    );
+
+    // Another ticket at the same door is not the queued one.
+    expect(
+      JSON.parse(String(storedQueue(h))).map(
+        (item: { tokenHash: string }) => item.tokenHash,
+      ),
+    ).toEqual([queuedItem.tokenHash, await digestOf("tokB67890")]);
   });
 });
