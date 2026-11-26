@@ -15,6 +15,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
+  type CameraFakes,
   cameraFakes,
   drain,
   idle,
@@ -26,8 +27,11 @@ import {
   el,
   evaluateBundle,
   SCANNER_PAGE,
+  type ScannerHarness,
+  TOKEN,
   useScannerSuite,
 } from "./fixture.ts";
+import { queueSeeded } from "./offline-door.ts";
 
 /** The scanner page without its offline banner: a page the offline side
  * cannot wire, whose camera must still come up. */
@@ -41,6 +45,13 @@ describe("scanner camera", {
   sanitizeResources: false,
 }, () => {
   const fresh = useScannerSuite();
+
+  /** A camera whose video already has a frame to read. */
+  const readyCamera = (h: ScannerHarness): CameraFakes => {
+    const fakes = cameraFakes(h);
+    fakes.ready(4);
+    return fakes;
+  };
   const freshCameraOnly = useScannerSuite(ONLINE_ONLY_PAGE);
 
   /** A started camera whose every scan gets the same answer, with the
@@ -75,8 +86,7 @@ describe("scanner camera", {
 
   test("shows the scanning line and paces the loop behind the cooldown", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
     await start(h);
 
     // The camera opened with the page's rear camera, the play started, the
@@ -95,7 +105,7 @@ describe("scanner camera", {
 
     // The first frame draws but decodes nothing: the clock starts inside
     // the cooldown, so the loop only draws and reschedules at 150 ms.
-    expect(fakes.drawn).toEqual([[h.video, 0, 0]]);
+    expect(fakes.drawn).toEqual([[true, 0, 0]]);
     expect(fakes.reads).toEqual([]);
     expect(fakes.scheduledDelay()).toBe(150);
 
@@ -124,13 +134,12 @@ describe("scanner camera", {
 
     fakes.ready(4);
     fakes.advance(150);
-    expect(fakes.drawn).toEqual([[h.video, 0, 0]]);
+    expect(fakes.drawn).toEqual([[true, 0, 0]]);
   });
 
   test("admits one decoded ticket, then keeps scanning", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
     fakes.decode({ data: "tok12345" });
     const bodies: Record<string, unknown>[] = [];
     const headers: unknown[] = [];
@@ -179,8 +188,7 @@ describe("scanner camera", {
 
   test("never admits a second ticket while one scan is still running", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
     let first = true;
     using _fetch = stubFetch(() => {
       // The first answer is held back, so the next frame decodes while the
@@ -211,8 +219,7 @@ describe("scanner camera", {
 
   test("says so when a code carries no ticket token", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
     fakes.decode({ data: "not-a-token!" });
     const bodies: unknown[] = [];
     using _fetch = stubFetch((_url, init) => {
@@ -233,8 +240,7 @@ describe("scanner camera", {
 
   test("paces every later scan behind the last frame's cooldown", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
     const started = await countingCamera(h, fakes, checkedIn(1));
     using _fetch = started.fetchStub;
 
@@ -267,8 +273,7 @@ describe("scanner camera", {
 
   test("deduplicates a ticket until its window closes", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
     const started = await countingCamera(h, fakes, { status: "not_found" });
     using _fetch = started.fetchStub;
 
@@ -296,10 +301,41 @@ describe("scanner camera", {
     expect(started.posts()).toBe(3);
   });
 
+  test("keeps each ticket's own window as new tickets take over", async () => {
+    const h = fresh();
+    using fakes = readyCamera(h);
+    const started = await countingCamera(h, fakes, { status: "not_found" });
+    using _fetch = started.fetchStub;
+
+    // Three different tickets post in turn, the second at 4000 and the third
+    // at 6000.
+    await scanNext(fakes, "other9876", 2000);
+    await scanNext(fakes, "third0000", 2000);
+    expect(started.posts()).toBe(3);
+
+    // The second ticket's window would close at 9000. It must not wipe the
+    // third ticket's, which holds until 11000.
+    await idle(fakes, 3150);
+    await scanNext(fakes, "third0000", 150);
+    expect(started.posts()).toBe(3);
+  });
+
+  test("tells the door a scan made during a sync is ignored", async () => {
+    using _fetch = stubFetch(() => new Promise(() => {}));
+    const h = fresh(queueSeeded());
+    using fakes = readyCamera(h);
+    await start(h);
+    await scanFirst(fakes, TOKEN);
+
+    expect(h.statusEl.textContent).toBe(
+      "Checking in queued tickets. Scan again when done.",
+    );
+    expect(h.statusEl.className).toContain("scanner-status-warning");
+  });
+
   test("fails over to the network message when the scan cannot be sent", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
     fakes.decode({ data: "tok12345" });
     using _fetch = stubFetch(new Error("offline"));
 
@@ -316,8 +352,7 @@ describe("scanner camera", {
 
   test("cancels the previous status's fade when a later status replaces it", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
     const started = await countingCamera(h, fakes, checkedIn(2));
     using _fetch = started.fetchStub;
 
@@ -333,8 +368,7 @@ describe("scanner camera", {
 
   test("fades a warning status out after its delay", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
     let posts = 0;
     using _fetch = stubFetch((_url, init) => {
       posts += 1;
@@ -368,8 +402,7 @@ describe("scanner camera", {
 
   test("releases the camera tracks when the page hides", async () => {
     const h = fresh();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
 
     el(h.document, "scanner-start").click();
     await drain();
@@ -390,8 +423,7 @@ describe("scanner camera", {
 
   test("keeps the camera working when the offline side cannot wire", async () => {
     const h = freshCameraOnly();
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
+    using fakes = readyCamera(h);
 
     await start(h);
     await scanFirst(fakes, "tok12345");

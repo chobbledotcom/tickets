@@ -27,6 +27,8 @@
   "reviews.field.text_hint": "The words the reviewer wrote.",
   "reviews.field.url": "Review URL",
   "reviews.field.url_hint": "The public address of the review. Each review needs its own address.",
+  "reviews.section.details": "Review details",
+  "reviews.section.link": "Public link",
   "reviews.list.intro": "Reviews appear on the public reviews page, newest first.",
   "reviews.list.empty": "No reviews yet.",
   "reviews.col.rating": "Rating",

@@ -24,7 +24,7 @@ describe("SmsGatewayForm", () => {
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayUsername" placeholder="Cloud username from the SMS Gateway app" type="text" value="cloud-admin">`,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayBaseUrl" placeholder="https://api.sms-gate.app" type="url" value="https://api.sms-gate.example">`,
       "Phone app username",
-      "Server URL (optional)",
+      "Server URL",
     ]);
   });
 
@@ -52,7 +52,7 @@ describe("SmsGatewayForm", () => {
       `maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayPassword" placeholder="Cloud password from the SMS Gateway app" type="password" value="${MASK_SENTINEL}"`,
       `maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayWebhookSecret" placeholder="For delivery reports + replies" type="password" value="${MASK_SENTINEL}"`,
       "Phone app password",
-      "Webhook signing secret (optional)",
+      "Webhook signing secret",
     ]);
   });
 

@@ -192,7 +192,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       assert(!html.includes("Non-Transferable"));
     });
 
-    test("admin listing edit page pre-fills non-transferable select", async () => {
+    test("admin listing edit page pre-fills non-transferable checkbox", async () => {
       const { listing } = await setupListingAndLogin({
         nonTransferable: true,
       });
@@ -200,7 +200,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       await assertAdminHtml(
         `/admin/listing/${listing.id}/edit`,
         "Non-transferable items",
-        'value="1" selected',
+        '<input type="checkbox" name="nonTransferable" value="1" checked>',
       );
     });
 

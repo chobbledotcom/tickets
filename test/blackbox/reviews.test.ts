@@ -57,11 +57,28 @@ const cleanUp = async (): Promise<void> => {
   await disablePublicSite();
 };
 
+const withReviews = async (
+  body: (app: App) => Promise<void>,
+): Promise<void> => {
+  await enableReviews();
+  try {
+    await body(await editor());
+  } finally {
+    await cleanUp();
+  }
+};
+
+const deleteReview = async (app: App, name: string): Promise<Page> =>
+  follow(
+    app,
+    await app.submit("/admin/site/reviews/1/delete", {
+      confirmIdentifier: name,
+    }),
+  );
+
 describeWithEnv("the reviews page", { db: true }, () => {
-  test("shows a saved review on the public page", async () => {
-    await enableReviews();
-    try {
-      const app = await editor();
+  test("shows a saved review on the public page", () =>
+    withReviews(async (app) => {
       await addReview(
         app,
         "Sample customer",
@@ -77,15 +94,10 @@ describeWithEnv("the reviews page", { db: true }, () => {
         "Rated 5 out of 5 stars",
         'href="/reviews"',
       ]);
-    } finally {
-      await cleanUp();
-    }
-  });
+    }));
 
-  test("lets the owner add, edit, and delete a review", async () => {
-    await enableReviews();
-    try {
-      const app = await editor();
+  test("lets the owner add, edit, and delete a review", () =>
+    withReviews(async (app) => {
       const list = await app.get("/admin/site/reviews");
       expect(list.status).toBe(200);
       expectIncludesAll(list.html, ["Add review"]);
@@ -96,6 +108,10 @@ describeWithEnv("the reviews page", { db: true }, () => {
         "https://example.com/reviews/new",
       );
       expect(created.html).toContain("Review created");
+      expectIncludesAll((await app.get("/admin/site/reviews/new")).html, [
+        "Review details",
+        "Public link",
+      ]);
       const publicPage = await app.get("/reviews");
       expectIncludesAll(publicPage.html, ["A new reviewer", "A new review."]);
 
@@ -110,25 +126,15 @@ describeWithEnv("the reviews page", { db: true }, () => {
       expect((await app.get("/reviews")).html).toContain("An edited reviewer");
       expect((await app.get("/reviews")).html).not.toContain("A new reviewer");
 
-      const removed = await follow(
-        app,
-        await app.submit("/admin/site/reviews/1/delete", {
-          confirmIdentifier: "An edited reviewer",
-        }),
-      );
+      const removed = await deleteReview(app, "An edited reviewer");
       expect(removed.html).toContain("Review deleted");
       expect((await app.get("/reviews")).html).not.toContain(
         "An edited reviewer",
       );
-    } finally {
-      await cleanUp();
-    }
-  });
+    }));
 
-  test("refuses a review URL another review already has", async () => {
-    await enableReviews();
-    try {
-      const app = await editor();
+  test("refuses a review URL another review already has", () =>
+    withReviews(async (app) => {
       await addReview(
         app,
         "First reviewer",
@@ -148,15 +154,10 @@ describeWithEnv("the reviews page", { db: true }, () => {
       expect((await app.get("/reviews")).html).not.toContain(
         "A second reviewer",
       );
-    } finally {
-      await cleanUp();
-    }
-  });
+    }));
 
-  test("refuses a review URL that is not a web address", async () => {
-    await enableReviews();
-    try {
-      const app = await editor();
+  test("refuses a review URL that is not a web address", () =>
+    withReviews(async (app) => {
       const refused = await follow(
         app,
         await app.submit(
@@ -168,15 +169,10 @@ describeWithEnv("the reviews page", { db: true }, () => {
       expect(refused.html).toContain(
         "Enter a full review URL that starts with http:// or https://.",
       );
-    } finally {
-      await cleanUp();
-    }
-  });
+    }));
 
-  test("refuses an edit that takes another review's URL", async () => {
-    await enableReviews();
-    try {
-      const app = await editor();
+  test("refuses an edit that takes another review's URL", () =>
+    withReviews(async (app) => {
       await addReview(
         app,
         "First reviewer",
@@ -198,10 +194,7 @@ describeWithEnv("the reviews page", { db: true }, () => {
         "That review URL is already used by another review.",
       );
       expect((await app.get("/reviews")).html).toContain("First reviewer");
-    } finally {
-      await cleanUp();
-    }
-  });
+    }));
 
   test("shows no reviews page or link while reviews are off", async () => {
     await enablePublicSite();
@@ -216,27 +209,17 @@ describeWithEnv("the reviews page", { db: true }, () => {
     }
   });
 
-  test("shows no reviews page or link when every review is deleted", async () => {
-    await enableReviews();
-    try {
-      const app = await editor();
+  test("shows no reviews page or link when every review is deleted", () =>
+    withReviews(async (app) => {
       await addReview(
         app,
         "The only reviewer",
         "https://example.com/reviews/only",
       );
-      await follow(
-        app,
-        await app.submit("/admin/site/reviews/1/delete", {
-          confirmIdentifier: "The only reviewer",
-        }),
-      );
+      await deleteReview(app, "The only reviewer");
       expect((await app.get("/reviews")).status).toBe(404);
       expect((await app.get("/")).html).not.toContain('href="/reviews"');
-    } finally {
-      await cleanUp();
-    }
-  });
+    }));
 
   test("hides the review editor from a signed-out visitor", async () => {
     const page = await createApp(inProcess).get("/admin/site/reviews");

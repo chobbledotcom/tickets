@@ -46,7 +46,7 @@ describe("the public contact page", () => {
       "<title>Contact - Teeside Walks</title>",
       "<h2>Send us a message</h2>",
       'action="/contact"',
-      `<label>Your email address<input autocomplete="email" maxlength="${MAX_INPUT_LENGTH}" name="email" required type="email"></label>`,
+      `<label>Your email address<span aria-hidden="true" class="field-requirement">*</span><span class="visually-hidden">Required</span><input autocomplete="email" maxlength="${MAX_INPUT_LENGTH}" name="email" required type="email"></label>`,
       `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="message" required></textarea>`,
       `<button type="submit">Send message</button>`,
     ]);

@@ -16,6 +16,7 @@ import {
   recordPageConfig,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
+import { FormSections } from "#templates/components/aggregate-sections.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { getReviewForm, reviewFormValues } from "#templates/fields/reviews.ts";
@@ -40,11 +41,24 @@ const reviewColumns = (): TableColumn<Review>[] => [
   deleteLinkColumn((review) => `/admin/site/reviews/${review.id}/delete`),
 ];
 
-const renderFields = (review: Review | undefined) => (
-  <Raw
-    html={getReviewForm().render(review ? reviewFormValues(review) : undefined)}
-  />
-);
+const renderFields = (review: Review | undefined) => {
+  const form = getReviewForm();
+  const values = review ? reviewFormValues(review) : undefined;
+  return (
+    <FormSections
+      sections={[
+        {
+          children: <Raw html={form.section("details", values)} />,
+          legend: t("reviews.section.details"),
+        },
+        {
+          children: <Raw html={form.section("link", values)} />,
+          legend: t("reviews.section.link"),
+        },
+      ]}
+    />
+  );
+};
 
 /* jscpd:ignore-start -- static page config, not code */
 const reviewList = {

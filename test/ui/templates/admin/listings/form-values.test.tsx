@@ -151,6 +151,14 @@ describe("listingFormClass", () => {
       "listing-form--templated listing-form--hide-type listing-form--no-daily",
     );
 
+    const noLocation = {
+      location: false,
+      signature: { daily: false },
+    } as Parameters<typeof listingFormClass>[0];
+    expect(listingFormClass(noLocation)).toBe(
+      "listing-form--templated listing-form--hide-type listing-form--no-daily listing-form--no-location",
+    );
+
     expect(
       listingFormClass({ signature: {} } as Parameters<
         typeof listingFormClass

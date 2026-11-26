@@ -46,6 +46,8 @@ describe("the reviews page body", () => {
       '<span aria-hidden="true">★★★★★</span>',
       "Rated 5 out of 5 stars",
       '<time class="date" datetime="2024-11-20">when 2024-11-20</time>',
+    ]);
+    expectIncludesAll(html, [
       "<strong>service</strong>",
       "JS",
       "Jane Smith",
@@ -81,8 +83,13 @@ describe("the reviews page body", () => {
   });
 
   test("builds initials for one word and for several words", () => {
-    expect(reviewerInitials("Alice")).toBe("AL");
-    expect(reviewerInitials("Jane Smith")).toBe("JS");
-    expect(reviewerInitials("Mary Jane Watson")).toBe("MW");
+    const cases = [
+      ["Alice", "AL"],
+      ["Jane Smith", "JS"],
+      ["Mary Jane Watson", "MW"],
+    ] as const;
+    for (const [name, initials] of cases) {
+      expect(reviewerInitials(name)).toBe(initials);
+    }
   });
 });
