@@ -4,6 +4,7 @@
  * them. */
 
 import { expect } from "@std/expect";
+import { requiredMapValue } from "#fp";
 import {
   savedEntry,
   whenStatusShows,
@@ -40,17 +41,16 @@ export const savedList = JSON.stringify({
 });
 
 /** Answers each cache page by the cursor it asks for. The first page asks
- * for none, and its key is "". A cursor with no page answers 500. */
+ * for none, and its key is "". A cursor with no page fails the test. */
 export const doorWith =
   (pages: Record<string, unknown>): FetchResponder =>
-  (url) => {
-    const from =
-      new URL(String(url), "http://localhost").searchParams.get("from") ?? "";
-    const page = pages[from];
-    return page === undefined
-      ? Response.json({}, { status: 500 })
-      : Response.json(page);
-  };
+  (url) =>
+    Response.json(
+      requiredMapValue(
+        new Map(Object.entries(pages)),
+        new URL(String(url), "http://localhost").searchParams.get("from") ?? "",
+      ),
+    );
 
 export const progress = (h: ScannerHarness) =>
   el(h.document, "scanner-offline-progress");

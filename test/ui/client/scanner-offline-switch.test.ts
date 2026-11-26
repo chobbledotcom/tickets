@@ -42,7 +42,10 @@ import {
   MODE_KEY,
   useScannerSuite,
 } from "#test/ui/client/scanner/fixture.ts";
-import { askedUrls } from "#test/ui/client/scanner/offline-door.ts";
+import {
+  askedUrls,
+  refusingDoor,
+} from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describe("scanner offline switch", {
@@ -227,7 +230,7 @@ describe("scanner offline switch", {
   });
 
   test("downloads nothing on load while another door's switch is on", async () => {
-    using fetchStub = stubFetch(doorWith({}));
+    using fetchStub = refusingDoor();
     const h = fresh({
       seed: (store) =>
         store.setItem("scanner-offline-mode-/admin/listing/9/scan", "1"),
