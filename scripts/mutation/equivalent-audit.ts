@@ -1,36 +1,14 @@
-import { isAbsolute, relative, resolve, SEPARATOR } from "@std/path";
-import { shortHash } from "#scripts/checksum.ts";
-import { createStaticGates, type StaticGate } from "./execution.ts";
-import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
 import {
-  mutantKeyForPath,
-  parseIgnoreLine,
-  registryFilePath,
-} from "./ignore.ts";
-import { writeWholeOrNotAtAll } from "./write-whole.ts";
-
-interface PhysicalEntry {
-  anchor: string;
-  chunk: string;
-  index: number;
-  key: string;
-  line: string;
-  newOperator: string;
-  operator: string;
-  reason: string;
-  /** Which registry file the entry lives in, as an index into the file list. */
-  registry: number;
-  sourcePath: string;
-  stamp: string;
-}
-
-/** One entry that resolved to a real mutant in the current source. The
- * distinguishing-input phase (equivalent-reproof.ts) runs against these. */
-export interface ResolvedEntry extends PhysicalEntry {
-  file: string;
-  mutant: Mutant;
-  original: string;
-}
+  type RegistryScope,
+  type ResolvedEntry,
+  readEquivalentRegistry,
+  registryEntryId,
+  registryRewrites,
+} from "./equivalent-registry.ts";
+import { type ProofReview, proofReviews } from "./equivalent-review.ts";
+import { createStaticGates, type StaticGate } from "./execution.ts";
+import { applyMutant } from "./generate.ts";
+import { writeCheckedFiles } from "./snapshot-copy-back.ts";
 
 /** What the audit's distinguishing-input phase needs to run one sweep. */
 export interface ReproveContext {
@@ -66,16 +44,7 @@ const failedGate = async (
   return null;
 };
 
-/** One registry file's text, split into prune-able line chunks. */
-interface RegistryFile {
-  chunks: string[];
-  file: string | URL;
-  original: string;
-}
-
-export interface EquivalentAuditOptions {
-  ignoreFiles: (string | URL)[];
-  root: string;
+export interface EquivalentAuditOptions extends RegistryScope {
   signal?: AbortSignal;
   write: boolean;
 }
@@ -83,25 +52,21 @@ export interface EquivalentAuditOptions {
 export interface EquivalentAuditResult {
   checked: number;
   killedByLint: string[];
-  /** Entries the distinguishing-input phase dropped (only with a `reprove`
-   * dep, which the audit command passes for `--tests`). */
   killedByTests: string[];
   killedByTypeCheck: string[];
-  /** Entries still suppressing: confirmed, gate-passing, and — under a
-   * reprove dep — surviving the direct tests too. */
+  /** Records whose exact keys no longer resolve. */
+  missing: string[];
+  /** Confirmed entries that survive the attempted checks. */
   retained: number;
-  /** Entries whose stamp predates the source text: skipped, never pruned, and
-   * owed a person's re-derivation. */
-  unconfirmed: string[];
-  /** Entries the reprove phase could not attempt because their source has no
-   * direct test to distinguish with. They keep suppressing. */
+  /** Surviving entries that need a new proof. */
+  unconfirmed: ProofReview[];
+  /** Entries whose sources have no mapped direct tests. */
   untested: string[];
 }
 
 export interface EquivalentAuditDeps {
   createGates(): Promise<StaticGate[]>;
-  /** The distinguishing-input phase. Runs each gate-surviving confirmed
-   * entry's mutant against its mapped direct tests and reports the kills. */
+  /** Run each gate survivor against its mapped direct tests. */
   reprove?(
     entries: ResolvedEntry[],
     context: ReproveContext,
@@ -109,90 +74,6 @@ export interface EquivalentAuditDeps {
 }
 
 const realDeps: EquivalentAuditDeps = { createGates: createStaticGates };
-
-const chunksOf = (text: string): string[] =>
-  text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
-
-const physicalEntries = (
-  registry: number,
-  chunks: string[],
-  seen: Set<string>,
-): PhysicalEntry[] =>
-  chunks.flatMap((chunk, index) => {
-    const line = chunk.replace(/\r?\n$/, "");
-    const parsed = parseIgnoreLine(line);
-    if (!parsed) {
-      if (line.trim() === "" || line.trimStart().startsWith("#")) return [];
-      throw new Error(`Malformed equivalent-mutant entry: ${line}`);
-    }
-    if (seen.has(parsed.key)) {
-      throw new Error(`Duplicate equivalent-mutant entry: ${parsed.key}`);
-    }
-    seen.add(parsed.key);
-    return [{ chunk, index, line, registry, ...parsed }];
-  });
-
-const sourceFile = (root: string, sourcePath: string): string => {
-  if (isAbsolute(sourcePath)) {
-    throw new Error(`Equivalent-mutant path must be relative: ${sourcePath}`);
-  }
-  const file = resolve(root, sourcePath);
-  const rel = relative(root, file);
-  if (rel === ".." || rel.startsWith(`..${SEPARATOR}`)) {
-    throw new Error(
-      `Equivalent-mutant path escapes the project: ${sourcePath}`,
-    );
-  }
-  return file;
-};
-
-interface SourceMutants {
-  mutants: Map<string, Map<string, Mutant>>;
-  originals: Map<string, string>;
-}
-
-const loadSourceMutants = async (
-  root: string,
-  entries: PhysicalEntry[],
-): Promise<SourceMutants> => {
-  const originals = new Map<string, string>();
-  const mutants = new Map<string, Map<string, Mutant>>();
-  for (const entry of entries) {
-    const file = sourceFile(root, entry.sourcePath);
-    if (originals.has(file)) continue;
-    const original = await Deno.readTextFile(file);
-    originals.set(file, original);
-    mutants.set(
-      file,
-      new Map(
-        generateMutants(original, file, true).map((mutant) => [
-          mutantKeyForPath(entry.sourcePath, mutant),
-          mutant,
-        ]),
-      ),
-    );
-  }
-  return { mutants, originals };
-};
-
-const resolveEntries = async (
-  root: string,
-  entries: PhysicalEntry[],
-): Promise<ResolvedEntry[]> => {
-  const { mutants, originals } = await loadSourceMutants(root, entries);
-  const problems: string[] = [];
-  const resolved = entries.flatMap((entry) => {
-    const file = sourceFile(root, entry.sourcePath);
-    const mutant = mutants.get(file)?.get(entry.key);
-    if (!mutant) {
-      problems.push(`No generated mutant matches: ${entry.key}`);
-      return [];
-    }
-    return [{ ...entry, file, mutant, original: originals.get(file)! }];
-  });
-  if (problems.length > 0) throw new Error(problems.join("\n"));
-  return resolved;
-};
 
 const failedGateFor = async (
   entry: ResolvedEntry,
@@ -209,8 +90,9 @@ const failedGateFor = async (
   }
 };
 
-interface AuditClassification extends EquivalentAuditResult {
-  /** Killed entries as `${registry}:${index}` chunk coordinates. */
+interface AuditClassification {
+  killedByLint: string[];
+  killedByTypeCheck: string[];
   killedChunks: Set<string>;
 }
 
@@ -235,112 +117,72 @@ const auditEntries = async (
     if (!failed) continue;
     const target = failed === "lint" ? killedByLint : killedByTypeCheck;
     target.push(entry.line);
-    killedChunks.add(`${entry.registry}:${entry.index}`);
+    killedChunks.add(registryEntryId(entry));
   }
-  return {
-    checked: entries.length,
-    killedByLint,
-    killedByTests: [],
-    killedByTypeCheck,
-    killedChunks,
-    retained: entries.length - killedChunks.size,
-    unconfirmed: [],
-    untested: [],
-  };
+  return { killedByLint, killedByTypeCheck, killedChunks };
 };
 
-/**
- * The stamp dates the proof: it is the source file's text as it stood when a
- * person last re-derived the reason. A file that has changed since leaves the
- * entry unconfirmed — the audit skips it (no gate check, no prune; a
- * re-derived entry gets its gate check then) and hands it to a person.
- */
-const splitByStamp = (
-  entries: ResolvedEntry[],
-): { confirmed: ResolvedEntry[]; unconfirmed: string[] } => {
-  const confirmed: ResolvedEntry[] = [];
-  const unconfirmed: string[] = [];
-  for (const entry of entries) {
-    if (entry.stamp === `audited:${shortHash(entry.original)}`) {
-      confirmed.push(entry);
-    } else {
-      unconfirmed.push(entry.line);
-    }
+const reviewSurvivors = async (
+  survivors: ResolvedEntry[],
+  killedChunks: ReadonlySet<string>,
+): Promise<ProofReview[]> => {
+  const reviewEntry = proofReviews();
+  const reviews: ProofReview[] = [];
+  for (const entry of survivors) {
+    if (killedChunks.has(registryEntryId(entry))) continue;
+    const review = await reviewEntry(entry);
+    if (review !== null) reviews.push(review);
   }
-  return { confirmed, unconfirmed };
+  return reviews;
 };
 
-const pruneKilledEntries = async (
-  registries: RegistryFile[],
-  killedChunks: Set<string>,
-): Promise<void> => {
-  for (const [registry, { chunks, file, original }] of registries.entries()) {
-    const kept = chunks
-      .map((chunk, index) =>
-        killedChunks.has(`${registry}:${index}`) ? "" : chunk,
-      )
-      .join("");
-    if (kept === original) continue;
-    if ((await Deno.readTextFile(file)) !== original) {
-      throw new Error("Equivalent-mutant file changed during the audit.");
-    }
-    await writeWholeOrNotAtAll(registryFilePath(file), kept);
-  }
-};
-
-/** Apply every listed equivalent and run only lint plus type-check — plus,
- * under a `reprove` dep, each confirmed gate-survivor's mapped direct tests. */
+/** Run checks against exact matches, then classify the remaining records. */
 export const auditEquivalentMutants = async (
   options: EquivalentAuditOptions,
   deps: EquivalentAuditDeps = realDeps,
 ): Promise<EquivalentAuditResult> => {
-  const { ignoreFiles, root } = options;
-  const registries: RegistryFile[] = await Promise.all(
-    ignoreFiles.map(async (file) => {
-      const original = await Deno.readTextFile(file);
-      return { chunks: chunksOf(original), file, original };
-    }),
-  );
-  const seen = new Set<string>();
-  const entries = await resolveEntries(
-    root,
-    registries.flatMap(({ chunks }, registry) =>
-      physicalEntries(registry, chunks, seen),
-    ),
-  );
-  const gates = await deps.createGates();
+  const { root } = options;
+  const { missing, registries, resolved } =
+    await readEquivalentRegistry(options);
   const signal = options.signal ?? new AbortController().signal;
-  const { confirmed, unconfirmed } = splitByStamp(entries);
-  const staticResult = await auditEntries(confirmed, {
+  signal.throwIfAborted();
+  const gates = resolved.length === 0 ? [] : await deps.createGates();
+  const staticResult = await auditEntries(resolved, {
     gates,
     signal,
     workspace: root,
   });
 
-  let killedChunks = staticResult.killedChunks;
+  const { killedChunks } = staticResult;
   let killedByTests: string[] = [];
   let untested: string[] = [];
-  if (deps.reprove) {
-    const survivors = confirmed.filter(
-      (entry) => !killedChunks.has(`${entry.registry}:${entry.index}`),
-    );
-    if (survivors.length > 0) {
-      const reproved = await deps.reprove(survivors, { root, signal });
-      killedChunks = new Set([...killedChunks, ...reproved.killedChunks]);
-      killedByTests = reproved.killedLines;
-      untested = reproved.untested;
-    }
+  const survivors = resolved.filter(
+    (entry) => !killedChunks.has(registryEntryId(entry)),
+  );
+  if (deps.reprove && survivors.length > 0) {
+    const reproved = await deps.reprove(survivors, { root, signal });
+    for (const id of reproved.killedChunks) killedChunks.add(id);
+    killedByTests = reproved.killedLines;
+    untested = reproved.untested;
   }
 
-  if (options.write && killedChunks.size > 0) {
-    await pruneKilledEntries(registries, killedChunks);
+  const unconfirmed = await reviewSurvivors(survivors, killedChunks);
+
+  signal.throwIfAborted();
+  if (options.write && (killedChunks.size > 0 || missing.length > 0)) {
+    const removals = new Map<string, string>();
+    for (const id of killedChunks) removals.set(id, "");
+    for (const entry of missing) removals.set(registryEntryId(entry), "");
+    const changes = registryRewrites(registries, removals);
+    await writeCheckedFiles(root, changes, (entry) => entry.after);
   }
   return {
-    checked: entries.length,
+    checked: resolved.length + missing.length,
     killedByLint: staticResult.killedByLint,
     killedByTests,
     killedByTypeCheck: staticResult.killedByTypeCheck,
-    retained: entries.length - killedChunks.size - unconfirmed.length,
+    missing: missing.map((entry) => entry.line),
+    retained: resolved.length - killedChunks.size - unconfirmed.length,
     unconfirmed,
     untested,
   };

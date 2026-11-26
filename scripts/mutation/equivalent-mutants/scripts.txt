@@ -132,12 +132,6 @@ scripts/unread-fields/fields/walking.ts::partsOfTheGeneric.argumentNodes~1ulj8jb
 # value, so the root fallback agrees under both operators.
 scripts/bugs-lib.ts::getJson~0yt17y4  ?? → || audited:15tlsi9 # v.getDotPath returns a non-empty dotted path or null, never "", so ?? and || pick the same side for every issue
 
-# The equivalent-mutant checker's own fresh-key search: a canonical key is
-# path::anchor from→to, and neither the two characters after the path nor the
-# anchor itself can hold a space, so a search that starts two characters
-# earlier finds the same first space.
-scripts/mutation/check-equivalents.ts::mutationOfKey~0u96moz  2 → 0 audited:1mflo87 # the :: and the anchor are space-free (escapePath and the anchor charset), so indexOf(" ", idx) and indexOf(" ", idx + 2) return the same position
-
 # scripts/verify-models/shared-group-capacity.ts — the multi-group scenario
 # rows each carry a member the production functions never read for that row:
 # the looser shared group, or the parent-only / child-only group the row
