@@ -98,6 +98,18 @@ describe("manual check-in search", () => {
         "error",
       ],
       [
+        "the role no longer reaches the door",
+        Response.json({ error: "Forbidden" }, { status: 403 }),
+        "Something went wrong. Reload this page, then try again.",
+        "error",
+      ],
+      [
+        "the door went away",
+        Response.json({ status: "not_found" }, { status: 404 }),
+        "Something went wrong. Reload this page, then try again.",
+        "error",
+      ],
+      [
         "the server is in trouble",
         Response.json({}, { status: 500 }),
         "The search failed.",

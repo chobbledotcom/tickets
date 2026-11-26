@@ -1,3 +1,4 @@
+// effects: pure
 /** What the scan API answers a door. The scan route writes these bodies in
  * `scan-answer.ts` and `scan-reply.ts`. The camera scan, the manual
  * check-in, and the offline queue parse each answer once with this schema,
@@ -45,16 +46,12 @@ const KnownAnswerSchema = v.variant("status", [
   answerOf("not_found", {}),
 ]);
 
-/** Every other body: a refusal, which the API writes as `{ error }` with
- * no status of its own. A body that names a status this page has no words
- * for fails the parse, so the door hears the page error instead of a
- * silent generic answer. */
+/** Every other body: a refusal, which the API writes as `{ error }` and
+ * nothing else. The object is strict, so a body that names a status this
+ * page has no words for fails the parse. The door then hears the page
+ * error instead of a silent generic answer. */
 const OtherAnswerSchema = v.pipe(
-  v.object({ error: v.optional(NonEmptyTextSchema) }),
-  v.check(
-    (other) => !("status" in other),
-    "The answer names a status this page has no words for",
-  ),
+  v.strictObject({ error: v.optional(NonEmptyTextSchema) }),
   v.transform((other) => ({ ...other, status: "other" as const })),
 );
 

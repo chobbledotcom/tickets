@@ -4,10 +4,9 @@ import {
   checkedIn,
   type ManualCheckinPage,
   useManualCheckinPage,
-  waitUntilSettled,
 } from "#test/ui/client/admin/manual-checkin/fixture.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { fireEvent } from "#test-utils/happy-dom.ts";
+import { fireEvent, waitUntilSettled } from "#test-utils/happy-dom.ts";
 
 /** The first POST answers verify_id, so the confirm overlay appears; wait
  *  for it, then answer through its buttons. */

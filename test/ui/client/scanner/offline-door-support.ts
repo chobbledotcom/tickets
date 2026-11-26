@@ -22,8 +22,8 @@ import { encode } from "uqr";
 import * as v from "valibot";
 import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import {
+  StoredListSchema,
   type TicketCacheEntry,
-  TicketCacheEntrySchema,
   TicketCachePageSchema,
 } from "#shared/ticket-cache.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
@@ -51,16 +51,6 @@ export const UNKNOWN = "unknown-visitor-token";
  * asks, and the door checks in two of the three. */
 export const HELD_PLACES = 3;
 export const CHECK_IN_PICK = 2;
-
-/** The ticket list one door's cache endpoint answers and the page stores:
- * one keyed digest per ticket, with the places one scan at the door admits.
- * Both boundaries are outside the test's own code, so both parse. The served
- * answer parses with the page schema the endpoint and the browser share;
- * the stored list adds the time the device stamped it. */
-const storedCacheSchema = v.object({
-  entries: v.array(TicketCacheEntrySchema),
-  storedAt: v.number(),
-});
 
 /** One seeded door: the group and its one listing, the person whose ticket
  * the door's list holds, and the paths the page and its store key read. */
@@ -261,7 +251,7 @@ export const storedCacheEntries = async (
     if (value === null) throw new Error(`The door's store holds no ${key}`);
     return value;
   }, door.cacheStoreKey);
-  return v.parse(storedCacheSchema, JSON.parse(raw)).entries;
+  return v.parse(StoredListSchema, JSON.parse(raw)).entries;
 };
 
 /** The digest list the cache endpoint answers this session. */

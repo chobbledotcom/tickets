@@ -11,6 +11,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { TicketCacheEntry } from "#shared/ticket-cache.ts";
 import {
   cameraFakes,
   savedEntry,
@@ -22,7 +23,6 @@ import {
   el,
   MODE_KEY,
   SCAN_PATH,
-  storedQueue,
   TOKEN,
   useScannerSuite,
 } from "#test/ui/client/scanner/fixture.ts";
@@ -31,9 +31,12 @@ import {
   expectOneStoredCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { waitUntilSettled } from "#test-utils/happy-dom.ts";
+
+type Harness = ReturnType<ReturnType<typeof useScannerSuite>>;
 
 /** The manual form's name box, checked to be the input the page renders. */
-const nameBox = (h: ReturnType<ReturnType<typeof useScannerSuite>>) => {
+const nameBox = (h: Harness) => {
   const input = el(h.document, "manual-checkin-input");
   if (!(input instanceof h.window.HTMLInputElement)) {
     throw new Error("The manual check-in name box is not an input");
@@ -41,18 +44,55 @@ const nameBox = (h: ReturnType<ReturnType<typeof useScannerSuite>>) => {
   return input;
 };
 
-/** Send the manual form and let the bundle's handler run to its end. */
-const submitManual = async (
-  h: ReturnType<ReturnType<typeof useScannerSuite>>,
-): Promise<void> => {
-  const form = el(h.document, "manual-checkin");
-  form.dispatchEvent(
+/** Send the manual form without waiting for its handler. */
+const sendManual = (h: Harness): void => {
+  el(h.document, "manual-checkin").dispatchEvent(
     new h.window.Event("submit", { bubbles: true, cancelable: true }),
   );
+};
+
+/** Send the manual form and let the bundle's handler run to its end. */
+const submitManual = async (h: Harness): Promise<void> => {
+  sendManual(h);
   const button = el(h.document, "manual-checkin-submit");
-  for (let hop = 0; hop < 200 && button.hasAttribute("disabled"); hop++) {
-    await Promise.resolve();
-  }
+  await waitUntilSettled(
+    () => !button.hasAttribute("disabled"),
+    "the manual check-in",
+  );
+};
+
+/** Turn the door's switch on with `entries` as its saved list. */
+const saveList = (h: Harness, entries: TicketCacheEntry[]): void => {
+  h.window.localStorage.setItem(MODE_KEY, "1");
+  h.window.localStorage.setItem(
+    `scanner-tickets-${SCAN_PATH}`,
+    JSON.stringify({ entries, storedAt: Date.now() }),
+  );
+};
+
+/** Save `entries` as the door's list with offline mode on, search it for
+ * `text`, and answer the options it shows. */
+const searchSavedList = async (
+  h: Harness,
+  entries: TicketCacheEntry[],
+  text: string,
+) => {
+  saveList(h, entries);
+  return searchFor(h, text);
+};
+
+/** Search the saved list for `text`, and answer the options it shows. */
+const searchFor = async (h: Harness, text: string) => {
+  nameBox(h).value = text;
+  await submitManual(h);
+  return [
+    ...el(h.document, "ticket-options").querySelectorAll("[role=option]"),
+  ].map((option) => {
+    if (!(option instanceof h.window.HTMLElement)) {
+      throw new Error("The search shows an option that is not an element");
+    }
+    return option;
+  });
 };
 
 describe("scanner manual check-in while offline mode is on", {
@@ -64,33 +104,19 @@ describe("scanner manual check-in while offline mode is on", {
   test("finds a person in the saved list and queues the pick", async () => {
     using fetchStub = stubFetch(new Error("offline"));
     const h = fresh({ onLine: false });
-    const listKey = `scanner-tickets-${SCAN_PATH}`;
-    h.window.localStorage.setItem(MODE_KEY, "1");
-    h.window.localStorage.setItem(
-      listKey,
-      JSON.stringify({
-        entries: [
-          { ...savedEntry(await digestOf(TOKEN)), details: ["12 Jun"] },
-          { ...savedEntry("other-digest"), name: "Ben" },
-        ],
-        storedAt: Date.now(),
-      }),
+    const options = await searchSavedList(
+      h,
+      [
+        { ...savedEntry(await digestOf(TOKEN)), details: ["12 Jun"] },
+        { ...savedEntry("other-digest"), name: "Ben" },
+      ],
+      "ad",
     );
-
-    nameBox(h).value = "ad";
-    await submitManual(h);
-    const options = [
-      ...el(h.document, "ticket-options").querySelectorAll("[role=option]"),
-    ];
     expect(options.map((option) => option.textContent)).toEqual([
       "Ada (1 ticket) — 12 Jun",
     ]);
 
-    const first = options[0];
-    if (!(first instanceof h.window.HTMLElement)) {
-      throw new Error("The search shows no option");
-    }
-    first.click();
+    options[0]!.click();
     await submitManual(h);
 
     const status = el(h.document, "manual-checkin-status");
@@ -106,25 +132,14 @@ describe("scanner manual check-in while offline mode is on", {
   test("answers the saved people in name order, like the search route", async () => {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh({ onLine: false });
-    const listKey = `scanner-tickets-${SCAN_PATH}`;
-    h.window.localStorage.setItem(MODE_KEY, "1");
-    h.window.localStorage.setItem(
-      listKey,
-      JSON.stringify({
-        entries: [
-          { ...savedEntry(await digestOf(TOKEN)), name: "Zoe Rae" },
-          { ...savedEntry("other-digest"), name: "Ann Mae" },
-        ],
-        storedAt: Date.now(),
-      }),
+    const options = await searchSavedList(
+      h,
+      [
+        { ...savedEntry("first-digest"), name: "Zoe Rae" },
+        { ...savedEntry("other-digest"), name: "Ann Mae" },
+      ],
+      "ae",
     );
-
-    nameBox(h).value = "ae";
-    await submitManual(h);
-
-    const options = [
-      ...el(h.document, "ticket-options").querySelectorAll("[role=option]"),
-    ];
     expect(options.map((option) => option.textContent)).toEqual([
       "Ann Mae (1 ticket)",
       "Zoe Rae (1 ticket)",
@@ -165,16 +180,9 @@ describe("scanner manual check-in while offline mode is on", {
     // While that ask waits, the door picks the same person by name. The
     // pick's early check sees an empty queue, so its own ask queues behind
     // the camera's.
-    nameBox(h).value = "ad";
-    await submitManual(h);
-    const first = el(h.document, "ticket-options").querySelector(
-      "[role=option]",
-    );
-    if (!(first instanceof h.window.HTMLElement)) {
-      throw new Error("The search shows no option");
-    }
-    first.click();
-    await submitManual(h);
+    const [pick] = await searchFor(h, "ad");
+    pick!.click();
+    sendManual(h);
 
     // Answering the camera's ask queues the scan...
     el(h.document, "scanner-quantity-confirm").click();
@@ -185,24 +193,16 @@ describe("scanner manual check-in while offline mode is on", {
 
     // ...and the pick's ask opens behind it. Answering it must not queue a
     // second check-in for the same ticket.
-    for (let hops = 0; hops < 200 && ask.classList.contains("hidden"); hops++) {
-      await Promise.resolve();
-    }
-    expect(ask.classList.contains("hidden")).toBe(false);
+    await waitUntilSettled(
+      () => !ask.classList.contains("hidden"),
+      "the pick's ask",
+    );
     el(h.document, "scanner-quantity-confirm").click();
     await whenStatusShows(
       el(h.document, "manual-checkin-status"),
       "This ticket is already queued. Do not let them in again.",
     );
 
-    expect(JSON.parse(String(storedQueue(h)))).toEqual([
-      {
-        operationId: expect.any(String),
-        quantity: 3,
-        queuedAt: expect.any(Number),
-        scanPath: SCAN_PATH,
-        tokenHash: await digestOf(TOKEN),
-      },
-    ]);
+    await expectOneStoredCheckIn(h, TOKEN, 3);
   });
 });

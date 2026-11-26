@@ -33,11 +33,17 @@ export type ManualOffline = {
  * the search route found. */
 export type SearchContext = {
   checkInById: (attendeeId: number) => Promise<boolean>;
-  offline: ManualOffline;
+  /** The offline side, or null when it did not start on this page. */
+  offline: ManualOffline | null;
   say: Say;
   searchPath: string;
   wording: Wording;
 };
+
+/** The answers a retry cannot fix, so they read as a page fault: the
+ * session expired, the role changed, or the door went away. Any other
+ * failed answer is the server's own trouble, and the door can try again. */
+const REFUSALS: ReadonlySet<number> = new Set([401, 403, 404]);
 
 /** The people whose name holds the text: from the saved list while offline
  * mode settles the door, else from the door's search route. Null after the
@@ -47,16 +53,12 @@ export const findPeople = async (
   text: string,
   { checkInById, offline, say, searchPath, wording }: SearchContext,
 ): Promise<Person[] | null> => {
-  if (offline.active()) return offline.search(text, say);
+  if (offline?.active()) return offline.search(text, say);
   const res = await fetchOrNetworkError(
     `${searchPath}?q=${encodeURIComponent(text)}`,
   );
   if (!res.ok) {
-    // A refusal the door cannot fix by retrying reads as a page fault: the
-    // session expired, the role changed, or the door went away. Anything
-    // else is the server's own trouble, and the door can try again.
-    const refused =
-      res.status === 401 || res.status === 403 || res.status === 404;
+    const refused = REFUSALS.has(res.status);
     say(wording.word(refused ? "pageError" : "searchFailed"), "error");
     return null;
   }

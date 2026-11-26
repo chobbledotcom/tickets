@@ -65,6 +65,10 @@ export const SCANNER_WORDS = {
   offlineNotQueued: { holes: [], key: "admin.scanner.offline_not_queued" },
   offlineQuantityAsk: { holes: [], key: "admin.scanner.offline_quantity_ask" },
   offlineQueued: { holes: [], key: "admin.scanner.offline_queued" },
+  offlineQueueUnreadable: {
+    holes: [],
+    key: "admin.scanner.offline_queue_unreadable",
+  },
   offlineReady: { holes: [], key: "admin.scanner.offline_ready" },
   offlineRefreshTooBig: {
     holes: [],

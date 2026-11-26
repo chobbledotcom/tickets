@@ -27,13 +27,6 @@ export const ticketCountText = (count: number): string =>
     { count },
   );
 
-/** The door's sibling routes the client asks for: the cache download and
- * the name search. Both sit beside the scan route the surface declares
- * (`scan-cache`, `scan-search` in areas-m-z.ts), so the page derives each
- * from the scan path and the client reads what it was given. */
-const siblingDoorPath = (scanPath: string, tail: string): string =>
-  `${scanPath.slice(0, -"scan".length)}scan-${tail}`;
-
 /** Every word the page's browser code shows, filled from the catalog with
  * each hole left as `{hole}`. */
 const scannerWords = (): ScannerWords =>
@@ -88,10 +81,15 @@ const scannerShell = (
     </Layout>,
   );
 
+/** The routes one door's page talks to: the scan, its offline list, and
+ * its name search. */
+export type DoorPaths = { cache: string; scan: string; search: string };
+
 /**
  * Scanner page - camera feed with auto check-in + manual check-in by name.
- * `subject` is whichever door this page scans for — a listing or a group —
- * and `scanPath` is the JSON API its two check-in paths post to. A group
+ * `subject` is whichever door this page scans for — a listing or a group.
+ * `paths` are the routes it talks to: the scan API that both check-in
+ * paths post to, its offline list, and its name search. A group
  * whose stored door rule checks in every listing passes
  * `checksInEveryListing`, so door staff are warned what one scan will do.
  * `doorCacheKey` is the door's offline cache key, base64url: the device
@@ -102,7 +100,7 @@ const scannerShell = (
  */
 export const adminScannerPage = (
   subject: { name: string },
-  scanPath: string,
+  paths: DoorPaths,
   session: AdminSession,
   checksInEveryListing = false,
   doorCacheKey: string,
@@ -120,12 +118,12 @@ export const adminScannerPage = (
       <article>
         <div
           data-door-cache-key={doorCacheKey}
-          data-scan-cache-path={siblingDoorPath(scanPath, "cache")}
+          data-scan-cache-path={paths.cache}
           data-scan-operation-retention-days={String(
             scanOperationRetentionDays,
           )}
-          data-scan-path={scanPath}
-          data-scan-search-path={siblingDoorPath(scanPath, "search")}
+          data-scan-path={paths.scan}
+          data-scan-search-path={paths.search}
           data-words={JSON.stringify(scannerWords())}
           id="scanner-container"
         >

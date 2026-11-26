@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
 import { showQuantitySelect } from "#src/ui/client/quantity-select.ts";
-import { createDomInstaller } from "#test-utils/happy-dom.ts";
+import { createDomInstaller, waitUntilSettled } from "#test-utils/happy-dom.ts";
 
 describe("the quantity ask the door gets", () => {
   const dom = createDomInstaller(["KeyboardEvent"]);
@@ -20,17 +20,11 @@ describe("the quantity ask the door gets", () => {
       </div>
     </div>`;
   /** Wait for the ask to take its turn in the door's question queue. */
-  const opened = async (): Promise<void> => {
-    const overlayEl = element("scanner-quantity");
-    for (
-      let hops = 0;
-      hops < 100 && overlayEl.classList.contains("hidden");
-      hops++
-    ) {
-      await Promise.resolve();
-    }
-    expect(overlayEl.classList.contains("hidden")).toBe(false);
-  };
+  const opened = (): Promise<void> =>
+    waitUntilSettled(
+      () => !element("scanner-quantity").classList.contains("hidden"),
+      "the quantity ask",
+    );
   /** The overlay's element, once installed. */
   const element = (id: string): HTMLElement => {
     const found = document.getElementById(id);

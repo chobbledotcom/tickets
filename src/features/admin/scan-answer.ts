@@ -75,10 +75,10 @@ export const listingScope = (listingId: number): ScanScope => ({
   listingIds: new Set([listingId]),
 });
 
-/** The door scope's decrypted attendee lines, in one read, newest first.
- * The name search and the digest lookup read every line the door's
- * listings hold, but no money projection, so the read carries only the
- * roster's columns. */
+/** The door scope's decrypted attendee lines, in one read, in booking
+ * order. The name search and the digest lookup read every line the door's
+ * listings hold. They read no money projection, so the read carries only
+ * the roster's columns. */
 export const scopeAttendees = async (
   scope: ScanScope,
 ): Promise<DecryptedAttendeeRow<BrowsingAttendee>[]> =>

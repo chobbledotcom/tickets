@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { fireEvent } from "#test-utils/happy-dom.ts";
-import {
-  REBRANDED_WORDS,
-  useManualCheckinPage,
-  waitUntilSettled,
-} from "./fixture.ts";
+import { fireEvent, waitUntilSettled } from "#test-utils/happy-dom.ts";
+import { REBRANDED_WORDS, useManualCheckinPage } from "./fixture.ts";
 
 describe("manual check-in under the ticket-to-booking rebrand", () => {
   const { pickedPage, stubScans } = useManualCheckinPage(REBRANDED_WORDS);

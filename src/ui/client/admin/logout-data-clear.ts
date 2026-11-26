@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // effects: pure
 
 /** Clear the scanner's stored guest data when the login page loads. A door's
@@ -5,29 +6,23 @@
  * not keep them. The queued check-ins stay: they carry no guest detail, and
  * the server still owes their replay. */
 
-/** The prefixes of the scanner's per-door storage. */
-const TICKETS_KEY_PREFIX = "scanner-tickets-";
-const MODE_KEY_PREFIX = "scanner-offline-mode-";
+import {
+  GUEST_KEY_PREFIXES,
+  withStoreOr,
+} from "#src/ui/client/scanner-storage.ts";
 
-/** Remove every stored key that starts with `prefix`. */
-const removeKeysWithPrefix = (storage: Storage, prefix: string): void => {
-  for (let index = storage.length - 1; index >= 0; index--) {
-    const key = storage.key(index);
-    if (key?.startsWith(prefix)) {
-      storage.removeItem(key);
+/** Remove every stored key that names a door's guests. A store's own keys
+ * are the keys it holds. */
+const clearGuestKeys = (store: Storage): void => {
+  for (const key of Object.keys(store)) {
+    if (GUEST_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      store.removeItem(key);
     }
   }
 };
 
 export const initLogoutDataClear = (): void => {
   if (!document.querySelector("[data-clears-scanner-storage]")) return;
-  let storage: Storage;
-  try {
-    storage = localStorage;
-  } catch {
-    // Site data is blocked for this page, so nothing is stored to clear.
-    return;
-  }
-  removeKeysWithPrefix(storage, TICKETS_KEY_PREFIX);
-  removeKeysWithPrefix(storage, MODE_KEY_PREFIX);
+  // A blocked store holds nothing to clear.
+  withStoreOr(clearGuestKeys, undefined);
 };

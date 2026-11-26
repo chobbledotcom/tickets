@@ -7,7 +7,6 @@
 
 import type { Wording } from "#shared/scanner-words.ts";
 import { NetworkError } from "./dom.ts";
-import { isStoreFull } from "./scan-flow.ts";
 import type { Say } from "./scanner-messages.ts";
 import {
   downloadTicketCache,
@@ -15,6 +14,7 @@ import {
   removeTicketCache,
   writeManualMode,
 } from "./scanner-offline.ts";
+import { isStoreFull } from "./scanner-storage.ts";
 
 /** Wire one door's switch. `onChange` redraws the banner, the switch, and
  * the queue. `onTurnedOff` settles what the door queued while the switch

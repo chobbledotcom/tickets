@@ -11,7 +11,8 @@
 import * as v from "valibot";
 import {
   defineSignedToken,
-  type ExpiringPayload,
+  IdPayloadSchema,
+  payloadParser,
 } from "#crypto/define-signed-token.ts";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { logActivity } from "#db/activity-log.ts";
@@ -34,7 +35,6 @@ import type {
   TicketCacheEntry,
   TicketCachePageSchema,
 } from "#shared/ticket-cache.ts";
-import { parseOrNull } from "#shared/validation/parse.ts";
 import type { Attendee } from "#types";
 import type { ScanScope } from "./scan-answer.ts";
 import {
@@ -149,29 +149,22 @@ const CURSOR_MAX_AGE_S = 60 * 60;
  * Nobody can read later pages on a cursor from another person's first page. */
 type CursorOwner = { door: string; userId: number };
 
-/** A cache page cursor's payload: `a` is the last attendee id its page read,
- * `m` is the line-id watermark the first page captured, and `e` is the
- * expiry every signed payload carries. */
-type CursorPayload = ExpiringPayload & { a: number; m: number };
-
+/** A cache page cursor's payload. `a` is the last attendee id its page
+ * read, and `e` is the expiry every signed payload carries. `m` is the
+ * line-id watermark the first page captured. */
 const CursorPayloadSchema = v.strictObject({
-  a: v.number(),
-  e: v.number(),
+  ...IdPayloadSchema.entries,
   m: v.number(),
 });
 
-/** The shape check of a cursor payload, for the scheme's `parse`. The HMAC
- * check runs before it, so only a payload this server signed reaches it. */
-const parseCursorPayload = (
-  raw: Record<string, unknown>,
-): CursorPayload | null => parseOrNull(CursorPayloadSchema, raw);
+type CursorPayload = v.InferOutput<typeof CursorPayloadSchema>;
 
 /** A cache page cursor. */
 const cacheCursor = defineSignedToken<CursorPayload, CursorOwner>({
   maxAgeS: CURSOR_MAX_AGE_S,
   message: ({ door, userId }, encoded) =>
     `scan-cache-cursor:${door}:${userId}:${encoded}`,
-  parse: parseCursorPayload,
+  parse: payloadParser(CursorPayloadSchema),
   prefix: "sc1.",
 });
 
@@ -196,7 +189,7 @@ const logListDownload = async (
  * page, and it writes the activity log entry. Every later page needs the
  * signed cursor that the page before it issued, so no page reaches a device
  * without a logged first page. */
-const handleScanCacheGet = doorRoute(async (loaded, request, session) => {
+const handleScanCacheGet = doorRoute(async (loaded, { request, session }) => {
   const owner = { door: loaded.door, userId: session.userId };
   const from = new URL(request.url).searchParams.get("from");
   const cursor =

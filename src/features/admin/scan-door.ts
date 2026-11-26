@@ -6,15 +6,22 @@
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { toBase64Url } from "#crypto/utils.ts";
+import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
+import type { BrowsingAttendee } from "#db/attendees/queries.ts";
 import { getGroupById } from "#db/groups.ts";
 import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { groupToMap, sumOf } from "#fp";
 import { type AuthSession, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
-import { notFoundResponse } from "#routes/response.ts";
+import { jsonResponse } from "#routes/response.ts";
+import {
+  type AdminDestinationId,
+  adminRecordPath,
+} from "#shared/admin-surface.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import type { RosterOption } from "#shared/roster-option.ts";
+import type { DoorPaths } from "#templates/admin/scanner.tsx";
 import { hasTicketQuantity } from "#types";
 import { groupScope, listingScope, type ScanScope } from "./scan-answer.ts";
 import { listingHasDoor, owingListings, scanAdmits } from "./scan-decision.ts";
@@ -24,6 +31,35 @@ import { listingHasDoor, owingListings, scanAdmits } from "./scan-decision.ts";
  * name. */
 export const doorCacheName = (kind: "group" | "listing", id: number): string =>
   `${kind}:${id}`;
+
+/** Each door kind's routes, by their names in the admin surface table. */
+/* jscpd:ignore-start -- static data, not code */
+const DOOR_ROUTES = {
+  group: {
+    cache: "groupScanCache",
+    scan: "groupScan",
+    search: "groupScanSearch",
+  },
+  listing: {
+    cache: "listingScanCache",
+    scan: "listingScan",
+    search: "listingScanSearch",
+  },
+} as const satisfies Record<
+  "group" | "listing",
+  Record<keyof DoorPaths, AdminDestinationId>
+>;
+/* jscpd:ignore-end */
+
+/** One door's routes, built from the routes the admin surface declares. */
+export const doorPaths = (kind: "group" | "listing", id: number): DoorPaths => {
+  const routes = DOOR_ROUTES[kind];
+  return {
+    cache: adminRecordPath(routes.cache, id),
+    scan: adminRecordPath(routes.scan, id),
+    search: adminRecordPath(routes.search, id),
+  };
+};
 
 /** The door's cache key as the scanner page carries it: base64url bytes the
  * device decodes before it digests a scan. The page is the only response
@@ -50,21 +86,27 @@ export type ListingNames = ReadonlyMap<number, string> | null;
  * not exist, or a listing marked "No check-in". */
 export type ScanDoorLoader = (id: number) => Promise<ScanDoor | null>;
 
-/** One JSON route at one door. It loads the door by id and hands it to
- * `answer`. A door that does not exist answers 404. */
+/** One call to a door route: the request, its parsed JSON body, and the
+ * session that sent it. */
+export type DoorCall = {
+  body: Record<string, unknown>;
+  request: Request;
+  session: AuthSession;
+};
+
+/** One JSON route at one door. It loads the door by id and hands it, with
+ * the call, to `answer`. A door that does not exist answers 404 with the
+ * scan API's `not_found`, never an empty scope. A broken link then cannot
+ * pass every ticket off as "wrong listing". */
 export const doorRoute =
-  (
-    answer: (
-      door: ScanDoor,
-      request: Request,
-      session: AuthSession,
-    ) => Promise<Response>,
-  ) =>
+  (answer: (door: ScanDoor, call: DoorCall) => Promise<Response>) =>
   (load: ScanDoorLoader): IdRouteHandler =>
   (request, { id }) =>
-    withAuth(request, SCANNER_JSON, async (session) => {
+    withAuth(request, SCANNER_JSON, async (session, body) => {
       const door = await load(id);
-      return door ? answer(door, request, session) : notFoundResponse();
+      return door
+        ? answer(door, { body, request, session })
+        : jsonResponse({ status: "not_found" }, 404);
     });
 
 /** The listing door. A "No check-in" listing has no door, so a guessed URL
@@ -108,18 +150,13 @@ export const loadGroupDoor: ScanDoorLoader = async (id) => {
     : null;
 };
 
-/** What a door's roster rules read off one booking line: its identity, its
- * places, its day, its listing, and its refund state. Both the full row
- * and the narrow roster row carry these. */
-export type RosterLine = {
-  checked_in: number;
-  date: string | null;
-  id: number;
-  listing_id: number;
-  name: string;
-  quantity: number;
-  refunded: boolean;
-};
+/** What a door's roster rules read off one decrypted booking line: its
+ * identity, its places, its day, its listing, and its refund state. The
+ * roster read and the offline list's page read both carry these. */
+export type RosterLine = Pick<
+  DecryptedAttendeeRow<BrowsingAttendee>,
+  "checked_in" | "date" | "id" | "listing_id" | "name" | "quantity" | "refunded"
+>;
 
 /** The door-safe facts that tell two people with the same name apart. They
  * name the listing when a door spans several, and the day each place is
@@ -148,11 +185,11 @@ export const optionDetails = (
 export const lineOwes = (line: RosterLine): boolean =>
   remainingTickets(line) > 0 && !line.refunded && hasTicketQuantity(line);
 
-/** One person's facts as the door's own rule computes them: the places
- * one check-in at this door admits of their booking, and the details
- * that tell two people with the same name apart. Null when the door owes
- * the person nothing: such a person has no place in the roster or the
- * offline list. */
+/** One person's facts as the door's own rule computes them. They name the
+ * places of their booking that one check-in at this door admits. They also
+ * name the details that tell two people with the same name apart. Null
+ * when the door owes the person nothing: such a person has no place in the
+ * roster or the offline list. */
 export const personFacts = (
   lines: readonly RosterLine[],
   checkInEveryListing: boolean,
@@ -178,8 +215,8 @@ export const personFacts = (
 
 /** The people the door can still check in, one option for each person.
  * Each option's count is what one check-in at this door admits, by the
- * door's own rule, so the same person reads the same number in the search
- * and on the saved offline list. */
+ * door's own rule. The same person then reads the same number in the
+ * search and on the saved offline list. */
 export const doorRoster = (
   attendees: readonly RosterLine[],
   checkInEveryListing: boolean,
@@ -189,7 +226,7 @@ export const doorRoster = (
     ...groupToMap(
       (line: RosterLine) => line.id,
       (line: RosterLine) => line,
-    )([...attendees].filter(lineOwes)).values(),
+    )([...attendees]).values(),
   ].flatMap((rows: RosterLine[]) => {
     const facts = personFacts(rows, checkInEveryListing, listingNames);
     return facts === null ? [] : [{ attendeeId: rows[0]!.id, ...facts }];

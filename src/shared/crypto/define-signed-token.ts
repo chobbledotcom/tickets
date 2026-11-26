@@ -25,16 +25,26 @@ export type ExpiringPayload = { e: number };
 /** A payload that names one record by its id `a` and expires at `e`. */
 export type IdPayload = ExpiringPayload & { a: number };
 
-const IdPayloadSchema = v.strictObject({
+/** The fields of an id payload. A scheme whose payload carries more
+ * extends these entries. */
+export const IdPayloadSchema = v.strictObject({
   a: v.number(),
   e: v.number(),
 });
 
-/** The shape check of an id payload, for a scheme's `parse`. The HMAC check
- * runs before it, so only a payload this server signed reaches it. */
-export const parseIdPayload = (
+/** The shape check of one payload schema, for a scheme's `parse`. The HMAC
+ * check runs before it, so only a payload this server signed reaches it. */
+export const payloadParser =
+  <TSchema extends v.GenericSchema<unknown, ExpiringPayload>>(
+    schema: TSchema,
+  ) =>
+  (raw: Record<string, unknown>): v.InferOutput<TSchema> | null =>
+    parseOrNull(schema, raw);
+
+/** The shape check of an id payload, for a scheme's `parse`. */
+export const parseIdPayload: (
   raw: Record<string, unknown>,
-): IdPayload | null => parseOrNull(IdPayloadSchema, raw);
+) => IdPayload | null = payloadParser(IdPayloadSchema);
 
 /**
  * The parts of a signed-token scheme that differ between token types.

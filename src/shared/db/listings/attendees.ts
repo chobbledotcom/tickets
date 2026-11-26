@@ -8,7 +8,9 @@ import {
 } from "#db/attendees/queries.ts";
 import {
   ATTENDEE_FIELDS,
+  type AttendeeField,
   type AttendeeOrder,
+  type AttendeeRowFor,
   type AttendeeWhere,
   attendeeBatchStatement,
   getAttendees,
@@ -77,19 +79,18 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   return sortStrings(unique(dates));
 };
 
-/** Booking rows in the given order — the roster's newest-first unless the
- * caller names another. The daily-range and the listing-filtered reads
- * share the shape. */
-const bookingScopedAttendeeRows = (
-  where: AttendeeWhere,
-  order: AttendeeOrder = "created_desc",
-): Promise<Attendee[]> =>
-  getAttendees({
-    fields: ATTENDEE_FIELDS,
-    order,
-    owedScope: "booking",
-    where,
-  });
+/** Booking rows with the chosen fields, in the given order — newest-first
+ * unless the caller names another. The daily-range, the listing-filtered,
+ * and the door roster reads share the shape. */
+const bookingScopedRows =
+  <F extends AttendeeField>(fields: readonly F[]) =>
+  (
+    where: AttendeeWhere,
+    order: AttendeeOrder = "created_desc",
+  ): Promise<AttendeeRowFor<F>[]> =>
+    getAttendees({ fields, order, owedScope: "booking", where });
+
+const bookingScopedAttendeeRows = bookingScopedRows(ATTENDEE_FIELDS);
 
 /** Read daily-listing attendees whose booking overlaps one date. */
 export const getDailyListingAttendeesByDate = (
@@ -147,19 +148,19 @@ export const getAttendeesByListingIds = (
 };
 
 /** The door roster's booking rows on the listings: every core column plus
- * `refunded`, and none of the money projections a name search and a digest
- * lookup never read. */
+ * `refunded`. A name search and a digest lookup read no money projection,
+ * so the read leaves them out. The rows come in booking order, the order a
+ * scan groups a person's lines by, so the roster names the listing a scan
+ * lands on. */
 export const getRosterAttendeesByListingIds = (
   listingIds: number[],
-): Promise<BrowsingAttendee[]> => {
-  if (listingIds.length === 0) return Promise.resolve([]);
-  return getAttendees({
-    fields: BROWSING_FIELDS,
-    order: "created_desc",
-    owedScope: "booking",
-    where: { kind: "attendee", listingIds },
-  });
-};
+): Promise<BrowsingAttendee[]> =>
+  listingIds.length === 0
+    ? Promise.resolve([])
+    : bookingScopedRows(BROWSING_FIELDS)(
+        { kind: "attendee", listingIds },
+        "start_then_listing",
+      );
 
 /** One page of the people who hold lines on some listings, in attendee id
  * order. Each person brings every line they hold on those listings, so a
@@ -193,30 +194,27 @@ export const getAttendeesPageByListingIds = async (
     return { attendees: [], lineMark: 0, nextAfter: null, people: 0, total: 0 };
   }
   // The first page is unbounded: it captures the watermark the cursor then
-  // carries, so every page of one download reads the same membership.
-  const statements = [
+  // carries, so every page of one download reads the same membership. A
+  // later page reads the mark again only to keep one batch shape.
+  const [idResult, totalResult, markResult] = await queryBatch([
     sql`SELECT pageAttendee.id AS id FROM ${peopleWithLinesOn(
       listingIds,
-      lineMark ?? undefined,
+      lineMark,
     )}
       AND pageAttendee.id > ${afterId}
       GROUP BY pageAttendee.id
       ORDER BY pageAttendee.id ASC
       LIMIT ${pageSize + 1}`,
     sql`SELECT COUNT(DISTINCT pageAttendee.id) AS total
-      FROM ${peopleWithLinesOn(listingIds, lineMark ?? undefined)}`,
-  ];
-  if (lineMark === null) {
-    statements.push(
-      sql`SELECT MAX(pageLine.id) AS mark FROM listing_attendees AS pageLine`,
-    );
-  }
-  const results = await queryBatch(statements);
+      FROM ${peopleWithLinesOn(listingIds, lineMark)}`,
+    sql`SELECT MAX(pageLine.id) AS mark FROM listing_attendees AS pageLine`,
+  ]);
+  // An empty line table has no mark, and no line can join under zero.
   const captured =
-    lineMark ?? resultRows<{ mark: number | null }>(results[2]!)[0]!.mark ?? 0;
-  const ids = resultRows<{ id: number }>(results[0]!).map((row) => row.id);
+    lineMark ?? resultRows<{ mark: number | null }>(markResult!)[0]!.mark ?? 0;
+  const ids = resultRows<{ id: number }>(idResult!).map((row) => row.id);
   const pageIds = ids.slice(0, pageSize);
-  const total = resultRows<{ total: number }>(results[1]!)[0]!.total;
+  const total = resultRows<{ total: number }>(totalResult!)[0]!.total;
   const attendees =
     pageIds.length === 0
       ? []

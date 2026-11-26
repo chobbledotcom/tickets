@@ -23,3 +23,10 @@ export const TicketCachePageSchema = v.object({
   people: integerAtLeast(0),
   total: integerAtLeast(0),
 });
+
+/** The list one door's page stores, stamped with the time this device
+ * stored it. */
+export const StoredListSchema = v.object({
+  entries: v.array(TicketCacheEntrySchema),
+  storedAt: v.number(),
+});

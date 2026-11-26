@@ -7,6 +7,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import * as v from "valibot";
+import {
+  type TicketCacheEntry,
+  TicketCachePageSchema,
+} from "#shared/ticket-cache.ts";
 import { type App, createApp, inProcess } from "#test/blackbox/driver.ts";
 import { expectPrivateJson } from "#test/blackbox/headers.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -42,6 +47,26 @@ const cachePage = async (
   const query = from === undefined ? "" : `?from=${encodeURIComponent(from)}`;
   const page = await app.get(`${door}/scan-cache${query}`);
   return { body: JSON.parse(page.html), status: page.status };
+};
+
+/** The entries one page answers, read through the schema the endpoint and
+ * the page share. */
+const entriesOf = (page: { body: unknown }): TicketCacheEntry[] =>
+  v.parse(TicketCachePageSchema, page.body).entries;
+
+/** The page after `first` holds the one person left of a two-page door,
+ * and repeats `first`'s entries: every filler shares one booking. */
+const expectLastPageOfOne = async (
+  app: App,
+  door: string,
+  first: { body: unknown },
+): Promise<void> => {
+  expect((await cachePage(app, door, nextOf(first))).body).toEqual({
+    entries: entriesOf(first),
+    next: null,
+    people: 1,
+    total: PAGE_PEOPLE + 1,
+  });
 };
 
 /** The cursor that a page names for the page after it. */
@@ -88,16 +113,9 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
       },
       status: 200,
     });
-    const { entries } = first.body as { entries: unknown[] };
-
     // The cursor names the last person read, so the next page reads the
     // one person left: no one skipped and no one read twice.
-    expect((await cachePage(app, door, nextOf(first))).body).toEqual({
-      entries,
-      next: null,
-      people: 1,
-      total: PAGE_PEOPLE + 1,
-    });
+    await expectLastPageOfOne(app, door, first);
     // The later page writes no entry of its own. A new download does.
     expect(await downloadsLogged(app)).toBe(1);
     // The new download's cursor carries its own expiry, so only its shape
@@ -125,15 +143,9 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
       "late@example.com",
     );
 
-    const { entries } = first.body as { entries: unknown[] };
-    expect((await cachePage(app, door, nextOf(first))).body).toEqual({
-      // Every filler shares one booking, so both pages hold the same one
-      // entry — and the late booking holds none.
-      entries,
-      next: null,
-      people: 1,
-      total: PAGE_PEOPLE + 1,
-    });
+    // The later page holds the snapshot's one person left, and the late
+    // booking holds no entry.
+    await expectLastPageOfOne(app, door, first);
   });
 
   test("answers no next page when the people fill one page exactly", async () => {
@@ -193,22 +205,17 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
 
     // The person's whole booking answers once: one entry on one page, and
     // its quantity names every line the door checks in for them.
-    const { entries } = second.body as {
-      entries: { details: string[]; name: string; quantity: number }[];
-    };
-    const ada = entries.find((entry) => entry.name === "Ada Reed");
-    expect(ada).toMatchObject({
-      details: expect.arrayContaining([west.name, east.name]),
-      quantity: 3,
-    });
-    const entryNames = (page: { body: unknown }): string[] => {
-      const { entries: named } = page.body as {
-        entries: { name: string }[];
-      };
-      return named.map((entry) => entry.name);
-    };
-    const names = [...entryNames(first), ...entryNames(second)];
-    expect(names.filter((name) => name === "Ada Reed")).toHaveLength(1);
+    const adaEntries = [...entriesOf(first), ...entriesOf(second)].filter(
+      (entry) => entry.name === "Ada Reed",
+    );
+    expect(adaEntries).toEqual([
+      {
+        details: expect.arrayContaining([west.name, east.name]),
+        hash: expect.any(String),
+        name: "Ada Reed",
+        quantity: 3,
+      },
+    ]);
   });
 
   test("answers an empty last page for a door with no people", async () => {

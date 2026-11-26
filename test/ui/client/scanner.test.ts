@@ -91,9 +91,10 @@ describe("scanner bundle", {
     const h = fresh();
     using _fetch = stubFetch(new Response("<html>Log in</html>"));
 
+    // The built bundle renames the error class, so its message names it.
     await expect(
       h.module.admitScan("/x", "tok", "csrf", h.say, h.wording),
-    ).rejects.toThrow(SyntaxError);
+    ).rejects.toThrow("The request to /x answered 200 without JSON");
   });
 
   test("renders each answer the door can give", () => {

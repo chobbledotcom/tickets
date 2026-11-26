@@ -17,7 +17,7 @@ import {
 
 /** The search behind one door: the people the door can still check in whose
  * name holds `q`. */
-const handleScanSearchGet = doorRoute(async (door, request) => {
+const handleScanSearchGet = doorRoute(async (door, { request }) => {
   const text = new URL(request.url).searchParams.get("q")?.trim();
   if (text === undefined || text.length < SEARCH_MIN_LENGTH) {
     return apiErrorResponse("Search text is too short");

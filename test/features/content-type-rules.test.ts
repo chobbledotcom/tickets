@@ -20,6 +20,9 @@ describe("isJsonApiPath", () => {
     "/admin/listing/12/scan",
     "/admin/listing/1/scan",
     "/admin/listing/1/scan-search",
+    "/admin/groups/3/scan",
+    "/admin/groups/3/scan-cache",
+    "/admin/groups/3/scan-search",
     "/api/listings",
     "/v1/devices/one",
   ]) {

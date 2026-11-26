@@ -57,10 +57,7 @@ export type OfflineDoor = {
   wording: Wording;
 };
 
-/** Show or hide the offline banner, worded for why the mode is on: the
- * switch, the connection with a saved list behind it, or the connection
- * with nothing saved — the door must hear that offline scanning needs the
- * switch, not that scans are queued when nothing can vouch for them. */
+/** Show or hide the offline banner, worded for why the mode is on. */
 const updateOfflineBanner = (
   banner: HTMLElement,
   bannerText: HTMLElement,
@@ -69,33 +66,27 @@ const updateOfflineBanner = (
 ): void => {
   const active = offlineModeActive(scanPath);
   banner.classList.toggle("hidden", !active);
-  bannerText.textContent = wording.word(
-    navigator.onLine
-      ? "offlineBannerManual"
-      : readManualMode(scanPath)
-        ? "offlineBannerAuto"
-        : "offlineBannerAutoOff",
-  );
+  bannerText.textContent = wording.word(bannerWord(scanPath));
 };
 
-/** The door's cache key the page carries, as the page writes it. The page
- * is the only response that holds a door's key. The stored digests carry
- * the same key. A scan cannot use them without this attribute. The bytes
- * are decoded per scan, so an engine that lacks the decoder still scans
- * online. */
-const doorKeyText = (pageKey: string | undefined): string => {
-  if (!pageKey) {
-    throw new Error("The scanner page carries no data-door-cache-key");
-  }
-  return pageKey;
+/** The banner's word: the switch holds the scans while online. With no
+ * connection, the scans queue only when the switch is on, and with it off
+ * the door hears that offline scanning needs the switch. */
+const bannerWord = (
+  scanPath: string,
+): "offlineBannerAuto" | "offlineBannerAutoOff" | "offlineBannerManual" => {
+  if (navigator.onLine) return "offlineBannerManual";
+  return readManualMode(scanPath)
+    ? "offlineBannerAuto"
+    : "offlineBannerAutoOff";
 };
 
 /** The door's replay window the page carries, in milliseconds. The server
  * keeps one queued delivery's replay record for this window. Past it the
  * server cannot tell a resend from a first send, so the page sends no
- * queued check-in this old. A page that carries no usable day count
- * throws. */
-const replayWindowMs = (pageDays: string | undefined): number => {
+ * queued check-in this old. A day count that is not a whole number
+ * above zero throws. */
+const replayWindowMs = (pageDays: string): number => {
   const days = Number(pageDays);
   if (!Number.isSafeInteger(days) || days <= 0) {
     throw new Error(
@@ -132,10 +123,10 @@ const queueSavedEntry = async (
   say: Say,
 ): Promise<void> => {
   // The door's own last-token guard expires after the status fades, so the
-  // same ticket can reach this line twice. The early check only saves the
-  // door a needless prompt; the write-time check below is the guard,
-  // because a manual pick and a camera scan can both wait on their own ask
-  // for the same ticket.
+  // same ticket can reach this line twice. This early check only saves the
+  // door a needless prompt. The write-time check below is the guard: a
+  // manual pick and a camera scan can both wait on their own ask for the
+  // same ticket.
   if (queueHoldsTicket(scanPath, entry.hash)) {
     say(wording.word("offlineAlreadyQueued"), "error");
     return;
@@ -243,10 +234,13 @@ export const initOfflineScanner = ({
     syncQueue(say, wording, panel, settleDelivery).catch(reportFailure);
   const panel: QueuePanel = {
     container: requiredById("scanner-queue"),
-    doorKey: doorKeyText(container.dataset.doorCacheKey),
+    // The page is the only response that holds a door's key. The bytes
+    // are decoded per scan, so an engine that lacks the decoder still scans
+    // online.
+    doorKey: requiredAttribute(container, "data-door-cache-key"),
     list: requiredById("scanner-queue-items"),
     replayWindowMs: replayWindowMs(
-      container.dataset.scanOperationRetentionDays,
+      requiredAttribute(container, "data-scan-operation-retention-days"),
     ),
     rows: [],
     summary: requiredById("scanner-queue-summary"),

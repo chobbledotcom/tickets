@@ -44,6 +44,8 @@ export const PAGE_WORDS: ScannerWords = {
   offlineQuantityAsk: "How many people are you checking in?",
   offlineQueued:
     "Ticket looks valid. It will be checked in when you are back online.",
+  offlineQueueUnreadable:
+    "This device holds queued check-ins this page cannot read. Offline mode is off on this page. Scanning online still works.",
   offlineReady: "Offline mode is on. The ticket list is saved on this device.",
   offlineRefreshTooBig:
     "The new ticket list is too big for this device. The saved list stays until it expires.",

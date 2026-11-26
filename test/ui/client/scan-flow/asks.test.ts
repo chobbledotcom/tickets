@@ -4,10 +4,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   checkedIn,
   useManualCheckinPage,
-  waitUntilSettled,
 } from "#test/ui/client/admin/manual-checkin/fixture.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { fireEvent } from "#test-utils/happy-dom.ts";
+import { fireEvent, waitUntilSettled } from "#test-utils/happy-dom.ts";
 
 describe("manual check-in scan answers", () => {
   const { pickedPage, stubScans } = useManualCheckinPage();

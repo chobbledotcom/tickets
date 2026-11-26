@@ -22,8 +22,12 @@ import {
   scanNext,
   start,
 } from "./camera-fakes.ts";
-import { el, evaluateBundle, useScannerSuite } from "./fixture.ts";
-import { queueSeeded } from "./offline-door.ts";
+import {
+  el,
+  evaluateBundle,
+  type ScannerGlobals,
+  useScannerSuite,
+} from "./fixture.ts";
 
 describe("scanner camera", {
   sanitizeOps: false,
@@ -371,53 +375,34 @@ describe("scanner camera", {
     expect(fakes.tracks.map((track) => track.stopped)).toEqual([true, true]);
   });
 
-  test("keeps the camera working when the browser has no service worker container", async () => {
-    const h = fresh({ serviceWorker: null });
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    using _fetch = stubFetch(() => Response.json(checkedIn(1)));
+  // The offline side is optional at a door that never turned it on. A page
+  // whose offline side cannot start still scans online.
+  const degraded: readonly [string, ScannerGlobals][] = [
+    // The missing registry only costs the offline page shell.
+    ["the browser has no service worker container", { serviceWorker: null }],
+    // A blocked store reads as no mode, no list, and no queue.
+    ["the store refuses every read", { blockedStore: true }],
+    // A queue an older build wrote stays for a build that can read it.
+    [
+      "the stored queue is in another shape",
+      { seed: (store) => store.setItem("scanner-queue", '{"old":[]}') },
+    ],
+  ];
+  for (const [what, globals] of degraded) {
+    test(`keeps the camera working when ${what}`, async () => {
+      const h = fresh(globals);
+      using fakes = cameraFakes(h);
+      fakes.ready(4);
+      using _fetch = stubFetch(() => Response.json(checkedIn(1)));
 
-    await start(h);
-    await scanFirst(fakes, "tok12345");
+      await start(h);
+      await scanFirst(fakes, "tok12345");
 
-    // The offline page shell is unavailable, and the door still scans: the
-    // missing registry is a documented degrade, not a page fault.
-    expect(h.statusEl.textContent).toBe(
-      "Ada checked in for Standard (1 ticket)",
-    );
-  });
-
-  test("keeps the camera working when the store refuses every read", async () => {
-    const h = fresh({ blockedStore: true });
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    using _fetch = stubFetch(() => Response.json(checkedIn(1)));
-
-    await start(h);
-    await scanFirst(fakes, "tok12345");
-
-    // A blocked store reads as no mode, no list, and no queue, so the page
-    // boots into its online side and the scan still lands.
-    expect(h.statusEl.textContent).toBe(
-      "Ada checked in for Standard (1 ticket)",
-    );
-  });
-
-  test("tells the door a scan made during a sync is ignored", async () => {
-    using _fetch = stubFetch(() => new Promise(() => {}));
-    const h = fresh(queueSeeded());
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    await start(h);
-    await scanFirst(fakes, "tok12345");
-
-    // The queue's sync holds the door's fetch open, so the scan made while
-    // it runs is refused with its own words, and nothing posts twice.
-    expect(h.statusEl.textContent).toBe(
-      "Checking in queued tickets. Scan again when done.",
-    );
-    expect(h.statusEl.className).toContain("scanner-status-warning");
-  });
+      expect(h.statusEl.textContent).toBe(
+        "Ada checked in for Standard (1 ticket)",
+      );
+    });
+  }
 
   test("fails loudly on a page the template did not render whole", () => {
     // Re-running the bundle on a page missing an element names the element

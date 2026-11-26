@@ -69,16 +69,9 @@ describeWithEnv(
         body: { options: [person("Ada Lane"), person("Zara Adams")] },
         status: 200,
       });
-    });
-
-    test("accepts a two-letter search, the minimum the client sends", async () => {
-      const app = await loggedIn();
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const door = `/admin/listing/${listing.id}`;
-      await createTestAttendeeDirect(listing.id, "Ada Lane", "ada@example.com");
-
+      // Two letters is the shortest search the client sends.
       expect(await search(app, door, "?q=da")).toEqual({
-        body: { options: [person("Ada Lane")] },
+        body: { options: [person("Ada Lane"), person("Zara Adams")] },
         status: 200,
       });
     });

@@ -77,9 +77,28 @@ export const postForJson = async (
   return res.json();
 };
 
+/** The server answered, but not in JSON: its temporary error page, say.
+ *  The answer carries no decision the page can read. */
+export class UnreadableAnswerError extends Error {}
+
+/** Send through `send`, then refuse an answer that is not JSON with
+ *  `UnreadableAnswerError`. */
+const sendForJsonAnswer =
+  (send: Send): Send =>
+  async (url, init) => {
+    const res = await send(url, init);
+    if (!res.headers.get("content-type")?.includes("application/json")) {
+      throw new UnreadableAnswerError(
+        `The request to ${url} answered ${res.status} without JSON`,
+      );
+    }
+    return res;
+  };
+
 /** POST one JSON body with the page's CSRF token, and read the JSON answer.
  *  The door's scan API talks this way. A request that never reached the
- *  server throws `NetworkError`, so the door can queue or say so. */
+ *  server throws `NetworkError`, and an answer that is not JSON throws
+ *  `UnreadableAnswerError`, so the door can queue or say so. */
 export const postJson = (path: string, csrfToken: string, body: unknown) =>
   postForJson(
     path,
@@ -90,7 +109,7 @@ export const postJson = (path: string, csrfToken: string, body: unknown) =>
         "x-csrf-token": csrfToken,
       },
     },
-    fetchOrNetworkError,
+    sendForJsonAnswer(fetchOrNetworkError),
   );
 
 /** The one element under `root` that `selector` names. A missing element

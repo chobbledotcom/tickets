@@ -44,13 +44,16 @@ describe("manual check-in submission", () => {
     expect(page.input.value).toBe("");
   });
 
-  test("a check-in answer that misses its counts shows the error and keeps the pick", async () => {
+  test("a check-in answer that misses its counts fails loudly and keeps the pick", async () => {
     const page = await pickedPage("11");
     using _fetch = stubFetch(Response.json(checkedIn({ quantity: "two" })));
 
     await page.submit();
 
-    expect(page.status.textContent).toBe("Check-in failed");
+    // A broken answer is a contract break, not a generic refusal.
+    expect(page.status.textContent).toBe(
+      "Something went wrong. Reload this page, then try again.",
+    );
     expect(page.listbox.querySelectorAll("[role=option]").length).toBe(3);
     expect(page.buttonLabel()).toBe("Check In");
   });

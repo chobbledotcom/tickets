@@ -2,21 +2,23 @@
 import * as v from "valibot";
 import { parseJsonOrNull } from "#shared/read-json.ts";
 import {
+  StoredListSchema,
   type TicketCacheEntry,
-  TicketCacheEntrySchema,
   TicketCachePageSchema,
 } from "#shared/ticket-cache.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 import { fetchOrNetworkError } from "./dom.ts";
+import {
+  MODE_KEY_PREFIX,
+  QUEUE_KEY,
+  TICKETS_KEY_PREFIX,
+  withStoreOr,
+} from "./scanner-storage.ts";
 
 /** How long a stored ticket-hash set stays valid. After this the set answers
  * nothing: an expired set admits tickets against stale check-in state. */
 export const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
-
-const TICKETS_KEY_PREFIX = "scanner-tickets-";
-const QUEUE_KEY = "scanner-queue";
-const MODE_KEY_PREFIX = "scanner-offline-mode-";
 
 /** The worker's own URL, same-origin under /admin/ so its scope covers the
  * scanner pages. It is not an asset-paths constant: the edge build rewrites
@@ -24,12 +26,10 @@ const MODE_KEY_PREFIX = "scanner-offline-mode-";
  * origins. */
 const SCANNER_SW_PATH = "/admin/scanner-sw.js";
 
-/** The list one door's page stores, stamped with the time this device
- * stored it. */
-const StoredListSchema = v.object({
-  entries: v.array(TicketCacheEntrySchema),
-  storedAt: v.number(),
-});
+/** The text one key holds, or null when the key is unset or the browser
+ * blocks site data for this page. */
+const readStoredOrNull = (key: string): string | null =>
+  withStoreOr((store) => store.getItem(key), null);
 
 export type StoredList = v.InferOutput<typeof StoredListSchema>;
 
@@ -39,13 +39,7 @@ export type StoredList = v.InferOutput<typeof StoredListSchema>;
  * download stores the list in this build's shape. */
 export const readTicketCacheOrNull = (scanPath: string): StoredList | null => {
   const key = TICKETS_KEY_PREFIX + scanPath;
-  let raw: string | null;
-  try {
-    raw = localStorage.getItem(key);
-  } catch {
-    // Site data is blocked for this page, so no list can be read.
-    return null;
-  }
+  const raw = readStoredOrNull(key);
   if (raw === null) return null;
   const parsed = v.safeParse(StoredListSchema, parseJsonOrNull(raw));
   if (parsed.success) return parsed.output;
@@ -139,14 +133,8 @@ export const registerScannerWorker = (): Promise<unknown> =>
 /** One door's switch position, stored per door so turning offline mode on
  * at one door does not arm a door with no list. A store the page cannot
  * read answers off, so a blocked store keeps the page scanning online. */
-export const readManualMode = (scanPath: string): boolean => {
-  try {
-    return localStorage.getItem(MODE_KEY_PREFIX + scanPath) === "1";
-  } catch {
-    // Site data is blocked for this page, so nothing is read or stored.
-    return false;
-  }
-};
+export const readManualMode = (scanPath: string): boolean =>
+  readStoredOrNull(MODE_KEY_PREFIX + scanPath) === "1";
 
 /** Store one door's switch position. */
 export const writeManualMode = (scanPath: string, on: boolean): void => {
@@ -174,18 +162,23 @@ export type QueuedCheckIn = v.InferOutput<typeof QueuedCheckInSchema>;
 
 const StoredQueueSchema = v.array(QueuedCheckInSchema);
 
-/** The queued check-ins, oldest first. A queue in another shape throws:
- * queued check-ins are admissions the door already made, so nothing drops
- * or hides them. */
+/** The stored queue is in a shape this page cannot read, such as one an
+ * older build wrote. */
+export class UnreadableQueueError extends Error {}
+
+/** The queued check-ins, oldest first. A queue in another shape throws
+ * `UnreadableQueueError`: queued check-ins are admissions the door already
+ * made, so nothing drops or hides them. */
 export const readQueue = (): QueuedCheckIn[] => {
-  let raw: string | null;
-  try {
-    raw = localStorage.getItem(QUEUE_KEY);
-  } catch {
-    // Site data is blocked for this page, so nothing is read or stored.
-    return [];
+  const raw = readStoredOrNull(QUEUE_KEY);
+  if (raw === null) return [];
+  const parsed = v.safeParse(StoredQueueSchema, parseJsonOrNull(raw));
+  if (!parsed.success) {
+    throw new UnreadableQueueError(
+      "The stored check-in queue is not in this build's shape",
+    );
   }
-  return raw === null ? [] : v.parse(StoredQueueSchema, JSON.parse(raw));
+  return parsed.output;
 };
 
 export const writeQueue = (queue: QueuedCheckIn[]): void =>
@@ -194,7 +187,7 @@ export const writeQueue = (queue: QueuedCheckIn[]): void =>
 /** Queue one scan's check-in under the door it scanned at. The item carries
  * the ticket's keyed digest (never the raw token), the delivery id this one
  * check-in answers by, and the people it admits. */
-export const queueCheckIn = (
+const queueCheckIn = (
   scanPath: string,
   tokenHash: string,
   quantity: number,

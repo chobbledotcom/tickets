@@ -14,6 +14,7 @@ import {
   type Person,
 } from "#src/ui/client/admin/manual-search.ts";
 import { requiredById, requiredChild } from "#src/ui/client/dom.ts";
+import { PICK_ASKS } from "#src/ui/client/scan-asks.ts";
 import {
   failLoudly,
   postScanBody,
@@ -31,7 +32,8 @@ const KEY_DIRECTIONS: Partial<Record<string, OptionDirection>> = {
 /** What the manual check-in needs from its page. */
 export type ManualPage = {
   csrfToken: string;
-  offline: ManualOffline;
+  /** The offline side, or null when it did not start on this page. */
+  offline: ManualOffline | null;
   scanPath: string;
   searchPath: string;
   wording: Wording;
@@ -194,9 +196,7 @@ export const initManualCheckin = ({
 
   /** Check in one person the search route found. Answers whether the door
    * is done with the pick. A check-in or a declined ask ends the pick. Any
-   * other answer leaves it for another try. The pick asks only the
-   * questions its route answers: the count and the ID check — its route
-   * refuses a wrong listing, so it never asks to widen the door. */
+   * other answer leaves it for another try. */
   const checkInById = async (attendeeId: number): Promise<boolean> => {
     const settled = await settleLiveScan(
       (given) =>
@@ -204,8 +204,8 @@ export const initManualCheckin = ({
           ...given,
           attendee_id: attendeeId,
         }),
+      PICK_ASKS,
       { say, wording },
-      ["select_quantity", "verify_id"],
     );
     if (settled.declined) return true;
     const { answer } = settled;

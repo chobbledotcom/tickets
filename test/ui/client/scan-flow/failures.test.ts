@@ -1,12 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { useManualCheckinPage } from "#test/ui/client/admin/manual-checkin/fixture.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 /** How a failure reaches the door: each fault the page can name has its
  * own words, and any other fault asks the door to reload. */
 describe("scan failures the door reads", () => {
-  const { fresh } = useManualCheckinPage();
+  const { fresh, pickedPage, stubScans } = useManualCheckinPage();
 
   test("names each failure the page can name, and asks for a reload otherwise", async () => {
     const cases: [Error, string][] = [
@@ -37,12 +36,9 @@ describe("scan failures the door reads", () => {
     }
   });
 
-  test("an answer that names an unknown status fails loudly", async () => {
-    using _fetch = stubFetch(
-      Response.json({ name: "Ada", status: "teleported" }),
-    );
-    const page = fresh(null);
-    page.input.value = "Ada";
+  test("a scan answer that names an unknown status fails loudly", async () => {
+    const page = await pickedPage("11");
+    stubScans([{ name: "Ada", status: "teleported" }]);
     await page.submit();
 
     // A status the page has no words for is a contract break, not a

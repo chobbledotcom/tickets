@@ -7,7 +7,7 @@
 // back. It marks the answer on its own row.
 
 import type { PlainWord, Wording } from "#shared/scanner-words.ts";
-import { NetworkError } from "./dom.ts";
+import { NetworkError, UnreadableAnswerError } from "./dom.ts";
 import type { ScanAnswer } from "./scan-answer.ts";
 import type { Say } from "./scanner-messages.ts";
 import {
@@ -146,16 +146,18 @@ export const syncQueue = async (
     row.textContent = wording.word("queueItemExpired");
   };
 
-  /** The answer to one queued check-in's delivery, or null when it never
-   * reached the door as a scan decision. The check-in then waits for the
-   * next sync. A request that never left the device, and an answer the
-   * page cannot read — the site's temporary HTML error page — both leave
-   * the check-in queued; neither carried a decision. */
+  /** The answer to one queued check-in's delivery, or null when no scan
+   * decision came back. The check-in then waits for the next sync. A
+   * request that never left the device carries no decision. Neither does
+   * an answer that is not JSON, such as the site's temporary error page. */
   const answerOrNull = async (item: QueuedCheckIn) => {
     try {
       return await settleDelivery(item);
     } catch (error) {
-      if (error instanceof NetworkError || error instanceof SyntaxError) {
+      if (
+        error instanceof NetworkError ||
+        error instanceof UnreadableAnswerError
+      ) {
         return null;
       }
       throw error;

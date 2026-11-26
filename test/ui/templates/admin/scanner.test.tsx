@@ -18,13 +18,26 @@ const DOOR_CACHE_KEY = "test-door-cache-key";
 /** The replay window one test page carries, as the handler would pass it. */
 const RETENTION_DAYS = 7;
 
+/** The routes of a group door and a listing door, as the handler would
+ * pass them. */
+const GROUP_PATHS = {
+  cache: "/admin/groups/5/scan-cache",
+  scan: "/admin/groups/5/scan",
+  search: "/admin/groups/5/scan-search",
+};
+const LISTING_PATHS = {
+  cache: "/admin/listing/3/scan-cache",
+  scan: "/admin/listing/3/scan",
+  search: "/admin/listing/3/scan-search",
+};
+
 describe("the admin scanner page template", () => {
   beforeAll(setupAdminPageTest);
 
   test("points both checking paths at the door it scans for", () => {
     const html = adminScannerPage(
       { name: "Doors" },
-      "/admin/groups/5/scan",
+      GROUP_PATHS,
       OWNER_SESSION,
       false,
       DOOR_CACHE_KEY,
@@ -42,7 +55,7 @@ describe("the admin scanner page template", () => {
   test("draws an empty name search, with no person in the page", () => {
     const html = adminScannerPage(
       { name: "Doors" },
-      "/admin/groups/5/scan",
+      GROUP_PATHS,
       OWNER_SESSION,
       false,
       DOOR_CACHE_KEY,
@@ -64,7 +77,7 @@ describe("the admin scanner page template", () => {
   test("carries the door's cache key for the device, once", () => {
     const html = adminScannerPage(
       { name: "Doors" },
-      "/admin/groups/5/scan",
+      GROUP_PATHS,
       OWNER_SESSION,
       false,
       DOOR_CACHE_KEY,
@@ -80,7 +93,7 @@ describe("the admin scanner page template", () => {
   test("carries the door's replay window for the device, once", () => {
     const html = adminScannerPage(
       { name: "Doors" },
-      "/admin/groups/5/scan",
+      GROUP_PATHS,
       OWNER_SESSION,
       false,
       DOOR_CACHE_KEY,
@@ -97,7 +110,7 @@ describe("the admin scanner page template", () => {
   test("hands the queue count to a polite live region", () => {
     const html = adminScannerPage(
       { name: "Doors" },
-      "/admin/groups/5/scan",
+      GROUP_PATHS,
       OWNER_SESSION,
       false,
       DOOR_CACHE_KEY,
@@ -116,7 +129,7 @@ describe("the admin scanner page template", () => {
     // passes it only for a multi-listing door whose stored rule is on.
     const warned = adminScannerPage(
       { name: "Doors" },
-      "/admin/groups/5/scan",
+      GROUP_PATHS,
       OWNER_SESSION,
       true,
       DOOR_CACHE_KEY,
@@ -132,7 +145,7 @@ describe("the admin scanner page template", () => {
 
     const quiet = adminScannerPage(
       { name: "Doors" },
-      "/admin/groups/5/scan",
+      GROUP_PATHS,
       OWNER_SESSION,
       false,
       DOOR_CACHE_KEY,
@@ -146,7 +159,7 @@ describe("the admin scanner page template", () => {
     // that leaves it out gets the safe default, never the warning.
     const html = adminScannerPage(
       { name: "Doors" },
-      "/admin/listing/3/scan",
+      LISTING_PATHS,
       OWNER_SESSION,
       undefined,
       DOOR_CACHE_KEY,
@@ -158,7 +171,7 @@ describe("the admin scanner page template", () => {
   test("draws the skeleton the scanner script drives", () => {
     const html = adminScannerPage(
       { name: "Doors" },
-      "/admin/groups/5/scan",
+      GROUP_PATHS,
       OWNER_SESSION,
       false,
       DOOR_CACHE_KEY,

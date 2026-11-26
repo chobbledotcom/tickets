@@ -1,7 +1,8 @@
 /// <reference lib="dom" />
 /** One scan's talk with the door. The camera scan, the manual check-in,
- * and the offline queue share it. It holds the post, the asks the door
- * answers, the words of each answer, and how a failure reaches the door. */
+ * and the offline queue share it. It holds the post, the page's dialogs,
+ * the words of each answer, and how a failure reaches the door. The asks
+ * themselves live in the pure `scan-asks.ts`. */
 
 import * as v from "valibot";
 import type { Wording } from "#shared/scanner-words.ts";
@@ -13,7 +14,16 @@ import {
   type ScanAnswer,
   ScanAnswerSchema,
 } from "./scan-answer.ts";
+import {
+  type AskStatus,
+  type Dialogs,
+  type ScanPost,
+  type Settled,
+  settleScan,
+  type Voice,
+} from "./scan-asks.ts";
 import type { Say, StatusType } from "./scanner-messages.ts";
+import { isStoreBlocked, isStoreFull } from "./scanner-storage.ts";
 
 /** Post one JSON body to a door's scan route and parse its answer. */
 export const postScanBody = async (
@@ -23,108 +33,10 @@ export const postScanBody = async (
 ): Promise<ScanAnswer> =>
   v.parse(ScanAnswerSchema, await postJson(scanPath, csrfToken, body));
 
-/** What the door answered so far for one scan. */
-export type Given = { force?: true; id_verified?: true; quantity?: number };
-
-/** Post one scan with every answer the door gave so far, and answer the
- * door's word for it. */
-export type ScanPost = (given: Given) => Promise<ScanAnswer>;
-
-/** How a page talks to the door: its words, and where it reports. */
-export type Voice = { say: Say; wording: Wording };
-
-/** An answer that asks the door something. */
-type Ask = AnswerOf<"select_quantity" | "verify_id" | "wrong_listing">;
-
-/** The questions one kind of scan lets the door answer. */
-export type AskStatus = Ask["status"];
-
-/** Whether the door already answered each kind of question. */
-const ANSWERED: Record<AskStatus, (given: Given) => boolean> = {
-  select_quantity: (given) => given.quantity !== undefined,
-  verify_id: (given) => given.id_verified === true,
-  wrong_listing: (given) => given.force === true,
-};
-
-/** The question an answer asks that the door can answer and has not, or
- * null. */
-const pendingAskOrNull = (
-  answer: ScanAnswer,
-  asks: readonly AskStatus[],
-  given: Given,
-): Ask | null => {
-  const isAsk = (scan: ScanAnswer): scan is Ask => scan.status in ANSWERED;
-  return isAsk(answer) &&
-    asks.includes(answer.status) &&
-    !ANSWERED[answer.status](given)
-    ? answer
-    : null;
-};
-
-/** Ask the door one question. Answers what to re-post, or null after the
- * door declined and heard why nobody was checked in. A non-transferable
- * listing needs the door to look at the person's ID and say so. A ticket
- * that owes more than one place asks how many to admit. */
-const askDoor = async (
-  ask: Ask,
-  { say, wording }: Voice,
-): Promise<Given | null> => {
-  const decline = (text: string): null => {
-    say(text, ask.status === "verify_id" ? "error" : "warning");
-    return null;
-  };
-  const skipped = wording.fill("skipped", { name: ask.name });
-  if (ask.status === "wrong_listing") {
-    const confirmed = await showConfirm(
-      wording.fill("wrongListingConfirm", {
-        listingName: ask.listingName,
-        name: ask.name,
-      }),
-    );
-    return confirmed ? { force: true } : decline(skipped);
-  }
-  if (ask.status === "verify_id") {
-    const confirmed = await showConfirm(
-      wording.fill("verifyIdConfirm", { name: ask.name }),
-    );
-    return confirmed
-      ? { id_verified: true }
-      : decline(wording.fill("idMismatch", { name: ask.name }));
-  }
-  const count = await showQuantitySelect(
-    ask.max,
-    wording.fill("selectQuantity", { name: ask.name }),
-    wording.ticketCount,
-  );
-  return count === null ? decline(skipped) : { quantity: count };
-};
-
-/** How one scan settled: the door's final answer, or the ask the door
- * declined. */
-export type Settled =
-  | { answer: ScanAnswer; declined: false }
-  | { answer: Ask; declined: true };
-
-/** Settle one scan with the door. Each ask is answered once: the re-post
- * carries every earlier answer, so a verified ID still stands when the
- * door then picks a count. */
-export const settleScan = async (
-  post: ScanPost,
-  asks: readonly AskStatus[],
-  voice: Voice,
-): Promise<Settled> => {
-  const settleFrom = async (
-    answer: ScanAnswer,
-    given: Given,
-  ): Promise<Settled> => {
-    const ask = pendingAskOrNull(answer, asks, given);
-    if (ask === null) return { answer, declined: false };
-    const choice = await askDoor(ask, voice);
-    if (choice === null) return { answer: ask, declined: true };
-    const next = { ...given, ...choice };
-    return settleFrom(await post(next), next);
-  };
-  return settleFrom(await post({}), {});
+/** The page's own dialogs: the overlay asks a scan raises. */
+export const browserDialogs: Dialogs = {
+  confirm: showConfirm,
+  quantity: showQuantitySelect,
 };
 
 /** The words of an answer that counts places: who, where, and how many. */
@@ -178,8 +90,8 @@ const ANSWER_WORDS: {
   ],
   select_quantity: errorWord("error"),
   verify_id: errorWord("error"),
-  // Only a forced rescan lands here: a ticket whose only rows are
-  // "No check-in" answers wrong_listing again.
+  // A forced rescan lands here when a ticket's only rows are "No check-in".
+  // A stray wrong-listing answer to a scan that cannot widen lands here too.
   wrong_listing: errorWord("noDoor"),
 };
 
@@ -206,34 +118,28 @@ export const failLoudly =
     say(wording.word(failureWord(error)), "error");
   };
 
-/** Whether an error is the browser refusing a write because the site's
- * store is full. */
-export const isStoreFull = (error: unknown): boolean =>
-  error instanceof DOMException && error.name === "QuotaExceededError";
-
 /** The word for one failure. */
 const failureWord = (
   error: unknown,
 ): "networkError" | "offlineSaveFailed" | "pageError" | "storageBlocked" => {
   if (error instanceof NetworkError) return "networkError";
   if (isStoreFull(error)) return "offlineSaveFailed";
-  if (error instanceof DOMException && error.name === "SecurityError") {
-    return "storageBlocked";
-  }
+  if (isStoreBlocked(error)) return "storageBlocked";
   return "pageError";
 };
 
-/** Settle one live scan: the door answers every ask the scan raises, then
- * hears the final answer. A declined ask already told the door why. The
- * caller names the asks its route can answer: the camera's token scan can
- * widen its door, and a manual pick's route refuses a wrong listing, so
- * the pick asks only the count and the ID check. */
+/** Settle one live scan: the door answers every ask in `asks` the scan
+ * raises, then hears the final answer. A declined ask already told the
+ * door why. */
 export const settleLiveScan = async (
   post: ScanPost,
-  voice: Voice,
   asks: readonly AskStatus[],
+  voice: Voice,
 ): Promise<Settled> => {
-  const settled = await settleScan(post, asks, voice);
+  const settled = await settleScan(post, asks, {
+    ...voice,
+    dialogs: browserDialogs,
+  });
   if (!settled.declined) sayAnswer(settled.answer, voice.wording, voice.say);
   return settled;
 };

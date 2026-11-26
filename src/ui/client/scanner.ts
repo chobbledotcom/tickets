@@ -11,19 +11,25 @@ import { initManualCheckin } from "./admin/manual-checkin.ts";
 import { showConfirm } from "./confirm-dialog.ts";
 import { requiredAttribute, requiredById, requiredChild } from "./dom.ts";
 import {
-  failLoudly,
+  CAMERA_ASKS,
   type Given,
-  postScanBody,
+  QUEUE_ASKS,
   type Settled,
+  settleScan,
+} from "./scan-asks.ts";
+import {
+  browserDialogs,
+  failLoudly,
+  postScanBody,
   sayAnswer,
   settleLiveScan,
-  settleScan,
 } from "./scan-flow.ts";
 import { FADE_DELAY_MS, type Say, showStatus } from "./scanner-messages.ts";
 import {
   isSyncing,
   offlineModeActive,
   type QueuedCheckIn,
+  UnreadableQueueError,
 } from "./scanner-offline.ts";
 import {
   initOfflineScanner,
@@ -82,15 +88,16 @@ const admitScan = async (
 ): Promise<Settled> =>
   settleLiveScan(
     (given) => postScan(scanPath, token, csrfToken, given),
+    CAMERA_ASKS,
     { say, wording },
-    ["select_quantity", "verify_id", "wrong_listing"],
   );
 
 /** What the camera loop needs from the page. */
 type CameraPage = {
   csrfToken: string;
   reportFailure: (error: unknown) => void;
-  panel: QueuePanel;
+  /** The offline side's queue, or null when it did not start. */
+  panel: QueuePanel | null;
   say: Say;
   scanPath: string;
   wording: Wording;
@@ -104,7 +111,7 @@ const settleToken = (page: CameraPage, token: string): Promise<unknown> => {
     page.say(page.wording.word("syncHolds"), "warning");
     return Promise.resolve();
   }
-  return offlineModeActive(page.scanPath)
+  return page.panel !== null && offlineModeActive(page.scanPath)
     ? offlineScan(
         { panel: page.panel, scanPath: page.scanPath, wording: page.wording },
         token,
@@ -167,6 +174,23 @@ const startScanner = (video: HTMLVideoElement, page: CameraPage): void => {
   scan();
 };
 
+/** Start the page's offline side, or answer null after `sayUnreadable`
+ * when the device's stored queue is in a shape this page cannot read. The
+ * queue then stays as it is for a build that can read it, and the page
+ * scans online. Any other fault still stops the page. */
+const offlinePanelOrNull = (
+  start: () => QueuePanel,
+  sayUnreadable: () => void,
+): QueuePanel | null => {
+  try {
+    return start();
+  } catch (error) {
+    if (!(error instanceof UnreadableQueueError)) throw error;
+    sayUnreadable();
+    return null;
+  }
+};
+
 /** Wire one scanner page. The page always renders every element below. */
 const init = (): void => {
   const container = requiredById<HTMLElement>("scanner-container");
@@ -179,7 +203,10 @@ const init = (): void => {
   ).content;
   const scanPath = requiredAttribute(container, "data-scan-path");
   const wording = wordingOf(
-    v.parse(ScannerWordsSchema, JSON.parse(String(container.dataset.words))),
+    v.parse(
+      ScannerWordsSchema,
+      JSON.parse(requiredAttribute(container, "data-words")),
+    ),
   );
   const say: Say = (text, type) => showStatus(statusEl, text, type);
   const reportFailure = failLoudly(wording, say);
@@ -202,21 +229,20 @@ const init = (): void => {
     };
     const settled = await settleScan(
       (given) => postScanBody(item.scanPath, csrfToken, { ...body, ...given }),
-      ["verify_id"],
-      { say, wording },
+      QUEUE_ASKS,
+      { dialogs: browserDialogs, say, wording },
     );
     return settled.answer;
   };
 
-  const panel = initOfflineScanner({
-    say,
-    scanPath,
-    settleDelivery,
-    wording,
-  });
+  const panel = offlinePanelOrNull(
+    () => initOfflineScanner({ say, scanPath, settleDelivery, wording }),
+    () => say(wording.word("offlineQueueUnreadable"), "error"),
+  );
   initManualCheckin({
     csrfToken,
-    offline: offlinePeople({ panel, scanPath, wording }),
+    offline:
+      panel === null ? null : offlinePeople({ panel, scanPath, wording }),
     scanPath,
     searchPath: requiredAttribute(container, "data-scan-search-path"),
     wording,

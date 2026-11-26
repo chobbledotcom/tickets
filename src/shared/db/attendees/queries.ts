@@ -177,7 +177,7 @@ const trimAttendeePage = (rows: Attendee[]): AttendeesPage => {
  * do not join. */
 export const peopleWithLinesOn = (
   listingIds: readonly number[] | null,
-  lineMark?: number,
+  lineMark: number | null = null,
 ): SqlStatement =>
   sql`attendees AS pageAttendee
     JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
@@ -185,7 +185,7 @@ export const peopleWithLinesOn = (
       listingIds
         ? sql` AND pageLine.listing_id IN (${sqlList(listingIds)})`
         : sql``
-    }${lineMark === undefined ? sql`` : sql` AND pageLine.id <= ${lineMark}`}`;
+    }${lineMark === null ? sql`` : sql` AND pageLine.id <= ${lineMark}`}`;
 
 /**
  * Pagination counts ATTENDEES, not booking lines, so a grouped attendee row

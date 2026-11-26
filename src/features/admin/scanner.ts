@@ -3,13 +3,9 @@ import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_DAYS } from "#db/processed-scan-operations.ts";
 import { sortedByString } from "#fp-strings";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { pageGuardFor, SCANNER_JSON, withAuth } from "#routes/auth.ts";
+import { pageGuardFor } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
-import {
-  htmlResponse,
-  jsonResponse,
-  notFoundResponse,
-} from "#routes/response.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { pageGuardAt } from "#routes/route-gates.ts";
 import { adminDestination } from "#shared/admin-surface.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
@@ -25,10 +21,11 @@ import { scanCacheRoutes } from "./scan-cache.ts";
 import { listingHasDoor } from "./scan-decision.ts";
 import {
   doorCacheName,
+  doorPaths,
+  doorRoute,
   loadGroupDoor,
   loadListingDoor,
   pageDoorCacheKey,
-  type ScanDoorLoader,
 } from "./scan-door.ts";
 import { scanSearchRoutes } from "./scan-search.ts";
 
@@ -42,7 +39,7 @@ const handleScannerGet: IdRouteHandler = listingWithCountHandler(
   return htmlResponse(
     adminScannerPage(
       listing,
-      `/admin/listing/${listing.id}/scan`,
+      doorPaths("listing", listing.id),
       session,
       false,
       pageDoorCacheKey(doorCacheName("listing", listing.id)),
@@ -59,7 +56,7 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
   return htmlResponse(
     adminScannerPage(
       group,
-      `/admin/groups/${group.id}/scan`,
+      doorPaths("group", group.id),
       session,
       // One scan at this door spans listings only from a multi-listing
       // group whose stored rule says to check in every listing.
@@ -110,19 +107,12 @@ const handleDoorsGet: RequestRoute = (request) =>
   );
 
 /** Handle POST /admin/{listing,groups}/:id/scan — the JSON check-in API over
- * one door's whole scope. A door that does not exist answers 404 rather
- * than an empty scope, so a broken link cannot pass every ticket off as
- * "wrong listing". Scanner is intentionally one-way (check-in only, no
- * check-out) to prevent accidental check-outs from double-scans during
+ * one door's whole scope. Scanner is intentionally one-way (check-in only,
+ * no check-out) to prevent accidental check-outs from double-scans during
  * rapid door check-in. */
-const scanPost =
-  (load: ScanDoorLoader): IdRouteHandler =>
-  (request, { id }) =>
-    withAuth(request, SCANNER_JSON, async (_session, body) => {
-      const door = await load(id);
-      if (!door) return jsonResponse({ status: "not_found" }, 404);
-      return processScan(door.scope, body, door.door);
-    });
+const scanPost = doorRoute((door, { body }) =>
+  processScan(door.scope, body, door.door),
+);
 
 /** Scanner routes */
 export const adminHandlers = defineAdminRoutes({

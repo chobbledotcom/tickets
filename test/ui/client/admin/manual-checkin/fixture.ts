@@ -9,6 +9,7 @@ import {
   createGlobalStash,
   type DomInstaller,
   fireEvent,
+  waitUntilSettled,
 } from "#test-utils/happy-dom.ts";
 
 /** The manual check-in's markup, as the scanner template renders it. The
@@ -63,10 +64,6 @@ export const REBRANDED_WORDS: ScannerWords = {
   ticketCountOther: "{count} bookings",
 };
 
-/** The offline side of a page whose door settles online. It holds no saved
- * list, so a search it answered would find nobody. */
-const IDLE_OFFLINE: ManualOffline = { active: () => false, search: () => null };
-
 /** The people the fixture's own search finds: the search route's answer. */
 export const FOUND_PEOPLE = [
   { attendeeId: 11, details: ["Camping · 12 Jun"], name: "Ada", quantity: 2 },
@@ -113,20 +110,6 @@ export interface ManualCheckinPage {
   window: Window;
 }
 
-/** Wait until the page settles, or fail after a bounded number of turns. A
- * mutant that never answers the door would otherwise hang the whole run
- * instead of failing the one test. */
-export const waitUntilSettled = async (
-  settled: () => boolean,
-  what: string,
-): Promise<void> => {
-  for (let turn = 0; turn < 1000; turn++) {
-    if (settled()) return;
-    await Promise.resolve();
-  }
-  throw new Error(`${what} never settled`);
-};
-
 /** Install the page and wire its manual check-in, with no search yet. */
 const installManualCheckin = (
   dom: DomInstaller,
@@ -140,7 +123,7 @@ const installManualCheckin = (
   };
   initManualCheckin({
     csrfToken: "csrf",
-    offline: offline ?? IDLE_OFFLINE,
+    offline,
     scanPath: "/admin/listing/7/scan",
     searchPath: "/admin/listing/7/scan-search",
     wording: wordingOf(words),
@@ -248,7 +231,7 @@ export const useManualCheckinPage = (
       stash.set("fetch", async (_url: string, init?: RequestInit) => {
         sent.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
         const answer = answers[Math.min(served++, answers.length - 1)]!;
-        return { json: async () => answer } as Response;
+        return Response.json(answer);
       });
       return sent;
     },

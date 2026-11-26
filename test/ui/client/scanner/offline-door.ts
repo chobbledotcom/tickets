@@ -43,15 +43,16 @@ export const digestOf = (token: string): Promise<string> =>
   hmacHex(DOOR_KEY, token);
 
 /** The store holds exactly one queued check-in: the digest the scan stored,
- * the delivery id it made up, and the one person it admits. */
+ * the delivery id it made up, and the people it admits. */
 export const expectOneStoredCheckIn = async (
   h: ScannerHarness,
   token: string,
+  quantity = 1,
 ): Promise<void> => {
   expect(JSON.parse(String(storedQueue(h)))).toEqual([
     {
       operationId: expect.any(String),
-      quantity: 1,
+      quantity,
       queuedAt: expect.any(Number),
       scanPath: SCAN_PATH,
       tokenHash: await digestOf(token),
