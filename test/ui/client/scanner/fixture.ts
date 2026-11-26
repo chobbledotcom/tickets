@@ -205,6 +205,13 @@ export const SCANNER_PAGE_WITHOUT_REPLAY_WINDOW = SCANNER_PAGE.replace(
   "",
 );
 
+/** The page variant a template that renders no scan path would serve: the
+ * client cannot name the door it scans for, so the page refuses to start. */
+export const SCANNER_PAGE_WITHOUT_SCAN_PATH = SCANNER_PAGE.replace(
+  '\n    data-scan-path="/admin/groups/5/scan"',
+  "",
+);
+
 /** One element of the installed scanner page by id — the fixture always
  * carries it, so a miss is a broken page, not an empty answer. */
 export const el = (

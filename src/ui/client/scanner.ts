@@ -9,7 +9,7 @@ import {
 } from "#shared/scanner-words.ts";
 import { initManualCheckin } from "./admin/manual-checkin.ts";
 import { showConfirm } from "./confirm-dialog.ts";
-import { requiredById, requiredChild } from "./dom.ts";
+import { requiredAttribute, requiredById, requiredChild } from "./dom.ts";
 import {
   failLoudly,
   type Given,
@@ -177,7 +177,7 @@ const init = (): void => {
     document,
     'meta[name="csrf-token"]',
   ).content;
-  const scanPath = String(container.dataset.scanPath);
+  const scanPath = requiredAttribute(container, "data-scan-path");
   const wording = wordingOf(
     v.parse(ScannerWordsSchema, JSON.parse(String(container.dataset.words))),
   );

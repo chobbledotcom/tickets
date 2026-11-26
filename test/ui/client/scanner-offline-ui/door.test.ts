@@ -23,6 +23,7 @@ import {
   fullStore,
   queuedItem,
   SCANNER_PAGE_WITHOUT_REPLAY_WINDOW,
+  SCANNER_PAGE_WITHOUT_SCAN_PATH,
   type ScannerHarness,
   storedQueue,
   TOKEN,
@@ -128,6 +129,20 @@ describe("scanner offline door on a page without the replay window", {
     // A page without it is a broken page, so the scanner names the fault.
     expect(() => useScanner(SCANNER_PAGE_WITHOUT_REPLAY_WINDOW)).toThrow(
       "The scanner page carries no usable data-scan-operation-retention-days",
+    );
+  });
+});
+
+describe("scanner page without the scan path", {
+  sanitizeOps: false,
+  sanitizeResources: false,
+}, () => {
+  test("refuses to start, naming the missing attribute", () => {
+    // The client names the door it scans for by this attribute. A page
+    // without it is a broken page, so the scanner names the fault instead
+    // of scanning an invented path.
+    expect(() => useScanner(SCANNER_PAGE_WITHOUT_SCAN_PATH)).toThrow(
+      "Missing attribute: data-scan-path",
     );
   });
 });

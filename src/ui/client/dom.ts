@@ -110,6 +110,16 @@ export const requiredById = <TElement extends Element = HTMLElement>(
   id: string,
 ): TElement => requiredChild<TElement>(document, `#${id}`);
 
+/** The attribute `root` carries, or a hard stop naming it. A missing
+ * attribute is a broken page, not an empty string. */
+export const requiredAttribute = (root: Element, name: string): string => {
+  const value = root.getAttribute(name);
+  if (value === null) {
+    throw new Error(`Missing attribute: ${name}`);
+  }
+  return value;
+};
+
 /** Copy a complete template subtree into the current document. */
 export const cloneContent = <T extends Node>(node: T): T =>
   document.importNode(node, true);
