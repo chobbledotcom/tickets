@@ -7,10 +7,10 @@ import {
   openCheckoutBundle,
   sealCheckoutBundle,
 } from "#db/checkout-bundles.ts";
-import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 
 const ORDER = { email: "pat@example.com", items: '[{"e":1,"p":500,"q":1}]' };
 
@@ -24,7 +24,7 @@ const isoAgo = (ageMs: number) => new Date(Date.now() - ageMs).toISOString();
 
 /** Make the bundles sealed in the last hour `ageMs` old. */
 const ageNewBundles = (ageMs: number) =>
-  execute(
+  runWrite(
     sql`UPDATE checkout_bundles SET created_at = ${isoAgo(ageMs)} WHERE created_at > ${isoAgo(60 * MINUTE_MS)}`,
   );
 
