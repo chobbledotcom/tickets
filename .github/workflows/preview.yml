@@ -1,0 +1,179 @@
+name: Branch preview
+
+# Each open pull request from this repository gets its own Tickets site on
+# the staging Bunny account. A push updates the site and keeps its database.
+# Closing the pull request, merged or not, deletes the site and its database.
+# A pull request from a fork gets no preview, because a fork run has no
+# secrets.
+#
+# The secrets live in the `preview` environment: BUNNY_STAGING_ACCOUNT_KEY,
+# STAGING_STORAGE_ZONE_NAME, STAGING_STORAGE_ZONE_KEY, HOST_EMAIL_PROVIDER,
+# HOST_EMAIL_API_KEY, HOST_EMAIL_FROM_ADDRESS, and the optional static CDN set
+# CDN_STAGING_URL, CDN_BUNNY_STAGING_STORAGE_ZONE_NAME,
+# CDN_BUNNY_STAGING_STORAGE_ZONE_KEY, CDN_BUNNY_STAGING_STORAGE_HOST and
+# CDN_BUNNY_STAGING_PULL_ZONE_ID. See docs/preview-deploys.md.
+#
+# A preview sends real host mail. It never receives MAIN_INSTANCE_KEY or the
+# production Bunny key.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# One run at a time for each branch. A run is never cancelled, because a stop
+# in the middle of a create can leave a database with no script.
+concurrency:
+  group: preview-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # A queued push run can start after its pull request closed. This job asks
+  # GitHub for the pull request state now, so that run does not make a new
+  # preview. A fork run stops here.
+  check:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    outputs:
+      open: ${{ steps.state.outputs.open }}
+    steps:
+      - name: Read the pull request state
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          state=$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST" --jq .state)
+          if [ "$state" = "open" ]; then
+            echo "open=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "open=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: check
+    if: ${{ github.event.action != 'closed' && needs.check.outputs.open == 'true' }}
+    runs-on: ubicloud-standard-4
+    # The secrets this job reads live in this environment.
+    environment: preview
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+
+      # A missing secret must stop the run here, not after the build or part
+      # of the way through a create.
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          STAGING_STORAGE_ZONE_NAME: ${{ secrets.STAGING_STORAGE_ZONE_NAME }}
+          STAGING_STORAGE_ZONE_KEY: ${{ secrets.STAGING_STORAGE_ZONE_KEY }}
+          HOST_EMAIL_PROVIDER: ${{ secrets.HOST_EMAIL_PROVIDER }}
+          HOST_EMAIL_API_KEY: ${{ secrets.HOST_EMAIL_API_KEY }}
+          HOST_EMAIL_FROM_ADDRESS: ${{ secrets.HOST_EMAIL_FROM_ADDRESS }}
+          CDN_URL: ${{ secrets.CDN_STAGING_URL }}
+          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME }}
+          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY }}
+          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
+          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
+        run: |
+          scripts/ci/require-env.sh BUNNY_ACCESS_KEY \
+            STAGING_STORAGE_ZONE_NAME STAGING_STORAGE_ZONE_KEY \
+            HOST_EMAIL_PROVIDER HOST_EMAIL_API_KEY HOST_EMAIL_FROM_ADDRESS \
+            --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID
+          scripts/ci/check-credentials.sh bunny cdn-zone
+
+      - name: Build Bunny edge script
+        id: build
+        uses: $/.github/actions/build-bunny-script
+        with:
+          build_commit: ${{ github.sha }}
+          cdn_url: ${{ secrets.CDN_STAGING_URL }}
+          cdn_bunny_storage_zone_name: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME }}
+          cdn_bunny_storage_zone_key: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY }}
+          cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
+          cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
+          bunny_access_key: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+
+      # Finds the preview of this branch by name. A new branch gets a database,
+      # a script and every secret, and the build is published. An old preview
+      # keeps its database and its secrets, and the next step deploys the build.
+      - name: Create or complete the preview
+        id: preview
+        shell: devenv --profile ci shell bash -- -e {0}
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          STAGING_STORAGE_ZONE_NAME: ${{ secrets.STAGING_STORAGE_ZONE_NAME }}
+          STAGING_STORAGE_ZONE_KEY: ${{ secrets.STAGING_STORAGE_ZONE_KEY }}
+          HOST_EMAIL_PROVIDER: ${{ secrets.HOST_EMAIL_PROVIDER }}
+          HOST_EMAIL_API_KEY: ${{ secrets.HOST_EMAIL_API_KEY }}
+          HOST_EMAIL_FROM_ADDRESS: ${{ secrets.HOST_EMAIL_FROM_ADDRESS }}
+        run: |
+          deno run \
+            --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY,STAGING_STORAGE_ZONE_NAME,STAGING_STORAGE_ZONE_KEY,HOST_EMAIL_PROVIDER,HOST_EMAIL_API_KEY,HOST_EMAIL_FROM_ADDRESS \
+            --allow-read=bunny-script.ts \
+            --allow-net=api.bunny.net \
+            scripts/preview.ts ensure "$BRANCH" bunny-script.ts >> "$GITHUB_OUTPUT"
+
+      - name: Deploy the build to the existing preview
+        if: ${{ steps.preview.outputs.published == 'false' }}
+        uses: $/.github/actions/deploy-bunny-script
+        with:
+          script_id: ${{ steps.preview.outputs.script_id }}
+          api_key: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          site_url: ${{ steps.preview.outputs.site_url }}
+          build_tag: ${{ steps.build.outputs.build_tag }}
+
+      - name: Show the preview address
+        env:
+          SITE_URL: ${{ steps.preview.outputs.site_url }}
+        run: |
+          echo "Preview: $SITE_URL" >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    needs: check
+    if: ${{ github.event.action == 'closed' }}
+    runs-on: ubicloud-standard-2
+    # The secrets this job reads live in this environment.
+    environment: preview
+
+    steps:
+      # The head commit exists after a merge or a close. It holds the scripts
+      # that this run needs, even for the pull request that adds them.
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+        run: |
+          scripts/ci/require-env.sh BUNNY_ACCESS_KEY
+          scripts/ci/check-credentials.sh bunny
+
+      - name: Set up devenv
+        uses: $/.github/actions/setup-devenv
+        with:
+          profile: ci
+
+      - name: Delete the preview
+        shell: devenv --profile ci shell bash -- -e {0}
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+        run: |
+          deno run \
+            --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
+            --allow-net=api.bunny.net \
+            scripts/preview.ts remove "$BRANCH"

@@ -27,8 +27,8 @@
  * build-edge.ts bakes into the bundle.
  */
 
-import { BUNNY_API_BASE, formatBunnyError } from "#scripts/deploy-edge-lib.ts";
-import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
+import { bunnyRequest, formatBunnyError } from "#scripts/deploy-edge-lib.ts";
+import type { FetchText } from "#scripts/fetch-text.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
   fetchUpdatePageBody,
@@ -60,29 +60,13 @@ type ScopedIo = UpdateModeIo &
 const secretsEndpoint = (io: ScopedIo): string =>
   `/compute/script/${encodeURIComponent(io.scriptId)}/secrets`;
 
-/** One Bunny API call shape reused by the upsert, list, and delete below. */
-const secretRequest = async (
-  io: ScopedIo,
-  path: string,
-  method: string,
-  body?: string,
-): Promise<FetchTextResult> =>
-  io.fetchText(`${BUNNY_API_BASE}${path}`, {
-    ...(body === undefined ? {} : { body }),
-    headers: {
-      AccessKey: io.accessKey,
-      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-    },
-    method,
-  });
-
 /** Upsert the update flag. An empty value lifts update mode only on hosts
  * with no secret delete; this CLI deletes properly in `end`. */
 const upsertUpdateSecret = async (
   io: ScopedIo,
   value: string,
 ): Promise<void> => {
-  const response = await secretRequest(
+  const response = await bunnyRequest(
     io,
     secretsEndpoint(io),
     "PUT",
@@ -95,7 +79,7 @@ const upsertUpdateSecret = async (
 
 /** The secret's numeric id, or null while the script holds no update flag. */
 const findUpdateSecretId = async (io: ScopedIo): Promise<number | null> => {
-  const response = await secretRequest(io, secretsEndpoint(io), "GET");
+  const response = await bunnyRequest(io, secretsEndpoint(io), "GET");
   if (!response.ok) {
     throw new Error(formatBunnyError("List edge script secrets", response));
   }
@@ -112,7 +96,7 @@ const deleteUpdateSecret = async (
   io: ScopedIo,
   secretId: number,
 ): Promise<void> => {
-  const response = await secretRequest(
+  const response = await bunnyRequest(
     io,
     `${secretsEndpoint(io)}/${secretId}`,
     "DELETE",
