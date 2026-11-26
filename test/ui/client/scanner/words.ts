@@ -63,8 +63,7 @@ export const PAGE_WORDS: ScannerWords = {
   refunded: "{name} has been refunded",
   scanning: "Scanning...",
   searchButton: "Search",
-  searchFailed:
-    "The search did not work. Check your connection, then try again.",
+  searchFailed: "The search did not work. Try again.",
   searchNone: "Nobody at this door matches that name.",
   searchTooShort: "Type at least 2 letters of the name.",
   selectQuantity: "How many tickets for {name}?",

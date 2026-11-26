@@ -52,7 +52,12 @@ export const findPeople = async (
     `${scanPath}-search?q=${encodeURIComponent(text)}`,
   );
   if (!res.ok) {
-    say(wording.word("searchFailed"), "error");
+    // A refusal the door cannot fix by retrying reads as a page fault: the
+    // session expired, the role changed, or the door went away. Anything
+    // else is the server's own trouble, and the door can try again.
+    const refused =
+      res.status === 401 || res.status === 403 || res.status === 404;
+    say(wording.word(refused ? "pageError" : "searchFailed"), "error");
     return null;
   }
   const { options } = v.parse(SearchAnswerSchema, await res.json());

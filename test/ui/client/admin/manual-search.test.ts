@@ -92,8 +92,14 @@ describe("manual check-in search", () => {
         "warning",
       ],
       [
-        "the route refuses",
+        "the session expired",
         Response.json({ error: "Not authenticated" }, { status: 401 }),
+        "Something went wrong. Reload this page, then try again.",
+        "error",
+      ],
+      [
+        "the server is in trouble",
+        Response.json({}, { status: 500 }),
         "The search failed.",
         "error",
       ],

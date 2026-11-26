@@ -14,7 +14,7 @@
   "admin.scanner.search_label": "Search by name",
   "admin.scanner.search_placeholder": "Type a name, then search",
   "admin.scanner.search_button": "Search",
-  "admin.scanner.search_failed": "The search did not work. Check your connection, then try again.",
+  "admin.scanner.search_failed": "The search did not work. Try again.",
   "admin.scanner.search_none": "Nobody at this door matches that name.",
   "admin.scanner.search_too_short": "Type at least 2 letters of the name.",
   "admin.scanner.ticket_option": "{name} ({tickets})",
