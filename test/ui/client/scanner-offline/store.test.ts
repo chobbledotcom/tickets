@@ -25,6 +25,7 @@ import {
   withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
+  MODE_KEY,
   queuedItem,
   SCAN_PATH,
   type ScannerHarness,
@@ -34,6 +35,7 @@ import {
   whenTextShows,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
+  askedUrls,
   digestOf,
   postedDeliveryHashes,
   queuedItems,
@@ -89,25 +91,34 @@ describe("scanner offline store", {
   }
 
   const badLists: readonly [string, () => Response][] = [
-    [
-      "refused the fetch",
-      () =>
-        Response.json(
-          { entries: [{ hash: "digest-one", tickets: 2 }] },
-          { status: 500 },
-        ),
-    ],
+    ["refused the fetch", () => Response.json({}, { status: 500 })],
     [
       "sent a bad one",
-      () => Response.json({ entries: [{ hash: "digest-one", tickets: 0 }] }),
+      () =>
+        Response.json({
+          entries: [
+            { details: [], hash: "digest-one", name: "Ada", quantity: 0 },
+          ],
+          next: null,
+          people: 1,
+          total: 1,
+        }),
     ],
   ];
   for (const [what, answer] of badLists) {
     test(`keeps no list from a door that ${what}`, async () => {
-      using _fetch = stubFetch(answer);
-      const h = fresh();
-      await drain();
+      using fetchStub = stubFetch(answer);
+      const h = fresh({ seed: (store) => store.setItem(MODE_KEY, "1") });
+      await whenStatusShows(
+        h.statusEl,
+        "Something went wrong. Reload this page, then try again.",
+      );
 
+      // The armed switch really asked for the door's list, and the refused
+      // answer stored nothing.
+      expect(askedUrls(fetchStub)).toEqual([
+        SCAN_PATH.replace(/\/scan$/, "/scan-cache"),
+      ]);
       expect(h.window.localStorage.getItem(LIST_KEY)).toBeNull();
     });
   }

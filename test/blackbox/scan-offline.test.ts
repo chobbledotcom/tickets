@@ -12,7 +12,10 @@ import { expectPrivateJson } from "#test/blackbox/headers.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createMultiBookingAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
@@ -166,13 +169,46 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
   test("keeps every line of one person on the same page", async () => {
     const app = await loggedIn();
     const group = await createTestGroup({ scanChecksInAllListings: true });
-    const west = await createTestListing({ groupId: group.id });
+    const west = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 1000,
+    });
     const east = await createTestListing({ groupId: group.id });
-    await createTestAttendeeDirect(west.id, "Ada Reed", "ada@example.com");
-    await createTestAttendeeDirect(east.id, "Ben Reed", "ben@example.com");
+    await seedFillerAttendees(west.id, PAGE_PEOPLE);
+    // The two-listing person lands on the last slot of the full first
+    // page, so a page split on booking lines would cut them in two.
+    await createMultiBookingAttendee("Ada Reed", "ada@example.com", [
+      { listingId: west.id, quantity: 2 },
+      { listingId: east.id, quantity: 1 },
+    ]);
+    const door = `/admin/groups/${group.id}`;
 
-    const page = await cachePage(app, `/admin/groups/${group.id}`);
-    expect(page.body).toMatchObject({ next: null, people: 2, total: 2 });
+    const first = await cachePage(app, door);
+    expect(first.body).toMatchObject({
+      people: PAGE_PEOPLE,
+      total: PAGE_PEOPLE + 1,
+    });
+    const second = await cachePage(app, door, nextOf(first));
+    expect(second.body).toMatchObject({ next: null, people: 1 });
+
+    // The person's whole booking answers once: one entry on one page, and
+    // its quantity names every line the door checks in for them.
+    const { entries } = second.body as {
+      entries: { details: string[]; name: string; quantity: number }[];
+    };
+    const ada = entries.find((entry) => entry.name === "Ada Reed");
+    expect(ada).toMatchObject({
+      details: expect.arrayContaining([west.name, east.name]),
+      quantity: 3,
+    });
+    const entryNames = (page: { body: unknown }): string[] => {
+      const { entries: named } = page.body as {
+        entries: { name: string }[];
+      };
+      return named.map((entry) => entry.name);
+    };
+    const names = [...entryNames(first), ...entryNames(second)];
+    expect(names.filter((name) => name === "Ada Reed")).toHaveLength(1);
   });
 
   test("answers an empty last page for a door with no people", async () => {

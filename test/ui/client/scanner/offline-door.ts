@@ -24,6 +24,7 @@ import {
 import {
   DOOR_KEY,
   el,
+  MODE_KEY,
   queuedItem,
   SCAN_PATH,
   type ScannerGlobals,
@@ -96,7 +97,7 @@ export const refusingDoor = () => stubFetch(Response.json({}, { status: 500 }));
 
 /** The page globals for a door whose offline switch the person turned on. */
 export const switchArmed: ScannerGlobals = {
-  seed: (store) => store.setItem("scanner-offline-mode", "1"),
+  seed: (store) => store.setItem(MODE_KEY, "1"),
 };
 
 /** The page element with this id, for a harness. */

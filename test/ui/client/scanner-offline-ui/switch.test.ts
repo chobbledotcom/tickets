@@ -76,6 +76,10 @@ describe("scanner offline switch and banner", {
     using _fetch = refusingDoor();
     const h = fresh(switchArmed);
 
+    // The stored mode really armed the switch: the toggle reads pressed
+    // and the banner shows, each worded for the switch.
+    expect(toggleOf(h).getAttribute("aria-pressed")).toBe("true");
+    expect(bannerOf(h).className).not.toContain("hidden");
     expect(bannerWords(h)).toBe(MANUAL_WORDS);
   });
 

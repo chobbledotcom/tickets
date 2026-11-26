@@ -71,6 +71,18 @@ describeWithEnv(
       });
     });
 
+    test("accepts a two-letter search, the minimum the client sends", async () => {
+      const app = await loggedIn();
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const door = `/admin/listing/${listing.id}`;
+      await createTestAttendeeDirect(listing.id, "Ada Lane", "ada@example.com");
+
+      expect(await search(app, door, "?q=da")).toEqual({
+        body: { options: [person("Ada Lane")] },
+        status: 200,
+      });
+    });
+
     test("answers the door's own people who still owe tickets", async () => {
       const app = await loggedIn();
       const listing = await createTestListing({ maxAttendees: 10 });

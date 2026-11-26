@@ -23,6 +23,7 @@ import {
   start,
 } from "./camera-fakes.ts";
 import { el, evaluateBundle, useScannerSuite } from "./fixture.ts";
+import { queueSeeded } from "./offline-door.ts";
 
 describe("scanner camera", {
   sanitizeOps: false,
@@ -400,6 +401,22 @@ describe("scanner camera", {
     expect(h.statusEl.textContent).toBe(
       "Ada checked in for Standard (1 ticket)",
     );
+  });
+
+  test("tells the door a scan made during a sync is ignored", async () => {
+    using _fetch = stubFetch(() => new Promise(() => {}));
+    const h = fresh(queueSeeded());
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+    await start(h);
+    await scanFirst(fakes, "tok12345");
+
+    // The queue's sync holds the door's fetch open, so the scan made while
+    // it runs is refused with its own words, and nothing posts twice.
+    expect(h.statusEl.textContent).toBe(
+      "Checking in queued tickets. Scan again when done.",
+    );
+    expect(h.statusEl.className).toContain("scanner-status-warning");
   });
 
   test("fails loudly on a page the template did not render whole", () => {
