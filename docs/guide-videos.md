@@ -18,7 +18,7 @@ deno task guide:record create-a-listing
 
 The command builds the site, signs the owner in, runs the guide's setup, records
 the story, renders the frames, encodes the MP4, and writes the freshness
-baseline. The video lands under `reports/guides/<slug>/guide.mp4`; the baseline
+baseline. The video lands under `reports/guides/<slug>/guide.mp4`. The baseline
 lands at `guides/<slug>/freshness.json`.
 
 Useful options:
@@ -80,7 +80,7 @@ Recording and rendering both work at two device pixels per CSS pixel
 (`GUIDE_DEVICE_SCALE_FACTOR`): a 1280 by 720 viewport becomes a 2560 by 1440
 video. Chrome's screencast sends frames at the browser window's device
 resolution, so the recorder launches Chromium with a forced device scale factor
-and a matching window size; the page still lays out at 1280 by 720, and the
+and a matching window size. The page still lays out at 1280 by 720, and the
 screencast arrives at 2560 by 1440 with real detail. The renderer's canvas draws
 at the same ratio, so a focus zoom up to 2x samples the recorded frame at one
 texture pixel per video pixel instead of enlarging a 720p image.
@@ -102,14 +102,14 @@ Beside the video the command writes a pointer at
 anchored screenshot hashes, the storyboard, and `GUIDE_PIPELINE_VERSION`. A
 publish run reads the pointer first:
 
-- pointer present, its video still served — nothing is recorded or uploaded, and
-  the app gets the existing URL;
+- pointer present, its video still served — nothing is recorded or uploaded. The
+  app gets the existing URL.
 - pointer absent or unreadable — the guide is recorded, rendered, encoded, and
-  uploaded, then the pointer is written.
+  uploaded. Then the pointer is written.
 
 A change to the pipeline (the scale factor, the encoder settings) bumps
 `GUIDE_PIPELINE_VERSION`, so old pointers stop matching and the next run
-re-renders. The upload verifies every object's bytes and content type; a failed
+re-renders. The upload verifies every object's bytes and content type. A failed
 publish stops the deploy, so the app never links to a missing video.
 
 The deploy build bakes a JSON map into `GUIDE_VIDEOS`. The create listing form
@@ -118,7 +118,7 @@ The link opens the MP4 in the admin modal, muted and autoplaying. Without a map
 the page shows no link.
 
 A publish run without the Bunny storage secrets does not render or upload
-anything: there would be no origin for the edge script to name. The workflow
+anything: there is no origin for the edge script to name. The workflow
 returns an empty map instead, and every guide link stays hidden.
 
 The parent page needs `media-src` for the CDN origin. The security header adds
