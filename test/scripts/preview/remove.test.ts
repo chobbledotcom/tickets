@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { removePreview } from "#scripts/preview/remove.ts";
+import { type RemoveWebhooks, removePreview } from "#scripts/preview/remove.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   apiOn,
   type FailureCase,
@@ -15,7 +16,23 @@ const NAMES = {
   scriptName: "Tickets - preview-feature-abc123",
 };
 
-const remove = (bunny: FakeBunny) => removePreview(apiOn(bunny), NAMES);
+/** Webhook removal that records the hosts it gets and what Bunny held at the
+ * time, and answers with `answer`. */
+const webhooks = (answer: Result<string[]> = okResult([])) => {
+  const seen: { hosts: readonly string[]; writes: number }[] = [];
+  return {
+    remove:
+      (bunny: FakeBunny): RemoveWebhooks =>
+      (hosts) => {
+        seen.push({ hosts, writes: bunny.writes().length });
+        return Promise.resolve(answer);
+      },
+    seen,
+  };
+};
+
+const remove = (bunny: FakeBunny, hooks = webhooks()) =>
+  removePreview(apiOn(bunny), NAMES, hooks.remove(bunny));
 
 /** The preview of the branch: script 1, its pull zone 1001, database db-2. */
 const withPreview = (bunny: FakeBunny) => {
@@ -144,5 +161,48 @@ describe("removePreview", () => {
     });
   }
 
-  reportsEachFailure(FAILURES, remove, withPreview);
+  reportsEachFailure(FAILURES, (bunny) => remove(bunny), withPreview);
+
+  test("deletes the webhooks of both hosts of the site before it deletes anything", async () => {
+    const bunny = fakeBunny();
+    withPreview(bunny);
+    const hooks = webhooks(okResult(["Stripe webhook we_1"]));
+
+    const result = await remove(bunny, hooks);
+
+    expect(hooks.seen).toEqual([
+      { hosts: ["site-1.bunny.run", "site-1.b-cdn.net"], writes: 0 },
+    ]);
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        "Stripe webhook we_1",
+        "script 1",
+        "pull zone 1001",
+        "database db-2",
+      ],
+    });
+  });
+
+  test("keeps the whole preview when the webhooks cannot be deleted", async () => {
+    const bunny = fakeBunny();
+    withPreview(bunny);
+
+    const result = await remove(
+      bunny,
+      webhooks(errorResult("Stripe said no.")),
+    );
+
+    expect(result).toEqual({ error: "Stripe said no.", ok: false });
+    expect([bunny.writes().length, ...sizes(bunny)]).toEqual([0, 1, 1, 1]);
+  });
+
+  test("asks for no webhook removal when the script is already gone", async () => {
+    const bunny = fakeBunny();
+    const hooks = webhooks();
+
+    await remove(bunny, hooks);
+
+    expect(hooks.seen).toEqual([]);
+  });
 });

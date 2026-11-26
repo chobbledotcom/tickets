@@ -2,16 +2,20 @@ name: Branch preview
 
 # Each open pull request from this repository gets its own Tickets site on
 # the staging Bunny account. A push updates the site and keeps its database.
-# Closing the pull request, merged or not, deletes the site and its database.
-# A pull request from a fork gets no preview, because a fork run has no
-# secrets.
+# Closing the pull request, merged or not, deletes the site, its database, and
+# its Stripe webhooks. A new site is set up with the shared owner login and the
+# sandbox payment keys. A pull request from a fork gets no preview, because a
+# fork run has no secrets.
 #
 # The secrets live in the `preview` environment: BUNNY_STAGING_ACCOUNT_KEY,
 # STAGING_STORAGE_ZONE_NAME, STAGING_STORAGE_ZONE_KEY, HOST_EMAIL_PROVIDER,
-# HOST_EMAIL_API_KEY, HOST_EMAIL_FROM_ADDRESS, and the optional static CDN set
-# CDN_STAGING_URL, CDN_BUNNY_STAGING_STORAGE_ZONE_NAME,
-# CDN_BUNNY_STAGING_STORAGE_ZONE_KEY, CDN_BUNNY_STAGING_STORAGE_HOST and
-# CDN_BUNNY_STAGING_PULL_ZONE_ID. See docs/preview-deploys.md.
+# HOST_EMAIL_API_KEY, HOST_EMAIL_FROM_ADDRESS, PREVIEW_OWNER_USERNAME,
+# PREVIEW_OWNER_PASSWORD, the sandbox keys STRIPE_SECRET_KEY,
+# SQUARE_ACCESS_TOKEN, SQUARE_LOCATION_ID, SUMUP_API_KEY and
+# SUMUP_MERCHANT_CODE, and the optional static CDN set CDN_STAGING_URL,
+# CDN_BUNNY_STAGING_STORAGE_ZONE_NAME, CDN_BUNNY_STAGING_STORAGE_ZONE_KEY,
+# CDN_BUNNY_STAGING_STORAGE_HOST and CDN_BUNNY_STAGING_PULL_ZONE_ID. See
+# docs/preview-deploys.md.
 #
 # A preview sends real host mail. It never receives MAIN_INSTANCE_KEY or the
 # production Bunny key.
@@ -86,10 +90,20 @@ jobs:
           CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY }}
           CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
           CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
+          PREVIEW_OWNER_USERNAME: ${{ secrets.PREVIEW_OWNER_USERNAME }}
+          PREVIEW_OWNER_PASSWORD: ${{ secrets.PREVIEW_OWNER_PASSWORD }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          SQUARE_ACCESS_TOKEN: ${{ secrets.SQUARE_ACCESS_TOKEN }}
+          SQUARE_LOCATION_ID: ${{ secrets.SQUARE_LOCATION_ID }}
+          SUMUP_API_KEY: ${{ secrets.SUMUP_API_KEY }}
+          SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
         run: |
           scripts/ci/require-env.sh BUNNY_ACCESS_KEY \
             STAGING_STORAGE_ZONE_NAME STAGING_STORAGE_ZONE_KEY \
             HOST_EMAIL_PROVIDER HOST_EMAIL_API_KEY HOST_EMAIL_FROM_ADDRESS \
+            PREVIEW_OWNER_USERNAME PREVIEW_OWNER_PASSWORD STRIPE_SECRET_KEY \
+            SQUARE_ACCESS_TOKEN SQUARE_LOCATION_ID \
+            SUMUP_API_KEY SUMUP_MERCHANT_CODE \
             --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID
           scripts/ci/check-credentials.sh bunny cdn-zone
 
@@ -135,6 +149,28 @@ jobs:
           site_url: ${{ steps.preview.outputs.site_url }}
           build_tag: ${{ steps.build.outputs.build_tag }}
 
+      # A new preview shows the "Not Activated" page until its setup is done.
+      # This step completes /setup with the shared owner login and saves the
+      # sandbox payment keys. A site that is already set up is left as it is.
+      # The step may reach the preview only.
+      - name: Set up the preview
+        shell: devenv --profile ci shell bash -- -e {0}
+        env:
+          SITE_URL: ${{ steps.preview.outputs.site_url }}
+          PREVIEW_OWNER_USERNAME: ${{ secrets.PREVIEW_OWNER_USERNAME }}
+          PREVIEW_OWNER_PASSWORD: ${{ secrets.PREVIEW_OWNER_PASSWORD }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          SQUARE_ACCESS_TOKEN: ${{ secrets.SQUARE_ACCESS_TOKEN }}
+          SQUARE_LOCATION_ID: ${{ secrets.SQUARE_LOCATION_ID }}
+          SUMUP_API_KEY: ${{ secrets.SUMUP_API_KEY }}
+          SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
+        run: |
+          site_hosts="$(deno run scripts/update-mode-hosts.ts "$SITE_URL")"
+          deno run \
+            --allow-env=PREVIEW_OWNER_USERNAME,PREVIEW_OWNER_PASSWORD,STRIPE_SECRET_KEY,SQUARE_ACCESS_TOKEN,SQUARE_LOCATION_ID,SUMUP_API_KEY,SUMUP_MERCHANT_CODE \
+            --allow-net="$site_hosts" \
+            scripts/preview.ts configure "$SITE_URL"
+
       - name: Show the preview address
         env:
           SITE_URL: ${{ steps.preview.outputs.site_url }}
@@ -161,8 +197,9 @@ jobs:
         shell: bash
         env:
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
         run: |
-          scripts/ci/require-env.sh BUNNY_ACCESS_KEY
+          scripts/ci/require-env.sh BUNNY_ACCESS_KEY STRIPE_SECRET_KEY
           scripts/ci/check-credentials.sh bunny
 
       - name: Set up devenv
@@ -175,8 +212,9 @@ jobs:
         env:
           BRANCH: ${{ github.event.pull_request.head.ref }}
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
         run: |
           deno run \
-            --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
-            --allow-net=api.bunny.net \
+            --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY,STRIPE_SECRET_KEY \
+            --allow-net=api.bunny.net,api.stripe.com \
             scripts/preview.ts remove "$BRANCH"

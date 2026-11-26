@@ -17,8 +17,15 @@ const PREVIEW_SECRETS = [
   "HOST_EMAIL_API_KEY",
   "HOST_EMAIL_FROM_ADDRESS",
   "HOST_EMAIL_PROVIDER",
+  "PREVIEW_OWNER_PASSWORD",
+  "PREVIEW_OWNER_USERNAME",
+  "SQUARE_ACCESS_TOKEN",
+  "SQUARE_LOCATION_ID",
   "STAGING_STORAGE_ZONE_KEY",
   "STAGING_STORAGE_ZONE_NAME",
+  "STRIPE_SECRET_KEY",
+  "SUMUP_API_KEY",
+  "SUMUP_MERCHANT_CODE",
 ];
 
 /** A GitHub expression, built without a template placeholder in the source. */
@@ -43,7 +50,45 @@ const jobText = (text: string, name: string): string => {
   return block;
 };
 
+/** The text of one step of a job, from its name to the next step. */
+const stepText = (job: string, name: string): string => {
+  const step = job
+    .split(/^ {6}- (?=name: )/m)
+    .find((text) => text.startsWith(`name: ${name}\n`));
+  if (step === undefined) throw new Error(`The job has no step ${name}`);
+  return step;
+};
+
 describe("preview workflow", () => {
+  test("sets up a new preview after the deploy, and reaches only the preview", async () => {
+    const deploy = jobText(await readWorkflow(), "deploy");
+    const setup = stepText(deploy, "Set up the preview");
+
+    expect(deploy.indexOf("name: Set up the preview")).toBeGreaterThan(
+      deploy.indexOf("name: Deploy the build to the existing preview"),
+    );
+    expectIncludesAll(setup, [
+      'site_hosts="$(deno run scripts/update-mode-hosts.ts "$SITE_URL")"',
+      '--allow-net="$site_hosts"',
+      'scripts/preview.ts configure "$SITE_URL"',
+    ]);
+    expect(setup).not.toContain("api.bunny.net");
+    expect(setup).not.toContain("BUNNY_");
+  });
+
+  test("deletes the Stripe webhooks when it deletes the preview", async () => {
+    const cleanup = jobText(await readWorkflow(), "cleanup");
+
+    expectIncludesAll(stepText(cleanup, "Delete the preview"), [
+      "--allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY,STRIPE_SECRET_KEY",
+      "--allow-net=api.bunny.net,api.stripe.com",
+      'scripts/preview.ts remove "$BRANCH"',
+    ]);
+    expect(stepText(cleanup, "Check the secrets this run needs")).toContain(
+      "scripts/ci/require-env.sh BUNNY_ACCESS_KEY STRIPE_SECRET_KEY",
+    );
+  });
+
   test("runs on the events of a pull request", async () => {
     expectIncludesAll(await readWorkflow(), [
       "pull_request:",

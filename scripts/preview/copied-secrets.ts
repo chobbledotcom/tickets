@@ -1,7 +1,9 @@
 // effects: pure
 /** The secrets a preview site copies from the build environment. */
 
-import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { requiredMapValue } from "#fp";
+import { readEnvValues } from "#scripts/preview/env-values.ts";
+import { okResult, type Result } from "#shared/result.ts";
 
 /** `site` is the secret name on the preview script. `env` is the variable that
  * holds its value in the build environment. The staging storage zone replaces
@@ -22,16 +24,16 @@ const COPIED_SECRETS = [
 export const readCopiedSecrets = (
   getEnv: (key: string) => string | undefined,
 ): Result<[string, string][]> => {
-  const values = COPIED_SECRETS.map(({ env, site }) => ({
-    env,
-    site,
-    value: getEnv(env)?.trim() ?? "",
-  }));
-  const missing = values.filter(({ value }) => value === "");
-  if (missing.length > 0) {
-    return errorResult(
-      `Set these secrets for the preview: ${missing.map(({ env }) => env).join(", ")}.`,
-    );
-  }
-  return okResult(values.map(({ site, value }) => [site, value]));
+  const values = readEnvValues(
+    getEnv,
+    COPIED_SECRETS.map(({ env }) => env),
+  );
+  return values.ok
+    ? okResult(
+        COPIED_SECRETS.map(({ env, site }): [string, string] => [
+          site,
+          requiredMapValue(values.value, env),
+        ]),
+      )
+    : values;
 };

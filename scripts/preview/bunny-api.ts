@@ -12,6 +12,8 @@ import {
   formatBunnyError,
 } from "#scripts/deploy-edge-lib.ts";
 import type { FetchText } from "#scripts/fetch-text.ts";
+import { parseAnswer } from "#scripts/preview/answers.ts";
+import { mapped } from "#scripts/preview/steps.ts";
 import { databasePageSchema, edgeScriptSchema } from "#shared/bunny-answers.ts";
 import { databaseTokenFromResponse } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -64,14 +66,7 @@ const read = async <T>(
   body?: unknown,
 ): Promise<Result<T>> => {
   const response = await bunnyRequest(io, path, method, bodyText(body));
-  if (!response.ok) return errorResult(formatBunnyError(label, response));
-  const parsed = v.safeParse(
-    v.pipe(v.string(), v.parseJson(), schema),
-    response.text,
-  );
-  return parsed.success
-    ? okResult(parsed.output)
-    : errorResult(`${label} gave an answer this script cannot read.`);
+  return parseAnswer(response, label, schema);
 };
 
 /** One request whose answer carries nothing to read. A missing thing counts
@@ -94,12 +89,6 @@ const act = async (
 /** A delete. A thing that is already gone counts as deleted. */
 const remove = (io: BunnyIo, label: string, path: string) =>
   act(io, label, "DELETE", path, { missingIsDone: true });
-
-/** Turn the value of a result. An error passes on as it is. */
-const mapped = <Answer, Value>(
-  result: Result<Answer>,
-  map: (answer: Answer) => Value,
-): Result<Value> => (result.ok ? okResult(map(result.value)) : result);
 
 /** One page of a list, as the walk below needs it. */
 type Page<Item> = { hasMore: boolean; items: Item[] };

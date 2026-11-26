@@ -36,7 +36,8 @@ type Body = Record<string, string | boolean | null> | undefined;
 /** What one route handler reads: the body, the path captures, the query. */
 type Request = { body: Body; captures: string[]; query: URLSearchParams };
 
-const answer = (status: number, body: unknown): FetchTextResult => ({
+/** One answer of a fake server: a text body, or a body that is sent as JSON. */
+export const answer = (status: number, body: unknown): FetchTextResult => ({
   ok: status >= 200 && status < 300,
   status,
   text: typeof body === "string" ? body : JSON.stringify(body),
