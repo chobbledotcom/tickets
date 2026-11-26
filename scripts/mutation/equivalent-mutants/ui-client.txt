@@ -77,8 +77,8 @@ src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etit
 # property below is "" before the assignment, so `=` and `+=` finish identical.
 src/ui/client/admin/image-picker-template.ts::optionButton.item%2etitle~0ui2juv  = → += audited:0w9n4n2 # item.title: fresh button from createButton, "" before
 src/ui/client/admin/image-picker-template.ts::refusalMessage.template%2einnerHTML~1vmdtw6  = → += audited:0w9n4n2 # template.innerHTML: fresh template, "" before
-src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0r4ynj5 # image.alt: fresh element, "" before, and "" + "" is ""
-src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0r4ynj5 # image.src: fresh element, "" before
+src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0jgrbi1 # image.alt: fresh element, "" before, and "" + "" is ""
+src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0jgrbi1 # image.src: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
 # /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
 # (Number trims whitespace and "N." is the same decimal) — no typed input can
@@ -103,14 +103,14 @@ src/ui/client/admin/address-lookup.ts::addressOption.option%2etextContent~07nfll
 # whose empty initial value makes assign and append identical.
 src/ui/client/admin/schema-atlas.ts::buildMachine.badge%2etextContent~0ipfp2l = → += audited:1lklx5e # a just-created SVG <text> has empty textContent, so append equals assign
 src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f = → += audited:1lklx5e # same: the <title> is fresh, so append equals assign
-src/ui/client/quantity-select.ts::showQuantitySelect.option%2evalue~0vl4jmp =→+= audited:1e7mtm9 # a fresh option starts with an empty value, so appending writes the same string
-src/ui/client/quantity-select.ts::showQuantitySelect.option%2etextContent~0c55drx =→+= audited:1e7mtm9 # a fresh option starts with empty text, so appending writes the same string
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2evalue~0vl4jmp =→+= audited:0m30ufc # a fresh option starts with an empty value, so appending writes the same string
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2etextContent~0c55drx =→+= audited:0m30ufc # a fresh option starts with empty text, so appending writes the same string
 
 # One answer takes the overlay's handlers away through the abort signal. A
 # handler left behind can only answer a question already settled: the resolve
 # is a no-op and hiding the hidden overlay is idempotent, so the live dialog
 # still answers exactly as it does with the removal in place.
-src/ui/client/confirm-dialog.ts::askOverlay.finish~1vwbyrm listeners.abort();→(removed) audited:1xcl2go # every answer already hid the overlay and resolved its own promise, so a surviving click or Escape handler reaches the next dialog as one more no-op beside the live handler
+src/ui/client/confirm-dialog.ts::askOverlay.finish~1vwbyrm listeners.abort();→(removed) audited:0j7s7sy # every answer already hid the overlay and resolved its own promise, so a surviving click or Escape handler reaches the next dialog as one more no-op beside the live handler
 
 # The camera page renders data-message-camera-denied with the same words as
 # the script's fallback, and server-rendered markup never sets an empty
@@ -188,10 +188,17 @@ src/ui/client/admin/listing-images.ts::chosenItem.button%2etextContent~0frpih7  
 # undefined. An object is never falsy, so both operators give the same value.
 src/ui/client/admin/listing-images.ts::setUpListingImages.reload.draft~06jz6of  ?? → ||  audited:15y3c6o   # find gives an option object or undefined, and an object is never falsy
 src/ui/client/admin/listing-images.ts::setUpListingImages.render~1gqg28i  ?? → ||  audited:15y3c6o   # served.get gives an element or undefined, and an element is never falsy
-src/ui/client/scan-flow.ts::ANSWER_WORDS.other~1tcdw7w  ?? → || audited:1lfwrpn   # the schema reads error as undefined or a non-empty string, so ?? and || pick the same side
+src/ui/client/scan-flow.ts::ANSWER_WORDS.other~1tcdw7w  ?? → || audited:1v6i0sj   # the schema reads error as undefined or a non-empty string, so ?? and || pick the same side
 
 # The dom helpers and the scanner service worker.
-src/ui/client/dom.ts::createHiddenInput.input%2ename~0c3eqyi =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
-src/ui/client/dom.ts::createHiddenInput.input%2evalue~1t6bjgm =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
-src/ui/client/dom.ts::csrfTokenFor~0yx2rmg ??→|| audited:0r4ynj5 # the field's value is a string, so ?? and || differ only on the empty string, which gives the same empty answer
-src/ui/client/scanner-sw.ts::networkFirst~0gf3pm3 ??→|| audited:027in26 # the cache answers a Response or nothing, and a Response is truthy, so ?? and || agree
+src/ui/client/dom.ts::createHiddenInput.input%2ename~0c3eqyi =→+= audited:0jgrbi1 # the new element's property starts empty, so adding to it equals setting it
+src/ui/client/dom.ts::createHiddenInput.input%2evalue~1t6bjgm =→+= audited:0jgrbi1 # the new element's property starts empty, so adding to it equals setting it
+src/ui/client/dom.ts::csrfTokenFor~0yx2rmg ??→|| audited:0jgrbi1 # the field's value is a string, so ?? and || differ only on the empty string, which gives the same empty answer
+src/ui/client/scanner-sw.ts::networkFirst~0gf3pm3 ??→|| audited:1jxp2qh # the cache answers a Response or nothing, and a Response is truthy, so ?? and || agree
+
+# The offline queue and UI: the settled rows are bare list items, so their
+# class writes start from the empty string. The door-key refusal stops the
+# page before any words show, and no test reads the browser console.
+src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2eclassName~1vuuwez =→+= audited:0r8y23p # the row has no class when it settles, so adding to its class equals setting it
+src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2eclassName~0jf4238 =→+= audited:0r8y23p # the row has no class when it settles, so adding to its class equals setting it
+src/ui/client/scanner-offline-ui.ts::doorKeyText~0d7kk5a The scanner page carries no data-door-cache-key→"" audited:1hygkbj # the throw stops the page before any words show, and no test reads the browser console

@@ -86,11 +86,11 @@ src/shared/db/images.ts::imageUseOrder.key~0srejmf  image_id → "" audited:1xm7
 
 # Group readers return truthy records and arrays. Their batch methods also make
 # an entry for each requested key before they read rows.
-src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → || audited:0n5yfdo # Map.get returns a Group object or undefined, and each Group object is truthy
-src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → || audited:0n5yfdo # entriesByGroup returns an array or undefined, and every array is truthy
-src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → || audited:0n5yfdo # blocked contains non-empty translated error strings, so both operators return the first error or null
-src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → || audited:0n5yfdo # Map.groupBy returns a GroupListing array or undefined, and every array is truthy
-src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → || audited:0n5yfdo # rowsByGroup has the same array-or-undefined domain
+src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → || audited:1qszyws # Map.get returns a Group object or undefined, and each Group object is truthy
+src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → || audited:1qszyws # entriesByGroup returns an array or undefined, and every array is truthy
+src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → || audited:1qszyws # blocked contains non-empty translated error strings, so both operators return the first error or null
+src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → || audited:1qszyws # Map.groupBy returns a GroupListing array or undefined, and every array is truthy
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → || audited:1qszyws # rowsByGroup has the same array-or-undefined domain
 src/shared/db/groups/membership/package-writes.ts::packageGroupMembersErrorTx~1ngldaa  ?? → || audited:02pv2yh # both guards return a non-empty translated error string or null, so either operator returns the first error or null
 
 # Accounting batch reads return arrays. An empty listing filter skips its SQL
@@ -214,8 +214,8 @@ src/shared/db/listing-relationship-validation.ts::listingById.listingPrices~0p5a
 
 src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → || audited:143g2p7 # read.one answers the row object or null, and every row object is truthy
 
-src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → || audited:1xidqhx # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
-src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0es0bjy false→true  audited:040fqxd   # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
+src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → || audited:0y10eiq # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
+src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0es0bjy false→true  audited:0y10eiq   # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
 
 # A booking event posts its legs once, together: the store rejects adding a
 # leg to an already-posted group (replay conflict), and mapBooking always
@@ -250,12 +250,12 @@ src/shared/db/users.ts::getUserAuthFieldsById~1cnuneu ??→||  audited:0wt82ga  
 src/shared/update.ts::readRecordedScriptCommit~0a5wpjt  ?? → || audited:0iassr4 # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 src/shared/update.ts::fetchLatestRelease.assetUrl~16g02qy  ?? → || audited:0iassr4 # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 src/shared/db/capacity.ts::buildCapacityCondition.conditionFor.excludeAttendeeId~1jgxbsh  ?? → || audited:13edx5i # excludeAttendeeId is an attendee row id or undefined. A row id starts at 1, so the only falsy value is the absent one.
-src/shared/db/groups.ts::memberQuantityStatement.quantity~0ajbifl ??→||  audited:1q6tf8u   # validated package quantities are positive integers, so zero never reaches this default
+src/shared/db/groups.ts::memberQuantityStatement.quantity~0ajbifl ??→||  audited:1qszyws   # validated package quantities are positive integers, so zero never reaches this default
 src/shared/db/prune.ts::paymentStatement~1oy3usg  charge.→ "" audited:1rsuobq # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
 src/shared/db/prune.ts::paymentStatement~0tukn2g  charge.→ "" audited:1rsuobq # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.paymentReference~10demh7 ??→||  audited:1drlsvd   # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.paymentReferenceIndex~0clq12z ??→||  audited:1drlsvd   # stored?.index is string | undefined with an empty-string fallback, so both operators agree on every value
-src/shared/db/attendees/queries.ts::getAttendeeRawByToken~101nq7k  ?? → || audited:0efbjcp # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
+src/shared/db/attendees/queries.ts::getAttendeeRawByToken~101nq7k  ?? → || audited:0y10eiq # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
 src/shared/db/select/expression.ts::and.needed~0czjub7  ?? → || audited:18f8anp # joinedByAnd holds an array or nothing for a condition, and every array is truthy
 src/shared/db/select/expression.ts::and~0es27cz  1 → 0 audited:18f8anp # With one needed condition, joinedBy returns that condition itself. The mutant records it as a list of itself, and the flatMap gives the same list for an unrecorded condition.
 src/shared/db/attributes.ts::buildAttributeGroups.group~1mkbbbm  ?? → || audited:107v3ak # Map.get answers a group object or undefined, and an object is never falsy

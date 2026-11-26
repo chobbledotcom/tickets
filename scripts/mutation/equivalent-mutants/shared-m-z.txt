@@ -238,7 +238,7 @@ src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~05pepwi  merge-cr
 # through ICU unchanged. The needsIcu entries fell out of this list when
 # direct tests started killing both string mutants, so they are gone.
 src/shared/rebrand.ts::buildReplacer.from~0hbvux2   → "mutated" audited:0dvk6sd # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
-src/shared/i18n.ts::parseAcceptLanguage.entries.lang~1poz3xi   → "mutated" audited:1tdq4dz # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts::parseAcceptLanguage.entries.lang~1poz3xi   → "mutated" audited:0tnrgce # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
 # A header part without "=" has no value. Its key cannot affect timestamp or
 # signature state: a timestamp assignment remains undefined and a v1 signature
