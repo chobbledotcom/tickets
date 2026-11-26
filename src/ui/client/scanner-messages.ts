@@ -1,76 +1,51 @@
 /// <reference lib="dom" />
-/// <reference lib="dom.iterable" />
-// Browser-only code - shared wording helpers for the scanner bundle and its
-// offline module. The page hands the client its words as `data-message-*`
-// attributes. A lookup that misses falls back to the same words the page
-// renders.
+/** How a scanner page shows one outcome to the door. The camera's status
+ * sits over the video and fades out after a success or a warning. The
+ * manual check-in's status sits under its form. Both paint the same way,
+ * each with its own class prefix. */
 
-import { lazyRef } from "#fp";
+/** The kind of one outcome, which picks its colour. */
+export type StatusType = "success" | "warning" | "error";
 
-/** The words the page renders, keyed by their `data-message-*` name. */
-export type Messages = Readonly<Record<string, string | undefined>>;
+/** How a page reports one outcome to the door. */
+export type Say = (text: string, type: StatusType) => void;
 
-/** The colours a status line shows. */
-export type StatusType = "error" | "success" | "warning";
-
-/** The values that fill a message's holes, keyed by hole name. */
-type Values = Readonly<Record<string, number | string | undefined>>;
-
-/** Fill a message template's `{name}`-style holes. */
-const interpolate = (template: string, values: Values): string =>
-  template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
-
-export const getMessage = (
-  messages: Messages,
-  key: string,
-  fallback: string,
-): string => messages[key] ?? fallback;
-
-/** One message with its holes filled: the page's own words, or the fallback
- * words when the page carries none. */
-export const formatMessage = (
-  messages: Messages,
-  key: string,
-  fallback: string,
-  values: Values,
-): string => interpolate(getMessage(messages, key, fallback), values);
-
-export const formatTicketCount = (
-  messages: Messages,
-  count: number,
-): string => {
-  const safeCount = Number.isFinite(count) ? count : 1;
-  const key =
-    safeCount === 1 ? "messageTicketCountOne" : "messageTicketCountOther";
-  return formatMessage(messages, key, "{count} ticket", { count: safeCount });
-};
-
+/** How long a camera status stays before it fades, in milliseconds. */
 export const FADE_DELAY_MS = 5000;
 
-const [getFadeTimer, setFadeTimer] = lazyRef(() => 0);
+const STATUS_TYPES: readonly StatusType[] = ["success", "warning", "error"];
 
-/** Show a status message with color via CSS classes */
-export const showStatus = (
+/** Paint one outcome on a status element whose classes start with
+ * `prefix`. */
+export const paintStatus = (
   el: HTMLElement,
-  message: string,
+  prefix: string,
+  text: string,
   type: StatusType,
 ): void => {
-  clearTimeout(getFadeTimer());
-  el.textContent = message;
+  el.textContent = text;
   el.classList.remove(
     "hidden",
-    "scanner-status-success",
-    "scanner-status-warning",
-    "scanner-status-error",
-    "scanner-status-fade-out",
+    `${prefix}-fade-out`,
+    ...STATUS_TYPES.map((kind) => `${prefix}-${kind}`),
   );
-  el.classList.add("scanner-status", `scanner-status-${type}`);
+  el.classList.add(prefix, `${prefix}-${type}`);
+};
 
-  if (type === "success" || type === "warning") {
-    setFadeTimer(
-      setTimeout(() => {
-        el.classList.add("scanner-status-fade-out");
-      }, FADE_DELAY_MS),
-    );
+const fade = { timer: 0 };
+
+/** Show one outcome on the camera's status. A success or a warning fades
+ * out after `FADE_DELAY_MS`. An error stays until the next outcome. */
+export const showStatus = (
+  el: HTMLElement,
+  text: string,
+  type: StatusType,
+): void => {
+  clearTimeout(fade.timer);
+  paintStatus(el, "scanner-status", text, type);
+  if (type !== "error") {
+    fade.timer = setTimeout(() => {
+      el.classList.add("scanner-status-fade-out");
+    }, FADE_DELAY_MS);
   }
 };

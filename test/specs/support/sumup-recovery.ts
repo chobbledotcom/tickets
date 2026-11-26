@@ -7,13 +7,13 @@
  */
 
 import { expect } from "@std/expect";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import {
   openSumupHostedCheckout,
   type PublicPurchase,
   sellAndFillPublicBooking,
 } from "#test/specs/support/refund-safety/journeys.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import {
   makeSumupCheckoutDue,
   withSumupCheckoutStatus,

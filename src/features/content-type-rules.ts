@@ -11,9 +11,10 @@ export const lowerContentType = (request: Request): string =>
 const isWebhookPath = (path: string): boolean =>
   path === "/payment/webhook" || path === "/sms/webhook";
 
-/** Scan paths. The scanner posts JSON check-ins and reads its offline ticket
- *  cache as JSON. */
-const SCAN_API_PATTERN = /^\/admin\/(listing|groups)\/\d+\/scan(?:-cache)?$/;
+/** Scan paths. The scanner posts JSON check-ins, reads its offline ticket
+ * cache as JSON, and asks its name search for JSON. */
+const SCAN_API_PATTERN =
+  /^\/admin\/(listing|groups)\/\d+\/scan(?:-cache|-search)?$/;
 
 /** Public API paths. */
 const API_PATH_PATTERN = /^\/api\//;

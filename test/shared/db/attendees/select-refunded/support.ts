@@ -10,12 +10,12 @@ import { transfersByAccount } from "#accounting/queries.ts";
 import { postTransferGroups } from "#accounting/store.ts";
 import type { CreateAttendeeResult } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb, withTransaction } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import {
   createDailyTestListing,
   createTestListing,

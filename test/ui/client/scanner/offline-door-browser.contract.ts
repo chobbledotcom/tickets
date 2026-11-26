@@ -46,7 +46,7 @@ import {
   type SeededDoor,
   seedDoor,
   storedCacheEntries,
-  waitDoorCacheStored,
+  turnOfflineModeOn,
 } from "./offline-door-support.ts";
 
 describeWithBrowser(
@@ -134,7 +134,7 @@ describeWithBrowser(
       });
       try {
         expect(await bannerHidden(page)).toBe(true);
-        await waitDoorCacheStored(page, door);
+        await turnOfflineModeOn(page, door);
         await setConnection(page, false);
         expect(await bannerHidden(page)).toBe(false);
         expect(await bannerText(page)).toBe(
@@ -156,10 +156,11 @@ describeWithBrowser(
         Ada: door.attendee.ticket_token,
       });
       try {
-        await waitDoorCacheStored(page, door);
-        // The switch starts off, and arming it stores the position.
+        // The switch starts off, and arming it downloads the list and
+        // stores the position.
         expect(await togglePressed(page)).toBe("false");
-        await page.click("#scanner-offline-toggle");
+        await turnOfflineModeOn(page, door);
+        await statusShows(page, t("admin.scanner.offline_ready"));
         expect(await togglePressed(page)).toBe("true");
         expect(await bannerText(page)).toBe(
           t("admin.scanner.offline_banner_manual"),
@@ -190,8 +191,9 @@ describeWithBrowser(
         await syncChecksTheScanIn(page, door, deliveries);
 
         // The reload restores the switch the door armed, the mode's words,
-        // and the emptied queue.
+        // and the emptied queue, and downloads a fresh list.
         await page.reload();
+        await statusShows(page, t("admin.scanner.offline_ready"));
         expect(await togglePressed(page)).toBe("true");
         expect(await bannerText(page)).toBe(
           t("admin.scanner.offline_banner_manual"),
@@ -217,7 +219,7 @@ describeWithBrowser(
         Bea: bea.ticket_token,
       });
       try {
-        await waitDoorCacheStored(page, door);
+        await turnOfflineModeOn(page, door);
 
         // Ada's delivery lands on a booking another check-in emptied while
         // the connection was down: the door named two people, none got in.

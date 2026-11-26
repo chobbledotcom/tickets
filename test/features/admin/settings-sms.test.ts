@@ -26,7 +26,7 @@ const FLASH_TARGET =
 const SMS_FIELDS = [
   ["smsGatewayUsername", "Phone app username"],
   ["smsGatewayPassword", "Phone app password"],
-  ["smsGatewayWebhookSecret", "Webhook signing secret (optional)"],
+  ["smsGatewayWebhookSecret", "Webhook signing secret"],
   ["smsGatewayPassphrase", "End-to-end key (passphrase)"],
 ] as const;
 

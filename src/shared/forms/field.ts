@@ -82,6 +82,9 @@ interface FieldBase<
    *  `data-exclusive-*` attributes the client script reads. */
   exclusive?: ExclusivePair | undefined;
   hint?: string;
+  /** Draw the plain hint above the control, directly under the label. The
+   *  HTML hint stays below the control. */
+  hintFirst?: boolean;
   hintHtml?: string;
   id?: string;
   inputmode?: string;

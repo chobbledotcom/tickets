@@ -25,7 +25,7 @@ describe("getContactEmailForm", () => {
     // leave an "email" value behind, so the echo would appear here if the
     // slot leaked across requests.
     expect(await withRequestContext(() => getContactEmailForm().render())).toBe(
-      '<label>Your email address<input autocomplete="email" maxlength="250" name="email" required type="email"></label>',
+      '<label>Your email address<span aria-hidden="true" class="field-requirement">*</span><span class="visually-hidden">Required</span><input autocomplete="email" maxlength="250" name="email" required type="email"></label>',
     );
   });
 

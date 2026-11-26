@@ -27,7 +27,6 @@ import {
 import { settingsSectionWith } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { textareaBody } from "#templates/components/textarea.tsx";
-import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 
 type StateFieldOf<Value> = Value extends {
   stateField: infer Field extends string;
@@ -177,9 +176,11 @@ const booleanForm = (
 ): JSX.Element =>
   formSection(
     definition,
-    <YesNoRadios
+    <SettingsCheckbox
+      checked={booleanState(state, definition.stateField)}
+      label={t("common.enabled")}
+      labelClass="checkbox"
       name={definition.fieldName}
-      on={booleanState(state, definition.stateField)}
     />,
   );
 

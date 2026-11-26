@@ -7,7 +7,6 @@ import {
   revenueAccount,
 } from "#accounting/accounts.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
@@ -34,6 +33,7 @@ import {
 } from "#test/specs/support/money-reads.ts";
 import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
 import { accountBalance } from "#test-utils/account-balance.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { singleItem } from "#test-utils/factories.ts";
 
 const FREE_MEETUP = "Free Meetup";

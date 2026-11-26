@@ -10,13 +10,14 @@
  */
 
 import * as v from "valibot";
+import { integerAtLeast } from "#shared/validation/number.ts";
 
 /** The months one purchased unit buys. */
 const MonthsUnitSchema = v.object({
   kind: v.literal("months"),
   // A term is a positive whole number of months — the schema's own rule, read
   // through monthsUnitOrNull wherever a term is stated.
-  monthsPerUnit: v.pipe(v.number(), v.safeInteger(), v.minValue(1)),
+  monthsPerUnit: integerAtLeast(1),
 });
 
 /** What one purchased unit buys. */

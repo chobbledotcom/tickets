@@ -42,7 +42,7 @@ describe("renderField", () => {
         '<A&B">',
       ),
     ).toBe(
-      '<label>Name<input autocomplete="name" autofocus id="name-id" inputmode="text" max="9" maxlength="8" min="1" minlength="2" name="name" pattern="[A-Z]+" placeholder="Enter name" required title="Uppercase letters" type="text" value="&lt;A&amp;B&quot;&gt;"><small>Plain hint</small><small><b>Trusted hint</b></small></label>',
+      '<label>Name<span aria-hidden="true" class="field-requirement">*</span><span class="visually-hidden">Required</span><input autocomplete="name" autofocus id="name-id" inputmode="text" max="9" maxlength="8" min="1" minlength="2" name="name" pattern="[A-Z]+" placeholder="Enter name" required title="Uppercase letters" type="text" value="&lt;A&amp;B&quot;&gt;"><small>Plain hint</small><small><b>Trusted hint</b></small></label>',
     );
   });
 
@@ -68,7 +68,7 @@ describe("renderField", () => {
     {
       description: "markdown textarea attributes and an escaped value",
       expected:
-        '<label>Bio<textarea autocomplete="off" data-markdown-preview id="bio-id" maxlength="10" name="bio" placeholder="Write" required>A &lt; B</textarea></label>',
+        '<label>Bio<span aria-hidden="true" class="field-requirement">*</span><span class="visually-hidden">Required</span><textarea autocomplete="off" data-markdown-preview id="bio-id" maxlength="10" name="bio" placeholder="Write" required>A &lt; B</textarea></label>',
       field: field({
         autocomplete: "off",
         id: "bio-id",
@@ -95,6 +95,20 @@ describe("renderField", () => {
     });
   }
 
+  test("draws a first hint above the control", () => {
+    expect(
+      rendered({
+        hint: "Shown first",
+        hintFirst: true,
+        label: "Bio",
+        name: "bio",
+        type: "textarea",
+      }),
+    ).toBe(
+      '<label>Bio<small>Shown first</small><textarea maxlength="10240" name="bio"></textarea></label>',
+    );
+  });
+
   test("renders file attributes exactly", () => {
     expect(
       rendered({
@@ -106,7 +120,7 @@ describe("renderField", () => {
         type: "file",
       }),
     ).toBe(
-      '<label>Image<input accept="image/png" id="image-id" name="image" required type="file"></label>',
+      '<label>Image<span aria-hidden="true" class="field-requirement">*</span><span class="visually-hidden">Required</span><input accept="image/png" id="image-id" name="image" required type="file"></label>',
     );
   });
 
@@ -128,7 +142,7 @@ describe("renderField", () => {
           "blue",
         ),
       ).toBe(
-        '<label>Shade<select name="shade" id="shade-id" required><option value="red">Red</option><option value="blue" selected>Blue</option></select></label><ul><li><strong>Red:</strong> Warm</li></ul>',
+        '<label>Shade<span aria-hidden="true" class="field-requirement">*</span><span class="visually-hidden">Required</span><select name="shade" id="shade-id" required><option value="red">Red</option><option value="blue" selected>Blue</option></select></label><ul><li><strong>Red:</strong> Warm</li></ul>',
       );
     });
 
@@ -178,19 +192,19 @@ describe("renderField", () => {
 
     test("uses commas as delimiters and trims each selected value", () => {
       expect(renderField(days, "Monday, Wednesday")).toBe(
-        '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday" checked> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday" checked> Wednesday</label></fieldset></label>',
+        '<fieldset><legend>Days</legend><div class="checkboxes"><label><input type="checkbox" name="days" value="Monday" checked> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday" checked> Wednesday</label></div></fieldset>',
       );
     });
 
     test("renders no checked attributes for an empty value", () => {
       expect(renderField(days, "")).toBe(
-        '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday"> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday"> Wednesday</label></fieldset></label>',
+        '<fieldset><legend>Days</legend><div class="checkboxes"><label><input type="checkbox" name="days" value="Monday"> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday"> Wednesday</label></div></fieldset>',
       );
     });
 
     test("renders a declared either/or pair as the attributes the client reads, onto every checkbox of the group", () => {
       const expected =
-        '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday" data-exclusive-why="One cancels the other" data-exclusive-with="can_pay_more"> Monday</label></fieldset></label>';
+        '<fieldset><legend>Days</legend><div class="checkboxes"><label><input type="checkbox" name="days" value="Monday" data-exclusive-why="One cancels the other" data-exclusive-with="can_pay_more"> Monday</label></div></fieldset>';
       const days = field({
         exclusive: {
           other: "can_pay_more",
@@ -254,7 +268,7 @@ describe("renderField", () => {
           "12.34",
         ),
       ).toBe(
-        '<label>Fee<input id="fee-id" inputmode="decimal" min="0" name="fee" required step="0.01" type="number" value="12.34"></label>',
+        '<label>Fee<span aria-hidden="true" class="field-requirement">*</span><span class="visually-hidden">Required</span><input id="fee-id" inputmode="decimal" min="0" name="fee" required step="0.01" type="number" value="12.34"></label>',
       );
     });
 

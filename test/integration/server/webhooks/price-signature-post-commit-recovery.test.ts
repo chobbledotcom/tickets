@@ -6,7 +6,6 @@ import { allTransfers } from "#accounting/queries.ts";
 import { legReference } from "#accounting/refs.ts";
 import { encrypt } from "#crypto/encryption.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { builtSites } from "#db/built-sites.ts";
 import {
   readCheckoutAnswers,
@@ -32,6 +31,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson, expectIncludesAll } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import {
   freeTextQuestionsOn,
   seedQuestion,

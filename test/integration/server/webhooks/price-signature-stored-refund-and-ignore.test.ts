@@ -4,7 +4,6 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getNoteRows, getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
@@ -24,6 +23,7 @@ import {
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
