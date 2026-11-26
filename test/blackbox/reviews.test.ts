@@ -77,6 +77,13 @@ const deleteReview = async (app: App, name: string): Promise<Page> =>
   );
 
 describeWithEnv("the reviews page", { db: true }, () => {
+  test("starts with no reviews", () =>
+    withReviews(async (app) => {
+      const list = await app.get("/admin/site/reviews");
+      expectIncludesAll(list.html, ["No reviews yet."]);
+      expect((await app.get("/reviews")).status).toBe(404);
+    }));
+
   test("shows a saved review on the public page", () =>
     withReviews(async (app) => {
       await addReview(

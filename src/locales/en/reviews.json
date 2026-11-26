@@ -35,5 +35,5 @@
   "reviews.col.date": "Date",
   "reviews.col.url": "Review URL",
   "reviews.guide_link": "Reviews guide",
-  "reviews.guide_answer": "<p>Reviews are comments from your customers. They show on a page of their own when you turn them on. Each review shows the person's name, a star rating, the date, and what they wrote.</p><p>Open <a href=\"/admin/settings\">Settings</a>, then <strong>Features</strong>, and set <strong>Reviews</strong> to Enabled. A Reviews link then appears in the public site menu.</p><p>Open <a href=\"/admin/site/reviews\">Site &rarr; Reviews</a> to add, change, or delete a review. The page starts with one sample review.</p>"
+  "reviews.guide_answer": "<p>Reviews are comments from your customers. They show on a page of their own when you turn them on. Each review shows the person's name, a star rating, the date, and what they wrote.</p><p>Open <a href=\"/admin/settings\">Settings</a>, then <strong>Features</strong>, and set <strong>Reviews</strong> to Enabled. A Reviews link then appears in the public site menu.</p><p>Open <a href=\"/admin/site/reviews\">Site &rarr; Reviews</a> to add, change, or delete a review.</p>"
 }

@@ -155,7 +155,7 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     () => import("./2026-11-24_subscription_index.ts"),
   ),
   // Customer reviews: a sealed row per review, with a unique blind index over
-  // the review URL. One sample row shows the public page.
+  // the review URL.
   entry("2026-11-26_reviews", () => import("./2026-11-26_reviews.ts")),
 ];
 /* jscpd:ignore-end */
