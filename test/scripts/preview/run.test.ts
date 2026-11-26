@@ -121,12 +121,12 @@ describe("runPreview", () => {
       ]);
       expect(reads).toEqual(["bundle.ts"]);
       expect(bunny.scripts.get(1)?.code).toBe("bundle code");
-      expect(bunny.scripts.get(1)?.secrets.get("DB_ENCRYPTION_KEY")).toBe(
-        "encryption-key",
-      );
-      expect(bunny.scripts.get(1)?.secrets.get("SCHEDULED_TASK_KEY")).toBe(
-        "task-key",
-      );
+      const secrets = bunny.scripts.get(1)?.secrets;
+      expect(
+        ["DB_ENCRYPTION_KEY", "SCHEDULED_TASK_KEY", "BUNNY_API_KEY"].map(
+          (name) => secrets?.get(name),
+        ),
+      ).toEqual(["encryption-key", "task-key", "staging-key"]);
     });
 
     test("names the preview and says whether it published", async () => {
