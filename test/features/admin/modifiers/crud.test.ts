@@ -180,12 +180,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       [
         "rejects a max times per order below 1",
         { maxPerOrder: "0", trigger: "answer" },
-        "Max times per order (optional) must be 1 or greater",
+        "Max times per order must be 1 or greater",
       ],
       [
         "rejects a fractional max times per order",
         { maxPerOrder: "1.5", trigger: "answer" },
-        "Max times per order (optional) must be a whole number",
+        "Max times per order must be a whole number",
       ],
     ]);
 

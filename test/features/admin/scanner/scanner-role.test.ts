@@ -34,7 +34,7 @@ import {
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { doorPage, groupDoor } from "./support.ts";
+import { doorCachePage, doorSearch, groupDoor } from "./support.ts";
 
 /** A live door scan sent as a scanner session, the page's own script's shape. */
 const scanAsScanner = async (
@@ -151,14 +151,16 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
       scanner.cookie,
     );
     expect(page.status).toBe(404);
-    // The door's scan API refuses the same listing: the app's ticket-QR path
-    // never marks a no-check-in row as attended, and neither does the door.
+    // The door's scan API refuses the same listing the way every other
+    // listing-door route does: the listing has no door, so the scan meets
+    // the same 404 as an unknown listing, and no row is ever touched.
     const scan = await scanAsScanner(
       `/admin/listing/${listing.id}/scan`,
       scanner.cookie,
       token,
     );
-    expect((await scan.json()).status).toBe("wrong_listing");
+    expect(scan.status).toBe(404);
+    expect((await scan.json()).status).toBe("not_found");
     // The booking row is still there, and still unchecked.
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
   });
@@ -211,6 +213,32 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     expect(json.status).toBe("checked_in");
   });
 
+  test("counts one check-in the same online and offline when days and listings disagree", async () => {
+    const { group, members } = await groupDoor(2, {
+      bookableDays: allDays,
+      listingType: "daily",
+      maximumDaysAfter: 60,
+      minimumDaysBefore: 0,
+    });
+    const today = testDate(todayInTz(settings.timezone));
+    // The first listing's place is the later day, so the booking's first
+    // line by day is on the second listing. A check-in at this door admits
+    // that line's three places, online and offline alike.
+    await bookTestAttendee(
+      [
+        { date: addDays(today, 12), listingId: members[0]!.id, quantity: 2 },
+        { date: addDays(today, 10), listingId: members[1]!.id, quantity: 3 },
+      ],
+      "Sam",
+      "sam@example.com",
+    );
+
+    const [found] = await doorSearch(group.id, "Sam");
+    const { entries } = await doorCachePage(group.id);
+    expect(entries.map((entry) => entry.quantity)).toEqual([3]);
+    expect(found!.quantity).toBe(3);
+  });
+
   test("names the same-named picks apart by their day and listing on a group door", async () => {
     const { group, members } = await groupDoor(
       2,
@@ -244,11 +272,21 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
       "ada-society@test.com",
     );
 
-    const body = await doorPage(group.id);
-    expectIncludesAll(body, [
-      `Ada (2 tickets) — Standard · ${formatDateLabel(firstDay)}`,
-      `Ada (2 tickets) — Society · ${formatDateLabel(addDays(testDate(firstDay), 1))}`,
-    ]);
+    const found = await doorSearch(group.id, "Ada");
+    expect(
+      found.map(({ details, quantity }) => ({ details, quantity })),
+    ).toEqual(
+      expect.arrayContaining([
+        { details: [`Standard · ${formatDateLabel(firstDay)}`], quantity: 2 },
+        {
+          details: [
+            `Society · ${formatDateLabel(addDays(testDate(firstDay), 1))}`,
+          ],
+          quantity: 2,
+        },
+      ]),
+    );
+    expect(found).toHaveLength(2);
   });
 
   test("an editor and an agent are refused every door and every scan", async () => {
@@ -265,6 +303,8 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
       "/admin/scanner",
       `/admin/listing/${listing.id}/scanner`,
       `/admin/groups/${group.id}/scanner`,
+      `/admin/listing/${listing.id}/scan-cache`,
+      `/admin/groups/${group.id}/scan-cache`,
     ];
     for (const { cookie } of [editor, agent]) {
       for (const path of doorPaths) {

@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { tables } from "#db/select/tables.ts";
@@ -11,7 +10,10 @@ import {
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendee,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
   deactivateTestListing,

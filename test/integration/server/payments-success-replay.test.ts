@@ -284,7 +284,9 @@ const expectSuccessCase = async (c: SuccessCase): Promise<void> => {
   if (c.oneAttendee === true) {
     // Both requests booked the same payment, so the order stays the one
     // attendee it bought.
-    const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+    const { getAttendeesRaw } = await import(
+      "#test-utils/db-helpers/attendees.ts"
+    );
     expect(await getAttendeesRaw(listings[0]!.id)).toHaveLength(1);
   }
 };

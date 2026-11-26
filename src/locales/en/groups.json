@@ -42,7 +42,7 @@
   "fields.group.name": "Group Name",
   "fields.group.name_placeholder": "Summer Fete",
   "fields.group.description_hint": "Shown on the public page.",
-  "fields.group.terms": "Terms and Conditions (optional)",
+  "fields.group.terms": "Terms and Conditions",
   "fields.group.terms_hint": "If set, overrides the global terms and conditions for this group ticket page",
   "fields.group.max_attendees": "Max attendees",
   "fields.group.max_attendees_hint": "Limits total attendees across all listings in this group. Type 0 for no limit. Works best when all listings in the group are the same type (daily or standard).",

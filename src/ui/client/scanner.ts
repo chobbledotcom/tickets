@@ -1,269 +1,291 @@
 /// <reference lib="dom" />
-/// <reference lib="dom.iterable" />
-// Browser-only code - bundled with jsQR by scripts/build-edge.ts
-import jsQR, { type QRCode } from "jsqr";
+// Browser-only code - bundled with jsQR by scripts/build-static-assets.ts
+import jsQRModule from "jsqr";
+import * as v from "valibot";
+import {
+  ScannerWordsSchema,
+  type Wording,
+  wordingOf,
+} from "#shared/scanner-words.ts";
+import { initManualCheckin } from "./admin/manual-checkin.ts";
 import { showConfirm } from "./confirm-dialog.ts";
+import { requiredAttribute, requiredById, requiredChild } from "./dom.ts";
 import {
-  admitScan,
-  askIdCheck,
-  handleResult,
-  postScan,
+  CAMERA_ASKS,
+  type Given,
+  QUEUE_ASKS,
+  type Settled,
+  settleScan,
+} from "./scan-asks.ts";
+import {
+  browserDialogs,
+  failLoudly,
   postScanBody,
-} from "./scanner-admit.ts";
-import type { ScanAnswer } from "./scanner-answer.ts";
-import {
-  FADE_DELAY_MS,
-  getMessage,
-  type Messages,
-  showStatus,
-} from "./scanner-messages.ts";
+  sayAnswer,
+  settleLiveScan,
+} from "./scan-flow.ts";
+import { FADE_DELAY_MS, type Say, showStatus } from "./scanner-messages.ts";
 import {
   isSyncing,
   offlineModeActive,
   type QueuedCheckIn,
+  UnreadableQueueError,
 } from "./scanner-offline.ts";
-import type { QueuePanel } from "./scanner-offline-sync.ts";
-import { initOfflineScanner, offlineScan } from "./scanner-offline-ui.ts";
+import {
+  initOfflineScanner,
+  offlinePeople,
+  offlineScan,
+  type QueuePanel,
+} from "./scanner-offline-ui.ts";
+
+/** What the bundle reads from one decoded QR code. */
+const DecodedSchema = v.nullable(v.object({ data: v.string() }));
+
+/** The text of the QR code in one frame, or null when it holds none. The
+ * package's types describe a default export, but its CommonJS build
+ * exports the decoder itself, so the bundle checks what it got. */
+const decodeQrOrNull = (image: ImageData): string | null => {
+  const decoder: unknown = jsQRModule;
+  if (typeof decoder !== "function") {
+    throw new Error("The jsqr package exports no decoder function");
+  }
+  return (
+    v.parse(DecodedSchema, decoder(image.data, image.width, image.height))
+      ?.data ?? null
+  );
+};
 
 const COOLDOWN_MS = 2000;
 const SCAN_INTERVAL_MS = 150;
 
-/** Extract ticket token from a checkin URL or raw token string */
+const CHECKIN_PATH = /^\/checkin\/([^/]+)$/;
+const RAW_TOKEN = /^[A-Za-z0-9_-]{8,}$/;
+
+/** The ticket token a QR code holds: the token in a check-in URL, or a raw
+ * token. Null for any other code. */
 const extractToken = (data: string): string | null => {
-  try {
-    const url = new URL(data);
-    const match = url.pathname.match(/^\/checkin\/([^/]+)$/);
-    return match?.[1] ?? null;
-  } catch {
-    // Not a URL - could be a raw token
-    return /^[A-Za-z0-9_-]{8,}$/.test(data) ? data : null;
-  }
+  if (!URL.canParse(data)) return RAW_TOKEN.test(data) ? data : null;
+  return new URL(data).pathname.match(CHECKIN_PATH)?.[1] ?? null;
 };
 
-/** Main scanner loop */
-const startScanner = (
-  video: HTMLVideoElement,
-  canvas: HTMLCanvasElement,
-  statusEl: HTMLElement,
+/** Post one live scan with every answer the door gave so far. */
+const postScan = (
   scanPath: string,
+  token: string,
   csrfToken: string,
-  messages: Messages,
-  panel: QueuePanel | null,
-): void => {
-  // A canvas the page just made always hands out its first 2d context.
-  const ctx = canvas.getContext("2d")!;
-  let lastScanTime = 0;
-  let processing = false;
-  let lastToken: string | null = null;
-  let lastTokenTimer = 0;
+  given: Given,
+) => postScanBody(scanPath, csrfToken, { ...given, token });
 
-  /** Settle one scanned token. A running sync holds the scans, so one
-   * overlay asks one question at a time. The ignored scan gets words, or the
-   * silence reads as an admission. The door rescans when the queue is done. */
-  const settleScan = (token: string): Promise<unknown> => {
-    if (isSyncing()) {
-      showStatus(
-        statusEl,
-        getMessage(
-          messages,
-          "messageSyncHolds",
-          "Checking in queued tickets. Scan again when done.",
-        ),
-        "warning",
-      );
-      return Promise.resolve();
-    }
-    if (panel && offlineModeActive()) {
-      return offlineScan(scanPath, token, statusEl, messages, panel);
-    }
-    return admitScan(scanPath, token, csrfToken, statusEl, messages);
+/** Scan one token and settle it with the door. A wrong listing asks to
+ * widen the door, an ID check confirms the person, and a quantity ask
+ * picks how many places this scan admits. */
+const admitScan = async (
+  scanPath: string,
+  token: string,
+  csrfToken: string,
+  say: Say,
+  wording: Wording,
+): Promise<Settled> =>
+  settleLiveScan(
+    (given) => postScan(scanPath, token, csrfToken, given),
+    CAMERA_ASKS,
+    { say, wording },
+  );
+
+/** What the camera loop needs from the page. */
+type CameraPage = {
+  csrfToken: string;
+  reportFailure: (error: unknown) => void;
+  /** The offline side's queue, or null when it did not start. */
+  panel: QueuePanel | null;
+  say: Say;
+  scanPath: string;
+  wording: Wording;
+};
+
+/** Settle one decoded token: the offline queue takes it while offline mode
+ * settles the door, and a running sync holds it. The held scan gets words,
+ * or the silence reads as an admission. */
+const settleToken = (page: CameraPage, token: string): Promise<unknown> => {
+  if (isSyncing()) {
+    page.say(page.wording.word("syncHolds"), "warning");
+    return Promise.resolve();
+  }
+  return page.panel !== null && offlineModeActive(page.scanPath)
+    ? offlineScan(
+        { panel: page.panel, scanPath: page.scanPath, wording: page.wording },
+        token,
+        page.say,
+      )
+    : admitScan(page.scanPath, token, page.csrfToken, page.say, page.wording);
+};
+
+/** The camera loop: decode a frame, settle a new token, and wait. A token
+ * scanned again within the fade window is the same scan. */
+const startScanner = (video: HTMLVideoElement, page: CameraPage): void => {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (ctx === null) throw new Error("The canvas gives no 2d context");
+  const state = {
+    forgetTimer: 0,
+    lastScanTime: 0,
+    lastToken: "",
+    processing: false,
   };
+  const again = () => setTimeout(scan, SCAN_INTERVAL_MS);
 
-  const scan = (): void => {
-    if (video.readyState < video.HAVE_ENOUGH_DATA) {
-      setTimeout(scan, SCAN_INTERVAL_MS);
-      return;
-    }
-
+  /** The token of the frame the camera shows, or null when it holds none. */
+  const frameCodeOrNull = (): string | null => {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);
+    return decodeQrOrNull(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  };
 
-    if (processing || Date.now() - lastScanTime < COOLDOWN_MS) {
-      setTimeout(scan, SCAN_INTERVAL_MS);
-      return;
+  const scan = (): void => {
+    const cooling = Date.now() - state.lastScanTime < COOLDOWN_MS;
+    const waiting = video.readyState < video.HAVE_ENOUGH_DATA;
+    const code =
+      waiting || state.processing || cooling ? null : frameCodeOrNull();
+    if (code === null) return void again();
+    const token = extractToken(code);
+    if (token === null) {
+      state.lastScanTime = Date.now();
+      page.say(page.wording.word("invalidQr"), "error");
+      return void again();
     }
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    // @ts-expect-error The jsQR typings call this import a module, but the bundler unwraps it to the function.
-    const code: QRCode | null = jsQR(
-      imageData.data,
-      imageData.width,
-      imageData.height,
-    );
-
-    if (!code) {
-      setTimeout(scan, SCAN_INTERVAL_MS);
-      return;
-    }
-
-    const token = extractToken(code.data);
-    if (!token) {
-      showStatus(
-        statusEl,
-        getMessage(messages, "messageInvalidQr", "Invalid QR code"),
-        "error",
-      );
-      lastScanTime = Date.now();
-      setTimeout(scan, SCAN_INTERVAL_MS);
-      return;
-    }
-
-    if (token === lastToken) {
-      setTimeout(scan, SCAN_INTERVAL_MS);
-      return;
-    }
-
-    processing = true;
-    lastScanTime = Date.now();
-    clearTimeout(lastTokenTimer);
-    lastToken = token;
-    lastTokenTimer = setTimeout(() => {
-      lastToken = null;
+    if (token === state.lastToken) return void again();
+    state.lastScanTime = Date.now();
+    state.processing = true;
+    state.lastToken = token;
+    // Each new token restarts the window in which a rescan is the same scan.
+    clearTimeout(state.forgetTimer);
+    state.forgetTimer = setTimeout(() => {
+      state.lastToken = "";
     }, FADE_DELAY_MS);
-
-    settleScan(token)
-      .catch(() => {
-        showStatus(
-          statusEl,
-          getMessage(messages, "messageNetworkError", "Network error"),
-          "error",
-        );
-      })
+    settleToken(page, token)
+      .catch(page.reportFailure)
       .finally(() => {
-        processing = false;
-        setTimeout(scan, SCAN_INTERVAL_MS);
+        state.processing = false;
+        again();
       });
   };
 
   scan();
 };
 
-/** Initialize scanner when DOM is ready */
-const init = (): void => {
-  const video = document.querySelector<HTMLVideoElement>("#scanner-video");
-  const canvas = document.createElement("canvas");
-  const statusEl = document.getElementById("scanner-status");
-  const startBtn = document.getElementById("scanner-start");
-  const scannerContainer = document.getElementById("scanner-container");
-  const scanPath = video?.dataset.scanPath;
-
-  if (!video || !statusEl || !startBtn || !scannerContainer || !scanPath) {
-    return;
+/** Start the page's offline side, or answer null after `sayUnreadable`
+ * when the device's stored queue is in a shape this page cannot read. The
+ * queue then stays as it is for a build that can read it, and the page
+ * scans online. Any other fault still stops the page. */
+const offlinePanelOrNull = (
+  start: () => QueuePanel,
+  sayUnreadable: () => void,
+): QueuePanel | null => {
+  try {
+    return start();
+  } catch (error) {
+    if (!(error instanceof UnreadableQueueError)) throw error;
+    sayUnreadable();
+    return null;
   }
+};
 
-  const messages = scannerContainer.dataset;
-
-  const csrfMeta = document.querySelector<HTMLMetaElement>(
+/** Wire one scanner page. The page always renders every element below. */
+const init = (): void => {
+  const container = requiredById<HTMLElement>("scanner-container");
+  const video = requiredById<HTMLVideoElement>("scanner-video");
+  const statusEl = requiredById<HTMLElement>("scanner-status");
+  const startBtn = requiredById<HTMLElement>("scanner-start");
+  const csrfToken = requiredChild<HTMLMetaElement>(
+    document,
     'meta[name="csrf-token"]',
+  ).content;
+  const scanPath = requiredAttribute(container, "data-scan-path");
+  const wording = wordingOf(
+    v.parse(
+      ScannerWordsSchema,
+      JSON.parse(requiredAttribute(container, "data-words")),
+    ),
   );
-  const csrfToken = csrfMeta?.content ?? "";
+  const say: Say = (text, type) => showStatus(statusEl, text, type);
+  const reportFailure = failLoudly(wording, say);
+  // A fault thrown in any listener on this page reaches the door too.
+  window.addEventListener("error", (event) => reportFailure(event.error));
+  window.addEventListener("unhandledrejection", (event) =>
+    reportFailure(event.reason),
+  );
 
-  /** Settle one queued check-in: its delivery names the ticket digest it
-   * stored, the operation id this one check-in answers by, and the people
-   * it admits. The server answers once per delivery — a resend repeats the
-   * first send's recorded admission. An ID check the door makes now rides
-   * the same delivery, so the answer stays one admission. */
-  const settleDelivery = async (item: QueuedCheckIn): Promise<ScanAnswer> => {
+  /** Settle one queued check-in. Its delivery names the ticket digest it
+   * stored, the id this one check-in answers by, and the people it admits.
+   * The server answers once per delivery, so a resend repeats the first
+   * send's admission. An ID check the door makes now rides the same
+   * delivery. */
+  const settleDelivery = async (item: QueuedCheckIn) => {
     const body = {
       operation_id: item.operationId,
       quantity: item.quantity,
       token_hash: item.tokenHash,
     };
-    const answer = await postScanBody(item.scanPath, csrfToken, body);
-    if (answer.status !== "verify_id") return answer;
-    const declined = await askIdCheck(statusEl, messages, answer);
-    return (
-      declined ??
-      postScanBody(item.scanPath, csrfToken, {
-        ...body,
-        id_verified: true,
-      })
+    const settled = await settleScan(
+      (given) => postScanBody(item.scanPath, csrfToken, { ...body, ...given }),
+      QUEUE_ASKS,
+      { dialogs: browserDialogs, say, wording },
     );
+    return settled.answer;
   };
 
-  // The offline side owns its own elements: the banner, the queue panel, and
-  // the door switch. It throws naming any one the page fails to render, and
-  // its door key needs an engine with Uint8Array.fromBase64. Either failure
-  // must not take the online scanner down with it: the offline side is
-  // optional furniture, so the page degrades to the online-only scanner.
-  let panel: QueuePanel | null = null;
-  try {
-    panel = initOfflineScanner({
-      messages,
-      scanPath,
-      settleDelivery,
-      statusEl,
-    });
-  } catch {
-    // The documented degrade: this page scans online only, as before the
-    // offline side existed.
-  }
+  const panel = offlinePanelOrNull(
+    () => initOfflineScanner({ say, scanPath, settleDelivery, wording }),
+    () => say(wording.word("offlineQueueUnreadable"), "error"),
+  );
+  initManualCheckin({
+    csrfToken,
+    offline:
+      panel === null ? null : offlinePeople({ panel, scanPath, wording }),
+    scanPath,
+    searchPath: requiredAttribute(container, "data-scan-search-path"),
+    wording,
+  });
 
-  /** The camera stream this page opened, held so the hardware can be
-   * released. */
-  let stream: MediaStream | null = null;
-
-  /** Stop all camera tracks to release the hardware */
-  const stopCamera = (): void => {
-    if (stream) {
-      for (const t of stream.getTracks()) {
-        t.stop();
-      }
+  // Release the camera when the door leaves the page, bfcache included.
+  document.addEventListener("pagehide", () => {
+    for (const track of (video.srcObject as MediaStream | null)?.getTracks() ??
+      []) {
+      track.stop();
     }
-  };
-
-  // Release camera when navigating away (including bfcache)
-  document.addEventListener("pagehide", stopCamera);
+  });
 
   startBtn.addEventListener("click", async () => {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
+      video.srcObject = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
-      video.srcObject = stream;
-      await video.play();
-      startBtn.classList.add("hidden");
-      video.classList.remove("hidden");
-      showStatus(
-        statusEl,
-        getMessage(messages, "messageScanning", "Scanning..."),
-        "success",
-      );
-      startScanner(
-        video,
-        canvas,
-        statusEl,
-        scanPath,
-        csrfToken,
-        messages,
-        panel,
-      );
     } catch {
-      showStatus(
-        statusEl,
-        getMessage(messages, "messageCameraDenied", "Camera access denied"),
-        "error",
-      );
+      // A refused or missing camera is the door's own setting to change.
+      say(wording.word("cameraDenied"), "error");
+      return;
     }
+    await video.play();
+    startBtn.classList.add("hidden");
+    video.classList.remove("hidden");
+    say(wording.word("scanning"), "success");
+    startScanner(video, {
+      csrfToken,
+      panel,
+      reportFailure,
+      say,
+      scanPath,
+      wording,
+    });
   });
 };
 
-// The page's only script tag is type="module", so the document has finished
-// parsing by the time this runs and init can start at once.
+// The page's only script tag is type="module", so the document is parsed
+// when this runs, and init can start at once.
 init();
 
-// The tail that makes this a module bundle (like the order widget's): the
-// served script tag is type="module", and these exports are the pieces the
-// direct test drives through the built bundle.
-export { admitScan, extractToken, handleResult, postScan, showConfirm };
+// The tail that makes this a module bundle. The served script tag is
+// type="module". The direct test drives these exports through the built
+// bundle.
+export { admitScan, extractToken, sayAnswer, showConfirm, showStatus };

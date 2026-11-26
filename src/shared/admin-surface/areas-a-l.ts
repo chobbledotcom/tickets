@@ -7,6 +7,7 @@
 import {
   OWNER_AUDIENCE,
   onePageAreas,
+  openInReadOnly,
 } from "#shared/admin-surface/definitions.ts";
 import {
   childWrites,
@@ -87,16 +88,14 @@ export const AREAS_A_L = {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/attendees/:attendeeId/payment-review",
       },
-      attendeeRefreshPayment: {
-        pattern: "/admin/attendees/:attendeeId/refresh-payment",
-        readOnlyWrite: "read-only",
-      },
+      attendeeRefreshPayment: openInReadOnly(
+        "/admin/attendees/:attendeeId/refresh-payment",
+      ),
       attendeeResend: "/admin/attendees/:attendeeId/resend-notification",
       listingAttendeeAdd: "/admin/listing/:listingId/attendee",
-      listingAttendeeCheckin: {
-        pattern: "/admin/listing/:listingId/attendee/:attendeeId/checkin",
-        readOnlyWrite: "read-only",
-      },
+      listingAttendeeCheckin: openInReadOnly(
+        "/admin/listing/:listingId/attendee/:attendeeId/checkin",
+      ),
       listingAttendeeDeleteIncomplete:
         "/admin/listing/:listingId/attendee/:attendeeId/delete-incomplete",
     },
@@ -127,10 +126,7 @@ export const AREAS_A_L = {
       backupDownload: "/admin/backup/download/:filename",
     },
     write: {
-      backupCreate: {
-        pattern: "/admin/backup/create",
-        readOnlyWrite: "read-only",
-      },
+      backupCreate: openInReadOnly("/admin/backup/create"),
     },
   },
   builtSites: recordArea({
@@ -223,10 +219,7 @@ export const AREAS_A_L = {
       debug: "/admin/debug",
     },
     write: {
-      debugSentry: {
-        pattern: "/admin/debug/sentry",
-        readOnlyWrite: "read-only",
-      },
+      debugSentry: openInReadOnly("/admin/debug/sentry"),
     },
   },
   deliveries: {
@@ -237,10 +230,7 @@ export const AREAS_A_L = {
       deliveries: "/admin/deliveries",
     },
     write: {
-      deliveriesMark: {
-        pattern: "/admin/deliveries/mark",
-        readOnlyWrite: "read-only",
-      },
+      deliveriesMark: openInReadOnly("/admin/deliveries/mark"),
     },
   },
   // The group-wide actions the group page's Actions tab links to. Each writes

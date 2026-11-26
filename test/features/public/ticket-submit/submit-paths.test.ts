@@ -7,7 +7,6 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import type { ModifierInput } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -18,7 +17,10 @@ import {
 } from "#test-utils/assertions.ts";
 import { quoteTicketHtml, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendeeDirect,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,

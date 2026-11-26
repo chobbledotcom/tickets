@@ -263,7 +263,9 @@ Then(
     listing: string,
     who: string,
   ): Promise<void> {
-    expect(await peopleOfferedAtDoor(this, listing)).toEqual([{ name: who }]);
+    expect(
+      (await peopleOfferedAtDoor(this, listing, who)).map(({ name }) => name),
+    ).toEqual([who]);
   },
 );
 
@@ -275,7 +277,7 @@ Then(
     who: string,
   ): Promise<void> {
     assert(
-      !(await peopleOfferedAtDoor(this, listing))
+      !(await peopleOfferedAtDoor(this, listing, who))
         .map(({ name }) => name)
         .includes(who),
     );

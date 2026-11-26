@@ -8,11 +8,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { ListingBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { getListingsWithCountsByIds } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTwoListingsSharingOnePlace } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,

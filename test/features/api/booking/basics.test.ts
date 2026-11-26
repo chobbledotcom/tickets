@@ -59,7 +59,9 @@ describePublicApi(() => {
       // one-ticket booking.
       expect(response.status).toBe(400);
       expect(body.error).toMatch(/quantity/i);
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 

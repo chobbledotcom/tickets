@@ -75,8 +75,7 @@
     "semicolon \";\" in Respect the subrequest budget. Fixed-cost designs like % (one SELECT plus one batch regardless of batch size), % instead of update-then-select (%), and % for multi-read round-trips. Bunny has a hard limit of 50 subrequests per request. One libsql %, batch, transaction begin/statement/commit/rollback, or external fetch counts as one; statements inside one batch still count as one. The client guard blocks database call 51, but routes that also call providers or storage must target at most 40 database calls so those other fetches still fit.": 1,
     "semicolon \";\" in Model realistic database latency. The request benchmark uses 0, 5, 10, and 20 ms per libsql round trip. Treat 20 ms as the expected worst case for a replicated database; do not publish 50 or 100 ms projections as realistic production measurements without evidence from production.": 1,
     "semicolon \";\" in One-round-trip patterns. % in %; %/% in %; keyset pagination for unbounded reads (% with %).": 2,
-    "semicolon \";\" in Blind HMAC indexes for lookups. Alongside each searchable encrypted value sits a deterministic % index column: % (%), % (%, %), % for inbound SMS (%), % on modifiers. Query %; never scan-and-decrypt. (The one sanctioned scan-decrypt — invite codes in % — is documented and bounded by a tiny keyspace.)": 1,
-    "semicolon \";\" in One blob, one decrypt, decrypt late. All attendee PII lives in a single % (%); list queries select it without decrypting (% and friends in %), and % runs only at render time. %'s % flag even gates which fields come out of the blob, and % decrypts just the name.": 1
+    "semicolon \";\" in Blind HMAC indexes for lookups. Alongside each searchable encrypted value sits a deterministic % index column: % (%), % (%, %), % for inbound SMS (%), % on modifiers. Query %; never scan-and-decrypt. (The one sanctioned scan-decrypt — invite codes in % — is documented and bounded by a tiny keyspace.)": 1
   },
   "docs/e2e-tests.md": {
     "semicolon \";\" in How this repository writes Cucumber acceptance specifications and the direct tests that live alongside them. AGENTS.md covers everything else; this file is the detail for anyone writing, migrating, or reviewing a story.": 1,
@@ -115,6 +114,7 @@
     "semicolon \";\" in % - Optional diagnostic key. % returns a plain % by default; a request with a matching % header instead returns JSON build diagnostics (commit, build timestamp, server time) — non-private but useful to operators. Unset ⇒ verbose health disabled. The running build also records its commit into % on boot, so a backup carries the commit the site was on and a restore can surface which commit to redeploy (via %).": 1,
     "semicolon \";\" in % - Optional Botpoison public key (sent to the browser). The contact form works without it; setting it together with % adds proof-of-work spam protection as a progressive enhancement. The owner still enables the form under Site → Contact and sets a business email.": 1
   },
+  "docs/guide-videos.md": {},
   "docs/model-verification.md": {},
   "docs/pr-workflow.md": {
     "semicolon \";\" in Add the following sections to the feature plan. Use tables where there is more than one case. Write % when a section truly does not apply; do not omit it.": 1,
@@ -183,9 +183,11 @@
   },
   "docs/precommit-status.md": {},
   "docs/repo-structure.md": {},
+  "docs/review-checklist.md": {},
   "docs/scheduled-maintenance.md": {
     "banned-modal \"would\" in Rate-limit % at the CDN before requests reach the edge script. The application deliberately does not keep a request counter for rejected calls: doing so would let unauthenticated traffic consume database subrequests before authentication. Keep the limit high enough for the monitor's retries, but far below a general API traffic rate.": 1
   },
+  "docs/subscription-models-plan.md": {},
   "docs/subscriptions-plan.md": {},
   "docs/test-duplication.md": {},
   "e2e-payments/README.md": {

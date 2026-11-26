@@ -112,7 +112,8 @@ describe("settingsForm", () => {
     expectIncludesAll(html, [
       'action="/admin/settings/external-order"',
       'name="externalOrderEnabled"',
-      '<input checked name="externalOrderEnabled" type="radio" value="true">',
+      '<input checked name="externalOrderEnabled" type="checkbox" value="true">',
+      "Enabled",
     ]);
   });
 });
