@@ -404,15 +404,12 @@ const listingFields = (view: ListingFormView = openView()) => {
       visible: shows(view, "webhookUrl"),
     },
     {
-      hint: t("fields.listing.non_transferable_hint", words),
-      label: t("fields.listing.non_transferable", words),
-      name: "nonTransferable",
-      options: [
-        { label: t("fields.listing.non_transferable_no"), value: "" },
-        { label: t("fields.listing.non_transferable_yes"), value: "1" },
-      ],
+      ...checkboxField("nonTransferable", {
+        hint: t("fields.listing.non_transferable_hint", words),
+        label: t("fields.listing.non_transferable", words),
+        optionLabel: t("fields.listing.non_transferable_label"),
+      }),
       section: "options",
-      type: "select",
     },
     { ...buildHiddenField("Listing"), section: "options" },
     {

@@ -22,8 +22,10 @@ import {
   statusIn,
 } from "#test/specs/support/features.ts";
 import {
-  answerTicked,
+  checkboxValueOffered,
   choicesForQuestion,
+  tickedCheckboxes,
+  usableCheckboxesOn,
 } from "#test/specs/support/form-controls/reading.ts";
 import {
   type TicketsWorld,
@@ -135,14 +137,18 @@ Then(
 );
 
 Then("they are offered the choice", function (this: TicketsWorld): void {
-  expect(
-    choicesForQuestion(whatTheyWereTold(this, ORGANISER), CHOICE_FIELD),
-  ).toEqual(["true", "false"]);
+  const page = whatTheyWereTold(this, ORGANISER);
+  // One box offers both states, so the page never needs the two radios a
+  // yes/no pair used to carry.
+  expect(checkboxValueOffered(page, CHOICE_FIELD)).toBe("true");
+  expect(choicesForQuestion(page, CHOICE_FIELD)).toEqual([]);
 });
 
 Then("they are offered no choice", function (this: TicketsWorld): void {
+  const page = whatTheyWereTold(this, ORGANISER);
+  expect(choicesForQuestion(page, CHOICE_FIELD)).toEqual([]);
   expect(
-    choicesForQuestion(whatTheyWereTold(this, ORGANISER), CHOICE_FIELD),
+    usableCheckboxesOn(page).filter((box) => box.field === CHOICE_FIELD),
   ).toEqual([]);
 });
 
@@ -175,12 +181,14 @@ Then(
 );
 
 /** What the feature's own page offers when it is opened again. Reading the
- * radio the page ticked proves the choice was kept and rendered back, which a
- * stored value alone would not. */
+ * checkbox the page ticked proves the choice was kept and rendered back, which
+ * a stored value alone would not. */
 const comesBackOffering = (answer: string) =>
   async function (this: TicketsWorld, printed: string): Promise<void> {
     const page = await featurePageHtml(this, printed);
-    expect(answerTicked(page, CHOICE_FIELD)).toBe(answer);
+    expect(tickedCheckboxes(page, CHOICE_FIELD)).toEqual(
+      answer === "true" ? ["true"] : [],
+    );
   };
 
 Then("the {string} page comes back offering Yes", comesBackOffering("true"));
