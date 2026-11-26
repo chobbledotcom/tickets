@@ -33,6 +33,11 @@ export type ReadOnlyWrite = "always" | "read-only";
 
 export const OWNER_AUDIENCE = ["owner"] as const;
 
+/** A write that read-only mode keeps open: an operation a working site
+ * cannot pause. */
+export const openInReadOnly = <Pattern extends string>(pattern: Pattern) =>
+  ({ pattern, readOnlyWrite: "read-only" }) as const;
+
 /** Areas that each serve one page, keyed by the page id they share. */
 type OnePageAreas<
   Audience extends AdminAudience,

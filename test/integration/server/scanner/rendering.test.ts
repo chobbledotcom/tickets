@@ -70,31 +70,35 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
       const { body } = await createListingAndGetScannerBody();
       expectIncludesAll(body, [
         "Manual Check-in",
-        "data-manual-checkin",
+        'id="manual-checkin"',
         'id="ticket-options"',
         'role="listbox"',
         'role="combobox"',
       ]);
     });
 
-    test("datalist shows the tickets each person still owes", async () => {
+    test("lists nobody on the page, and the search finds what each person owes", async () => {
       const { listing } = await createTestAttendeeWithToken(
         "Dave Multi",
         "dave-multi@test.com",
         {},
         3,
       );
-      const body = await getScannerBody(listing.id);
-      assertStringIncludes(body, "Dave Multi (3 tickets)");
-    });
-
-    test("datalist shows a single ticket in the singular", async () => {
-      const { listing } = await createTestAttendeeWithToken(
-        "Eve Single",
-        "eve-single@test.com",
+      // The page names nobody. A name search answers the people.
+      assert(!(await getScannerBody(listing.id)).includes("Dave Multi"));
+      const search = await adminGet(
+        `/admin/listing/${listing.id}/scan-search?q=dave`,
       );
-      const body = await getScannerBody(listing.id);
-      assertStringIncludes(body, "Eve Single (1 ticket)");
+      expect(await search.json()).toEqual({
+        options: [
+          {
+            attendeeId: expect.any(Number),
+            details: [],
+            name: "Dave Multi",
+            quantity: 3,
+          },
+        ],
+      });
     });
   });
 
@@ -119,6 +123,12 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
         response.headers.get("content-type") ?? "",
         "application/javascript",
       );
+      // The manual check-in rides in the scanner bundle, beside the offline
+      // side it searches and queues through, not in admin.js.
+      expectIncludesAll(await response.text(), [
+        "manual-checkin-input",
+        "searchTooShort",
+      ]);
     });
   });
 

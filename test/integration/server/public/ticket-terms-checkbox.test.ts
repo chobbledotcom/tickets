@@ -14,7 +14,6 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { settings } from "#db/settings.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import {
@@ -22,6 +21,7 @@ import {
   submitTicketForm,
 } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv(

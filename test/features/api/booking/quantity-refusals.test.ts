@@ -15,7 +15,6 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { withMessageGroups } from "#i18n";
@@ -32,6 +31,7 @@ import {
   describePublicApi,
 } from "#test-utils/api/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createListingWithStoredQuantities } from "#test-utils/db-helpers/listing-quantities.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

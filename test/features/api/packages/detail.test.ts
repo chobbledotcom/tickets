@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { updateListing } from "#db/listings/records.ts";
 import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,

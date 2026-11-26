@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { testDate } from "#test-utils/dates.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 type AttendeeRow = Awaited<ReturnType<typeof getAttendeesRaw>>[number];

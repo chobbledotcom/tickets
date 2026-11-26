@@ -7,7 +7,6 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import {
   decryptSessionTokens,
   releaseReservation,
@@ -22,6 +21,7 @@ import {
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";

@@ -9,7 +9,9 @@ import {
   csrfTokenFor,
   forEachMatch,
   postJson,
+  requiredAttribute,
   requiredChild,
+  UnreadableAnswerError,
 } from "#src/ui/client/dom.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { createDomInstaller } from "#test-utils/happy-dom.ts";
@@ -70,6 +72,24 @@ describe("client dom helpers", () => {
     ).toEqual({ status: "checked_in" });
   });
 
+  test("postJson refuses an answer that is not JSON", async () => {
+    using _fetch = stubFetch(
+      () =>
+        new Response("<h1>Busy</h1>", {
+          headers: { "content-type": "text/html" },
+          status: 503,
+        }),
+    );
+
+    await expect(
+      postJson("/admin/scan", "csrf-token", { token: "abc" }),
+    ).rejects.toThrow(
+      new UnreadableAnswerError(
+        "The request to /admin/scan answered 503 without JSON",
+      ),
+    );
+  });
+
   test("requiredChild answers the one element the selector names", () => {
     dom.installDom('<form><input name="name" value="Harbour"></form>');
     const form = requiredChild<HTMLFormElement>(document, "form");
@@ -83,6 +103,24 @@ describe("client dom helpers", () => {
     expect(() => requiredChild(document, "dialog")).toThrow(
       "Missing element: dialog",
     );
+  });
+
+  test("requiredAttribute answers the attribute's text, even when empty", () => {
+    dom.installDom(
+      '<div data-scan-path="/admin/listing/9/scan" data-empty=""></div>',
+    );
+    const div = requiredChild(document, "div");
+    expect(requiredAttribute(div, "data-scan-path")).toBe(
+      "/admin/listing/9/scan",
+    );
+    expect(requiredAttribute(div, "data-empty")).toBe("");
+  });
+
+  test("requiredAttribute names the attribute the element lacks", () => {
+    dom.installDom("<div></div>");
+    expect(() =>
+      requiredAttribute(requiredChild(document, "div"), "data-scan-path"),
+    ).toThrow("Missing attribute: data-scan-path");
   });
 
   test("csrfTokenFor reads the token from the element's form", () => {

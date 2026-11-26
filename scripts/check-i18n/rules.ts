@@ -65,7 +65,7 @@ export const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["ui/templates/email/defaults.ts", 12],
   ["ui/templates/fields/add-attendee.ts", 3],
   ["ui/templates/fields/listing.ts", 2],
-  ["ui/templates/fields/modifier.ts", 19],
+  ["ui/templates/fields/modifier.ts", 17],
   ["ui/templates/fields/ticket.ts", 5],
 ]);
 

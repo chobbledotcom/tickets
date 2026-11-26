@@ -191,12 +191,6 @@
       "fields": ["id"]
     }
   ],
-  "src/shared/balance-link.ts": [
-    {
-      "path": [{ "name": "BalancePayload" }],
-      "fields": ["e"]
-    }
-  ],
   "src/shared/booking-intent.ts": [
     {
       "path": [{ "name": "BookingIntent" }, { "name": "allocations" }, { "way": "[]" }],

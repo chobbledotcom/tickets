@@ -4,7 +4,6 @@ import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import {
   readCheckoutAnswers,
   stageCheckoutAnswers,
@@ -18,6 +17,7 @@ import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

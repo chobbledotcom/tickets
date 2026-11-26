@@ -9,12 +9,13 @@ import { Flash } from "#shared/forms/flash.tsx";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
+import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
-import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
+
 import type { AdminSession, Theme } from "#types";
 
 type FeatureRow = {
@@ -103,7 +104,12 @@ export const adminFeaturePage = ({
           action={`/admin/features/${feature.slug}`}
           submitLabel={t("features.save")}
         >
-          <YesNoRadios name="enabled" on={enabled} />
+          <SettingsCheckbox
+            checked={enabled}
+            label={t("features.enable_label")}
+            labelClass="checkbox"
+            name="enabled"
+          />
         </SaveForm>
       )}
     </>,

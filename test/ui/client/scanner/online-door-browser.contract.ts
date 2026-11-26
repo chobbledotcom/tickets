@@ -28,13 +28,14 @@ import {
 } from "./offline-door-page.ts";
 import {
   CHECK_IN_PICK,
+  cacheStored,
   checkRowsShow,
   deliveryBody,
   HELD_PLACES,
   openDoor,
   seedDoor,
   servedCacheEntries,
-  waitDoorCacheStored,
+  turnOfflineModeOn,
 } from "./offline-door-support.ts";
 
 /** The body one online scan sends: the token it decoded, and the pick the
@@ -54,7 +55,6 @@ describeWithBrowser(
         Ada: door.attendee.ticket_token,
       });
       try {
-        await waitDoorCacheStored(page, door);
         await page.click("#scanner-start");
 
         // The scan posts while connected, before any queueing: the
@@ -97,6 +97,8 @@ describeWithBrowser(
           await page.evaluate(() => localStorage.getItem("scanner-queue")),
         ).toBeNull();
         expect(await bannerHidden(page)).toBe(true);
+        // Offline mode is off, so the page never downloaded the list.
+        expect(await cacheStored(page, door)).toBe(false);
       } finally {
         await close();
       }
@@ -108,10 +110,10 @@ describeWithBrowser(
         Ada: door.attendee.ticket_token,
       });
       try {
-        await waitDoorCacheStored(page, door);
-
-        // Arming the switch holds the door's scans while the network is up.
-        await page.click("#scanner-offline-toggle");
+        // Arming the switch downloads the list and holds the door's scans
+        // while the network is up.
+        await turnOfflineModeOn(page, door);
+        await statusShows(page, t("admin.scanner.offline_ready"));
         expect(await togglePressed(page)).toBe("true");
         expect(await bannerHidden(page)).toBe(false);
         expect(await bannerText(page)).toBe(
@@ -150,6 +152,8 @@ describeWithBrowser(
         );
         await queueSettled(page);
         expect(await bannerHidden(page)).toBe(true);
+        // Turning offline mode off deletes the list from the device.
+        expect(await cacheStored(page, door)).toBe(false);
 
         // The check-in landed on the door's own records.
         await checkRowsShow(door.attendee.id, CHECK_IN_PICK);

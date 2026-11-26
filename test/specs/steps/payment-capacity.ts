@@ -1,7 +1,6 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { handleRequest } from "#routes";
@@ -14,6 +13,7 @@ import {
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withExpectedError } from "#test-utils/mocks.ts";
