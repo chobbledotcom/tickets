@@ -1,7 +1,8 @@
 /** Bunny pull-zone client: reads the edge script's linked pull zone, and adds
  *  or updates hostnames on the pull zone. */
 
-import * as v from "valibot";
+import type * as v from "valibot";
+import { edgeScriptSchema } from "#shared/bunny-answers.ts";
 import {
   type BunnyApiError,
   type BunnyApiResult,
@@ -15,14 +16,7 @@ import { toStableHostname } from "#shared/site-address.ts";
 
 const HOSTNAME_ALREADY_REGISTERED = "pullzone.hostname_already_registered";
 
-const EdgeScriptLinkedPullZoneSchema = v.object({ Id: v.number() });
-
-const EdgeScriptResponseSchema = v.object({
-  DefaultHostname: v.string(),
-  LinkedPullZones: v.array(EdgeScriptLinkedPullZoneSchema),
-});
-
-type EdgeScriptResponse = v.InferOutput<typeof EdgeScriptResponseSchema>;
+type EdgeScriptResponse = v.InferOutput<typeof edgeScriptSchema>;
 
 export type CdnHostnameResult = { ok: true; hostname: string } | BunnyApiError;
 
@@ -47,7 +41,7 @@ export const getEdgeScriptImpl = (): Promise<
 > =>
   bunnyGetJson(
     `/compute/script/${encodeURIComponent(getBunnyScriptId())}`,
-    EdgeScriptResponseSchema,
+    edgeScriptSchema,
     "Get edge script",
   );
 
