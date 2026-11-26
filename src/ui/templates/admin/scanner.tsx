@@ -87,16 +87,13 @@ export type DoorPaths = { cache: string; scan: string; search: string };
 
 /**
  * Scanner page - camera feed with auto check-in + manual check-in by name.
- * `subject` is whichever door this page scans for — a listing or a group.
- * `paths` are the routes it talks to: the scan API that both check-in
- * paths post to, its offline list, and its name search. A group
+ * `subject` is the door this page scans for: a listing or a group. A group
  * whose stored door rule checks in every listing passes
  * `checksInEveryListing`, so door staff are warned what one scan will do.
  * `doorCacheKey` is the door's offline cache key, base64url: the device
- * digests a scanned token under it. The cache response itself never
- * carries the key. `scanOperationRetentionDays` is the door's replay
- * window in days: how long the server keeps one queued check-in's
- * delivery record. The client sends no queued check-in older than it.
+ * digests a scanned token under it. The cache response never carries it.
+ * `scanOperationRetentionDays` is how long the server keeps one queued
+ * check-in's delivery record. The client sends no queued check-in older.
  */
 export const adminScannerPage = (
   subject: { name: string },
