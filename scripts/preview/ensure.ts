@@ -19,6 +19,9 @@ import { okResult, type Result } from "#shared/result.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 
 export type EnsureInput = {
+  /** The staging account key. The site keeps a copy, so that it can manage its
+   * own CDN. */
+  accessKey: string;
   code: string;
   /** Secrets that come from the build environment, as [name, value]. */
   copiedSecrets: readonly (readonly [string, string])[];
@@ -64,6 +67,7 @@ const secretSources = (
     ["DB_TOKEN", () => andThen(database(), (id) => api.issueDatabaseToken(id))],
     ["DB_ENCRYPTION_KEY", known(input.newEncryptionKey())],
     ["SCHEDULED_TASK_KEY", known(input.newScheduledTaskKey())],
+    ["BUNNY_API_KEY", known(input.accessKey)],
     ["BUNNY_SCRIPT_ID", known(String(scriptId))],
     ...input.copiedSecrets.map(([name, value]): [string, SecretSource] => [
       name,

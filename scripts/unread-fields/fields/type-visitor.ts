@@ -34,7 +34,7 @@ const typeArgumentsOf = (
   // Every container the walk accepts — an array, a tuple, a set, a record, a
   // map, an async value — resolves to a type reference, so its arguments
   // are always there to read.
-  return checker.getTypeArguments(type as unknown as ts.TypeReference);
+  return checker.getTypeArguments(type as ts.TypeReference);
 };
 
 const builtInNameOf = (type: ts.Type, root: string): string | undefined => {
