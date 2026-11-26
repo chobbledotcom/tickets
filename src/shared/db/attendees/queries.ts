@@ -172,9 +172,12 @@ const trimAttendeePage = (rows: Attendee[]): AttendeesPage => {
 
 /** The people with a line on the listings, or on any listing when
  * `listingIds` is null, as SQL text after `FROM`. A page of people selects
- * `pageAttendee.id` from it. */
+ * `pageAttendee.id` from it. `lineMark` bounds the lines to those already
+ * present when a snapshot captured it, so lines created after the snapshot
+ * do not join. */
 export const peopleWithLinesOn = (
   listingIds: readonly number[] | null,
+  lineMark?: number,
 ): SqlStatement =>
   sql`attendees AS pageAttendee
     JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
@@ -182,7 +185,7 @@ export const peopleWithLinesOn = (
       listingIds
         ? sql` AND pageLine.listing_id IN (${sqlList(listingIds)})`
         : sql``
-    }`;
+    }${lineMark === undefined ? sql`` : sql` AND pageLine.id <= ${lineMark}`}`;
 
 /**
  * Pagination counts ATTENDEES, not booking lines, so a grouped attendee row

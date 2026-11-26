@@ -8,12 +8,11 @@
  * Each entry names its person and the door-safe details, so the manual
  * check-in can find them by name with no connection. */
 
-import type * as v from "valibot";
+import * as v from "valibot";
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import {
   defineSignedToken,
-  type IdPayload,
-  parseIdPayload,
+  type ExpiringPayload,
 } from "#crypto/define-signed-token.ts";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { logActivity } from "#db/activity-log.ts";
@@ -36,6 +35,7 @@ import type {
   TicketCacheEntry,
   TicketCachePageSchema,
 } from "#shared/ticket-cache.ts";
+import { parseOrNull } from "#shared/validation/parse.ts";
 import { type Attendee, hasTicketQuantity } from "#types";
 import type { ScanScope } from "./scan-answer.ts";
 import { owingListings, scanAdmits } from "./scan-decision.ts";
@@ -114,7 +114,8 @@ const ticketCachePage = async (
   listingNames: ListingNames,
   doorKey: Uint8Array,
   afterId: number,
-  cursorAfter: (attendeeId: number) => Promise<string>,
+  lineMark: number | null,
+  cursorAfter: (attendeeId: number, lineMark: number) => Promise<string>,
 ): Promise<v.InferOutput<typeof TicketCachePageSchema>> => {
   // Booking order — the (start, listing) order the scan's own decision
   // groups a booking's lines by — so the count names what that scan admits.
@@ -123,6 +124,7 @@ const ticketCachePage = async (
     afterId,
     CACHE_PAGE_PEOPLE,
     "start_then_listing",
+    lineMark,
   );
   const rows = await decryptAttendees(
     page.attendees,
@@ -157,7 +159,10 @@ const ticketCachePage = async (
     // Digest order, so every device saves the same list for the same door
     // and the same tokens.
     entries: sortedByString((entry: TicketCacheEntry) => entry.hash)(entries),
-    next: page.nextAfter === null ? null : await cursorAfter(page.nextAfter),
+    next:
+      page.nextAfter === null
+        ? null
+        : await cursorAfter(page.nextAfter, page.lineMark),
     people: page.people,
     total: page.total,
   };
@@ -171,12 +176,29 @@ const CURSOR_MAX_AGE_S = 60 * 60;
  * Nobody can read later pages on a cursor from another person's first page. */
 type CursorOwner = { door: string; userId: number };
 
-/** A cache page cursor: `a` is the last attendee id its page read. */
-const cacheCursor = defineSignedToken<IdPayload, CursorOwner>({
+/** A cache page cursor's payload: `a` is the last attendee id its page read,
+ * `m` is the line-id watermark the first page captured, and `e` is the
+ * expiry every signed payload carries. */
+type CursorPayload = ExpiringPayload & { a: number; m: number };
+
+const CursorPayloadSchema = v.strictObject({
+  a: v.number(),
+  e: v.number(),
+  m: v.number(),
+});
+
+/** The shape check of a cursor payload, for the scheme's `parse`. The HMAC
+ * check runs before it, so only a payload this server signed reaches it. */
+const parseCursorPayload = (
+  raw: Record<string, unknown>,
+): CursorPayload | null => parseOrNull(CursorPayloadSchema, raw);
+
+/** A cache page cursor. */
+const cacheCursor = defineSignedToken<CursorPayload, CursorOwner>({
   maxAgeS: CURSOR_MAX_AGE_S,
   message: ({ door, userId }, encoded) =>
     `scan-cache-cursor:${door}:${userId}:${encoded}`,
-  parse: parseIdPayload,
+  parse: parseCursorPayload,
   prefix: "sc1.",
 });
 
@@ -205,7 +227,7 @@ const handleScanCacheGet = doorRoute(async (loaded, request, session) => {
   const owner = { door: loaded.door, userId: session.userId };
   const from = new URL(request.url).searchParams.get("from");
   const cursor =
-    from === null ? { a: 0 } : await cacheCursor.verify(owner, from);
+    from === null ? { a: 0, m: null } : await cacheCursor.verify(owner, from);
   if (cursor === null) return apiErrorResponse("Invalid page cursor");
   if (from === null) await logListDownload(loaded, session);
   return jsonResponse(
@@ -214,10 +236,12 @@ const handleScanCacheGet = doorRoute(async (loaded, request, session) => {
       await doorListingNames(loaded.scope),
       deriveDoorCacheKey(loaded.door),
       cursor.a,
-      (attendeeId) =>
+      cursor.m,
+      (attendeeId, mark) =>
         cacheCursor.sign(owner, {
           a: attendeeId,
           e: expiresIn(CURSOR_MAX_AGE_S),
+          m: mark,
         }),
     ),
   );

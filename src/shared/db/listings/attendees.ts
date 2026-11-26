@@ -166,38 +166,57 @@ export const getRosterAttendeesByListingIds = (
  * page never splits one booking. */
 type ListingAttendeesPage = {
   attendees: Attendee[];
+  /** The line-id watermark this page read under: lines created after the
+   * first page captured it never join. */
+  lineMark: number;
   /** The last attendee id on this page, or null on the last page. */
   nextAfter: number | null;
   /** How many people this page holds. */
   people: number;
-  /** How many people the listings hold in all. */
+  /** How many people the listings hold in all, under the same watermark. */
   total: number;
 };
 
 /** Read one page of the people who hold lines on the listings, after the
- * attendee id `afterId`. One more id than the page holds tells whether a
- * next page exists. */
+ * attendee id `afterId`, bounded by the line-id watermark `lineMark`. One
+ * more id than the page holds tells whether a next page exists. A null
+ * `lineMark` is the first page: this read captures the watermark and
+ * returns it, so the cursor can carry it to every later page. */
 export const getAttendeesPageByListingIds = async (
   listingIds: number[],
   afterId: number,
   pageSize: number,
   order: AttendeeOrder,
+  lineMark: number | null,
 ): Promise<ListingAttendeesPage> => {
   if (listingIds.length === 0) {
-    return { attendees: [], nextAfter: null, people: 0, total: 0 };
+    return { attendees: [], lineMark: 0, nextAfter: null, people: 0, total: 0 };
   }
-  const [idResult, totalResult] = await queryBatch([
-    sql`SELECT pageAttendee.id AS id FROM ${peopleWithLinesOn(listingIds)}
+  // The first page is unbounded: it captures the watermark the cursor then
+  // carries, so every page of one download reads the same membership.
+  const statements = [
+    sql`SELECT pageAttendee.id AS id FROM ${peopleWithLinesOn(
+      listingIds,
+      lineMark ?? undefined,
+    )}
       AND pageAttendee.id > ${afterId}
       GROUP BY pageAttendee.id
       ORDER BY pageAttendee.id ASC
       LIMIT ${pageSize + 1}`,
     sql`SELECT COUNT(DISTINCT pageAttendee.id) AS total
-      FROM ${peopleWithLinesOn(listingIds)}`,
-  ]);
-  const ids = resultRows<{ id: number }>(idResult!).map((row) => row.id);
+      FROM ${peopleWithLinesOn(listingIds, lineMark ?? undefined)}`,
+  ];
+  if (lineMark === null) {
+    statements.push(
+      sql`SELECT MAX(pageLine.id) AS mark FROM listing_attendees AS pageLine`,
+    );
+  }
+  const results = await queryBatch(statements);
+  const captured =
+    lineMark ?? resultRows<{ mark: number | null }>(results[2]!)[0]!.mark ?? 0;
+  const ids = resultRows<{ id: number }>(results[0]!).map((row) => row.id);
   const pageIds = ids.slice(0, pageSize);
-  const total = resultRows<{ total: number }>(totalResult!)[0]!.total;
+  const total = resultRows<{ total: number }>(results[1]!)[0]!.total;
   const attendees =
     pageIds.length === 0
       ? []
@@ -207,6 +226,7 @@ export const getAttendeesPageByListingIds = async (
         );
   return {
     attendees,
+    lineMark: captured,
     nextAfter: ids.length > pageSize ? pageIds.at(-1)! : null,
     people: pageIds.length,
     total,

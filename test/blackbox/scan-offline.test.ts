@@ -106,6 +106,33 @@ describeWithEnv("offline mode at a scanner door", { db: true }, () => {
     expect(await downloadsLogged(app)).toBe(2);
   });
 
+  test("reads one snapshot: a booking made mid-download stays out", async () => {
+    const app = await loggedIn();
+    const listing = await createTestListing({ maxAttendees: 1000 });
+    await seedFillerAttendees(listing.id, PAGE_PEOPLE + 1);
+    const door = `/admin/listing/${listing.id}`;
+
+    const first = await cachePage(app, door);
+
+    // A booking made after the first page must not join the pages its
+    // cursor names, even though its attendee id sorts above everyone read.
+    await createTestAttendeeDirect(
+      listing.id,
+      "Late Comer",
+      "late@example.com",
+    );
+
+    const { entries } = first.body as { entries: unknown[] };
+    expect((await cachePage(app, door, nextOf(first))).body).toEqual({
+      // Every filler shares one booking, so both pages hold the same one
+      // entry — and the late booking holds none.
+      entries,
+      next: null,
+      people: 1,
+      total: PAGE_PEOPLE + 1,
+    });
+  });
+
   test("answers no next page when the people fill one page exactly", async () => {
     const app = await loggedIn();
     const listing = await createTestListing({ maxAttendees: 1000 });
