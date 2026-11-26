@@ -412,7 +412,8 @@ first day **once** per World and derive every other day from it.
 
 ### Do not trust a position in a list
 
-`getAttendeesRaw` returns rows newest-first. Taking "the newest" with `.at(-1)`
+`getAttendeesRaw` (a `#test-utils` helper since the production read moved on)
+returns rows newest-first. Taking "the newest" with `.at(-1)`
 quietly picked the _oldest_ booking and passed for weeks, because the scenario
 that read it happened to have one booking at that point. Identify a row by
 something meaningful — the highest id, a name, a token — not by where it sits.
