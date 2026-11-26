@@ -77,7 +77,7 @@ export const LISTING_ATTENDEE_ROW_COLS =
  * table shows `price_paid` or `remaining_balance`, so these reads skip those
  * subqueries entirely.
  */
-const BROWSING_FIELDS = ["refunded"] as const;
+export const BROWSING_FIELDS = ["refunded"] as const;
 
 /** A browsing-table attendee row — every core column plus `refunded`, but none
  * of the expensive money projections. */

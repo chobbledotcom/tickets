@@ -1,7 +1,11 @@
 /** Listing reads batched with attendee data and daily attendee queries. */
 
 import type { ResultSet } from "@libsql/client";
-import { peopleWithLinesOn } from "#db/attendees/queries.ts";
+import {
+  BROWSING_FIELDS,
+  type BrowsingAttendee,
+  peopleWithLinesOn,
+} from "#db/attendees/queries.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeOrder,
@@ -140,6 +144,21 @@ export const getAttendeesByListingIds = (
     },
     order,
   );
+};
+
+/** The door roster's booking rows on the listings: every core column plus
+ * `refunded`, and none of the money projections a name search and a digest
+ * lookup never read. */
+export const getRosterAttendeesByListingIds = (
+  listingIds: number[],
+): Promise<BrowsingAttendee[]> => {
+  if (listingIds.length === 0) return Promise.resolve([]);
+  return getAttendees({
+    fields: BROWSING_FIELDS,
+    order: "created_desc",
+    owedScope: "booking",
+    where: { kind: "attendee", listingIds },
+  });
 };
 
 /** One page of the people who hold lines on some listings, in attendee id

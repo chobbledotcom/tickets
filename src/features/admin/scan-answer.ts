@@ -12,9 +12,10 @@ import {
   type DecryptedAttendeeRow,
   decryptAttendees,
 } from "#db/attendees/pii.ts";
+import type { BrowsingAttendee } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
-import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
+import { getRosterAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { scanOperationGuard } from "#db/processed-scan-operations.ts";
 import { requiredMapValue, sumOf, unique } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
@@ -74,13 +75,14 @@ export const listingScope = (listingId: number): ScanScope => ({
 });
 
 /** The door scope's decrypted attendee lines, in one read, newest first.
- * The scanner page's manual check-in list and the scan by digest need every
- * line the door's listings hold. */
+ * The name search and the digest lookup read every line the door's
+ * listings hold, but no money projection, so the read carries only the
+ * roster's columns. */
 export const scopeAttendees = async (
   scope: ScanScope,
-): Promise<DecryptedAttendeeRow<Attendee>[]> =>
+): Promise<DecryptedAttendeeRow<BrowsingAttendee>[]> =>
   decryptAttendees(
-    await getAttendeesByListingIds([...scope.listingIds], false),
+    await getRosterAttendeesByListingIds([...scope.listingIds]),
     await requireRequestPrivateKey(),
   );
 

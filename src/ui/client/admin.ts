@@ -25,6 +25,7 @@ import { initImageLibrary } from "./admin/image-library.ts";
 import { initListingImages } from "./admin/listing-images.ts";
 import { initLogisticsMapLoader } from "./admin/logistics-map-loader.ts";
 import { initLogoutDataClear } from "./admin/logout-data-clear.ts";
+import { initMarkdownEditorLoader } from "./admin/markdown-editor-loader.ts";
 import { initMarkdownPreview } from "./admin/markdown-preview.ts";
 import { initAdminModalShell } from "./admin/modal.ts";
 import { initMultiBookingBuilder } from "./admin/multi-booking.ts";

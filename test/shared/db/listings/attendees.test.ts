@@ -13,6 +13,7 @@ import {
   getDailyListingAttendeesByDate,
   getListingWithAttendeeRaw,
   getListingWithAttendeesRaw,
+  getRosterAttendeesByListingIds,
 } from "#db/listings/attendees.ts";
 import { sql } from "#db/sql.ts";
 import { brunoOnTwoListings } from "#test-utils/attendees/helpers.ts";
@@ -61,6 +62,20 @@ describeWithEnv(
       // shares the same batch.
       expect(result?.attendeesRaw[0]?.listing_id).toBe(listing.id);
       expect(result?.attendeesRaw[0]?.quantity).toBe(1);
+    });
+
+    test("the roster read carries no money columns", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      await bookedAttendee(listing, "Ada Reed");
+
+      const [row] = await getRosterAttendeesByListingIds([listing.id]);
+
+      // The name search and the digest lookup need the refund flag and the
+      // core columns, never the money projections.
+      expect(row?.refunded).toBe(0);
+      expect(row?.listing_id).toBe(listing.id);
+      expect("price_paid" in (row ?? {})).toBe(false);
+      expect("remaining_balance" in (row ?? {})).toBe(false);
     });
 
     test("occupied dates cover every day a booking spans, once each", async () => {

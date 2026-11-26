@@ -15,7 +15,7 @@ import type { IdRouteHandler } from "#routes/entity.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import type { RosterOption } from "#shared/roster-option.ts";
-import { type Attendee, hasTicketQuantity } from "#types";
+import { hasTicketQuantity } from "#types";
 import { groupScope, listingScope, type ScanScope } from "./scan-answer.ts";
 
 /** The name a door's cache key derives from: the door's kind and id. The
@@ -107,12 +107,25 @@ export const loadGroupDoor: ScanDoorLoader = async (id) => {
     : null;
 };
 
+/** What a door's roster rules read off one booking line: its identity, its
+ * places, its day, its listing, and its refund state. Both the full row
+ * and the narrow roster row carry these. */
+export type RosterLine = {
+  checked_in: number;
+  date: string | null;
+  id: number;
+  listing_id: number;
+  name: string;
+  quantity: number;
+  refunded: boolean;
+};
+
 /** The door-safe facts that tell two people with the same name apart. They
  * name the listing when a door spans several, and the day each place is
  * for. The ticket's own page shows the same facts to a door-only login. A
  * line with neither fact adds nothing. */
 export const optionDetails = (
-  rows: readonly Attendee[],
+  rows: readonly RosterLine[],
   listingNames: ListingNames,
 ): string[] => [
   ...new Set(
@@ -131,20 +144,20 @@ export const optionDetails = (
 
 /** Whether one line can still be checked in: it owes places, it is not
  * refunded, and it carries ticket quantity. */
-export const lineOwes = (line: Attendee): boolean =>
+export const lineOwes = (line: RosterLine): boolean =>
   remainingTickets(line) > 0 && !line.refunded && hasTicketQuantity(line);
 
 /** The people the door can still check in, one option for each person. */
 export const doorRoster = (
-  attendees: readonly Attendee[],
+  attendees: readonly RosterLine[],
   listingNames: ListingNames,
 ): RosterOption[] =>
   [
     ...groupToMap(
-      (line: Attendee) => line.id,
-      (line: Attendee) => line,
+      (line: RosterLine) => line.id,
+      (line: RosterLine) => line,
     )(filter(lineOwes)([...attendees])).values(),
-  ].map((rows: Attendee[]) => ({
+  ].map((rows: RosterLine[]) => ({
     attendeeId: rows[0]!.id,
     details: optionDetails(rows, listingNames),
     name: rows[0]!.name,
