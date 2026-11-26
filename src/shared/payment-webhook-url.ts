@@ -5,18 +5,12 @@
  * a webhook signature is verified against) goes through here so every caller
  * reads the same host.
  *
- * The constructor is pure (taking the domain in), leaving the domain lookup to a
- * thin wrapper so the URL shape can be unit-tested without seeding a domain.
+ * The constructor is pure and lives in `payment-webhook-address.ts`, so a
+ * script can build the same address. This module holds the domain lookup.
  */
 
 import { getEffectiveDomain } from "#shared/config.ts";
-
-/** The fixed path under the effective domain that receives payment callbacks. */
-const PAYMENT_WEBHOOK_PATH = "/payment/webhook";
-
-/** Build the public payment webhook URL for the given domain. */
-const paymentWebhookUrl = (domain: string): string =>
-  `https://${domain}${PAYMENT_WEBHOOK_PATH}`;
+import { paymentWebhookUrl } from "#shared/payment-webhook-address.ts";
 
 /** Build the payment webhook URL from the current effective domain. */
 export const getPaymentWebhookUrl = (): string =>

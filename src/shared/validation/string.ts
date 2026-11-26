@@ -64,3 +64,13 @@ export const nonEmptyString = <T extends string>(
   if (parsed === null) throw new Error(`${name} must be non-empty`);
   return parsed as NonEmptyString & T;
 };
+
+/** Schema entries for fields that hold plain text: one for each name. */
+export const stringFields = <const Key extends string>(
+  ...names: Key[]
+): Record<Key, v.StringSchema<undefined>> =>
+  // Object.fromEntries drops the key names. The names are the type here.
+  Object.fromEntries(names.map((name) => [name, v.string()])) as Record<
+    Key,
+    v.StringSchema<undefined>
+  >;

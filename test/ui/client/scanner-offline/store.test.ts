@@ -18,6 +18,7 @@ import {
   cameraFakes,
   drain,
   postedScanBodies,
+  savedEntry,
   scanFirst,
   seedTicketCache,
   start,
@@ -91,7 +92,20 @@ describe("scanner offline store", {
   }
 
   const badLists: readonly [string, () => Response][] = [
-    ["refused the fetch", () => Response.json({}, { status: 500 })],
+    // A refused answer that still carries a well-formed page must not count.
+    [
+      "refused the fetch",
+      () =>
+        Response.json(
+          {
+            entries: [savedEntry("digest-one")],
+            next: null,
+            people: 1,
+            total: 1,
+          },
+          { status: 500 },
+        ),
+    ],
     [
       "sent a bad one",
       () =>
@@ -122,6 +136,44 @@ describe("scanner offline store", {
       expect(h.window.localStorage.getItem(LIST_KEY)).toBeNull();
     });
   }
+
+  test("drops a stored list in an older shape and says none is saved", async () => {
+    using _fetch = refusingDoor();
+    const h = fresh({ onLine: false });
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+    await start(h);
+    // An older build stored a count per digest, with no names.
+    h.window.localStorage.setItem(
+      LIST_KEY,
+      JSON.stringify({
+        entries: [{ hash: await digestOf(TOKEN), tickets: 2 }],
+        storedAt: Date.now(),
+      }),
+    );
+    await scanFirst(fakes, TOKEN);
+
+    await whenStatusShows(
+      h.statusEl,
+      "No offline ticket list on this device. Go online and turn on offline mode first.",
+    );
+    expect(h.window.localStorage.getItem(LIST_KEY)).toBeNull();
+  });
+
+  test("reads a queued check-in that admits nobody as unreadable", () => {
+    using _fetch = refusingDoor();
+    const h = fresh({
+      seed: (store) =>
+        store.setItem(
+          "scanner-queue",
+          JSON.stringify([{ ...queuedItem, quantity: 0 }]),
+        ),
+    });
+
+    expect(h.statusEl.textContent).toBe(
+      "This device holds queued check-ins this page cannot read. Offline mode is off on this page. Scanning online still works.",
+    );
+  });
 
   test("registers the scanner's own service worker", async () => {
     using _fetch = refusingDoor();
