@@ -224,16 +224,16 @@ const failureWord = (
 };
 
 /** Settle one live scan: the door answers every ask the scan raises, then
- * hears the final answer. A declined ask already told the door why. */
+ * hears the final answer. A declined ask already told the door why. The
+ * caller names the asks its route can answer: the camera's token scan can
+ * widen its door, and a manual pick's route refuses a wrong listing, so
+ * the pick asks only the count and the ID check. */
 export const settleLiveScan = async (
   post: ScanPost,
   voice: Voice,
+  asks: readonly AskStatus[],
 ): Promise<Settled> => {
-  const settled = await settleScan(
-    post,
-    ["select_quantity", "verify_id", "wrong_listing"],
-    voice,
-  );
+  const settled = await settleScan(post, asks, voice);
   if (!settled.declined) sayAnswer(settled.answer, voice.wording, voice.say);
   return settled;
 };

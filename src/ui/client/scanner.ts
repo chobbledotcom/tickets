@@ -80,10 +80,11 @@ const admitScan = async (
   say: Say,
   wording: Wording,
 ): Promise<Settled> =>
-  settleLiveScan((given) => postScan(scanPath, token, csrfToken, given), {
-    say,
-    wording,
-  });
+  settleLiveScan(
+    (given) => postScan(scanPath, token, csrfToken, given),
+    { say, wording },
+    ["select_quantity", "verify_id", "wrong_listing"],
+  );
 
 /** What the camera loop needs from the page. */
 type CameraPage = {

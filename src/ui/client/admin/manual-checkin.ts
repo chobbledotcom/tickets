@@ -192,7 +192,9 @@ export const initManualCheckin = ({
 
   /** Check in one person the search route found. Answers whether the door
    * is done with the pick. A check-in or a declined ask ends the pick. Any
-   * other answer leaves it for another try. */
+   * other answer leaves it for another try. The pick asks only the
+   * questions its route answers: the count and the ID check — its route
+   * refuses a wrong listing, so it never asks to widen the door. */
   const checkInById = async (attendeeId: number): Promise<boolean> => {
     const settled = await settleLiveScan(
       (given) =>
@@ -201,6 +203,7 @@ export const initManualCheckin = ({
           attendee_id: attendeeId,
         }),
       { say, wording },
+      ["select_quantity", "verify_id"],
     );
     if (settled.declined) return true;
     const { answer } = settled;

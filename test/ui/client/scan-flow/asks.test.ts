@@ -122,49 +122,22 @@ describe("manual check-in scan answers", () => {
     assertStringIncludes(page.status.className, "checkin-status-error");
   });
 
-  /** Answer a wrong-door ask the way the door does, and answer the bodies
-   * the page sent. */
-  const answerWrongDoor = async (
-    button: "no" | "yes",
-    afterForce: Record<string, unknown>,
-  ) => {
+  test("shows the door error when the answer names another listing", async () => {
     const sent = stubScans([
       { listingName: "Tour", name: "Ada", status: "wrong_listing" },
-      afterForce,
     ]);
     const page = await startSubmitFor("11");
-    await waitUntilSettled(
-      () =>
-        document.getElementById("scanner-confirm-message")!.textContent !== "",
-      "the wrong-door ask",
-    );
-    expect(
-      document.getElementById("scanner-confirm-message")!.textContent,
-    ).toBe('Ada is registered for "Tour", not this listing. Check in anyway?');
-    document.getElementById(`scanner-confirm-${button}`)!.click();
     await settle(page);
-    return { page, sent };
-  };
 
-  test("asks before it checks in a person registered for another listing", async () => {
-    const { page, sent } = await answerWrongDoor("yes", checkedIn());
-
-    expect(sent).toEqual([
-      { attendee_id: 11 },
-      { attendee_id: 11, force: true },
-    ]);
-    expect(page.status.textContent).toBe(
-      "Ada checked in for Ceilidh (2 tickets)",
-    );
-  });
-
-  test("skips the person when the door declines the other listing", async () => {
-    const { page, sent } = await answerWrongDoor("no", checkedIn());
-
+    // The pick asks only the questions its route answers, so a
+    // wrong-listing answer is final: the door reads the error words, the
+    // pick stays for another try, and nothing re-posts.
     expect(sent).toEqual([{ attendee_id: 11 }]);
-    expect(page.status.textContent).toBe("Skipped Ada");
-    assertStringIncludes(page.status.className, "checkin-status-warning");
-    expect(page.buttonLabel()).toBe("Search");
+    expect(page.status.textContent).toBe(
+      "This ticket has no door to check in at.",
+    );
+    assertStringIncludes(page.status.className, "checkin-status-error");
+    expect(page.buttonLabel()).toBe("Check In");
   });
 
   test("posts each scan to the door's route as JSON under the page's token", async () => {
