@@ -2,11 +2,11 @@
  * from a loopback address. Nothing outside the recording is reachable. */
 
 import { join } from "@std/path";
+import { playerPage } from "#scripts/guides/player-page.ts";
 import {
   defineLoopbackServer,
   type LoopbackServer,
 } from "#scripts/loopback-server.ts";
-import { playerPage } from "../player-page.ts";
 import { bundleGuideRenderer } from "./bundle.ts";
 
 const FRAME_PATTERN = /^\/frames\/(frame-\d{5}\.jpg)$/;

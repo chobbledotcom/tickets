@@ -13,7 +13,7 @@ import {
   parseGuideVideoPointer,
 } from "#scripts/guides/video.ts";
 import { sha256Hex } from "#shared/sha256.ts";
-import { CONFIG } from "../static-cdn-fixtures.ts";
+import { CONFIG } from "#test/scripts/static-cdn-fixtures.ts";
 
 const SLUG = "create-a-listing";
 const MP4 = new TextEncoder().encode("fake-mp4-bytes");

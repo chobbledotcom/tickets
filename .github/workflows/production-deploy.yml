@@ -21,7 +21,6 @@ jobs:
     uses: $/.github/workflows/publish-guides.yml
     with:
       environment: production
-    secrets: inherit
 
   deploy:
     needs: guide-videos

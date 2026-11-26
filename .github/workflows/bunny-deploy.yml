@@ -23,7 +23,6 @@ jobs:
     uses: $/.github/workflows/publish-guides.yml
     with:
       environment: staging
-    secrets: inherit
 
   deploy:
     needs: guide-videos

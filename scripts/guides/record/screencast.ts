@@ -7,8 +7,8 @@
 import { join } from "@std/path";
 import type { CDPSession, Page } from "playwright";
 import { withCleanup } from "#scripts/cleanup.ts";
-import { frameFileName } from "../frame-name.ts";
-import { GUIDE_DEVICE_SCALE_FACTOR } from "../video.ts";
+import { frameFileName } from "#scripts/guides/frame-name.ts";
+import { GUIDE_DEVICE_SCALE_FACTOR } from "#scripts/guides/video.ts";
 
 const FIRST_FRAME_TIMEOUT_MS = 10_000;
 
