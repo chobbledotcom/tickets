@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * The image library's wire shapes: one image row, the records that show it,
  * and the two write bodies. The resource table and every route read them from
