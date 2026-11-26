@@ -11,9 +11,10 @@ import {
   rewriteCheckoutBundle,
   sealCheckoutBundle,
 } from "#db/checkout-bundles.ts";
-import { execute, queryAll, queryOne } from "#db/client.ts";
+import { queryAll, queryOne } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const ORDER = { email: "pat@example.com", items: '[{"e":1,"p":500,"q":1}]' };
@@ -103,7 +104,7 @@ describeWithEnv("checkout bundles", { db: true }, () => {
 
   test("reads a row whose sealed text was changed as unreadable", async () => {
     const token = await sealCheckoutBundle(ORDER);
-    await execute(sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"}`);
+    await runWrite(sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"}`);
 
     expect(await openCheckoutBundle(token)).toEqual({ status: "unreadable" });
   });

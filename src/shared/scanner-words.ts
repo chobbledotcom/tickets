@@ -5,6 +5,7 @@
  * word fails at page start, and fills each hole from typed values. */
 
 import * as v from "valibot";
+import { stringFields } from "#shared/validation/string.ts";
 
 /** One word the browser shows: its catalog key and the holes it fills. */
 type WordSpec = { holes: readonly string[]; key: string };
@@ -151,12 +152,7 @@ export type ScannerWords = Record<WordName, string>;
 const WORD_NAMES = Object.keys(SCANNER_WORDS) as WordName[];
 
 /** The words a scanner page sends. The browser parses them once. */
-export const ScannerWordsSchema = v.object(
-  Object.fromEntries(WORD_NAMES.map((name) => [name, v.string()])) as Record<
-    WordName,
-    v.StringSchema<undefined>
-  >,
-);
+export const ScannerWordsSchema = v.object(stringFields(...WORD_NAMES));
 
 /** The words one page shows, with each hole filled from typed values. A
  * word's holes are the keys its values must carry. */

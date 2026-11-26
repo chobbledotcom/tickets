@@ -22,4 +22,45 @@ describe("the scan answer schema", () => {
       );
     }
   });
+
+  // Each known answer at the edge of its fields: no places left, and an
+  // ask for one place. Each parses to itself.
+  const KNOWN_ANSWERS: Record<string, unknown>[] = [
+    {
+      listingName: "Tour",
+      name: "Ada",
+      overAdmission: { admitted: 0, bought: 0, named: 0 },
+      quantity: 0,
+      remaining: 0,
+      status: "checked_in",
+      total: 0,
+    },
+    {
+      listingName: "Tour",
+      name: "Ada",
+      quantity: 0,
+      status: "already_checked_in",
+      total: 0,
+    },
+    { name: "Ada", status: "verify_id" },
+    { max: 1, name: "Ada", status: "select_quantity" },
+    { listingName: "Tour", name: "Ada", status: "wrong_listing" },
+    { name: "Ada", status: "refunded" },
+    { status: "not_found" },
+  ];
+  for (const answer of KNOWN_ANSWERS) {
+    test(`reads a ${answer.status} answer as itself`, () => {
+      expect(v.parse(ScanAnswerSchema, answer)).toEqual(answer);
+    });
+  }
+
+  test("refuses a quantity ask that offers no place", () => {
+    expect(
+      v.safeParse(ScanAnswerSchema, {
+        max: 0,
+        name: "Ada",
+        status: "select_quantity",
+      }).success,
+    ).toBe(false);
+  });
 });

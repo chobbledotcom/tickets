@@ -53,6 +53,11 @@ workflows:
         - 'actions/upload-artifact@v4.6.2'
         - 'cachix/cachix-action@v16'
         - 'cachix/install-nix-action@v31.11.1'
+    '.github/workflows/preview.yml':
+        - 'actions/cache@v4.3.0'
+        - 'actions/checkout@v4.4.0'
+        - 'cachix/cachix-action@v16'
+        - 'cachix/install-nix-action@v31.11.1'
     '.github/workflows/production-deploy.yml':
         - 'actions/cache@v4.3.0'
         - 'actions/checkout@v4.4.0'

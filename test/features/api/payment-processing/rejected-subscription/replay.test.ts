@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { allTransfers } from "#accounting/queries.ts";
-import { execute } from "#db/client.ts";
 import {
   type ProcessedPayment,
   parseSessionFailure,
@@ -33,6 +32,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 import { expectOnePairOfLegs } from "#test-utils/rejected-charge.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeFirstInvoice } from "#test-utils/stripe/fixtures.ts";
@@ -78,7 +78,7 @@ describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
           if (staleMarker) {
             // Replay the crash window after settlement but before the final
             // outcome write, using bytes captured from this real delivery.
-            await execute(
+            await runWrite(
               sql`UPDATE processed_payments SET failure_data = ${requireValue(pending, "Pending outcome was not captured")} WHERE payment_session_id = ${SESSION_ID}`,
             );
             expect((await failure()).refunded).not.toBe(true);

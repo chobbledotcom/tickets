@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
 import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
-import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
@@ -151,9 +150,7 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     };
 
     using _fetch = stubFetch((url, init) => {
-      if (url.endsWith("/v2/databases") || url.includes("/auth/generate")) {
-        record(url, init);
-      }
+      record(url, init);
       if (url.endsWith("/v1/config")) {
         return configResponse();
       }
@@ -165,6 +162,10 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     await bunnyDbApi.createDatabase("Methods");
 
     expect(requests).toEqual({
+      "https://api.bunny.net/database/v1/config": {
+        body: null,
+        method: "GET",
+      },
       "https://api.bunny.net/database/v2/databases": {
         body: {
           // The literal pins the region, so a mutated constant cannot
@@ -175,6 +176,10 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
           storage_region: "eu-west-1",
         },
         method: "POST",
+      },
+      "https://api.bunny.net/database/v2/databases/db_m": {
+        body: null,
+        method: "GET",
       },
       "https://api.bunny.net/database/v2/databases/db_m/auth/generate": {
         body: { authorization: "full-access", expires_at: null },
@@ -273,10 +278,9 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     const result = await bunnyDbApi.createDatabase("Err");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expectIncludesAll(result.error, [
-        "Get database failed (404)",
-        "Database not found",
-      ]);
+      expect(result.error).toBe(
+        "Get database failed (404): Database not found",
+      );
     }
   });
 
