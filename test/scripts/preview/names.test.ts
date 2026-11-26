@@ -9,9 +9,14 @@ describe("previewNames", () => {
     expect(names.scriptName).toMatch(
       /^Tickets - preview-feature-add-tickets-[0-9a-f]{6}$/,
     );
-    expect(names.databaseName).toMatch(
-      /^preview-feature-add-tickets-[0-9a-f]{6}$/,
-    );
+    expect(names.databaseName).toMatch(/^pv-[0-9a-f]{12}$/);
+  });
+
+  test("keeps the database name within the 16 characters Bunny allows", async () => {
+    for (const branch of ["main", "x".repeat(200), "///", "Ünï/code"]) {
+      const { databaseName } = await previewNames(branch);
+      expect(databaseName).toHaveLength(15);
+    }
   });
 
   test("gives the same names for the same branch", async () => {
@@ -35,9 +40,9 @@ describe("previewNames", () => {
   });
 
   test("drops dashes at the cut and at both ends", async () => {
-    const { databaseName } = await previewNames(`--${"a".repeat(29)}/b--`);
+    const { scriptName } = await previewNames(`--${"a".repeat(29)}/b--`);
 
-    expect(databaseName).toMatch(/^preview-a{29}-[0-9a-f]{6}$/);
+    expect(scriptName).toMatch(/^Tickets - preview-a{29}-[0-9a-f]{6}$/);
   });
 
   test("names a branch with no letters or digits by its hash alone", async () => {

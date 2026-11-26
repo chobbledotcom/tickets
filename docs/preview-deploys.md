@@ -19,13 +19,15 @@ the preview address to set it up.
 ## Names
 
 One branch has one preview. The script name is
-`Tickets - preview-<slug>-<hash>`. The database name is
-`preview-<slug>-<hash>`.
+`Tickets - preview-<slug>-<hash>`. The database name is `pv-<long-hash>`.
+Bunny allows 16 characters at most in a database name, so the database name
+has no slug.
 
 - `<slug>` is the branch name in lower case. Each run of other characters
   becomes one dash. The slug has 30 characters at most.
 - `<hash>` is the first 6 hex characters of the SHA-256 of the exact branch
   name. Two branches that give one slug still get two previews.
+- `<long-hash>` is the first 12 hex characters of the same SHA-256.
 
 The delete step only touches a script whose name starts with
 `Tickets - preview-`.

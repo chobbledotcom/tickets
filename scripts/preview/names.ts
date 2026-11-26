@@ -5,9 +5,12 @@
  * script whose name starts with it. */
 export const SCRIPT_NAME_PREFIX = "Tickets - preview-";
 
-const DATABASE_NAME_PREFIX = "preview-";
+/** Bunny allows 16 characters at most in a database name. The name holds the
+ * prefix and a longer hash, and no slug. */
+const DATABASE_NAME_PREFIX = "pv-";
+const DATABASE_HASH_LENGTH = 12;
 const SLUG_LENGTH = 30;
-const HASH_LENGTH = 6;
+const SCRIPT_HASH_LENGTH = 6;
 
 export type PreviewNames = {
   databaseName: string;
@@ -23,8 +26,8 @@ const slugOf = (branch: string): string =>
     .slice(0, SLUG_LENGTH)
     .replace(/^-+|-+$/g, "");
 
-/** The first hex characters of the SHA-256 of the exact branch name. Two
- * branches that give one slug still get two names. */
+/** The hex SHA-256 of the exact branch name. Two branches that give one slug
+ * still get two names. */
 const hashOf = async (branch: string): Promise<string> => {
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -32,18 +35,17 @@ const hashOf = async (branch: string): Promise<string> => {
   );
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
-  )
-    .join("")
-    .slice(0, HASH_LENGTH);
+  ).join("");
 };
 
 /** The script name and the database name for one branch. */
 export const previewNames = async (branch: string): Promise<PreviewNames> => {
-  const identity = [slugOf(branch), await hashOf(branch)]
+  const hash = await hashOf(branch);
+  const scriptIdentity = [slugOf(branch), hash.slice(0, SCRIPT_HASH_LENGTH)]
     .filter((part) => part !== "")
     .join("-");
   return {
-    databaseName: `${DATABASE_NAME_PREFIX}${identity}`,
-    scriptName: `${SCRIPT_NAME_PREFIX}${identity}`,
+    databaseName: `${DATABASE_NAME_PREFIX}${hash.slice(0, DATABASE_HASH_LENGTH)}`,
+    scriptName: `${SCRIPT_NAME_PREFIX}${scriptIdentity}`,
   };
 };
