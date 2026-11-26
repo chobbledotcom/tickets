@@ -22,7 +22,9 @@ export const adminLoginPage = (
 ): string =>
   layoutPage(
     t("login.title"),
-    <>
+    // The marker clears the scanner's stored guest lists when this page
+    // loads: signing out must not leave a door's names on a shared device.
+    <div data-clears-scanner-storage>
       <Flash {...flashProps(error)} />
       <SaveForm
         action="/admin/login"
@@ -37,5 +39,5 @@ export const adminLoginPage = (
           <a href="/demo/reset">{t("login.reset_database")}</a>
         </p>
       )}
-    </>,
+    </div>,
   );
