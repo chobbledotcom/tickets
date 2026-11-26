@@ -9,7 +9,7 @@ import { HELPER_SOURCE, MODEL_SOURCE } from "./tla-support.ts";
 
 const files = {
   "src/shared/sample.ts": CLEAN_CODE,
-  "src/ui/client/sample.js": "export const value = 1;",
+  "src/ui/client/sample.ts": "export const value = 1;",
   "verification/Laws.tla": HELPER_SOURCE,
   "verification/Sample.tla": MODEL_SOURCE,
 };
@@ -19,7 +19,7 @@ describe("mixed grading targets", () => {
     const deps = depsOver({ files });
     expect((await resolveTargets([], deps)).targets).toEqual([
       "src/shared/sample.ts",
-      "src/ui/client/sample.js",
+      "src/ui/client/sample.ts",
     ]);
     expect(
       (await resolveTargets(["verification"], deps)).targets.sort(),
