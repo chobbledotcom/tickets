@@ -59,8 +59,9 @@ describe("scanner offline door", {
     expect(el(h.document, "scanner-offline-banner").className).not.toContain(
       "hidden",
     );
+    // The switch is off, so the banner says the door needs offline mode.
     expect(el(h.document, "scanner-offline-banner-text").textContent).toBe(
-      "No connection. Scans are queued and checked in when you are back online.",
+      "No connection. Turn on offline mode while you have a connection to scan without one.",
     );
   });
 

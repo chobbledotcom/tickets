@@ -24,6 +24,8 @@ export const PAGE_WORDS: ScannerWords = {
     "This ticket is already queued. Do not let them in again.",
   offlineBannerAuto:
     "No connection. Scans are queued and checked in when you are back online.",
+  offlineBannerAutoOff:
+    "No connection. Turn on offline mode while you have a connection to scan without one.",
   offlineBannerManual:
     "Offline mode is on. Scans are queued and checked in when you are back online.",
   offlineCacheExpired:

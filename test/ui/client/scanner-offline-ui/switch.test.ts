@@ -42,11 +42,13 @@ import {
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
-const CACHE_PATH = SCAN_PATH.replace(/\/scan$/, "/scan-cache");
 const MANUAL_WORDS =
   "Offline mode is on. Scans are queued and checked in when you are back online.";
-const AUTO_WORDS =
-  "No connection. Scans are queued and checked in when you are back online.";
+
+const AUTO_OFF_WORDS =
+  "No connection. Turn on offline mode while you have a connection to scan without one.";
+
+const CACHE_PATH = SCAN_PATH.replace(/\/scan$/, "/scan-cache");
 
 describe("scanner offline switch and banner", {
   sanitizeOps: false,
@@ -61,14 +63,16 @@ describe("scanner offline switch and banner", {
   test("words the banner for the connection each time it flips, and hides it online", () => {
     using _fetch = refusingDoor();
     const h = fresh({ onLine: false });
-    expect(bannerWords(h)).toBe(AUTO_WORDS);
+    // No switch, no saved list: the banner says the door needs offline
+    // mode, not that scans are queued when nothing can vouch for them.
+    expect(bannerWords(h)).toBe(AUTO_OFF_WORDS);
     expect(bannerOf(h).className).not.toContain("hidden");
 
     setConnection(h, true);
     expect(bannerOf(h).className).toContain("hidden");
 
     setConnection(h, false);
-    expect(bannerWords(h)).toBe(AUTO_WORDS);
+    expect(bannerWords(h)).toBe(AUTO_OFF_WORDS);
     expect(bannerOf(h).className).not.toContain("hidden");
   });
 

@@ -60,6 +60,7 @@
   "admin.scanner.offline_save_failed": "This was not saved because this device has no room left for this site. Turn offline mode off to free the space.",
   "admin.scanner.offline_list_too_big": "The ticket list is too big to save on this device. Keep scanning online.",
   "admin.scanner.offline_refresh_too_big": "The new ticket list is too big for this device. The saved list stays until it expires.",
+  "admin.scanner.offline_banner_auto_off": "No connection. Turn on offline mode while you have a connection to scan without one.",
   "admin.scanner.storage_blocked": "This browser blocks this site from saving data. Allow site data for this site, then reload this page.",
   "admin.scanner.page_error": "Something went wrong. Reload this page, then try again.",
   "admin.scanner.queue_item_queued": "Waiting — will be checked in when online",

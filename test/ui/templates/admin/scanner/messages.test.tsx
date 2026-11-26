@@ -32,6 +32,7 @@ const EXPECTED_KEYS: Record<keyof ScannerWords, string> = {
   notFound: "admin.scanner.not_found",
   offlineAlreadyQueued: "admin.scanner.offline_already_queued",
   offlineBannerAuto: "admin.scanner.offline_banner_auto",
+  offlineBannerAutoOff: "admin.scanner.offline_banner_auto_off",
   offlineBannerManual: "admin.scanner.offline_banner_manual",
   offlineCacheExpired: "admin.scanner.offline_cache_expired",
   offlineCacheMissing: "admin.scanner.offline_cache_missing",

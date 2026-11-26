@@ -57,7 +57,10 @@ export type OfflineDoor = {
   wording: Wording;
 };
 
-/** Show or hide the offline banner, worded for why the mode is on. */
+/** Show or hide the offline banner, worded for why the mode is on: the
+ * switch, the connection with a saved list behind it, or the connection
+ * with nothing saved — the door must hear that offline scanning needs the
+ * switch, not that scans are queued when nothing can vouch for them. */
 const updateOfflineBanner = (
   banner: HTMLElement,
   bannerText: HTMLElement,
@@ -67,7 +70,11 @@ const updateOfflineBanner = (
   const active = offlineModeActive(scanPath);
   banner.classList.toggle("hidden", !active);
   bannerText.textContent = wording.word(
-    navigator.onLine ? "offlineBannerManual" : "offlineBannerAuto",
+    navigator.onLine
+      ? "offlineBannerManual"
+      : readManualMode(scanPath)
+        ? "offlineBannerAuto"
+        : "offlineBannerAutoOff",
   );
 };
 

@@ -36,6 +36,10 @@ export const SCANNER_WORDS = {
     key: "admin.scanner.offline_already_queued",
   },
   offlineBannerAuto: { holes: [], key: "admin.scanner.offline_banner_auto" },
+  offlineBannerAutoOff: {
+    holes: [],
+    key: "admin.scanner.offline_banner_auto_off",
+  },
   offlineBannerManual: {
     holes: [],
     key: "admin.scanner.offline_banner_manual",
