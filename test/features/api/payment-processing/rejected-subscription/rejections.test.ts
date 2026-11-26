@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
@@ -21,6 +20,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { decryptFirstAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
@@ -92,7 +92,7 @@ describeWithEnv("rejected subscription checkout", { db: true }, () => {
             session.amount_total = 2000;
             await expectStatuses(deliver, 302);
             if (pruned)
-              await execute(
+              await runWrite(
                 sql`DELETE FROM processed_payments WHERE payment_session_id = ${SESSION_ID}`,
               );
             session.amount_total = null;
