@@ -7,12 +7,15 @@ import {
   type CompletedRefundState,
   type NeedsOwnerChoiceRefundState,
   type NeedsProviderCheckRefundState,
+  type OrdinaryOwnerChoiceRefundState,
   type ProviderConflictOwnerChoiceRefundState,
   type ReadyRefundState,
   type RefundAuthorityState,
   type RefundOwnerChoiceReason,
   type RefundRequestGeneration,
-  validateRefundAuthorityState,
+  validateNeedsProviderCheckRefundState,
+  validateOwnerChoiceRefundState,
+  validateProviderConflictRefundState,
 } from "#payment/refund-authority-state.ts";
 import {
   type RefundConflictDecision,
@@ -31,10 +34,6 @@ const OWNER_CHOICE_FROM = {
 >;
 
 type OrdinaryOwnerChoiceReason = keyof typeof OWNER_CHOICE_FROM;
-type OrdinaryOwnerChoiceRefundState = Exclude<
-  NeedsOwnerChoiceRefundState,
-  ProviderConflictOwnerChoiceRefundState
->;
 
 interface OwnerChoiceFacts {
   readonly decision: RefundOwnerDecision;
@@ -46,15 +45,15 @@ const ownerChoiceState = (
   state: RefundAuthorityState,
   openedAt: number,
   facts: OwnerChoiceFacts,
-): NeedsOwnerChoiceRefundState =>
-  validateRefundAuthorityState({
+): OrdinaryOwnerChoiceRefundState =>
+  validateOwnerChoiceRefundState({
     ...facts,
     kind: "needs_owner_choice",
     local: { kind: "not_due" },
     nextActionAt: null,
     openedAt,
     request: state.request,
-  }) as NeedsOwnerChoiceRefundState;
+  });
 
 /** Stop one declared source state at its required owner decision. */
 export const markRefundOwnerChoiceNeeded = (
@@ -71,7 +70,7 @@ export const markRefundOwnerChoiceNeeded = (
     decision: { kind: "returned_or_not_sent" },
     evidenceRevision: state.evidenceRevision,
     reason,
-  }) as OrdinaryOwnerChoiceRefundState;
+  });
 };
 
 type ProviderConflictState =
@@ -104,18 +103,20 @@ export const markRefundProviderConflict = (
   if (!mayReplaceRefundWithFreshEvidence(state)) {
     throw new Error(`Provider conflict cannot start from ${state.kind}`);
   }
-  return validateRefundAuthorityState({
+  const needsCheck = refundConflictNeedsProviderCheck(decision);
+  const parked = {
     decision,
     evidenceRevision: state.evidenceRevision + 1,
-    kind: refundConflictNeedsProviderCheck(decision)
-      ? "needs_provider_check"
-      : "needs_owner_choice",
+    kind: needsCheck ? "needs_provider_check" : "needs_owner_choice",
     local: { kind: "not_due" },
     nextActionAt: null,
     openedAt,
     reason: "provider_conflict",
     request: state.request,
-  }) as ProviderConflictState;
+  };
+  return needsCheck
+    ? validateNeedsProviderCheckRefundState(parked)
+    : validateProviderConflictRefundState(parked);
 };
 
 export type RefundOwnerChoice =

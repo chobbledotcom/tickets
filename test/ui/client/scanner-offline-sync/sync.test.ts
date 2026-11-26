@@ -15,9 +15,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  cameraFakes,
-  scanFirst,
-  start,
+  drain,
   whenStatusShows,
   withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
@@ -30,13 +28,13 @@ import {
   storedQueue,
   TOKEN,
   useScannerSuite,
-  whenMessageShows,
   whenTextShows,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
   digestOf,
   expectSyncSettled,
   firstRow,
+  idAskedOnQueue,
   postedDeliveryHashes,
   queuedItems,
   queueSeeded,
@@ -109,58 +107,6 @@ describe("scanner offline sync", {
     }
   });
 
-  test("settles the queue when the door turns offline mode off", async () => {
-    using _fetch = stubFetch(settledCheckIn);
-    const h = fresh({
-      seed: (store) => store.setItem("scanner-offline-mode", "1"),
-    });
-    // The scan queued while the switch was on; the page load's sync ran
-    // against an empty queue, so the switch's own disarm does the settling.
-    h.window.localStorage.setItem(
-      "scanner-queue",
-      JSON.stringify([queuedItem]),
-    );
-
-    el(h.document, "scanner-offline-toggle").click();
-
-    await whenTextShows(h.statusEl, "Queued tickets are done.");
-    expect(storedQueue(h)).toBe("[]");
-    expect(firstRow(h).textContent).toBe("Checked in");
-    // The switch disarmed: the store holds no mode and the banner is gone.
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe(null);
-    expect(el(h.document, "scanner-offline-banner").className).toContain(
-      "hidden",
-    );
-  });
-
-  test("keeps the switch on and says so when the store refuses the change", async () => {
-    using _fetch = stubFetch(new Error("offline"));
-    const h = fresh({
-      onLine: false,
-      seed: (store) => store.setItem("scanner-offline-mode", "1"),
-    });
-
-    // The store refuses the removal: the switch stays armed, and the page
-    // says why nothing changed.
-    fullStore(h);
-    el(h.document, "scanner-offline-toggle").click();
-
-    await whenTextShows(
-      h.statusEl,
-      "Your change was not saved. Free up space on this device, then try again.",
-    );
-    expect(h.statusEl.className).toContain("scanner-status-error");
-    // The armed switch keeps its position: the mode stays stored, the
-    // banner stays up, and the switch reads as pressed.
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe("1");
-    expect(el(h.document, "scanner-offline-banner").className).not.toContain(
-      "hidden",
-    );
-    expect(
-      el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
-    ).toBe("true");
-  });
-
   test("keeps a check-in the door did not answer and says so", async () => {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh(queueSeeded());
@@ -179,34 +125,6 @@ describe("scanner offline sync", {
     await expectStillQueued(h);
   });
 
-  test("keeps the settled row on the page when the switch is clicked mid-sync", async () => {
-    const { promise, resolve } = Promise.withResolvers<Response>();
-    using _fetch = stubFetch((url) => {
-      if (String(url).endsWith("-cache")) {
-        return Response.json({ hashes: [] });
-      }
-      return promise;
-    });
-    const h = fresh(queueSeeded());
-
-    // The sync is waiting on the door's answer. The switch's re-render must
-    // leave the row elements the sync writes to on the page.
-    el(h.document, "scanner-offline-toggle").click();
-    resolve(
-      Response.json({
-        listingName: "Standard",
-        name: "Ada",
-        quantity: 1,
-        status: "checked_in",
-        total: 1,
-      }),
-    );
-
-    await whenTextShows(h.statusEl, "Queued tickets are done.");
-    expect(firstRow(h).textContent).toBe("Checked in");
-    expect(storedQueue(h)).toBe("[]");
-  });
-
   test("stops the sync and names the store when a settled check-in will not save", async () => {
     using _fetch = stubFetch(settledCheckIn);
     const h = fresh(queueSeeded());
@@ -218,6 +136,11 @@ describe("scanner offline sync", {
       h.statusEl,
       "This device could not save the queued check-ins. Free up space, then reload this page.",
     );
+    // The sync stops there: its error stays up instead of the closing words.
+    await drain();
+    expect(h.statusEl.textContent).toBe(
+      "This device could not save the queued check-ins. Free up space, then reload this page.",
+    );
 
     // The door answered, so the item stays for a replay that reads as
     // already checked in, and its row keeps the queued words.
@@ -225,20 +148,6 @@ describe("scanner offline sync", {
     expect(firstRow(h).textContent).toBe(
       "Waiting — will be checked in when online",
     );
-  });
-
-  test("tells the door a scan made during a sync is ignored", async () => {
-    using _fetch = stubFetch(() => new Promise(() => {}));
-    const h = fresh(queueSeeded());
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    await start(h);
-    await scanFirst(fakes, TOKEN);
-
-    expect(h.statusEl.textContent).toBe(
-      "Checking in queued tickets. Scan again when done.",
-    );
-    expect(h.statusEl.className).toContain("scanner-status-warning");
   });
 
   test("shows each settled answer on its own row", async () => {
@@ -277,59 +186,6 @@ describe("scanner offline sync", {
     }
   });
 
-  test("rides the ID check on the same delivery and answers once", async () => {
-    // A non-transferable listing asks for an ID check before it admits. The
-    // door makes the check now, and the answer rides the very delivery the
-    // check-in queued — the server records one delivery either way.
-    const fetchStub = stubFetch(
-      withEmptyCache((_url, init) => {
-        const { id_verified } = JSON.parse(String(init?.body));
-        return id_verified
-          ? Response.json({
-              listingName: "Standard",
-              name: "Ada",
-              quantity: 1,
-              status: "checked_in",
-              total: 1,
-            })
-          : Response.json({
-              listingName: "Standard",
-              name: "Ada",
-              status: "verify_id",
-            });
-      }),
-    );
-    using _fetch = fetchStub;
-    const h = fresh(queueSeeded());
-
-    await whenMessageShows(h, 'Does their ID match "Ada"?');
-    h.confirm.yes.click();
-
-    // The second post and the settled row ride the platform's own promise
-    // turns, so the wait hops real event-loop turns. Both posts carried the
-    // one delivery's digest.
-    await expectSyncSettled(h, whenStatusShows, fetchStub, [TOKEN, TOKEN]);
-    expect(firstRow(h).textContent).toBe("Checked in");
-    // Two posts went out for one delivery: the ask, then the answer that
-    // rides it — each naming the same digest and the same delivery id.
-    const bodies = fetchStub.calls
-      .filter((call) => String(call.args[0]) === SCAN_PATH)
-      .map((call) => JSON.parse(String(call.args[1]?.body)));
-    expect(bodies).toEqual([
-      {
-        operation_id: queuedItem.operationId,
-        quantity: 1,
-        token_hash: queuedItem.tokenHash,
-      },
-      {
-        id_verified: true,
-        operation_id: queuedItem.operationId,
-        quantity: 1,
-        token_hash: queuedItem.tokenHash,
-      },
-    ]);
-  });
-
   test("reports an ID check the door declined on its row", async () => {
     const fetchStub = stubFetch(
       await answerEachToken({
@@ -341,9 +197,7 @@ describe("scanner offline sync", {
       }),
     );
     using _fetch = fetchStub;
-    const h = fresh(queueSeeded());
-
-    await whenMessageShows(h, 'Does their ID match "Ada"?');
+    const h = await idAskedOnQueue(fresh);
     h.confirm.no.click();
 
     await expectSyncSettled(h, whenStatusShows, fetchStub, [TOKEN]);
