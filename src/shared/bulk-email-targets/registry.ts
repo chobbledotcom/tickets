@@ -25,18 +25,26 @@ import type {
   TargetSpec,
 } from "./types.ts";
 
-const REGISTRY = {
+type TargetOfKind<K extends BulkEmailTarget["kind"]> = Extract<
+  BulkEmailTarget,
+  { kind: K }
+>;
+
+/** One spec per kind, each typed for the targets of its own kind. */
+const REGISTRY: {
+  [K in BulkEmailTarget["kind"]]: TargetSpec<TargetOfKind<K>>;
+} = {
   attendee: attendeeSpec,
   audience: audienceSpec,
   listing: listingSpec,
   "listing-day": listingDaySpec,
-} as const;
+};
 
-/** The spec for a target's kind. The cast is the one contained cost of a
- * heterogeneous registry: at runtime the lookup always returns the spec whose
- * `T` matches `target`. */
-const specOf = <T extends BulkEmailTarget>(target: T): TargetSpec<T> =>
-  REGISTRY[target.kind] as unknown as TargetSpec<T>;
+/** The spec for a target's kind. The registry is keyed by kind, so the lookup
+ * type-checks without a cast. */
+const specOf = <K extends BulkEmailTarget["kind"]>(
+  target: TargetOfKind<K>,
+): TargetSpec<TargetOfKind<K>> => REGISTRY[target.kind];
 
 /** Serialise a target back to a `?…` compose-page query string. */
 export const targetQuery = (target: BulkEmailTarget): string =>
