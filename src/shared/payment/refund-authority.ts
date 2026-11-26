@@ -8,7 +8,10 @@ import {
   type RefundAuthorityState,
   type RefundRequestGeneration,
   type SendArmedRefundState,
-  validateRefundAuthorityState,
+  validateCompletedRefundState,
+  validateObservingRefundState,
+  validateReadyRefundState,
+  validateSendArmedRefundState,
 } from "#payment/refund-authority-state.ts";
 
 export type ActiveSentRefundState = SendArmedRefundState | ObservingRefundState;
@@ -25,21 +28,36 @@ export const requireActiveSentRefund = (
   return state;
 };
 
-const activeState = (
-  kind: "ready" | "send_armed" | "observing",
+/** The instant each active kind records. It is the one field that no other
+ *  active state has, so the shared builder writes the right field for its
+ *  kind. */
+const ACTIVE_INSTANT_FIELD = {
+  observing: "lastObservedAt",
+  ready: "readyAt",
+  send_armed: "armedAt",
+} as const satisfies {
+  readonly [Kind in AutomaticRefundState["kind"]]: Exclude<
+    keyof Extract<AutomaticRefundState, { kind: Kind }>,
+    keyof Exclude<AutomaticRefundState, { kind: Kind }>
+  >;
+};
+
+/** Build one active state, then read it back through the schema for its kind. */
+const buildActiveState = <State extends AutomaticRefundState>(
+  read: (state: unknown) => State,
+  kind: AutomaticRefundState["kind"],
   state: AutomaticRefundState,
-  atName: "armedAt" | "lastObservedAt" | "readyAt",
   at: number,
   nextActionAt: number,
-): RefundAuthorityState =>
-  validateRefundAuthorityState({
+): State =>
+  read({
     evidenceRevision: state.evidenceRevision,
     kind,
     local: { kind: "not_due" },
     nextActionAt,
     request: state.request,
-    [atName]: at,
-  } as RefundAuthorityState);
+    [ACTIVE_INSTANT_FIELD[kind]]: at,
+  });
 
 export interface ReadyRefundFacts {
   readonly evidenceRevision: number;
@@ -56,14 +74,14 @@ export const readyRefund = (facts: ReadyRefundFacts): ReadyRefundState => {
   ) {
     throw new Error("A keyed refund cannot start outside its replay window");
   }
-  return validateRefundAuthorityState({
+  return validateReadyRefundState({
     evidenceRevision: facts.evidenceRevision,
     kind: "ready",
     local: { kind: "not_due" },
     nextActionAt: facts.nextActionAt,
     readyAt: facts.now,
     request: facts.request,
-  }) as ReadyRefundState;
+  });
 };
 
 /** Persist that this exact generation can be at the provider boundary. */
@@ -73,13 +91,13 @@ export const armRefundSend = (
   nextActionAt: number,
 ): SendArmedRefundState => {
   if (state.kind !== "ready") throw new Error("Refund is not ready to arm");
-  return activeState(
+  return buildActiveState(
+    validateSendArmedRefundState,
     "send_armed",
     state,
-    "armedAt",
     armedAt,
     nextActionAt,
-  ) as SendArmedRefundState;
+  );
 };
 
 /** Keep an armed generation observation-only until more evidence arrives. */
@@ -92,13 +110,13 @@ export const markRefundObservationDue = (
     state,
     "Refund is not armed for observation",
   );
-  return activeState(
+  return buildActiveState(
+    validateObservingRefundState,
     "observing",
     active,
-    "lastObservedAt",
     observedAt,
     nextActionAt,
-  ) as ObservingRefundState;
+  );
 };
 
 /** Re-arm only the same keyed generation inside its finite provider window. */
@@ -121,13 +139,13 @@ export const rearmKeyedRefund = (
     state,
     "Refund is not armed for a keyed replay",
   );
-  return activeState(
+  return buildActiveState(
+    validateSendArmedRefundState,
     "send_armed",
     active,
-    "armedAt",
     armedAt,
     nextActionAt,
-  ) as SendArmedRefundState;
+  );
 };
 
 /** A conclusive not-sent result makes this same generation safe again. */
@@ -141,17 +159,17 @@ export const returnRefundToReady = (
     state,
     "Refund is not armed, so it cannot be proved not sent",
   );
-  const ready = activeState(
+  const ready = buildActiveState(
+    validateReadyRefundState,
     "ready",
     active,
-    "readyAt",
     readyAt,
     nextActionAt,
-  ) as ReadyRefundState;
-  return validateRefundAuthorityState({
+  );
+  return validateReadyRefundState({
     ...ready,
     evidenceRevision,
-  }) as ReadyRefundState;
+  });
 };
 
 /** Provider evidence proves the cash returned. Local recording is now due. */
@@ -163,7 +181,7 @@ export const markRefundCompleted = (
   if (state.kind === "completed") {
     throw new Error("Refund is already completed");
   }
-  return validateRefundAuthorityState({
+  return validateCompletedRefundState({
     completedAt,
     evidenceRevision: state.evidenceRevision,
     kind: "completed",
@@ -171,7 +189,7 @@ export const markRefundCompleted = (
     nextActionAt: completedAt,
     proof,
     request: state.request,
-  }) as CompletedRefundState;
+  });
 };
 
 /** Finish the separate local bookkeeping after returned cash is recorded. */
@@ -182,9 +200,9 @@ export const markRefundLocalRecorded = (
   if (state.kind !== "completed" || state.local.kind !== "due") {
     throw new Error("Refund is not waiting for local recording");
   }
-  return validateRefundAuthorityState({
+  return validateCompletedRefundState({
     ...state,
     local: { kind: "recorded", recordedAt, returnedAt: state.local.returnedAt },
     nextActionAt: null,
-  }) as CompletedRefundState;
+  });
 };

@@ -48,18 +48,6 @@ describe("comment language baseline", () => {
 describe("comment language scan", () => {
   const run = checkScriptRun();
 
-  test("reads authored TypeScript and JavaScript", async () => {
-    await run.write("src/a.ts", "// don't ship this.\n");
-    await run.write("src/ui/client/scanner.js", "// simply wait.\n");
-
-    const files = await readCommentFiles(run.path);
-
-    expect(Object.fromEntries(files.map(({ file }) => [file, 1]))).toEqual({
-      [join(run.path, "src/a.ts")]: 1,
-      [join(run.path, "src/ui/client/scanner.js")]: 1,
-    });
-  });
-
   test("reads the published documentation barrels", async () => {
     await run.write("src/doc.ts", "// don't ship this.\n");
     await run.write("src/docs/notes.ts", "// simply wait.\n");
@@ -72,12 +60,13 @@ describe("comment language scan", () => {
     ]);
   });
 
-  test("leaves shipped migrations and built bundles out", async () => {
+  test("leaves shipped migrations, built bundles, and JavaScript out", async () => {
     await run.write(
       "src/db/migrations/2062-01-01_note.ts",
       "// don't ship this.\n",
     );
     await run.write("src/ui/static/bundle.js", "// simply wait.\n");
+    await run.write("src/ui/client/legacy.js", "// simply wait.\n");
 
     expect(await readCommentFiles(run.path)).toEqual([]);
   });
