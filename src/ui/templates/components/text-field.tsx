@@ -13,6 +13,7 @@
 
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { RequiredMark } from "#templates/components/required-mark.tsx";
 
 export const TextField = ({
   label,
@@ -56,6 +57,7 @@ export const TextField = ({
 }): JSX.Element => (
   <label>
     {label}
+    <RequiredMark required={required} />
     <input
       autocomplete="off"
       autofocus={autofocus}
