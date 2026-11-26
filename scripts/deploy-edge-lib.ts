@@ -114,6 +114,22 @@ export const formatBunnyError = (
 ): string =>
   `${label} failed (${response.status}): ${parseBunnyMessage(response.text)}`;
 
+/** One Bunny API request with the account key. A body is JSON text. */
+export const bunnyRequest = (
+  io: { accessKey: string; fetchText: FetchText },
+  path: string,
+  method: string,
+  body?: string,
+): Promise<FetchTextResult> =>
+  io.fetchText(`${BUNNY_API_BASE}${path}`, {
+    ...(body === undefined ? {} : { body }),
+    headers: {
+      AccessKey: io.accessKey,
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    method,
+  });
+
 const postScriptAction = async (
   scriptId: string,
   action: "code" | "publish",
@@ -220,7 +236,7 @@ const deployBuiltBundle = async (
   return 0;
 };
 
-const withAccessKey = async (
+export const withAccessKey = async (
   deps: Pick<ScriptIo, "getEnv" | "stderr">,
   run: (accessKey: string) => Promise<number>,
 ): Promise<number> => {
@@ -233,46 +249,50 @@ const withAccessKey = async (
   return run(accessKey);
 };
 
-export const runDeployBuiltEdge = async (
-  deps: DeployBuiltEdgeDeps,
+/** Run with the parsed arguments, or print the usage error and stop with exit
+ * code 1. */
+export const withParsedArgs = <Parsed>(
+  deps: Pick<ScriptIo, "stderr">,
+  parsed: ({ ok: true } & Parsed) | { error: string; ok: false },
+  run: (args: Parsed) => Promise<number>,
 ): Promise<number> => {
-  const args = parseDeployBuiltArgs(deps.args);
-  if (!args.ok) {
-    deps.stderr(args.error);
-    return 1;
+  if (!parsed.ok) {
+    deps.stderr(parsed.error);
+    return Promise.resolve(1);
   }
+  return run(parsed);
+};
 
-  return withAccessKey(deps, (accessKey) =>
-    deployBuiltBundle({
-      ...deps,
-      accessKey,
-      bundlePath: args.bundlePath,
-      labelPath: args.bundlePath,
-      scriptId: args.scriptId,
+export const runDeployBuiltEdge = (
+  deps: DeployBuiltEdgeDeps,
+): Promise<number> =>
+  withParsedArgs(deps, parseDeployBuiltArgs(deps.args), (args) =>
+    withAccessKey(deps, (accessKey) =>
+      deployBuiltBundle({
+        ...deps,
+        accessKey,
+        bundlePath: args.bundlePath,
+        labelPath: args.bundlePath,
+        scriptId: args.scriptId,
+      }),
+    ),
+  );
+
+export const runDeployEdge = (deps: DeployEdgeDeps): Promise<number> =>
+  withParsedArgs(deps, parseScriptIdArg(deps.args), ({ scriptId }) =>
+    withAccessKey(deps, async (accessKey) => {
+      deps.stdout("Building edge bundle...");
+      const build = await deps.runBuildEdge(deps.cwd);
+      if (!build.success) {
+        deps.stderr(`build:edge failed with exit code ${build.code}`);
+        return 1;
+      }
+
+      return deployBuiltBundle({
+        ...deps,
+        accessKey,
+        labelPath: BUNDLE_PATH,
+        scriptId,
+      });
     }),
   );
-};
-
-export const runDeployEdge = async (deps: DeployEdgeDeps): Promise<number> => {
-  const scriptId = parseScriptIdArg(deps.args);
-  if (!scriptId.ok) {
-    deps.stderr(scriptId.error);
-    return 1;
-  }
-
-  return withAccessKey(deps, async (accessKey) => {
-    deps.stdout("Building edge bundle...");
-    const build = await deps.runBuildEdge(deps.cwd);
-    if (!build.success) {
-      deps.stderr(`build:edge failed with exit code ${build.code}`);
-      return 1;
-    }
-
-    return deployBuiltBundle({
-      ...deps,
-      accessKey,
-      labelPath: BUNDLE_PATH,
-      scriptId: scriptId.scriptId,
-    });
-  });
-};

@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { sql } from "#db/sql.ts";
 import {
@@ -27,6 +26,7 @@ import {
   addProviderRefundTestCase,
   readyRefundTestState,
 } from "#test-utils/provider-refund-cases.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 import { readyRefundForTest } from "#test-utils/refund-authority.ts";
 import {
   insertClaimedPayment,
@@ -58,7 +58,7 @@ const insertOldReferencedPayment = async (
     "tok",
     taggedPaymentReference(`pi_${sessionId}`),
   );
-  await execute(
+  await runWrite(
     sql`UPDATE processed_payments SET processed_at = ${oldEnoughToPrune()} WHERE payment_session_id = ${sessionId}`,
   );
   return attendeeId;
@@ -123,7 +123,7 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
   test("keeps the payment row that proves an attendee's encrypted payment id", async () => {
     const sessionId = "sess_attendee_provenance";
     const attendeeId = await insertOldReferencedPayment(sessionId);
-    await execute(
+    await runWrite(
       sql`UPDATE attendees SET pii_payment_session_id = ${sessionId} WHERE id = ${attendeeId}`,
     );
     await finishRefundFor(sessionId, attendeeId);
@@ -203,7 +203,7 @@ describeWithEnv(
       if (held.kind !== "claimed") throw new Error("the claim was refused");
       // A keyless refund whose answer went missing keeps its claim on purpose,
       // so the claim ages past the point where a live run could still hold it.
-      await execute(
+      await runWrite(
         sql`UPDATE processed_payments SET failure_data = ${await staleClaimSlot(attendeeId)} WHERE payment_session_id = ${"sess_claim_stale"}`,
       );
 
