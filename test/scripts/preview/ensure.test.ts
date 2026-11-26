@@ -23,6 +23,7 @@ const ALL_SECRETS = [
   "DB_TOKEN",
   "DB_ENCRYPTION_KEY",
   "SCHEDULED_TASK_KEY",
+  "BUNNY_API_KEY",
   "BUNNY_SCRIPT_ID",
   "STORAGE_ZONE_NAME",
   "STORAGE_ZONE_KEY",
@@ -32,6 +33,7 @@ const ALL_SECRETS = [
 ];
 
 const input = (): EnsureInput => ({
+  accessKey: "staging-key",
   code: "bundle code",
   copiedSecrets: [
     ["STORAGE_ZONE_NAME", "staging-zone"],
@@ -83,6 +85,18 @@ const siteOf = (id: number, published: boolean) => ({
   value: { published, scriptId: id, siteUrl: `https://site-${id}.b-cdn.net` },
 });
 
+/** A preview that holds a database and every secret but one: only that secret
+ * is written, and the code is published again. */
+const lacking = (secret: string, name: string): Scenario => ({
+  expected: { result: siteOf(2, true), writes: [secret] },
+  name,
+  observe: (bunny, result) => ({ result, writes: secretWrites(bunny) }),
+  seed: (bunny) => {
+    withDatabase(bunny);
+    scriptWithout(secret)(bunny);
+  },
+});
+
 const SCENARIOS: Scenario[] = [
   {
     expected: {
@@ -92,6 +106,7 @@ const SCENARIOS: Scenario[] = [
       published: true,
       result: siteOf(1, true),
       secrets: {
+        BUNNY_API_KEY: "staging-key",
         BUNNY_SCRIPT_ID: "1",
         DB_ENCRYPTION_KEY: "new-encryption-key",
         DB_TOKEN: "token-db-2-1",
@@ -120,7 +135,7 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
-    expected: { afterEverySecret: true, last: "publish", secretWrites: 10 },
+    expected: { afterEverySecret: true, last: "publish", secretWrites: 11 },
     name: "publishes only after every secret is written",
     observe: (bunny) => {
       const order = bunny.writes().map((call) => call.path.split("/").pop());
@@ -132,15 +147,14 @@ const SCENARIOS: Scenario[] = [
       };
     },
   },
-  {
-    expected: { result: siteOf(2, true), writes: ["SCHEDULED_TASK_KEY"] },
-    name: "writes only the missing secrets of a half-made preview",
-    observe: (bunny, result) => ({ result, writes: secretWrites(bunny) }),
-    seed: (bunny) => {
-      withDatabase(bunny);
-      scriptWithout("SCHEDULED_TASK_KEY")(bunny);
-    },
-  },
+  lacking(
+    "SCHEDULED_TASK_KEY",
+    "writes only the missing secrets of a half-made preview",
+  ),
+  lacking(
+    "BUNNY_API_KEY",
+    "adds the CDN key to a preview that was made without it, and publishes again",
+  ),
   {
     expected: { key: "kept", writes: false },
     name: "never writes a secret that exists, so the database key stays",

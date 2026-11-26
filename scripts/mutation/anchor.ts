@@ -266,24 +266,20 @@ export const anchorMutants = <M extends HasLocation>(
       .map(encodeName)
       .join(".");
     const text = content.slice(context.start, context.end);
-    return {
-      ...mutant,
-      base: `${name}~${shortHash(text)}`,
-    };
+    return { base: `${name}~${shortHash(text)}`, mutant };
   });
   const totals = new Map<string, number>();
-  for (const mutant of described) {
-    const key = `${mutant.base} ${mutant.operator}→${mutant.newOperator}`;
+  for (const { base, mutant } of described) {
+    const key = `${base} ${mutant.operator}→${mutant.newOperator}`;
     totals.set(key, (totals.get(key) ?? 0) + 1);
   }
   const seen = new Map<string, number>();
-  return described.map((mutant) => {
-    const key = `${mutant.base} ${mutant.operator}→${mutant.newOperator}`;
+  return described.map(({ base, mutant }) => {
+    const key = `${base} ${mutant.operator}→${mutant.newOperator}`;
     const nth = (seen.get(key) ?? 0) + 1;
     seen.set(key, nth);
-    const { base, ...rest } = mutant;
     return {
-      ...(rest as unknown as M),
+      ...mutant,
       anchor: totals.get(key)! > 1 ? `${base}@${nth}` : base,
     };
   });
