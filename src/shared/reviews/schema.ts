@@ -2,7 +2,13 @@
 import * as v from "valibot";
 import { IsoDateSchema } from "#shared/validation/date-string.ts";
 
-const RequiredTextSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
+const MINIMUM_REVIEWS = 1;
+
+const RequiredTextSchema = v.pipe(
+  v.string(),
+  v.trim(),
+  v.minLength(MINIMUM_REVIEWS),
+);
 
 /** One customer review, read from the reviews markdown file. */
 export const ReviewSchema = v.object({
@@ -22,7 +28,10 @@ export const ReviewSchema = v.object({
   ),
 });
 
-const ReviewListSchema = v.pipe(v.array(ReviewSchema), v.minLength(1));
+const ReviewListSchema = v.pipe(
+  v.array(ReviewSchema),
+  v.minLength(MINIMUM_REVIEWS),
+);
 
 /** The frontmatter of the one reviews source file. */
 export const ReviewsSourceSchema = v.object({

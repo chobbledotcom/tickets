@@ -111,6 +111,7 @@ const EVERY_STORY_ID = [
   "servicing.hold-and-cost",
   "servicing.the-work-coming-up",
   "settings.connecting-an-email-provider",
+  "settings.showing-customer-reviews",
   "settings.tax-settings",
   "settings.turning-features-on-and-off",
   "settings.writing-the-emails-the-site-sends",
