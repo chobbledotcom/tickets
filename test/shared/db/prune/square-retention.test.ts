@@ -6,7 +6,6 @@ import {
   readCheckoutAnswers,
   stageCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
-import { execute, queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
@@ -17,6 +16,8 @@ import {
 import { DAY_MS, nowMs } from "#shared/now.ts";
 import { SQUARE_NATIVE_LIFETIME_MS } from "#shared/square/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectQueryRows } from "#test-utils/query-rows.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 
 const requiredSquareRetentionMs =
   SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;
@@ -32,7 +33,7 @@ const expectedAnswers = (kept: boolean): Map<number, string> =>
   kept ? new Map([[7, answers["7"]]]) : new Map();
 
 const setCreatedAt = async (session: string, createdAt: string) => {
-  await execute(
+  await runWrite(
     sql`UPDATE checkout_pending_answers SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(session)}`,
   );
 };
@@ -57,7 +58,7 @@ describeWithEnv(
           await stageCheckoutAnswers(session, answers, linkEndsAt);
           await stageSquareLinkEnd(session, `link_${session}`, linkEndsAt);
           await setCreatedAt(session, createdAt);
-          await execute(
+          await runWrite(
             sql`UPDATE square_link_ends SET created_at = ${createdAt}, state = ${state} WHERE session_index = ${index}`,
           );
         }
@@ -66,11 +67,10 @@ describeWithEnv(
 
         for (const state of ["pending", "ending"] as const) {
           const session = `sq_boundary_${position}_${state}`;
-          expect(
-            await queryOne(
-              sql`SELECT state FROM square_link_ends WHERE session_index = ${await hmacHash(session)}`,
-            ),
-          ).toEqual(kept ? { state } : null);
+          await expectQueryRows(
+            sql`SELECT state FROM square_link_ends WHERE session_index = ${await hmacHash(session)}`,
+            kept ? [{ state }] : [],
+          );
           expect(await readCheckoutAnswers(session)).toEqual(
             expectedAnswers(kept),
           );

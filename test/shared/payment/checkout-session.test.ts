@@ -7,7 +7,7 @@ import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { readCheckoutAnswers } from "#db/checkout-pending-answers.ts";
-import { execute } from "#db/client.ts";
+import { queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
@@ -20,6 +20,7 @@ import { squareApi } from "#shared/square/api.ts";
 import { squareLinkEndsAt } from "#shared/square/checkout.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const intent = (textAnswers?: Record<string, string>): CheckoutIntent => ({
@@ -120,15 +121,15 @@ describeWithEnv(
         `link_${sessionId}`,
         squareLinkEndsAt(createdAt),
       );
-      await execute(
+      await runWrite(
         sql`UPDATE checkout_pending_answers SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`,
       );
-      await execute(
+      await runWrite(
         sql`UPDATE square_link_ends SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`,
       );
       // The create seals the order and links it to the checkout. The stub
       // replaces the call that seals it, so this stores what it would have.
-      await execute(
+      await runWrite(
         sql`INSERT INTO checkout_bundles (token_index, wrapped_key, sealed, created_at, session_index)
           VALUES (${`bundle_${sessionId}`}, 'wrapped', 'sealed', ${createdAt}, ${await hmacHash(sessionId)})`,
       );
@@ -139,10 +140,10 @@ describeWithEnv(
     const sealedOrdersOf = async (sessionId: string): Promise<number> =>
       Number(
         (
-          await execute(
+          await queryOne<{ kept: number }>(
             sql`SELECT COUNT(*) AS kept FROM checkout_bundles WHERE session_index = ${await hmacHash(sessionId)}`,
           )
-        ).rows[0]?.kept,
+        )?.kept,
       );
 
     test("keeps a Square checkout's answers past the payments clock while its link can still take payment", async () => {
