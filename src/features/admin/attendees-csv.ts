@@ -10,7 +10,11 @@ import type {
   AttendeeQuestionData,
   LineAnswer,
 } from "#db/questions/attendee-answers/reads.ts";
-import { asksEachLine } from "#db/questions/line-answers.ts";
+import {
+  asksEachLine,
+  lineKey,
+  lineSlotOfRow,
+} from "#db/questions/line-answers.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -106,13 +110,12 @@ export const listingInfoColumns = <T>(
 ];
 
 /** Whether an answer belongs to the booking row of an exported attendee: the
- * same listing, package, parent and date. */
+ * same line slot and date. The slot of a row under a parent leaves out its
+ * package, as the stored answer does. */
 const isRowAnswer =
   (row: Attendee) =>
   (answer: LineAnswer): boolean =>
-    answer.listingId === row.listing_id &&
-    answer.packageGroupId === row.package_group_id &&
-    answer.parentListingId === row.parent_listing_id &&
+    lineKey(answer) === lineKey(lineSlotOfRow(row)) &&
     (answer.startAt?.slice(0, 10) ?? null) === row.date;
 
 /** The texts of one booking row's answers to one line question that are still

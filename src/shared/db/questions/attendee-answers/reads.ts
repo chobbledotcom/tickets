@@ -12,7 +12,7 @@ import { queryAll, queryAllPrimary } from "#db/client.ts";
 import type { ListsByIds } from "#db/query.ts";
 import type { LineTicket, QuestionWithAnswers } from "#db/question-types.ts";
 import { attendeesWithChangedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
-import { lineSlotOf } from "#db/questions/line-answers.ts";
+import { lineSlotOfRow } from "#db/questions/line-answers.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { readRows } from "#db/read.ts";
 import { rowsForIds } from "#db/rows-for-ids.ts";
@@ -288,11 +288,7 @@ const readLineAnswers = async (
   const key = await privateKey();
   return mapParallel(async (row: LineAnswerRow & { attendee_id: number }) => ({
     attendeeId: row.attendee_id,
-    ...lineSlotOf({
-      listingId: row.listing_id,
-      packageGroupId: row.package_group_id,
-      parentListingId: row.parent_listing_id,
-    }),
+    ...lineSlotOfRow(row),
     quantity: row.quantity,
     questionId: row.question_id,
     startAt: row.start_at,

@@ -2,7 +2,7 @@ import { sql, sqlName } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 export default schemaMigration(
-  "2026-11-23_question_answer_level",
+  "2026-11-25_question_answer_level",
   "Add answer_level to custom questions, and booking_row_id and unit_index to attendee answers. A free-text question can ask once for each booking line, or once for each ticket of a line. Every stored answer and question keeps asking once for the booking.",
   {
     columns: {
