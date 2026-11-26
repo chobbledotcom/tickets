@@ -24,7 +24,7 @@ import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 const PAGE_PEOPLE = 250;
 
 /** The words of one download's log entry. */
-const DOWNLOADED = "Offline ticket list downloaded for";
+const DOWNLOADED = "Offline ticket list download started for";
 
 const loggedIn = async (): Promise<App> => {
   const app = createApp(inProcess);

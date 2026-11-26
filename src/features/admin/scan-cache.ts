@@ -187,7 +187,7 @@ const logListDownload = async (
     ),
   );
   await logActivity(
-    `Offline ticket list downloaded for '${loaded.name}' by '${username}'`,
+    `Offline ticket list download started for '${loaded.name}' by '${username}'`,
     loaded.listingId,
   );
 };
