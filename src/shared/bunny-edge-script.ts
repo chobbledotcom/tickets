@@ -2,6 +2,7 @@
  *  secrets, and deploy new code. Shared by the site builder and self-update. */
 
 import * as v from "valibot";
+import { edgeScriptSchema } from "#shared/bunny-answers.ts";
 import {
   type BunnyApiError,
   type BunnyApiResult,
@@ -50,9 +51,9 @@ interface CreateEdgeScriptResult {
 /** The create response's `DefaultHostname` is optional: a script without a
  * linked pull zone reports none, and the caller defaults it to empty. */
 const CreateEdgeScriptResponseSchema = v.object({
+  ...edgeScriptSchema.entries,
   DefaultHostname: v.optional(v.string()),
   Id: v.number(),
-  LinkedPullZones: v.array(v.object({ Id: v.number() })),
 });
 
 /**

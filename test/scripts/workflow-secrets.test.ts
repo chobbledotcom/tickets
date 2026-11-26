@@ -88,8 +88,10 @@ const jobBlocks = (text: string): string[] => {
 
 const readsSecrets = (job: string): boolean => /\bsecrets\.[A-Z_]+/.test(job);
 
+/** A job names its environment on one line, or as a block that also carries a
+ * deployment `url`. */
 const hasEnvironment = (job: string): boolean =>
-  /^ {4}environment: \S+/m.test(job);
+  /^ {4}environment:(?: \S+|\n {6}name: \S+)/m.test(job);
 
 const jobName = (job: string): string => job.slice(0, job.indexOf(":"));
 
@@ -211,6 +213,15 @@ const JOBS_FIXTURE = `jobs:
   guarded:
     runs-on: ubuntu-latest
     environment: production
+    steps:
+      - run: deploy
+        env:
+          KEY: \${{ secrets.DEPLOY_KEY }}
+  linked:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://example.test
     steps:
       - run: deploy
         env:
