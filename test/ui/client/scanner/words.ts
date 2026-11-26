@@ -43,6 +43,8 @@ export const PAGE_WORDS: ScannerWords = {
   offlineQueued:
     "Ticket looks valid. It will be checked in when you are back online.",
   offlineReady: "Offline mode is on. The ticket list is saved on this device.",
+  offlineRefreshTooBig:
+    "The new ticket list is too big for this device. The saved list stays until it expires.",
   offlineSaveFailed:
     "This was not saved because this device has no room left for this site. Turn offline mode off to free the space.",
   pageError: "Something went wrong. Reload this page, then try again.",

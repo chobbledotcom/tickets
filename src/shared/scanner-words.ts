@@ -62,6 +62,10 @@ export const SCANNER_WORDS = {
   offlineQuantityAsk: { holes: [], key: "admin.scanner.offline_quantity_ask" },
   offlineQueued: { holes: [], key: "admin.scanner.offline_queued" },
   offlineReady: { holes: [], key: "admin.scanner.offline_ready" },
+  offlineRefreshTooBig: {
+    holes: [],
+    key: "admin.scanner.offline_refresh_too_big",
+  },
   offlineSaveFailed: { holes: [], key: "admin.scanner.offline_save_failed" },
   pageError: { holes: [], key: "admin.scanner.page_error" },
   queueCountOne: { holes: ["count"], key: "admin.scanner.queue_count_one" },

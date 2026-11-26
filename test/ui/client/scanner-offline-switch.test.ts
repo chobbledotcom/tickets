@@ -19,6 +19,7 @@ import {
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
+  fullStore,
   MODE_KEY,
   SCAN_PATH,
   type ScannerHarness,
@@ -318,5 +319,25 @@ describe("scanner offline switch", {
     );
     expect(stored.getItem(LIST_KEY)).toBe(null);
     expect(stored.getItem(MODE_KEY)).toBe(null);
+  });
+
+  test("keeps the saved list when a refresh no longer fits the store", async () => {
+    const firstPage = Promise.withResolvers<Response>();
+    using _fetch = stubFetch(() => firstPage.promise);
+    const h = fresh({ seed: switchOnWithList });
+
+    // The store holds the door's mode and its saved list, then refuses every
+    // write: the page-load refresh cannot replace the list the door keeps.
+    fullStore(h);
+    firstPage.resolve(Response.json(cachePage("fresh", null, 1, 251)));
+
+    await whenStatusShows(
+      h.statusEl,
+      "The new ticket list is too big for this device. The saved list stays until it expires.",
+    );
+    expect(h.statusEl.className).toContain("scanner-status-warning");
+    expect(h.window.localStorage.getItem(LIST_KEY)).toBe(savedList);
+    expect(h.window.localStorage.getItem(MODE_KEY)).toBe("1");
+    expect(toggle(h).getAttribute("aria-pressed")).toBe("true");
   });
 });

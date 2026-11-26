@@ -49,14 +49,24 @@ export const wireOfflineSwitch = ({
 
   /** Tell the door why the download kept no list. A stopped download is the
    * switch turning off, so it says nothing. A list too big for this
-   * browser's store is removed, so no half-kept list stays behind. */
-  const sayDownloadFailure = (stop: AbortController, error: unknown) => {
+   * browser's store is removed while arming, so no half-kept list stays
+   * behind. A refresh that no longer fits keeps the list the door already
+   * holds: a refused write replaces nothing, and the switch stays on. */
+  const sayDownloadFailure = (
+    stop: AbortController,
+    error: unknown,
+    arming: boolean,
+  ) => {
     if (stop.signal.aborted) return;
     if (error instanceof NetworkError) {
       say(wording.word("offlineDownloadFailed"), "error");
       return;
     }
     if (isStoreFull(error)) {
+      if (!arming) {
+        say(wording.word("offlineRefreshTooBig"), "warning");
+        return;
+      }
       removeTicketCache(scanPath);
       say(wording.word("offlineListTooBig"), "error");
       return;
@@ -71,6 +81,9 @@ export const wireOfflineSwitch = ({
   const fetchList = async () => {
     const stop = new AbortController();
     download.running = stop;
+    // Whether this download arms a door that is off: a door already on is
+    // only refreshing, and its stored list must survive a refused write.
+    const arming = !readManualMode(scanPath);
     toggle.setAttribute("aria-busy", "true");
     progress.classList.remove("hidden");
     showProgress(0, 0);
@@ -79,7 +92,7 @@ export const wireOfflineSwitch = ({
       writeManualMode(scanPath, true);
       say(wording.word("offlineReady"), "success");
     } catch (error) {
-      sayDownloadFailure(stop, error);
+      sayDownloadFailure(stop, error, arming);
     } finally {
       if (download.running === stop) download.running = null;
       // A stopped download can end after a new one starts. The new one keeps
