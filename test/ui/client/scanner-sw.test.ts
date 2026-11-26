@@ -15,7 +15,7 @@ import { createGlobalStash } from "#test-utils/happy-dom.ts";
 
 // The worker registers its listeners on import; the test dispatches fetch
 // events at the page's own global scope.
-import "#src/ui/client/scanner-sw.js";
+import "#src/ui/client/scanner-sw.ts";
 
 /** The store the worker reads as the browser's Cache Storage, holding its
  * entries where a test can read them. */
@@ -145,6 +145,8 @@ describe("the scanner service worker's stored assets", () => {
     const answered = await fireFetch("/scanner.js");
 
     expect(answered?.status).toBe(503);
+    expect(answered?.statusText).toBe("Offline");
+    expect(await answered?.text()).toBe("");
     expect([...cache.entries.keys()]).toEqual([]);
   });
 
@@ -317,7 +319,7 @@ describe("the scanner service worker's fetch boundaries", () => {
     const answered = await fireRequest("/admin/scan", { method: "POST" });
 
     // The scan POST carries live door state. The worker never answers it.
-    expect(answered).toBeUndefined();
+    expect(answered).toBe(undefined);
   });
 
   test("leaves a navigation the scanner does not own alone", async () => {
@@ -325,12 +327,12 @@ describe("the scanner service worker's fetch boundaries", () => {
       mode: "navigate",
     });
 
-    expect(answered).toBeUndefined();
+    expect(answered).toBe(undefined);
   });
 
   test("leaves a GET that is not a stored asset alone", async () => {
     const answered = await fireRequest("/admin.js");
 
-    expect(answered).toBeUndefined();
+    expect(answered).toBe(undefined);
   });
 });

@@ -44,21 +44,7 @@ const collectMatching =
     collectFiles(directory, (path) => pattern.test(path));
 
 /** Every TypeScript file beneath `directory`, sorted. */
-export const collectSourceFiles = collectMatching(/\.tsx?$/);
-
-/** Every TypeScript or JavaScript file beneath `directory`, sorted. A browser
- * script we ship as plain `.js` is source too, so a check that has to read all
- * of our code reaches for this one. */
-export const collectScriptFiles = collectMatching(/\.[cm]?[jt]sx?$/);
-
-/**
- * A script collector that leaves out every file `frozen` names. One mechanism
- * behind both collectors below, so they cannot drift apart.
- */
-const scriptsSkipping =
-  (frozen: (file: string) => boolean) =>
-  async (directory: string): Promise<string[]> =>
-    (await collectScriptFiles(directory)).filter((file) => !frozen(file));
+export const collectSourceFiles = collectMatching(/\.[cm]?tsx?$/);
 
 /**
  * Files no code check reads: the browser bundles in `ui/static`, which esbuild
@@ -69,9 +55,14 @@ export const isGeneratedFile = (file: string): boolean =>
   /(^|\/)migrations\/schema\/columns\.ts$/.test(file) ||
   /(^|\/)ui\/static\//.test(file);
 
-/** Every script the rule gates read: all TypeScript and JavaScript beneath
- * `directory`, built output left out. */
-export const collectGateScriptFiles = scriptsSkipping(isGeneratedFile);
+/** Every script the rule gates read: all TypeScript beneath `directory`,
+ * built output left out. */
+export const collectGateScriptFiles = async (
+  directory: string,
+): Promise<string[]> =>
+  (await collectSourceFiles(directory)).filter(
+    (file) => !isGeneratedFile(file),
+  );
 
 /** Every file a rule gate reads: the gate scripts, the authored stylesheets,
  * and the shell scripts. The `.scss` under `ui/static` is written by hand

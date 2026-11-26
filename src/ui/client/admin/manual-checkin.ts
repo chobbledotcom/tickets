@@ -4,6 +4,7 @@
  * Posts to the scan JSON API without a page reload so the camera keeps running. */
 
 import { showConfirm } from "#src/ui/client/confirm-dialog.ts";
+import { postJson } from "#src/ui/client/dom.ts";
 import { showQuantitySelect } from "#src/ui/client/quantity-select.ts";
 
 type OptionDirection = "up" | "down";
@@ -379,17 +380,7 @@ export const initManualCheckin = (): void => {
 
     const postScan = async (
       body: Record<string, unknown>,
-    ): Promise<ScanAnswer> => {
-      const r = await fetch(scanPath, {
-        body: JSON.stringify(body),
-        headers: {
-          "content-type": "application/json",
-          "x-csrf-token": csrfInput.value,
-        },
-        method: "POST",
-      });
-      return r.json();
-    };
+    ): Promise<ScanAnswer> => postJson(scanPath, csrfInput.value, body);
 
     try {
       await checkInPick(attendeeId, postScan);

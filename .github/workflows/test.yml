@@ -112,6 +112,9 @@ jobs:
       - name: Check for alias exports
         run: deno task check:alias-exports
 
+      - name: Check for JavaScript files
+        run: deno task check:no-js
+
       - name: Check for empty catch blocks
         run: deno task check:empty-catch
 
