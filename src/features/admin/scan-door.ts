@@ -17,7 +17,7 @@ import { formatDateLabel } from "#shared/date-labels.ts";
 import type { RosterOption } from "#shared/roster-option.ts";
 import { hasTicketQuantity } from "#types";
 import { groupScope, listingScope, type ScanScope } from "./scan-answer.ts";
-import { owingListings, scanAdmits } from "./scan-decision.ts";
+import { listingHasDoor, owingListings, scanAdmits } from "./scan-decision.ts";
 
 /** The name a door's cache key derives from: the door's kind and id. The
  * cache endpoint and the scanner page derive the same key from the same
@@ -71,7 +71,7 @@ export const doorRoute =
  * meets the same answer as an unknown listing. */
 export const loadListingDoor: ScanDoorLoader = async (id) => {
   const listing = await getListingWithCount(id);
-  return !listing || listing.purchaseOnly
+  return !listing || !listingHasDoor(listing)
     ? null
     : {
         door: doorCacheName("listing", id),

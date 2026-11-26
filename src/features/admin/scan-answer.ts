@@ -33,6 +33,7 @@ import {
 import type { Attendee, Group } from "#types";
 import {
   decideScan,
+  listingHasDoor,
   quantityAdmission,
   type ScanDecision,
   type ScanUnit,
@@ -94,7 +95,7 @@ export const groupScope = async (group: Group): Promise<ScanScope> => ({
   checkInEveryListing: group.scanChecksInAllListings,
   listingIds: new Set(
     (await getListingsByGroupId(group.id))
-      .filter((listing) => !listing.purchaseOnly)
+      .filter(listingHasDoor)
       .map((listing) => listing.id),
   ),
 });

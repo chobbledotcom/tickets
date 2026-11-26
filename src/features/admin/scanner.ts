@@ -20,9 +20,16 @@ import {
 } from "#templates/admin/scanner.tsx";
 import type { Group } from "#types";
 import { listingWithCountHandler } from "./listing-entity.ts";
-import { groupScope, listingScope, processScan } from "./scan-answer.ts";
+import { groupScope, processScan } from "./scan-answer.ts";
 import { scanCacheRoutes } from "./scan-cache.ts";
-import { doorCacheName, loadGroupDoor, pageDoorCacheKey } from "./scan-door.ts";
+import { listingHasDoor } from "./scan-decision.ts";
+import {
+  doorCacheName,
+  loadGroupDoor,
+  loadListingDoor,
+  pageDoorCacheKey,
+  type ScanDoorLoader,
+} from "./scan-door.ts";
 import { scanSearchRoutes } from "./scan-search.ts";
 
 /** Handle GET /admin/listing/:id/scanner - render scanner page */
@@ -31,7 +38,7 @@ const handleScannerGet: IdRouteHandler = listingWithCountHandler(
 )(async (listing, session) => {
   // A "No check-in" listing has no door: the doors list hides it, and a
   // guessed URL meets the same answer as an unknown listing.
-  if (listing.purchaseOnly) return notFoundResponse();
+  if (!listingHasDoor(listing)) return notFoundResponse();
   return htmlResponse(
     adminScannerPage(
       listing,
@@ -75,7 +82,7 @@ const loadDoors = async (): Promise<{
     getAllGroupNames(),
   ]);
   const listingDoors = [...listings]
-    .filter(([, listing]) => !listing.purchaseOnly)
+    .filter(([, listing]) => listingHasDoor(listing))
     .map(
       ([id, listing]): ScannerDoor => ({
         name: listing.name,
@@ -102,25 +109,20 @@ const handleDoorsGet: RequestRoute = (request) =>
     htmlResponse(adminScannerDoorsPage(session, await loadDoors())),
   );
 
-/**
- * Handle POST /admin/listing/:id/scan - JSON check-in API.
- * Scanner is intentionally one-way (check-in only, no check-out) to prevent
- * accidental check-outs from double-scans during rapid door check-in.
- */
-const handleScanPost: IdRouteHandler = (request, { id }) =>
-  withAuth(request, SCANNER_JSON, (_session, body) =>
-    processScan(listingScope(id), body, doorCacheName("listing", id)),
-  );
-
-/** Handle POST /admin/groups/:id/scan — the same API over the group's whole
- * scope. A missing group answers 404 rather than an empty scope, so a broken
- * link cannot pass every ticket off as "wrong listing". */
-const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
-  withAuth(request, SCANNER_JSON, async (_session, body) => {
-    const door = await loadGroupDoor(id);
-    if (!door) return jsonResponse({ status: "not_found" }, 404);
-    return processScan(door.scope, body, door.door);
-  });
+/** Handle POST /admin/{listing,groups}/:id/scan — the JSON check-in API over
+ * one door's whole scope. A door that does not exist answers 404 rather
+ * than an empty scope, so a broken link cannot pass every ticket off as
+ * "wrong listing". Scanner is intentionally one-way (check-in only, no
+ * check-out) to prevent accidental check-outs from double-scans during
+ * rapid door check-in. */
+const scanPost =
+  (load: ScanDoorLoader): IdRouteHandler =>
+  (request, { id }) =>
+    withAuth(request, SCANNER_JSON, async (_session, body) => {
+      const door = await load(id);
+      if (!door) return jsonResponse({ status: "not_found" }, 404);
+      return processScan(door.scope, body, door.door);
+    });
 
 /** Scanner routes */
 export const adminHandlers = defineAdminRoutes({
@@ -129,6 +131,6 @@ export const adminHandlers = defineAdminRoutes({
   "GET /admin/groups/:id/scanner": handleGroupScannerGet,
   "GET /admin/listing/:id/scanner": handleScannerGet,
   "GET /admin/scanner": handleDoorsGet,
-  "POST /admin/groups/:id/scan": handleGroupScanPost,
-  "POST /admin/listing/:id/scan": handleScanPost,
+  "POST /admin/groups/:id/scan": scanPost(loadGroupDoor),
+  "POST /admin/listing/:id/scan": scanPost(loadListingDoor),
 });

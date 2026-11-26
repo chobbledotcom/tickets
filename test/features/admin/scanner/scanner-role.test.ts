@@ -151,14 +151,16 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
       scanner.cookie,
     );
     expect(page.status).toBe(404);
-    // The door's scan API refuses the same listing: the app's ticket-QR path
-    // never marks a no-check-in row as attended, and neither does the door.
+    // The door's scan API refuses the same listing the way every other
+    // listing-door route does: the listing has no door, so the scan meets
+    // the same 404 as an unknown listing, and no row is ever touched.
     const scan = await scanAsScanner(
       `/admin/listing/${listing.id}/scan`,
       scanner.cookie,
       token,
     );
-    expect((await scan.json()).status).toBe("wrong_listing");
+    expect(scan.status).toBe(404);
+    expect((await scan.json()).status).toBe("not_found");
     // The booking row is still there, and still unchecked.
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
   });
