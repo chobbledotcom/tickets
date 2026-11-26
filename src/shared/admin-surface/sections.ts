@@ -150,8 +150,8 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
         ["siteOrder", "site.sub_nav.order"],
         ["sitePages", "nav.site.pages"],
         ["news", "nav.site.news"],
+        ["siteReviews", "nav.site.reviews"],
       ]),
-      featureLink("siteReviews", "nav.site.reviews", "reviews"),
     ],
     {
       landingLabelKey: "site.sub_nav.homepage",

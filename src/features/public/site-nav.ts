@@ -14,6 +14,7 @@ import { groups } from "#db/groups.ts";
 import { getListingsWithCountsByIds } from "#db/listings/records.ts";
 import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
 import { hasReviews, reviewsExistenceRead } from "#db/reviews.ts";
+import { settings } from "#db/settings.ts";
 import { allPageItemsRead } from "#db/site-page-items.ts";
 import { sitePagesNavRead } from "#db/site-pages.ts";
 import { compact, filter, map, pipe, unique } from "#fp";
@@ -169,7 +170,7 @@ export const publicNavProps = async (
   return {
     ...navFlags(),
     hasNews: await hasNewsPosts(),
-    hasReviews: await hasReviews(),
+    hasReviews: settings.reviewsEnabled && (await hasReviews()),
     pages: await publicNavModel(current),
   };
 };

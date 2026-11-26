@@ -58,6 +58,26 @@ When(
 );
 
 When(
+  "the owner turns on the reviews page",
+  async function (this: TicketsWorld): Promise<void> {
+    const editor = await openAdminPage(this, "/admin/site/reviews");
+    await fillInAndSend(editor, {}, t("common.save"), {
+      reviewsEnabled: ["true"],
+    });
+  },
+);
+
+When(
+  "the owner turns off the reviews page",
+  async function (this: TicketsWorld): Promise<void> {
+    const editor = await openAdminPage(this, "/admin/site/reviews");
+    await fillInAndSend(editor, {}, t("common.save"), {
+      reviewsEnabled: [],
+    });
+  },
+);
+
+When(
   "the owner adds a review from {string} with the URL {string}",
   async function (
     this: TicketsWorld,

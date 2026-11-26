@@ -66,7 +66,7 @@ describe("PublicNav (leaf-current render)", () => {
     assert(!html.includes('href="/ticket/leaf"'));
   });
 
-  test("offers the reviews link only while its feature is on", () => {
+  test("offers the reviews link only while the page is on", () => {
     const shown = String(PublicNav({ ...props(true), hasReviews: true }));
     // The root row renders twice: once for desktop and once for mobile.
     expect((shown.match(/href="\/reviews"/g) ?? []).length).toBe(2);

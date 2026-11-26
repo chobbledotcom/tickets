@@ -19,13 +19,6 @@ export const ADMIN_FEATURES = [
     slug: "site",
   },
   {
-    descriptionKey: "features.reviews.description",
-    inUseSql: null,
-    key: "reviews",
-    labelKey: "features.reviews.name",
-    slug: "reviews",
-  },
-  {
     descriptionKey: "features.attributes.description",
     inUseSql: sql`EXISTS (SELECT 1 FROM attributes AS attribute)`,
     key: "attributes",

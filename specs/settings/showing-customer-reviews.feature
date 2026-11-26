@@ -9,8 +9,8 @@ Feature: The owner shows customer reviews
   @rule:settings.reviews-are-hidden-until-the-owner-turns-them-on
   @surface:public
   Rule: Reviews are hidden until the owner turns them on
-    While the feature is off, the reviews page is not found and the public menu
-    has no link to it.
+    While the reviews page is off, the page is not found. The public menu has no
+    link to it.
 
     @case:reviews.off-by-default
     Scenario: A new site has no reviews page
@@ -22,7 +22,7 @@ Feature: The owner shows customer reviews
     @case:reviews.enabled
     Scenario: The owner turns reviews on
       Given the owner enables "Site"
-      When the owner enables "Reviews"
+      When the owner turns on the reviews page
       And the owner adds a review from "A new reviewer" with the URL "https://example.com/reviews/new"
       And a visitor opens the reviews page
       Then the visitor reads "A new reviewer"
@@ -31,8 +31,8 @@ Feature: The owner shows customer reviews
     @case:reviews.disabled
     Scenario: The owner turns reviews off again
       Given the owner enables "Site"
-      And the owner enables "Reviews"
-      When the owner disables "Reviews"
+      And the owner turns on the reviews page
+      When the owner turns off the reviews page
       And a visitor opens the reviews page
       Then the visitor is told the page is not found
       And the visitor is offered no reviews link
@@ -46,7 +46,7 @@ Feature: The owner shows customer reviews
     @case:reviews.adding-a-review
     Scenario: The owner adds a review
       Given the owner enables "Site"
-      And the owner enables "Reviews"
+      And the owner turns on the reviews page
       When the owner opens the reviews editor
       And the owner adds a review from "A new reviewer" with the URL "https://example.com/reviews/new"
       And a visitor opens the reviews page

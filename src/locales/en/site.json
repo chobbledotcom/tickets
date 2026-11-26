@@ -13,10 +13,15 @@
   "site.order.text_label": "Order page intro",
   "site.order.text_hint": "Shown at the top of the public order page (max {max} characters).",
   "site.order.text_placeholder": "Pick the items you're interested in...",
+  "site.reviews.text_label": "Reviews page intro",
+  "site.reviews.text_hint": "Shown at the top of the public reviews page (max {max} characters).",
+  "site.reviews.text_placeholder": "Read what our customers say...",
   "site.home_title": "Site - Home",
   "site.contact_title": "Site - Contact",
   "site.order_title": "Site - Order",
   "site.contact_form_heading": "Contact form",
   "site.order_page_heading": "Order page",
+  "site.reviews_page_heading": "Reviews page",
+  "site.reviews_enabled_label": "Enable reviews page",
   "site.homepage_updated": "Homepage updated"
 }

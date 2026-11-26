@@ -4,11 +4,7 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie } from "#test-utils/session.ts";
-import {
-  disableFeature,
-  enableFeature,
-  enablePublicSite,
-} from "#test-utils/settings.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 describeWithEnv("server (admin site nav)", { db: true }, () => {
   describe("site subnav", () => {
@@ -50,15 +46,10 @@ describeWithEnv("server (admin site nav)", { db: true }, () => {
       assertStringIncludes(html, 'href="/admin/site"');
     });
 
-    test("shows the reviews editor only while reviews are on", async () => {
+    test("shows the reviews editor whenever Site is on", async () => {
       await enablePublicSite();
-      await enableFeature("reviews");
       const shown = await (await adminGet("/admin/site")).text();
       expectIncludesAll(shown, ['href="/admin/site/reviews"', ">Reviews<"]);
-
-      await disableFeature("reviews");
-      const hidden = await (await adminGet("/admin/site")).text();
-      assert(!hidden.includes('href="/admin/site/reviews"'));
     });
 
     test("hides Site link when public site is disabled", async () => {

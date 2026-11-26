@@ -206,6 +206,8 @@ export const AREAS_M_Z = {
     write: {
       siteContactFormToggle: "/admin/site/contact/form",
       siteOrderToggle: "/admin/site/order/toggle",
+      siteReviewsIntro: "/admin/site/reviews/intro",
+      siteReviewsToggle: "/admin/site/reviews/toggle",
     },
   },
   sitePages: recordArea({

@@ -40,6 +40,7 @@ const SITEMAP_SETTINGS_KEYS = [
   CONFIG_KEYS.CONTACT_PAGE_TEXT,
   CONFIG_KEYS.LISTING_DEFAULTS,
   CONFIG_KEYS.ORDER_ENABLED,
+  CONFIG_KEYS.REVIEWS_ENABLED,
   CONFIG_KEYS.TERMS_AND_CONDITIONS,
 ];
 
@@ -100,7 +101,11 @@ const publicPaths = async (): Promise<string[]> => {
   // like every other public page defers it.
   const { navFlags } = await import("#templates/public/shared.tsx");
   return [
-    ...fixedPublicPaths(navFlags(), posts.length > 0, await hasReviews()),
+    ...fixedPublicPaths(
+      navFlags(),
+      posts.length > 0,
+      settings.reviewsEnabled && (await hasReviews()),
+    ),
     ...pages
       .filter((page) => !page.hidden && SLUG_PARAM_SERVES.test(page.slug))
       .map((page) => `/page/${page.slug}`),

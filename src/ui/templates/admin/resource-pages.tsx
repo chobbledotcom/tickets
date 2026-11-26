@@ -161,6 +161,7 @@ export type ResourceListConfig<TEntity> = {
   columns: readonly TableColumn<TEntity>[];
   emptyKey: string;
   guideAnchor: string;
+  intro?: Child;
   introKey?: string;
   resource: string;
   route: AdminDestinationId;
@@ -177,9 +178,11 @@ export const resourceListWithAddButton = <TEntity,>(
       anchor: config.guideAnchor,
       label: t(`${config.resource}.guide_link`),
     },
-    ...(config.introKey === undefined
-      ? {}
-      : { intro: <p>{t(config.introKey)}</p> }),
+    ...(config.intro !== undefined
+      ? { intro: config.intro }
+      : config.introKey === undefined
+        ? {}
+        : { intro: <p>{t(config.introKey)}</p> }),
   });
 
 export const recordPageConfig = <TEntity extends { id: number }>(

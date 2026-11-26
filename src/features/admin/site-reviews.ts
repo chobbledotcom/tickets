@@ -1,6 +1,7 @@
 /** Admin reviews routes: list, add, edit, and delete one review. The shared
  *  record pages own the writes. This module binds them to the Site routes. */
 
+import { settings } from "#db/settings.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { entityPageById } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
@@ -11,6 +12,7 @@ import { recordPages } from "#shared/rest/record-pages.ts";
 import {
   adminReviewEditPage,
   getReviewPages,
+  reviewListIntro,
 } from "#templates/admin/reviews.tsx";
 import {
   getReviewForm,
@@ -24,7 +26,12 @@ const pages = recordPages(reviewRecord, {
   renderDelete: (review, session, error) =>
     views.deletePage(review, session, error),
   renderList: (rows, session, success) =>
-    views.listPage(rows, session, undefined, success),
+    getReviewPages(
+      reviewListIntro({
+        enabled: settings.reviewsEnabled,
+        introText: settings.reviewsIntroText,
+      }),
+    ).listPage(rows, session, undefined, success),
   renderNew: (session, error) => views.newPage(session, error),
   routes: { delete: "reviewDelete", edit: "reviewEdit" },
   savePath: () => "/admin/site/reviews",

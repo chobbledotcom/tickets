@@ -142,8 +142,8 @@ export const PREFIXES_M_Z = {
     ),
     settings: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER],
   },
-  // Public reviews page. The full public nav renders. The page's feature
-  // switch is in the infra settings bundle.
+  // Public reviews page. The full public nav renders. The page switch is in
+  // the infra settings bundle.
   reviews: {
     ...publicSiteGetRoute(
       routeFromModule(
@@ -152,7 +152,7 @@ export const PREFIXES_M_Z = {
       ),
     ),
     messageGroups: publicMessageGroups("public-site"),
-    settings: PUBLIC_NAV_SETTINGS,
+    settings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.REVIEWS_INTRO_TEXT],
   },
   // The setup router owns these paths before app routing. The entry declares
   // the bundle only, so the settings read stays infra-only.

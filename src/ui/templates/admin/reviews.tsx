@@ -2,7 +2,7 @@
  *  render the shell. This file owns only the review columns and edit form. */
 
 import { t } from "#i18n";
-import { Raw } from "#jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { reviewRecord } from "#shared/records/reviews.ts";
 import type { Review } from "#shared/reviews/types.ts";
@@ -17,9 +17,14 @@ import {
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import { FormSections } from "#templates/components/aggregate-sections.tsx";
-import { SaveForm } from "#templates/components/save-form.tsx";
+import { ProseIntro } from "#templates/components/prose-intro.tsx";
+import {
+  renderedFieldsSaveForm,
+  SaveForm,
+} from "#templates/components/save-form.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { getReviewForm, reviewFormValues } from "#templates/fields/reviews.ts";
+import { siteReviewsForm } from "#templates/fields/site.ts";
 import type { AdminSession } from "#types";
 
 const reviewColumns = (): TableColumn<Review>[] => [
@@ -60,6 +65,44 @@ const renderFields = (review: Review | undefined) => {
   );
 };
 
+const reviewsIntroForm = renderedFieldsSaveForm(t("common.save"));
+
+/** The reviews list controls: the page switch and the optional intro text. */
+export const reviewListIntro = ({
+  enabled,
+  introText,
+}: {
+  enabled: boolean;
+  introText: string;
+}): Child => (
+  <>
+    <ProseIntro
+      heading={t("site.reviews_page_heading")}
+      intro={t("reviews.list.intro")}
+    />
+
+    <SaveForm
+      action="/admin/site/reviews/toggle"
+      submitLabel={t("common.save")}
+    >
+      <label>
+        <input
+          checked={enabled}
+          name="reviewsEnabled"
+          type="checkbox"
+          value="true"
+        />{" "}
+        {t("site.reviews_enabled_label")}
+      </label>
+    </SaveForm>
+
+    {reviewsIntroForm(
+      "/admin/site/reviews/intro",
+      siteReviewsForm.render({ reviewsIntroText: introText }),
+    )}
+  </>
+);
+
 /* jscpd:ignore-start -- static page config, not code */
 const reviewList = {
   addLabelKey: "reviews.add.submit",
@@ -71,13 +114,15 @@ const reviewList = {
 } as const;
 /* jscpd:ignore-end */
 
-export const getReviewPages = (): AdminResourcePages<Review> =>
+export const getReviewPages = (listIntro?: Child): AdminResourcePages<Review> =>
   defineRecordPages(
     reviewRecord,
     recordPageConfig(
       "reviews",
       reviewColumns(),
-      reviewList,
+      listIntro === undefined
+        ? reviewList
+        : { ...reviewList, intro: listIntro },
       confirmDeleteSpec<Review>({
         label: t("reviews.delete.confirm_label"),
         name: (review) => review.name,

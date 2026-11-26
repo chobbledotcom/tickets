@@ -95,6 +95,9 @@ export const enableFeature = async (key: AdminFeatureKey): Promise<void> => {
   await setAdminFeatureEnabled(key, true);
 };
 
+export const setReviewsPageEnabled = (enabled: boolean): Promise<void> =>
+  settings.update.reviewsEnabled(enabled);
+
 export const disableFeature = async (key: AdminFeatureKey): Promise<void> => {
   await setAdminFeatureEnabled(key, false);
 };

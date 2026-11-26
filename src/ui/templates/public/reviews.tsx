@@ -5,6 +5,7 @@ import { formatMonthYearShortLabel } from "#shared/date-labels.ts";
 import type { Review } from "#shared/reviews/types.ts";
 import { type ReviewsLabels, reviewsBody } from "./reviews-body.tsx";
 import {
+  MarkdownProse,
   type PublicNavProps,
   publicPage,
   titleWithSiteName,
@@ -21,9 +22,15 @@ export const reviewsPage = (
   reviews: readonly Review[],
   nav: PublicNavProps,
   websiteTitle: string,
+  introText?: string | null,
 ): string =>
   publicPage(
     titleWithSiteName(t("nav.public.reviews"), websiteTitle),
     websiteTitle,
     nav,
-  )(reviewsBody(reviews, reviewLabels()));
+  )(
+    <>
+      {introText ? <MarkdownProse markdown={introText} /> : null}
+      {reviewsBody(reviews, reviewLabels())}
+    </>,
+  );

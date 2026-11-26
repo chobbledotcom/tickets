@@ -95,8 +95,7 @@ export const PublicNav = (props: PublicNavProps): JSX.Element =>
  * The Contact link also shows when the contact form is active, even if the
  * contact page has no descriptive text of its own. The Order link shows
  * whenever the owner has enabled the order page. The Reviews link follows its
- * feature switch. The generated reviews data always holds at least one card,
- * so an enabled switch never renders a dead link. */
+ * page switch and shows only while a review is saved. */
 export const navFlags = () => ({
   hasContact: !!settings.contactPageText || isContactFormActive(),
   hasOrder: settings.orderEnabled,

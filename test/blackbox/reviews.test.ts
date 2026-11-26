@@ -11,10 +11,9 @@ import {
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  disableFeature,
   disablePublicSite,
-  enableFeature,
   enablePublicSite,
+  setReviewsPageEnabled,
 } from "#test-utils/settings.ts";
 import { loggedIn } from "./settings.ts";
 
@@ -44,11 +43,11 @@ const addReview = async (app: App, name: string, url: string): Promise<Page> =>
 
 const enableReviews = async (): Promise<void> => {
   await enablePublicSite();
-  await enableFeature("reviews");
+  await setReviewsPageEnabled(true);
 };
 
 const cleanUp = async (): Promise<void> => {
-  await disableFeature("reviews");
+  await setReviewsPageEnabled(false);
   await disablePublicSite();
 };
 
@@ -78,6 +77,49 @@ describeWithEnv("the reviews page", { db: true }, () => {
       expectIncludesAll(list.html, ["No reviews yet."]);
       expect((await app.get("/reviews")).status).toBe(404);
     }));
+
+  test("saves the page intro and switch", async () => {
+    await enablePublicSite();
+    try {
+      const app = await loggedIn();
+      const list = await app.get("/admin/site/reviews");
+      expectIncludesAll(list.html, [
+        "Reviews page",
+        "Enable reviews page",
+        "Reviews page intro",
+        'action="/admin/site/reviews/intro"',
+      ]);
+
+      const created = await addReview(
+        app,
+        "An intro reviewer",
+        "https://example.com/reviews/intro",
+      );
+      expect(created.html).toContain("Review created");
+      expect((await app.get("/reviews")).status).toBe(404);
+
+      const intro = await app.submit(
+        "/admin/site/reviews",
+        { reviewsIntroText: "Read **our reviews**." },
+        "/admin/site/reviews/intro",
+      );
+      expect(intro.status).toBe(302);
+
+      const enabled = await app.submit(
+        "/admin/site/reviews",
+        { reviewsEnabled: "true" },
+        "/admin/site/reviews/toggle",
+      );
+      expect(enabled.status).toBe(302);
+      expectIncludesAll((await app.get("/reviews")).html, [
+        "Read <strong>our reviews</strong>.",
+        "An intro reviewer",
+      ]);
+    } finally {
+      await setReviewsPageEnabled(false);
+      await disablePublicSite();
+    }
+  });
 
   test("shows a saved review on the public page", () =>
     withReviews(async (app) => {
