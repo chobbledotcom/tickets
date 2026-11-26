@@ -13,6 +13,7 @@ import {
   requireListedDatabase,
 } from "#db/host.ts";
 import { defineApiClient } from "#shared/api-client.ts";
+import { databasePageSchema } from "#shared/bunny-answers.ts";
 import { bunnyDryRunFetch } from "#shared/bunny-api.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { jsonHeaders } from "#shared/fetch.ts";
@@ -65,10 +66,7 @@ const GetDbResponseSchema = v.object({
 });
 
 /** One page of the account's databases, with the address each one answers on. */
-const ListDbResponseSchema = v.object({
-  databases: v.array(v.object({ id: v.string(), url: v.string() })),
-  page_info: v.object({ has_more_items: v.boolean() }),
-});
+const ListDbResponseSchema = databasePageSchema({ url: v.string() });
 
 /** Databases per page the list walk asks for. */
 const LIST_PAGE_SIZE = 50;
