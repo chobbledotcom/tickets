@@ -9,7 +9,6 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { customPriceFieldName, quantityFieldName } from "#booking/tree.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { TICKETS_UNAVAILABLE_MESSAGE } from "#routes/public/ticket-submit/paths.ts";
@@ -64,6 +63,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 Given(

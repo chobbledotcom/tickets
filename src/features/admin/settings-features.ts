@@ -1,4 +1,3 @@
-import * as v from "valibot";
 import { logActivity } from "#db/activity-log.ts";
 import {
   getAdminFeatureUsage,
@@ -25,8 +24,6 @@ import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { adminFeaturePage } from "#templates/admin/features.tsx";
 
-const FeatureChoiceSchema = v.picklist(["true", "false"]);
-
 const withAdminFeature = (
   slug: string,
   use: (feature: AdminFeatureDefinition) => Promise<Response>,
@@ -41,11 +38,7 @@ const saveFeatureChoice = async (
   form: FormParams,
 ): Promise<Response> => {
   const path = `/admin/features/${feature.slug}`;
-  const choice = v.safeParse(FeatureChoiceSchema, form.getString("enabled"));
-  if (!choice.success) {
-    return errorRedirect(path, t("features.invalid_value"));
-  }
-  const enabled = choice.output === "true";
+  const enabled = form.getString("enabled") === "true";
   if (!enabled && (await getAdminFeatureUsage())[feature.key]) {
     return errorRedirect(path, t("features.in_use_help"));
   }

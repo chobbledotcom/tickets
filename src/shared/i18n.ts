@@ -207,6 +207,11 @@ export const t = (key: string, values?: Record<string, unknown>): string => {
     : String(resolved.format(values));
 };
 
+/** Translate a key whose `{name}`-style holes stay open, so browser code
+ * fills them later with the values it learns. */
+export const tWithHoles = (key: string, ...holes: string[]): string =>
+  t(key, Object.fromEntries(holes.map((hole) => [hole, `{${hole}}`])));
+
 /**
  * Parse the Accept-Language header and return the best matching registered locale.
  * Falls back to "en" if no match is found.

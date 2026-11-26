@@ -210,6 +210,7 @@ export const buildDescriptionField = (
   hintHtml?: string,
 ): TextareaField<"description"> => ({
   hint,
+  hintFirst: true,
   ...(hintHtml !== undefined && { hintHtml }),
   label: t("fields.listing.description"),
   markdown: true,

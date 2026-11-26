@@ -25,14 +25,16 @@ import {
 import {
   getAttendeeKindsByIds,
   getAttendeesPage,
-  getAttendeesRaw,
   getNewestAttendeesRaw,
 } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendeeDirect,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold, renderAdminPage } from "#test-utils/servicing.ts";
 

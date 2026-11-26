@@ -55,5 +55,7 @@
   "common.reorder_stale": "That list changed since you opened it. Please try the move again.",
   "common.reorder_handle": "Drag to change the order",
   "common.reorder_up": "Move up",
-  "common.reorder_down": "Move down"
+  "common.reorder_down": "Move down",
+  "common.enabled": "Enabled",
+  "form.required": "Required"
 }

@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { sql } from "#db/sql.ts";
@@ -11,6 +10,7 @@ import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
   deactivateTestListing,

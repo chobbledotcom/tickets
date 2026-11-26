@@ -44,7 +44,9 @@ describe("test-utils — listing & attendee factories", () => {
 
       // The booking that DID land on `open` is rolled back, so no stray
       // attendee is left occupying capacity or skewing later assertions.
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       expect((await getAttendeesRaw(open.id)).length).toBe(0);
 
       // Regression: the rollback must also reverse the contact-activity count

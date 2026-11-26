@@ -1,0 +1,208 @@
+/// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
+// test-groups: run-alone — the bundle runs inside happy-dom, whose internal
+// task timers can outlive `happyDOM.abort()` under load; in a shared isolate a
+// trailing timer fires during whichever suite runs next and fails its op
+// sanitizer. Solo, it dies with the isolate — the proven-safe historical mode.
+
+/** The manual check-in on the scanner page, driven through the real built
+ * bundle: while offline mode settles the door, a search by name reads the
+ * saved list and a pick joins the offline queue. */
+
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import type { TicketCacheEntry } from "#shared/ticket-cache.ts";
+import {
+  cameraFakes,
+  savedEntry,
+  seedTicketCache,
+  start,
+  whenStatusShows,
+} from "#test/ui/client/scanner/camera-fakes.ts";
+import {
+  el,
+  MODE_KEY,
+  SCAN_PATH,
+  TOKEN,
+  useScannerSuite,
+} from "#test/ui/client/scanner/fixture.ts";
+import {
+  digestOf,
+  expectOneStoredCheckIn,
+} from "#test/ui/client/scanner/offline-door.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { waitUntilSettled } from "#test-utils/happy-dom.ts";
+
+type Harness = ReturnType<ReturnType<typeof useScannerSuite>>;
+
+/** The manual form's name box, checked to be the input the page renders. */
+const nameBox = (h: Harness) => {
+  const input = el(h.document, "manual-checkin-input");
+  if (!(input instanceof h.window.HTMLInputElement)) {
+    throw new Error("The manual check-in name box is not an input");
+  }
+  return input;
+};
+
+/** Send the manual form without waiting for its handler. */
+const sendManual = (h: Harness): void => {
+  el(h.document, "manual-checkin").dispatchEvent(
+    new h.window.Event("submit", { bubbles: true, cancelable: true }),
+  );
+};
+
+/** Send the manual form and let the bundle's handler run to its end. */
+const submitManual = async (h: Harness): Promise<void> => {
+  sendManual(h);
+  const button = el(h.document, "manual-checkin-submit");
+  await waitUntilSettled(
+    () => !button.hasAttribute("disabled"),
+    "the manual check-in",
+  );
+};
+
+/** Turn the door's switch on with `entries` as its saved list. */
+const saveList = (h: Harness, entries: TicketCacheEntry[]): void => {
+  h.window.localStorage.setItem(MODE_KEY, "1");
+  h.window.localStorage.setItem(
+    `scanner-tickets-${SCAN_PATH}`,
+    JSON.stringify({ entries, storedAt: Date.now() }),
+  );
+};
+
+/** Save `entries` as the door's list with offline mode on, search it for
+ * `text`, and answer the options it shows. */
+const searchSavedList = async (
+  h: Harness,
+  entries: TicketCacheEntry[],
+  text: string,
+) => {
+  saveList(h, entries);
+  return searchFor(h, text);
+};
+
+/** Search the saved list for `text`, and answer the options it shows. */
+const searchFor = async (h: Harness, text: string) => {
+  nameBox(h).value = text;
+  await submitManual(h);
+  return [
+    ...el(h.document, "ticket-options").querySelectorAll("[role=option]"),
+  ].map((option) => {
+    if (!(option instanceof h.window.HTMLElement)) {
+      throw new Error("The search shows an option that is not an element");
+    }
+    return option;
+  });
+};
+
+describe("scanner manual check-in while offline mode is on", {
+  sanitizeOps: false,
+  sanitizeResources: false,
+}, () => {
+  const fresh = useScannerSuite();
+
+  test("finds a person in the saved list and queues the pick", async () => {
+    using fetchStub = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+    const options = await searchSavedList(
+      h,
+      [
+        { ...savedEntry(await digestOf(TOKEN)), details: ["12 Jun"] },
+        { ...savedEntry("other-digest"), name: "Ben" },
+      ],
+      "ad",
+    );
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Ada (1 ticket) — 12 Jun",
+    ]);
+
+    options[0]!.click();
+    await submitManual(h);
+
+    const status = el(h.document, "manual-checkin-status");
+    await whenStatusShows(
+      status,
+      "Ticket looks valid. It will be checked in when you are back online.",
+    );
+    await expectOneStoredCheckIn(h, TOKEN);
+    // The search and the pick asked nothing of the network.
+    expect(fetchStub.calls.length).toBe(0);
+  });
+
+  test("answers the saved people in name order, like the search route", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+    const options = await searchSavedList(
+      h,
+      [
+        { ...savedEntry("first-digest"), name: "Zoe Rae" },
+        { ...savedEntry("other-digest"), name: "Ann Mae" },
+      ],
+      "ae",
+    );
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Ann Mae (1 ticket)",
+      "Zoe Rae (1 ticket)",
+    ]);
+  });
+
+  test("tells the door when the device holds no saved list", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+    nameBox(h).value = "ad";
+    await submitManual(h);
+
+    expect(el(h.document, "manual-checkin-status").textContent).toBe(
+      "No offline ticket list on this device. Go online and turn on offline mode first.",
+    );
+    expect(
+      el(h.document, "ticket-options").querySelectorAll("[role=option]"),
+    ).toHaveLength(0);
+  });
+
+  test("queues a ticket once when a scan and a pick wait on the same ask", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+    await start(h);
+    // The fakes own the clock, so the seed lands after they do.
+    h.window.localStorage.setItem(MODE_KEY, "1");
+    await seedTicketCache(h, TOKEN, Date.now(), 3);
+    // The camera's scan of the party of three opens the quantity ask.
+    fakes.decode({ data: TOKEN });
+    fakes.advance(1000);
+    const ask = el(h.document, "scanner-quantity");
+    const askMessage = el(h.document, "scanner-quantity-message");
+    await whenStatusShows(askMessage, "How many people are you checking in?");
+
+    // While that ask waits, the door picks the same person by name. The
+    // pick's early check sees an empty queue, so its own ask queues behind
+    // the camera's.
+    const [pick] = await searchFor(h, "ad");
+    pick!.click();
+    sendManual(h);
+
+    // Answering the camera's ask queues the scan...
+    el(h.document, "scanner-quantity-confirm").click();
+    await whenStatusShows(
+      h.statusEl,
+      "Ticket looks valid. It will be checked in when you are back online.",
+    );
+
+    // ...and the pick's ask opens behind it. Answering it must not queue a
+    // second check-in for the same ticket.
+    await waitUntilSettled(
+      () => !ask.classList.contains("hidden"),
+      "the pick's ask",
+    );
+    el(h.document, "scanner-quantity-confirm").click();
+    await whenStatusShows(
+      el(h.document, "manual-checkin-status"),
+      "This ticket is already queued. Do not let them in again.",
+    );
+
+    await expectOneStoredCheckIn(h, TOKEN, 3);
+  });
+});

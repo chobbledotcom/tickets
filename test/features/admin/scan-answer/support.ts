@@ -4,7 +4,7 @@
 
 import { expect } from "@std/expect";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
-import { doorCacheName } from "#routes/admin/scan-cache.ts";
+import { doorCacheName } from "#routes/admin/scan-door.ts";
 import { hmacHex } from "#shared/sha256.ts";
 import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
 import {

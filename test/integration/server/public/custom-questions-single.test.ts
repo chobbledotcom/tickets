@@ -51,7 +51,9 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify answers were saved
-        const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+        const { getAttendeesRaw } = await import(
+          "#test-utils/db-helpers/attendees.ts"
+        );
         const attendees = await getAttendeesRaw(listing.id);
         const batch = await getAttendeeAnswersBatch([attendees[0]!.id], {
           texts: false,
@@ -72,7 +74,9 @@ describeWithEnv(
           [`question${question.id}`]: String(answer2.id),
         });
 
-        const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+        const { getAttendeesRaw } = await import(
+          "#test-utils/db-helpers/attendees.ts"
+        );
         const [attendee] = await getAttendeesRaw(listing.id);
         expect(
           await queryAll(

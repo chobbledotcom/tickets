@@ -20,7 +20,9 @@ import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 const getSharedAttendeeAnswers = async (
   listingId: number,
 ): Promise<number[]> => {
-  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import(
+    "#test-utils/db-helpers/attendees.ts"
+  );
   const attendees = await getAttendeesRaw(listingId);
   const attendeeId = attendees[0]!.id;
   const batch = await getAttendeeAnswersBatch([attendeeId], { texts: false });

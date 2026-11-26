@@ -32,7 +32,9 @@ describeWithEnv(
     // Fetches a listing's attendees and returns the sole one's id, confirming
     // exactly one booking was made before a test reads its saved answers.
     const soleAttendeeId = async (listingId: number): Promise<number> => {
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       const attendees = await getAttendeesRaw(listingId);
       expect(attendees.length).toBe(1);
       return attendees[0]!.id;

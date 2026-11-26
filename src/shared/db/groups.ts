@@ -51,15 +51,14 @@ import {
   type PackageMemberInput,
 } from "#shared/records/group-fields.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import type { Group, GroupListing, ListingWithCount } from "#types";
 
 /** Groups are few, so the cache loads the whole set and answers by-id / by-slug
  * reads from it — same isolate-level TTL as the listings cache. */
 const GROUPS_CACHE_TTL_MS = 30_000;
-const groupIdsJson = defineStoredJson(
-  v.array(v.pipe(v.number(), v.safeInteger(), v.minValue(1))),
-);
+const groupIdsJson = defineStoredJson(v.array(integerAtLeast(1)));
 
 /** Every group, keyed by id and by slug index. The codecs decrypt each
  * group. */
