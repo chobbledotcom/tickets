@@ -57,6 +57,7 @@ const readOnlySetting = <
 
 export const STRING_SETTING_DEFINITIONS = [
   accessorSetting("plaintext", "terms", CONFIG_KEYS.TERMS_AND_CONDITIONS),
+  accessorSetting("plaintext", "reviewsMarkdown", CONFIG_KEYS.REVIEWS_MARKDOWN),
   accessorSetting("plaintext", "bulkEmailDraft", CONFIG_KEYS.BULK_EMAIL_DRAFT),
   definition({ key: CONFIG_KEYS.EMAIL_PROVIDER, storage: "plaintext" }),
   definition({

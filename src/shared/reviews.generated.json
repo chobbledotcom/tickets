@@ -1,0 +1,14 @@
+{
+  "page": {
+    "intro": "Read what our customers say.",
+    "reviews": [
+      {
+        "date": "2026-11-24",
+        "name": "Sample customer",
+        "rating": 5,
+        "text": "This is a sample review. Your imported Google reviews will appear here, in this layout."
+      }
+    ]
+  },
+  "source": "---\nreviews:\n  - name: \"Sample customer\"\n    rating: 5\n    date: \"2026-11-24\"\n    text: |\n      This is a sample review. Your imported Google reviews will appear here, in this layout.\n---\n\nRead what our customers say.\n"
+}

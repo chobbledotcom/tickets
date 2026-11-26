@@ -29,6 +29,7 @@ import {
   SITE_HOME_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
+import { maxTextareaValidator } from "#shared/forms/textarea-limit.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
@@ -38,6 +39,7 @@ import {
   adminSiteOrderPage,
 } from "#templates/admin/site.tsx";
 import { siteHomeForm } from "#templates/fields/site.ts";
+import { siteReviewRoutes } from "./site-reviews.ts";
 
 /** Count active, visible listings — every one appears on the order page. */
 const countOrderListings = async (): Promise<number> => {
@@ -50,14 +52,6 @@ type PageRenderer = (
   error?: string,
   success?: string,
 ) => string;
-
-/** A textarea length check: a message naming the field when it is too long. */
-const maxTextareaValidator =
-  (fieldLabel: string) =>
-  (value: string): string | null =>
-    value.length > MAX_TEXTAREA_LENGTH
-      ? `${fieldLabel} must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${value.length})`
-      : null;
 
 /** Site-editing GET route that renders a site editor page */
 const siteGetRoute = (render: PageRenderer): RequestRoute =>
@@ -154,7 +148,7 @@ const siteTextHandler = (name: keyof typeof SITE_TEXT_PAGES): RequestRoute => {
     log: () => config.log,
     redirectTo: config.page,
     save: config.save,
-    validate: maxTextareaValidator(config.label),
+    validate: maxTextareaValidator(MAX_TEXTAREA_LENGTH, config.label),
   });
 };
 
@@ -198,6 +192,7 @@ const handleSiteOrderPost = siteTextHandler("order");
 
 /** Site editor routes */
 export const adminHandlers = defineAdminRoutes({
+  ...siteReviewRoutes,
   "GET /admin/site": siteGetRoute(renderHomePage),
   "GET /admin/site/contact": siteGetRoute(renderContactPage),
   "GET /admin/site/order": handleSiteOrderGet,

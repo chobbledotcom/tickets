@@ -51,6 +51,9 @@ const guideMessageGroups = messageGroupsBySegment({
     "builder",
     "listings-table",
     "settings",
+    // The reviews answer is worded for the Site editor and lives in the site
+    // catalog, because that editor is the page the answer describes.
+    "site",
     ...GUIDE_MESSAGE_GROUPS,
   ],
 });

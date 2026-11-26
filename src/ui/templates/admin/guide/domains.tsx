@@ -3,6 +3,8 @@
  */
 
 import { compact } from "#fp";
+import { t } from "#i18n";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatBytes } from "#shared/format-units.ts";
 import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
@@ -63,6 +65,10 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
           </>,
         ),
         faq("advanced_settings"),
+        custom(
+          "turn_reviews_on",
+          <Raw html={t("site.reviews.guide_answer")} />,
+        ),
         faq("what_are_redirects"),
         faq("what_is_debug_page"),
         faq("what_is_the_debug_footer"),

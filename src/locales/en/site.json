@@ -18,5 +18,15 @@
   "site.order_title": "Site - Order",
   "site.contact_form_heading": "Contact form",
   "site.order_page_heading": "Order page",
-  "site.homepage_updated": "Homepage updated"
+  "site.homepage_updated": "Homepage updated",
+  "site.reviews_title": "Site - Reviews",
+  "site.reviews.heading": "Customer reviews",
+  "site.reviews.intro": "Edit the reviews that the public reviews page shows.",
+  "site.reviews.text_label": "Reviews file",
+  "site.reviews.text_hint": "Each review needs a name, a rating from 1 to 5, a date, and text. Keep the three-dash lines at the top and bottom of that list. The file can hold up to {max} characters.",
+  "site.reviews.text_placeholder": "Paste or edit the reviews here.",
+  "site.reviews.view_page": "View the reviews page",
+  "site.reviews.enable_hint": "Turn on the Reviews feature to show this page in the public menu.",
+  "site.reviews.updated": "Reviews updated.",
+  "site.reviews.guide_answer": "<p>Reviews are comments from your customers. They show on a page of their own when you turn them on. Each review shows the person's name, a star rating, the date, and what they wrote.</p><p>Open <a href=\"/admin/settings\">Settings</a>, then <strong>Features</strong>, and set <strong>Reviews</strong> to Enabled. A Reviews link then appears in the public site menu.</p><p>Open <a href=\"/admin/site/reviews\">Site &rarr; Reviews</a> to edit the reviews file. The page shows a sample review until you import your Google reviews.</p>"
 }

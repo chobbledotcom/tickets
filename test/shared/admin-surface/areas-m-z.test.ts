@@ -150,6 +150,7 @@ const PATHS = {
   sitePageMoveBefore: "/admin/site/pages/:id/move-before",
   sitePageNew: "/admin/site/pages/new",
   sitePages: "/admin/site/pages",
+  siteReviews: "/admin/site/reviews",
   sms: "/admin/sms",
   status: "/admin/settings/statuses/:id",
   statusDelete: "/admin/settings/statuses/:id/delete",

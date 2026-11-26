@@ -17,6 +17,7 @@ const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 /* jscpd:ignore-start -- a list of strings, not code */
 const EXPECTED_FEATURES = [
   ["site", "site", "site", ""],
+  ["reviews", "reviews", "reviews", ""],
   [
     "attributes",
     "attributes",

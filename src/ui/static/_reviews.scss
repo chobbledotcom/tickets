@@ -1,0 +1,126 @@
+/** Public reviews page: customer reviews packed into columns.
+ *
+ *  CSS columns give the chobble-template masonry look without a client script.
+ *  Two columns read well on a desktop; one column keeps each card full width on
+ *  a narrow screen. A card never splits across a column. */
+
+.reviews-grid {
+  columns: 2;
+  column-gap: var(--space-lg);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reviews-grid > .review-card {
+  break-inside: avoid;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  margin: 0 0 var(--space-lg);
+  padding: var(--space-m);
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+}
+
+.review-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-s);
+}
+
+.review-card .rating {
+  color: #e6a700;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.review-card .date {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  margin-inline-start: auto;
+}
+
+.review-card .review {
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.review-card .review p:first-child {
+  margin-top: 0;
+}
+
+.review-card .review p:last-child {
+  margin-bottom: 0;
+}
+
+.author-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-block-start: auto;
+}
+
+.reviewer-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.reviewer-avatar--tone-1 {
+  background: #5c6bc0;
+}
+
+.reviewer-avatar--tone-2 {
+  background: #7e57c2;
+}
+
+.reviewer-avatar--tone-3 {
+  background: #ab47bc;
+}
+
+.reviewer-avatar--tone-4 {
+  background: #ec407a;
+}
+
+.reviewer-avatar--tone-5 {
+  background: #8d6e63;
+}
+
+.reviewer-avatar--tone-6 {
+  background: #26a69a;
+}
+
+.author-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: 0.9rem;
+}
+
+.review-card .name {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.review-card .review-link {
+  font-size: 0.85rem;
+}
+
+@media (max-width: 48rem) {
+  .reviews-grid {
+    columns: 1;
+  }
+
+  .reviews-grid > .review-card {
+    margin-bottom: var(--space-m);
+  }
+}

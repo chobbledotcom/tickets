@@ -218,6 +218,7 @@ export interface TicketsWorld extends World, EvidencePages {
   /** The buyer return page's HTML, as the last "comes back to the checkout"
    * step served it. */
   returnPageHtml?: string;
+  reviewsAnswer?: { answered: number; said: string };
   /** What the site answered when the story's scanner login asked for a page. */
   scannerAnswer?: number;
   secondBody?: string;

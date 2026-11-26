@@ -40,6 +40,7 @@ const props = (live: boolean): PublicNavProps => {
     hasContact: false,
     hasNews: false,
     hasOrder: false,
+    hasReviews: false,
     hasTerms: true,
     pages: buildNavModel(forest, targets, navKey("listing", 7)),
   };
@@ -63,6 +64,13 @@ describe("PublicNav (leaf-current render)", () => {
     const html = String(PublicNav(props(false)));
     assertStringIncludes(html, "<span>Leaf Listing</span>");
     assert(!html.includes('href="/ticket/leaf"'));
+  });
+
+  test("offers the reviews link only while its feature is on", () => {
+    const shown = String(PublicNav({ ...props(true), hasReviews: true }));
+    // The root row renders twice: once for desktop and once for mobile.
+    expect((shown.match(/href="\/reviews"/g) ?? []).length).toBe(2);
+    assert(!String(PublicNav(props(true))).includes('href="/reviews"'));
   });
 
   test("stays a direct main child beside the public page layout", () => {

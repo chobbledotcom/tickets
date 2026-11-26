@@ -44,6 +44,7 @@ Feature: The owner turns features on and off
       Examples:
         | case_id                     | feature    |
         | features.says-site          | Site       |
+        | features.says-reviews       | Reviews    |
         | features.says-attributes    | Attributes |
         | features.says-questions     | Questions  |
         | features.says-modifiers     | Modifiers  |

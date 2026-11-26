@@ -15,6 +15,8 @@
   "features.disabled_success": "{feature} disabled.",
   "features.site.name": "Site",
   "features.site.description": "Publish the public site and show its editing tools in the admin menu.",
+  "features.reviews.name": "Reviews",
+  "features.reviews.description": "Show a page of customer reviews on the public site.",
   "features.attributes.name": "Attributes",
   "features.attributes.description": "Show tools for adding reusable details to listings.",
   "features.questions.name": "Questions",

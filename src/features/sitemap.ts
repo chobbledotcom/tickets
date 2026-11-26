@@ -49,7 +49,12 @@ const SITEMAP_SETTINGS_KEYS = [
  *  are the ones the public nav renders its links from. /news joins them
  *  when the news list has a post to show. */
 const fixedPublicPaths = (
-  flags: { hasContact: boolean; hasOrder: boolean; hasTerms: boolean },
+  flags: {
+    hasContact: boolean;
+    hasOrder: boolean;
+    hasReviews: boolean;
+    hasTerms: boolean;
+  },
   hasNews: boolean,
 ): string[] => {
   const served: [string, boolean][] = [
@@ -59,6 +64,7 @@ const fixedPublicPaths = (
     ["/contact", flags.hasContact],
     ["/order", flags.hasOrder],
     ["/news", hasNews],
+    ["/reviews", flags.hasReviews],
   ];
   return served.filter(([, loads]) => loads).map(([path]) => path);
 };

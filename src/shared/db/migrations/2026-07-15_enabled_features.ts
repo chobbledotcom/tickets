@@ -97,6 +97,7 @@ export default schemaMigration(
       modifiers: configured.modifiers || asBoolean(row.modifiers),
       money: configured.money,
       questions: configured.questions || asBoolean(row.questions),
+      reviews: configured.reviews,
       servicing: configured.servicing || asBoolean(row.servicing),
       site: configured.site || asBoolean(row.site),
       subscriptions: configured.subscriptions,

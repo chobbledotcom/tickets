@@ -81,6 +81,7 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   PAYMENT_PROVIDER
   PUBLIC_KEY
   REDIRECT_COUNT
+  REVIEWS_MARKDOWN
   SETTINGS_VERSION
   SETUP_COMPLETE
   SHOW_PUBLIC_API
@@ -112,6 +113,7 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
 
 const EXPECTED_SETTING_ROWS = [
   ["TERMS_AND_CONDITIONS", "plaintext", "terms"],
+  ["REVIEWS_MARKDOWN", "plaintext", "reviewsMarkdown"],
   ["BULK_EMAIL_DRAFT", "plaintext", "bulkEmailDraft"],
   ["EMAIL_PROVIDER", "plaintext", null],
   ["ADDRESS_LOOKUP_PROVIDER", "plaintext", null],

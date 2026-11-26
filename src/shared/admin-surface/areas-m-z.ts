@@ -205,6 +205,7 @@ export const AREAS_M_Z = {
       site: "/admin/site",
       siteContact: "/admin/site/contact",
       siteOrder: "/admin/site/order",
+      siteReviews: "/admin/site/reviews",
     },
     write: {
       siteContactFormToggle: "/admin/site/contact/form",
