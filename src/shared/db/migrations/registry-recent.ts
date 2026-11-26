@@ -152,12 +152,6 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-22_checkout_bundles",
     () => import("./2026-11-22_checkout_bundles.ts"),
   ),
-  // A free-text question can ask once for each booked listing. The answer of
-  // one listing names its booking row.
-  entry(
-    "2026-11-23_question_answer_level",
-    () => import("./2026-11-23_question_answer_level.ts"),
-  ),
   // Redirects from a missing page to a new address. The count of redirects
   // rides in the settings, so no page reads the table to show it.
   entry("2026-11-23_redirects", () => import("./2026-11-23_redirects.ts")),
@@ -165,6 +159,13 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
   entry(
     "2026-11-24_subscription_index",
     () => import("./2026-11-24_subscription_index.ts"),
+  ),
+  // A free-text question can ask once for each booked listing. The answer of
+  // one listing names its booking row. The id sorts after the newest id that a
+  // released build holds, so an older build refuses a backup that holds it.
+  entry(
+    "2026-11-25_question_answer_level",
+    () => import("./2026-11-25_question_answer_level.ts"),
   ),
 ];
 /* jscpd:ignore-end */

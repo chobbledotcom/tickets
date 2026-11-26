@@ -1296,7 +1296,7 @@
   "test/shared/db/migrations/2026-11-03_external_sources.test.ts": 5,
   "test/shared/db/migrations/2026-11-10_subscriptions.test.ts": 4,
   "test/shared/db/migrations/2026-11-22_checkout_bundles.test.ts": 1,
-  "test/shared/db/migrations/2026-11-23_question_answer_level.test.ts": 3,
+  "test/shared/db/migrations/2026-11-25_question_answer_level.test.ts": 3,
   "test/shared/db/migrations/boot.test.ts": 5,
   "test/shared/db/migrations/context.test.ts": 4,
   "test/shared/db/migrations/errors.test.ts": 1,

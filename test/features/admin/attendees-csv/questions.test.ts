@@ -335,6 +335,19 @@ describe("CSV with custom questions", () => {
       [",Kit", ",Kim"],
     ],
     [
+      "the same listing under two parents that each sit in a package",
+      GLOW_Q,
+      [
+        { package_group_id: 9, parent_listing_id: 3 },
+        { package_group_id: 9, parent_listing_id: 4 },
+      ],
+      [
+        ticketAnswer(5, "Kit", { parentListingId: 3 }),
+        ticketAnswer(5, "Kim", { parentListingId: 4 }),
+      ],
+      [",Kit", ",Kim"],
+    ],
+    [
       "the same listing on two dates",
       PUPIL_Q,
       [{ date: "2026-06-01" }, { date: "2026-06-08" }],

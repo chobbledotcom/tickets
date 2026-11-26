@@ -78,9 +78,13 @@ describe("custom question visibility", () => {
       [packageSelectorSpec(["101:2"], "1")],
     ],
     [
-      "a child's quantity under one parent",
+      "a child's quantity under one parent in the cart",
       "c:101:301",
-      [childSelectorSpec("101"), childQtySpec("101", "301", "2")],
+      [
+        quantity("101", "1"),
+        childSelectorSpec("101"),
+        childQtySpec("101", "301", "2"),
+      ],
     ],
     [
       "a sole child, which takes all of its parent's tickets",
@@ -115,6 +119,24 @@ describe("custom question visibility", () => {
       ]);
     });
   }
+
+  test("a child's ticket field stays hidden, disabled and optional while its parent is not in the cart", () => {
+    const roots = installFakeDom([
+      ticketField("c:101:301", 0),
+      quantity("101", "0"),
+      childSelectorSpec("101"),
+      childQtySpec("101", "301", "2"),
+    ]);
+    const text = roots[0]!.querySelectorAll('input[type="text"]')[0]!;
+
+    initQuestionVisibility();
+
+    expect([roots[0]!.hidden, text.disabled, text.required]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+  });
 
   test("hides and de-requires a question with no active listing", () => {
     const control = textControl();
