@@ -13,6 +13,10 @@ commands are in `scripts/preview.ts`.
 | The pull request closes or merges  | The workflow deletes the script, its pull zone, and the database.       |
 | A pull request from a fork         | Nothing happens. A fork run has no secrets.                             |
 
+The pull request shows a "View deployment" link for the `preview`
+environment. The job summary shows the same address. The address ends in
+`.b-cdn.net`, the stable name of the site.
+
 A preview that is not set up shows the "Not Activated" page. Open `/setup` on
 the preview address to set it up.
 

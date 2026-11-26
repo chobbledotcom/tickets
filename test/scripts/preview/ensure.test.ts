@@ -5,8 +5,10 @@ import {
   apiOn,
   type FailureCase,
   type FakeBunny,
+  type FakeBunnyOptions,
   fakeBunny,
   reportsEachFailure,
+  seededBunny,
 } from "./fake-bunny.ts";
 
 const NAMES = {
@@ -72,12 +74,13 @@ type Scenario = {
   expected: unknown;
   name: string;
   observe: (bunny: FakeBunny, result: unknown) => unknown;
+  options?: FakeBunnyOptions;
   seed?: (bunny: FakeBunny) => void;
 };
 
 const siteOf = (id: number, published: boolean) => ({
   ok: true,
-  value: { published, scriptId: id, siteUrl: `https://site-${id}.bunny.run` },
+  value: { published, scriptId: id, siteUrl: `https://site-${id}.b-cdn.net` },
 });
 
 const SCENARIOS: Scenario[] = [
@@ -220,14 +223,19 @@ const FAILURES: FailureCase[] = [
 describe("ensurePreview", () => {
   for (const scenario of SCENARIOS) {
     test(scenario.name, async () => {
-      const bunny = fakeBunny();
-      scenario.seed?.(bunny);
+      const bunny = seededBunny(scenario);
 
       const result = await run(bunny);
 
       expect(scenario.observe(bunny, result)).toEqual(scenario.expected);
     });
   }
+
+  test("gives one https when Bunny answers a hostname that holds its scheme", async () => {
+    const bunny = fakeBunny({ hostnamePrefix: "https://" });
+
+    expect(await run(bunny)).toEqual(siteOf(1, true));
+  });
 
   test("changes nothing and reads no database for a complete preview", async () => {
     const bunny = fakeBunny();

@@ -10,6 +10,7 @@ import { once } from "#fp";
 import type { PreviewApi, ScriptDetails } from "#scripts/preview/bunny-api.ts";
 import type { PreviewNames } from "#scripts/preview/names.ts";
 import { okResult, type Result } from "#shared/result.ts";
+import { siteBaseUrl } from "#shared/site-address.ts";
 
 export type EnsureInput = {
   code: string;
@@ -109,7 +110,7 @@ export const ensurePreview = async (
   const { defaultHostname, id, pullZoneId } = script.value;
   const result = {
     scriptId: id,
-    siteUrl: `https://${defaultHostname}`,
+    siteUrl: siteBaseUrl(defaultHostname),
   };
 
   const present = await api.listSecretNames(id);

@@ -7,6 +7,7 @@ import {
   type FakeBunny,
   type FakeBunnyOptions,
   fakeBunny,
+  seededBunny,
 } from "./fake-bunny.ts";
 
 const OK = { ok: true, value: undefined };
@@ -251,8 +252,7 @@ const ANSWERS: Answer[] = [
 describe("previewApi", () => {
   for (const check of CHECKS) {
     test(check.name, async () => {
-      const bunny = fakeBunny(check.options);
-      check.seed?.(bunny);
+      const bunny = seededBunny(check);
 
       expect(await check.run(apiOn(bunny))).toEqual(check.expected);
       expect(check.observe?.(bunny)).toEqual(check.observed);

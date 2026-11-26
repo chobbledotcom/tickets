@@ -24,6 +24,9 @@ export type FakeBunnyOptions = {
   cascadePullZone?: boolean;
   /** Answer `"METHOD /path"` with this status and a Bunny error body. */
   fails?: Record<string, number>;
+  /** Text that starts every default hostname. Bunny can answer a hostname
+   * that already holds its scheme. */
+  hostnamePrefix?: string;
   /** Items per page for both lists. */
   pageSize?: number;
 };
@@ -69,7 +72,7 @@ export const fakeBunny = (options: FakeBunnyOptions = {}) => {
     const script: FakeScript = {
       code: "",
       cookiesAllowed: false,
-      hostname: `site-${id}.bunny.run`,
+      hostname: `${options.hostnamePrefix ?? ""}site-${id}.bunny.run`,
       id,
       name,
       published: false,
@@ -302,6 +305,19 @@ export const fakeBunny = (options: FakeBunnyOptions = {}) => {
 };
 
 export type FakeBunny = ReturnType<typeof fakeBunny>;
+
+/** A fake account with the options and the seed of one table row. */
+export const seededBunny = ({
+  options,
+  seed,
+}: {
+  options?: FakeBunnyOptions;
+  seed?: (bunny: FakeBunny) => void;
+}): FakeBunny => {
+  const bunny = fakeBunny(options);
+  seed?.(bunny);
+  return bunny;
+};
 
 /** The preview calls, aimed at a fake account. */
 export const apiOn = (bunny: FakeBunny): PreviewApi =>

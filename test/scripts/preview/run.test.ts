@@ -82,7 +82,7 @@ describe("runPreview", () => {
       expect(await runPreview(io)).toBe(0);
       expect(out).toEqual([
         "script_id=1",
-        "site_url=https://site-1.bunny.run",
+        "site_url=https://site-1.b-cdn.net",
         "published=true",
       ]);
       expect(reads).toEqual(["bundle.ts"]);

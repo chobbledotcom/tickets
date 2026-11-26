@@ -58,8 +58,11 @@ jobs:
     needs: check
     if: ${{ github.event.action != 'closed' && needs.check.outputs.open == 'true' }}
     runs-on: ubicloud-standard-4
-    # The secrets this job reads live in this environment.
-    environment: preview
+    # The secrets this job reads live in this environment. The url puts a
+    # "View deployment" link for the preview on the pull request.
+    environment:
+      name: preview
+      url: ${{ steps.preview.outputs.site_url }}
 
     steps:
       - name: Checkout repository

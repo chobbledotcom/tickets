@@ -94,10 +94,17 @@ describe("preview workflow", () => {
   test("names the preview environment in each job that reads a secret", async () => {
     const text = await readWorkflow();
 
-    for (const name of ["deploy", "cleanup"]) {
-      expect(jobText(text, name)).toMatch(/^ {4}environment: preview$/m);
-    }
+    expect(jobText(text, "cleanup")).toMatch(/^ {4}environment: preview$/m);
     expect(jobText(text, "check")).not.toContain("secrets.");
+  });
+
+  test("links the deployment of each preview to its address", async () => {
+    const deploy = jobText(await readWorkflow(), "deploy");
+
+    expectIncludesAll(deploy, [
+      "    environment:\n      name: preview\n",
+      `      url: ${githubValue("steps.preview.outputs.site_url")}\n`,
+    ]);
   });
 
   test("reads only the preview secrets", async () => {
