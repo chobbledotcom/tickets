@@ -116,11 +116,15 @@ const clauseCatches = (
   ];
 };
 
-const isCall = (node: ProgramNode): node is ProgramNode & CallExpression =>
-  node.type === "CallExpression";
+/** Whether a node is of one type, narrowed to that type's shape. */
+const isNodeOf =
+  <Shape extends { type: string }>(type: Shape["type"]) =>
+  (node: ProgramNode): node is ProgramNode & Shape =>
+    node.type === type;
 
-const isClause = (node: ProgramNode): node is ProgramNode & CatchClause =>
-  node.type === "CatchClause";
+const isCall = isNodeOf<CallExpression>("CallExpression");
+
+const isClause = isNodeOf<CatchClause>("CatchClause");
 
 /** The empty catches one node holds, by the node type the rules read. */
 const catchesInNode = (
