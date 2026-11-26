@@ -50,7 +50,15 @@ The deploy workflows run both commands before they build the edge script: the
 evidence capture produces the screenshot hashes that decide whether a guide
 needs recording again.
 
-Preview a published video locally:
+### Preview locally
+
+`deno task dev` reports each `reports/guides/<slug>/guide.mp4` at
+`/guide-videos/<slug>`. The create listing form then shows the camera link and
+the modal plays the recorded file. Restart the dev server after you record a
+guide.
+
+An explicit `GUIDE_VIDEOS` value wins over that scan. Use it to preview an
+object on the CDN:
 
 ```bash
 GUIDE_VIDEOS='{"create-a-listing":{"video":"https://cdn.example.com/guides/create-a-listing-abc.mp4"}}' \
@@ -58,7 +66,7 @@ GUIDE_VIDEOS='{"create-a-listing":{"video":"https://cdn.example.com/guides/creat
 ```
 
 The camera link appears beside the create-listing heading and the modal plays
-the CDN-hosted file. The edge build replaces the local override with the map it
+the named file. The edge build replaces the local override with the map it
 bakes in.
 
 ## How the recorder works

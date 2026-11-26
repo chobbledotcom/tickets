@@ -21,8 +21,17 @@ describe("parseGuideVideoAssetsJson", () => {
     expect(parseGuideVideoAssetsJson(undefined)).toEqual({});
   });
 
-  test("rejects a relative or non-HTTPS video address", () => {
-    for (const video of ["/guides/x.mp4", "http://cdn.example.com/x.mp4"]) {
+  test("accepts a site path for a local preview", () => {
+    const local = { slug: { video: "/guide-videos/slug" } };
+    expect(parseGuideVideoAssetsJson(JSON.stringify(local))).toEqual(local);
+  });
+
+  test("rejects an insecure, relative, or protocol-relative video address", () => {
+    for (const video of [
+      "http://cdn.example.com/x.mp4",
+      "guide-videos/x",
+      "//cdn.example.com/x.mp4",
+    ]) {
       expect(() =>
         parseGuideVideoAssetsJson(JSON.stringify({ slug: { video } })),
       ).toThrow();
@@ -53,11 +62,12 @@ describe("guideVideoFor", () => {
 });
 
 describe("guideVideoOrigins", () => {
-  test("lists each distinct origin once", () => {
+  test("lists each distinct origin once and skips a site path", () => {
     expect(
       guideVideoOrigins({
         ...VIDEOS,
         listing: { video: "https://cdn.example.com/guides/listing-def.mp4" },
+        local: { video: "/guide-videos/create-a-listing" },
         other: { video: "https://videos.example.com/other.mp4" },
       }),
     ).toEqual(["https://cdn.example.com", "https://videos.example.com"]);

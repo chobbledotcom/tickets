@@ -9,6 +9,7 @@
  */
 
 import * as v from "valibot";
+import { compact } from "#fp";
 
 export interface GuideVideoAsset {
   video: string;
@@ -18,7 +19,10 @@ export type GuideVideoAssets = Readonly<Record<string, GuideVideoAsset>>;
 
 const VideoUrlSchema = v.pipe(
   v.string(),
-  v.regex(/^https:\/\/\S+$/, "A guide video needs an absolute HTTPS URL"),
+  v.regex(
+    /^(?:https:\/\/\S+|\/(?!\/)\S*)$/,
+    "A guide video needs an absolute HTTPS URL or a path that starts with /",
+  ),
 );
 
 const GuideVideoAssetSchema = v.strictObject({ video: VideoUrlSchema });
@@ -55,10 +59,19 @@ export const guideVideoFor = (
   slug: string,
 ): GuideVideoAsset | null => videos[slug] ?? null;
 
+/** The origin of an absolute video URL, or null for a path on this site. */
+const absoluteOriginOrNull = (video: string): string | null =>
+  video.startsWith("/") ? null : new URL(video).origin;
+
 /** The origins the page must name in its media policy. Every video is
- * expected on the same CDN, but the policy is derived rather than assumed. */
+ * expected on the same CDN, but the policy is derived rather than assumed. A
+ * same-origin path needs no entry, because `default-src 'self'` covers it. */
 export const guideVideoOrigins = (
   videos: GuideVideoAssets,
 ): readonly string[] => [
-  ...new Set(Object.values(videos).map(({ video }) => new URL(video).origin)),
+  ...new Set(
+    compact(
+      Object.values(videos).map(({ video }) => absoluteOriginOrNull(video)),
+    ),
+  ),
 ];
