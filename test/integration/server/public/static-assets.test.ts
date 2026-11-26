@@ -348,7 +348,7 @@ describeWithEnv(
           "/admin/markdown-preview",
           "/markdown-editor.js",
           "/logistics-map.js",
-          ":not([data-manual-checkin])",
+          "requestAnimationFrame",
           ".custom-question[data-listing-ids]",
           "data-child-hint",
           "data-child-dates",
