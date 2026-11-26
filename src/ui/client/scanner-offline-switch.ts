@@ -22,6 +22,7 @@ import {
  * no words for. Returns `refresh`, the download a page load starts while
  * the switch is already on. */
 export const wireOfflineSwitch = ({
+  cachePath,
   onChange,
   onTurnedOff,
   progress,
@@ -31,6 +32,7 @@ export const wireOfflineSwitch = ({
   toggle,
   wording,
 }: {
+  cachePath: string;
   onChange: () => void;
   onTurnedOff: () => void;
   progress: HTMLElement;
@@ -89,7 +91,7 @@ export const wireOfflineSwitch = ({
     // The numbers wait for the first page: an empty line cannot read as an
     // empty door while the download is only starting.
     try {
-      await downloadTicketCache(scanPath, showProgress, stop.signal);
+      await downloadTicketCache(cachePath, scanPath, showProgress, stop.signal);
       writeManualMode(scanPath, true);
       say(wording.word("offlineReady"), "success");
     } catch (error) {

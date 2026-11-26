@@ -33,6 +33,7 @@ export type ManualPage = {
   csrfToken: string;
   offline: ManualOffline;
   scanPath: string;
+  searchPath: string;
   wording: Wording;
 };
 
@@ -41,6 +42,7 @@ export const initManualCheckin = ({
   csrfToken,
   offline,
   scanPath,
+  searchPath,
   wording,
 }: ManualPage): void => {
   const input = requiredById<HTMLInputElement>("manual-checkin-input");
@@ -223,7 +225,7 @@ export const initManualCheckin = ({
       checkInById,
       offline,
       say,
-      scanPath,
+      searchPath,
       wording,
     });
     showFound(found ?? []);

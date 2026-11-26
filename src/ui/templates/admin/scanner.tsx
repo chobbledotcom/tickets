@@ -27,6 +27,13 @@ export const ticketCountText = (count: number): string =>
     { count },
   );
 
+/** The door's sibling routes the client asks for: the cache download and
+ * the name search. Both sit beside the scan route the surface declares
+ * (`scan-cache`, `scan-search` in areas-m-z.ts), so the page derives each
+ * from the scan path and the client reads what it was given. */
+const siblingDoorPath = (scanPath: string, tail: string): string =>
+  `${scanPath.slice(0, -"scan".length)}scan-${tail}`;
+
 /** Every word the page's browser code shows, filled from the catalog with
  * each hole left as `{hole}`. */
 const scannerWords = (): ScannerWords =>
@@ -113,10 +120,12 @@ export const adminScannerPage = (
       <article>
         <div
           data-door-cache-key={doorCacheKey}
+          data-scan-cache-path={siblingDoorPath(scanPath, "cache")}
           data-scan-operation-retention-days={String(
             scanOperationRetentionDays,
           )}
           data-scan-path={scanPath}
+          data-scan-search-path={siblingDoorPath(scanPath, "search")}
           data-words={JSON.stringify(scannerWords())}
           id="scanner-container"
         >

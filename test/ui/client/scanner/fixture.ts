@@ -144,8 +144,10 @@ export function pageWith(words: ScannerWords = PAGE_WORDS): string {
   <meta name="csrf-token" content="csrf-page-token" />
   <div
     data-door-cache-key="dGVzdC1kb296LWNhY2hlLWtleQ"
+    data-scan-cache-path="/admin/groups/5/scan-cache"
     data-scan-operation-retention-days="7"
     data-scan-path="/admin/groups/5/scan"
+    data-scan-search-path="/admin/groups/5/scan-search"
     ${wordsAttribute(words)}
     id="scanner-container"
   >

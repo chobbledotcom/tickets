@@ -13,7 +13,7 @@ import type { Wording } from "#shared/scanner-words.ts";
 import { hmacHex } from "#shared/sha256.ts";
 import type { TicketCacheEntry } from "#shared/ticket-cache.ts";
 import type { ManualOffline, Person } from "./admin/manual-search.ts";
-import { requiredById } from "./dom.ts";
+import { requiredAttribute, requiredById } from "./dom.ts";
 import { showQuantitySelect } from "./quantity-select.ts";
 import { failLoudly } from "./scan-flow.ts";
 import type { Say } from "./scanner-messages.ts";
@@ -236,6 +236,7 @@ export const initOfflineScanner = ({
 }): QueuePanel => {
   const container = requiredById("scanner-container");
   const reportFailure = failLoudly(wording, say);
+  const cachePath = requiredAttribute(container, "data-scan-cache-path");
   /** The queue's sync, wired to this page's door. Its failure reaches the
    * door like any other. */
   const sync = () =>
@@ -265,6 +266,7 @@ export const initOfflineScanner = ({
   };
 
   const offlineSwitch = wireOfflineSwitch({
+    cachePath,
     onChange: renderOfflineState,
     // Turning off settles what the door queued while the switch held the
     // scans, the same way a reload or a returning connection does.

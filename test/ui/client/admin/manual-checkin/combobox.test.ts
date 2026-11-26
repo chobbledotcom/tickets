@@ -15,6 +15,7 @@ describe("manual check-in combobox", () => {
         csrfToken: "csrf",
         offline: { active: () => false, search: () => null },
         scanPath: "/admin/listing/7/scan",
+        searchPath: "/admin/listing/7/scan-search",
         wording: wordingOf(FORM_WORDS),
       }),
     ).toThrow("Missing element: #manual-checkin-input");

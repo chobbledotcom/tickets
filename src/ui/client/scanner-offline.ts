@@ -79,17 +79,18 @@ export const removeTicketCache = (scanPath: string): void =>
 
 /** Fetch one page of a door's list: the first page when `from` is null,
  * else the page that the signed cursor `from` names. The first page is the
- * request the server logs. Throws when the request or the body fails. */
+ * request the server logs. `cachePath` is the cache route the template
+ * carried. Throws when the request or the body fails. */
 const fetchCachePage = async (
-  scanPath: string,
+  cachePath: string,
   from: string | null,
   signal: AbortSignal,
 ): Promise<v.InferOutput<typeof TicketCachePageSchema>> => {
-  const base = scanPath.replace(/\/scan$/, "/scan-cache");
-  const url = from === null ? base : `${base}?from=${encodeURIComponent(from)}`;
+  const url =
+    from === null ? cachePath : `${cachePath}?from=${encodeURIComponent(from)}`;
   const res = await fetchOrNetworkError(url, { signal });
   if (!res.ok) {
-    throw new Error(`The ticket cache for ${scanPath} answered ${res.status}`);
+    throw new Error(`The ticket cache at ${cachePath} answered ${res.status}`);
   }
   return v.parse(TicketCachePageSchema, await res.json());
 };
@@ -99,6 +100,7 @@ const fetchCachePage = async (
  * total after each page. A failed or stopped download stores nothing, so
  * any list the door already holds stands. */
 export const downloadTicketCache = async (
+  cachePath: string,
   scanPath: string,
   onProgress: (done: number, total: number) => void,
   signal: AbortSignal,
@@ -109,7 +111,7 @@ export const downloadTicketCache = async (
     from: string | null,
     read: number,
   ): Promise<TicketCacheEntry[]> => {
-    const page = await fetchCachePage(scanPath, from, signal);
+    const page = await fetchCachePage(cachePath, from, signal);
     const done = read + page.people;
     // People booked during the download can push the total past the
     // first page's count, so the shown count never passes the total.

@@ -142,6 +142,7 @@ const installManualCheckin = (
     csrfToken: "csrf",
     offline: offline ?? IDLE_OFFLINE,
     scanPath: "/admin/listing/7/scan",
+    searchPath: "/admin/listing/7/scan-search",
     wording: wordingOf(words),
   });
   const input = document.querySelector<HTMLInputElement>(

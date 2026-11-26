@@ -218,6 +218,7 @@ const init = (): void => {
     csrfToken,
     offline: offlinePeople({ panel, scanPath, wording }),
     scanPath,
+    searchPath: requiredAttribute(container, "data-scan-search-path"),
     wording,
   });
 

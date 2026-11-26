@@ -28,14 +28,14 @@ export type ManualOffline = {
   search: (text: string, say: Say) => Person[] | null;
 };
 
-/** What a search needs from the page. It names the door's scan route, the
+/** What a search needs from the page. It names the door's search route, the
  * offline side, and how to report. `checkInById` checks in a person that
  * the search route found. */
 export type SearchContext = {
   checkInById: (attendeeId: number) => Promise<boolean>;
   offline: ManualOffline;
   say: Say;
-  scanPath: string;
+  searchPath: string;
   wording: Wording;
 };
 
@@ -45,11 +45,11 @@ export type SearchContext = {
  * throws, so the door sees the search fail instead of a wrong list. */
 export const findPeople = async (
   text: string,
-  { checkInById, offline, say, scanPath, wording }: SearchContext,
+  { checkInById, offline, say, searchPath, wording }: SearchContext,
 ): Promise<Person[] | null> => {
   if (offline.active()) return offline.search(text, say);
   const res = await fetchOrNetworkError(
-    `${scanPath}-search?q=${encodeURIComponent(text)}`,
+    `${searchPath}?q=${encodeURIComponent(text)}`,
   );
   if (!res.ok) {
     // A refusal the door cannot fix by retrying reads as a page fault: the
