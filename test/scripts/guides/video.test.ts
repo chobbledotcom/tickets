@@ -46,16 +46,11 @@ describe("guideVideoInputsHash", () => {
   });
 });
 
-describe("guideVideoObjectPath", () => {
-  test("names the object after the content hash", () => {
+describe("guide video paths", () => {
+  test("name the object after the content hash and the pointer by the inputs hash", () => {
     expect(guideVideoObjectPath("create-a-listing", "0123456789abcdef00")).toBe(
       "guides/create-a-listing-0123456789abcdef.mp4",
     );
-  });
-});
-
-describe("guideVideoPointerPath", () => {
-  test("keys the pointer by the inputs hash", () => {
     expect(guideVideoPointerPath("create-a-listing", "0123456789abcdef")).toBe(
       "guides/pointers/create-a-listing-0123456789abcdef.json",
     );

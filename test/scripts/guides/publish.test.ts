@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { publishGuideVideos } from "#scripts/guides/publish.ts";
+import {
+  type PublishGuideVideosOptions,
+  publishGuideVideos,
+} from "#scripts/guides/publish.ts";
 import { parseGuideStoryboard } from "#scripts/guides/storyboard.ts";
 import { guideStoryboard } from "#scripts/guides/storyboards/index.ts";
 import {
@@ -69,6 +72,19 @@ const inputsHashFor = async (
     storyboard: JSON.stringify(parseGuideStoryboard(guideStoryboard(SLUG))),
   });
 
+/** Publish the fixture guide through a fake CDN, overriding one choice. */
+const publishWith = (
+  fetcher: typeof fetch,
+  overrides: Pick<PublishGuideVideosOptions, "anchors" | "render"> = {},
+) =>
+  publishGuideVideos(CONFIG, {
+    anchors: ANCHORS,
+    fetcher,
+    render: () => Promise.resolve(MP4),
+    slug: SLUG,
+    ...overrides,
+  });
+
 describe("publishGuideVideos", () => {
   test("uploads the MP4 under its content hash beside an inputs pointer", async () => {
     const { fetcher, objects } = fakeCdn();
@@ -78,12 +94,7 @@ describe("publishGuideVideos", () => {
       return Promise.resolve(MP4);
     };
 
-    const published = await publishGuideVideos(CONFIG, {
-      anchors: ANCHORS,
-      fetcher,
-      render,
-      slug: SLUG,
-    });
+    const published = await publishWith(fetcher, { render });
 
     const videoPath = guideVideoObjectPath(SLUG, await sha256Hex(MP4));
     const pointerPath = guideVideoPointerPath(
@@ -110,18 +121,10 @@ describe("publishGuideVideos", () => {
 
   test("reuses the uploaded video when the inputs still match", async () => {
     const { fetcher } = fakeCdn();
-    const first = await publishGuideVideos(CONFIG, {
-      anchors: ANCHORS,
-      fetcher,
-      render: () => Promise.resolve(MP4),
-      slug: SLUG,
-    });
+    const first = await publishWith(fetcher);
 
-    const second = await publishGuideVideos(CONFIG, {
-      anchors: ANCHORS,
-      fetcher,
+    const second = await publishWith(fetcher, {
       render: () => Promise.reject(new Error("must not render")),
-      slug: SLUG,
     });
 
     expect(second.videos).toEqual(first.videos);
@@ -129,18 +132,11 @@ describe("publishGuideVideos", () => {
 
   test("renders again when an anchored screenshot changes", async () => {
     const { fetcher } = fakeCdn();
-    const before = await publishGuideVideos(CONFIG, {
-      anchors: ANCHORS,
-      fetcher,
-      render: () => Promise.resolve(MP4),
-      slug: SLUG,
-    });
+    const before = await publishWith(fetcher);
     const changed = new TextEncoder().encode("different-footage");
-    const after = await publishGuideVideos(CONFIG, {
+    const after = await publishWith(fetcher, {
       anchors: OTHER_ANCHORS,
-      fetcher,
       render: () => Promise.resolve(changed),
-      slug: SLUG,
     });
 
     expect(after.videos[SLUG]?.video).toBe(
@@ -151,13 +147,8 @@ describe("publishGuideVideos", () => {
 
   test("refuses a guide with no anchors instead of rendering blind", async () => {
     const { fetcher } = fakeCdn();
-    await expect(
-      publishGuideVideos(CONFIG, {
-        anchors: {},
-        fetcher,
-        render: () => Promise.resolve(MP4),
-        slug: SLUG,
-      }),
-    ).rejects.toThrow("specs:evidence");
+    await expect(publishWith(fetcher, { anchors: {} })).rejects.toThrow(
+      "specs:evidence",
+    );
   });
 });

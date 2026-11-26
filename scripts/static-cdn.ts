@@ -243,8 +243,10 @@ const storagePathFor = (
   return base === "" ? objectPath : `${base}/${objectPath}`;
 };
 
-const publicUrlFor = (config: StaticCdnConfig, objectPath: string): string =>
-  `${config.cdnUrl}/${objectPath}`;
+export const publicUrlFor = (
+  config: StaticCdnConfig,
+  objectPath: string,
+): string => `${config.cdnUrl}/${objectPath}`;
 
 /** The number of upload or verify requests one publish run keeps in flight. */
 const CDN_CONCURRENCY = 8;

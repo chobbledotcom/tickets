@@ -1,8 +1,8 @@
 // effects: pure
 /**
- * Where the recorded guide videos live. The edge build bakes the map, so a
- * deployed site names the objects its own release uploaded; without a map the
- * admin page renders no camera link at all.
+ * Where the recorded guide videos live. The edge build bakes the map. A
+ * deployed site then names the objects that its own release uploaded. Without a
+ * map, the admin page shows no camera link.
  *
  * The MP4s are silent and content-addressed, so the modal can autoplay them
  * muted and different sites on different releases never share a file.
@@ -28,8 +28,8 @@ const GuideVideoAssetsSchema = v.record(
   GuideVideoAssetSchema,
 );
 
-/** Parse the baked or environment-supplied map. A malformed map fails loudly:
- * a silently empty one would hide the links without anyone noticing. */
+/** Parse the baked or environment-supplied map. A malformed map fails loudly.
+ * A silently empty map hides the links, and nobody notices. */
 export const parseGuideVideoAssets = (input: unknown): GuideVideoAssets =>
   v.parse(GuideVideoAssetsSchema, input);
 
@@ -43,7 +43,7 @@ export const parseGuideVideoAssetsJson = (
     : parseGuideVideoAssets(JSON.parse(raw));
 
 /** The baked map wins. A local run can supply the same JSON in the
- * environment instead; the edge build inlines the baked value. */
+ * environment instead. The edge build inlines the baked value. */
 export const resolveGuideVideos = (
   baked: GuideVideoAssets,
   env: string | undefined,

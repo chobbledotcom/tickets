@@ -7,7 +7,7 @@
 
 import * as v from "valibot";
 import { sha256Hex } from "#shared/sha256.ts";
-import { parseDocument } from "./schema-parts.ts";
+import { parserFor } from "./schema-parts.ts";
 
 /** Bump when recording, rendering, or encoding changes the pixels. The value
  * is part of the pointer hash, so a pointer written by an older pipeline can
@@ -40,8 +40,8 @@ const PointerSchema = v.strictObject({
   video: v.pipe(v.string(), v.regex(VIDEO_PATH_PATTERN, "Invalid video path")),
 });
 
-export const parseGuideVideoPointer = (input: unknown): GuideVideoPointer =>
-  parseDocument({ input, schema: PointerSchema });
+export const parseGuideVideoPointer: (input: unknown) => GuideVideoPointer =
+  parserFor(PointerSchema);
 
 /** What decides whether a guide's footage is still current: the evidence
  * screenshot hashes it was anchored to, the storyboard that drove it, and the
@@ -73,14 +73,34 @@ export const guideVideoInputsHash = async ({
     )
   ).slice(0, HASH_CHARS);
 
+/** One artifact's place under the guide folder: its subfolder and its file
+ * extension. */
+interface GuidePathShape {
+  extension: string;
+  folder: string;
+}
+
+/** The name of one guide artifact: its slug, then the key that names it. */
+const guidePath = (
+  { extension, folder }: GuidePathShape,
+  slug: string,
+  key: string,
+): string => `guides/${folder}${slug}-${key}${extension}`;
+
+const VIDEO_PATH_SHAPE: GuidePathShape = { extension: ".mp4", folder: "" };
+const POINTER_PATH_SHAPE: GuidePathShape = {
+  extension: ".json",
+  folder: "pointers/",
+};
+
 /** The storage path of one video, relative to the CDN zone root. The name is
  * the content hash, so two sites on different releases can point at different
  * objects and neither can overwrite the other's footage. */
 export const guideVideoObjectPath = (slug: string, digest: string): string =>
-  `guides/${slug}-${digest.slice(0, HASH_CHARS)}.mp4`;
+  guidePath(VIDEO_PATH_SHAPE, slug, digest.slice(0, HASH_CHARS));
 
 /** The storage path of the pointer for one set of inputs. */
 export const guideVideoPointerPath = (
   slug: string,
   inputsHash: string,
-): string => `guides/pointers/${slug}-${inputsHash}.json`;
+): string => guidePath(POINTER_PATH_SHAPE, slug, inputsHash);

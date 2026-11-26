@@ -9,6 +9,9 @@
  * assertions on the finished bundle text.
  */
 
+import type { GuideVideoAssets } from "#shared/guide-video.ts";
+import type { PublishedStaticAssets } from "./static-cdn.ts";
+
 /** Asset definition: [filename, exportName, contentType, pathConstant,
  * publishToCdn, freshRevalidation]. A fresh-revalidation asset serves with
  * `cache-control: no-cache` on both the Deno server (assets.ts) and the edge
@@ -16,9 +19,11 @@
  * script's requirement; every other asset is immutable for a year. */
 export type AssetDef = [string, string, string, string, boolean?, boolean?];
 
-export interface PublishedAssetUrls {
-  origin: string;
-  urls: Record<string, string>;
+/** What the asset-paths module bakes: the published CDN assets, if any, and
+ * the guide videos this release uploaded. */
+export interface PublishedAssets {
+  guideVideos?: GuideVideoAssets | null | undefined;
+  published?: PublishedStaticAssets | undefined;
 }
 
 /** A post-build assertion on the bundle text; `test` truthy aborts the build. */
@@ -47,9 +52,9 @@ export const buildBuildInfoModule = (
 export const buildAssetPathsModule = (
   assetDefs: AssetDef[],
   buildTs: number,
-  published?: PublishedAssetUrls,
-  guideVideos?: Readonly<Record<string, { video: string }>> | null,
+  assets: PublishedAssets = {},
 ): string => {
+  const { guideVideos, published } = assets;
   const paths = assetDefs
     .filter(([, , , pathConst]) => pathConst)
     .map(([filename, , , pathConst]) => {
@@ -76,7 +81,7 @@ export const buildAssetPathsModule = (
 export const buildAssetsModule = (
   assetDefs: AssetDef[],
   staticAssets: Record<string, string>,
-  published?: PublishedAssetUrls,
+  published?: PublishedStaticAssets,
 ): string => {
   const varLines = assetDefs.flatMap(([filename], i) =>
     published?.urls[filename]
@@ -143,6 +148,10 @@ export const sentryTreeShakingGuard: EdgeBundleGuard = {
     Object.keys(SENTRY_BUILD_DEFINES).some((flag) => content.includes(flag)),
 };
 
+/** Whether the bundle text carries any of the given markers. */
+const containsAny = (content: string, markers: readonly string[]): boolean =>
+  markers.some((marker) => content.includes(marker));
+
 /** Guard: the bundle must stay under a maximum byte size (e.g. Bunny's 10MB). */
 export const bundleSizeGuard = (maxBytes: number): EdgeBundleGuard => ({
   message: `Bundle size exceeds the ${maxBytes} byte limit`,
@@ -157,8 +166,7 @@ export const bundleSizeGuard = (maxBytes: number): EdgeBundleGuard => ({
 export const nativeLibsqlGuard: EdgeBundleGuard = {
   message:
     "Deploy bundle references a native libsql binding — expected the pure-JS web client via platform: 'browser'",
-  test: (content) =>
-    content.includes('.node"') || content.includes("libsql/client/."),
+  test: (content) => containsAny(content, ['.node"', "libsql/client/."]),
 };
 
 /**
@@ -169,6 +177,5 @@ export const nativeLibsqlGuard: EdgeBundleGuard = {
 export const threeJsGuard: EdgeBundleGuard = {
   message:
     "Bundle contains the three.js guide renderer — it must stay a build-time intermediate",
-  test: (content) =>
-    content.includes("WebGLRenderer") || content.includes("THREE."),
+  test: (content) => containsAny(content, ["WebGLRenderer", "THREE."]),
 };

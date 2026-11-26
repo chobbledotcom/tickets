@@ -6,7 +6,7 @@
 
 import * as v from "valibot";
 import { integerAtLeast } from "#shared/validation/number.ts";
-import { parseDocument } from "./schema-parts.ts";
+import { parserFor } from "./schema-parts.ts";
 
 const WholeNumberSchema = integerAtLeast(0);
 const PositiveNumberSchema = v.pipe(v.number(), v.minValue(0));
@@ -133,8 +133,8 @@ const TimelineSchema = v.strictObject({
 });
 /* jscpd:ignore-end */
 
-export const parseGuideTimeline = (input: unknown): GuideTimeline =>
-  parseDocument({ input, schema: TimelineSchema });
+export const parseGuideTimeline: (input: unknown) => GuideTimeline =
+  parserFor(TimelineSchema);
 
 /** The frame that is showing at a time: the last one at or before it. */
 export const frameAt = (

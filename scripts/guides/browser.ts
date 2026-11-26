@@ -55,10 +55,13 @@ const withBrowserPage = async <T>(
     }, [() => context.close()]);
   }, [async () => await browser.close()]);
 
-export const withGuideBrowserPage = async <T>(
-  task: Parameters<typeof withBrowserPage<T>>[1],
-): Promise<T> => withBrowserPage(await launchGuideBrowser(), task);
+/** Run one page task in a browser that `launch` starts and the cleanup closes. */
+const withLaunchedBrowserPage =
+  (launch: () => Promise<Browser>) =>
+  async <T>(task: Parameters<typeof withBrowserPage<T>>[1]): Promise<T> =>
+    withBrowserPage(await launch(), task);
 
-export const withRenderBrowserPage = async <T>(
-  task: Parameters<typeof withBrowserPage<T>>[1],
-): Promise<T> => withBrowserPage(await launchRenderBrowser(), task);
+export const withGuideBrowserPage = withLaunchedBrowserPage(launchGuideBrowser);
+
+export const withRenderBrowserPage =
+  withLaunchedBrowserPage(launchRenderBrowser);

@@ -8,6 +8,7 @@
 
 import {
   type CdnObject,
+  publicUrlFor,
   publishCdnObjects,
   type StaticCdnConfig,
 } from "#scripts/static-cdn.ts";
@@ -73,9 +74,6 @@ const anchorsFromEvidence = async (
   );
   return Object.fromEntries(entries);
 };
-
-const publicUrlFor = (config: StaticCdnConfig, path: string): string =>
-  `${config.cdnUrl}/${path}`;
 
 /** The uploaded video for these inputs, when an earlier build already made it.
  * Any unreadable or unverifiable pointer is a miss, because re-rendering is

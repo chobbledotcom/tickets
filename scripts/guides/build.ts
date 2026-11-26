@@ -233,15 +233,17 @@ const removeIntermediates = async (
   }
 };
 
+/** A temporary directory under `reports/` for one build's intermediates. */
+const makeReportTempDir = async (name: string): Promise<string> => {
+  await Deno.mkdir(REPORTS, { recursive: true });
+  return await Deno.makeTempDir({ dir: REPORTS, prefix: `.${name}-` });
+};
+
 const buildGuide = async (
   options: RecordGuideOptions,
 ): Promise<RecordGuideResult> => {
   const prepared = await prepareGuide(options);
-  await Deno.mkdir(REPORTS, { recursive: true });
-  const tempDir = await Deno.makeTempDir({
-    dir: REPORTS,
-    prefix: `.${options.slug}-`,
-  });
+  const tempDir = await makeReportTempDir(options.slug);
   try {
     const built = await buildVideo(options, prepared, tempDir);
     await writeGuideManifest(tempDir, prepared, built);
@@ -276,11 +278,7 @@ export const guideVideoBytes = async (options: {
   slug: string;
 }): Promise<Uint8Array> => {
   const storyboard = parseGuideStoryboard(guideStoryboard(options.slug));
-  await Deno.mkdir(REPORTS, { recursive: true });
-  const tempDir = await Deno.makeTempDir({
-    dir: REPORTS,
-    prefix: `.${options.slug}-video-`,
-  });
+  const tempDir = await makeReportTempDir(`${options.slug}-video`);
   try {
     const sessionDir = options.fromSession ?? join(tempDir, "session");
     const timeline =

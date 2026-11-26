@@ -1,5 +1,5 @@
 /** The guide videos for the running server. The edge build inlines
- * GUIDE_VIDEOS; a local run can set the same JSON in the environment to
+ * GUIDE_VIDEOS. A local run can set the same JSON in the environment to
  * preview a published video. */
 import { GUIDE_VIDEOS } from "#shared/asset-paths.ts";
 import {

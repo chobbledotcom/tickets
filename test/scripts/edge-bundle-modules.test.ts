@@ -93,9 +93,11 @@ describe("buildAssetPathsModule", () => {
 
   test("bakes published CDN URLs and origin into the bundle", () => {
     const paths = buildAssetPathsModule(PATH_DEFS, 1234, {
-      origin: "https://assets.example.com",
-      urls: {
-        "style.css": "https://assets.example.com/assets/release/style.css",
+      published: {
+        origin: "https://assets.example.com",
+        urls: {
+          "style.css": "https://assets.example.com/assets/release/style.css",
+        },
       },
     });
     expectIncludesAll(paths, [
@@ -107,9 +109,11 @@ describe("buildAssetPathsModule", () => {
   });
 
   test("bakes the published guide videos into the bundle", () => {
-    const paths = buildAssetPathsModule(PATH_DEFS, 1234, undefined, {
-      "create-a-listing": {
-        video: "https://assets.example.com/guides/create-a-listing-abc.mp4",
+    const paths = buildAssetPathsModule(PATH_DEFS, 1234, {
+      guideVideos: {
+        "create-a-listing": {
+          video: "https://assets.example.com/guides/create-a-listing-abc.mp4",
+        },
       },
     });
     expect(paths).toContain(

@@ -1,5 +1,5 @@
 /** The camera link plays the CDN guide video in the admin modal. The recordings
- * are silent, so the player autoplays muted; without this script the link still
+ * are silent, so the player autoplays muted. Without this script, the link still
  * opens the MP4 in a new tab. */
 
 import { openAdminModal } from "./modal.ts";
