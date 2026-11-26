@@ -9,6 +9,16 @@ export const mapped = <Answer, Value>(
   map: (answer: Answer) => Value,
 ): Result<Value> => (result.ok ? okResult(map(result.value)) : result);
 
+/** Run the next step on a value that an earlier step found. An error stops
+ * the chain and passes on as it is. */
+export const andThen = async <From, To>(
+  result: Promise<Result<From>>,
+  next: (value: From) => Promise<Result<To>>,
+): Promise<Result<To>> => {
+  const done = await result;
+  return done.ok ? next(done.value) : done;
+};
+
 /** Run one step for each item, in order, and stop at the first failure. The
  * answer holds what each step reported. */
 export const eachInOrder = async <Item, Report>(

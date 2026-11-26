@@ -7,8 +7,14 @@
  */
 
 import { once } from "#fp";
-import type { PreviewApi, ScriptDetails } from "#scripts/preview/bunny-api.ts";
+import type {
+  DatabaseId,
+  PreviewApi,
+  ScriptDetails,
+  ScriptId,
+} from "#scripts/preview/bunny-api.ts";
 import type { PreviewNames } from "#scripts/preview/names.ts";
+import { andThen } from "#scripts/preview/steps.ts";
 import { okResult, type Result } from "#shared/result.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 
@@ -25,24 +31,18 @@ export type EnsuredPreview = {
   /** True when this run uploaded and published the code. When false, the
    * caller must deploy the code. */
   published: boolean;
-  scriptId: number;
+  scriptId: ScriptId;
   siteUrl: string;
 };
 
 type SecretSource = () => Promise<Result<string>>;
 
-/** Run the next step on a value that an earlier step found. */
-const then = async <From, To>(
-  result: Promise<Result<From>>,
-  next: (value: From) => Promise<Result<To>>,
-): Promise<Result<To>> => {
-  const done = await result;
-  return done.ok ? next(done.value) : done;
-};
-
 /** The preview's database: found by name, or made. */
-const databaseId = (api: PreviewApi, name: string): Promise<Result<string>> =>
-  then(api.databaseNamedOrNull(name), async (found) =>
+const databaseId = (
+  api: PreviewApi,
+  name: string,
+): Promise<Result<DatabaseId>> =>
+  andThen(api.databaseNamedOrNull(name), async (found) =>
     found === null ? api.createDatabase(name) : okResult(found.id),
   );
 
@@ -56,12 +56,12 @@ const known =
 const secretSources = (
   api: PreviewApi,
   input: EnsureInput,
-  scriptId: number,
+  scriptId: ScriptId,
 ): [string, SecretSource][] => {
   const database = once(() => databaseId(api, input.names.databaseName));
   return [
-    ["DB_URL", () => then(database(), (id) => api.databaseUrl(id))],
-    ["DB_TOKEN", () => then(database(), (id) => api.issueDatabaseToken(id))],
+    ["DB_URL", () => andThen(database(), (id) => api.databaseUrl(id))],
+    ["DB_TOKEN", () => andThen(database(), (id) => api.issueDatabaseToken(id))],
     ["DB_ENCRYPTION_KEY", known(input.newEncryptionKey())],
     ["SCHEDULED_TASK_KEY", known(input.newScheduledTaskKey())],
     ["BUNNY_SCRIPT_ID", known(String(scriptId))],
@@ -76,11 +76,11 @@ const secretSources = (
 const openScript = (
   api: PreviewApi,
   input: EnsureInput,
-): Promise<Result<ScriptDetails & { id: number }>> =>
-  then(api.scriptNamedOrNull(input.names.scriptName), async (found) =>
+): Promise<Result<ScriptDetails & { id: ScriptId }>> =>
+  andThen(api.scriptNamedOrNull(input.names.scriptName), async (found) =>
     found === null
       ? api.createScript(input.names.scriptName, input.code)
-      : then(api.getScript(found.id), async (details) =>
+      : andThen(api.getScript(found.id), async (details) =>
           okResult({ ...details, id: found.id }),
         ),
   );
@@ -89,7 +89,7 @@ const openScript = (
  * failure. */
 const writeSecrets = async (
   api: PreviewApi,
-  scriptId: number,
+  scriptId: ScriptId,
   missing: [string, SecretSource][],
 ): Promise<Result<void>> => {
   for (const [name, source] of missing) {

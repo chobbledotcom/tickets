@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unique } from "#fp";
+import { readCopiedSecrets } from "#scripts/preview/copied-secrets.ts";
+import { readSitePlan, readStripeKey } from "#scripts/preview/site-plan.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const WORKFLOW_PATH = ".github/workflows/preview.yml";
@@ -58,6 +60,38 @@ const stepText = (job: string, name: string): string => {
   if (step === undefined) throw new Error(`The job has no step ${name}`);
   return step;
 };
+
+/** The variables that name the Bunny key. The key has another secret name. */
+const BUNNY_KEYS = ["BUNNY_ACCESS_KEY", "BUNNY_API_KEY"];
+
+type ReadNames = (getEnv: (key: string) => string | undefined) => unknown;
+
+/** A step that runs a preview script: its job, its name, the reader of its
+ * variables, and the variables that the reader does not ask for. */
+const SCRIPT_STEPS: [
+  job: string,
+  name: string,
+  readNames: ReadNames,
+  keys: string[],
+][] = [
+  ["deploy", "Create or complete the preview", readCopiedSecrets, BUNNY_KEYS],
+  ["deploy", "Set up the preview", readSitePlan, []],
+  ["cleanup", "Delete the preview", readStripeKey, BUNNY_KEYS],
+];
+
+/** The variable names that a reader asks for. */
+const requestedBy = (read: ReadNames): string[] => {
+  const asked: string[] = [];
+  read((name) => {
+    asked.push(name);
+    return "";
+  });
+  return asked;
+};
+
+/** The sorted variable names that a step lets `deno run` read. */
+const allowedEnv = (step: string): string[] =>
+  (step.match(/--allow-env=(\S+)/)?.[1] ?? "").split(",").sort();
 
 describe("preview workflow", () => {
   test("sets up a new preview after the deploy, and reaches only the preview", async () => {
@@ -181,6 +215,20 @@ describe("preview workflow", () => {
     ).toHaveLength(2);
     expect(text).not.toMatch(/scripts\/preview\.ts \w+ "?\$\{\{/);
   });
+
+  for (const [job, name, readNames, keys] of SCRIPT_STEPS) {
+    test(`lets "${name}" read exactly the variables that its code asks for, each from a secret`, async () => {
+      const step = stepText(jobText(await readWorkflow(), job), name);
+      const asked = requestedBy(readNames);
+
+      expect(allowedEnv(step)).toEqual([...keys, ...asked].sort());
+      for (const variable of asked) {
+        expect(step).toContain(
+          `          ${variable}: ${githubValue(`secrets.${variable}`)}\n`,
+        );
+      }
+    });
+  }
 
   test("checks the secrets before the build and deploys an old preview through the update-mode action", async () => {
     const deploy = jobText(await readWorkflow(), "deploy");
