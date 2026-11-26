@@ -39,7 +39,13 @@ export type StoredList = v.InferOutput<typeof StoredListSchema>;
  * download stores the list in this build's shape. */
 export const readTicketCacheOrNull = (scanPath: string): StoredList | null => {
   const key = TICKETS_KEY_PREFIX + scanPath;
-  const raw = localStorage.getItem(key);
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(key);
+  } catch {
+    // Site data is blocked for this page, so no list can be read.
+    return null;
+  }
   if (raw === null) return null;
   const parsed = v.safeParse(StoredListSchema, parseJsonOrNull(raw));
   if (parsed.success) return parsed.output;
@@ -118,15 +124,27 @@ export const downloadTicketCache = async (
 };
 
 /** Register the scanner's service worker, which keeps the page's script and
- * stylesheet loadable without a connection. A refused registration rejects,
- * so the door learns that a reload without a connection will fail. */
+ * stylesheet loadable without a connection. A browser with no service
+ * worker container — an insecure context, some private modes — registers
+ * nothing and the page still scans, with no offline page shell. A
+ * registration the browser refuses still rejects, so the door learns that
+ * a reload without a connection will fail. */
 export const registerScannerWorker = (): Promise<unknown> =>
-  navigator.serviceWorker.register(SCANNER_SW_PATH);
+  "serviceWorker" in navigator
+    ? navigator.serviceWorker.register(SCANNER_SW_PATH)
+    : Promise.resolve();
 
 /** One door's switch position, stored per door so turning offline mode on
- * at one door does not arm a door with no list. */
-export const readManualMode = (scanPath: string): boolean =>
-  localStorage.getItem(MODE_KEY_PREFIX + scanPath) === "1";
+ * at one door does not arm a door with no list. A store the page cannot
+ * read answers off, so a blocked store keeps the page scanning online. */
+export const readManualMode = (scanPath: string): boolean => {
+  try {
+    return localStorage.getItem(MODE_KEY_PREFIX + scanPath) === "1";
+  } catch {
+    // Site data is blocked for this page, so nothing is read or stored.
+    return false;
+  }
+};
 
 /** Store one door's switch position. */
 export const writeManualMode = (scanPath: string, on: boolean): void => {
@@ -158,7 +176,13 @@ const StoredQueueSchema = v.array(QueuedCheckInSchema);
  * queued check-ins are admissions the door already made, so nothing drops
  * or hides them. */
 export const readQueue = (): QueuedCheckIn[] => {
-  const raw = localStorage.getItem(QUEUE_KEY);
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(QUEUE_KEY);
+  } catch {
+    // Site data is blocked for this page, so nothing is read or stored.
+    return [];
+  }
   return raw === null ? [] : v.parse(StoredQueueSchema, JSON.parse(raw));
 };
 

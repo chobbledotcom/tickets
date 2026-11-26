@@ -370,6 +370,38 @@ describe("scanner camera", {
     expect(fakes.tracks.map((track) => track.stopped)).toEqual([true, true]);
   });
 
+  test("keeps the camera working when the browser has no service worker container", async () => {
+    const h = fresh({ serviceWorker: null });
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+    using _fetch = stubFetch(() => Response.json(checkedIn(1)));
+
+    await start(h);
+    await scanFirst(fakes, "tok12345");
+
+    // The offline page shell is unavailable, and the door still scans: the
+    // missing registry is a documented degrade, not a page fault.
+    expect(h.statusEl.textContent).toBe(
+      "Ada checked in for Standard (1 ticket)",
+    );
+  });
+
+  test("keeps the camera working when the store refuses every read", async () => {
+    const h = fresh({ blockedStore: true });
+    using fakes = cameraFakes(h);
+    fakes.ready(4);
+    using _fetch = stubFetch(() => Response.json(checkedIn(1)));
+
+    await start(h);
+    await scanFirst(fakes, "tok12345");
+
+    // A blocked store reads as no mode, no list, and no queue, so the page
+    // boots into its online side and the scan still lands.
+    expect(h.statusEl.textContent).toBe(
+      "Ada checked in for Standard (1 ticket)",
+    );
+  });
+
   test("fails loudly on a page the template did not render whole", () => {
     // Re-running the bundle on a page missing an element names the element
     // instead of wiring half a scanner.

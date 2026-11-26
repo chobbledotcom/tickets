@@ -36,11 +36,11 @@ import {
 } from "./scanner-offline-sync.ts";
 
 /** The offline side's queue panel. It holds the page elements of the
- * queue, the door's digest key and replay window, and the rendered rows.
+ * queue, the door's key text and replay window, and the rendered rows.
  * `sync` is the queue's sync for this page's door. */
 export type QueuePanel = {
   container: HTMLElement;
-  doorKey: Uint8Array;
+  doorKey: string;
   list: HTMLElement;
   replayWindowMs: number;
   rows: QueueRow[];
@@ -70,15 +70,16 @@ const updateOfflineBanner = (
   );
 };
 
-/** The door's cache key the page carries, decoded to the raw bytes a keyed
- * digest signs under. The page is the only response that holds a door's
- * key. The stored digests carry the same key. A scan cannot use them
- * without this attribute. */
-const doorKeyBytes = (pageKey: string | undefined): Uint8Array => {
+/** The door's cache key the page carries, as the page writes it. The page
+ * is the only response that holds a door's key. The stored digests carry
+ * the same key. A scan cannot use them without this attribute. The bytes
+ * are decoded per scan, so an engine that lacks the decoder still scans
+ * online. */
+const doorKeyText = (pageKey: string | undefined): string => {
   if (!pageKey) {
     throw new Error("The scanner page carries no data-door-cache-key");
   }
-  return fromBase64Url(pageKey);
+  return pageKey;
 };
 
 /** The door's replay window the page carries, in milliseconds. The server
@@ -180,7 +181,7 @@ export const offlineScan = async (
   say: Say,
 ): Promise<void> => {
   await withUsableList(door, say, async (entries) => {
-    const hash = await hmacHex(door.panel.doorKey, token);
+    const hash = await hmacHex(fromBase64Url(door.panel.doorKey), token);
     const entry = entries.find((saved) => saved.hash === hash);
     if (entry === undefined) {
       say(door.wording.word("offlineInvalid"), "error");
@@ -239,7 +240,7 @@ export const initOfflineScanner = ({
     syncQueue(say, wording, panel, settleDelivery).catch(reportFailure);
   const panel: QueuePanel = {
     container: requiredById("scanner-queue"),
-    doorKey: doorKeyBytes(container.dataset.doorCacheKey),
+    doorKey: doorKeyText(container.dataset.doorCacheKey),
     list: requiredById("scanner-queue-items"),
     replayWindowMs: replayWindowMs(
       container.dataset.scanOperationRetentionDays,

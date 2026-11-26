@@ -94,13 +94,17 @@ export interface ScannerHarness {
 
 /** The connection state a harness installs before the bundle runs. */
 export interface ScannerGlobals {
+  /** Install a store whose every read and write the browser refuses, as a
+   * page in a blocked-site-data context sees it. */
+  blockedStore?: boolean;
   onLine?: boolean;
   /** Seed the page's local store before the bundle runs — a stored ticket
    * cache, a queued check-in, or a manual mode a reload would restore. */
   seed?: (store: Storage) => void;
   /** The worker registry the page registers its service worker with. The
-   * default page's registry accepts every registration. */
-  serviceWorker?: { register: (path: string) => Promise<unknown> };
+   * default page's registry accepts every registration. Null installs a
+   * browser with no service worker container at all. */
+  serviceWorker?: { register: (path: string) => Promise<unknown> } | null;
 }
 
 /** The built bundle's export tail, rewritten as a global stash: esbuild emits
@@ -233,10 +237,21 @@ export const useScanner = (
   // the page's own pieces. Tests that need a dead connection or a queued
   // check-in replace the navigator or seed the store before they scan.
   stash.set("window", window);
-  stash.set("localStorage", window.localStorage);
+  stash.set(
+    "localStorage",
+    globals.blockedStore
+      ? refusedStore(window.localStorage)
+      : window.localStorage,
+  );
   stash.set("navigator", {
     onLine: globals.onLine ?? true,
-    serviceWorker: globals.serviceWorker ?? { register: async () => ({}) },
+    ...(globals.serviceWorker === null
+      ? {}
+      : {
+          serviceWorker: globals.serviceWorker ?? {
+            register: async () => ({}),
+          },
+        }),
   });
   globals.seed?.(window.localStorage);
 
@@ -359,6 +374,19 @@ export const fullStore = (h: ScannerHarness): void => {
       setItem: { value: refuse },
     }),
   );
+};
+
+/** A store whose every read and write the browser refuses, as a page in a
+ * blocked-site-data context sees it: no key answers and no write lands. */
+const refusedStore = (store: Storage): Storage => {
+  const refuse = () => {
+    throw new DOMException("The store is blocked", "SecurityError");
+  };
+  return Object.create(store, {
+    getItem: { value: refuse },
+    removeItem: { value: refuse },
+    setItem: { value: refuse },
+  });
 };
 
 const wrongDoor = (): Response =>
