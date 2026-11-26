@@ -18,7 +18,7 @@ import { capturedFail, capturedOk } from "#test-utils/captured-output.ts";
 const fail = (stderr = ""): CapturedOutput => capturedFail(1, stderr);
 
 describe("partitionChanged", () => {
-  test("collects src .ts, .tsx and .js files as sources", () => {
+  test("collects src .ts and .tsx files as sources, and no .js file", () => {
     const { sources } = partitionChanged([
       "src/shared/dates.ts",
       "src/ui/templates/page.tsx",
@@ -27,7 +27,6 @@ describe("partitionChanged", () => {
     expect(sources).toEqual([
       "src/shared/dates.ts",
       "src/ui/templates/page.tsx",
-      "src/ui/client/scanner.js",
     ]);
   });
 

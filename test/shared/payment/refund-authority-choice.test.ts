@@ -8,7 +8,10 @@ import {
   refundOwnerChoices,
   resolveRefundOwnerChoice,
 } from "#payment/refund-authority-choice.ts";
-import { validateRefundAuthorityState } from "#payment/refund-authority-state.ts";
+import {
+  validateNeedsProviderCheckRefundState,
+  validateProviderConflictRefundState,
+} from "#payment/refund-authority-state.ts";
 import {
   keyedObservingRefundForTest,
   keylessArmedRefundForTest,
@@ -326,13 +329,13 @@ describe("payment > refund authority owner choice", () => {
     );
     expect(waiting.kind).toBe("needs_provider_check");
     expect(() =>
-      validateRefundAuthorityState({
+      validateProviderConflictRefundState({
         ...waiting,
         kind: "needs_owner_choice",
       }),
     ).toThrow("owner-choice conflict must admit an owner decision");
     expect(() =>
-      validateRefundAuthorityState({
+      validateNeedsProviderCheckRefundState({
         ...notSent,
         kind: "needs_provider_check",
       }),
