@@ -147,12 +147,17 @@ export const syncQueue = async (
   };
 
   /** The answer to one queued check-in's delivery, or null when it never
-   * reached the server. The check-in then waits for the next sync. */
+   * reached the door as a scan decision. The check-in then waits for the
+   * next sync. A request that never left the device, and an answer the
+   * page cannot read — the site's temporary HTML error page — both leave
+   * the check-in queued; neither carried a decision. */
   const answerOrNull = async (item: QueuedCheckIn) => {
     try {
       return await settleDelivery(item);
     } catch (error) {
-      if (error instanceof NetworkError) return null;
+      if (error instanceof NetworkError || error instanceof SyntaxError) {
+        return null;
+      }
       throw error;
     }
   };

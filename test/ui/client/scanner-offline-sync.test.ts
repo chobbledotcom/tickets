@@ -186,6 +186,35 @@ describe("scanner offline sync", {
     await expectStillQueued(h);
   });
 
+  test("keeps settling the rows behind a temporary error page", async () => {
+    let calls = 0;
+    using _fetch = stubFetch(
+      withEmptyCache(() => {
+        calls += 1;
+        return calls === 1
+          ? new Response("Service unavailable", {
+              headers: { "content-type": "text/html" },
+              status: 503,
+            })
+          : settledCheckIn();
+      }),
+    );
+    const queue = await queuedItems([TOKEN, "other9876"]);
+    const h = fresh({
+      seed: (store) => store.setItem("scanner-queue", queue),
+    });
+
+    // The site's temporary HTML error page carries no scan decision, so
+    // the first row stays queued — and the sync walks on to the row
+    // behind it instead of dying on the unreadable answer.
+    await whenTextShows(
+      h.statusEl,
+      "Some tickets are still queued. The page will try to check them in again.",
+    );
+    expect(rowWords(h)).toEqual(["Not sent yet — still queued", "Checked in"]);
+    expect(JSON.parse(String(storedQueue(h)))).toHaveLength(1);
+  });
+
   test("keeps the settled row on the page when the switch is clicked mid-sync", async () => {
     const { promise, resolve } = Promise.withResolvers<Response>();
     using _fetch = stubFetch(withEmptyCache(() => promise));
