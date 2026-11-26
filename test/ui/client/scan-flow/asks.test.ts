@@ -1,18 +1,21 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { fireEvent } from "#test-utils/happy-dom.ts";
-import { useManualCheckinPage, waitUntilSettled } from "./fixture.ts";
+import {
+  checkedIn,
+  useManualCheckinPage,
+} from "#test/ui/client/admin/manual-checkin/fixture.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { fireEvent, waitUntilSettled } from "#test-utils/happy-dom.ts";
 
 describe("manual check-in scan answers", () => {
-  const { setup, stubScans } = useManualCheckinPage();
+  const { pickedPage, stubScans } = useManualCheckinPage();
 
   /** Send the form without waiting for its handler: an ask on the way holds
    * the handler open until the overlay answers, so the caller must interact
    * with the overlay before the submit settles. Returns the page. */
-  const startSubmitFor = (attendeeId: string) => {
-    const page = setup();
-    page.attendeeIdInput.value = attendeeId;
+  const startSubmitFor = async (attendeeId: string) => {
+    const page = await pickedPage(attendeeId);
     const event = new page.window.Event("submit", { cancelable: true });
     fireEvent(page.form, event);
     return page;
@@ -32,20 +35,21 @@ describe("manual check-in scan answers", () => {
   const settle = (page: { submitButton: HTMLButtonElement }): Promise<void> =>
     waitUntilSettled(() => !page.submitButton.disabled, "the check-in");
 
-  test("asks how many when the line owes more than one, then admits the pick", async () => {
-    const sent = stubScans([
-      { max: 2, name: "Ada", status: "select_quantity" },
-      {
-        listingName: "Tour",
-        name: "Ada",
-        quantity: 2,
-        remaining: 0,
-        status: "checked_in",
-        total: 3,
-      },
-    ]);
-    const page = startSubmitFor("11");
+  const COUNT_ASK = { max: 2, name: "Ada", status: "select_quantity" };
+
+  /** Pick Ada, whose line owes two places, and wait for the count ask. The
+   * scan route answers `afterCount` once the door picks. */
+  const askCountThen = async (afterCount: Record<string, unknown>) => {
+    const sent = stubScans([COUNT_ASK, afterCount]);
+    const page = await startSubmitFor("11");
     await awaitOverlay();
+    return { page, sent };
+  };
+
+  test("asks how many when the line owes more than one, then admits the pick", async () => {
+    const { page, sent } = await askCountThen(
+      checkedIn({ listingName: "Tour", total: 3 }),
+    );
 
     // The overlay is up with the person's name in it and 1 to the whole
     // line offered, the whole line selected.
@@ -83,7 +87,7 @@ describe("manual check-in scan answers", () => {
       },
     ]);
 
-    const page = startSubmitFor("12");
+    const page = await startSubmitFor("12");
     await settle(page);
     expect(page.status.textContent).toBe("Bea checked in for Tour (1 pass)");
   });
@@ -93,7 +97,7 @@ describe("manual check-in scan answers", () => {
       { max: 2, name: "Ada", status: "select_quantity" },
     ]);
 
-    const page = startSubmitFor("11");
+    const page = await startSubmitFor("11");
     await awaitOverlay();
     document.getElementById("scanner-quantity-cancel")!.click();
     await settle(page);
@@ -102,5 +106,57 @@ describe("manual check-in scan answers", () => {
     expect(sent).toHaveLength(1);
     expect(page.status.textContent).toBe("Skipped Ada");
     assertStringIncludes(page.status.className, "checkin-status-warning");
+  });
+
+  test("a count ask that comes back after the door picked shows the error", async () => {
+    const { page, sent } = await askCountThen(COUNT_ASK);
+    document.getElementById("scanner-quantity-confirm")!.click();
+    await settle(page);
+
+    expect(sent).toEqual([
+      { attendee_id: 11 },
+      { attendee_id: 11, quantity: 2 },
+    ]);
+    expect(page.status.textContent).toBe("Check-in failed");
+    assertStringIncludes(page.status.className, "checkin-status-error");
+  });
+
+  test("shows the door error when the answer names another listing", async () => {
+    const sent = stubScans([
+      { listingName: "Tour", name: "Ada", status: "wrong_listing" },
+    ]);
+    const page = await startSubmitFor("11");
+    await settle(page);
+
+    // The pick asks only the questions its route answers, so a
+    // wrong-listing answer is final: the door reads the error words, the
+    // pick stays for another try, and nothing re-posts.
+    expect(sent).toEqual([{ attendee_id: 11 }]);
+    expect(page.status.textContent).toBe(
+      "This ticket has no door to check in at.",
+    );
+    assertStringIncludes(page.status.className, "checkin-status-error");
+    expect(page.buttonLabel()).toBe("Check In");
+  });
+
+  test("posts each scan to the door's route as JSON under the page's token", async () => {
+    const page = await pickedPage("11");
+    using fetchStub = stubFetch(Response.json(checkedIn()));
+
+    await page.submit();
+
+    expect(fetchStub.calls.map((call) => call.args)).toEqual([
+      [
+        "/admin/listing/7/scan",
+        {
+          body: JSON.stringify({ attendee_id: 11 }),
+          headers: {
+            "content-type": "application/json",
+            "x-csrf-token": "csrf",
+          },
+          method: "POST",
+        },
+      ],
+    ]);
   });
 });

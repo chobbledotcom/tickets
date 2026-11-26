@@ -4,22 +4,21 @@
 
 /**
  * The scanner bundle's messages on a page the operator's rebrand rendered:
- * I18N_REPLACEMENTS rewrites the rendered catalog copy (ticket to booking)
- * but never the bundle's hardcoded fallbacks, so the attribute copy a
- * lookup reaches is what the reader sees. These tests pin the rebranded
- * words the lookups must land on.
+ * I18N_REPLACEMENTS rewrites the rendered catalog copy (ticket to booking),
+ * and the page sends that copy as its words. These tests pin the rebranded
+ * words the bundle shows.
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   el,
   REBRANDED_PAGE,
   type ScannerHarness,
   useScannerSuite,
   whenTextShows,
-} from "#test/ui/client/scanner/fixture.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
+} from "./fixture.ts";
 
 describe("scanner messages under the ticket-to-booking rebrand", {
   sanitizeOps: false,
@@ -27,14 +26,13 @@ describe("scanner messages under the ticket-to-booking rebrand", {
 }, () => {
   const fresh = useScannerSuite(REBRANDED_PAGE);
 
-  /** Admit one ticket worth `quantity` of `total`, and expect the status
-   * line to show the rebranded copy. */
-  const expectAdmitWording = async (
+  /** Admit one ticket worth `quantity` of `total`, and answer the words
+   * the status line shows. */
+  const admittedWords = async (
     h: ScannerHarness,
     quantity: number,
     total: number,
-    status: string,
-  ): Promise<void> => {
+  ): Promise<string> => {
     using _fetch = stubFetch(() =>
       Response.json({
         listingName: "Standard",
@@ -45,38 +43,40 @@ describe("scanner messages under the ticket-to-booking rebrand", {
         total,
       }),
     );
-    const done = h.module.admitScan(
+    await h.module.admitScan(
       "/admin/groups/5/scan",
       "tok",
       "csrf",
-      h.statusEl,
-      h.messages,
+      h.say,
+      h.wording,
     );
-    await whenTextShows(h.statusEl, status);
-    await done;
-    expect(h.statusEl.textContent).toBe(status);
+    return String(h.statusEl.textContent);
   };
 
   test("says booking when the door does not know the ticket", async () => {
     const h = fresh();
     using _fetch = stubFetch(() => Response.json({ status: "not_found" }));
 
-    const done = h.module.admitScan(
+    await h.module.admitScan(
       "/admin/groups/5/scan",
       "tok",
       "csrf",
-      h.statusEl,
-      h.messages,
+      h.say,
+      h.wording,
     );
-    await whenTextShows(h.statusEl, "Booking not found");
-    await done;
-    expect(h.statusEl.textContent).toBe("Booking not found");
+    expect(h.statusEl.textContent).toBe(
+      "This booking was not found. Check that it is for this event.",
+    );
   });
 
   test("says booking when the ticket has no door at all", () => {
     const h = fresh();
 
-    h.module.handleResult(h.statusEl, { status: "wrong_listing" }, h.messages);
+    h.module.sayAnswer(
+      { listingName: "Standard", name: "Ada", status: "wrong_listing" },
+      h.wording,
+      h.say,
+    );
 
     expect(h.statusEl.textContent).toBe(
       "This booking has no door to check in at.",
@@ -101,8 +101,8 @@ describe("scanner messages under the ticket-to-booking rebrand", {
       "/admin/groups/5/scan",
       "tok",
       "csrf",
-      h.statusEl,
-      h.messages,
+      h.say,
+      h.wording,
     );
     await whenTextShows(
       h.confirm.message,
@@ -121,19 +121,13 @@ describe("scanner messages under the ticket-to-booking rebrand", {
   });
 
   test("counts one booking on a one-ticket admit", async () => {
-    await expectAdmitWording(
-      fresh(),
-      1,
-      1,
+    expect(await admittedWords(fresh(), 1, 1)).toBe(
       "Ada checked in for Standard (1 booking)",
     );
   });
 
   test("counts bookings on a partial admit", async () => {
-    await expectAdmitWording(
-      fresh(),
-      1,
-      2,
+    expect(await admittedWords(fresh(), 1, 2)).toBe(
       "Ada checked in for Standard (1 of 2 bookings)",
     );
   });

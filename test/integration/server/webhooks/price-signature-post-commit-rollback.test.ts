@@ -7,7 +7,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
 import { encrypt } from "#crypto/encryption.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import {
@@ -21,6 +20,7 @@ import {
   dropRejectingActivityTrigger,
   installRejectingActivityTrigger,
 } from "#test-utils/db-helpers/activity-trigger.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";

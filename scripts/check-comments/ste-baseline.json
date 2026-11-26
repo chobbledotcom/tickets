@@ -1526,11 +1526,6 @@
     "banned-modal": 3,
     "present-perfect": 1
   },
-  "src/ui/client/scanner.ts": {
-    "banned-modal": 1,
-    "present-perfect": 1,
-    "long-sentence": 1
-  },
   "src/ui/templates/admin/activity-log.tsx": {
     "long-sentence": 4,
     "semicolon": 2

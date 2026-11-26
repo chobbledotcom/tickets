@@ -2,68 +2,21 @@
  * Admin QR scanner page template
  */
 
-import { t } from "#i18n";
+import { t, tWithHoles } from "#i18n";
 import { SCANNER_JS_PATH } from "#shared/asset-paths.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
+import { SCANNER_WORDS, type ScannerWords } from "#shared/scanner-words.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AdminSession } from "#types";
 
-/** Ticket option for the manual check-in autocomplete. It carries the
- * attendee's internal id, never the ticket credential. */
-export interface TicketOption {
-  attendeeId: number;
-  /** The door-safe facts that tell two people with the same name apart —
-   * the listing (on a multi-listing door) and the day each place is for. */
-  details: string[];
-  name: string;
-  quantity: number;
-}
-
 /** One door on the doors page: its name and the scanner page that serves it. */
 export interface ScannerDoor {
   name: string;
   path: string;
 }
-
-/** What one page's scanner messages say — every `{name}`-style hole below is
- * filled by the client from the scan API's answer. */
-type ScannerMessages = {
-  alreadyCheckedIn: string;
-  checkedIn: string;
-  checkedInPartial: string;
-  idMismatch: string;
-  refunded: string;
-  selectQuantity: string;
-  noDoor: string;
-  skipped: string;
-  ticketCountOne: string;
-  ticketCountOther: string;
-  verifyIdConfirm: string;
-  wrongListingConfirm: string;
-};
-
-/** The check-in message templates shared by both the camera scanner container
- *  and the manual-checkin form. They arrive as `data-message-*` attributes to
- *  spread onto each form (each form then adds its own extra messages).
- *  Keeping the common set here stops the two attribute lists drifting apart. */
-const sharedScanMessageAttrs = (
-  messageTemplates: ScannerMessages,
-): Record<string, string> => ({
-  "data-message-already-checked-in": messageTemplates.alreadyCheckedIn,
-  "data-message-checked-in": messageTemplates.checkedIn,
-  "data-message-checked-in-partial": messageTemplates.checkedInPartial,
-  "data-message-error": t("admin.scanner.error"),
-  "data-message-network-error": t("admin.scanner.network_error"),
-  "data-message-not-found": t("admin.scanner.not_found"),
-  "data-message-refunded": messageTemplates.refunded,
-  "data-message-select-quantity": messageTemplates.selectQuantity,
-  "data-message-skipped": messageTemplates.skipped,
-  "data-message-ticket-count-one": messageTemplates.ticketCountOne,
-  "data-message-ticket-count-other": messageTemplates.ticketCountOther,
-});
 
 /** "1 ticket" or "3 tickets", worded the way the door's messages say it. */
 export const ticketCountText = (count: number): string =>
@@ -74,100 +27,15 @@ export const ticketCountText = (count: number): string =>
     { count },
   );
 
-const scannerMessages = (): ScannerMessages => ({
-  alreadyCheckedIn: t("admin.scanner.already_checked_in", {
-    listingName: "{listingName}",
-    name: "{name}",
-    tickets: "{tickets}",
-  }),
-  checkedIn: t("admin.scanner.checked_in", {
-    listingName: "{listingName}",
-    name: "{name}",
-    tickets: "{tickets}",
-  }),
-  checkedInPartial: t("admin.scanner.checked_in_partial", {
-    listingName: "{listingName}",
-    name: "{name}",
-    tickets: "{tickets}",
-    total: "{total}",
-  }),
-  idMismatch: t("admin.scanner.id_mismatch", { name: "{name}" }),
-  noDoor: t("admin.scanner.no_door"),
-  refunded: t("admin.scanner.refunded", { name: "{name}" }),
-  selectQuantity: t("admin.scanner.select_quantity", { name: "{name}" }),
-  skipped: t("admin.scanner.skipped", { name: "{name}" }),
-  ticketCountOne: t("admin.scanner.ticket_count_one", { count: "{count}" }),
-  ticketCountOther: t("admin.scanner.ticket_count_other", {
-    count: "{count}",
-  }),
-  verifyIdConfirm: t("admin.scanner.verify_id_confirm", {
-    name: "{name}",
-  }),
-  wrongListingConfirm: t("admin.scanner.wrong_listing_confirm", {
-    listingName: "{listingName}",
-    name: "{name}",
-  }),
-});
-
-/** The offline-mode words the camera client composes into statuses, the
- * banner, and the queue panel, as `data-message-*` attributes. The camera
- * page is the only surface the offline scanner serves. */
-const offlineMessageAttrs = (): Record<string, string> => ({
-  "data-message-offline-already-queued": t(
-    "admin.scanner.offline_already_queued",
-  ),
-  "data-message-offline-banner-auto": t("admin.scanner.offline_banner_auto"),
-  "data-message-offline-banner-manual": t(
-    "admin.scanner.offline_banner_manual",
-  ),
-  "data-message-offline-cache-expired": t(
-    "admin.scanner.offline_cache_expired",
-  ),
-  "data-message-offline-cache-missing": t(
-    "admin.scanner.offline_cache_missing",
-  ),
-  "data-message-offline-invalid": t("admin.scanner.offline_invalid"),
-  "data-message-offline-mode-save-failed": t(
-    "admin.scanner.offline_mode_save_failed",
-  ),
-  "data-message-offline-not-queued": t("admin.scanner.offline_not_queued"),
-  "data-message-offline-quantity-ask": t("admin.scanner.offline_quantity_ask"),
-  "data-message-offline-queued": t("admin.scanner.offline_queued"),
-  "data-message-offline-save-failed": t("admin.scanner.offline_save_failed"),
-  "data-message-queue-count-one": t("admin.scanner.queue_count_one", {
-    count: "{count}",
-  }),
-  "data-message-queue-count-other": t("admin.scanner.queue_count_other", {
-    count: "{count}",
-  }),
-  "data-message-queue-item-already": t("admin.scanner.queue_item_already"),
-  "data-message-queue-item-checked-in": t(
-    "admin.scanner.queue_item_checked_in",
-  ),
-  "data-message-queue-item-expired": t("admin.scanner.queue_item_expired"),
-  "data-message-queue-item-not-checked-in": t(
-    "admin.scanner.queue_item_not_checked_in",
-  ),
-  "data-message-queue-item-over-admitted": t(
-    "admin.scanner.queue_item_over_admitted",
-    {
-      admitted: "{admitted}",
-      bought: "{bought}",
-      name: "{name}",
-      named: "{named}",
-    },
-  ),
-  "data-message-queue-item-queued": t("admin.scanner.queue_item_queued"),
-  "data-message-queue-item-refunded": t("admin.scanner.queue_item_refunded"),
-  "data-message-queue-item-still-queued": t(
-    "admin.scanner.queue_item_still_queued",
-  ),
-  "data-message-queue-save-failed": t("admin.scanner.queue_save_failed"),
-  "data-message-sync-done": t("admin.scanner.sync_done"),
-  "data-message-sync-holds": t("admin.scanner.sync_holds"),
-  "data-message-sync-running": t("admin.scanner.sync_running"),
-  "data-message-sync-still-queued": t("admin.scanner.sync_still_queued"),
-});
+/** Every word the page's browser code shows, filled from the catalog with
+ * each hole left as `{hole}`. */
+const scannerWords = (): ScannerWords =>
+  Object.fromEntries(
+    Object.entries(SCANNER_WORDS).map(([name, { holes, key }]) => [
+      name,
+      tWithHoles(key, ...holes),
+    ]),
+  ) as ScannerWords;
 
 /** One centered overlay above the camera: backdrop, box, and the page's own
  * body. The confirm and the quantity asks share it, so both overlays keep the
@@ -213,30 +81,29 @@ const scannerShell = (
     </Layout>,
   );
 
+/** The routes one door's page talks to: the scan, its offline list, and
+ * its name search. */
+export type DoorPaths = { cache: string; scan: string; search: string };
+
 /**
- * Scanner page - camera feed with auto check-in + manual autocomplete.
- * `subject` is whichever door this page scans for — a listing or a group —
- * and `scanPath` is the JSON API its two check-in paths post to. A group
+ * Scanner page - camera feed with auto check-in + manual check-in by name.
+ * `subject` is the door this page scans for: a listing or a group. A group
  * whose stored door rule checks in every listing passes
  * `checksInEveryListing`, so door staff are warned what one scan will do.
  * `doorCacheKey` is the door's offline cache key, base64url: the device
- * digests a scanned token under it. The cache response itself never
- * carries the key. `scanOperationRetentionDays` is the door's replay
- * window in days: how long the server keeps one queued check-in's
- * delivery record. The client sends no queued check-in older than it.
+ * digests a scanned token under it. The cache response never carries it.
+ * `scanOperationRetentionDays` is how long the server keeps one queued
+ * check-in's delivery record. The client sends no queued check-in older.
  */
 export const adminScannerPage = (
   subject: { name: string },
-  scanPath: string,
+  paths: DoorPaths,
   session: AdminSession,
-  uncheckedIn: TicketOption[] = [],
   checksInEveryListing = false,
   doorCacheKey: string,
   scanOperationRetentionDays: number,
-): string => {
-  const messageTemplates = scannerMessages();
-
-  return scannerShell(
+): string =>
+  scannerShell(
     session,
     {
       headExtra: `<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" type="module"></script>`,
@@ -247,33 +114,20 @@ export const adminScannerPage = (
 
       <article>
         <div
-          {...sharedScanMessageAttrs(messageTemplates)}
           data-door-cache-key={doorCacheKey}
-          data-message-camera-denied={t("admin.scanner.camera_denied")}
-          data-message-id-mismatch={messageTemplates.idMismatch}
-          data-message-invalid-qr={t("admin.scanner.invalid_qr")}
-          data-message-no-door={messageTemplates.noDoor}
-          data-message-scanning={t("admin.scanner.scanning")}
-          data-message-verify-id-confirm={messageTemplates.verifyIdConfirm}
-          data-message-wrong-listing-confirm={
-            messageTemplates.wrongListingConfirm
-          }
+          data-scan-cache-path={paths.cache}
           data-scan-operation-retention-days={String(
             scanOperationRetentionDays,
           )}
-          {...offlineMessageAttrs()}
+          data-scan-path={paths.scan}
+          data-scan-search-path={paths.search}
+          data-words={JSON.stringify(scannerWords())}
           id="scanner-container"
         >
           <aside class="hidden" id="scanner-offline-banner" role="status">
             <p id="scanner-offline-banner-text"></p>
           </aside>
-          <video
-            class="hidden"
-            data-scan-path={scanPath}
-            id="scanner-video"
-            muted
-            playsinline
-          ></video>
+          <video class="hidden" id="scanner-video" muted playsinline></video>
           <div class="hidden" id="scanner-status"></div>
           <div class="hidden" id="scanner-queue">
             <p aria-live="polite" id="scanner-queue-summary"></p>
@@ -335,6 +189,7 @@ export const adminScannerPage = (
         >
           {t("admin.scanner.offline_mode")}
         </button>
+        <p class="muted hidden" id="scanner-offline-progress" role="status"></p>
       </article>
 
       {checksInEveryListing ? (
@@ -347,46 +202,18 @@ export const adminScannerPage = (
 
       <article>
         <h2>{t("admin.scanner.manual_checkin")}</h2>
-        <form
-          action={scanPath}
-          {...sharedScanMessageAttrs(messageTemplates)}
-          data-manual-checkin
-          data-message-ticket-option={t("admin.scanner.ticket_option", {
-            name: "{name}",
-            tickets: "{tickets}",
-          })}
-          data-message-ticket-option-detail={t(
-            "admin.scanner.ticket_option_detail",
-            { detail: "{detail}", name: "{name}", tickets: "{tickets}" },
-          )}
-          data-message-verify-id-note={t("admin.scanner.verify_id_note")}
-          data-scan-path={scanPath}
-          id="manual-checkin"
-          method="POST"
-        >
-          <input name="csrfToken" type="hidden" value={getCurrentCsrfToken()} />
+        <form id="manual-checkin">
           <label for="manual-checkin-input">
             {t("admin.scanner.search_label")}
           </label>
           <div class="combobox">
-            <input
-              id="manual-checkin-attendee-id"
-              name="attendeeId"
-              type="hidden"
-            />
             <input
               aria-autocomplete="list"
               aria-controls="ticket-options"
               aria-expanded="false"
               autocomplete="off"
               id="manual-checkin-input"
-              placeholder={
-                uncheckedIn.length > 0
-                  ? t("admin.scanner.tickets_available", {
-                      count: uncheckedIn.length,
-                    })
-                  : t("admin.scanner.no_tickets")
-              }
+              placeholder={t("admin.scanner.search_placeholder")}
               required
               role="combobox"
               type="text"
@@ -395,36 +222,11 @@ export const adminScannerPage = (
               class="combobox-list hidden"
               id="ticket-options"
               role="listbox"
-            >
-              {uncheckedIn.map((ticket) => {
-                const detail = ticket.details.join(", ");
-                return (
-                  <div
-                    data-attendee-id={String(ticket.attendeeId)}
-                    data-detail={detail}
-                    data-name={ticket.name}
-                    data-quantity={String(ticket.quantity)}
-                    role="option"
-                    tabIndex={0}
-                  >
-                    {detail
-                      ? t("admin.scanner.ticket_option_detail", {
-                          detail,
-                          name: ticket.name,
-                          tickets: ticketCountText(ticket.quantity),
-                        })
-                      : t("admin.scanner.ticket_option", {
-                          name: ticket.name,
-                          tickets: ticketCountText(ticket.quantity),
-                        })}
-                  </div>
-                );
-              })}
-            </div>
+            ></div>
           </div>
           <div class="hidden" id="manual-checkin-status"></div>
-          <SubmitButton icon="check">
-            {t("admin.scanner.check_in")}
+          <SubmitButton icon="search" id="manual-checkin-submit">
+            {t("admin.scanner.search_button")}
           </SubmitButton>
         </form>
       </article>
@@ -433,7 +235,6 @@ export const adminScannerPage = (
       </GuideFooter>
     </>,
   );
-};
 
 /** One section of the doors page, or nothing when that kind of door has no
  *  doors. An empty heading promises a link that is not there. */

@@ -20,8 +20,12 @@ import { expect } from "@std/expect";
 import type { Page } from "playwright";
 import { encode } from "uqr";
 import * as v from "valibot";
-import type { TicketCacheEntry } from "#routes/admin/scan-cache.ts";
 import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
+import {
+  StoredListSchema,
+  type TicketCacheEntry,
+  TicketCachePageSchema,
+} from "#shared/ticket-cache.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {
   type BrowserContract,
@@ -47,18 +51,6 @@ export const UNKNOWN = "unknown-visitor-token";
  * asks, and the door checks in two of the three. */
 export const HELD_PLACES = 3;
 export const CHECK_IN_PICK = 2;
-
-/** The ticket list one door's cache endpoint answers and the page stores:
- * one keyed digest per ticket, with the places one scan at the door admits.
- * Both boundaries are outside the test's own code, so both parse. */
-const cacheEntriesSchema = v.array(
-  v.object({ hash: v.string(), tickets: v.pipe(v.number(), v.integer()) }),
-);
-const servedCacheSchema = v.object({ entries: cacheEntriesSchema });
-const storedCacheSchema = v.object({
-  entries: cacheEntriesSchema,
-  storedAt: v.number(),
-});
 
 /** One seeded door: the group and its one listing, the person whose ticket
  * the door's list holds, and the paths the page and its store key read. */
@@ -210,13 +202,15 @@ export const openDoor = async (
   };
 };
 
-/** Waits for the door's ticket list to be in the store. The page fetches it
- * while the connection holds, and a drop that lands first aborts that fetch,
- * so every journey waits here before it takes the connection away. */
-export const waitDoorCacheStored = async (
+/** Turns offline mode on at the door and waits for its ticket list to be in
+ * the store. The page downloads the list only when the door turns the switch
+ * on, and a connection drop that lands first stops that download, so every
+ * offline journey waits here before it takes the connection away. */
+export const turnOfflineModeOn = async (
   page: Page,
   door: SeededDoor,
 ): Promise<void> => {
+  await page.click("#scanner-offline-toggle");
   try {
     await page.waitForFunction(
       (key) => localStorage.getItem(key) !== null,
@@ -238,6 +232,13 @@ export const waitDoorCacheStored = async (
   }
 };
 
+/** Whether the page's store holds the door's ticket list at all. */
+export const cacheStored = (page: Page, door: SeededDoor): Promise<boolean> =>
+  page.evaluate(
+    (key) => localStorage.getItem(key) !== null,
+    door.cacheStoreKey,
+  );
+
 /** The ticket list the page's store holds, exactly as the cache endpoint
  * served it: the journeys read their digests from the two ends instead of
  * deriving one again. */
@@ -250,7 +251,7 @@ export const storedCacheEntries = async (
     if (value === null) throw new Error(`The door's store holds no ${key}`);
     return value;
   }, door.cacheStoreKey);
-  return v.parse(storedCacheSchema, JSON.parse(raw)).entries;
+  return v.parse(StoredListSchema, JSON.parse(raw)).entries;
 };
 
 /** The digest list the cache endpoint answers this session. */
@@ -266,7 +267,7 @@ export const servedCacheEntries = async (
   if (!response.ok) {
     throw new Error(`The scan-cache endpoint answered ${response.status}`);
   }
-  return v.parse(servedCacheSchema, await response.json()).entries;
+  return v.parse(TicketCachePageSchema, await response.json()).entries;
 };
 
 /** The body one queued delivery sends: its own operation id, the people the

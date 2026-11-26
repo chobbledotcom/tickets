@@ -227,7 +227,9 @@ export const expectRefundedPlaceholder = async (
   responseText: string,
 ): Promise<Array<{ id: number }>> => {
   assertStringIncludes(responseText, "saved your details");
-  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import(
+    "#test-utils/db-helpers/attendees.ts"
+  );
   const attendees = await getAttendeesRaw(listing.id);
   expect(attendees.length).toBe(1);
   // The placeholder posts no sale leg, so the still-sold-out add-on is not

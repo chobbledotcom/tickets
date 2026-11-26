@@ -18,6 +18,7 @@ import {
   withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
+  MODE_KEY,
   queuedItem,
   SCAN_PATH,
   TOKEN,
@@ -37,9 +38,9 @@ describe("scanner offline door helpers", {
 
   test("waits for the list the page's own load stores later", async () => {
     using _fetch = stubFetch(withEmptyCache(() => Response.json({})));
-    const h = fresh();
-    // The cache refresh stores its list on the platform's crypto promise,
-    // which no microtask drain resolves, so the wait hops real turns.
+    // A door with offline mode on downloads its list on load. The download
+    // stores it after the fetch's own promises, so the wait hops real turns.
+    const h = fresh({ seed: (store) => store.setItem(MODE_KEY, "1") });
     const stored = await whenStoreHolds(h, `scanner-tickets-${SCAN_PATH}`);
     expect(JSON.parse(stored)).toEqual({
       entries: [],

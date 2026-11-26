@@ -1,12 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb, queryAll } from "#db/client.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { expectReservedRedirectWithTokens } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
+import {
+  expectNoAttendeesForListings,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createFreeTextQuestion,
