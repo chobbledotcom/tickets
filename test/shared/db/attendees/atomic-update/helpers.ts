@@ -6,8 +6,8 @@ import {
   loadExistingLines,
 } from "#db/attendees/atomic-update.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 type DesiredLine = Parameters<typeof applyAttendeeAtomicEdit>[2][number];

@@ -13,6 +13,7 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import { requestAsSession, testCsrfToken } from "#test-utils/session.ts";
@@ -77,6 +78,28 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
     ]);
   });
 
+  test("the listing scan answers 404 for a listing with no door", async () => {
+    const closed = await createTestListing({ purchaseOnly: true });
+    const { cookie } = await createTestScannerSession();
+
+    // The listing scan post loads its door the way every other listing-door
+    // route does, so a "No check-in" listing meets the same 404 as an
+    // unknown listing — not a wrong-listing answer for a ticket.
+    const response = await handleRequest(
+      requestAsSession(
+        `/admin/listing/${closed.id}/scan`,
+        { cookie, csrfToken: await testCsrfToken() },
+        {
+          body: JSON.stringify({ token: "tok12345" }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      ),
+    );
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ status: "not_found" });
+  });
+
   test("the ticket page shows a scanner the part count and both door actions", async () => {
     const { attendee, cookie, listing, token } = await partyOfThree();
     await moveTickets("admit", [
@@ -128,22 +151,21 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
     expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
   });
 
-  test("the scanner's pick list shows the tickets a part party still owes", async () => {
+  test("the scanner's search shows the tickets a part party still owes", async () => {
     const { attendee, cookie, listing } = await partyOfThree();
     await moveTickets("admit", [
       { attendeeId: attendee.id, count: 2, listingId: listing.id },
     ]);
 
-    const body = await (
-      await awaitTestRequest(`/admin/listing/${listing.id}/scanner`, {
-        cookie,
-      })
-    ).text();
+    const search = await awaitTestRequest(
+      `/admin/listing/${listing.id}/scan-search?q=pia`,
+      { cookie },
+    );
 
-    expectIncludesAll(body, [
-      `data-attendee-id="${attendee.id}"`,
-      'data-quantity="1"',
-      "Pia (1 ticket)",
-    ]);
+    expect(await search.json()).toEqual({
+      options: [
+        { attendeeId: attendee.id, details: [], name: "Pia", quantity: 1 },
+      ],
+    });
   });
 });

@@ -4,17 +4,7 @@
 
 import * as v from "valibot";
 import { nullIfNotFound } from "#scripts/not-found.ts";
-
-/** Parse JSON text, and let the caller decide what a torn text becomes. */
-export const parseJsonWith =
-  (onParseError: (error: unknown) => unknown) =>
-  (text: string): unknown => {
-    try {
-      return JSON.parse(text);
-    } catch (error) {
-      return onParseError(error);
-    }
-  };
+import { parseJsonWith } from "#shared/read-json.ts";
 
 /**
  * Reads the JSON at the file named by `path`, validated against `schema`.

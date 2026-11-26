@@ -237,10 +237,11 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   test("covers every route the surface declares", () => {
     // Guards the walks below: a surface that stopped declaring its routes
     // would otherwise make this suite pass by testing nothing.
-    // The scanner's ticket-cache reads are record routes like their scanner
-    // pages: the gate runs before the record lookup, so the matrix walks them.
+    // The scanner's ticket-cache and name-search reads are record routes
+    // like their scanner pages: the gate runs before the record lookup, so
+    // the matrix walks them.
     expect(roleOnly.length).toBe(55);
-    expect(recordPages.length).toBe(30);
+    expect(recordPages.length).toBe(32);
   });
 
   test("never serves a page to a role it does not declare", async () => {

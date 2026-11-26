@@ -182,7 +182,9 @@ export const assertApiDeleteOk = async (
 export const expectAttendeeCounts = async (
   expectations: { count: number; listingId: number; quantity?: number }[],
 ): Promise<void> => {
-  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import(
+    "#test-utils/db-helpers/attendees.ts"
+  );
   for (const { count, listingId, quantity } of expectations) {
     const attendees = await getAttendeesRaw(listingId);
     expect(attendees.length).toBe(count);

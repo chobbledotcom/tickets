@@ -1,4 +1,4 @@
-import { t } from "#i18n";
+import { t, tWithHoles } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { ChosenImage } from "#shared/images/picker.ts";
@@ -34,9 +34,10 @@ export const ListingImagesField = ({
     <div
       class="listing-images"
       data-image-picker-heading={t("listings_table.choose_images")}
-      data-image-remove-label={t("listings_table.remove_image_label", {
-        name: "{name}",
-      })}
+      data-image-remove-label={tWithHoles(
+        "listings_table.remove_image_label",
+        "name",
+      )}
       data-image-remove-text={t("listings_table.remove_image")}
       data-listing-images
     >

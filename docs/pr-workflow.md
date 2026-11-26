@@ -348,6 +348,7 @@ implementation.
 ### 11. Review the complete diff
 
 Before the expensive gates, inspect the whole PR against its parent.
+Use the [review checklist](review-checklist.md) to check for past failure modes.
 
 Check that:
 

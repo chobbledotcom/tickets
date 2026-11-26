@@ -1,9 +1,9 @@
 /** Public `/reviews` — customer reviews in one masonry page.
  *
  *  The route runs behind the public-site gate. When the Reviews feature is off
- *  the page answers 404, so a direct link never shows a page the owner hid. The
- *  generated data always holds at least one review, so the nav link and the
- *  sitemap entry appear exactly when the feature is on. */
+ *  the page answers 404, so a direct link never shows a page the owner hid. A
+ *  site with no saved reviews answers 404 too, so the nav link and the sitemap
+ *  entry appear only while the page has something to show. */
 
 import { getAllReviews } from "#db/reviews.ts";
 import { settings } from "#db/settings.ts";

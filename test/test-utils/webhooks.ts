@@ -142,7 +142,9 @@ export const expectWebhookProcessed = async (
 
 /** Quantity-0 placeholders on a listing that also has booked attendees. */
 const getKeptPlaceholders = async (listingId: number): Promise<Attendee[]> => {
-  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import(
+    "#test-utils/db-helpers/attendees.ts"
+  );
   return (await getAttendeesRaw(listingId)).filter((a) => a.quantity === 0);
 };
 
@@ -175,7 +177,9 @@ export const expectRefundedWithNote = async (
 /** The listing's one and only attendee, asserted to be alone. Every webhook
  * aftermath check below starts from it. */
 const onlyAttendee = async (listingId: number): Promise<Attendee> => {
-  const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+  const { getAttendeesRaw } = await import(
+    "#test-utils/db-helpers/attendees.ts"
+  );
   const attendees = await getAttendeesRaw(listingId);
   expect(attendees.length).toBe(1);
   return attendees[0]!;

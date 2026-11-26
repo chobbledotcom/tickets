@@ -19,7 +19,6 @@ import type { HTMLSelectElement as HappyHTMLSelectElement } from "happy-dom";
 import { whenStatusShows } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
   el,
-  SCAN_PATH,
   storedQueue,
   TOKEN,
   useScannerSuite,
@@ -55,8 +54,9 @@ describe("scanner offline queue", {
     expect(el(h.document, "scanner-queue-summary").textContent).toBe(
       "1 queued check-in",
     );
-    // No scan left the page: only the page load's cache refresh ran.
-    expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+    // No scan left the page, and a door with offline mode off downloads
+    // nothing on load.
+    expect(askedUrls(fetchStub)).toEqual([]);
   });
 
   test("asks how many people the check-in admits and queues the pick", async () => {
@@ -86,8 +86,22 @@ describe("scanner offline queue", {
     expect(item.quantity).toBe(2);
     expect(item.tokenHash).toBe(await digestOf(TOKEN));
     expect(item.operationId).toEqual(expect.any(String));
-    // No scan left the page: only the page load's cache refresh ran.
-    expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+    // No scan left the page, and a door with offline mode off downloads
+    // nothing on load.
+    expect(askedUrls(fetchStub)).toEqual([]);
+  });
+
+  test("queues nothing when the door cancels the quantity ask", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+    await scanPartyOfThree(h);
+    el(h.document, "scanner-quantity-cancel").click();
+
+    await whenStatusShows(
+      h.statusEl,
+      "Nothing was queued. Scan the ticket again to check them in.",
+    );
+    expect(storedQueue(h)).toBe(null);
   });
 
   test("sends an unknown ticket away with the offline wording", async () => {
@@ -111,7 +125,7 @@ describe("scanner offline queue", {
     await expectOfflineRefusal(
       h,
       fetchStub,
-      "No offline ticket list yet. Go online and reload this page first.",
+      "No offline ticket list on this device. Go online and turn on offline mode first.",
     );
   });
 });

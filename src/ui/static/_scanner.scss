@@ -186,3 +186,10 @@
 .scanner-confirm-actions .secondary {
   @include surface-colors;
 }
+
+/* The offline switch while its list starts to download: dimmed, with a busy
+ * pointer, until the first page's numbers show beside it. */
+#scanner-offline-toggle[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.6;
+}

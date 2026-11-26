@@ -47,6 +47,12 @@ type DoorAsk = {
   force: boolean;
 };
 
+/** Whether a listing has a door at all. A listing marked "No check-in"
+ * sells something that has no door, so no scanner page, doors list, door
+ * route, or scan pool answers for it. */
+export const listingHasDoor = (listing: { purchaseOnly: boolean }): boolean =>
+  !listing.purchaseOnly;
+
 /** Where a scan looks for rows: the door's own listings, or every listing
  * when the ask forces a ticket that matched nowhere in scope. A "No
  * check-in" listing sells with no door, so its rows never admit on any
@@ -59,7 +65,7 @@ const scanPool = ({
 }: DoorAsk):
   | { failure: "not_found" | "wrong_listing" }
   | { rows: TokenEntry[]; widened: boolean } => {
-  const doorSafe = entries.filter((entry) => !entry.listing.purchaseOnly);
+  const doorSafe = entries.filter((entry) => listingHasDoor(entry.listing));
   const inScope = doorSafe.filter((entry) => scope.has(entry.listing.id));
   if (!force || inScope.length > 0) {
     return inScope.length === 0
