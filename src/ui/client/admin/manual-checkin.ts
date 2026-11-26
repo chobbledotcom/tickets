@@ -6,12 +6,12 @@
  * the page, so the camera keeps running. */
 
 import { requiredMapValue } from "#fp";
+import { SEARCH_MIN_LENGTH } from "#shared/roster-option.ts";
 import type { Wording } from "#shared/scanner-words.ts";
 import {
   findPeople,
   type ManualOffline,
   type Person,
-  SEARCH_MIN_LENGTH,
 } from "#src/ui/client/admin/manual-search.ts";
 import { requiredById, requiredChild } from "#src/ui/client/dom.ts";
 import {

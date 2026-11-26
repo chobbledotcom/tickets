@@ -3,10 +3,9 @@
  * The only way to put the whole list on a device is the logged offline
  * download in `scan-cache.ts`. */
 
-import { sortedByString } from "#fp-strings";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
-import type { RosterOption } from "#shared/roster-option.ts";
+import { matchingPeople, SEARCH_MIN_LENGTH } from "#shared/roster-option.ts";
 import { scopeAttendees } from "./scan-answer.ts";
 import {
   doorListingNames,
@@ -15,25 +14,6 @@ import {
   loadGroupDoor,
   loadListingDoor,
 } from "./scan-door.ts";
-
-/** The fewest characters a search takes. A shorter search can list most of
- * the door. */
-const SEARCH_MIN_LENGTH = 2;
-
-/** The most people one search answers. */
-const SEARCH_MAX_RESULTS = 20;
-
-/** The people whose name holds the search text, ignoring case, in name
- * order, up to the most one search answers. */
-const matchingPeople = (
-  options: readonly RosterOption[],
-  text: string,
-): RosterOption[] => {
-  const wanted = text.toLowerCase();
-  return sortedByString((option: RosterOption) => option.name)(
-    options.filter((option) => option.name.toLowerCase().includes(wanted)),
-  ).slice(0, SEARCH_MAX_RESULTS);
-};
 
 /** The search behind one door: the people the door can still check in whose
  * name holds `q`. */
@@ -44,6 +24,7 @@ const handleScanSearchGet = doorRoute(async (door, request) => {
   }
   const roster = doorRoster(
     await scopeAttendees(door.scope),
+    door.scope.checkInEveryListing,
     await doorListingNames(door.scope),
   );
   return jsonResponse({ options: matchingPeople(roster, text) });

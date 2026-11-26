@@ -39,9 +39,6 @@ export type SearchContext = {
   wording: Wording;
 };
 
-/** The fewest characters a search takes. The search route refuses fewer. */
-export const SEARCH_MIN_LENGTH = 2;
-
 /** The people whose name holds the text: from the saved list while offline
  * mode settles the door, else from the door's search route. Null after the
  * door hears why there is no answer. A search answer of another shape

@@ -103,6 +103,34 @@ describe("scanner manual check-in while offline mode is on", {
     expect(fetchStub.calls.length).toBe(0);
   });
 
+  test("answers the saved people in name order, like the search route", async () => {
+    using _fetch = stubFetch(new Error("offline"));
+    const h = fresh({ onLine: false });
+    const listKey = `scanner-tickets-${SCAN_PATH}`;
+    h.window.localStorage.setItem(MODE_KEY, "1");
+    h.window.localStorage.setItem(
+      listKey,
+      JSON.stringify({
+        entries: [
+          { ...savedEntry(await digestOf(TOKEN)), name: "Zoe Rae" },
+          { ...savedEntry("other-digest"), name: "Ann Mae" },
+        ],
+        storedAt: Date.now(),
+      }),
+    );
+
+    nameBox(h).value = "ae";
+    await submitManual(h);
+
+    const options = [
+      ...el(h.document, "ticket-options").querySelectorAll("[role=option]"),
+    ];
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Ann Mae (1 ticket)",
+      "Zoe Rae (1 ticket)",
+    ]);
+  });
+
   test("tells the door when the device holds no saved list", async () => {
     using _fetch = stubFetch(new Error("offline"));
     const h = fresh({ onLine: false });

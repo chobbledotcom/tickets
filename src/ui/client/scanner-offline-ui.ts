@@ -8,6 +8,7 @@
 
 import { fromBase64Url } from "#crypto/utils.ts";
 import { DAY_MS } from "#shared/now.ts";
+import { matchingPeople } from "#shared/roster-option.ts";
 import type { Wording } from "#shared/scanner-words.ts";
 import { hmacHex } from "#shared/sha256.ts";
 import type { TicketCacheEntry } from "#shared/ticket-cache.ts";
@@ -96,9 +97,6 @@ const replayWindowMs = (pageDays: string | undefined): number => {
   }
   return days * DAY_MS;
 };
-
-/** The most saved people one name search shows. */
-const SEARCH_MAX_RESULTS = 20;
 
 /** Run `use` on the door's saved entries when the list can vouch for a
  * check-in. Null after the door hears why it cannot: no list on this
@@ -198,26 +196,21 @@ export const offlineScan = async (
  * way. */
 export const offlinePeople = (door: OfflineDoor): ManualOffline => ({
   active: () => offlineModeActive(door.scanPath),
-  search: (text, say) => {
-    const wanted = text.toLowerCase();
-    return withUsableList(door, say, (entries) =>
-      entries
-        .filter((entry) => entry.name.toLowerCase().includes(wanted))
-        .slice(0, SEARCH_MAX_RESULTS)
-        .map(
-          (entry): Person => ({
-            checkIn: async (sayTo) => {
-              await queueSavedEntry(door, entry, sayTo);
-              return true;
-            },
-            details: entry.details,
-            key: entry.hash,
-            name: entry.name,
-            quantity: entry.quantity,
-          }),
-        ),
-    );
-  },
+  search: (text, say) =>
+    withUsableList(door, say, (entries) =>
+      matchingPeople(entries, text).map(
+        (entry): Person => ({
+          checkIn: async (sayTo) => {
+            await queueSavedEntry(door, entry, sayTo);
+            return true;
+          },
+          details: entry.details,
+          key: entry.hash,
+          name: entry.name,
+          quantity: entry.quantity,
+        }),
+      ),
+    ),
 });
 
 /** Wire the offline side of one scanner page and return the panel the camera

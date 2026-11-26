@@ -47,19 +47,22 @@ describeWithEnv("group scanner page", { db: true }, () => {
     assert(!body.includes(`/admin/listing/${members[0]!.id}/scan`));
   });
 
-  test("offers one option per person, with their places summed", async () => {
+  test("offers one option per person, with the places one check-in admits", async () => {
     const { group, members } = await groupDoor(2);
     await createMultiBookingAttendee("Sam", "sam@example.com", [
       { listingId: members[0]!.id, quantity: 2 },
       { listingId: members[1]!.id, quantity: 1 },
     ]);
 
+    // The door checks one listing in per scan, so the option's count is
+    // the first listing's two places — the same number the offline list
+    // would carry for this person.
     expect(await doorSearch(group.id, "Sam")).toEqual([
       {
         attendeeId: expect.any(Number),
         details: ["Standard", "Society"],
         name: "Sam",
-        quantity: 3,
+        quantity: 2,
       },
     ]);
   });

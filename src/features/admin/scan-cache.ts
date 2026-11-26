@@ -9,7 +9,6 @@
  * check-in can find them by name with no connection. */
 
 import * as v from "valibot";
-import { remainingTickets } from "#booking/remaining-tickets.ts";
 import {
   defineSignedToken,
   type ExpiringPayload,
@@ -22,7 +21,7 @@ import {
 } from "#db/attendees/pii.ts";
 import { getAttendeesPageByListingIds } from "#db/listings/attendees.ts";
 import { decryptUsername, getUserById } from "#db/users.ts";
-import { chunk, flatMap, groupToMap, mapParallel, sumOf } from "#fp";
+import { chunk, flatMap, groupToMap, mapParallel } from "#fp";
 import { sortedByString } from "#fp-strings";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -36,17 +35,15 @@ import type {
   TicketCachePageSchema,
 } from "#shared/ticket-cache.ts";
 import { parseOrNull } from "#shared/validation/parse.ts";
-import { type Attendee, hasTicketQuantity } from "#types";
+import type { Attendee } from "#types";
 import type { ScanScope } from "./scan-answer.ts";
-import { owingListings, scanAdmits } from "./scan-decision.ts";
 import {
   doorListingNames,
   doorRoute,
   type ListingNames,
-  lineOwes,
   loadGroupDoor,
   loadListingDoor,
-  optionDetails,
+  personFacts,
   type ScanDoor,
 } from "./scan-door.ts";
 
@@ -64,37 +61,13 @@ type EntryFacts = Omit<TicketCacheEntry, "hash">;
 /** One person's booking lines on the door's listings. */
 type PersonLines = DecryptedAttendeeRow<Attendee>[];
 
-/** What one person's entry says at this door, or null when the door owes
- * them nothing: such a person has no place in the list. */
-const personFactsOrNull = (
-  lines: PersonLines,
-  checkInEveryListing: boolean,
-  listingNames: ListingNames,
-): EntryFacts | null => {
-  // One line that can still admit admits the person, so any of the
-  // person's tickets at this door goes in the list.
-  const live = lines.filter((row) => !row.refunded && hasTicketQuantity(row));
-  // The scan groups every line it can see before it drops the listings
-  // that owe nothing. The count therefore names the listing that scan
-  // lands on, even when an earlier line on it sits fully checked in.
-  const owed = owingListings(live, (row) => row.listing_id, remainingTickets);
-  if (owed.length === 0) return null;
-  // What one scan admits, by the scan's own rule: the first listing still
-  // owing places, or every one when this door checks them all in.
-  const admitted = scanAdmits(false, checkInEveryListing, owed);
-  return {
-    details: optionDetails(lines.filter(lineOwes), listingNames),
-    name: lines[0]!.name,
-    quantity: sumOf(sumOf(remainingTickets))(admitted),
-  };
-};
-
 /** Each of one person's tokens, paired with the person's facts. A person
- * the door owes nothing brings no token. */
+ * the door owes nothing brings no token. The facts are the door's own
+ * rule, shared with the name search, so one number means one thing. */
 const tokenFacts =
   (checkInEveryListing: boolean, listingNames: ListingNames) =>
   (lines: PersonLines): [string, EntryFacts][] => {
-    const facts = personFactsOrNull(lines, checkInEveryListing, listingNames);
+    const facts = personFacts(lines, checkInEveryListing, listingNames);
     return facts === null
       ? []
       : lines.map((row): [string, EntryFacts] => [row.ticket_token, facts]);

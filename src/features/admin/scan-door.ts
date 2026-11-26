@@ -9,7 +9,7 @@ import { toBase64Url } from "#crypto/utils.ts";
 import { getGroupById } from "#db/groups.ts";
 import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { filter, groupToMap, sumOf } from "#fp";
+import { groupToMap, sumOf } from "#fp";
 import { type AuthSession, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { notFoundResponse } from "#routes/response.ts";
@@ -17,6 +17,7 @@ import { formatDateLabel } from "#shared/date-labels.ts";
 import type { RosterOption } from "#shared/roster-option.ts";
 import { hasTicketQuantity } from "#types";
 import { groupScope, listingScope, type ScanScope } from "./scan-answer.ts";
+import { owingListings, scanAdmits } from "./scan-decision.ts";
 
 /** The name a door's cache key derives from: the door's kind and id. The
  * cache endpoint and the scanner page derive the same key from the same
@@ -147,20 +148,49 @@ export const optionDetails = (
 export const lineOwes = (line: RosterLine): boolean =>
   remainingTickets(line) > 0 && !line.refunded && hasTicketQuantity(line);
 
-/** The people the door can still check in, one option for each person. */
+/** One person's facts as the door's own rule computes them: the places
+ * one check-in at this door admits of their booking, and the details
+ * that tell two people with the same name apart. Null when the door owes
+ * the person nothing: such a person has no place in the roster or the
+ * offline list. */
+export const personFacts = (
+  lines: readonly RosterLine[],
+  checkInEveryListing: boolean,
+  listingNames: ListingNames,
+): { details: string[]; name: string; quantity: number } | null => {
+  // One line that can still admit admits the person, so any of the
+  // person's tickets at this door goes in the list.
+  const live = lines.filter((row) => !row.refunded && hasTicketQuantity(row));
+  // The scan groups every line it can see before it drops the listings
+  // that owe nothing. The count therefore names the listing that scan
+  // lands on, even when an earlier line on it sits fully checked in.
+  const owed = owingListings(live, (row) => row.listing_id, remainingTickets);
+  if (owed.length === 0) return null;
+  // What one scan admits, by the scan's own rule: the first listing still
+  // owing places, or every one when this door checks them all in.
+  const admitted = scanAdmits(false, checkInEveryListing, owed);
+  return {
+    details: optionDetails(lines.filter(lineOwes), listingNames),
+    name: lines[0]!.name,
+    quantity: sumOf(sumOf(remainingTickets))(admitted),
+  };
+};
+
+/** The people the door can still check in, one option for each person.
+ * Each option's count is what one check-in at this door admits, by the
+ * door's own rule, so the same person reads the same number in the search
+ * and on the saved offline list. */
 export const doorRoster = (
   attendees: readonly RosterLine[],
+  checkInEveryListing: boolean,
   listingNames: ListingNames,
 ): RosterOption[] =>
   [
     ...groupToMap(
       (line: RosterLine) => line.id,
       (line: RosterLine) => line,
-    )(filter(lineOwes)([...attendees])).values(),
-  ].map((rows: RosterLine[]) => ({
-    attendeeId: rows[0]!.id,
-    details: optionDetails(rows, listingNames),
-    name: rows[0]!.name,
-    // Every place the person still owes on this door's listings.
-    quantity: sumOf(remainingTickets)(rows),
-  }));
+    )([...attendees].filter(lineOwes)).values(),
+  ].flatMap((rows: RosterLine[]) => {
+    const facts = personFacts(rows, checkInEveryListing, listingNames);
+    return facts === null ? [] : [{ attendeeId: rows[0]!.id, ...facts }];
+  });
