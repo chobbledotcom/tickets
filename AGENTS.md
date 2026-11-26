@@ -115,6 +115,14 @@ lockfile and the workflows disagree.
   SHA. No deploy-script tag names that commit, and the one tag that does has an
   `@`, which `uses:` rejects. Let the test that names this pin stop a rewrite.
 
+## Branch Previews
+
+Each open pull request from this repository gets its own site on the staging
+Bunny account. The workflow is `.github/workflows/preview.yml`. Its secrets are
+in the `preview` environment. See [Branch previews](docs/preview-deploys.md).
+A new secret for the workflow must go in that environment and in the secret
+list of `test/scripts/preview-workflow.test.ts`.
+
 ## Dependency Install Policy
 
 CI and the container image install dependencies with one command,

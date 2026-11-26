@@ -8,7 +8,6 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { PaymentRowState } from "#payment/row-state.ts";
@@ -33,6 +32,7 @@ import {
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 
 type LostReason = "bundle_missing" | "bundle_unreadable";
 
@@ -91,7 +91,7 @@ describeWithEnv(
   () => {
     const { checkedOut, open } = useCardShop();
 
-    const loseOrders = () => execute(sql`DELETE FROM checkout_bundles`);
+    const loseOrders = () => runWrite(sql`DELETE FROM checkout_bundles`);
 
     /** How often the admin's pages show each part of a report: the listing
      * page holds the note, and the log page holds the other two. */
@@ -137,7 +137,7 @@ describeWithEnv(
 
     test("an order that will not open is reported with its own reason, and never refunded", async () => {
       const { checkout, opened } = await checkedOut();
-      await execute(sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"}`);
+      await runWrite(sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"}`);
 
       expect((await deliverPayment(opened, checkout)).status).toBe(503);
 
@@ -158,7 +158,7 @@ describeWithEnv(
         );
       await turnListing("deactivate");
       await deliverPayment(opened, checkout);
-      await execute(sql`DELETE FROM processed_payments`);
+      await runWrite(sql`DELETE FROM processed_payments`);
       await turnListing("reactivate");
 
       const replay = await deliverPayment(opened, checkout);
@@ -254,7 +254,7 @@ describeWithEnv(
         const checkout = await pay(opened);
         await deliverPayment(opened, checkout);
         await loseOrders();
-        await execute(sql`DELETE FROM processed_payments`);
+        await runWrite(sql`DELETE FROM processed_payments`);
 
         const page = await returnPage(checkout);
         const replay = await deliverPayment(opened, checkout);
