@@ -20,9 +20,23 @@ import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 export type BunnyIo = { accessKey: string; fetchText: FetchText };
 
-export type ScriptRef = { id: number; name: string };
-export type ScriptDetails = { defaultHostname: string; pullZoneId: number };
-export type DatabaseRef = { id: string; name: string };
+/** Each Bunny id has its own type, so a script id cannot be passed where a
+ * pull zone id or a database id belongs. A schema makes the id where an answer
+ * names it. */
+const ScriptIdSchema = v.pipe(v.number(), v.brand("ScriptId"));
+const PullZoneIdSchema = v.pipe(v.number(), v.brand("PullZoneId"));
+const DatabaseIdSchema = v.pipe(v.string(), v.brand("DatabaseId"));
+
+export type ScriptId = number & v.Brand<"ScriptId">;
+export type PullZoneId = number & v.Brand<"PullZoneId">;
+export type DatabaseId = string & v.Brand<"DatabaseId">;
+
+export type ScriptRef = { id: ScriptId; name: string };
+export type ScriptDetails = {
+  defaultHostname: string;
+  pullZoneId: PullZoneId;
+};
+export type DatabaseRef = { id: DatabaseId; name: string };
 
 const SCRIPTS_PER_PAGE = 100;
 const DATABASES_PER_PAGE = 50;
@@ -32,22 +46,31 @@ const STORAGE_REGION = "eu-west-1";
 
 const ScriptListSchema = v.object({
   HasMoreItems: v.boolean(),
-  Items: v.array(v.object({ Id: v.number(), Name: v.string() })),
+  Items: v.array(v.object({ Id: ScriptIdSchema, Name: v.string() })),
+});
+
+/** A script as the get call and the create call give it. */
+const ScriptSchema = v.object({
+  ...edgeScriptSchema.entries,
+  LinkedPullZones: v.array(v.object({ Id: PullZoneIdSchema })),
 });
 
 const CreatedScriptSchema = v.object({
-  ...edgeScriptSchema.entries,
-  Id: v.number(),
+  ...ScriptSchema.entries,
+  Id: ScriptIdSchema,
 });
 
 const SecretListSchema = v.object({
   Secrets: v.nullable(v.array(v.object({ Name: v.string() }))),
 });
 
-const DatabaseListSchema = databasePageSchema({ name: v.string() });
+const DatabaseListSchema = databasePageSchema({
+  id: DatabaseIdSchema,
+  name: v.string(),
+});
 
 const DatabaseSchema = v.object({ db: v.object({ url: v.string() }) });
-const CreatedDatabaseSchema = v.object({ db_id: v.string() });
+const CreatedDatabaseSchema = v.object({ db_id: DatabaseIdSchema });
 const DatabaseConfigSchema = v.object({
   primary_regions: v.array(v.object({ id: v.string() })),
 });
@@ -154,7 +177,7 @@ const listDatabases = (io: BunnyIo): Promise<Result<DatabaseRef[]>> =>
 /** The hostname and linked pull zone of a script. A script without either
  * breaks what the create call promised, so the read fails. */
 const scriptDetails = (
-  script: v.InferOutput<typeof edgeScriptSchema>,
+  script: v.InferOutput<typeof ScriptSchema>,
   label: string,
 ): Result<ScriptDetails> => {
   const [pullZone] = script.LinkedPullZones;
@@ -168,14 +191,14 @@ const scriptDetails = (
 
 const getScript = async (
   io: BunnyIo,
-  id: number,
+  id: ScriptId,
 ): Promise<Result<ScriptDetails>> => {
   const script = await read(
     io,
     "Get script",
     "GET",
     `/compute/script/${id}`,
-    edgeScriptSchema,
+    ScriptSchema,
   );
   return script.ok ? scriptDetails(script.value, "Get script") : script;
 };
@@ -184,7 +207,7 @@ const createScript = async (
   io: BunnyIo,
   name: string,
   code: string,
-): Promise<Result<ScriptDetails & { id: number }>> => {
+): Promise<Result<ScriptDetails & { id: ScriptId }>> => {
   const created = await read(
     io,
     "Create script",
@@ -202,7 +225,7 @@ const createScript = async (
 
 const listSecretNames = async (
   io: BunnyIo,
-  id: number,
+  id: ScriptId,
 ): Promise<Result<string[]>> =>
   mapped(
     await read(
@@ -217,7 +240,7 @@ const listSecretNames = async (
 
 const deployCode = async (
   io: BunnyIo,
-  id: number,
+  id: ScriptId,
   code: string,
 ): Promise<Result<void>> => {
   const deployed = await deployScriptCode(
@@ -234,7 +257,7 @@ const deployCode = async (
 const createDatabase = async (
   io: BunnyIo,
   name: string,
-): Promise<Result<string>> => {
+): Promise<Result<DatabaseId>> => {
   const config = await read(
     io,
     "Get database config",
@@ -265,26 +288,27 @@ const createDatabase = async (
   );
 };
 
-const databaseUrl = async (io: BunnyIo, id: string): Promise<Result<string>> =>
+/** A call about one database, that gives back one value. */
+type DatabaseCall<Answer> = (
+  io: BunnyIo,
+  id: DatabaseId,
+) => Promise<Result<Answer>>;
+
+/** The path of one database, or of one part of it. */
+const databasePath = (id: DatabaseId, part = ""): string =>
+  `/database/v2/databases/${encodeURIComponent(id)}${part}`;
+
+const databaseUrl: DatabaseCall<string> = async (io, id) =>
   mapped(
-    await read(
-      io,
-      "Get database",
-      "GET",
-      `/database/v2/databases/${encodeURIComponent(id)}`,
-      DatabaseSchema,
-    ),
+    await read(io, "Get database", "GET", databasePath(id), DatabaseSchema),
     (answer) => answer.db.url,
   );
 
 /** One new full-access token. A reply with no token throws. */
-const issueDatabaseToken = async (
-  io: BunnyIo,
-  id: string,
-): Promise<Result<string>> => {
+const issueDatabaseToken: DatabaseCall<string> = async (io, id) => {
   const response = await bunnyRequest(
     io,
-    `/database/v2/databases/${encodeURIComponent(id)}/auth/generate`,
+    databasePath(id, "/auth/generate"),
     "PUT",
     JSON.stringify({ authorization: "full-access", expires_at: null }),
   );
@@ -295,26 +319,26 @@ const issueDatabaseToken = async (
 
 /** The preview calls, bound to one account key and one fetch. */
 export const previewApi = (io: BunnyIo) => ({
-  allowCookies: (pullZoneId: number) =>
+  allowCookies: (pullZoneId: PullZoneId) =>
     act(io, "Allow pull zone cookies", "POST", `/pullzone/${pullZoneId}`, {
       body: { DisableCookies: false },
     }),
   createDatabase: (name: string) => createDatabase(io, name),
   createScript: (name: string, code: string) => createScript(io, name, code),
   databaseNamedOrNull: (name: string) => namedOrNull(listDatabases(io), name),
-  databaseUrl: (id: string) => databaseUrl(io, id),
-  deleteDatabase: (id: string) =>
-    remove(io, "Delete database", `/database/v2/databases/${id}`),
-  deletePullZone: (id: number) =>
+  databaseUrl: (id: DatabaseId) => databaseUrl(io, id),
+  deleteDatabase: (id: DatabaseId) =>
+    remove(io, "Delete database", databasePath(id)),
+  deletePullZone: (id: PullZoneId) =>
     remove(io, "Delete pull zone", `/pullzone/${id}`),
-  deleteScript: (id: number) =>
+  deleteScript: (id: ScriptId) =>
     remove(io, "Delete script", `/compute/script/${id}`),
-  deployCode: (id: number, code: string) => deployCode(io, id, code),
-  getScript: (id: number) => getScript(io, id),
-  issueDatabaseToken: (id: string) => issueDatabaseToken(io, id),
-  listSecretNames: (id: number) => listSecretNames(io, id),
+  deployCode: (id: ScriptId, code: string) => deployCode(io, id, code),
+  getScript: (id: ScriptId) => getScript(io, id),
+  issueDatabaseToken: (id: DatabaseId) => issueDatabaseToken(io, id),
+  listSecretNames: (id: ScriptId) => listSecretNames(io, id),
   scriptNamedOrNull: (name: string) => namedOrNull(listScripts(io), name),
-  setSecret: (id: number, name: string, value: string) =>
+  setSecret: (id: ScriptId, name: string, value: string) =>
     act(io, `Set secret ${name}`, "PUT", `/compute/script/${id}/secrets`, {
       body: { Name: name, Secret: value },
     }),

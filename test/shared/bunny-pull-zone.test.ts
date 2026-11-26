@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { withMocks } from "#test-utils/mocks.ts";
+import { withMockBunnyCdnApi, withMocks } from "#test-utils/mocks.ts";
 import { expectErrorResult } from "./bunny/fixtures.ts";
 
 /** Build an edge script API response */
@@ -207,5 +207,122 @@ describeWithEnv(
       });
       expectErrorResult(result, "Update pull zone failed");
     });
+  },
+);
+
+/** What the domain setup sent: each request's path with its query, method,
+ * and JSON body. */
+const sentRequests = (
+  fetchStub: ReturnType<typeof stubFetch>,
+): [path: string, method: string, body: unknown][] =>
+  fetchStub.calls.map(({ args }) => {
+    const init = args[1] as RequestInit;
+    const url = new URL(String(args[0]));
+    return [
+      `${url.pathname}${url.search}`,
+      String(init.method),
+      init.body === undefined ? null : JSON.parse(String(init.body)),
+    ];
+  });
+
+const NO_CONTENT = () => new Response(null, { status: 204 });
+
+/** Replies that succeed once or more and then fail. */
+const afterSuccesses = (
+  count: number,
+  failure: Response,
+): [Response, ...Response[]] => [
+  NO_CONTENT(),
+  ...Array.from({ length: count - 1 }, NO_CONTENT),
+  failure,
+];
+
+describeWithEnv(
+  "validateCustomDomain",
+  { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
+  () => {
+    const fixedPullZone = {
+      findPullZoneId: () => Promise.resolve({ id: 12345, ok: true as const }),
+    };
+
+    test("adds the hostname, loads a free certificate, and forces SSL, in that order", async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
+        using fetchStub = stubFetch(NO_CONTENT());
+
+        expect(
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com"),
+        ).toEqual({ ok: true });
+        expect(sentRequests(fetchStub)).toEqual([
+          [
+            "/pullzone/12345/addHostname",
+            "POST",
+            { Hostname: "cdn.example.com" },
+          ],
+          [
+            "/pullzone/loadFreeCertificate?hostname=cdn.example.com",
+            "GET",
+            null,
+          ],
+          [
+            "/pullzone/12345/setForceSSL",
+            "POST",
+            { ForceSSL: true, Hostname: "cdn.example.com" },
+          ],
+        ]);
+      });
+    });
+
+    test("carries on after a hostname that is already registered, and stops on any other error key", async () => {
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
+        const failure = (errorKey: string) =>
+          new Response(JSON.stringify({ ErrorKey: errorKey, Message: "No." }), {
+            status: 400,
+          });
+        using registered = stubFetch(
+          failure("pullzone.hostname_already_registered"),
+          NO_CONTENT(),
+          NO_CONTENT(),
+        );
+        expect(
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com"),
+        ).toEqual({ ok: true });
+        expect(registered.calls).toHaveLength(3);
+      });
+      await withMockBunnyCdnApi(fixedPullZone, async () => {
+        using other = stubFetch(
+          new Response(JSON.stringify({ ErrorKey: "", Message: "No." }), {
+            status: 400,
+          }),
+        );
+        expect(
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com"),
+        ).toEqual({
+          error: "Add hostname failed (400): No.",
+          errorKey: "",
+          ok: false,
+        });
+        expect(other.calls).toHaveLength(1);
+      });
+    });
+
+    for (const [succeeding, message] of [
+      [1, "Load free certificate failed (500): boom"],
+      [2, "Set force SSL failed (500): boom"],
+    ] as const) {
+      test(`names the step that failed: ${message}`, async () => {
+        await withMockBunnyCdnApi(fixedPullZone, async () => {
+          using _fetch = stubFetch(
+            ...afterSuccesses(
+              succeeding,
+              new Response("boom", { status: 500 }),
+            ),
+          );
+
+          expect(
+            await bunnyCdnApi.validateCustomDomain("cdn.example.com"),
+          ).toEqual({ error: message, ok: false });
+        });
+      });
+    }
   },
 );

@@ -16,6 +16,13 @@ type TypeQuestion = (
   root: string,
 ) => (node: ts.Node) => boolean;
 
+/** The type arguments a reference writes down. Its name does not typecheck
+ * without them, so a missing list fails loudly. */
+const typeArgumentsOf = (
+  reference: ts.TypeReferenceNode,
+): readonly ts.TypeNode[] =>
+  answered(reference.typeArguments, "type arguments");
+
 /** The checker, the root, and the node a step decision reads. */
 type StepFromNode<Result> = (
   checker: ts.TypeChecker,
@@ -85,11 +92,12 @@ const fixedKeysOf = (node: ts.TypeNode): FieldName[] | undefined => {
 export const holdsElements: TypeQuestion = (checker, root) => (node) => {
   if (!anElementContainer(checker, root)(node)) return false;
   if (!aRecord(checker, root)(node)) return true;
-  const reference = node as ts.TypeReferenceNode;
   // An element container always writes its arguments down — the name
   // does not typecheck without them.
-  const [first] = reference.typeArguments as unknown as [ts.TypeNode];
-  return fixedKeysOf(first) === undefined;
+  const [first] = typeArgumentsOf(node as ts.TypeReferenceNode);
+  return (
+    fixedKeysOf(answered(first, "element container argument")) === undefined
+  );
 };
 
 const anElementContainer = builtInNamed(ELEMENT_CONTAINERS);
@@ -115,12 +123,11 @@ const fixedPartsOf: StepFromNode<FixedParts | undefined> = (
   node,
 ) => {
   if (aRecord(checker, root)(node)) {
-    const reference = node as ts.TypeReferenceNode;
-    const [keys, value] = reference.typeArguments as unknown as [
-      ts.TypeNode,
-      ts.TypeNode,
-    ];
-    return { keys, value };
+    const [keys, value] = typeArgumentsOf(node as ts.TypeReferenceNode);
+    return {
+      keys: answered(keys, "record keys"),
+      value: answered(value, "record value"),
+    };
   }
   if (!ts.isMappedTypeNode(node) || node.nameType) return;
   // A mapped type the parser accepts always writes both down. Only a broken
