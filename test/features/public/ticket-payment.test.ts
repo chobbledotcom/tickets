@@ -5,14 +5,16 @@ import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
 import { allTransfers } from "#accounting/queries.ts";
 import type { TicketListing } from "#booking/model.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { accountBalance } from "#test-utils/account-balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
+import {
+  expectNoAttendeesForListings,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { pricedOrder } from "#test-utils/factories-pricing.ts";

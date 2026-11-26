@@ -4,13 +4,14 @@
  * them when the page is restored from bfcache (back/forward navigation).
  *
  * Uses requestAnimationFrame so the browser sends the form before disabling.
- * Skips the manual check-in form which handles its own submission. */
+ * A form whose submit listener calls preventDefault keeps its controls
+ * enabled: the rAF re-check sees the prevented event. */
 export const initFormSubmitDisable = (): void => {
   document.addEventListener("submit", (event) => {
     const form = event.target;
     if (
       !(form instanceof window.HTMLFormElement) ||
-      !form.matches('form[method="POST"]:not([data-manual-checkin])')
+      !form.matches('form[method="POST"]')
     ) {
       return;
     }

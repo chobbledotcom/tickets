@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
+import {
+  expectNoAttendeesForListings,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { ListingWithCount } from "#types";
 

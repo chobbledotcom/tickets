@@ -57,7 +57,9 @@ const followPaymentRedirectAndGetAttendees = async (
     const response = await followRedirect(redirectResponse, handleRequest);
     expect(response.status).toBe(200);
 
-    const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+    const { getAttendeesRaw } = await import(
+      "#test-utils/db-helpers/attendees.ts"
+    );
     return await getAttendeesRaw(listingId);
   } finally {
     mockRetrieve.restore();

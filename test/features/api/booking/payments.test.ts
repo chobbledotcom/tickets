@@ -28,7 +28,7 @@ describePublicApi(() => {
       });
       const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
-      expect(body.booking?.checkoutUrl).toBeDefined();
+      expect(body.booking?.checkoutUrl).toMatch(/^https?:\/\//);
       expect(typeof body.booking?.checkoutUrl).toBe("string");
     });
 
@@ -84,7 +84,7 @@ describePublicApi(() => {
       });
       const body = await bookForToken(listing.slug);
       const token = body.booking?.ticketToken;
-      expect(body.booking?.checkoutUrl).toBeUndefined();
+      expect(Object.keys(body.booking ?? {})).not.toContain("checkoutUrl");
 
       const { getAttendeesByTokens } = await import("#db/attendees/tokens.ts");
       const [attendee] = await getAttendeesByTokens([token!]);
@@ -105,7 +105,7 @@ describePublicApi(() => {
         name: "Alice",
       });
       expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
+      expect(body.booking?.ticketToken).toMatch(/^[A-Za-z0-9_-]{8,}$/);
     });
 
     test("returns 400 for daily listing without date", async () => {
@@ -194,7 +194,7 @@ describePublicApi(() => {
         name: "Alice",
       });
       expect(response.status).toBe(200);
-      expect(body.booking?.checkoutUrl).toBeDefined();
+      expect(body.booking?.checkoutUrl).toMatch(/^https?:\/\//);
     });
 
     test("allows omitting price for pay-what-you-want listing with zero base price", async () => {
@@ -204,7 +204,7 @@ describePublicApi(() => {
       });
       const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
+      expect(body.booking?.ticketToken).toMatch(/^[A-Za-z0-9_-]{8,}$/);
     });
 
     test("requires price for pay-more listing with non-zero unit price", async () => {
@@ -225,7 +225,9 @@ describePublicApi(() => {
       expect(response.status).toBe(400);
       expect(body.error).toBe("Quantity must be a whole number of 1 or more");
 
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
@@ -239,7 +241,7 @@ describePublicApi(() => {
         phone: "1234567890",
       });
       expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
+      expect(body.booking?.ticketToken).toMatch(/^[A-Za-z0-9_-]{8,}$/);
     });
 
     test("returns 500 when checkout session returns null", async () => {

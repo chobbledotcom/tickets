@@ -81,7 +81,9 @@ Feature: An owner gives a door worker the scanner, and nothing else
   @rule:access.the-door-keeps-working-when-the-connection-drops
   Rule: The door keeps working when the connection drops
     A hall can lose its connection, so the door page offers a switch
-    labelled "Offline mode" that starts off. The page keeps a place that
+    labelled "Offline mode" that starts off. Turning it on saves the
+    door's ticket list on the device, and a scan made with no connection
+    checks the ticket against that list. The page keeps a place that
     will list the queued check-ins. A scan made offline asks how many
     people it checks in, and the page says when a queued check-in admits
     more people than the booking had left. The booking carries a note

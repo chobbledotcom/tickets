@@ -7,7 +7,7 @@
  * every-listing warning, and the guards.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -29,12 +29,11 @@ import {
 } from "#test-utils/session.ts";
 import {
   doorPage,
+  doorSearch,
   groupDoor,
   pickTicketsAtDoor,
   scanAtDoor,
 } from "./support.ts";
-
-const rosterOption = (name: string): string => `data-name="${name}"`;
 
 describeWithEnv("group scanner page", { db: true }, () => {
   test("renders one door for the whole group", async () => {
@@ -48,17 +47,24 @@ describeWithEnv("group scanner page", { db: true }, () => {
     assert(!body.includes(`/admin/listing/${members[0]!.id}/scan`));
   });
 
-  test("offers one option per person, with their places summed", async () => {
+  test("offers one option per person, with the places one check-in admits", async () => {
     const { group, members } = await groupDoor(2);
     await createMultiBookingAttendee("Sam", "sam@example.com", [
       { listingId: members[0]!.id, quantity: 2 },
       { listingId: members[1]!.id, quantity: 1 },
     ]);
 
-    const body = await doorPage(group.id);
-
-    assertStringIncludes(body, "Sam (3 tickets)");
-    expect(body.match(/role="option"/g)?.length).toBe(1);
+    // The door checks one listing in per scan, so the option's count is
+    // the first listing's two places — the same number the offline list
+    // would carry for this person.
+    expect(await doorSearch(group.id, "Sam")).toEqual([
+      {
+        attendeeId: expect.any(Number),
+        details: ["Standard", "Society"],
+        name: "Sam",
+        quantity: 2,
+      },
+    ]);
   });
 
   test("does not offer refunded or fully checked-in people", async () => {
@@ -77,10 +83,8 @@ describeWithEnv("group scanner page", { db: true }, () => {
     });
     await scanAtDoor(group.id, { token: seated.ticket_token });
 
-    const body = await doorPage(group.id);
-
-    assert(!body.includes(rosterOption("Rob")));
-    assert(!body.includes(rosterOption("Mel")));
+    expect(await doorSearch(group.id, "Rob")).toEqual([]);
+    expect(await doorSearch(group.id, "Mel")).toEqual([]);
   });
 
   test("warns that one scan checks in every listing only once that rule is on", async () => {
@@ -153,8 +157,7 @@ describeWithEnv("group scanner page", { db: true }, () => {
     const body = await doorPage(group.id);
 
     assert(!body.includes("Scanning a ticket in this group"));
-    assert(!body.includes(rosterOption("Ola")));
-    assertStringIncludes(body, "No tickets to check in");
+    expect(await doorSearch(group.id, "Ola")).toEqual([]);
   });
 
   test("redirects to the login flow with the door page when not authenticated", async () => {
@@ -198,9 +201,14 @@ describeWithEnv("group scanner page", { db: true }, () => {
       { listingId: door.members[0]!.id, quantity: 2 },
     ]);
 
-    const body = await doorPage(door.group.id);
-
-    expectIncludesAll(body, [rosterOption("Sam"), 'data-detail=""']);
+    expect(await doorSearch(door.group.id, "Sam")).toEqual([
+      {
+        attendeeId: expect.any(Number),
+        details: [],
+        name: "Sam",
+        quantity: 2,
+      },
+    ]);
   });
 
   test("answers the scan of a missing group with not_found", async () => {

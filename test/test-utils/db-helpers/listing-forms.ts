@@ -11,7 +11,6 @@ import type { AdminLevel, DayPrices, ListingWithCount } from "#types";
 
 const checked = (name: string, value: unknown): TestFormValues =>
   value ? { [name]: "1" } : {};
-const flagChoice = (value: unknown): string => (value ? "1" : "");
 const repeated = (value: string): string[] =>
   value ? value.split(",").map((part) => part.trim()) : [];
 
@@ -137,7 +136,7 @@ const createListingBoxes = (
     minQuantity: shownCount(input.minQuantity, 1),
     monthsPerUnit: shownCount(input.monthsPerUnit, 0),
     name: input.name,
-    nonTransferable: flagChoice(input.nonTransferable),
+    ...checked("nonTransferable", input.nonTransferable),
     ...checked("purchaseOnly", input.purchaseOnly),
     thankYouUrl: input.thankYouUrl ?? "",
     unitPrice: toMajorUnits(input.unitPrice ?? 0),
@@ -146,36 +145,27 @@ const createListingBoxes = (
   };
 };
 
+/** The true/false listing fields that the update form sends. */
+const UPDATE_FLAG_FIELDS = [
+  "assignBuiltSite",
+  "bookableAlone",
+  "canPayMore",
+  "hidden",
+  "nonTransferable",
+  "purchaseOnly",
+  "useDefaults",
+  "usesLogistics",
+] as const satisfies readonly (keyof ListingInput)[];
+
 const buildUpdateBoolFields = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
-): TestFormValues => ({
-  ...checked(
-    "assignBuiltSite",
-    pickField(updates.assignBuiltSite, existing.assignBuiltSite),
-  ),
-  ...checked(
-    "bookableAlone",
-    pickField(updates.bookableAlone, existing.bookableAlone),
-  ),
-  ...checked("canPayMore", pickField(updates.canPayMore, existing.canPayMore)),
-  ...checked("hidden", pickField(updates.hidden, existing.hidden)),
-  nonTransferable: flagChoice(
-    pickField(updates.nonTransferable, existing.nonTransferable),
-  ),
-  ...checked(
-    "purchaseOnly",
-    pickField(updates.purchaseOnly, existing.purchaseOnly),
-  ),
-  ...checked(
-    "useDefaults",
-    pickField(updates.useDefaults, existing.useDefaults),
-  ),
-  ...checked(
-    "usesLogistics",
-    pickField(updates.usesLogistics, existing.usesLogistics),
-  ),
-});
+): TestFormValues =>
+  Object.fromEntries(
+    UPDATE_FLAG_FIELDS.flatMap((name) =>
+      Object.entries(checked(name, pickField(updates[name], existing[name]))),
+    ),
+  );
 
 const buildUpdateNumericFields = (
   updates: Partial<ListingInput>,

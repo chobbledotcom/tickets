@@ -12,10 +12,10 @@ import {
   type DecryptedAttendeeRow,
   decryptAttendees,
 } from "#db/attendees/pii.ts";
-import type { AttendeeOrder } from "#db/attendees/select.ts";
+import type { BrowsingAttendee } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
-import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
+import { getRosterAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { scanOperationGuard } from "#db/processed-scan-operations.ts";
 import { requiredMapValue, sumOf, unique } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
@@ -33,6 +33,7 @@ import {
 import type { Attendee, Group } from "#types";
 import {
   decideScan,
+  listingHasDoor,
   quantityAdmission,
   type ScanDecision,
   type ScanUnit,
@@ -74,16 +75,15 @@ export const listingScope = (listingId: number): ScanScope => ({
   listingIds: new Set([listingId]),
 });
 
-/** The door scope's decrypted attendee lines, in one read. The scanner page
- * and the offline ticket cache both need every line the door's listings
- * hold. The order defaults to the roster's newest-first. A caller that
- * groups the lines per booking names its own. */
+/** The door scope's decrypted attendee lines, in one read, in booking
+ * order. The name search and the digest lookup read every line the door's
+ * listings hold. They read no money projection, so the read carries only
+ * the roster's columns. */
 export const scopeAttendees = async (
   scope: ScanScope,
-  order: AttendeeOrder = "created_desc",
-): Promise<DecryptedAttendeeRow<Attendee>[]> =>
+): Promise<DecryptedAttendeeRow<BrowsingAttendee>[]> =>
   decryptAttendees(
-    await getAttendeesByListingIds([...scope.listingIds], false, order),
+    await getRosterAttendeesByListingIds([...scope.listingIds]),
     await requireRequestPrivateKey(),
   );
 
@@ -95,7 +95,7 @@ export const groupScope = async (group: Group): Promise<ScanScope> => ({
   checkInEveryListing: group.scanChecksInAllListings,
   listingIds: new Set(
     (await getListingsByGroupId(group.id))
-      .filter((listing) => !listing.purchaseOnly)
+      .filter(listingHasDoor)
       .map((listing) => listing.id),
   ),
 });

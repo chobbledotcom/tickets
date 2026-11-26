@@ -7,9 +7,9 @@ import { parseArgs } from "@std/cli/parse-args";
 import * as v from "valibot";
 import { sortedByString } from "#fp-strings";
 import { fetchText } from "#scripts/fetch-text.ts";
-import { parseJsonWith } from "#scripts/read-json.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
 import { isLocalHttpHost } from "#shared/local-host.ts";
+import { parseJsonWith } from "#shared/read-json.ts";
 import { parseOrThrow } from "#shared/validation/parse.ts";
 
 export interface BugsConfig {

@@ -65,7 +65,8 @@ export const LISTING_FIELDS = [
   },
   {
     hint: "Shown on the listing page.",
-    label: "Description (optional)",
+    hintFirst: true,
+    label: "Description",
     name: "description",
     placeholder: "A short description of the listing",
     section: "basics",
@@ -73,14 +74,14 @@ export const LISTING_FIELDS = [
   },
   {
     hint: "When the listing takes place. Times are in your configured timezone.",
-    label: "Listing date (optional)",
+    label: "Listing date",
     name: "date",
     section: "basics",
     type: "datetime",
   },
   {
     hint: "Where the listing takes place. Shown on the listing page.",
-    label: "Location (optional)",
+    label: "Location",
     name: "location",
     placeholder: "e.g. Village Hall, Main Street",
     section: "basics",
@@ -250,14 +251,14 @@ export const LISTING_FIELDS = [
   },
   {
     hint: "Leave blank for no deadline. Times are in your configured timezone.",
-    label: "Registration closes at (optional)",
+    label: "Registration closes at",
     name: "closesAt",
     section: "tickets",
     type: "datetime",
   },
   {
     hint: "Leave blank to show a simple success message",
-    label: "Thank you URL (optional)",
+    label: "Thank you URL",
     name: "thankYouUrl",
     placeholder: "https://example.com/thank-you",
     section: "advanced",
@@ -265,7 +266,7 @@ export const LISTING_FIELDS = [
   },
   {
     hint: "Receives POST with buyer name, email, and phone on registration",
-    label: "Webhook URL (optional)",
+    label: "Webhook URL",
     name: "webhookUrl",
     placeholder: "https://example.com/webhook",
     section: "advanced",
@@ -278,16 +279,12 @@ export const LISTING_FIELDS = [
     name: "nonTransferable",
     options: [
       {
-        label: "No",
-        value: "",
-      },
-      {
-        label: "Yes",
+        label: "Require ID at entry",
         value: "1",
       },
     ],
     section: "options",
-    type: "select",
+    type: "checkbox-group",
   },
   {
     hint: "Hide from the public listings page and search engines. The listing is still bookable via its direct link. A group page can still show it when that group allows hidden listings.",

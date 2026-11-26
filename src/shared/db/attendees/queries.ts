@@ -77,7 +77,7 @@ export const LISTING_ATTENDEE_ROW_COLS =
  * table shows `price_paid` or `remaining_balance`, so these reads skip those
  * subqueries entirely.
  */
-const BROWSING_FIELDS = ["refunded"] as const;
+export const BROWSING_FIELDS = ["refunded"] as const;
 
 /** A browsing-table attendee row — every core column plus `refunded`, but none
  * of the expensive money projections. */
@@ -93,13 +93,6 @@ export type BrowsingAttendee = AttendeeRowFor<"refunded">;
 export const loadAttendeeRows = (
   query: Omit<GetAttendeesQuery<(typeof ATTENDEE_FIELDS)[number]>, "fields">,
 ): Promise<Attendee[]> => getAttendees({ ...query, fields: ATTENDEE_FIELDS });
-
-export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
-  loadAttendeeRows({
-    order: "created_desc",
-    owedScope: "booking",
-    where: { listingIds: [listingId] },
-  });
 
 /**
  * One attendee's raw booking rows (real lines only — quantity > 0): every
@@ -177,6 +170,23 @@ const trimAttendeePage = (rows: Attendee[]): AttendeesPage => {
   return { hasNext: true, rows: rows.filter((row) => row.id !== extraId) };
 };
 
+/** The people with a line on the listings, or on any listing when
+ * `listingIds` is null, as SQL text after `FROM`. A page of people selects
+ * `pageAttendee.id` from it. `lineMark` bounds the lines to those already
+ * present when a snapshot captured it, so lines created after the snapshot
+ * do not join. */
+export const peopleWithLinesOn = (
+  listingIds: readonly number[] | null,
+  lineMark: number | null = null,
+): SqlStatement =>
+  sql`attendees AS pageAttendee
+    JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
+    WHERE pageAttendee.kind = ${sqlLiteral(ATTENDEE_KIND)}${
+      listingIds
+        ? sql` AND pageLine.listing_id IN (${sqlList(listingIds)})`
+        : sql``
+    }${lineMark === null ? sql`` : sql` AND pageLine.id <= ${lineMark}`}`;
+
 /**
  * Pagination counts ATTENDEES, not booking lines, so a grouped attendee row
  * carries their complete listings list and never splits across a page boundary.
@@ -202,9 +212,6 @@ export const getAttendeesPage = async ({
   // An empty filter set matches nothing — e.g. a type with no listings yet.
   if (listingIds?.length === 0) return { hasNext: false, rows: [] };
   const oldestFirst = sort === "oldest";
-  const lineFilter = listingIds
-    ? sql` AND pageLine.listing_id IN (${sqlList(listingIds)})`
-    : sql``;
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
   // The inner subquery pages the ATTENDEE ids (grouped, so paging counts
@@ -214,9 +221,7 @@ export const getAttendeesPage = async ({
     order: oldestFirst ? "id_asc" : "id_desc",
     where: {
       attendeeIdsSubquery: sql`SELECT pageAttendee.id
-           FROM attendees AS pageAttendee
-           JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
-           WHERE pageAttendee.kind = ${sqlLiteral(ATTENDEE_KIND)}${lineFilter}
+           FROM ${peopleWithLinesOn(listingIds)}
            GROUP BY pageAttendee.id
            ORDER BY pageAttendee.id ${oldestFirst ? sql`ASC` : sql`DESC`}
            LIMIT ${limit} OFFSET ${offset}`,

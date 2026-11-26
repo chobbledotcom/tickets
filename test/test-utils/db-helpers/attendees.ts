@@ -3,8 +3,8 @@ import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#db/attendees/api.ts";
 import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, requireOnePrimary } from "#db/client.ts";
+import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
@@ -24,7 +24,9 @@ import { apiRequest } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
 import { createDailyTestListing, createTestListing } from "./listings.ts";
 
-export { getAttendeesRaw };
+/** Every attendee booking row on one listing, newest first. */
+export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
+  getAttendeesByListingIds([listingId]);
 
 /** One POST create request carrying the minimal valid body for a listing. */
 export const createBooking = (

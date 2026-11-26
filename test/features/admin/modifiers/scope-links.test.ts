@@ -260,12 +260,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       [
         "rejects a negative minimum previous bookings value",
         { minVisits: "-1" },
-        "Minimum previous bookings (optional) must be 0 or greater",
+        "Minimum previous bookings must be 0 or greater",
       ],
       [
         "rejects a fractional minimum previous bookings value",
         { minVisits: "1.5" },
-        "Minimum previous bookings (optional) must be a whole number",
+        "Minimum previous bookings must be a whole number",
       ],
     ]);
   });
