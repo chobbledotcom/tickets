@@ -1,4 +1,4 @@
-/** A recorded-looking session for the package and publish tests: small JPEG
+/** A recorded-looking session for the render and publish tests: small JPEG
  * frames, a timeline, and the guide title. */
 
 import { join } from "@std/path";

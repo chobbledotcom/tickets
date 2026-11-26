@@ -1,88 +1,163 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import { publishGuideAnimations } from "#scripts/guides/publish.ts";
+import { publishGuideVideos } from "#scripts/guides/publish.ts";
+import { parseGuideStoryboard } from "#scripts/guides/storyboard.ts";
+import { guideStoryboard } from "#scripts/guides/storyboards/index.ts";
+import {
+  guideVideoInputsHash,
+  guideVideoObjectPath,
+  guideVideoPointerPath,
+  parseGuideVideoPointer,
+} from "#scripts/guides/video.ts";
+import { sha256Hex } from "#shared/sha256.ts";
 import { CONFIG } from "../static-cdn-fixtures.ts";
-import { writeGuideSession } from "./session-fixture.ts";
 
-interface Uploaded {
+const SLUG = "create-a-listing";
+const MP4 = new TextEncoder().encode("fake-mp4-bytes");
+const ANCHORS = {
+  [SLUG]: { "capture-one": "a".repeat(60), "capture-two": "b".repeat(60) },
+};
+const OTHER_ANCHORS = {
+  [SLUG]: { "capture-one": "c".repeat(60), "capture-two": "b".repeat(60) },
+};
+
+interface Stored {
   bytes: Uint8Array;
   contentType: string;
 }
 
-const recordingFetcher =
-  (uploads: Map<string, Uploaded>): typeof fetch =>
-  async (input, init) => {
+/** A fake Bunny zone: PUTs land in the map, the pull zone serves them back,
+ * and the purge endpoint always succeeds. */
+const fakeCdn = () => {
+  const objects = new Map<string, Stored>();
+  const fetcher: typeof fetch = async (input, init) => {
     const request = new Request(input, init);
     const url = new URL(request.url);
-    if (request.method === "POST") {
-      return new Response(null, { status: 204 });
-    }
-    const path = url.pathname.split("/static/")[1];
-    if (path === undefined) throw new Error(`Unexpected URL ${url.href}`);
-    if (request.method === "PUT") {
-      uploads.set(path, {
+    if (url.host === "storage.bunnycdn.com" && request.method === "PUT") {
+      objects.set(url.pathname.replace("/tickets-assets/static/", ""), {
         bytes: new Uint8Array(await request.arrayBuffer()),
         contentType: request.headers.get("content-type") ?? "",
       });
       return new Response(null, { status: 201 });
     }
-    if (request.method === "POST") {
+    if (url.host === "api.bunny.net")
       return new Response(null, { status: 204 });
+    if (url.host !== "assets.example.com") {
+      throw new Error(`Unexpected host in ${request.method} ${url.href}`);
     }
-    const uploaded = uploads.get(path);
-    if (!uploaded) return new Response(null, { status: 404 });
-    return new Response(Uint8Array.from(uploaded.bytes).buffer, {
-      headers: { "content-type": uploaded.contentType },
+    const stored = objects.get(url.pathname.replace("/static/", ""));
+    if (stored === undefined) return new Response(null, { status: 404 });
+    if (request.method === "HEAD") {
+      return new Response(null, {
+        headers: { "content-type": stored.contentType },
+        status: 200,
+      });
+    }
+    return new Response(Uint8Array.from(stored.bytes).buffer, {
+      headers: { "content-type": stored.contentType },
     });
   };
+  return { fetcher, objects };
+};
 
-describe("publishGuideAnimations", () => {
-  test("uploads one content-addressed player for the guide", async () => {
-    const root = await Deno.makeTempDir({ prefix: "guide-publish-test-" });
-    try {
-      const session = join(root, "session");
-      await writeGuideSession(session, 2);
-      const uploads = new Map<string, Uploaded>();
+const inputsHashFor = async (
+  anchors: Readonly<Record<string, Readonly<Record<string, string>>>>,
+): Promise<string> =>
+  guideVideoInputsHash({
+    anchors: anchors[SLUG]!,
+    slug: SLUG,
+    storyboard: JSON.stringify(parseGuideStoryboard(guideStoryboard(SLUG))),
+  });
 
-      const published = await publishGuideAnimations(CONFIG, {
-        fetcher: recordingFetcher(uploads),
-        fromSession: session,
-        playerBundle: "console.log('player')",
-        slug: "create-a-listing",
-      });
+describe("publishGuideVideos", () => {
+  test("uploads the MP4 under its content hash beside an inputs pointer", async () => {
+    const { fetcher, objects } = fakeCdn();
+    const rendered: string[] = [];
+    const render = (slug: string): Promise<Uint8Array> => {
+      rendered.push(slug);
+      return Promise.resolve(MP4);
+    };
 
-      expect(published.hash).toMatch(/^[a-f0-9]{16}$/);
-      expect(published.baseUrl).toBe(
-        `https://assets.example.com/static/guides/${published.hash}`,
-      );
-      expect(published.slugs).toEqual(["create-a-listing"]);
+    const published = await publishGuideVideos(CONFIG, {
+      anchors: ANCHORS,
+      fetcher,
+      render,
+      slug: SLUG,
+    });
 
-      const basePath = `guides/${published.hash}`;
-      expect([...uploads.keys()].sort()).toEqual(
-        [
-          `${basePath}/create-a-listing/frames/frame-00001.webp`,
-          `${basePath}/create-a-listing/frames/frame-00002.webp`,
-          `${basePath}/create-a-listing/index.html`,
-          `${basePath}/create-a-listing/timeline.json`,
-          `${basePath}/player.js`,
-        ].sort(),
-      );
-      expect(uploads.get(`${basePath}/player.js`)?.contentType).toBe(
-        "application/javascript; charset=utf-8",
-      );
-      expect(
-        uploads.get(`${basePath}/create-a-listing/index.html`)?.contentType,
-      ).toBe("text/html; charset=utf-8");
+    const videoPath = guideVideoObjectPath(SLUG, await sha256Hex(MP4));
+    const pointerPath = guideVideoPointerPath(
+      SLUG,
+      await inputsHashFor(ANCHORS),
+    );
+    expect(rendered).toEqual([SLUG]);
+    expect(published.slugs).toEqual([SLUG]);
+    expect(published.videos).toEqual({
+      [SLUG]: { video: `${CONFIG.cdnUrl}/${videoPath}` },
+    });
+    expect([...objects.keys()].sort()).toEqual([pointerPath, videoPath].sort());
+    expect(objects.get(videoPath)?.contentType).toBe("video/mp4");
 
-      const html = new TextDecoder().decode(
-        uploads.get(`${basePath}/create-a-listing/index.html`)?.bytes,
-      );
-      assertStringIncludes(html, 'src="../player.js"');
-      assert(!html.includes("guide.mp4"));
-    } finally {
-      await Deno.remove(root, { recursive: true });
-    }
+    const pointer = parseGuideVideoPointer(
+      JSON.parse(new TextDecoder().decode(objects.get(pointerPath)?.bytes)),
+    );
+    expect(pointer).toEqual({
+      inputs: await inputsHashFor(ANCHORS),
+      schemaVersion: 1,
+      video: videoPath,
+    });
+  });
+
+  test("reuses the uploaded video when the inputs still match", async () => {
+    const { fetcher } = fakeCdn();
+    const first = await publishGuideVideos(CONFIG, {
+      anchors: ANCHORS,
+      fetcher,
+      render: () => Promise.resolve(MP4),
+      slug: SLUG,
+    });
+
+    const second = await publishGuideVideos(CONFIG, {
+      anchors: ANCHORS,
+      fetcher,
+      render: () => Promise.reject(new Error("must not render")),
+      slug: SLUG,
+    });
+
+    expect(second.videos).toEqual(first.videos);
+  });
+
+  test("renders again when an anchored screenshot changes", async () => {
+    const { fetcher } = fakeCdn();
+    const before = await publishGuideVideos(CONFIG, {
+      anchors: ANCHORS,
+      fetcher,
+      render: () => Promise.resolve(MP4),
+      slug: SLUG,
+    });
+    const changed = new TextEncoder().encode("different-footage");
+    const after = await publishGuideVideos(CONFIG, {
+      anchors: OTHER_ANCHORS,
+      fetcher,
+      render: () => Promise.resolve(changed),
+      slug: SLUG,
+    });
+
+    expect(after.videos[SLUG]?.video).toBe(
+      `${CONFIG.cdnUrl}/${guideVideoObjectPath(SLUG, await sha256Hex(changed))}`,
+    );
+    expect(after.videos[SLUG]?.video).not.toBe(before.videos[SLUG]?.video);
+  });
+
+  test("refuses a guide with no anchors instead of rendering blind", async () => {
+    const { fetcher } = fakeCdn();
+    await expect(
+      publishGuideVideos(CONFIG, {
+        anchors: {},
+        fetcher,
+        render: () => Promise.resolve(MP4),
+        slug: SLUG,
+      }),
+    ).rejects.toThrow("specs:evidence");
   });
 });

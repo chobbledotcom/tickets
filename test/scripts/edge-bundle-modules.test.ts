@@ -21,6 +21,7 @@ import {
   renameSourceMapLink,
   SENTRY_BUILD_DEFINES,
   sentryTreeShakingGuard,
+  threeJsGuard,
 } from "#scripts/edge-bundle-modules.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 
@@ -85,7 +86,7 @@ describe("buildAssetPathsModule", () => {
         `export const CSS_PATH = "/style.css?ts=1234";`,
         `export const EMBED_JS_PATH = "/embed.js";`,
         "export const ASSET_CDN_ORIGIN = null;",
-        "export const GUIDE_CDN_BASE = null;",
+        "export const GUIDE_VIDEOS = {};",
       ].join("\n"),
     );
   });
@@ -101,19 +102,18 @@ describe("buildAssetPathsModule", () => {
       `export const CSS_PATH = "https://assets.example.com/assets/release/style.css";`,
       `export const EMBED_JS_PATH = "/embed.js";`,
       `export const ASSET_CDN_ORIGIN = "https://assets.example.com";`,
-      "export const GUIDE_CDN_BASE = null;",
+      "export const GUIDE_VIDEOS = {};",
     ]);
   });
 
-  test("bakes the published guide base into the bundle", () => {
-    const paths = buildAssetPathsModule(
-      PATH_DEFS,
-      1234,
-      undefined,
-      "https://assets.example.com/guides/release",
-    );
+  test("bakes the published guide videos into the bundle", () => {
+    const paths = buildAssetPathsModule(PATH_DEFS, 1234, undefined, {
+      "create-a-listing": {
+        video: "https://assets.example.com/guides/create-a-listing-abc.mp4",
+      },
+    });
     expect(paths).toContain(
-      `export const GUIDE_CDN_BASE = "https://assets.example.com/guides/release";`,
+      `export const GUIDE_VIDEOS = {"create-a-listing":{"video":"https://assets.example.com/guides/create-a-listing-abc.mp4"}};`,
     );
   });
 });
@@ -334,5 +334,29 @@ describe("nativeLibsqlGuard", () => {
     expect(nativeLibsqlGuard.message).toBe(
       "Deploy bundle references a native libsql binding — expected the pure-JS web client via platform: 'browser'",
     );
+  });
+});
+
+describe("threeJsGuard", () => {
+  test("trips when the renderer class reaches the bundle", () => {
+    expect(threeJsGuard.test("class WebGLRenderer { constructor() {} }")).toBe(
+      true,
+    );
+  });
+
+  test("trips when a THREE namespace reference reaches the bundle", () => {
+    expect(threeJsGuard.test("const scene = new THREE.Scene()")).toBe(true);
+  });
+
+  test("passes the app bundle, which only names the CDN MP4s", () => {
+    expect(
+      threeJsGuard.test(
+        'export const GUIDE_VIDEOS = {"create-a-listing":{"video":"https://cdn.example.com/x.mp4"}};',
+      ),
+    ).toBe(false);
+  });
+
+  test("explains the build-time-only rule in its message", () => {
+    assertStringIncludes(threeJsGuard.message, "build-time intermediate");
   });
 });

@@ -31,16 +31,18 @@ const timeline: GuideTimeline = await (
   await fetch(new URL("timeline.json", location.href))
 ).json();
 const viewport = timeline.viewport;
-const transparent = Reflect.get(globalThis, "__GUIDE_AUTOPLAY__") === true;
 
 const renderer = new THREE.WebGLRenderer({
-  alpha: transparent,
+  alpha: false,
   antialias: true,
   canvas,
   preserveDrawingBuffer: true,
 });
-renderer.setClearColor(0x000000, transparent ? 0 : 1);
-renderer.setPixelRatio(1);
+renderer.setClearColor(0x000000, 1);
+// The render page is opened at a device scale factor above 1 during the video
+// build, so the canvas must draw at device pixels or the frames lose their
+// detail before ffmpeg ever sees them.
+renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2));
 renderer.setSize(viewport.width, viewport.height, false);
 
 const scene = new THREE.Scene();
@@ -135,7 +137,6 @@ if (!sampleContext) throw new Error("The guide renderer has no 2D context");
  * focus near a page edge can move the frame, and black there reads as a broken
  * video rather than as padding. */
 const matchBackground = (texture: THREE.Texture): void => {
-  if (transparent) return;
   const image = texture.image;
   if (!(image instanceof HTMLImageElement)) return;
   const width = image.naturalWidth || image.width;
@@ -236,21 +237,4 @@ window.renderAt = async (atMs: number): Promise<RenderResult> => {
   };
 };
 
-/** Play the recorded timeline in a loop. The local render server drives
- * `renderAt` itself, so only the CDN page sets the flag. */
-const play = async (): Promise<void> => {
-  let started = performance.now();
-  while (true) {
-    const atMs = performance.now() - started;
-    if (atMs >= timeline.durationMs) {
-      started = performance.now();
-      await window.renderAt(0);
-    } else {
-      await window.renderAt(atMs);
-    }
-    await new Promise(requestAnimationFrame);
-  }
-};
-
 window.rendererReady = true;
-if (Reflect.get(globalThis, "__GUIDE_AUTOPLAY__") === true) void play();

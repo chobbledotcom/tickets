@@ -8,6 +8,7 @@ import { join } from "@std/path";
 import type { CDPSession, Page } from "playwright";
 import { withCleanup } from "#scripts/cleanup.ts";
 import { frameFileName } from "../frame-name.ts";
+import { GUIDE_DEVICE_SCALE_FACTOR } from "../video.ts";
 
 const FIRST_FRAME_TIMEOUT_MS = 10_000;
 
@@ -63,8 +64,11 @@ export const startScreencast = async (
   await cdp.send("Page.startScreencast", {
     everyNthFrame: 1,
     format: "jpeg",
-    maxHeight: viewport.height,
-    maxWidth: viewport.width,
+    // The guide browser runs at a forced 2x device scale, so the surface and
+    // the frames are device pixels. The cap keeps that resolution instead of
+    // letting Chrome fall back to the CSS-sized viewport.
+    maxHeight: Math.round(viewport.height * GUIDE_DEVICE_SCALE_FACTOR),
+    maxWidth: Math.round(viewport.width * GUIDE_DEVICE_SCALE_FACTOR),
     quality: 90,
   });
 

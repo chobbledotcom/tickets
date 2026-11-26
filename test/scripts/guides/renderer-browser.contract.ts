@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser, Page } from "playwright";
 import sharp from "sharp";
 import { startGuideRenderServer } from "#scripts/guides/render/server.ts";
+import { GUIDE_DEVICE_SCALE_FACTOR } from "#scripts/guides/video.ts";
 import { launchScreenshotBrowser } from "#test/scripts/screenshots-browser-helpers.ts";
 import {
   closeGuideBrowser,
@@ -170,4 +171,28 @@ describe("guide renderer browser contract", () => {
       expect(focused.camera.zoom).toBeGreaterThan(1);
       await showsFrame(page, 1100, "frame-00002.jpg", isBlue);
     }));
+
+  test("paints at the guide's device scale so a zoom keeps its detail", async () => {
+    const page = await newGuidePage(
+      browser,
+      VIEWPORT,
+      server.baseUrl,
+      GUIDE_DEVICE_SCALE_FACTOR,
+    );
+    try {
+      await waitForGuideReady(page);
+      await renderAt(page, 0);
+      const png = await page.screenshot({
+        clip: { height: VIEWPORT.height, width: VIEWPORT.width, x: 0, y: 0 },
+        type: "png",
+      });
+      const metadata = await sharp(png).metadata();
+      expect({ height: metadata.height, width: metadata.width }).toEqual({
+        height: VIEWPORT.height * GUIDE_DEVICE_SCALE_FACTOR,
+        width: VIEWPORT.width * GUIDE_DEVICE_SCALE_FACTOR,
+      });
+    } finally {
+      await page.close();
+    }
+  });
 });

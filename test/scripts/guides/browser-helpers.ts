@@ -4,13 +4,18 @@ import sharp from "sharp";
 import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import type { LoopbackServer } from "#scripts/loopback-server.ts";
 
-/** Open a page at `url` with the guide browser's strict limits. */
+/** Open a page at `url` with the guide browser's strict limits. `scale` lets a
+ * caller mimic the video build, which opens the render page at 2x. */
 export const newGuidePage = async (
   browser: Browser,
   viewport: { height: number; width: number },
   url: string,
+  scale?: number,
 ): Promise<Page> => {
-  const page = await browser.newPage({ viewport });
+  const page = await browser.newPage({
+    viewport,
+    ...(scale === undefined ? {} : { deviceScaleFactor: scale }),
+  });
   withStrictBrowserTimeouts(page);
   await page.goto(url, { waitUntil: "domcontentloaded" });
   return page;

@@ -22,8 +22,8 @@ inputs:
   bunny_access_key:
     description: Bunny account API key used to purge the configured static pull zone.
     required: false
-  guide_cdn_base:
-    description: Optional base URL of the published CDN guide animations.
+  guide_videos:
+    description: JSON map of guide slug to its published CDN MP4 (empty when none were published).
     required: false
 outputs:
   build_tag:
@@ -53,4 +53,4 @@ runs:
         CDN_BUNNY_STORAGE_HOST: ${{ inputs.cdn_bunny_storage_host }}
         CDN_BUNNY_PULL_ZONE_ID: ${{ inputs.cdn_bunny_pull_zone_id }}
         BUNNY_ACCESS_KEY: ${{ inputs.bunny_access_key }}
-        GUIDE_CDN_BASE: ${{ inputs.guide_cdn_base }}
+        GUIDE_VIDEOS: ${{ inputs.guide_videos }}

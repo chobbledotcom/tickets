@@ -1,7 +1,7 @@
 /**
- * The camera link at its real surface: the served admin bundle opens the CDN
- * player in the admin modal. The iframe is not fetched here; the test proves
- * the link, the modal, and the iframe address.
+ * The camera link at its real surface: the served admin bundle opens the
+ * CDN-hosted MP4 in the admin modal. The video is not fetched here; the test
+ * proves the link, the modal, and how the player is wired.
  */
 
 import { expect } from "@std/expect";
@@ -9,13 +9,13 @@ import { it as test } from "@std/testing/bdd";
 import { describeWithBrowser } from "#test-utils/browser-contract.ts";
 
 const HREF =
-  "https://assets.example.com/static/guides/abc/create-a-listing/index.html";
+  "https://assets.example.com/static/guides/create-a-listing-abc.mp4";
 
 describeWithBrowser(
   "the guide video link at the served admin page",
   { db: true },
   (contract) => {
-    test("opens the CDN player in the admin modal", async () => {
+    test("plays the CDN video in the admin modal", async () => {
       await contract.withPage(async (page) => {
         await page.goto("/admin/");
         await page.evaluate((href) => {
@@ -31,8 +31,8 @@ describeWithBrowser(
         await page.locator("a[data-guide-video]").click();
         const dialog = page.locator("dialog.admin-modal");
         await dialog.waitFor({ state: "visible" });
-        const iframe = dialog.locator("iframe.guide-video-frame");
-        await iframe.waitFor({ state: "attached" });
+        const video = dialog.locator("video.guide-video-player");
+        await video.waitFor({ state: "attached" });
 
         expect(await dialog.getAttribute("data-modal-key")).toBe(
           `guide-video:${HREF}`,
@@ -40,9 +40,31 @@ describeWithBrowser(
         expect(await dialog.locator(".admin-modal-title").textContent()).toBe(
           "Create a listing",
         );
-        expect(await iframe.getAttribute("src")).toBe(HREF);
-        expect(await iframe.getAttribute("title")).toBe("Create a listing");
-        expect(await iframe.getAttribute("referrerpolicy")).toBe("no-referrer");
+        expect(await video.getAttribute("title")).toBe("Create a listing");
+        expect(await video.getAttribute("referrerpolicy")).toBe("no-referrer");
+
+        // `muted` does not reflect to an attribute, so read the properties the
+        // browser uses to decide whether autoplay is allowed.
+        expect(
+          await video.evaluate((element) => {
+            const player = element as HTMLVideoElement;
+            return {
+              autoplay: player.autoplay,
+              controls: player.controls,
+              muted: player.muted,
+              playsInline: player.playsInline,
+              preload: player.preload,
+              src: player.src,
+            };
+          }),
+        ).toEqual({
+          autoplay: true,
+          controls: true,
+          muted: true,
+          playsInline: true,
+          preload: "metadata",
+          src: HREF,
+        });
       });
     });
   },

@@ -1,18 +1,17 @@
 /**
- * The HTML shell around the three.js player. The same page serves the local
- * MP4 render and the CDN iframe; the CDN copy adds the autoplay flag.
+ * The HTML shell around the three.js renderer. Only the video build loads this
+ * page: it seeks the timeline frame by frame and screenshots each result. The
+ * deployed app never serves it, and the CDN holds the finished MP4.
  */
 
 import { escapeHtml } from "#jsx/escape-html.ts";
 
 export interface PlayerPageOptions {
-  autoplay: boolean;
   guideTitle: string;
   scriptSrc: string;
 }
 
 export const playerPage = ({
-  autoplay,
   guideTitle,
   scriptSrc,
 }: PlayerPageOptions): string => `<!doctype html>
@@ -23,7 +22,7 @@ export const playerPage = ({
 <title>${escapeHtml(guideTitle)}</title>
 <style>
   html, body {
-    background: ${autoplay ? "transparent" : "#000"};
+    background: #000;
     margin: 0;
     overflow: hidden;
   }
@@ -55,7 +54,6 @@ export const playerPage = ({
 <body>
 <canvas id="stage"></canvas>
 <div id="cursor"><span></span></div>
-${autoplay ? "<script>globalThis.__GUIDE_AUTOPLAY__ = true;</script>" : ""}
 <script type="module" src="${escapeHtml(scriptSrc)}"></script>
 </body>
 </html>

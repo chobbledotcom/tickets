@@ -59,20 +59,29 @@ describeWithEnv("opening the new listing form", { db: true }, () => {
   });
 
   test("links the guide video when the build published one", async () => {
-    const previous = Deno.env.get("GUIDE_CDN_BASE");
+    const video = "https://assets.example.com/static/guides/x-abc.mp4";
+    const previous = Deno.env.get("GUIDE_VIDEOS");
     Deno.env.set(
-      "GUIDE_CDN_BASE",
-      "https://assets.example.com/static/guides/abc",
+      "GUIDE_VIDEOS",
+      JSON.stringify({ "create-a-listing": { video } }),
     );
     try {
       const html = await pageAt("/admin/listing/new?template=custom");
-      expectIncludesAll(html, [
-        "data-guide-video",
-        'href="https://assets.example.com/static/guides/abc/create-a-listing/index.html"',
-      ]);
+      expectIncludesAll(html, ["data-guide-video", `href="${video}"`]);
     } finally {
-      if (previous === undefined) Deno.env.delete("GUIDE_CDN_BASE");
-      else Deno.env.set("GUIDE_CDN_BASE", previous);
+      if (previous === undefined) Deno.env.delete("GUIDE_VIDEOS");
+      else Deno.env.set("GUIDE_VIDEOS", previous);
+    }
+  });
+
+  test("hides the guide link when the build published no video", async () => {
+    const previous = Deno.env.get("GUIDE_VIDEOS");
+    Deno.env.delete("GUIDE_VIDEOS");
+    try {
+      const html = await pageAt("/admin/listing/new?template=custom");
+      assert(!html.includes("data-guide-video"));
+    } finally {
+      if (previous !== undefined) Deno.env.set("GUIDE_VIDEOS", previous);
     }
   });
 

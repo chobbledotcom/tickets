@@ -555,10 +555,12 @@ video used. It prints a freshness score and warns when a guide falls below 80
 percent. The check is advisory: it offers to refresh the guide or leave it for a
 separate branch.
 
-`deno task guide:publish` packages the same journey as an HTML/WebGL player and
-publishes it to the Bunny CDN. The deploy runs this before the edge build. The
-create listing form then shows a video camera link beside its title, and the link
-opens the animation in the admin modal. See
+`deno task guide:publish` renders each guide to an MP4 and uploads it to the
+Bunny CDN under a content-hashed name, then returns the map the edge build bakes
+in. The deploy runs this before the edge build, and skips it when the CDN
+secrets are absent. The create listing form then shows a video camera link beside
+its title, and the link plays the video in the admin modal. Three.js renders the
+frames at build time and never reaches the deployed script. See
 [Guide videos](./docs/guide-videos.md).
 
 ```bash

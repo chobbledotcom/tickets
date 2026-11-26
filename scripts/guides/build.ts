@@ -139,6 +139,31 @@ const timelineFor = async (
       )
     : recordGuideSession(storyboard, sessionDir);
 
+interface RenderedVideo {
+  frameCount: number;
+  framesDir: string;
+  videoPath: string;
+}
+
+/** Draw every timeline frame and hand the sequence to ffmpeg. The session
+ * stays on disk; the rendered PNGs and the MP4 land in the caller's temporary
+ * directory. */
+const renderAndEncode = async (
+  tempDir: string,
+  sessionDir: string,
+  timeline: GuideTimeline,
+): Promise<RenderedVideo> => {
+  const framesDir = join(tempDir, "frames");
+  const rendered = await renderGuideFromSession(sessionDir, framesDir);
+  const videoPath = join(tempDir, "guide.mp4");
+  await encodeFrames({
+    fps: timeline.viewport.fps,
+    framesDir,
+    outputPath: videoPath,
+  });
+  return { frameCount: rendered.frameCount, framesDir, videoPath };
+};
+
 const buildVideo = async (
   options: RecordGuideOptions,
   prepared: PreparedGuide,
@@ -146,17 +171,14 @@ const buildVideo = async (
 ): Promise<BuiltGuide> => {
   const sessionDir = options.fromSession ?? join(tempDir, "session");
   const timeline = await timelineFor(options, prepared.storyboard, sessionDir);
-  const framesDir = join(tempDir, "frames");
-  const rendered = await renderGuideFromSession(sessionDir, framesDir);
-  const video = join(tempDir, "guide.mp4");
-  await encodeFrames({
-    fps: timeline.viewport.fps,
-    framesDir,
-    outputPath: video,
-  });
+  const { frameCount, framesDir } = await renderAndEncode(
+    tempDir,
+    sessionDir,
+    timeline,
+  );
   const poster = join(tempDir, "poster.png");
-  await copyPosterFrame(framesDir, poster, rendered.frameCount);
-  return { frameCount: rendered.frameCount, framesDir, sessionDir, timeline };
+  await copyPosterFrame(framesDir, poster, frameCount);
+  return { frameCount, framesDir, sessionDir, timeline };
 };
 
 const guideName = (
@@ -245,3 +267,39 @@ export const recordGuide = (
   options: RecordGuideOptions,
 ): Promise<RecordGuideResult> =>
   withGuideLock(options.slug, () => buildGuide(options));
+
+/** Render one guide and return the MP4 bytes. This is the render half of a
+ * publish run: it writes nothing into `reports/` and never touches the
+ * freshness baseline, so the CDN step owns the upload and the name. */
+export const guideVideoBytes = async (options: {
+  fromSession?: string;
+  slug: string;
+}): Promise<Uint8Array> => {
+  const storyboard = parseGuideStoryboard(guideStoryboard(options.slug));
+  await Deno.mkdir(REPORTS, { recursive: true });
+  const tempDir = await Deno.makeTempDir({
+    dir: REPORTS,
+    prefix: `.${options.slug}-video-`,
+  });
+  try {
+    const sessionDir = options.fromSession ?? join(tempDir, "session");
+    const timeline =
+      options.fromSession === undefined
+        ? await recordGuideSession(storyboard, sessionDir)
+        : parseGuideTimeline(
+            JSON.parse(
+              await Deno.readTextFile(
+                join(options.fromSession, "timeline.json"),
+              ),
+            ),
+          );
+    const { videoPath } = await renderAndEncode(tempDir, sessionDir, timeline);
+    const bytes = await Deno.readFile(videoPath);
+    if (bytes.length === 0) {
+      throw new Error(`The rendered video for ${options.slug} was empty`);
+    }
+    return bytes;
+  } finally {
+    await removeTree(tempDir);
+  }
+};

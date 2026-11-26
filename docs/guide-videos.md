@@ -2,13 +2,15 @@
 
 A guide video shows one real admin journey. The recorder drives a throwaway
 site with Playwright and keeps the frames Chrome paints. The three.js renderer
-adds camera zooms and a focus vignette. FFmpeg writes the MP4.
+adds camera zooms and a focus vignette, and FFmpeg writes the MP4. The renderer
+is a build-time tool only: the deployed app holds the URL of the finished video
+and never ships three.js.
 
 The videos are silent. Add your own voiceover or captions after recording.
 
 ## Commands
 
-Record one guide:
+Record one guide into `reports/guides/<slug>/` for review:
 
 ```bash
 deno task guide:record create-a-listing
@@ -16,7 +18,7 @@ deno task guide:record create-a-listing
 
 The command builds the site, signs the owner in, runs the guide's setup, records
 the story, renders the frames, encodes the MP4, and writes the freshness
-baseline. The video and poster land under `reports/guides/<slug>/`. The baseline
+baseline. The video lands under `reports/guides/<slug>/guide.mp4`; the baseline
 lands at `guides/<slug>/freshness.json`.
 
 Useful options:
@@ -37,32 +39,27 @@ deno task guide:check
 deno task guide:check --guide create-a-listing
 ```
 
-Publish the HTML animations to the Bunny CDN:
+Publish the videos to the Bunny CDN:
 
 ```bash
+deno task specs:evidence
 deno task guide:publish
 ```
 
-The deploy workflows run this command before they build the edge script. The
-command needs the CDN secrets that the deploy already uses.
+The deploy workflows run both commands before they build the edge script: the
+evidence capture produces the screenshot hashes that decide whether a guide
+needs recording again.
 
-Preview a guide on the local site:
-
-```bash
-deno task guide:record create-a-listing --allow-dirty --keep-session
-deno task guide:package create-a-listing
-deno task guide:serve
-```
-
-Start the app with the preview base in another terminal:
+Preview a published video locally:
 
 ```bash
-deno task guide:dev
+GUIDE_VIDEOS='{"create-a-listing":{"video":"https://cdn.example.com/guides/create-a-listing-abc.mp4"}}' \
+  deno task dev
 ```
 
-Open the create-listing page. The video camera link appears and the player loads from
-the local preview server. The edge build replaces the asset module and bakes in
-the production base. The local environment is a development override.
+The camera link appears beside the create-listing heading and the modal plays
+the CDN-hosted file. The edge build replaces the local override with the map it
+bakes in.
 
 ## How the recorder works
 
@@ -79,34 +76,67 @@ The recorder never leaves the local site. It runs a temporary database with
 fixed test keys and fake data. It blocks every request outside the loopback
 address.
 
-## CDN animations
+Recording and rendering both work at two device pixels per CSS pixel
+(`GUIDE_DEVICE_SCALE_FACTOR`): a 1280 by 720 viewport becomes a 2560 by 1440
+video. Chrome's screencast sends frames at the browser window's device
+resolution, so the recorder launches Chromium with a forced device scale factor
+and a matching window size; the page still lays out at 1280 by 720, and the
+screencast arrives at 2560 by 1440 with real detail. The renderer's canvas draws
+at the same ratio, so a focus zoom up to 2x samples the recorded frame at one
+texture pixel per video pixel instead of enlarging a 720p image.
 
-The MP4 is for sharing. The admin page uses an HTML animation instead. The
-player runs the same three.js scene in an iframe. It loads a timeline and WebP
-frames from the CDN. It does not load a video file.
+## CDN videos
 
-`guide:publish` records every storyboard again. For each guide it writes:
+`guide:publish` renders one MP4 per guide and uploads it under a name made from
+the hash of its bytes:
 
-- `index.html`
-- `timeline.json`
-- `frames/frame-*.webp`
-- one shared `player.js`
+```text
+guides/create-a-listing-0123456789abcdef.mp4
+```
 
-The player keeps every other recorded frame and converts it to WebP at quality
-60. The result is about 15 frames each second. A smaller modal download keeps
-the motion readable.
+Two sites on different releases therefore point at different objects, and a
+later recording can never overwrite the file an older site links to.
 
-The objects go under `guides/<hash>/`. The hash comes from every packaged byte.
-The app receives the base URL only after every object is uploaded and verified.
-A failed publish stops the deploy, so the app never links to a missing guide.
+Beside the video the command writes a pointer at
+`guides/pointers/<slug>-<inputs-hash>.json`. The inputs hash covers the guide's
+anchored screenshot hashes, the storyboard, and `GUIDE_PIPELINE_VERSION`. A
+publish run reads the pointer first:
 
-The deploy build bakes the base URL into `GUIDE_CDN_BASE`. The create listing
-form shows a small video camera link beside its title when the base is set. The link
-opens the animation in the admin modal. Without the base, such as on a local dev
-server, the page shows no link.
+- pointer present, its video still served — nothing is recorded or uploaded, and
+  the app gets the existing URL;
+- pointer absent or unreadable — the guide is recorded, rendered, encoded, and
+  uploaded, then the pointer is written.
 
-The parent page needs `frame-src` for the CDN origin. The security header adds
-it when the CDN origin is configured.
+A change to the pipeline (the scale factor, the encoder settings) bumps
+`GUIDE_PIPELINE_VERSION`, so old pointers stop matching and the next run
+re-renders. The upload verifies every object's bytes and content type; a failed
+publish stops the deploy, so the app never links to a missing video.
+
+The deploy build bakes a JSON map into `GUIDE_VIDEOS`. The create listing form
+shows a small video camera link beside its title when the map names that guide.
+The link opens the MP4 in the admin modal, muted and autoplaying. Without a map
+the page shows no link.
+
+A publish run without the Bunny storage secrets does not render or upload
+anything: there would be no origin for the edge script to name. The workflow
+returns an empty map instead, and every guide link stays hidden.
+
+The parent page needs `media-src` for the CDN origin. The security header adds
+it when the map names a video.
+
+## Workflow
+
+`publish-guides.yml` runs only for a push to `main` (a merge) and for a manual
+dispatch from the Actions tab. Every deploy workflow calls it before building
+the edge script and passes the returned map to the build action.
+
+The job captures the specification evidence first, because the render decision
+reads the screenshot hashes from `reports/evidence/manifest.json`. The whole run
+is therefore only as expensive as the evidence capture, unless a guide really
+did change.
+
+Three.js is never bundled into the deployed script: the build asserts that
+`WebGLRenderer` and `THREE.` appear nowhere in the output.
 
 ## Freshness
 
@@ -130,6 +160,9 @@ a downward move of the same size.
 The baseline must name the same captures as the storyboard. If the storyboard
 adds or removes a capture, the check fails and asks you to record the guide
 again.
+
+The publish decision is stricter than the check: an anchor that differs at all
+changes the inputs hash and records the guide again.
 
 The scores are:
 
@@ -158,8 +191,8 @@ evidence. A warning appears in the workflow log.
    `scripts/guides/storyboards/index.ts`. Name every evidence action with its
    capture id and Cucumber case id.
 4. Run `deno task guide:record <slug>`.
-5. Review the MP4 and the poster. Commit `guides/<slug>/freshness.json` with the
-   storyboard. Do not commit `reports/`.
+5. Review the MP4. Commit `guides/<slug>/freshness.json` with the storyboard. Do
+   not commit `reports/`.
 
 ## Limits
 
@@ -169,3 +202,6 @@ evidence. A warning appears in the workflow log.
   selector fails the recording and names the action, so the video cannot quietly
   show the wrong page.
 - Recording needs Chromium and ffmpeg. The devenv shell supplies both.
+- The uploaded MP4 is about 2560 by 1440 for a 63-second guide, so a modal
+  download is several megabytes. The player streams with `preload="metadata"`
+  and faststart, so playback starts before the whole file arrives.

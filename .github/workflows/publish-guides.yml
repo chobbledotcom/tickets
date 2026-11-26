@@ -1,7 +1,15 @@
-name: Publish guide animations
+name: Publish guide videos
 
-# A deploy calls this workflow before it builds the edge script. The publish
-# verifies every CDN object, then returns the base that the app bakes in.
+# Render every guide's MP4 and publish it under a content-addressed CDN object,
+# then hand the edge build the JSON map of slug → video URL it bakes in. A run
+# that finds the same footage already uploaded records nothing, so the job is
+# cheap unless an anchored screenshot, the storyboard, or the render pipeline
+# changed.
+#
+# It runs on a push to main (a merge) and on a manual dispatch from the Actions
+# tab, never on every push to a branch. A run without the Bunny CDN secrets
+# skips the render and returns an empty map: the edge script has nowhere to
+# fetch a video from, so the app hides the guide links instead.
 on:
   workflow_call:
     inputs:
@@ -10,29 +18,44 @@ on:
         required: true
         type: string
     outputs:
-      guide_base:
-        description: Verified CDN base of the published guide animations.
-        value: ${{ jobs.publish.outputs.guide_base }}
-
-permissions:
-  contents: read
+      guide_videos:
+        description: JSON map of guide slug to its CDN-hosted MP4.
+        value: ${{ jobs.publish.outputs.guide_videos }}
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment that holds the CDN secrets.
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
 
 env:
   STRIPE_MOCK_VERSION: "0.188.0"
 
+permissions:
+  contents: read
+
 jobs:
   publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
     runs-on: ubicloud-standard-4
     environment: ${{ inputs.environment }}
     outputs:
-      guide_base: ${{ steps.publish.outputs.guide_base }}
+      guide_videos: ${{ steps.publish.outputs.guide_videos || steps.skip.outputs.guide_videos || '{}' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.4.0
         with:
           persist-credentials: false
 
+      # Publishing needs the storage zone and the pull-zone key. Without every
+      # one of them there is no object store to upload to and no origin the edge
+      # script could name, so the run continues with no guide videos at all.
       - name: Check the CDN secrets
+        id: cdn
         shell: bash
         env:
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
@@ -42,22 +65,41 @@ jobs:
           CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
           CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
         run: |
-          scripts/ci/require-env.sh BUNNY_ACCESS_KEY \
-            --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID
+          missing=""
+          for name in BUNNY_ACCESS_KEY CDN_URL CDN_BUNNY_STORAGE_ZONE_NAME \
+            CDN_BUNNY_STORAGE_ZONE_KEY CDN_BUNNY_STORAGE_HOST CDN_BUNNY_PULL_ZONE_ID; do
+            if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "cdn=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping the guide videos: missing$missing. The app hides their links."
+          else
+            echo "cdn=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up devenv
+        if: ${{ steps.cdn.outputs.cdn == 'true' }}
         uses: $/.github/actions/setup-devenv
         with:
           profile: browser
 
       - name: Cache stripe-mock
+        if: ${{ steps.cdn.outputs.cdn == 'true' }}
         uses: actions/cache@v4.3.0
         with:
           path: .bin
           key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
 
-      - name: Publish guide animations
+      # The render decision compares the guide anchors against this run, so the
+      # screenshots must exist before the publish step asks about them.
+      - name: Capture specification evidence
+        if: ${{ steps.cdn.outputs.cdn == 'true' }}
+        shell: devenv --profile browser shell bash -- -e {0}
+        run: deno task specs:evidence
+
+      - name: Publish guide videos
         id: publish
+        if: ${{ steps.cdn.outputs.cdn == 'true' }}
         shell: devenv --profile browser shell bash -- -e {0}
         env:
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
@@ -67,3 +109,9 @@ jobs:
           CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
           CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
         run: deno task guide:publish
+
+      - name: Report no guide videos
+        id: skip
+        if: ${{ steps.cdn.outputs.cdn != 'true' }}
+        shell: bash
+        run: echo "guide_videos={}" >> "$GITHUB_OUTPUT"

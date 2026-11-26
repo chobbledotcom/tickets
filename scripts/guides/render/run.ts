@@ -4,10 +4,11 @@
 import { join } from "@std/path";
 import type { Page } from "playwright";
 import { withCleanup } from "#scripts/cleanup.ts";
-import { withGuideBrowserPage } from "#scripts/guides/browser.ts";
+import { withRenderBrowserPage } from "#scripts/guides/browser.ts";
 import { frameFileName } from "#scripts/guides/frame-name.ts";
 import { readGuideTimeline } from "#scripts/guides/session-timeline.ts";
 import type { GuideTimeline } from "#scripts/guides/timeline.ts";
+import { GUIDE_DEVICE_SCALE_FACTOR } from "#scripts/guides/video.ts";
 import { startGuideRenderServer } from "./server.ts";
 
 const waitForRenderer = (page: Page): Promise<unknown> =>
@@ -70,8 +71,11 @@ export const renderGuide = async (
   );
   return withCleanup(
     () =>
-      withGuideBrowserPage({
-        contextOptions: { deviceScaleFactor: 1, viewport: timeline.viewport },
+      withRenderBrowserPage({
+        contextOptions: {
+          deviceScaleFactor: GUIDE_DEVICE_SCALE_FACTOR,
+          viewport: timeline.viewport,
+        },
         run: async (page) => {
           page.setDefaultTimeout(60_000);
           await page.goto(server.baseUrl, { waitUntil: "domcontentloaded" });

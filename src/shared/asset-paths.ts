@@ -31,8 +31,8 @@ export const ICONS_PATH = "/icons.svg";
 /** Build-time CDN origin, or null for a self-contained bundle/dev server. */
 export const ASSET_CDN_ORIGIN: string | null = null;
 
-/** Build-time base for the CDN-hosted guide animations, or null when no guide
- * CDN was published for this build. The admin guide link renders only when
- * this is set. The edge build replaces this module with the baked-in value.
- * The server-only guide-cdn-base module can read a local preview override. */
-export const GUIDE_CDN_BASE: string | null = null;
+/** Build-time map of guide slug to its CDN-hosted MP4. It is empty when the
+ * build published no guide videos, and the admin camera link renders only when
+ * a guide has an entry. The edge build replaces this module with the baked-in
+ * value; the server-only guide-videos module can read a local override. */
+export const GUIDE_VIDEOS: Readonly<Record<string, { video: string }>> = {};

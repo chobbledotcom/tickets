@@ -23,7 +23,6 @@ export const startGuideRenderServer = async (
     Deno.readTextFile(join(sessionDir, "timeline.json")),
   ]);
   const page = playerPage({
-    autoplay: false,
     guideTitle,
     scriptSrc: "/renderer.js",
   });

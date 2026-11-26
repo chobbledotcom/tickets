@@ -34,8 +34,8 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminLandingPath, entityReturnPath } from "#shared/admin-pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { currentGuideCdnBase } from "#shared/guide-cdn-base.ts";
-import { guideVideoUrl } from "#shared/guide-video.ts";
+import { guideVideoFor } from "#shared/guide-video.ts";
+import { currentGuideVideos } from "#shared/guide-videos.ts";
 import { type ChosenImage, imageChoicesOf } from "#shared/images/picker.ts";
 import { listingImagesEnabled } from "#shared/listing-image-field.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
@@ -123,11 +123,11 @@ const renderNewListingPage = async (
   status?: number,
 ): Promise<Response> => {
   const allGroups = await groups.getAll();
-  const videoUrl = guideVideoUrl(currentGuideCdnBase(), "create-a-listing");
+  const video = guideVideoFor(currentGuideVideos(), "create-a-listing");
   return htmlResponse(
     adminListingNewPage(allGroups, session, {
       ...(opts ?? {}),
-      ...(videoUrl === null ? {} : { guideVideoUrl: videoUrl }),
+      ...(video === null ? {} : { guideVideoUrl: video.video }),
     }),
     status,
   );

@@ -25,9 +25,9 @@
   width: 1.5625em;
 }
 
-.guide-video-frame {
+.guide-video-player {
   aspect-ratio: 16 / 9;
-  background: transparent;
+  background: #000;
   border: 0;
   display: block;
   max-width: 100%;
@@ -35,7 +35,7 @@
 }
 
 @media (max-width: 768px) {
-  .guide-video-frame {
+  .guide-video-player {
     width: 100%;
   }
 }

@@ -48,7 +48,7 @@ export const buildAssetPathsModule = (
   assetDefs: AssetDef[],
   buildTs: number,
   published?: PublishedAssetUrls,
-  guideCdnBase?: string | null,
+  guideVideos?: Readonly<Record<string, { video: string }>> | null,
 ): string => {
   const paths = assetDefs
     .filter(([, , , pathConst]) => pathConst)
@@ -63,8 +63,11 @@ export const buildAssetPathsModule = (
     });
   const cdnOrigin = published ? published.origin : null;
   paths.push(`export const ASSET_CDN_ORIGIN = ${JSON.stringify(cdnOrigin)};`);
+  const guideEntries = Object.entries(guideVideos ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
   paths.push(
-    `export const GUIDE_CDN_BASE = ${JSON.stringify(guideCdnBase ?? null)};`,
+    `export const GUIDE_VIDEOS = ${JSON.stringify(Object.fromEntries(guideEntries))};`,
   );
   return paths.join("\n");
 };
@@ -156,4 +159,16 @@ export const nativeLibsqlGuard: EdgeBundleGuard = {
     "Deploy bundle references a native libsql binding — expected the pure-JS web client via platform: 'browser'",
   test: (content) =>
     content.includes('.node"') || content.includes("libsql/client/."),
+};
+
+/**
+ * Guard: three.js renders the guide videos at build time and must never reach a
+ * deployed bundle. The app only carries the CDN URLs of the finished MP4s, so a
+ * renderer class name in the script means the recording tooling leaked in.
+ */
+export const threeJsGuard: EdgeBundleGuard = {
+  message:
+    "Bundle contains the three.js guide renderer — it must stay a build-time intermediate",
+  test: (content) =>
+    content.includes("WebGLRenderer") || content.includes("THREE."),
 };

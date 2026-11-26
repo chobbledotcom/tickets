@@ -48,7 +48,7 @@ describe("buildCspHeader", () => {
     );
   });
 
-  test("allows a guide origin that differs from the asset origin", () => {
+  test("allows a guide origin for the modal video, not for frames", () => {
     expect(
       buildCspHeader(
         true,
@@ -56,10 +56,20 @@ describe("buildCspHeader", () => {
         false,
         "https://assets.example.com",
         false,
-        "https://guides.example.com",
+        ["https://guides.example.com"],
       ),
     ).toBe(
-      "default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; frame-src https://assets.example.com https://guides.example.com; style-src 'self' https://assets.example.com; form-action 'self'",
+      "default-src 'self'; img-src 'self' https://tile.openstreetmap.org https://guides.example.com; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; frame-src https://assets.example.com; media-src https://guides.example.com; style-src 'self' https://assets.example.com; form-action 'self'",
+    );
+  });
+
+  test("names the guide origin alone when the assets are self-hosted", () => {
+    expect(
+      buildCspHeader(true, undefined, false, null, false, [
+        "https://guides.example.com",
+      ]),
+    ).toBe(
+      "default-src 'self'; img-src 'self' https://tile.openstreetmap.org https://guides.example.com; base-uri 'self'; object-src 'none'; media-src https://guides.example.com; form-action 'self'",
     );
   });
 

@@ -1,59 +1,66 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  guideVideoUrl,
-  parseGuideCdnBase,
-  resolveGuideCdnBase,
+  guideVideoFor,
+  guideVideoOrigins,
+  parseGuideVideoAssetsJson,
+  resolveGuideVideos,
 } from "#shared/guide-video.ts";
 
-describe("guideVideoUrl", () => {
-  test("builds the guide page from every accepted base", () => {
-    const cases = [
-      [
-        "https://assets.example.com/static/guides/abc123",
-        "create-a-listing",
-        "https://assets.example.com/static/guides/abc123/create-a-listing/index.html",
-      ],
-      [
-        "https://cdn.example.com/guides/abc/",
-        "listing",
-        "https://cdn.example.com/guides/abc/listing/index.html",
-      ],
-      [null, "create-a-listing", null],
-      ["", "create-a-listing", null],
-    ] as const;
-    for (const [base, slug, expected] of cases) {
-      expect(guideVideoUrl(base, slug)).toBe(expected);
+const VIDEOS = {
+  "create-a-listing": {
+    video: "https://cdn.example.com/guides/create-a-listing-abc.mp4",
+  },
+};
+
+describe("parseGuideVideoAssetsJson", () => {
+  test("reads the workflow's map and treats a blank value as none", () => {
+    expect(parseGuideVideoAssetsJson(JSON.stringify(VIDEOS))).toEqual(VIDEOS);
+    expect(parseGuideVideoAssetsJson("{}")).toEqual({});
+    expect(parseGuideVideoAssetsJson("  ")).toEqual({});
+    expect(parseGuideVideoAssetsJson(undefined)).toEqual({});
+  });
+
+  test("rejects a relative or non-HTTPS video address", () => {
+    for (const video of ["/guides/x.mp4", "http://cdn.example.com/x.mp4"]) {
+      expect(() =>
+        parseGuideVideoAssetsJson(JSON.stringify({ slug: { video } })),
+      ).toThrow();
     }
   });
 });
 
-describe("parseGuideCdnBase", () => {
-  test("reads a local preview base and treats an empty one as absent", () => {
-    const cases = [
-      ["http://127.0.0.1:8081", "http://127.0.0.1:8081"],
-      [undefined, null],
-      ["", null],
-    ] as const;
-    for (const [base, expected] of cases) {
-      expect(parseGuideCdnBase(base)).toBe(expected);
-    }
+describe("resolveGuideVideos", () => {
+  test("prefers the baked map and falls back to the environment", () => {
+    expect(
+      resolveGuideVideos(
+        VIDEOS,
+        JSON.stringify({ other: VIDEOS["create-a-listing"]! }),
+      ),
+    ).toEqual(VIDEOS);
+    expect(resolveGuideVideos({}, JSON.stringify(VIDEOS))).toEqual(VIDEOS);
+    expect(resolveGuideVideos({}, undefined)).toEqual({});
   });
 });
 
-describe("resolveGuideCdnBase", () => {
-  test("prefers the baked base and falls back to the local preview", () => {
-    const cases = [
-      [
-        "https://cdn.example.com/guides/abc",
-        "http://local",
-        "https://cdn.example.com/guides/abc",
-      ],
-      [null, "http://local", "http://local"],
-      [null, undefined, null],
-    ] as const;
-    for (const [baked, env, expected] of cases) {
-      expect(resolveGuideCdnBase(baked, env)).toBe(expected);
-    }
+describe("guideVideoFor", () => {
+  test("names the video for a published guide and nothing for the rest", () => {
+    expect(guideVideoFor(VIDEOS, "create-a-listing")).toEqual(
+      VIDEOS["create-a-listing"],
+    );
+    expect(guideVideoFor(VIDEOS, "listing")).toBeNull();
+  });
+});
+
+describe("guideVideoOrigins", () => {
+  test("lists each distinct origin once", () => {
+    expect(
+      guideVideoOrigins({
+        ...VIDEOS,
+        listing: { video: "https://cdn.example.com/guides/listing-def.mp4" },
+        other: { video: "https://videos.example.com/other.mp4" },
+      }),
+    ).toEqual(["https://cdn.example.com", "https://videos.example.com"]);
+    expect(guideVideoOrigins({})).toEqual([]);
   });
 });
