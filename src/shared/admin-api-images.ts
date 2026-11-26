@@ -12,6 +12,7 @@ import {
   optionalTextField,
   textField,
 } from "#shared/rest/api-body-fields.ts";
+import { stringFields } from "#shared/validation/string.ts";
 import { ImageUseItemTypeSchema } from "#types";
 
 /** One malformed link answers the same sentence, whichever field it names. */
@@ -31,12 +32,9 @@ export const ImageItemSchema = v.object(ImageItemRow);
  *  and the two URLs of its stored files. It also carries the records that
  *  show it. */
 export const ImageRowSchema = v.looseObject({
-  alt_text: v.string(),
+  ...stringFields("alt_text", "name", "thumb_url", "url"),
   id: v.number(),
   items: v.array(ImageItemSchema),
-  name: v.string(),
-  thumb_url: v.string(),
-  url: v.string(),
 });
 
 /** The body an image create carries. It holds the file bytes as base64 text,

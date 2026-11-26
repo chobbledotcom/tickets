@@ -64,7 +64,10 @@ const SecretListSchema = v.object({
   Secrets: v.nullable(v.array(v.object({ Name: v.string() }))),
 });
 
-const DatabaseListSchema = databasePageSchema({ name: v.string() });
+const DatabaseListSchema = databasePageSchema({
+  id: DatabaseIdSchema,
+  name: v.string(),
+});
 
 const DatabaseSchema = v.object({ db: v.object({ url: v.string() }) });
 const CreatedDatabaseSchema = v.object({ db_id: DatabaseIdSchema });
@@ -167,10 +170,7 @@ const listDatabases = (io: BunnyIo): Promise<Result<DatabaseRef[]>> =>
     DatabaseListSchema,
     (answer) => ({
       hasMore: answer.page_info.has_more_items,
-      items: answer.databases.map(({ id, name }) => ({
-        id: v.parse(DatabaseIdSchema, id),
-        name,
-      })),
+      items: answer.databases,
     }),
   );
 

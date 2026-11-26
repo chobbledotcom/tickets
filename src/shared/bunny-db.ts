@@ -25,6 +25,7 @@ import {
   type IssueDatabaseTokenFn,
 } from "#shared/provider-types.ts";
 import { okResult, type Result } from "#shared/result.ts";
+import { stringFields } from "#shared/validation/string.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
 
@@ -66,7 +67,7 @@ const GetDbResponseSchema = v.object({
 });
 
 /** One page of the account's databases, with the address each one answers on. */
-const ListDbResponseSchema = databasePageSchema({ url: v.string() });
+const ListDbResponseSchema = databasePageSchema(stringFields("id", "url"));
 
 /** Databases per page the list walk asks for. */
 const LIST_PAGE_SIZE = 50;
