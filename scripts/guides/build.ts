@@ -274,7 +274,7 @@ export const recordGuide = (
  * publish run: it writes nothing into `reports/` and never touches the
  * freshness baseline, so the CDN step owns the upload and the name. */
 export const guideVideoBytes = async (options: {
-  fromSession?: string;
+  fromSession?: string | undefined;
   slug: string;
 }): Promise<Uint8Array> => {
   const storyboard = parseGuideStoryboard(guideStoryboard(options.slug));

@@ -108,16 +108,25 @@ describe("buildAssetPathsModule", () => {
     ]);
   });
 
-  test("bakes the published guide videos into the bundle", () => {
+  test("bakes the published guide videos in slug order", () => {
     const paths = buildAssetPathsModule(PATH_DEFS, 1234, {
-      guideVideos: {
-        "create-a-listing": {
-          video: "https://assets.example.com/guides/create-a-listing-abc.mp4",
-        },
-      },
+      guideVideos: Object.fromEntries([
+        [
+          "second-guide",
+          {
+            video: "https://assets.example.com/guides/second-guide-abc.mp4",
+          },
+        ],
+        [
+          "create-a-listing",
+          {
+            video: "https://assets.example.com/guides/create-a-listing-abc.mp4",
+          },
+        ],
+      ]),
     });
     expect(paths).toContain(
-      `export const GUIDE_VIDEOS = {"create-a-listing":{"video":"https://assets.example.com/guides/create-a-listing-abc.mp4"}};`,
+      `export const GUIDE_VIDEOS = {"create-a-listing":{"video":"https://assets.example.com/guides/create-a-listing-abc.mp4"},"second-guide":{"video":"https://assets.example.com/guides/second-guide-abc.mp4"}};`,
     );
   });
 });

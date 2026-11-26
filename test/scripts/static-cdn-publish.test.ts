@@ -37,6 +37,29 @@ const guideObjectFor = (url: string): CdnObject => {
   return found;
 };
 
+/** A recording fetcher that answers each request through `respond`. */
+const recordingFetcher =
+  (
+    requests: Request[],
+    respond: (request: Request) => Response,
+  ): typeof fetch =>
+  (input, init) => {
+    const request = new Request(input, init);
+    requests.push(request);
+    return Promise.resolve(respond(request));
+  };
+
+/** The fake CDN's answer: an object for a GET, and success for a write. */
+const guideCdnResponse = (request: Request): Response => {
+  if (request.method === "GET") {
+    const object = guideObjectFor(request.url);
+    return new Response(Uint8Array.from(object.bytes).buffer, {
+      headers: { "content-type": object.contentType },
+    });
+  }
+  return new Response(null, { status: request.method === "PUT" ? 201 : 204 });
+};
+
 const STALLED_REQUESTS = [
   { method: "PUT", stage: "upload" },
   { method: "POST", stage: "purge" },
@@ -89,21 +112,7 @@ describe("publishCdnObjects", () => {
     const published = await publishCdnObjects(
       CONFIG,
       GUIDE_OBJECTS,
-      (input, init) => {
-        const request = new Request(input, init);
-        requests.push(request);
-        if (request.method === "GET") {
-          const object = guideObjectFor(request.url);
-          return Promise.resolve(
-            new Response(Uint8Array.from(object.bytes).buffer, {
-              headers: { "content-type": object.contentType },
-            }),
-          );
-        }
-        return Promise.resolve(
-          new Response(null, { status: request.method === "PUT" ? 201 : 204 }),
-        );
-      },
+      recordingFetcher(requests, guideCdnResponse),
     );
 
     expect(published).toEqual({
@@ -127,6 +136,24 @@ describe("publishCdnObjects", () => {
       "https://assets.example.com/static/guides/release/player.js",
       "https://assets.example.com/static/guides/release/create-a-listing/index.html",
     ]);
+  });
+
+  test("uses the object path directly when the CDN URL has no base path", async () => {
+    const requests: Request[] = [];
+
+    const published = await publishCdnObjects(
+      { ...CONFIG, cdnUrl: "https://assets.example.com" },
+      [GUIDE_OBJECTS[0]!],
+      recordingFetcher(requests, guideCdnResponse),
+    );
+
+    expect(published).toEqual({
+      "guides/release/player.js":
+        "https://assets.example.com/guides/release/player.js",
+    });
+    expect(requests.find(({ method }) => method === "PUT")?.url).toBe(
+      "https://storage.bunnycdn.com/tickets-assets/guides/release/player.js",
+    );
   });
 
   test("rejects duplicate paths before uploading", async () => {

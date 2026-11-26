@@ -1,17 +1,23 @@
+import { assertThrows } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  type PublishGuideVideosOptions,
-  publishGuideVideos,
-} from "#scripts/guides/publish.ts";
+  type PublishedGuideVideos,
+  type PublishVideosOptions,
+  publishVideos,
+} from "#scripts/guides/publish-videos.ts";
 import { parseGuideStoryboard } from "#scripts/guides/storyboard.ts";
-import { guideStoryboard } from "#scripts/guides/storyboards/index.ts";
+import {
+  GUIDE_SLUGS,
+  guideStoryboard,
+} from "#scripts/guides/storyboards/index.ts";
 import {
   guideVideoInputsHash,
   guideVideoObjectPath,
   guideVideoPointerPath,
   parseGuideVideoPointer,
 } from "#scripts/guides/video.ts";
+import { publicUrlFor } from "#scripts/static-cdn.ts";
 import { sha256Hex } from "#shared/sha256.ts";
 import { CONFIG } from "#test/scripts/static-cdn-fixtures.ts";
 
@@ -49,7 +55,7 @@ const fakeCdn = () => {
       throw new Error(`Unexpected host in ${request.method} ${url.href}`);
     }
     const stored = objects.get(url.pathname.replace("/static/", ""));
-    if (stored === undefined) return new Response(null, { status: 404 });
+    if (stored === undefined) return new Response("missing", { status: 404 });
     if (request.method === "HEAD") {
       return new Response(null, {
         headers: { "content-type": stored.contentType },
@@ -72,12 +78,44 @@ const inputsHashFor = async (
     storyboard: JSON.stringify(parseGuideStoryboard(guideStoryboard(SLUG))),
   });
 
+/** The pointer address that a publish run asks about first. */
+const pointerUrl = async (): Promise<string> =>
+  publicUrlFor(
+    CONFIG,
+    guideVideoPointerPath(SLUG, await inputsHashFor(ANCHORS)),
+  );
+
+/** The fake CDN, with one address answered by `reply` instead. */
+const cdnWith = (
+  reply: (request: Request) => Response | undefined,
+): typeof fetch => {
+  const { fetcher } = fakeCdn();
+  return async (input, init) => {
+    const request = new Request(input, init);
+    return reply(request) ?? (await fetcher(request));
+  };
+};
+
+/** Answer the first request to `address` with `reply`, then use the fake CDN.
+ * A publish run asks the pointer address again when it verifies the upload. */
+const answerPointerOnce = (
+  address: string,
+  reply: () => Response,
+): ((request: Request) => Response | undefined) => {
+  let answered = false;
+  return (request) => {
+    if (answered || request.url !== address) return;
+    answered = true;
+    return reply();
+  };
+};
+
 /** Publish the fixture guide through a fake CDN, overriding one choice. */
 const publishWith = (
   fetcher: typeof fetch,
-  overrides: Pick<PublishGuideVideosOptions, "anchors" | "render"> = {},
+  overrides: Partial<Pick<PublishVideosOptions, "anchors" | "render">> = {},
 ) =>
-  publishGuideVideos(CONFIG, {
+  publishVideos(CONFIG, {
     anchors: ANCHORS,
     fetcher,
     render: () => Promise.resolve(MP4),
@@ -85,7 +123,38 @@ const publishWith = (
     ...overrides,
   });
 
-describe("publishGuideVideos", () => {
+/** The URL a publish of these bytes gives the guide. */
+const renderedVideoUrl = async (bytes = MP4): Promise<string> =>
+  `${CONFIG.cdnUrl}/${guideVideoObjectPath(SLUG, await sha256Hex(bytes))}`;
+
+/** Assert that the run uploaded the fixture MP4. */
+const expectRendered = async (
+  published: PublishedGuideVideos,
+): Promise<void> => {
+  expect(published.videos[SLUG]?.video).toBe(await renderedVideoUrl());
+};
+
+/** A pointer object for these inputs and this video path. */
+const pointerFor = (inputs: string, video: string): Response =>
+  new Response(JSON.stringify({ inputs, schemaVersion: 1, video }));
+
+/** Publish through a fake CDN whose pointer read answers `pointer`, and whose
+ * HEAD read answers `head` when one is given. */
+const expectRenderAfterPointer = async (
+  pointer: Response,
+  head?: Response,
+): Promise<void> => {
+  const address = await pointerUrl();
+  const answered = answerPointerOnce(address, () => pointer);
+  const fetcher = cdnWith((request) => {
+    const reply = answered(request);
+    if (reply !== undefined) return reply;
+    return request.method === "HEAD" ? head : undefined;
+  });
+  await expectRendered(await publishWith(fetcher));
+};
+
+describe("publishVideos", () => {
   test("uploads the MP4 under its content hash beside an inputs pointer", async () => {
     const { fetcher, objects } = fakeCdn();
     const rendered: string[] = [];
@@ -139,16 +208,54 @@ describe("publishGuideVideos", () => {
       render: () => Promise.resolve(changed),
     });
 
-    expect(after.videos[SLUG]?.video).toBe(
-      `${CONFIG.cdnUrl}/${guideVideoObjectPath(SLUG, await sha256Hex(changed))}`,
-    );
+    expect(after.videos[SLUG]?.video).toBe(await renderedVideoUrl(changed));
     expect(after.videos[SLUG]?.video).not.toBe(before.videos[SLUG]?.video);
+  });
+
+  test("renders again when the pointer is unusable", () =>
+    expectRenderAfterPointer(new Response("not a pointer")));
+
+  test("renders again when the pointer names other inputs", () =>
+    expectRenderAfterPointer(
+      pointerFor("0".repeat(16), "guides/other-0123456789abcdef.mp4"),
+    ));
+
+  test("renders again when the pointer's video is gone", async () =>
+    expectRenderAfterPointer(
+      pointerFor(
+        await inputsHashFor(ANCHORS),
+        "guides/missing-0123456789abcdef.mp4",
+      ),
+      new Response("gone", { status: 404 }),
+    ));
+
+  test("publishes every guide when no slug is named", async () => {
+    const { fetcher } = fakeCdn();
+
+    const published = await publishVideos(CONFIG, {
+      anchors: ANCHORS,
+      fetcher,
+      render: () => Promise.resolve(MP4),
+    });
+
+    expect(published.slugs).toEqual(GUIDE_SLUGS);
+    await expectRendered(published);
   });
 
   test("refuses a guide with no anchors instead of rendering blind", async () => {
     const { fetcher } = fakeCdn();
     await expect(publishWith(fetcher, { anchors: {} })).rejects.toThrow(
       "specs:evidence",
+    );
+  });
+});
+
+describe("guideStoryboard", () => {
+  test("refuses a slug that names no guide", () => {
+    assertThrows(
+      () => guideStoryboard("unknown-guide"),
+      Error,
+      "Unknown guide unknown-guide",
     );
   });
 });

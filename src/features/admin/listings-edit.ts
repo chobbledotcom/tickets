@@ -119,14 +119,14 @@ const chosenTemplateOrPicker = (
  *  hand it to {@link adminListingNewPage}. */
 const renderNewListingPage = async (
   session: AdminSession,
-  opts: Parameters<typeof adminListingNewPage>[2],
+  opts: NonNullable<Parameters<typeof adminListingNewPage>[2]>,
   status?: number,
 ): Promise<Response> => {
   const allGroups = await groups.getAll();
   const video = guideVideoFor(currentGuideVideos(), "create-a-listing");
   return htmlResponse(
     adminListingNewPage(allGroups, session, {
-      ...(opts ?? {}),
+      ...opts,
       ...(video === null ? {} : { guideVideoUrl: video.video }),
     }),
     status,

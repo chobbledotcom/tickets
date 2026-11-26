@@ -4,6 +4,10 @@
  * A build that finds the pointer and its video already uploaded records
  * nothing: the footage only changes when the screenshots, the storyboard, or
  * the render pipeline change. The app receives the video URLs to bake in.
+ *
+ * Every input arrives from the caller, so the module holds no browser, no
+ * evidence file, and no process state: `publish.ts` supplies the real
+ * recorder, and the tests supply a fake.
  */
 
 import {
@@ -14,13 +18,7 @@ import {
 } from "#scripts/static-cdn.ts";
 import type { GuideVideoAssets } from "#shared/guide-video.ts";
 import { sha256Hex } from "#shared/sha256.ts";
-import { guideVideoBytes } from "./build.ts";
-import {
-  EVIDENCE_MANIFEST,
-  evidenceFingerprints,
-  readEvidenceManifest,
-} from "./evidence.ts";
-import { parseGuideStoryboard, storyboardEvidence } from "./storyboard.ts";
+import { parseGuideStoryboard } from "./storyboard.ts";
 import { GUIDE_SLUGS, guideStoryboard } from "./storyboards/index.ts";
 import {
   guideVideoInputsHash,
@@ -40,40 +38,18 @@ export type GuideAnchors = Readonly<
   Record<string, Readonly<Record<string, string>>>
 >;
 
-export interface PublishGuideVideosOptions {
-  /** The anchors the caller already loaded, keyed by guide slug. Defaults to a
-   * fresh read of reports/evidence/manifest.json. */
-  anchors?: GuideAnchors;
-  fetcher?: typeof fetch;
-  fromSession?: string;
-  /** Produce the MP4 bytes for one guide. Defaults to a real record, render,
-   * and encode. Tests inject a fake so they never start a browser. */
-  render?: (slug: string) => Promise<Uint8Array>;
-  slug?: string;
+export interface PublishVideosOptions {
+  anchors: GuideAnchors;
+  fetcher: typeof fetch;
+  /** Produce the MP4 bytes for one guide. */
+  render: (slug: string) => Promise<Uint8Array>;
+  slug?: string | undefined;
 }
 
 export interface PublishedGuideVideos {
   slugs: readonly string[];
   videos: GuideVideoAssets;
 }
-
-const anchorsFromEvidence = async (
-  slugs: readonly string[],
-): Promise<GuideAnchors> => {
-  const manifest = await readEvidenceManifest(EVIDENCE_MANIFEST);
-  const entries = await Promise.all(
-    slugs.map(async (slug) => {
-      const storyboard = parseGuideStoryboard(guideStoryboard(slug));
-      const anchors = await evidenceFingerprints(
-        manifest,
-        EVIDENCE_MANIFEST,
-        storyboardEvidence(storyboard),
-      );
-      return [slug, anchors] as const;
-    }),
-  );
-  return Object.fromEntries(entries);
-};
 
 /** The uploaded video for these inputs, when an earlier build already made it.
  * Any unreadable or unverifiable pointer is a miss, because re-rendering is
@@ -98,40 +74,24 @@ const existingVideoPath = async (
     .then(parseGuideVideoPointer)
     .catch((error: unknown) => {
       console.warn(
-        `${slug}: ignoring the unusable pointer at ${pointerUrl}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `${slug}: ignoring the unusable pointer at ${pointerUrl}`,
+        error,
       );
       return null;
     });
   if (pointer === null || pointer.inputs !== inputsHash) return null;
-  const head = await fetcher(publicUrlFor(config, pointer.video), {
-    method: "HEAD",
-  });
+  const videoUrl = publicUrlFor(config, pointer.video);
+  const head = await fetcher(videoUrl, { method: "HEAD" });
   await head.body?.cancel();
   return head.ok ? pointer.video : null;
 };
 
-export const publishGuideVideos = async (
+export const publishVideos = async (
   config: StaticCdnConfig,
-  options: PublishGuideVideosOptions = {},
+  options: PublishVideosOptions,
 ): Promise<PublishedGuideVideos> => {
   const slugs = options.slug === undefined ? GUIDE_SLUGS : [options.slug];
-  if (options.fromSession !== undefined && slugs.length !== 1) {
-    throw new Error("--from takes exactly one guide");
-  }
-  const fetcher = options.fetcher ?? fetch;
-  const anchors = options.anchors ?? (await anchorsFromEvidence(slugs));
-  const render =
-    options.render ??
-    ((slug: string) =>
-      guideVideoBytes({
-        ...(options.fromSession === undefined
-          ? {}
-          : { fromSession: options.fromSession }),
-        slug,
-      }));
-
+  const { anchors, fetcher, render } = options;
   const videos: Record<string, { video: string }> = {};
   for (const slug of slugs) {
     const slugAnchors = anchors[slug];
