@@ -1,66 +1,65 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { escapeHtml } from "#jsx/escape-html.ts";
-import { relativeToProject } from "#scripts/path.ts";
+import * as v from "valibot";
+import { t } from "#i18n";
+import {
+  SCANNER_WORDS,
+  type ScannerWords,
+  ScannerWordsSchema,
+} from "#shared/scanner-words.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 
-/** The camera page renders the scanner client its words as `data-message-*`
- * attributes, and the client's own fallback copy must stay those same words:
- * a lookup that misses has to say what the page would have said. The pairs
- * here are read out of the client's source, so a message the client starts
- * reading without a matching attribute fails this test instead of showing
- * the fallback copy at a door. */
-const clientMessages = (source: string): [string, string][] =>
-  [
-    ...source.matchAll(
-      /(?:getMessage|formatMessage|nameAndTicketsMessage|askConfirm)\(\s*messages\s*,\s*["'](\w+)["']\s*,\s*(["'])((?:\\.|(?!\2).)*)\2|\[\s*["'](message\w+)["']\s*,\s*(["'])((?:\\.|(?!\5).)*)\5\s*\]/g,
-    ),
-  ].map(
-    ([, key, , fallback, pairKey, , pairFallback]) =>
-      [key ?? pairKey, fallback ?? pairFallback] as [string, string],
+/** The words whose catalog key does not follow the naming rule. */
+const KEY_EXCEPTIONS: Partial<Record<keyof ScannerWords, string>> = {
+  checkInButton: "admin.scanner.check_in",
+};
+
+/** The catalog key a word must carry: its name in snake case under
+ * `admin.scanner.`, unless it is a listed exception. The rule is written
+ * here, apart from the table the template reads, so a key swapped between
+ * two words with the same holes fails. */
+const expectedKey = (word: keyof ScannerWords): string =>
+  KEY_EXCEPTIONS[word] ??
+  `admin.scanner.${word.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)}`;
+
+/** The words one rendered page sends its browser code. */
+const pageWords = (html: string) => {
+  const attribute = html.match(/data-words="([^"]*)"/)?.[1];
+  if (attribute === undefined) throw new Error("The page sends no words.");
+  return v.parse(
+    ScannerWordsSchema,
+    JSON.parse(attribute.replaceAll("&quot;", '"').replaceAll("&amp;", "&")),
   );
+};
 
 describe("the scanner page's words", () => {
   beforeAll(setupAdminPageTest);
 
-  test("carries every message the client reads, in the client's own words", async () => {
-    const sources = await Promise.all(
-      [
-        "scanner.ts",
-        "scanner-admit.ts",
-        "scanner-offline-sync.ts",
-        "scanner-offline-ui.ts",
-      ].map((file) =>
-        Deno.readTextFile(relativeToProject(`src/ui/client/${file}`)),
-      ),
-    );
-    const messages = clientMessages(sources.join("\n"));
-    // One message per key the client reads today. A change here means the
-    // client started or stopped reading a message: re-check the page
-    // carries it, then update this count.
-    expect(messages.length).toBe(39);
+  test("sends every word once, each the catalog's words with its holes left open", () => {
     const html = adminScannerPage(
       { name: "Doors" },
-      "/admin/groups/5/scan",
+      {
+        cache: "/admin/groups/5/scan-cache",
+        scan: "/admin/groups/5/scan",
+        search: "/admin/groups/5/scan-search",
+      },
       OWNER_SESSION,
-      [],
       false,
       "test-door-cache-key",
       7,
     );
-    for (const [key, fallback] of messages) {
-      assertStringIncludes(
-        html,
-        `data-${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}="${escapeHtml(
-          fallback,
-        )}"`,
-        `data message for ${key}`,
-      );
+    expect(html.split("data-words=").length - 1).toBe(1);
+    const words = pageWords(html);
+    for (const [name, { holes }] of Object.entries(SCANNER_WORDS)) {
+      const word = name as keyof ScannerWords;
+      const open = Object.fromEntries(holes.map((hole) => [hole, `{${hole}}`]));
+      expect(SCANNER_WORDS[word].key, word).toBe(expectedKey(word));
+      expect(words[word], word).toBe(t(expectedKey(word), open));
     }
     // The client reads its CSRF token from this meta; without it every scan
     // POST fails the token check.

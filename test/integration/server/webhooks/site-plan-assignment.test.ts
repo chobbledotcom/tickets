@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 import { builderApi } from "#shared/builder.ts";
@@ -11,6 +10,7 @@ import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";

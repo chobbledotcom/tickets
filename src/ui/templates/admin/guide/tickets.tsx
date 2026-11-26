@@ -73,6 +73,7 @@ export const ticketsSections = (
       faq("scanner_no_checkout"),
       faq("qr_different_listing"),
       faq("scanner_status_messages"),
+      faq("scanner_offline_mode"),
       faq("what_if_someone_doesn_t_have_their"),
       faq("how_do_i_filter_attendees_by_check"),
     ],

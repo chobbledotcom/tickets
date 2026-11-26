@@ -2,7 +2,6 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decryptAttendees } from "#db/attendees/pii.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { DEMO_NAMES } from "#shared/demo/samples.ts";
@@ -14,6 +13,7 @@ import {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import {
   awaitTestRequest,
   mockFormRequest,

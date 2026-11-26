@@ -57,7 +57,9 @@ describeWithEnv(
       );
       // The child's quantity field is ignored (it is not a standalone row), so
       // no child attendee is created.
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
       expect(res.status).not.toBe(500);
     });

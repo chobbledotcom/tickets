@@ -63,7 +63,6 @@ describe("form submit protection", () => {
 
   for (const html of [
     '<form method="GET"><input><button type="submit">Search</button></form>',
-    '<form method="POST" data-manual-checkin><input><button type="submit">Check in</button></form>',
   ]) {
     test(`leaves the form's own behaviour intact for ${html}`, () => {
       const { flush, window } = page(html);
