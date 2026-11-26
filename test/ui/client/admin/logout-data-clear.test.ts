@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initLogoutDataClear } from "#src/ui/client/admin/logout-data-clear.ts";
-import { createDomInstaller } from "#test-utils/happy-dom.ts";
+import { createDomInstaller, whileStoreThrows } from "#test-utils/happy-dom.ts";
 
 const dom = createDomInstaller(["localStorage"]);
 
@@ -29,30 +29,12 @@ const storeAfterClear = (html: string): Record<string, string> => {
   );
 };
 
-/** Install the login page with one saved list, and make reading the store
- * throw `error`. Answers the clear to run, which restores the store after
- * it runs. */
+/** Install the login page with one saved list. Answers the clear to run
+ * while reading the store throws `error`. */
 const clearWhileStoreThrows = (error: Error): (() => void) => {
   const window = dom.installDom("<div data-clears-scanner-storage></div>");
   window.localStorage.setItem("scanner-tickets-/admin/listing/9/scan", "list");
-  const descriptor = Object.getOwnPropertyDescriptor(
-    globalThis,
-    "localStorage",
-  );
-  if (descriptor === undefined) throw new Error("No localStorage to block");
-  Object.defineProperty(globalThis, "localStorage", {
-    configurable: true,
-    get() {
-      throw error;
-    },
-  });
-  return () => {
-    try {
-      initLogoutDataClear();
-    } finally {
-      Object.defineProperty(globalThis, "localStorage", descriptor);
-    }
-  };
+  return () => whileStoreThrows(error, initLogoutDataClear);
 };
 
 describe("logout data clear", () => {
