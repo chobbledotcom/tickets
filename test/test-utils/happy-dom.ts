@@ -10,6 +10,7 @@
  */
 
 import { Window } from "happy-dom";
+import { requireValue } from "#shared/required-value.ts";
 
 export interface GlobalStash {
   restore: () => void;
@@ -169,11 +170,10 @@ export const waitUntilSettled = async (
  * page whose browser blocks or breaks site data sees it. The store comes
  * back after `use` ends. */
 export const whileStoreThrows = <T>(error: Error, use: () => T): T => {
-  const descriptor = Object.getOwnPropertyDescriptor(
-    globalThis,
-    "localStorage",
+  const descriptor = requireValue(
+    Object.getOwnPropertyDescriptor(globalThis, "localStorage"),
+    "No localStorage to block",
   );
-  if (descriptor === undefined) throw new Error("No localStorage to block");
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
     get() {
