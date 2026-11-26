@@ -206,5 +206,19 @@ describeWithEnv(
       );
       expect(page.status).toBe(404);
     });
+
+    test("answers 401 JSON without a scanner session", async () => {
+      const app = createApp(inProcess);
+      const response = await app.target(
+        new Request(
+          `http://localhost/admin/listing/12/scan-search?q=ab`,
+          { headers: { host: "localhost" } },
+        ),
+      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get("content-type")).toContain(
+        "application/json",
+      );
+    });
   },
 );

@@ -19,7 +19,7 @@ describe("isJsonApiPath", () => {
   for (const path of [
     "/admin/listing/12/scan",
     "/admin/listing/1/scan",
-    "/admin/groups/3/scan-cache",
+    "/admin/listing/1/scan-search",
     "/api/listings",
     "/v1/devices/one",
   ]) {
