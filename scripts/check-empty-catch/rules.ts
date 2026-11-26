@@ -12,11 +12,16 @@
  * here, so the gate leaves it to its own definition.
  */
 
+import type {
+  CallExpression,
+  CatchClause,
+  Expression,
+} from "npm:oxc-parser@0.132.0";
 import { byLine } from "#scripts/check-report.ts";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 import { lineColumnAt } from "#scripts/line-column.ts";
 import { parseProgram } from "#scripts/parse-program.ts";
-import { walkNodes } from "#scripts/walk-nodes.ts";
+import { type ProgramNode, walkNodes } from "#scripts/walk-nodes.ts";
 
 /** An empty catch the source says nothing about. */
 export interface EmptyCatchIssue extends PerFileFinding {
@@ -28,11 +33,6 @@ export interface EmptyCatchIssue extends PerFileFinding {
 interface Spanned {
   end: number;
   start: number;
-}
-
-/** An arrow body that is a block: `{ ... }`, spanning the source. */
-interface BlockBody extends Spanned {
-  body: unknown[];
 }
 
 /** Whether the text between a catch's braces says anything at all. */
@@ -56,34 +56,24 @@ const issueAt = (
   rule: "empty-catch",
 });
 
-/** Reads one source node and reports the empty catches it holds. */
-type NodeCatches = (
-  source: string,
-  node: Record<string, unknown>,
-) => EmptyCatchIssue[];
-
 /** The property a member expression names, whether spelled as an identifier
  * (`p.catch`) or a computed string literal (`p["catch"]`). */
-const memberName = (property: unknown): string | null => {
-  const key = property as { name?: unknown; value?: unknown; type?: unknown };
-  if (typeof key.name === "string") return key.name;
-  if (key.type === "Literal" && typeof key.value === "string") {
-    return key.value;
-  }
+const memberName = (callee: Expression): string | null => {
+  if (callee.type !== "MemberExpression") return null;
+  const key = callee.property;
+  if (key.type === "Identifier") return key.name;
+  if (key.type === "Literal" && typeof key.value === "string") return key.value;
   return null;
 };
 
 /** The empty rejection callbacks in one call expression: the first argument
  * of `.catch(…)`, or the second of `.then(…, …)` — both swallow a rejection
  * the same way. */
-const promiseCatches: NodeCatches = (source, node) => {
-  const call = node as unknown as {
-    arguments: Spanned[];
-    callee: Record<string, unknown>;
-  };
-  const callee = call.callee;
-  if (callee.type !== "MemberExpression") return [];
-  const member = memberName(callee.property);
+const promiseCatches = (
+  source: string,
+  call: CallExpression,
+): EmptyCatchIssue[] => {
+  const member = memberName(call.callee);
   const callback =
     member === "catch"
       ? call.arguments[0]
@@ -91,16 +81,14 @@ const promiseCatches: NodeCatches = (source, node) => {
         ? call.arguments[1]
         : undefined;
   if (callback === undefined) return [];
-  const handler = callback as unknown as Record<string, unknown>;
   const isCallbackBody =
-    handler.type === "ArrowFunctionExpression" ||
-    handler.type === "FunctionExpression";
+    callback.type === "ArrowFunctionExpression" ||
+    callback.type === "FunctionExpression";
   if (!isCallbackBody) return [];
-  const body = handler.body as Record<string, unknown> & Spanned;
-  if (body.type !== "BlockStatement") return [];
-  const block = body as unknown as BlockBody;
-  if (block.body.length > 0) return [];
-  if (blockExplainsItself(source, block)) return [];
+  const body = callback.body;
+  if (body === null || body.type !== "BlockStatement") return [];
+  if (body.body.length > 0) return [];
+  if (blockExplainsItself(source, body)) return [];
   return [
     issueAt(
       source,
@@ -111,12 +99,10 @@ const promiseCatches: NodeCatches = (source, node) => {
 };
 
 /** The empty `catch {}` blocks in one catch-clause node. */
-const clauseCatches: NodeCatches = (source, node) => {
-  const clause = node as unknown as {
-    body: BlockBody;
-    param: Spanned | null;
-    start: number;
-  };
+const clauseCatches = (
+  source: string,
+  clause: CatchClause,
+): EmptyCatchIssue[] => {
   if (clause.body.body.length > 0) return [];
   if (blockExplainsItself(source, clause.body)) return [];
   return [
@@ -130,10 +116,24 @@ const clauseCatches: NodeCatches = (source, node) => {
   ];
 };
 
-/** What one node holds, indexed by the node type the rules read. */
-const catchesInNode: Record<string, NodeCatches> = {
-  CallExpression: promiseCatches,
-  CatchClause: clauseCatches,
+/** Whether a node is of one type, narrowed to that type's shape. */
+const isNodeOf =
+  <Shape extends { type: string }>(type: Shape["type"]) =>
+  (node: ProgramNode): node is ProgramNode & Shape =>
+    node.type === type;
+
+const isCall = isNodeOf<CallExpression>("CallExpression");
+
+const isClause = isNodeOf<CatchClause>("CatchClause");
+
+/** The empty catches one node holds, by the node type the rules read. */
+const catchesInNode = (
+  source: string,
+  node: ProgramNode,
+): EmptyCatchIssue[] => {
+  if (isCall(node)) return promiseCatches(source, node);
+  if (isClause(node)) return clauseCatches(source, node);
+  return [];
 };
 
 /** Every empty catch whose body holds no statement and no comment. */
@@ -141,8 +141,7 @@ export const findIssues = (file: string, source: string): EmptyCatchIssue[] => {
   const program = parseProgram(file, source);
   const issues: EmptyCatchIssue[] = [];
   walkNodes(program, (node) => {
-    const catches = catchesInNode[node.type as string];
-    if (catches !== undefined) issues.push(...catches(source, node));
+    issues.push(...catchesInNode(source, node));
   });
   return issues.sort(byLine);
 };

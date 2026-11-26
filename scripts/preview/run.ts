@@ -79,7 +79,12 @@ const parseCommand = (
 };
 
 /** What a command on one branch works on: the Bunny calls and the names. */
-type Target = { api: PreviewApi; io: PreviewIo; names: PreviewNames };
+type Target = {
+  accessKey: string;
+  api: PreviewApi;
+  io: PreviewIo;
+  names: PreviewNames;
+};
 
 /** Read the build environment values that a command needs, then run the
  * command with them. A missing value fails the run before anything else. */
@@ -93,12 +98,13 @@ const withEnv = <Value>(
 };
 
 const ensureReport = (
-  { api, io, names }: Target,
+  { accessKey, api, io, names }: Target,
   command: EnsureCommand,
 ): Promise<Result<Report>> =>
   withEnv(io, readCopiedSecrets, async (copiedSecrets) =>
     mapped(
       await ensurePreview(api, {
+        accessKey,
         code: await io.readTextFile(command.file),
         copiedSecrets,
         names,
@@ -169,6 +175,7 @@ const onBranch = async (
   command: EnsureCommand | RemoveCommand,
 ): Promise<Result<Report>> => {
   const target: Target = {
+    accessKey,
     api: previewApi({ accessKey, fetchText: io.fetchText }),
     io,
     names: await previewNames(command.branch),
