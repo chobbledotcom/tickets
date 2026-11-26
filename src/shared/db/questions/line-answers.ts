@@ -40,6 +40,18 @@ export const lineSlotOf = (row: {
   };
 };
 
+/** The slot of a stored booking row. */
+export const lineSlotOfRow = (row: {
+  listing_id: number;
+  package_group_id: number;
+  parent_listing_id: number;
+}): LineSlot =>
+  lineSlotOf({
+    listingId: row.listing_id,
+    packageGroupId: row.package_group_id,
+    parentListingId: row.parent_listing_id,
+  });
+
 /** A line slot as one word, the same on the page and on the server. */
 export const lineKey = ({
   listingId,
@@ -148,6 +160,20 @@ const namesKnown = (slot: LineSlot, { listings, packages }: LineNames) =>
   listings.has(slot.listingId) &&
   (slot.parentListingId === 0 || listings.has(slot.parentListingId)) &&
   (slot.packageGroupId === 0 || packages.has(slot.packageGroupId));
+
+/** The names, with a number for each id that no record holds now. Deleting a
+ * parent listing or a package leaves the child bookings and their answers. A
+ * missing name reads as its number, as the bookings table shows it. */
+export const namesWithMissing = (
+  names: ReadonlyMap<number, string>,
+  ids: readonly number[],
+): Map<number, string> =>
+  new Map([
+    ...ids
+      .filter((id) => id !== 0 && !names.has(id))
+      .map((id): [number, string] => [id, `#${id}`]),
+    ...names,
+  ]);
 
 /** The words a buyer reads for a line: the listing, then its parent or its
  * package when it has one. */
