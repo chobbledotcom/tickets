@@ -209,6 +209,29 @@ export const queueCheckIn = (
   return item;
 };
 
+/** Whether the queue already holds this ticket for this door. */
+export const queueHoldsTicket = (
+  scanPath: string,
+  tokenHash: string,
+): boolean =>
+  readQueue().some(
+    (item) => item.scanPath === scanPath && item.tokenHash === tokenHash,
+  );
+
+/** Queue one scan's check-in under the door it scanned at, unless the same
+ * ticket is already queued for that door. The check runs inside the write,
+ * after any ask the caller waited on, so two callers that both waited
+ * cannot both queue the same ticket. Null is the documented answer when
+ * the ticket is already queued. */
+export const queueCheckInUnlessQueued = (
+  scanPath: string,
+  tokenHash: string,
+  quantity: number,
+): QueuedCheckIn | null =>
+  queueHoldsTicket(scanPath, tokenHash)
+    ? null
+    : queueCheckIn(scanPath, tokenHash, quantity);
+
 /** Whether two stored queue items are the same check-in. The rendered rows
  * hold parsed copies, so the match is on the stored fields, not the
  * reference. */

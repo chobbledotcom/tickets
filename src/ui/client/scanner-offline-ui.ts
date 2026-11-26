@@ -20,9 +20,9 @@ import {
   isCacheFresh,
   isSyncing,
   offlineModeActive,
-  queueCheckIn,
+  queueCheckInUnlessQueued,
+  queueHoldsTicket,
   readManualMode,
-  readQueue,
   readTicketCacheOrNull,
   registerScannerWorker,
 } from "./scanner-offline.ts";
@@ -127,13 +127,11 @@ const queueSavedEntry = async (
   say: Say,
 ): Promise<void> => {
   // The door's own last-token guard expires after the status fades, so the
-  // same ticket can reach this line twice. A second item sends the
-  // check-in twice, and the door reads that as two admissions.
-  if (
-    readQueue().some(
-      (item) => item.scanPath === scanPath && item.tokenHash === entry.hash,
-    )
-  ) {
+  // same ticket can reach this line twice. The early check only saves the
+  // door a needless prompt; the write-time check below is the guard,
+  // because a manual pick and a camera scan can both wait on their own ask
+  // for the same ticket.
+  if (queueHoldsTicket(scanPath, entry.hash)) {
     say(wording.word("offlineAlreadyQueued"), "error");
     return;
   }
@@ -154,7 +152,11 @@ const queueSavedEntry = async (
     say(wording.word("offlineNotQueued"), "warning");
     return;
   }
-  const queued = queueCheckIn(scanPath, entry.hash, quantity);
+  const queued = queueCheckInUnlessQueued(scanPath, entry.hash, quantity);
+  if (queued === null) {
+    say(wording.word("offlineAlreadyQueued"), "error");
+    return;
+  }
   // A running sync owns the panel's rows: the new row joins the rows the
   // sync settles. A rebuild detaches the rows the sync writes to.
   if (isSyncing()) {
