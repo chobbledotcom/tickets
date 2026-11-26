@@ -15,7 +15,6 @@ import {
   siteContactForm,
   siteHomeForm,
   siteOrderForm,
-  siteReviewsForm,
 } from "#templates/fields/site.ts";
 import type { AdminLevel, AdminSession } from "#types";
 
@@ -91,31 +90,6 @@ export const adminSiteHomePage = siteDataPage<string, string>(
           homepageText,
           websiteTitle,
         }),
-      )}
-    </>
-  ),
-);
-
-/** Reviews editor: the whole reviews markdown file, validated on save. */
-export const adminSiteReviewsPage = siteDataPage<string, boolean>(
-  t("site.reviews_title"),
-  "/admin/site/reviews",
-  (source, enabled) => (
-    <>
-      <h2>{t("site.reviews.heading")}</h2>
-      <p>{t("site.reviews.intro")}</p>
-      {enabled ? (
-        <p>
-          <a href="/reviews">{t("site.reviews.view_page")}</a>
-        </p>
-      ) : (
-        <p>
-          <small>{t("site.reviews.enable_hint")}</small>
-        </p>
-      )}
-      {siteTextForm(
-        "/admin/site/reviews",
-        siteReviewsForm.render({ reviewsMarkdown: source }),
       )}
     </>
   ),

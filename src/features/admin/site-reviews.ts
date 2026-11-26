@@ -1,56 +1,50 @@
-/** Admin reviews editor: one markdown file, saved as the public reviews page.
- *
- *  The route lives under the Site area and uses the same owner+editor access
- *  as the Pages and News editors. A save is refused unless the markdown parses
- *  as a complete reviews file, so a broken edit never reaches the public page.
- */
+/** Admin reviews routes: list, add, edit, and delete one review. The shared
+ *  record pages own the writes. This module binds them to the Site routes. */
 
-import { settings } from "#db/settings.ts";
-import { t } from "#i18n";
-import { settingsHandler } from "#routes/admin/settings-helpers.ts";
-import { SITE_FORM, sitePage } from "#routes/auth.ts";
-import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
-import { maxTextareaValidator } from "#shared/forms/textarea-limit.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { parseReviewsSource } from "#shared/reviews/parse.ts";
-import { REVIEWS_SOURCE } from "#shared/reviews.ts";
-import { validationMessage } from "#shared/validation-message.ts";
-import { adminSiteReviewsPage } from "#templates/admin/site.tsx";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import { entityPageById } from "#routes/entity.ts";
+import { htmlResponse } from "#routes/response.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import { reviewRecord } from "#shared/records/reviews.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
+import {
+  adminReviewEditPage,
+  getReviewPages,
+} from "#templates/admin/reviews.tsx";
+import {
+  getReviewForm,
+  reviewInputFromForm,
+} from "#templates/fields/reviews.ts";
 
-const REVIEWS_FILE_LABEL = "Reviews file";
+const views = getReviewPages();
 
-/** The parser's message, or null when the markdown is a complete reviews file. */
-const reviewsError = (value: string): string | null =>
-  validationMessage(() => {
-    parseReviewsSource(REVIEWS_FILE_LABEL, value);
-  });
-
-/** Handle GET /admin/site/reviews - the stored markdown, or the shipped
- *  sample until the owner saves their first file. */
-const handleSiteReviewsGet = sitePage((session, _request, flash) =>
-  adminSiteReviewsPage(
-    session,
-    settings.reviewsMarkdown || REVIEWS_SOURCE,
-    settings.features.reviews,
-    flash.error,
-    flash.success,
-  ),
-);
-
-/** Handle POST /admin/site/reviews - validate and save the markdown. */
-const handleSiteReviewsPost = settingsHandler({
-  auth: SITE_FORM,
-  extract: (form) => readSubmittedMarkdown(form, "reviewsMarkdown"),
-  log: () => t("site.reviews.updated"),
-  redirectTo: "/admin/site/reviews",
-  save: settings.update.reviewsMarkdown,
-  validate: (value) =>
-    maxTextareaValidator(MAX_TEXTAREA_LENGTH, REVIEWS_FILE_LABEL)(value) ??
-    reviewsError(value),
+const pages = recordPages(reviewRecord, {
+  form: getReviewForm(),
+  renderDelete: (review, session, error) =>
+    views.deletePage(review, session, error),
+  renderList: (rows, session, success) =>
+    views.listPage(rows, session, undefined, success),
+  renderNew: (session, error) => views.newPage(session, error),
+  routes: { delete: "reviewDelete", edit: "reviewEdit" },
+  savePath: () => "/admin/site/reviews",
+  toInput: reviewInputFromForm,
+  updateSavePath: () => "/admin/site/reviews",
 });
 
-/** The reviews editor routes, spread into the Site area's route table. */
-export const siteReviewRoutes = {
-  "GET /admin/site/reviews": handleSiteReviewsGet,
-  "POST /admin/site/reviews": handleSiteReviewsPost,
-} as const;
+const handleReviewEditGet = entityPageById(
+  adminPattern("reviewEdit"),
+  (id) => reviewRecord.load(id),
+  (review, session) =>
+    htmlResponse(adminReviewEditPage(review, session, getFlash().error)),
+);
+
+export const adminHandlers = defineAdminRoutes({
+  "GET /admin/site/reviews": pages.listGet,
+  "GET /admin/site/reviews/:id/delete": pages.deleteGet,
+  "GET /admin/site/reviews/:id/edit": handleReviewEditGet,
+  "GET /admin/site/reviews/new": pages.newGet,
+  "POST /admin/site/reviews": pages.createPost,
+  "POST /admin/site/reviews/:id/delete": pages.deletePost,
+  "POST /admin/site/reviews/:id/edit": pages.editPost,
+});

@@ -152,7 +152,7 @@ export const PREFIXES_M_Z = {
       ),
     ),
     messageGroups: publicMessageGroups("public-site"),
-    settings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.REVIEWS_MARKDOWN],
+    settings: PUBLIC_NAV_SETTINGS,
   },
   // The setup router owns these paths before app routing. The entry declares
   // the bundle only, so the settings read stays infra-only.

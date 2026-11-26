@@ -28,6 +28,7 @@ import {
 import { testListingInput } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { soldOutParentInGroup } from "#test-utils/parents.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 import {
   disableFeature,
   disablePublicSite,
@@ -143,6 +144,13 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       await settings.update.contactPageText("Write to us at the desk.");
       await createTestNewsPost("Opening Week");
       await enableFeature("reviews");
+      await adminFormPost("/admin/site/reviews", {
+        date: "2026-11-24",
+        name: "Sample customer",
+        rating: "5",
+        text: "A test review.",
+        url: "https://example.com/reviews/sample",
+      });
       const served = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();

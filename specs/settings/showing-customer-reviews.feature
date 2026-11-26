@@ -23,9 +23,9 @@ Feature: The owner shows customer reviews
     Scenario: The owner turns reviews on
       Given the owner enables "Site"
       When the owner enables "Reviews"
+      And the owner adds a review from "A new reviewer" with the URL "https://example.com/reviews/new"
       And a visitor opens the reviews page
-      Then the visitor reads "Sample customer"
-      And the visitor reads "This is a sample review."
+      Then the visitor reads "A new reviewer"
       And the visitor is offered a reviews link
 
     @case:reviews.disabled
@@ -37,18 +37,18 @@ Feature: The owner shows customer reviews
       Then the visitor is told the page is not found
       And the visitor is offered no reviews link
 
-  @rule:settings.the-owner-edits-the-reviews-file
+  @rule:settings.the-owner-keeps-the-reviews-list
   @surface:admin
-  Rule: The owner edits the reviews file
-    The reviews editor holds the whole markdown file. A save the parser cannot
-    read is refused, and the saved file stays.
+  Rule: The owner keeps the reviews list
+    The reviews are records. The owner adds, changes, and removes one review
+    at a time, and the public page follows the saved list.
 
     @case:reviews.adding-a-review
     Scenario: The owner adds a review
       Given the owner enables "Site"
       And the owner enables "Reviews"
       When the owner opens the reviews editor
-      And the owner replaces the reviews file with a review from "A new reviewer"
+      And the owner adds a review from "A new reviewer" with the URL "https://example.com/reviews/new"
       And a visitor opens the reviews page
       Then the visitor reads "A new reviewer"
       And the visitor reads "A new review."

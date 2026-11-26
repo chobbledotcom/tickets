@@ -21,6 +21,35 @@ import {
 } from "./scalar-columns.ts";
 import { declaredTables } from "./types.ts";
 
+/* jscpd:ignore-start -- static table data, not code */
+const reviewsTable = [
+  // Customer reviews shown on the public /reviews page. The reviewer name,
+  // review text, and URL are env-key ciphertext. `url_index` is the HMAC
+  // blind index of the URL, so the URL stays unique without being stored in
+  // the clear. Rating and date stay plaintext so the page sorts without
+  // decrypting every row.
+  "reviews",
+  {
+    columns: [
+      ["id", rowId],
+      ["name", text],
+      ["rating", checked(sql`rating BETWEEN 1 AND 5`)(wholeNumber)],
+      ["date", text],
+      ["text", text],
+      ["url", text],
+      ["url_index", text],
+    ],
+    indexes: [
+      {
+        columns: ["url_index"],
+        name: "idx_reviews_url_index",
+        unique: true,
+      },
+    ],
+  },
+] as const;
+/* jscpd:ignore-end */
+
 export const contentTables = declaredTables([
   [
     // Per-contact marketing preferences, contact history, and visit counts,
@@ -254,6 +283,8 @@ export const contentTables = declaredTables([
       ],
     },
   ],
+
+  reviewsTable,
 
   [
     // Ordered membership edges: a listing/group/page sits inside a page. The

@@ -53,22 +53,28 @@ When(
   "the owner opens the reviews editor",
   async function (this: TicketsWorld): Promise<void> {
     const editor = await openAdminPage(this, "/admin/site/reviews");
-    expect(editor.currentHtml).toContain(t("site.reviews.text_label"));
+    expect(editor.currentHtml).toContain(t("reviews.add.submit"));
   },
 );
 
 When(
-  "the owner replaces the reviews file with a review from {string}",
-  async function (this: TicketsWorld, name: string): Promise<void> {
-    const editor = await openAdminPage(this, "/admin/site/reviews");
-    const source = `---
-reviews:
-  - name: ${JSON.stringify(name)}
-    rating: 5
-    date: "2026-11-24"
-    text: "A new review."
----
-`;
-    await fillInAndSend(editor, { reviewsMarkdown: source }, t("common.save"));
+  "the owner adds a review from {string} with the URL {string}",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    url: string,
+  ): Promise<void> {
+    const editor = await openAdminPage(this, "/admin/site/reviews/new");
+    await fillInAndSend(
+      editor,
+      {
+        date: "2026-11-24",
+        name,
+        rating: "5",
+        text: "A new review.",
+        url,
+      },
+      t("reviews.add.submit"),
+    );
   },
 );

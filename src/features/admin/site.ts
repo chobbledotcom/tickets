@@ -39,7 +39,6 @@ import {
   adminSiteOrderPage,
 } from "#templates/admin/site.tsx";
 import { siteHomeForm } from "#templates/fields/site.ts";
-import { siteReviewRoutes } from "./site-reviews.ts";
 
 /** Count active, visible listings — every one appears on the order page. */
 const countOrderListings = async (): Promise<number> => {
@@ -192,7 +191,6 @@ const handleSiteOrderPost = siteTextHandler("order");
 
 /** Site editor routes */
 export const adminHandlers = defineAdminRoutes({
-  ...siteReviewRoutes,
   "GET /admin/site": siteGetRoute(renderHomePage),
   "GET /admin/site/contact": siteGetRoute(renderContactPage),
   "GET /admin/site/order": handleSiteOrderGet,

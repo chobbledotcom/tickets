@@ -49,8 +49,3 @@ export const siteOrderForm = singleTextForm(
   "orderIntroText",
   "site.order.text",
 );
-
-export const siteReviewsForm = singleTextForm(
-  "reviewsMarkdown",
-  "site.reviews.text",
-);

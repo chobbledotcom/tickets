@@ -13,6 +13,7 @@ import { fillTogether } from "#db/fill-together.ts";
 import { groups } from "#db/groups.ts";
 import { getListingsWithCountsByIds } from "#db/listings/records.ts";
 import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
+import { hasReviews, reviewsExistenceRead } from "#db/reviews.ts";
 import { allPageItemsRead } from "#db/site-page-items.ts";
 import { sitePagesNavRead } from "#db/site-pages.ts";
 import { compact, filter, map, pipe, unique } from "#fp";
@@ -141,7 +142,12 @@ export const publicNavModel = async (
  * three. Each read still fills its own request cache, so anything else on the
  * page that wants the same rows reads them from there. */
 const fillNavReads = (): Promise<void> =>
-  fillTogether([newsExistenceRead, sitePagesNavRead, allPageItemsRead]);
+  fillTogether([
+    newsExistenceRead,
+    reviewsExistenceRead,
+    sitePagesNavRead,
+    allPageItemsRead,
+  ]);
 
 /** The nav key for a booking page's header entity: the group on a group page,
  * the sole listing on a single-listing page. Null — a multi-item combo —
@@ -163,6 +169,7 @@ export const publicNavProps = async (
   return {
     ...navFlags(),
     hasNews: await hasNewsPosts(),
+    hasReviews: await hasReviews(),
     pages: await publicNavModel(current),
   };
 };

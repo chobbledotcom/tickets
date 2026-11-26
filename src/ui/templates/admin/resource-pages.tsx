@@ -32,7 +32,10 @@ import type { NavActive } from "#templates/admin/nav.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+import {
+  translatedTableColumn,
+  translatedTableHeader,
+} from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
 
 /** The type-the-name fields of a delete spec: the label above the input and
@@ -60,6 +63,30 @@ export type DeleteSpec<TEntity> = {
   children?: (entity: TEntity) => Child;
   /** Whether to style the form as dangerous. */
   danger: boolean;
+};
+
+/** The usual delete spec: type the entity's name, with the resource's two
+ *  catalog keys. `confirmName` can differ when the warning shows escaped HTML. */
+export const confirmDeleteSpec = <TEntity,>(config: {
+  confirmName?: (entity: TEntity) => string;
+  label: string;
+  name: (entity: TEntity) => string;
+  resource: string;
+}): DeleteSpec<TEntity> => {
+  const confirmName = config.confirmName ?? config.name;
+  return {
+    confirm: (entity) => ({
+      args: { name: confirmName(entity) },
+      key: `${config.resource}.delete.confirm`,
+    }),
+    danger: true,
+    label: config.label,
+    name: config.name,
+    prompt: (entity) => ({
+      args: { name: config.name(entity) },
+      key: `${config.resource}.delete.confirm_prompt`,
+    }),
+  };
 };
 
 /** A resource's page labels. */
@@ -126,6 +153,51 @@ export const listWithAddButton = <TEntity,>(config: {
   ...(config.intro === undefined ? {} : { intro: config.intro }),
 });
 
+/** The list page of a record resource: the Add button, the table, the note
+ *  for no rows, the guide link, and optional intro. `pageLabels` names the
+ *  other pages from the same resource key. */
+export type ResourceListConfig<TEntity> = {
+  addLabelKey: string;
+  columns: readonly TableColumn<TEntity>[];
+  emptyKey: string;
+  guideAnchor: string;
+  introKey?: string;
+  resource: string;
+  route: AdminDestinationId;
+};
+
+export const resourceListWithAddButton = <TEntity,>(
+  config: ResourceListConfig<TEntity>,
+): ResourceList<TEntity> =>
+  listWithAddButton({
+    add: { label: t(config.addLabelKey), route: config.route },
+    columns: config.columns,
+    empty: t(config.emptyKey),
+    guide: {
+      anchor: config.guideAnchor,
+      label: t(`${config.resource}.guide_link`),
+    },
+    ...(config.introKey === undefined
+      ? {}
+      : { intro: <p>{t(config.introKey)}</p> }),
+  });
+
+export const recordPageConfig = <TEntity extends { id: number }>(
+  resource: string,
+  columns: readonly TableColumn<TEntity>[],
+  list: Omit<ResourceListConfig<TEntity>, "columns">,
+  deleteSpec: DeleteSpec<TEntity>,
+  renderFields: (entity: TEntity | undefined) => Child,
+): Pick<
+  AdminResourcePagesConfig<TEntity>,
+  "delete" | "labels" | "list" | "renderFields"
+> => ({
+  delete: deleteSpec,
+  labels: pageLabels(resource),
+  list: resourceListWithAddButton({ ...list, columns }),
+  renderFields,
+});
+
 export type AdminResourcePagesConfig<TEntity extends { id: number }> = {
   /** The nav `active` key (e.g. "/admin/settings"). */
   active: NavActive;
@@ -153,6 +225,14 @@ export const writableNameColumn = <TEntity,>(
   header: translatedTableHeader("common.name"),
   key: "name",
 });
+
+/** The Actions column whose link opens the row's delete page. */
+export const deleteLinkColumn = <TEntity,>(
+  href: (entity: TEntity) => string,
+): TableColumn<TEntity> =>
+  translatedTableColumn("actions", "common.actions", (entity) => (
+    <WritableLink href={href(entity)}>{t("common.delete")}</WritableLink>
+  ));
 
 /** The shape every resource list page shares: the rows to show, then the same
  *  session + optional error/success flashes every flash-carrying admin page

@@ -1,5 +1,4 @@
-/** The public reviews page as a visitor and as the owner who turns it on and
- *  edits its markdown. */
+/** The public reviews page and the admin review records. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -11,27 +10,20 @@ import {
 } from "#test/blackbox/driver.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
+import {
+  disableFeature,
+  disablePublicSite,
+  enableFeature,
+  enablePublicSite,
+} from "#test-utils/settings.ts";
 
-const enableReviews = async (enabled: boolean): Promise<void> => {
-  const app = createApp(inProcess);
-  await app.logIn();
-  const page = await app.submit("/admin/features/reviews", {
-    enabled: String(enabled),
-  });
-  expect(page.status).toBe(302);
-};
-
-const reviewSource = (name: string): string => `---
-reviews:
-  - name: ${JSON.stringify(name)}
-    rating: 5
-    date: "2026-11-24"
-    text: "A new review."
----
-
-New introduction.
-`;
+const fields = (name: string, url: string, text = "A new review.") => ({
+  date: "2026-11-24",
+  name,
+  rating: "5",
+  text,
+  url,
+});
 
 const follow = async (app: App, page: Page): Promise<Page> => {
   expect(page.status).toBe(302);
@@ -45,88 +37,208 @@ const editor = async (): Promise<App> => {
   return app;
 };
 
-describeWithEnv("the reviews page", { db: true }, () => {
-  test("is not found until the owner turns Reviews on", async () => {
-    await enablePublicSite();
-    try {
-      const page = await createApp(inProcess).get("/reviews");
-      expect(page.status).toBe(404);
-    } finally {
-      await disablePublicSite();
-    }
-  });
+const addReview = async (app: App, name: string, url: string): Promise<Page> =>
+  follow(
+    app,
+    await app.submit(
+      "/admin/site/reviews/new",
+      fields(name, url),
+      "/admin/site/reviews",
+    ),
+  );
 
-  test("shows the sample review and the nav link once Reviews is on", async () => {
-    await enablePublicSite();
+const enableReviews = async (): Promise<void> => {
+  await enablePublicSite();
+  await enableFeature("reviews");
+};
+
+const cleanUp = async (): Promise<void> => {
+  await disableFeature("reviews");
+  await disablePublicSite();
+};
+
+describeWithEnv("the reviews page", { db: true }, () => {
+  test("shows a saved review on the public page", async () => {
+    await enableReviews();
     try {
-      await enableReviews(true);
-      const app = createApp(inProcess);
-      const page = await app.get("/reviews");
+      const app = await editor();
+      await addReview(
+        app,
+        "Sample customer",
+        "https://example.com/reviews/sample",
+      );
+      const page = await createApp(inProcess).get("/reviews");
 
       expect(page.status).toBe(200);
       expectIncludesAll(page.html, [
         '<ul class="reviews-grid">',
         "Sample customer",
-        "This is a sample review.",
-        "Read what our customers say.",
+        "A new review.",
         "Rated 5 out of 5 stars",
         'href="/reviews"',
       ]);
+    } finally {
+      await cleanUp();
+    }
+  });
 
-      await enableReviews(false);
+  test("lets the owner add, edit, and delete a review", async () => {
+    await enableReviews();
+    try {
+      const app = await editor();
+      const list = await app.get("/admin/site/reviews");
+      expect(list.status).toBe(200);
+      expectIncludesAll(list.html, ["Add review"]);
+
+      const created = await addReview(
+        app,
+        "A new reviewer",
+        "https://example.com/reviews/new",
+      );
+      expect(created.html).toContain("Review created");
+      const publicPage = await app.get("/reviews");
+      expectIncludesAll(publicPage.html, ["A new reviewer", "A new review."]);
+
+      const edited = await follow(
+        app,
+        await app.submit(
+          "/admin/site/reviews/1/edit",
+          fields("An edited reviewer", "https://example.com/reviews/new"),
+        ),
+      );
+      expect(edited.html).toContain("Review updated");
+      expect((await app.get("/reviews")).html).toContain("An edited reviewer");
+      expect((await app.get("/reviews")).html).not.toContain("A new reviewer");
+
+      const removed = await follow(
+        app,
+        await app.submit("/admin/site/reviews/1/delete", {
+          confirmIdentifier: "An edited reviewer",
+        }),
+      );
+      expect(removed.html).toContain("Review deleted");
+      expect((await app.get("/reviews")).html).not.toContain(
+        "An edited reviewer",
+      );
+    } finally {
+      await cleanUp();
+    }
+  });
+
+  test("refuses a review URL another review already has", async () => {
+    await enableReviews();
+    try {
+      const app = await editor();
+      await addReview(
+        app,
+        "First reviewer",
+        "https://example.com/reviews/same",
+      );
+      const refused = await follow(
+        app,
+        await app.submit(
+          "/admin/site/reviews/new",
+          fields("A second reviewer", "https://example.com/reviews/same"),
+          "/admin/site/reviews",
+        ),
+      );
+      expect(refused.html).toContain(
+        "That review URL is already used by another review.",
+      );
+      expect((await app.get("/reviews")).html).not.toContain(
+        "A second reviewer",
+      );
+    } finally {
+      await cleanUp();
+    }
+  });
+
+  test("refuses a review URL that is not a web address", async () => {
+    await enableReviews();
+    try {
+      const app = await editor();
+      const refused = await follow(
+        app,
+        await app.submit(
+          "/admin/site/reviews/new",
+          fields("A reviewer", "ftp://example.com/review"),
+          "/admin/site/reviews",
+        ),
+      );
+      expect(refused.html).toContain(
+        "Enter a full review URL that starts with http:// or https://.",
+      );
+    } finally {
+      await cleanUp();
+    }
+  });
+
+  test("refuses an edit that takes another review's URL", async () => {
+    await enableReviews();
+    try {
+      const app = await editor();
+      await addReview(
+        app,
+        "First reviewer",
+        "https://example.com/reviews/first",
+      );
+      await addReview(
+        app,
+        "Second reviewer",
+        "https://example.com/reviews/second",
+      );
+      const refused = await follow(
+        app,
+        await app.submit(
+          "/admin/site/reviews/1/edit",
+          fields("First reviewer", "https://example.com/reviews/second"),
+        ),
+      );
+      expect(refused.html).toContain(
+        "That review URL is already used by another review.",
+      );
+      expect((await app.get("/reviews")).html).toContain("First reviewer");
+    } finally {
+      await cleanUp();
+    }
+  });
+
+  test("shows no reviews page or link while reviews are off", async () => {
+    await enablePublicSite();
+    try {
+      const page = await createApp(inProcess).get("/reviews");
+      expect(page.status).toBe(404);
+      expect((await createApp(inProcess).get("/")).html).not.toContain(
+        'href="/reviews"',
+      );
+    } finally {
+      await disablePublicSite();
+    }
+  });
+
+  test("shows no reviews page or link when every review is deleted", async () => {
+    await enableReviews();
+    try {
+      const app = await editor();
+      await addReview(
+        app,
+        "The only reviewer",
+        "https://example.com/reviews/only",
+      );
+      await follow(
+        app,
+        await app.submit("/admin/site/reviews/1/delete", {
+          confirmIdentifier: "The only reviewer",
+        }),
+      );
       expect((await app.get("/reviews")).status).toBe(404);
       expect((await app.get("/")).html).not.toContain('href="/reviews"');
     } finally {
-      await disablePublicSite();
+      await cleanUp();
     }
   });
 
-  test("shows the owner the sample file before the feature is on", async () => {
-    const app = await editor();
-    const page = await app.get("/admin/site/reviews");
-
-    expect(page.status).toBe(200);
-    expectIncludesAll(page.html, [
-      "Reviews file",
-      "Sample customer",
-      "Turn on the Reviews feature",
-    ]);
-    expect(page.html).not.toContain('<a href="/reviews">');
-  });
-
-  test("lets the owner add a review and refuses a broken file", async () => {
-    await enablePublicSite();
-    try {
-      await enableReviews(true);
-      const app = await editor();
-      const page = await app.get("/admin/site/reviews");
-      expect(page.html).toContain('<a href="/reviews">');
-
-      const saved = await app.submit("/admin/site/reviews", {
-        reviewsMarkdown: reviewSource("A new reviewer"),
-      });
-      const afterSave = await follow(app, saved);
-      expect(afterSave.html).toContain("Reviews updated.");
-      expectIncludesAll((await app.get("/reviews")).html, [
-        "A new reviewer",
-        "A new review.",
-        "New introduction.",
-      ]);
-
-      const refused = await follow(
-        app,
-        await app.submit("/admin/site/reviews", {
-          reviewsMarkdown: "No frontmatter here.",
-        }),
-      );
-      expect(refused.html).toContain("no frontmatter block");
-      expect((await app.get("/reviews")).html).toContain("A new reviewer");
-    } finally {
-      await disablePublicSite();
-    }
-  });
-
-  test("hides the editor from a signed-out visitor", async () => {
+  test("hides the review editor from a signed-out visitor", async () => {
     const page = await createApp(inProcess).get("/admin/site/reviews");
 
     expect(page.status).toBe(302);

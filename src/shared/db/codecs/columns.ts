@@ -178,6 +178,12 @@ export const CODECS = {
     from_index: typed<BlindIndex>(),
     to_index: typed<BlindIndex | null>(),
   },
+  reviews: {
+    name: sealed,
+    text: sealed,
+    url: sealed,
+    url_index: typed<BlindIndex>(),
+  },
   site_page_items: { item_type: typed<SitePageItemType>() },
   site_pages: { ...SEALED_PAGE_TEXT, hidden: yesNo },
   system_notes: { note: typed<EnvKeyEncrypted | OwnerKeyEncrypted>() },

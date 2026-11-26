@@ -9,8 +9,8 @@ describe("admin area message groups", () => {
       "attendees",
       "builder",
       "listings-table",
+      "reviews",
       "settings",
-      "site",
       ...GUIDE_MESSAGE_GROUPS,
     ]);
   });

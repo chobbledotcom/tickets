@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { Review, ReviewsPageData } from "#shared/reviews/schema.ts";
+import type { Review } from "#shared/reviews/types.ts";
 import {
   type ReviewsLabels,
   reviewerInitials,
@@ -18,36 +18,28 @@ const labels: ReviewsLabels = {
 
 const review = (overrides: Partial<Review> = {}): Review => ({
   date: "2024-11-20",
+  id: 1,
   name: "Jane Smith",
   rating: 4,
   text: "Great **service**.",
+  url: "https://example.com/a-review",
+  urlIndex: "index" as Review["urlIndex"],
   ...overrides,
 });
 
-const page = (overrides: Partial<ReviewsPageData> = {}): ReviewsPageData => ({
-  intro: "Read what our customers say.",
-  reviews: [review()],
-  ...overrides,
-});
-
-const body = (data: ReviewsPageData = page()): string =>
-  String(reviewsBody(data, labels));
+const body = (reviews: readonly Review[] = [review()]): string =>
+  String(reviewsBody(reviews, labels));
 
 describe("the reviews page body", () => {
-  test("renders the introduction, stars, date, body, avatar, and review link", () => {
-    const html = body(
-      page({
-        reviews: [
-          review({
-            rating: 5,
-            url: "https://www.google.com/maps/reviews/1",
-          }),
-        ],
+  test("renders stars, date, body, avatar, and review link", () => {
+    const html = body([
+      review({
+        rating: 5,
+        url: "https://www.google.com/maps/reviews/1",
       }),
-    );
+    ]);
 
     expectIncludesAll(html, [
-      '<div class="prose"><p>Read what our customers say.</p>',
       '<ul class="reviews-grid">',
       '<li class="review-card">',
       '<span class="rating">',
@@ -64,34 +56,17 @@ describe("the reviews page body", () => {
   });
 
   test("uses a plain review link for a site that is not Google", () => {
-    const html = body(
-      page({ reviews: [review({ url: "https://example.com/a-review" })] }),
-    );
+    const html = body();
 
-    expectIncludesAll(html, [
-      'href="https://example.com/a-review"',
-      "View review",
-    ]);
+    expectIncludesAll(html, ["View review"]);
     assert(!html.includes("View on Google"));
   });
 
-  test("shows no review link when the review has no address", () => {
-    assert(!body().includes("review-link"));
-  });
-
-  test("omits an empty introduction", () => {
-    assert(!body(page({ intro: "" })).includes('<div class="prose">'));
-  });
-
   test("renders every review in the order it was given", () => {
-    const html = body(
-      page({
-        reviews: [
-          review({ name: "Newer Reviewer", text: "Newer words." }),
-          review({ name: "Older Reviewer", text: "Older words." }),
-        ],
-      }),
-    );
+    const html = body([
+      review({ name: "Newer Reviewer", text: "Newer words." }),
+      review({ id: 2, name: "Older Reviewer", text: "Older words." }),
+    ]);
 
     expect(html.indexOf("Newer words.")).toBeLessThan(
       html.indexOf("Older words."),
@@ -99,9 +74,7 @@ describe("the reviews page body", () => {
   });
 
   test("escapes raw HTML in a review", () => {
-    const html = body(
-      page({ reviews: [review({ text: "<script>x</script>" })] }),
-    );
+    const html = body([review({ text: "<script>x</script>" })]);
 
     assert(!html.includes("<script>"));
     assertStringIncludes(html, "&lt;script&gt;");

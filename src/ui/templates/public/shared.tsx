@@ -100,7 +100,6 @@ export const PublicNav = (props: PublicNavProps): JSX.Element =>
 export const navFlags = () => ({
   hasContact: !!settings.contactPageText || isContactFormActive(),
   hasOrder: settings.orderEnabled,
-  hasReviews: settings.features.reviews,
   hasTerms: !!settings.terms,
 });
 

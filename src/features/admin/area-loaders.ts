@@ -50,10 +50,8 @@ const guideMessageGroups = messageGroupsBySegment({
     "attendees",
     "builder",
     "listings-table",
+    "reviews",
     "settings",
-    // The reviews answer is worded for the Site editor and lives in the site
-    // catalog, because that editor is the page the answer describes.
-    "site",
     ...GUIDE_MESSAGE_GROUPS,
   ],
 });
@@ -343,6 +341,10 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   sitePages: area(
     () => import("#routes/admin/site-pages.ts"),
     ["entity-pages", "images", "site-pages", "validation"],
+  ),
+  siteReviews: area(
+    () => import("#routes/admin/site-reviews.ts"),
+    ["reviews", "site", "validation"],
   ),
   sms: area(
     () => import("#routes/admin/sms.ts"),

@@ -14,6 +14,7 @@ import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { isMissingSettingsTableError } from "#db/migrations/errors.ts";
 import { getNewsPostSummaries } from "#db/news-posts.ts";
+import { hasReviews } from "#db/reviews.ts";
 import { settings } from "#db/settings.ts";
 import { sitePages } from "#db/site-pages.ts";
 import { loadDecidedGroups } from "#routes/public/group-liveness.ts";
@@ -52,10 +53,10 @@ const fixedPublicPaths = (
   flags: {
     hasContact: boolean;
     hasOrder: boolean;
-    hasReviews: boolean;
     hasTerms: boolean;
   },
   hasNews: boolean,
+  hasReviews: boolean,
 ): string[] => {
   const served: [string, boolean][] = [
     ["/", true],
@@ -64,7 +65,7 @@ const fixedPublicPaths = (
     ["/contact", flags.hasContact],
     ["/order", flags.hasOrder],
     ["/news", hasNews],
-    ["/reviews", flags.hasReviews],
+    ["/reviews", hasReviews],
   ];
   return served.filter(([, loads]) => loads).map(([path]) => path);
 };
@@ -99,7 +100,7 @@ const publicPaths = async (): Promise<string[]> => {
   // like every other public page defers it.
   const { navFlags } = await import("#templates/public/shared.tsx");
   return [
-    ...fixedPublicPaths(navFlags(), posts.length > 0),
+    ...fixedPublicPaths(navFlags(), posts.length > 0, await hasReviews()),
     ...pages
       .filter((page) => !page.hidden && SLUG_PARAM_SERVES.test(page.slug))
       .map((page) => `/page/${page.slug}`),

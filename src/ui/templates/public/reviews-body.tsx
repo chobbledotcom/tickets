@@ -6,7 +6,7 @@
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import type { Review, ReviewsPageData } from "#shared/reviews/schema.ts";
+import type { Review } from "#shared/reviews/types.ts";
 
 /** The words a review card needs, supplied by the page shell. */
 export type ReviewsLabels = {
@@ -40,9 +40,7 @@ const reviewLinkLabel = (url: string, labels: ReviewsLabels): string =>
   url.includes("google.com") ? labels.viewOnGoogle : labels.viewReview;
 
 const reviewLinkHtml = (review: Review, labels: ReviewsLabels): string =>
-  review.url === undefined
-    ? ""
-    : `<a class="review-link" href="${escapeHtml(review.url)}" rel="nofollow noopener noreferrer" target="_blank">${reviewLinkLabel(review.url, labels)}</a>`;
+  `<a class="review-link" href="${escapeHtml(review.url)}" rel="nofollow noopener noreferrer" target="_blank">${reviewLinkLabel(review.url, labels)}</a>`;
 
 const reviewCard = (review: Review, labels: ReviewsLabels): JSX.Element => (
   <li class="review-card">
@@ -73,20 +71,12 @@ const reviewCard = (review: Review, labels: ReviewsLabels): JSX.Element => (
   </li>
 );
 
-/** The page body. A review file can carry an introduction. An empty one
- *  renders nothing above the cards. */
+/** The page body: the reviews in their masonry list. */
 export const reviewsBody = (
-  page: ReviewsPageData,
+  reviews: readonly Review[],
   labels: ReviewsLabels,
 ): JSX.Element => (
-  <>
-    {page.intro && (
-      <div class="prose">
-        <Raw html={renderMarkdown(page.intro)} />
-      </div>
-    )}
-    <ul class="reviews-grid">
-      {page.reviews.map((review) => reviewCard(review, labels))}
-    </ul>
-  </>
+  <ul class="reviews-grid">
+    {reviews.map((review) => reviewCard(review, labels))}
+  </ul>
 );

@@ -65,10 +65,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
           </>,
         ),
         faq("advanced_settings"),
-        custom(
-          "turn_reviews_on",
-          <Raw html={t("site.reviews.guide_answer")} />,
-        ),
+        custom("turn_reviews_on", <Raw html={t("reviews.guide_answer")} />),
         faq("what_are_redirects"),
         faq("what_is_debug_page"),
         faq("what_is_the_debug_footer"),

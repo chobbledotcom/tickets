@@ -2,7 +2,7 @@
 
 import { t } from "#i18n";
 import { formatMonthYearShortLabel } from "#shared/date-labels.ts";
-import type { ReviewsPageData } from "#shared/reviews/schema.ts";
+import type { Review } from "#shared/reviews/types.ts";
 import { type ReviewsLabels, reviewsBody } from "./reviews-body.tsx";
 import {
   type PublicNavProps,
@@ -18,7 +18,7 @@ const reviewLabels = (): ReviewsLabels => ({
 });
 
 export const reviewsPage = (
-  page: ReviewsPageData,
+  reviews: readonly Review[],
   nav: PublicNavProps,
   websiteTitle: string,
 ): string =>
@@ -26,4 +26,4 @@ export const reviewsPage = (
     titleWithSiteName(t("nav.public.reviews"), websiteTitle),
     websiteTitle,
     nav,
-  )(reviewsBody(page, reviewLabels()));
+  )(reviewsBody(reviews, reviewLabels()));
