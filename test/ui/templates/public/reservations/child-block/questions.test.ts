@@ -1,12 +1,12 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { assignQuestion } from "#test/shared/db/questions/helpers.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import {
   bookingPageHtml,
   bookParent,

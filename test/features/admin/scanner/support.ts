@@ -2,7 +2,13 @@
  * and the exact request the page's own script would send. */
 
 import { expect } from "@std/expect";
+import * as v from "valibot";
 import { handleRequest } from "#routes";
+import {
+  type RosterOption,
+  SearchAnswerSchema,
+} from "#shared/roster-option.ts";
+import { TicketCachePageSchema } from "#shared/ticket-cache.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -12,6 +18,28 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+
+/** The people a name search at the group door finds. */
+export const doorSearch = async (
+  groupId: number,
+  text: string,
+): Promise<RosterOption[]> => {
+  const response = await adminGet(
+    `/admin/groups/${groupId}/scan-search?q=${encodeURIComponent(text)}`,
+  );
+  expect(response.status).toBe(200);
+  return v.parse(SearchAnswerSchema, await response.json()).options;
+};
+
+/** The first page of the group door's offline list, as the cache route
+ * answers it. */
+export const doorCachePage = async (
+  groupId: number,
+): Promise<v.InferOutput<typeof TicketCachePageSchema>> => {
+  const response = await adminGet(`/admin/groups/${groupId}/scan-cache`);
+  expect(response.status).toBe(200);
+  return v.parse(TicketCachePageSchema, await response.json());
+};
 
 /** One group door with its member listings. Names are unique across the
  * whole site — listings and groups both — so a test that opens two doors

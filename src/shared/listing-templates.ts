@@ -83,6 +83,9 @@ export type ListingTemplate = {
   id: TemplateId;
   /** i18n key for the picker card title. */
   label: string;
+  /** Whether the form offers the listing's location box. A physical or digital
+   *  item, a donation, and a subscription have no place to show. */
+  location: boolean;
   requiresDate: boolean;
   requires: TemplateRequirement | null;
   signature: TemplateSignature;
@@ -94,7 +97,11 @@ export type ListingTemplate = {
  *  test/shared/listing-templates.test.ts. */
 const listingTemplate = (
   id: TemplateId,
-  flags: { requiresDate: boolean; requires: TemplateRequirement | null },
+  flags: {
+    location?: boolean;
+    requiresDate: boolean;
+    requires: TemplateRequirement | null;
+  },
   signature: TemplateSignature,
 ): ListingTemplate => {
   const label = `listings_table.template_${id.replaceAll("-", "_")}`;
@@ -102,6 +109,7 @@ const listingTemplate = (
     description: `${label}_description`,
     id,
     label,
+    location: flags.location ?? true,
     requires: flags.requires,
     requiresDate: flags.requiresDate,
     signature,
@@ -118,6 +126,9 @@ const DAILY = {
   purchaseable: false,
   subscribed: false,
 };
+
+/** A digital or physical item, or a donation: nothing to post, nothing dated. */
+const SOLD_UNDATED = { location: false, requires: null, requiresDate: false };
 
 /** Bought, with nothing to check in and nothing dated. */
 const PURCHASABLE = {
@@ -150,7 +161,7 @@ export const LISTING_TEMPLATES: readonly ListingTemplate[] = [
   ),
   listingTemplate("weekly-event", NOT_DATED, DAILY),
   listingTemplate("day-pass", NOT_DATED, DAILY),
-  listingTemplate("online-digital", NOT_DATED, PURCHASABLE),
+  listingTemplate("online-digital", SOLD_UNDATED, PURCHASABLE),
   listingTemplate(
     "hireable-item",
     { requires: "logistics", requiresDate: false },
@@ -159,11 +170,11 @@ export const LISTING_TEMPLATES: readonly ListingTemplate[] = [
     // form.
     { logistics: true, purchaseable: true, subscribed: false },
   ),
-  listingTemplate("physical-product", NOT_DATED, PURCHASABLE),
-  listingTemplate("donation", NOT_DATED, PURCHASABLE),
+  listingTemplate("physical-product", SOLD_UNDATED, PURCHASABLE),
+  listingTemplate("donation", SOLD_UNDATED, PURCHASABLE),
   listingTemplate(
     "subscription",
-    { requires: "subscriptions", requiresDate: false },
+    { location: false, requires: "subscriptions", requiresDate: false },
     // A subscription can also be posted, or need no check-in, so only the
     // undated standard shape is pinned.
     { daily: false, dated: false, subscribed: true },

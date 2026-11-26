@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import {
@@ -12,7 +11,10 @@ import {
 } from "#test/integration/webhook-price-signature/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { readPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
+import {
+  getAttendeesRaw,
+  readPendingNotificationFlags,
+} from "#test-utils/db-helpers/attendees.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";

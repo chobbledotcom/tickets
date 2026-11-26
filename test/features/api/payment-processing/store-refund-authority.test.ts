@@ -2,7 +2,6 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#db/attendees/delete.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, queryOne } from "#db/client.ts";
 import {
   loadPaymentMoveSnapshot,
@@ -13,6 +12,7 @@ import { sql } from "#db/sql.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { protectedStateOf } from "#test-utils/payment-claim.ts";
 import { wrapDbClient } from "#test-utils/record-queries.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";

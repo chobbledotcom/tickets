@@ -77,8 +77,8 @@ src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etit
 # property below is "" before the assignment, so `=` and `+=` finish identical.
 src/ui/client/admin/image-picker-template.ts::optionButton.item%2etitle~0ui2juv  = → += audited:0w9n4n2 # item.title: fresh button from createButton, "" before
 src/ui/client/admin/image-picker-template.ts::refusalMessage.template%2einnerHTML~1vmdtw6  = → += audited:0w9n4n2 # template.innerHTML: fresh template, "" before
-src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0r4ynj5 # image.alt: fresh element, "" before, and "" + "" is ""
-src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0r4ynj5 # image.src: fresh element, "" before
+src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0igeesx # image.alt: fresh element, "" before, and "" + "" is ""
+src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0igeesx # image.src: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
 # /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
 # (Number trims whitespace and "N." is the same decimal) — no typed input can
@@ -103,49 +103,35 @@ src/ui/client/admin/address-lookup.ts::addressOption.option%2etextContent~07nfll
 # whose empty initial value makes assign and append identical.
 src/ui/client/admin/schema-atlas.ts::buildMachine.badge%2etextContent~0ipfp2l = → += audited:1lklx5e # a just-created SVG <text> has empty textContent, so append equals assign
 src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f = → += audited:1lklx5e # same: the <title> is fresh, so append equals assign
-src/ui/client/quantity-select.ts::showQuantitySelect.option%2evalue~0vl4jmp =→+= audited:1e7mtm9 # a fresh option starts with an empty value, so appending writes the same string
-src/ui/client/quantity-select.ts::showQuantitySelect.option%2etextContent~0c55drx =→+= audited:1e7mtm9 # a fresh option starts with empty text, so appending writes the same string
-src/ui/client/confirm-dialog.ts::queue.wait~0a69ai3  ?? → || audited:1xcl2go # the stored turn is a Promise or undefined, and a Promise is truthy even when it later rejects, so both operators answer the same turn
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2evalue~0vl4jmp =→+= audited:0m30ufc # a fresh option starts with an empty value, so appending writes the same string
+src/ui/client/quantity-select.ts::showQuantitySelect.option%2etextContent~0c55drx =→+= audited:0m30ufc # a fresh option starts with empty text, so appending writes the same string
 
 # One answer takes the overlay's handlers away through the abort signal. A
 # handler left behind can only answer a question already settled: the resolve
 # is a no-op and hiding the hidden overlay is idempotent, so the live dialog
 # still answers exactly as it does with the removal in place.
-src/ui/client/confirm-dialog.ts::askOverlay.finish~1vwbyrm listeners.abort();→(removed) audited:1xcl2go # every answer already hid the overlay and resolved its own promise, so a surviving click or Escape handler reaches the next dialog as one more no-op beside the live handler
+src/ui/client/confirm-dialog.ts::askOverlay.finish~1vwbyrm listeners.abort();→(removed) audited:0j7s7sy # every answer already hid the overlay and resolved its own promise, so a surviving click or Escape handler reaches the next dialog as one more no-op beside the live handler
 
 # The camera page renders data-message-camera-denied with the same words as
 # the script's fallback, and server-rendered markup never sets an empty
 # dataset key, so a broken lookup key lands on the same words either way.
-src/ui/client/scanner.ts::init~02xv58k messageCameraDenied→"" audited:1qgu1n4 # the lookup misses into the identical fallback
 
 # The manual check-in form renders no data-message-verify-id-confirm
 # attribute, and its data-message-skipped copy is the same "Skipped {name}" as
 # the fallback. Server-rendered markup never sets an empty dataset key, so a
 # broken lookup key lands on the same words either way.
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.confirmed~1vyukih messageVerifyIdConfirm→"" audited:1a0i51e # the lookup misses into the fallback copy
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d messageSkipped→"" audited:1a0i51e # the lookup misses into the fallback copy
 
 # The manual-checkin message fallbacks: the scanner template renders every
 # data-message attribute the script reads (sharedScanMessageAttrs plus the
 # two option labels), and the en copy of each equals the script's fallback
 # word for word — so a missed lookup lands on the same words, and a mutated
 # fallback copy is never shown.
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.selectOption.detail~1eign4p ??→|| audited:1a0i51e # dataset.detail is a string or undefined; its only falsy string is the "" the fallback supplies
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.answerValues.listingName~0zqcwxz ??→|| audited:1a0i51e # every scan answer that reaches this carries a non-empty listing name or none, so no falsy non-null value arrives
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.answerValues.listingName~0zqcwxz →"mutated" audited:1a0i51e # the fallback fires only on an absent listing name, which no scan answer that reaches this ever has
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~05eghw6 {name} ({tickets}) — {detail}→"" audited:1a0i51e # the form always renders data-message-ticket-option-detail, so the fallback copy never shows
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~1dudzlm messageTicketOption→"" audited:1a0i51e # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.relabelOption.opt%2etextContent~1dudzlm {name} ({tickets})→"" audited:1a0i51e # the form always renders data-message-ticket-option, so the fallback copy never shows
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.handleCheckedIn~1jsm9lf {name} checked in for {listingName} ({tickets})→"" audited:1a0i51e # the form always renders data-message-checked-in, so the fallback copy never shows
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.skipPerson~1e6fg4d Skipped {name}→"" audited:1a0i51e # the form always renders data-message-skipped, so the fallback copy never shows
-src/ui/client/admin/manual-checkin.ts::initManualCheckin.askDoor.count~0irieiu How many tickets for {name}?→"" audited:1a0i51e # the form always renders data-message-select-quantity, so the fallback copy never shows
 
 # The scanner bundle's wording helpers (src/ui/client/scanner-messages.ts):
 # their direct suite (test/ui/client/scanner-messages.test.ts) pins the
 # module's other mutants. A lookup key whose fallback holds a rebrandable
 # word ("ticket") has no record here: the rebrand tests kill it, as the
-# scanner.ts block below states.
-src/ui/client/scanner-messages.ts::getMessage~0dasa24 ??→|| audited:1efykmi # a stored attribute value is a rendered non-empty copy or the key is absent; "" is never stored, so ?? and || agree
+# scanner.js block below states.
 
 # The camera scanner bundle (src/ui/client/scanner.ts): the template renders
 # every data-message attribute the bundle reads (sharedScanMessageAttrs on
@@ -159,32 +145,6 @@ src/ui/client/scanner-messages.ts::getMessage~0dasa24 ??→|| audited:1efykmi # 
 # bundle's hardcoded fallback, so the rebrand tests' assertions kill that
 # lookup mutant. The wording helpers the bundle imports carry their own
 # records in the scanner-messages block above.
-src/ui/client/scanner-admit.ts::askQuantity~0zn85f1 How many tickets for {name}?→""  audited:10yl0ok   # the page always renders data-message-select-quantity, so the fallback copy never shows
-src/ui/client/scanner-admit.ts::skipPerson~16hdwwf messageSkipped→""  audited:10yl0ok   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner-admit.ts::skipPerson~16hdwwf Skipped {name}→""  audited:10yl0ok   # the camera page always renders data-message-skipped, so the fallback copy never shows
-src/ui/client/scanner-admit.ts::handleResult.checked_in~0i33m71 {name} checked in for {listingName} ({tickets} of {total} tickets)→""  audited:10yl0ok   # the camera page always renders data-message-checked-in-partial, so the fallback copy never shows
-src/ui/client/scanner-admit.ts::handleResult.checked_in~0hcmh6n messageCheckedIn→"" audited:10yl0ok # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner-admit.ts::handleResult.checked_in~0hcmh6n {name} checked in for {listingName} ({tickets})→"" audited:10yl0ok # the camera page always renders data-message-checked-in, so the fallback copy never shows
-src/ui/client/scanner-admit.ts::handleResult.already_checked_in~1xcc383 messageAlreadyCheckedIn→"" audited:10yl0ok # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner-admit.ts::handleResult.already_checked_in~1xcc383 {name} already checked in for {listingName} ({tickets})→"" audited:10yl0ok # the camera page always renders data-message-already-checked-in, so the fallback copy never shows
-src/ui/client/scanner-admit.ts::handleResult.refunded~0ba0mx9 messageRefunded→""  audited:10yl0ok   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner-admit.ts::handleResult.refunded~0ba0mx9 {name} has been refunded→""  audited:10yl0ok   # the camera page always renders data-message-refunded, so the fallback copy never shows
-src/ui/client/scanner-admit.ts::handleResult.not_found~0kp32lg Ticket not found→"" audited:10yl0ok # the camera page always renders data-message-not-found, so the fallback copy never shows
-src/ui/client/scanner-admit.ts::handleResult.error~0l5b2wp break;→(removed) audited:10yl0ok # the error case is the switch's last arm, so falling through leaves the switch the same way
-src/ui/client/scanner-admit.ts::askWrongListing~0j85wqg {name} is registered for "{listingName}", not this listing. Check in anyway?→""  audited:10yl0ok   # the camera page always renders data-message-wrong-listing-confirm, so the fallback copy never shows
-src/ui/client/scanner-admit.ts::askWrongListing~0j85wqg messageWrongListingConfirm→""  audited:10yl0ok   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner-admit.ts::askIdCheck.ok~0l175sd Does their ID match "{name}"?→"" audited:10yl0ok # the camera page always renders data-message-verify-id-confirm, so the fallback copy never shows
-src/ui/client/scanner-admit.ts::askIdCheck.ok~0l175sd messageVerifyIdConfirm→"" audited:10yl0ok # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner-admit.ts::askIdCheck~0wnathp messageIdMismatch→""  audited:10yl0ok   # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner-admit.ts::askIdCheck~0wnathp ID does not match {name}→""  audited:10yl0ok   # the camera page always renders data-message-id-mismatch, so the fallback copy never shows
-src/ui/client/scanner.ts::startScanner.scan.processing~1gtvkhn =→+= audited:1qgu1n4 # the write runs only after the guard above it passed, so processing is always false there; false + true is 1, which is truthy like the true it replaces
-src/ui/client/scanner.ts::startScanner.scan~1ub4fcx messageInvalidQr→"" audited:1qgu1n4 # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner.ts::startScanner.scan~1ub4fcx Invalid QR code→"" audited:1qgu1n4 # the camera page always renders data-message-invalid-qr, so the fallback copy never shows
-src/ui/client/scanner.ts::startScanner.scan~0ws35sc messageNetworkError→"" audited:1qgu1n4 # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner.ts::startScanner.scan~0ws35sc Network error→"" audited:1qgu1n4 # the camera page always renders data-message-network-error, so the fallback copy never shows
-src/ui/client/scanner.ts::init~12c1xgq messageScanning→"" audited:1qgu1n4 # the lookup misses into the fallback copy, whose words are the rendered attribute's own
-src/ui/client/scanner.ts::init~12c1xgq Scanning...→"" audited:1qgu1n4 # the camera page always renders data-message-scanning, so the fallback copy never shows
-src/ui/client/scanner.ts::init.csrfToken~13q1hyq →"mutated" audited:1qgu1n4 # the scanner page's headExtra always renders the csrf meta, so the empty fallback never fires
 
 
 # --- External order widget additions (2026-10 sessions) -------------------------
@@ -228,89 +188,15 @@ src/ui/client/admin/listing-images.ts::chosenItem.button%2etextContent~0frpih7  
 # undefined. An object is never falsy, so both operators give the same value.
 src/ui/client/admin/listing-images.ts::setUpListingImages.reload.draft~06jz6of  ?? → ||  audited:15y3c6o   # find gives an option object or undefined, and an object is never falsy
 src/ui/client/admin/listing-images.ts::setUpListingImages.render~1gqg28i  ?? → ||  audited:15y3c6o   # served.get gives an element or undefined, and an element is never falsy
+src/ui/client/scan-flow.ts::ANSWER_WORDS.other~1tcdw7w  ?? → || audited:0wyvero   # the schema reads error as undefined or a non-empty string, so ?? and || pick the same side
 
-# The offline queue sync (src/ui/client/scanner-offline-sync.ts): its message words come from
-# the page, which always renders them. The scanner words test pins each fallback to the page's
-# own words, so a lost key or a lost fallback shows the same words. The rest are the
-# empty-start writes and the failed-delivery render, whose reasons say why.
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.already_checked_in~03jfj1t messageQueueItemAlready→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.already_checked_in~03jfj1t Was already checked in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.checked_in~06fp0ww messageQueueItemCheckedIn→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.checked_in~06fp0ww Checked in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.not_found~0p9aeag messageNotFound→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.not_found~0p9aeag Ticket not found→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.refunded~07d3nzp messageQueueItemRefunded→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.refunded~07d3nzp Refunded — not checked in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.wrong_listing~02xi3u5 messageNoDoor→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::OUTCOME_WORDS.wrong_listing~02xi3u5 This ticket has no door to check in at.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::COUNT_ONE_WORDS~120glrm messageQueueCountOne→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::COUNT_ONE_WORDS~120glrm {count} queued check-in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::COUNT_OTHER_WORDS~1clzsqb messageQueueCountOther→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::COUNT_OTHER_WORDS~1clzsqb {count} queued check-ins→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::SYNC_DONE_WORDS~0nxk0gp messageSyncDone→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::SYNC_DONE_WORDS~0nxk0gp Queued tickets are done.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::SYNC_STILL_QUEUED_WORDS~0numb81 messageSyncStillQueued→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::SYNC_STILL_QUEUED_WORDS~0numb81 Some tickets are still queued. The page will try to check them in again.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::NOT_CHECKED_IN_WORDS~08cmanc messageQueueItemNotCheckedIn→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::NOT_CHECKED_IN_WORDS~08cmanc Not checked in→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::queueOutcome~0bv6tjk messageQueueItemOverAdmitted→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::queueOutcome~0bv6tjk Alert: {name} — this check-in was for {named}, but the booking only had {admitted} left. The booking holds {bought} in total.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::queueOutcome~0gb4hog ??→|| audited:1s6pc69 # the words table holds a pair or nothing, and a pair is truthy, so ?? and || agree
-src/ui/client/scanner-offline-sync.ts::queuedRow.row%2etextContent~1geifw1 =→+= audited:1s6pc69 # the new row has no text yet, so adding to it equals setting it
-src/ui/client/scanner-offline-sync.ts::queuedRow.row%2etextContent~1uotcq8 messageQueueItemQueued→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::queuedRow.row%2etextContent~1uotcq8 Waiting — will be checked in when online→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::syncQueue.dropAnswered~12yybr3 messageQueueSaveFailed→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::syncQueue.dropAnswered~12yybr3 This device could not save the queued check-ins. Free up space, then reload this page.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2eclassName~1vuuwez =→+= audited:1s6pc69 # the row has no class when it settles, so adding to its class equals setting it
-src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2etextContent~0x2c2nx messageQueueItemExpired→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2etextContent~0x2c2nx This queued check-in is too old to send. Scan the ticket again while you are online.→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2etextContent~0r1nb8v messageQueueItemStillQueued→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2etextContent~0r1nb8v Not sent yet — still queued→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow~0k9a955@1 renderQueueCount(panel, messages);→(removed) audited:1s6pc69 # a failed delivery changes neither the stored queue nor the rows, so the count and the panel already read right
-src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2eclassName~0jf4238 =→+= audited:1s6pc69 # the row has no class when it settles, so adding to its class equals setting it
-src/ui/client/scanner-offline-sync.ts::syncQueue~1ozove5 messageSyncRunning→"" audited:1s6pc69 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-sync.ts::syncQueue~1ozove5 Checking in queued tickets...→"" audited:1s6pc69 # the page always renders this message, so its fallback words never show
+# The dom helpers and the scanner service worker.
+src/ui/client/dom.ts::createHiddenInput.input%2ename~0c3eqyi =→+= audited:0igeesx # the new element's property starts empty, so adding to it equals setting it
+src/ui/client/dom.ts::createHiddenInput.input%2evalue~1t6bjgm =→+= audited:0igeesx # the new element's property starts empty, so adding to it equals setting it
+src/ui/client/dom.ts::csrfTokenFor~0yx2rmg ??→|| audited:0igeesx # the field's value is a string, so ?? and || differ only on the empty string, which gives the same empty answer
+src/ui/client/scanner-sw.ts::networkFirst~0gf3pm3 ??→|| audited:1jxp2qh # the cache answers a Response or nothing, and a Response is truthy, so ?? and || agree
 
-# The DOM helpers (src/ui/client/dom.ts): a fresh element's properties start empty, and the
-# token field reads as an empty string when it holds nothing.
-src/ui/client/dom.ts::createHiddenInput.input%2ename~0c3eqyi =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
-src/ui/client/dom.ts::createHiddenInput.input%2evalue~1t6bjgm =→+= audited:0r4ynj5 # the new element's property starts empty, so adding to it equals setting it
-src/ui/client/dom.ts::csrfTokenFor~0yx2rmg ??→|| audited:0r4ynj5 # the field's value is a string, so ?? and || differ only on the empty string, which gives the same empty answer
-
-# The scanner service worker (src/ui/client/scanner-sw.ts).
-src/ui/client/scanner-sw.ts::networkFirst~0gf3pm3 ??→|| audited:027in26 # the cache answers a Response or nothing, and a Response is truthy, so ?? and || agree
-
-# The offline UI (src/ui/client/scanner-offline-ui.ts): its words come from the page, which
-# always renders them, and the scanner words test pins each fallback to the page's own words.
-src/ui/client/scanner-offline-ui.ts::updateOfflineBanner.bannerText%2etextContent~1mep61v messageOfflineBannerManual→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::updateOfflineBanner.bannerText%2etextContent~1mep61v Offline mode is on. Scans are queued and checked in when you are back online.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::updateOfflineBanner.bannerText%2etextContent~0m1qius messageOfflineBannerAuto→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::updateOfflineBanner.bannerText%2etextContent~0m1qius No connection. Scans are queued and checked in when you are back online.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::doorKeyBytes~0d7kk5a The scanner page carries no data-door-cache-key→"" audited:0797elh # the scanner catches this setup error and runs online only, so nobody reads its words
-src/ui/client/scanner-offline-ui.ts::replayWindowMs~131xdc1 The scanner page carries no usable data-scan-operation-retention-days→"" audited:0797elh # the scanner catches this setup error and runs online only, so nobody reads its words
-src/ui/client/scanner-offline-ui.ts::offlineScan~0ves897 messageOfflineCacheMissing→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::offlineScan~0ves897 No offline ticket list yet. Go online and reload this page first.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::offlineScan~0a53m51 messageOfflineCacheExpired→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::offlineScan~0a53m51 The offline ticket list has expired. Go online and reload this page.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::offlineScan~0ots2hq messageOfflineInvalid→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::offlineScan~0ots2hq This ticket cannot be checked in offline. Scan it again when you are back online to see why.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::offlineScan~1xent2x messageOfflineAlreadyQueued→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::offlineScan~1xent2x This ticket is already queued. Do not let them in again.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::offlineScan.quantity~1qj319i messageOfflineQuantityAsk→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::offlineScan.quantity~1qj319i How many people are you checking in?→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::offlineScan~0fth6sa messageOfflineNotQueued→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::offlineScan~0fth6sa Nothing was queued. Scan the ticket again to check them in.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::offlineScan~0vehkoq messageOfflineSaveFailed→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::offlineScan~0vehkoq This scan was not saved. Free up space on this device, then scan it again.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::offlineScan~1hq0dun messageOfflineQueued→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::offlineScan~1hq0dun Ticket looks valid. It will be checked in when you are back online.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-src/ui/client/scanner-offline-ui.ts::initOfflineScanner~10w2zdo messageOfflineModeSaveFailed→"" audited:0797elh # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner-offline-ui.ts::initOfflineScanner~10w2zdo Your change was not saved. Free up space on this device, then try again.→"" audited:0797elh # the page always renders this message, so its fallback words never show
-
-# The camera scanner (src/ui/client/scanner.ts).
-src/ui/client/scanner.ts::extractToken~0ma4ttp ??→|| audited:1qgu1n4 # the capture group matches one or more characters, so it is text or missing, and || agrees with ??
-src/ui/client/scanner.ts::startScanner.settleScan~1e62z4v messageSyncHolds→"" audited:1qgu1n4 # the lookup misses into the fallback words, which the scanner words test pins to the page's own
-src/ui/client/scanner.ts::startScanner.settleScan~1e62z4v Checking in queued tickets. Scan again when done.→"" audited:1qgu1n4 # the page always renders this message, so its fallback words never show
-src/ui/client/scanner.ts::startScanner.scan.processing~1gtvkhn true→false audited:1qgu1n4 # the loop schedules the next scan only after this scan finishes, so no scan reads the flag while it is set
-src/ui/client/scanner.ts::init.csrfToken~13q1hyq ??→|| audited:1qgu1n4 # the meta tag's content is a string, so ?? and || differ only on the empty string, which gives the same empty token
-src/ui/client/scanner.ts::init.settleDelivery~10bjip9 ??→|| audited:1qgu1n4 # the declined answer is an object or null, and an object is truthy, so ?? and || agree
+# The offline queue and UI: the settled rows are bare list items, so their
+# class writes start from the empty string.
+src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2eclassName~1vuuwez =→+= audited:03677q4 # only a row still queued can settle again, and a queued row has no class, so adding to its class equals setting it
+src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2eclassName~0jf4238 =→+= audited:03677q4 # only a row still queued can settle again, and a queued row has no class, so adding to its class equals setting it

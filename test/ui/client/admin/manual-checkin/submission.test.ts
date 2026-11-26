@@ -1,24 +1,26 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { useManualCheckinPage } from "./fixture.ts";
+import { alreadyIn, checkedIn, useManualCheckinPage } from "./fixture.ts";
 
 describe("manual check-in submission", () => {
-  const { setup } = useManualCheckinPage();
+  const { pickedPage, setup } = useManualCheckinPage();
 
-  test("submission without a selected ticket does not call the server", async () => {
-    const page = setup();
+  test("a search shorter than two letters asks for more and calls nothing", async () => {
+    const page = await setup();
     using fetchStub = stubFetch(Response.json({ status: "checked_in" }));
+    page.input.value = " a ";
 
     const event = await page.submit();
 
     expect(event.defaultPrevented).toBe(true);
     expect(fetchStub.calls.length).toBe(0);
+    expect(page.status.textContent).toBe("Type more letters.");
+    expect(page.status.className).toBe("checkin-status checkin-status-warning");
   });
 
   test("successful submission checks in and removes the selected option", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
+    const page = await pickedPage("11");
     page.input.value = "Ada";
     using _fetch = stubFetch((url, init) => {
       expect(url).toBe("/admin/listing/7/scan");
@@ -28,13 +30,7 @@ describe("manual check-in submission", () => {
         "x-csrf-token": "csrf",
       });
       expect(JSON.parse(String(init?.body))).toEqual({ attendee_id: 11 });
-      return Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 2,
-        remaining: 0,
-        status: "checked_in",
-      });
+      return Response.json(checkedIn());
     });
 
     await page.submit();
@@ -43,39 +39,29 @@ describe("manual check-in submission", () => {
       "Ada checked in for Ceilidh (2 tickets)",
     );
     expect(page.status.className).toBe("checkin-status checkin-status-success");
-    expect(page.listbox.querySelector("[data-attendee-id='11']")).toBeNull();
-    expect(page.attendeeIdInput.value).toBe("");
+    expect(page.listbox.querySelector("[data-key='11']")).toBeNull();
+    expect(page.buttonLabel()).toBe("Search");
     expect(page.input.value).toBe("");
   });
 
-  test("successful submission defaults an invalid quantity to one", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
-    using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: "two",
-        status: "checked_in",
-      }),
-    );
+  test("a check-in answer that misses its counts fails loudly and keeps the pick", async () => {
+    const page = await pickedPage("11");
+    using _fetch = stubFetch(Response.json(checkedIn({ quantity: "two" })));
 
     await page.submit();
 
-    expect(page.status.textContent).toBe("Ada checked in for Ceilidh (1 pass)");
-    expect(page.listbox.querySelectorAll("[role=option]").length).toBe(2);
+    // A broken answer is a contract break, not a generic refusal.
+    expect(page.status.textContent).toBe(
+      "Something went wrong. Reload this page, then try again.",
+    );
+    expect(page.listbox.querySelectorAll("[role=option]").length).toBe(3);
+    expect(page.buttonLabel()).toBe("Check In");
   });
 
   test("successful submission keeps a zero ticket quantity", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
+    const page = await pickedPage("11");
     using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 0,
-        status: "checked_in",
-      }),
+      Response.json(checkedIn({ quantity: 0, total: 0 })),
     );
 
     await page.submit();
@@ -85,114 +71,61 @@ describe("manual check-in submission", () => {
     );
   });
 
-  test("successful submission uses empty text for an unknown message value", async () => {
-    const page = setup();
-    page.form.dataset.messageCheckedIn = "{name}:{missing}";
-    page.attendeeIdInput.value = "11";
-    using _fetch = stubFetch(
-      Response.json({ name: "Ada", quantity: 2, status: "checked_in" }),
-    );
-
-    await page.submit();
-
-    expect(page.status.textContent).toBe("Ada:");
-  });
-
   test("a full check-in removes every matching option", async () => {
-    const page = setup();
-    const option = page.listbox.querySelector<HTMLElement>(
-      "[data-attendee-id='11']",
-    )!;
+    const page = await setup();
+    const option = page.listbox.querySelector<HTMLElement>("[data-key='11']")!;
     page.listbox.append(option.cloneNode(true));
-    page.attendeeIdInput.value = "11";
-    using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 2,
-        remaining: 0,
-        status: "checked_in",
-      }),
-    );
+    page.pick("11");
+    using _fetch = stubFetch(Response.json(checkedIn()));
 
     await page.submit();
 
-    expect(
-      page.listbox.querySelectorAll("[data-attendee-id='11']").length,
-    ).toBe(0);
+    expect(page.listbox.querySelectorAll("[data-key='11']").length).toBe(0);
   });
 
   test("a check-in with tickets remaining keeps the person's option, showing what is left", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
-    using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 2,
-        remaining: 3,
-        status: "checked_in",
-      }),
-    );
+    const page = await pickedPage("11");
+    using _fetch = stubFetch(Response.json(checkedIn({ remaining: 3 })));
 
     await page.submit();
 
-    const option = page.listbox.querySelector<HTMLElement>(
-      "[data-attendee-id='11']",
-    )!;
+    const option = page.listbox.querySelector<HTMLElement>("[data-key='11']")!;
     expect(option.dataset.quantity).toBe("3");
     expect(option.textContent).toBe("Ada (3 tickets) - Camping · 12 Jun");
-    expect(page.attendeeIdInput.value).toBe("");
+    expect(page.buttonLabel()).toBe("Search");
     expect(page.input.value).toBe("");
   });
 
   test("an option with no day or listing keeps the plain label as it shrinks", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "13";
+    const page = await pickedPage("13");
     using _fetch = stubFetch(
-      Response.json({
-        listingName: "Ceilidh",
-        name: "Cy",
-        quantity: 2,
-        remaining: 1,
-        status: "checked_in",
-      }),
+      Response.json(checkedIn({ name: "Cy", remaining: 1 })),
     );
 
     await page.submit();
 
-    const option = page.listbox.querySelector<HTMLElement>(
-      "[data-attendee-id='13']",
-    )!;
+    const option = page.listbox.querySelector<HTMLElement>("[data-key='13']")!;
     expect(option.dataset.quantity).toBe("1");
     expect(option.textContent).toBe("Cy (1 pass)");
   });
 
-  test("already checked in results show a warning", async () => {
-    const page = setup();
-    page.form.dataset.messageAlreadyCheckedIn = "{name} already ({tickets})";
-    page.attendeeIdInput.value = "11";
-    using _fetch = stubFetch(
-      Response.json({ name: "Ada", quantity: 0, status: "already_checked_in" }),
-    );
+  test("already checked in results show a warning with their ticket quantity", async () => {
+    for (const [quantity, words] of [
+      [0, "Ada already checked in for Ceilidh (0 tickets)"],
+      [2, "Ada already checked in for Ceilidh (2 tickets)"],
+    ] as const) {
+      const page = await pickedPage("11");
+      using _fetch = stubFetch(
+        Response.json(alreadyIn({ quantity, total: quantity })),
+      );
 
-    await page.submit();
+      await page.submit();
 
-    expect(page.status.textContent).toBe("Ada already (0 tickets)");
-    expect(page.status.className).toBe("checkin-status checkin-status-warning");
-  });
-
-  test("already checked in results keep their ticket quantity", async () => {
-    const page = setup();
-    page.form.dataset.messageAlreadyCheckedIn = "{tickets}";
-    page.attendeeIdInput.value = "11";
-    using _fetch = stubFetch(
-      Response.json({ name: "Ada", quantity: 2, status: "already_checked_in" }),
-    );
-
-    await page.submit();
-
-    expect(page.status.textContent).toBe("2 tickets");
+      expect(page.status.textContent).toBe(words);
+      expect(page.status.className).toBe(
+        "checkin-status checkin-status-warning",
+      );
+    }
   });
 
   for (const scanError of [
@@ -207,24 +140,18 @@ describe("manual check-in submission", () => {
       result: { status: "not_found" },
     },
     {
-      expected: "Scan failed",
-      name: "unknown results prefer their error",
-      result: { error: "Scan failed", message: "Ignored" },
-    },
-    {
-      expected: "Try again",
-      name: "unknown results fall back to their message",
-      result: { message: "Try again" },
+      expected: "Invalid quantity",
+      name: "a refusal shows the API's own words",
+      result: { error: "Invalid quantity" },
     },
     {
       expected: "Check-in failed",
-      name: "unknown results use the configured error message",
+      name: "an answer with no words shows the page's error words",
       result: {},
     },
   ]) {
     test(scanError.name, async () => {
-      const page = setup();
-      page.attendeeIdInput.value = "11";
+      const page = await pickedPage("11");
       using _fetch = stubFetch(Response.json(scanError.result));
 
       await page.submit();
@@ -234,63 +161,8 @@ describe("manual check-in submission", () => {
     });
   }
 
-  for (const fallback of [
-    {
-      expected: "Ada already checked in for Ceilidh (2 tickets)",
-      key: "messageAlreadyCheckedIn",
-      name: "already checked in results use their fallback message",
-      result: {
-        listingName: "Ceilidh",
-        name: "Ada",
-        quantity: 2,
-        status: "already_checked_in",
-      },
-    },
-    {
-      expected: "Ada has been refunded",
-      key: "messageRefunded",
-      name: "refunded results use their fallback message",
-      result: { name: "Ada", status: "refunded" },
-    },
-    {
-      expected: "Ticket not found",
-      key: "messageNotFound",
-      name: "not found results use their fallback message",
-      result: { status: "not_found" },
-    },
-    {
-      expected: "Error",
-      key: "messageError",
-      name: "unknown results use their fallback error message",
-      result: {},
-    },
-  ]) {
-    test(fallback.name, async () => {
-      const page = setup();
-      delete page.form.dataset[fallback.key];
-      page.attendeeIdInput.value = "11";
-      using _fetch = stubFetch(Response.json(fallback.result));
-
-      await page.submit();
-
-      expect(page.status.textContent).toBe(fallback.expected);
-    });
-  }
-
-  test("an empty configured message stays empty", async () => {
-    const page = setup();
-    page.form.dataset.messageNotFound = "";
-    page.attendeeIdInput.value = "11";
-    using _fetch = stubFetch(Response.json({ status: "not_found" }));
-
-    await page.submit();
-
-    expect(page.status.textContent).toBe("");
-  });
-
   test("network failures show an error and re-enable submission", async () => {
-    const page = setup();
-    page.attendeeIdInput.value = "11";
+    const page = await pickedPage("11");
     using _fetch = stubFetch(new Error("offline"));
 
     await page.submit();
@@ -298,16 +170,5 @@ describe("manual check-in submission", () => {
     expect(page.status.textContent).toBe("Could not reach server");
     expect(page.status.className).toBe("checkin-status checkin-status-error");
     expect(page.submitButton.disabled).toBe(false);
-  });
-
-  test("network failures use the fallback message when none is configured", async () => {
-    const page = setup();
-    delete page.form.dataset.messageNetworkError;
-    page.attendeeIdInput.value = "11";
-    using _fetch = stubFetch(new Error("offline"));
-
-    await page.submit();
-
-    expect(page.status.textContent).toBe("Network error");
   });
 });

@@ -25,7 +25,7 @@ import {
   withEmptyCache,
 } from "#test/ui/client/scanner/camera-fakes.ts";
 import {
-  el,
+  MODE_KEY,
   queuedItem,
   SCAN_PATH,
   type ScannerHarness,
@@ -35,20 +35,17 @@ import {
   whenTextShows,
 } from "#test/ui/client/scanner/fixture.ts";
 import {
+  askedUrls,
   digestOf,
-  expectSwitchRefused,
   postedDeliveryHashes,
   queuedItems,
-  queueSummary,
   refusingDoor,
   settledCheckIn,
-  switchArmed,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-const CACHE_PATH = SCAN_PATH.replace(/\/scan$/, "/scan-cache");
 const LIST_KEY = `scanner-tickets-${SCAN_PATH}`;
 const QUEUED_WORDS =
   "Ticket looks valid. It will be checked in when you are back online.";
@@ -93,61 +90,35 @@ describe("scanner offline store", {
     });
   }
 
-  test("drops a stored list it cannot read", async () => {
-    using _fetch = refusingDoor();
-    const h = fresh({
-      onLine: false,
-      seed: (store) => store.setItem(LIST_KEY, "not a list"),
-    });
-    using fakes = cameraFakes(h);
-    fakes.ready(4);
-    await start(h);
-    await scanFirst(fakes, TOKEN);
-
-    await whenStatusShows(
-      h.statusEl,
-      "No offline ticket list yet. Go online and reload this page first.",
-    );
-    expect(h.window.localStorage.getItem(LIST_KEY)).toBeNull();
-  });
-
-  test("stores the list the page load fetches, stamped with this device's clock", async () => {
-    const entries = [{ hash: "digest-one", tickets: 2 }];
-    using _fetch = stubFetch((url) =>
-      String(url) === CACHE_PATH
-        ? Response.json({ entries })
-        : Response.json({}, { status: 500 }),
-    );
-    const h = fresh();
-    await drain();
-
-    const stored = JSON.parse(
-      h.window.localStorage.getItem(LIST_KEY) ?? "null",
-    );
-    expect(stored.entries).toEqual(entries);
-    expect(typeof stored.storedAt).toBe("number");
-  });
-
   const badLists: readonly [string, () => Response][] = [
-    [
-      "refused the fetch",
-      () =>
-        Response.json(
-          { entries: [{ hash: "digest-one", tickets: 2 }] },
-          { status: 500 },
-        ),
-    ],
+    ["refused the fetch", () => Response.json({}, { status: 500 })],
     [
       "sent a bad one",
-      () => Response.json({ entries: [{ hash: "digest-one", tickets: 0 }] }),
+      () =>
+        Response.json({
+          entries: [
+            { details: [], hash: "digest-one", name: "Ada", quantity: 0 },
+          ],
+          next: null,
+          people: 1,
+          total: 1,
+        }),
     ],
   ];
   for (const [what, answer] of badLists) {
     test(`keeps no list from a door that ${what}`, async () => {
-      using _fetch = stubFetch(answer);
-      const h = fresh();
-      await drain();
+      using fetchStub = stubFetch(answer);
+      const h = fresh({ seed: (store) => store.setItem(MODE_KEY, "1") });
+      await whenStatusShows(
+        h.statusEl,
+        "Something went wrong. Reload this page, then try again.",
+      );
 
+      // The armed switch really asked for the door's list, and the refused
+      // answer stored nothing.
+      expect(askedUrls(fetchStub)).toEqual([
+        SCAN_PATH.replace(/\/scan$/, "/scan-cache"),
+      ]);
       expect(h.window.localStorage.getItem(LIST_KEY)).toBeNull();
     });
   }
@@ -166,70 +137,6 @@ describe("scanner offline store", {
 
     expect(registered).toEqual(["/admin/scanner-sw.js"]);
   });
-
-  test("reads a stored mode back as the switch's position", () => {
-    using _fetch = refusingDoor();
-    const h = fresh({ onLine: false, ...switchArmed });
-
-    expect(
-      el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
-    ).toBe("true");
-  });
-
-  test("reads a store that refuses reads as a switch that is off", () => {
-    using _fetch = refusingDoor();
-    const h = fresh({
-      seed: (store) =>
-        Object.defineProperty(store, "getItem", {
-          value: () => {
-            throw new Error("The store is blocked");
-          },
-        }),
-    });
-
-    expect(
-      el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
-    ).toBe("false");
-    expect(el(h.document, "scanner-offline-banner").className).toContain(
-      "hidden",
-    );
-  });
-
-  test("stores the mode the door turns on and clears it when the door turns it off", () => {
-    using _fetch = refusingDoor();
-    const h = fresh({ onLine: false });
-    const toggle = el(h.document, "scanner-offline-toggle");
-
-    toggle.click();
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe("1");
-    expect(h.statusEl.className).not.toContain("scanner-status-error");
-
-    toggle.click();
-    expect(h.window.localStorage.getItem("scanner-offline-mode")).toBeNull();
-  });
-
-  test("keeps the switch on and says so when the store refuses the change", async () => {
-    using _fetch = stubFetch(new Error("offline"));
-    await expectSwitchRefused(fresh({ onLine: false, ...switchArmed }));
-  });
-
-  const unreadable: readonly [string, Record<string, string>][] = [
-    ["names no delivery", { operationId: "" }],
-    ["names no ticket digest", { tokenHash: "" }],
-  ];
-  for (const [what, change] of unreadable) {
-    test(`ignores a queued item that ${what}`, () => {
-      using _fetch = refusingDoor();
-      const queue = JSON.stringify([{ ...queuedItem, ...change }]);
-      const h = fresh({
-        onLine: false,
-        seed: (store) => store.setItem("scanner-queue", queue),
-      });
-
-      expect(queueSummary(h)).toBe("0 queued check-ins");
-      expect(storedQueue(h)).toBe(queue);
-    });
-  }
 
   test("settles each queued check-in on its own and empties the store", async () => {
     const seed = await queuedItems(["tok1", "tok2"]);

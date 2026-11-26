@@ -82,7 +82,9 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
         sessionId: "cs_modifier_ok",
       }),
     );
-    const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+    const { getAttendeesRaw } = await import(
+      "#test-utils/db-helpers/attendees.ts"
+    );
     expect((await getAttendeesRaw(listing.id)).length).toBe(1);
   });
 

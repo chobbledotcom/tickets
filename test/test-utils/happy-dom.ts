@@ -150,3 +150,17 @@ export const fireEvent = (
 ): void => {
   target.dispatchEvent(event);
 };
+
+/** Wait until the page settles, or fail after a bounded number of turns. A
+ * mutant that never answers the door would otherwise hang the whole run
+ * instead of failing the one test. */
+export const waitUntilSettled = async (
+  settled: () => boolean,
+  what: string,
+): Promise<void> => {
+  for (let turn = 0; turn < 1000; turn++) {
+    if (settled()) return;
+    await Promise.resolve();
+  }
+  throw new Error(`${what} never settled`);
+};

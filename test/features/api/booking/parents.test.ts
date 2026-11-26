@@ -206,7 +206,9 @@ describePublicApi(() => {
     test("books no attendees when conflicting child prices are rejected", async () => {
       const { parent, child } = await parentWithTwoUnitPayMoreChild();
       await bookTwoChildEntries(parent.slug, child, [30, 20]);
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
     });

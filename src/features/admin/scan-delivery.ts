@@ -5,7 +5,6 @@
 
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
-import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
 import { getAttendeesByIdsWithBookings } from "#db/attendees/tokens.ts";
 import {
   type DeliveredScanOperation,
@@ -14,7 +13,6 @@ import {
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { hmacHex, importHmacKey } from "#shared/sha256.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
-import type { Attendee } from "#types";
 
 /** A queued delivery's whole identity: the operation id the device made
  * up, the token digest it stored, and the quantity it admits. The
@@ -85,7 +83,7 @@ export const attendeeById = async (
  * saved. A digest keyed for another door answers null, never a roster. */
 export const attendeeByTokenHash = async (
   tokenHash: string,
-  candidates: readonly DecryptedAttendeeRow<Attendee>[],
+  candidates: readonly { id: number; ticket_token: string }[],
   door: string,
 ): Promise<AttendeeWithBookings | null> => {
   const key = await importHmacKey(deriveDoorCacheKey(door));

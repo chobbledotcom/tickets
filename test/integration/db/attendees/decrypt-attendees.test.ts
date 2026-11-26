@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decryptAttendees } from "#db/attendees/pii.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -11,6 +10,7 @@ import {
   createTestAttendee,
   decryptFirstAttendee,
   expectNoDecryptedAttendees,
+  getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 

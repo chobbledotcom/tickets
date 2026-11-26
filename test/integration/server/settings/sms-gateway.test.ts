@@ -71,7 +71,7 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        "Server URL (optional) must be 250 characters or fewer",
+        "Server URL must be 250 characters or fewer",
         false,
       );
       expect(settings.smsGatewayUsername).toBe("");
@@ -88,7 +88,7 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        "Webhook signing secret (optional) must be 250 characters or fewer",
+        "Webhook signing secret must be 250 characters or fewer",
         false,
       );
       expect(settings.smsGatewayUsername).toBe("");

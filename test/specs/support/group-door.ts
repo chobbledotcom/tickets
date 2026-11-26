@@ -116,7 +116,10 @@ export const groupDoorPageHtml: ReadAboutOneThing = async (world, groupName) =>
 
 /** The people the group's own scanner offers when the organiser looks someone
  * up by hand instead of reading their ticket. */
-export const peopleOfferedAtGroupDoor = offeredAt(groupDoorPageHtml);
+export const peopleOfferedAtGroupDoor = offeredAt(
+  (world, groupName) =>
+    `/admin/groups/${doorIdNamed(world, groupName)}/scan-search`,
+);
 
 /** Turn the group's own "check in every listing when scanning" box on,
  * through the very edit form the group's page renders. The page's other
