@@ -41,7 +41,9 @@ describeWithEnv(
         expect(response.status).toBe(302);
         const location = response.headers.get("location") || "";
         assert(!location.includes("checkout"));
-        const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+        const { getAttendeesRaw } = await import(
+          "#test-utils/db-helpers/attendees.ts"
+        );
         const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
       };

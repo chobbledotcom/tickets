@@ -1,7 +1,6 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getNoteRows } from "#db/notes/queries.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
@@ -11,6 +10,7 @@ import {
   expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
   deactivateTestListing,

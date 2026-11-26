@@ -176,10 +176,10 @@ The filename states the concept; the concept fills the file.
 `largest-remainder.ts`, `phone.ts`, `slug.ts`, `record-table.ts`,
 `request-cache.ts`, `keyed-cache.ts` — you can guess each file's exports from
 its name and vice versa. Function names carry contracts the same way: the `Raw`
-suffix on `getAttendeesRaw`/`getAttendeeRaw` means "PII still encrypted —
-decrypt before display", and `getUserDisplayFields` names the exact narrow
-column set it selects. If you cannot name the file in a couple of words, it is
-probably two concepts — split it.
+suffix on `getAttendeeRaw`/`getListingWithAttendeesRaw` means "PII still
+encrypted — decrypt before display", and `getUserDisplayFields` names the exact
+narrow column set it selects. If you cannot name the file in a couple of words,
+it is probably two concepts — split it.
 
 ## Valibot and standard libraries
 
@@ -372,8 +372,8 @@ require decryption:
   (The one sanctioned scan-decrypt — invite codes in `users.ts` — is documented
   and bounded by a tiny keyspace.)
 - **One blob, one decrypt, decrypt late.** All attendee PII lives in a single
-  `pii_blob` (`src/shared/db/attendees/pii.ts`); list queries select it without
-  decrypting (`getAttendeesRaw` and friends in
+  `pii_blob` (`src/shared/db/attendees/pii.ts`). List queries select it without
+  decrypting (`loadAttendeeRows` and the paged reads in
   `src/shared/db/attendees/queries.ts`), and `decryptAttendees` runs only at
   render time. `decryptPiiBlob`'s `paidListing` flag even gates which fields
   come out of the blob, and `getAttendeeNamesByIds` decrypts just the name.

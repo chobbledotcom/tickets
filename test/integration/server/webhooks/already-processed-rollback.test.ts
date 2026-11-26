@@ -52,7 +52,9 @@ describeWithEnv(
         "no longer accepting",
       );
 
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       const attendees1 = await getAttendeesRaw(listing1.id);
       expect(attendees1.length).toBe(0);
     });

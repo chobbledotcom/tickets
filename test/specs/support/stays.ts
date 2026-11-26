@@ -5,7 +5,6 @@
  * listing offers move with the calendar.
  */
 
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { addDays } from "#shared/dates.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
@@ -18,6 +17,7 @@ import type {
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { testDate } from "#test-utils/dates.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import type { Attendee, Listing } from "#types";
 
 /** Somebody new each time, so two stays are never taken for one person. */

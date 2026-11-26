@@ -1,85 +1,33 @@
-import { remainingTickets } from "#booking/remaining-tickets.ts";
-import { decryptAttendees } from "#db/attendees/pii.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAllGroupNames, getGroupById } from "#db/groups.ts";
 import { getListingPickerNames } from "#db/listings/catalog.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_DAYS } from "#db/processed-scan-operations.ts";
-import { filter, groupToMap, sumOf } from "#fp";
 import { sortedByString } from "#fp-strings";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { pageGuardFor, SCANNER_JSON, withAuth } from "#routes/auth.ts";
+import { pageGuardFor } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
-import {
-  htmlResponse,
-  jsonResponse,
-  notFoundResponse,
-} from "#routes/response.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { pageGuardAt } from "#routes/route-gates.ts";
 import { adminDestination } from "#shared/admin-surface.ts";
-import { formatDateLabel } from "#shared/date-labels.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
-import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   adminScannerDoorsPage,
   adminScannerPage,
   type ScannerDoor,
-  type TicketOption,
 } from "#templates/admin/scanner.tsx";
-import { type Attendee, type Group, hasTicketQuantity } from "#types";
+import type { Group } from "#types";
 import { listingWithCountHandler } from "./listing-entity.ts";
-import {
-  groupScope,
-  listingScope,
-  processScan,
-  scopeAttendees,
-} from "./scan-answer.ts";
+import { groupScope, processScan } from "./scan-answer.ts";
+import { scanCacheRoutes } from "./scan-cache.ts";
+import { listingHasDoor } from "./scan-decision.ts";
 import {
   doorCacheName,
-  handleGroupScanCacheGet,
-  handleListingScanCacheGet,
+  doorPaths,
+  doorRoute,
+  loadGroupDoor,
+  loadListingDoor,
   pageDoorCacheKey,
-} from "./scan-cache.ts";
-
-/** The door-safe facts that tell two people with the same name apart. They
- * name the listing when a door spans several, and the day each place is
- * for. The ticket's own page shows the same facts to a door-only login. */
-const optionDetails = (
-  rows: readonly Attendee[],
-  listingNames: ReadonlyMap<number, string> | null,
-): string[] => [
-  ...new Set(
-    rows.map((row) =>
-      [
-        listingNames?.get(row.listing_id) ?? "",
-        row.date ? formatDateLabel(row.date) : "",
-      ]
-        .filter(Boolean)
-        .join(" · "),
-    ),
-  ),
-];
-
-const manualCheckinOptions = (
-  attendees: Attendee[],
-  listingNames: ReadonlyMap<number, string> | null,
-): TicketOption[] =>
-  [
-    ...groupToMap(
-      (a: Attendee) => a.id,
-      (a: Attendee) => a,
-    )(
-      filter(
-        (a: Attendee) =>
-          remainingTickets(a) > 0 && !a.refunded && hasTicketQuantity(a),
-      )(attendees),
-    ).values(),
-  ].map((rows: Attendee[]) => ({
-    attendeeId: rows[0]!.id,
-    details: optionDetails(rows, listingNames),
-    name: rows[0]!.name,
-    // Every place the person still owes on this door's listings.
-    quantity: sumOf(remainingTickets)(rows),
-  }));
+} from "./scan-door.ts";
+import { scanSearchRoutes } from "./scan-search.ts";
 
 /** Handle GET /admin/listing/:id/scanner - render scanner page */
 const handleScannerGet: IdRouteHandler = listingWithCountHandler(
@@ -87,18 +35,12 @@ const handleScannerGet: IdRouteHandler = listingWithCountHandler(
 )(async (listing, session) => {
   // A "No check-in" listing has no door: the doors list hides it, and a
   // guessed URL meets the same answer as an unknown listing.
-  if (listing.purchaseOnly) return notFoundResponse();
-  const privateKey = await requireRequestPrivateKey();
-  const attendees = await decryptAttendees(
-    await getAttendeesRaw(listing.id),
-    privateKey,
-  );
+  if (!listingHasDoor(listing)) return notFoundResponse();
   return htmlResponse(
     adminScannerPage(
       listing,
-      `/admin/listing/${listing.id}/scan`,
+      doorPaths("listing", listing.id),
       session,
-      manualCheckinOptions(attendees, null),
       false,
       pageDoorCacheKey(doorCacheName("listing", listing.id)),
       PRUNE_SCAN_OPERATIONS_RETENTION_DAYS,
@@ -111,23 +53,11 @@ const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
   getGroupById,
 )(pageGuardAt("groupScanner"))(async (group, session) => {
   const scope = await groupScope(group);
-  const attendees = await scopeAttendees(scope);
-  // A door that spans several listings names the listing each place is for.
-  // A one-listing door's own page title already says it.
-  const listingNames =
-    scope.listingIds.size > 1
-      ? new Map(
-          [...(await getListingPickerNames())]
-            .filter(([id]) => scope.listingIds.has(id))
-            .map(([id, listing]) => [id, listing.name] as const),
-        )
-      : null;
   return htmlResponse(
     adminScannerPage(
       group,
-      `/admin/groups/${group.id}/scan`,
+      doorPaths("group", group.id),
       session,
-      manualCheckinOptions(attendees, listingNames),
       // One scan at this door spans listings only from a multi-listing
       // group whose stored rule says to check in every listing.
       scope.listingIds.size > 1 && scope.checkInEveryListing,
@@ -149,7 +79,7 @@ const loadDoors = async (): Promise<{
     getAllGroupNames(),
   ]);
   const listingDoors = [...listings]
-    .filter(([, listing]) => !listing.purchaseOnly)
+    .filter(([, listing]) => listingHasDoor(listing))
     .map(
       ([id, listing]): ScannerDoor => ({
         name: listing.name,
@@ -176,37 +106,21 @@ const handleDoorsGet: RequestRoute = (request) =>
     htmlResponse(adminScannerDoorsPage(session, await loadDoors())),
   );
 
-/**
- * Handle POST /admin/listing/:id/scan - JSON check-in API.
- * Scanner is intentionally one-way (check-in only, no check-out) to prevent
- * accidental check-outs from double-scans during rapid door check-in.
- */
-const handleScanPost: IdRouteHandler = (request, { id }) =>
-  withAuth(request, SCANNER_JSON, (_session, body) =>
-    processScan(listingScope(id), body, doorCacheName("listing", id)),
-  );
-
-/** Handle POST /admin/groups/:id/scan — the same API over the group's whole
- * scope. A missing group answers 404 rather than an empty scope, so a broken
- * link cannot pass every ticket off as "wrong listing". */
-const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
-  withAuth(request, SCANNER_JSON, async (_session, body) => {
-    const group = await getGroupById(id);
-    if (!group) return jsonResponse({ status: "not_found" }, 404);
-    return processScan(
-      await groupScope(group),
-      body,
-      doorCacheName("group", id),
-    );
-  });
+/** Handle POST /admin/{listing,groups}/:id/scan — the JSON check-in API over
+ * one door's whole scope. Scanner is intentionally one-way (check-in only,
+ * no check-out) to prevent accidental check-outs from double-scans during
+ * rapid door check-in. */
+const scanPost = doorRoute((door, { body }) =>
+  processScan(door.scope, body, door.door),
+);
 
 /** Scanner routes */
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/groups/:id/scan-cache": handleGroupScanCacheGet,
+  ...scanCacheRoutes,
+  ...scanSearchRoutes,
   "GET /admin/groups/:id/scanner": handleGroupScannerGet,
-  "GET /admin/listing/:id/scan-cache": handleListingScanCacheGet,
   "GET /admin/listing/:id/scanner": handleScannerGet,
   "GET /admin/scanner": handleDoorsGet,
-  "POST /admin/groups/:id/scan": handleGroupScanPost,
-  "POST /admin/listing/:id/scan": handleScanPost,
+  "POST /admin/groups/:id/scan": scanPost(loadGroupDoor),
+  "POST /admin/listing/:id/scan": scanPost(loadListingDoor),
 });

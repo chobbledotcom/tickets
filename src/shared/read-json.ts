@@ -13,3 +13,18 @@ export const readJson = async (
     return { ok: false };
   }
 };
+
+/** Parse JSON text, and let the caller decide what a torn text becomes. */
+export const parseJsonWith =
+  (onParseError: (error: unknown) => unknown) =>
+  (text: string): unknown => {
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      return onParseError(error);
+    }
+  };
+
+/** Parse text as JSON. Null is the documented answer for text that is not
+ * JSON: the caller's schema check then refuses it like any other bad shape. */
+export const parseJsonOrNull = parseJsonWith(() => null);

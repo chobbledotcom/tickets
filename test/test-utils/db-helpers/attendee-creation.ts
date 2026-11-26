@@ -9,7 +9,6 @@ import {
   type BookingBatchPlan,
   createBookingAtomic,
 } from "#db/attendees/create.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { requireOne } from "#db/client.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { sql } from "#db/sql.ts";
@@ -19,6 +18,7 @@ import type {
   PricedLine,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { pricedOrder } from "#test-utils/factories-pricing.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
 import type { Attendee } from "#types";

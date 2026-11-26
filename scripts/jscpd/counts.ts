@@ -11,7 +11,7 @@
 
 import * as v from "valibot";
 import { sort } from "#fp";
-import { parseJsonWith } from "#scripts/read-json.ts";
+import { parseJsonWith } from "#shared/read-json.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { type ClonePair, placeKey } from "./worst.ts";
 

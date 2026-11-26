@@ -1,0 +1,206 @@
+PR CODE REVIEW — offline-scanning-opt-in @ 5da19c21a41cf87e8bb6a73acf3cf0367be65fcd
+Base e63da278ba7366694a8f92c882cbcc426aa6c1c6 (PR #3100). Read-only review
+against docs/review-checklist.md (48 rules) plus the bundled deep-review
+checklist. 14 parallel reviewers; every P1/P2 verified against source by the
+coordinating reviewer. One worker finding dropped as a false positive
+(parseJsonWith is dead-exported: it has three live callers in scripts/).
+No tests, builds, or gates were executed.
+
+VERDICT: Hold the stack. 5 P1, 12 P2 families, 8 P3.
+
+P1
+==
+
+1. The whole scanner page dies when the offline side cannot wire.
+   src/ui/client/scanner.ts:210, src/ui/client/scanner-offline.ts:123,128,160
+   initOfflineScanner is unguarded and throws synchronously for
+   navigator.serviceWorker undefined (secure-context only), a blocked store
+   (SecurityError), a queue stored in another shape, or no
+   Uint8Array.fromBase64. Base caught this, guarded "serviceWorker" in
+   navigator, and read a blocked store as off; its regression test was
+   deleted. No camera and no manual check-in at a door that never opted in.
+   Rules R6, R19, R24.
+   Fix: restore the judged degrade to online-only or feature-detect each
+   dependency; restore the deleted test.
+
+2. A quota failure on a page-load refresh deletes the still-valid list.
+   src/ui/client/scanner-offline-switch.ts:59-61
+   setItem is atomic, so a QuotaExceededError during the refresh leaves the
+   old list intact; sayDownloadFailure then deletes it while the mode key
+   stays "1". The door is left with the switch on, no list, and every scan
+   refused with "turn on offline mode", which is already on.
+   Rules R10, R24.
+   Fix: remove the list only when arming; never on a refresh; keep mode and
+   list consistent.
+
+3. The duplicate-queue guard sits outside the write.
+   src/ui/client/scanner-offline-ui.ts:131-156
+   The guard runs before the showQuantitySelect await; a camera scan during
+   an open manual quantity prompt passes the empty-queue check, and each
+   caller then queueCheckIn with distinct operation ids, so the same ticket
+   is checked in twice.
+   Rule R17.
+   Fix: re-check inside a synchronous read-test-write helper, after the ask.
+
+4. Guest names persist in browser storage past sign-out.
+   src/ui/client/scanner-offline.ts:53, src/shared/ticket-cache.ts
+   The cache entry now carries plaintext guest names/details in
+   localStorage, retained indefinitely past sign-out, role revocation, and
+   the 12-hour TTL (which gates use, not retention). Base stored only
+   digests. Sign-out never touches scanner storage.
+   Rules R15, C30.
+   Fix: clear scanner-tickets-* and the mode keys on sign-out, or bind the
+   list to the user id and drop it on mismatch.
+
+5. The branch mutation gate fails at the pushed head.
+   scripts/mutation/equivalent-mutants/*.txt, scripts/mutation/runs.jsonl
+   36 entries on 13 files no longer match the text they suppress; three
+   records were deleted although their mutants still generate
+   (expireRow/settleRow className, doorKeyBytes error text); the recorded
+   runs cite pre-final commits (ad4f4d837, where scan-flow.ts differs by 33
+   lines). The gate was never run on the pushed head, and CI does not run
+   it.
+   Rules R41, C16-C18, C53.
+   Fix: run the gate on the final head, re-stamp or delete each reported
+   entry, and kill or record the three surviving mutants.
+
+P2
+==
+
+6. scan-search is missing from the JSON path pattern.
+   src/features/content-type-rules.ts:16
+   An expired session answers 303 to the login page instead of the 401 JSON
+   every sibling scan route answers; the client follows the redirect, passes
+   res.ok, and dies in v.parse with a generic page error.
+   Rules R4, R36, C1.
+   Fix: widen SCAN_API_PATTERN to scan(?:-cache|-search)? and add the
+   unauthenticated 401 test the cache route has.
+
+7. Every search decrypts the whole door.
+   src/features/admin/scan-search.ts:45
+   scopeAttendees reads ATTENDEE_FIELDS (six money subqueries per row) and
+   decrypts every line's PII to return 20 names; the sibling cache path
+   bounds exactly this work at 250 people. Base paid it once per page
+   render.
+   Rules R33, C4.
+   Fix: read only the roster's fields (the BROWSING_FIELDS precedent) and
+   consider a short-lived decrypted-roster cache.
+
+8. The paged download is not a snapshot.
+   src/shared/db/listings/attendees.ts:171
+   Pages select attendee id > cursor over the live join, so an attendee
+   below the cursor who gains a line mid-download is never returned; their
+   digest is absent and offline scans refuse a valid ticket.
+   Rules R17, R25.
+   Fix: capture a membership high-water mark on the first page inside the
+   signed cursor and bound every page's line ids by it.
+
+9. One shared quantity field carries two facts.
+   src/shared/roster-option.ts:15
+   The roster fills total owed at the door (scan-door.ts:152) while the
+   cache fills what one scan admits (scan-cache.ts:84-88); the same person
+   shows "3 tickets" online and "2 tickets" offline at a one-listing-per-
+   scan group.
+   Rules R1, R3, R8.
+   Fix: carry the two facts under separate names.
+
+10. The name-search rule is declared three times and diverges.
+    src/ui/client/scanner-offline-ui.ts:198, src/features/admin/scan-search.ts:21,24,
+    src/ui/client/admin/manual-search.ts:43
+    The server sorts by name then caps 20; offline slices the first 20 in
+    digest order with no sort, so the same query returns different people
+    depending on connection, in the mode with no network to fall back on.
+    Rules R1, R2, R35.
+    Fix: one shared matcher and limits module used by the route, the client
+    pre-check, and the offline search.
+
+11. A temporary HTML 503 aborts the whole queue replay.
+    src/ui/client/scanner-offline-sync.ts:151-157
+    The documented databaseBusyResponse is an HTML 503 page; res.json()
+    throws and answerOrNull rethrows everything but NetworkError, so one
+    transient 503 skips every remaining row. Base caught per item and
+    continued.
+    Rules R11, R24.
+    Fix: treat a non-ok answer as not-sent-yet and keep walking the rows.
+
+12. The manual pick asks a question its route always refuses.
+    src/ui/client/scan-flow.ts:234 vs src/features/admin/scan-answer.ts:254
+    settleLiveScan always asks wrong_listing; for attendee_id bodies the
+    server converts wrong_listing into 404 not_found, and the merged test
+    models the unreachable state.
+    Rule R3.
+    Fix: pass the ask list per caller; the manual pick asks
+    select_quantity and verify_id only.
+
+13. Every refused search reads as a connection fault.
+    src/ui/client/admin/manual-search.ts:57
+    401 session expiry, 403 role change, and 5xx all collapse to "Check your
+    connection"; the door retries a request that cannot succeed.
+    Rules R11, R40.
+    Fix: branch on status; refusals get the reload word, and the copy stops
+    naming the wrong cause.
+
+14. An unknown scan answer status silently degrades.
+    src/ui/client/scan-answer.ts:51
+    The wire union stayed client-only and OtherAnswerSchema absorbs any
+    unknown status as "other", so a new server status shows the generic
+    error instead of failing loudly.
+    Rules R1, R4.
+    Fix: share the answer schema and make an unknown status a parse
+    failure.
+
+15. The no-door rule is declared five times and one route was left behind.
+    src/features/admin/scan-door.ts:71, src/features/admin/scanner.ts:110
+    "purchaseOnly means no door" is written in the page, the doors list,
+    the group scope, the scan pool, and the new loader; the listing scan
+    POST still builds its door locally and answers 200 wrong_listing where
+    every other route answers 404.
+    Rules R2, R6.
+    Fix: one listingHasDoor rule in scan-door.ts and doorRoute everywhere.
+
+16. Six weak test evidences.
+    test/ui/client/scanner/offline-door.ts:99 (switchArmed seeds the removed
+    global mode key, so the armed-switch banner test passes with the switch
+    off); the syncHolds branch lost its only test; store.test.ts badLists
+    never makes a request; "keeps every line of one person on the same
+    page" creates two one-line people; the 2-character valid search is
+    never asserted; messages.test.tsx derives its expected value from the
+    same SCANNER_WORDS entry the template uses, so a key swap stays green.
+    Rules R41, R42, R43, R44, R47.
+
+17. The PR description describes an earlier commit.
+    The cpd numbers and "final code (a3ae58aa)" predate the head; the
+    changed-line counts the workflow requires are absent.
+    Rules C50, C53.
+
+P3
+==
+
+18. The auto banner promises queued scans in the default no-list state
+    (scanner-offline-ui.ts:69).
+19. The activity log writes "downloaded" before the page builds or the
+    download completes (scan-cache.ts:210).
+20. showProgress(0, 0) reads as an empty door mid-download
+    (scanner-offline-switch.ts:76).
+21. String(dataset.scanPath) manufactures "undefined"
+    (scanner.ts:179).
+22. The client derives endpoint URLs by string surgery on data-scan-path
+    while the routes are declared in the surface table
+    (manual-search.ts:55, scanner-offline.ts:82).
+23. The form-submit-disable module keeps a dead :not([data-manual-checkin])
+    selector and a test that renders markup no page has
+    (form-submit-disable.ts:13).
+24. docs/designing-systems.md:179,376 and docs/e2e-tests.md:415 cite the
+    removed production getAttendeesRaw.
+25. Test helpers redeclare the shared door-person and cache schemas instead
+    of importing them (scanner/support.ts:17, specs/support/door.ts:288,
+    offline-door-support.ts:57).
+
+SOUND
+=====
+Cursor HMAC binding (door + user + expiry, refusal-tested both directions);
+role gates on both new routes proven directly and in the matrix; per-door
+mode and list keys; paged download abort and replacement ownership; queue
+replay-window expiry; SCANNER_WORDS typed holes pinned against the rendered
+page; the offline manual check-in driving the real bundle with zero network
+calls; the merged test helpers from #3122 correctly folded.

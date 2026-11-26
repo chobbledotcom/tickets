@@ -61,7 +61,9 @@ describeWithEnv(
         quantity: 2,
       });
       expect(res.status).toBe(200);
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       expect((await getAttendeesRaw(childA.id))[0]?.quantity).toBe(1);
       expect((await getAttendeesRaw(childB.id))[0]?.quantity).toBe(1);
     });
@@ -134,7 +136,9 @@ describeWithEnv(
           assertStringIncludes(body.error, c.expectErrorContains);
         }
         if (c.expectZeroParentAttendees) {
-          const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+          const { getAttendeesRaw } = await import(
+            "#test-utils/db-helpers/attendees.ts"
+          );
           expect((await getAttendeesRaw(parent.id)).length).toBe(0);
         }
       });
@@ -155,7 +159,9 @@ describeWithEnv(
         quantity: 2,
       });
       expect(res.status).toBe(200);
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       expect((await getAttendeesRaw(child.id))[0]?.quantity).toBe(2);
     });
 
@@ -201,7 +207,9 @@ describeWithEnv(
       const listing = await createTestListing({ name: "Plain" });
       const res = await apiBook(listing.slug);
       expect(res.status).toBe(200);
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       expect((await getAttendeesRaw(listing.id)).length).toBe(1);
     });
   },
