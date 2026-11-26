@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { useManualCheckinPage } from "#test/ui/client/admin/manual-checkin/fixture.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 /** How a failure reaches the door: each fault the page can name has its
  * own words, and any other fault asks the door to reload. */
@@ -34,5 +35,21 @@ describe("scan failures the door reads", () => {
       expect(page.status.textContent, error.name).toBe(words);
       expect(page.submitButton.disabled).toBe(false);
     }
+  });
+
+  test("an answer that names an unknown status fails loudly", async () => {
+    using _fetch = stubFetch(
+      Response.json({ name: "Ada", status: "teleported" }),
+    );
+    const page = fresh(null);
+    page.input.value = "Ada";
+    await page.submit();
+
+    // A status the page has no words for is a contract break, not a
+    // generic answer: the door hears the page error.
+    expect(page.status.textContent).toBe(
+      "Something went wrong. Reload this page, then try again.",
+    );
+    expect(page.submitButton.disabled).toBe(false);
   });
 });

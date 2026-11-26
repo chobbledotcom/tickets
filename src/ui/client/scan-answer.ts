@@ -45,11 +45,16 @@ const KnownAnswerSchema = v.variant("status", [
   answerOf("not_found", {}),
 ]);
 
-/** Every other body: a refusal, which the API writes as `{ error }`, or a
- * status this page has no words for. It parses as the status "other", so
- * every answer is keyed by its status. */
+/** Every other body: a refusal, which the API writes as `{ error }` with
+ * no status of its own. A body that names a status this page has no words
+ * for fails the parse, so the door hears the page error instead of a
+ * silent generic answer. */
 const OtherAnswerSchema = v.pipe(
   v.object({ error: v.optional(NonEmptyTextSchema) }),
+  v.check(
+    (other) => !("status" in other),
+    "The answer names a status this page has no words for",
+  ),
   v.transform((other) => ({ ...other, status: "other" as const })),
 );
 
