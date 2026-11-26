@@ -91,6 +91,8 @@ The workflow creates these secrets on each new preview:
 - `DB_URL` and `DB_TOKEN` for the new database
 - `DB_ENCRYPTION_KEY` and `SCHEDULED_TASK_KEY`, which are random
 - `BUNNY_SCRIPT_ID`
+- `BUNNY_API_KEY`, a copy of the staging account key. The site needs it to
+  manage its own CDN, such as a custom domain.
 
 A preview never receives `MAIN_INSTANCE_KEY`, the production Bunny key, or the
 production storage zone key.
