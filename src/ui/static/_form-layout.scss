@@ -1,0 +1,154 @@
+/** Form surfaces, sections, and text hierarchy.
+ *
+ * These rules give every form the same quiet reading order: a bordered page
+ * surface, bordered sections led by a legend, a bold label, and smaller muted
+ * hint text. Iframe embeds keep the neutral look their host page expects, so
+ * every selector here excludes `body.iframe`.
+ */
+
+body:not(.iframe) {
+  /* A slightly darker border than the background step, so a form and its
+     sections read as separate surfaces without becoming heavy. */
+  --form-border: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 60%,
+    var(--color-text-secondary)
+  );
+
+  form {
+    /* Top-level forms carry no outer panel: their sections and fields supply
+       the structure. Utility forms keep their own shape: a single button, an
+       inline action, a table filter, or a date picker. */
+    &:not(.one-button):not(.no-bg):not(.inline):not(.selectable-form):not(
+        .listings-date-filter
+      ):not(.filter-row) {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      gap: var(--space-lg);
+      padding: 0;
+    }
+
+    /* A section is a fieldset with its own legend. The border and the legend
+       rule separate one group of fields from the next without a heavy panel.
+       A checkbox group is a fieldset too, but it is one field, not a section:
+       its options sit in a .checkboxes row, so it takes no panel of its own. */
+    fieldset:not(.checkboxes):not(.radios):not(:has(> .checkboxes)):has(
+        > legend
+      ) {
+      border: 1px solid var(--form-border);
+      border-radius: var(--border-radius);
+      gap: var(--space-m);
+      padding: var(--space-m);
+    }
+
+    fieldset > legend {
+      box-sizing: border-box;
+      display: block;
+      font-size: 1.1rem;
+      font-weight: 600;
+      line-height: 1.4;
+      margin: 0;
+      padding: 0 var(--space-s);
+      width: auto;
+    }
+
+    /* A checkbox group's legend names the field, not a section, so it reads at
+       label size. */
+    fieldset:has(> .checkboxes) > legend {
+      border: 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Input borders share the clearer line. A disabled control keeps the
+       muted line from its own rule. */
+    :is(input, select, textarea):not(:disabled):not([type="checkbox"]):not(
+        [type="radio"]
+      ) {
+      border-color: var(--form-border);
+    }
+
+    /* Labels stay bold, while their hint text reads as secondary. A checkbox
+       or radio label is a choice, not a heading, so it keeps the body size and
+       weight. */
+    label {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    label > small {
+      color: var(--color-text-secondary);
+      font-size: 0.85rem;
+      font-weight: 400;
+      line-height: 1.4;
+    }
+
+    /* A shared field puts its control on the row below the label, so every
+       input starts at the same left edge. The narrow controls stay narrow. */
+    label:has(.field-requirement) > :is(input, select, textarea, fieldset) {
+      flex: 1 0 100%;
+      max-width: 100%;
+    }
+
+    label:has(.field-requirement)
+      > :is(input[type="number"], input[type="date"], input[type="time"]) {
+      max-width: 12rem;
+    }
+
+    :is(.checkboxes, .radios) label {
+      font-size: 1rem;
+      font-weight: 400;
+    }
+
+    /* The required mark sits after the label in small red text, so the reader
+       can scan the form without reading every hint. */
+    .field-requirement {
+      color: #cc0000;
+      font-size: 0.65em;
+      font-weight: 700;
+      line-height: 1;
+      vertical-align: super;
+    }
+
+    /* Section headings inside a form, including the prose block that opens a
+       settings form, sit one step above the legend. */
+    h2 {
+      font-size: 1.3rem;
+      line-height: 1.4;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      line-height: 1.4;
+    }
+  }
+}
+
+/* An embedded form keeps a neutral look. The status stays in the accessible
+   name but takes no visible space. */
+body.iframe form .field-requirement {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* Dark mode swaps the glow for the same quiet border. */
+[data-theme="dark"] body:not(.iframe) form {
+  border-color: var(--form-border);
+  box-shadow: none;
+
+  &:focus-within {
+    box-shadow: none;
+  }
+
+  .field-requirement {
+    color: #ff5555;
+  }
+}

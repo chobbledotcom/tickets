@@ -1,28 +1,24 @@
 /// <reference lib="dom" />
-/// <reference lib="dom.iterable" />
-import { lazyRef } from "#fp";
-import type { TicketCacheEntry } from "#routes/admin/scan-cache.ts";
-import { isRecord } from "#types";
-
-/** One door's stored ticket list and the time this device stored it. */
-export type TicketCache = { entries: TicketCacheEntry[]; storedAt: number };
-
-/** One check-in that waits for a connection. */
-export type QueuedCheckIn = {
-  operationId: string;
-  quantity: number;
-  queuedAt: number;
-  scanPath: string;
-  tokenHash: string;
-};
+import * as v from "valibot";
+import { parseJsonOrNull } from "#shared/read-json.ts";
+import {
+  StoredListSchema,
+  type TicketCacheEntry,
+  TicketCachePageSchema,
+} from "#shared/ticket-cache.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
+import { NonEmptyTextSchema } from "#shared/validation/string.ts";
+import { fetchOrNetworkError } from "./dom.ts";
+import {
+  MODE_KEY_PREFIX,
+  QUEUE_KEY,
+  TICKETS_KEY_PREFIX,
+  withStoreOr,
+} from "./scanner-storage.ts";
 
 /** How long a stored ticket-hash set stays valid. After this the set answers
  * nothing: an expired set admits tickets against stale check-in state. */
 export const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
-
-const TICKETS_KEY_PREFIX = "scanner-tickets-";
-const QUEUE_KEY = "scanner-queue";
-const MODE_KEY = "scanner-offline-mode";
 
 /** The worker's own URL, same-origin under /admin/ so its scope covers the
  * scanner pages. It is not an asset-paths constant: the edge build rewrites
@@ -30,50 +26,31 @@ const MODE_KEY = "scanner-offline-mode";
  * origins. */
 const SCANNER_SW_PATH = "/admin/scanner-sw.js";
 
-/** The guard for a stored list: every item passes `isItem`. */
-const isListOf =
-  <Item>(isItem: (item: unknown) => item is Item) =>
-  (value: unknown): value is Item[] =>
-    Array.isArray(value) && value.every(isItem);
+/** The text one key holds, or null when the key is unset or the browser
+ * blocks site data for this page. */
+const readStoredOrNull = (key: string): string | null =>
+  withStoreOr((store) => store.getItem(key), null);
 
-/** Whether a value is one ticket digest, with the places one scan at its
- * door admits of the ticket's booking. */
-const isTicketEntry = (entry: unknown): entry is TicketCacheEntry =>
-  isRecord(entry) &&
-  typeof entry.hash === "string" &&
-  typeof entry.tickets === "number" &&
-  Number.isInteger(entry.tickets) &&
-  entry.tickets > 0;
+export type StoredList = v.InferOutput<typeof StoredListSchema>;
 
-const isCacheList = isListOf(isTicketEntry);
-
-/** The stored list one door's page keeps, or null when none is stored. A
- * list we cannot parse is treated as absent and dropped. The page then
- * answers "no offline list" instead of breaking, and the next online load
- * rebuilds it. */
-export const readTicketCache = (scanPath: string): TicketCache | null => {
-  const raw = localStorage.getItem(TICKETS_KEY_PREFIX + scanPath);
+/** The stored list one door's page keeps. Null is the documented answer
+ * when none is stored. A list in an older build's shape is dropped and also
+ * answers null. The door then reads "no offline list", and the next
+ * download stores the list in this build's shape. */
+export const readTicketCacheOrNull = (scanPath: string): StoredList | null => {
+  const key = TICKETS_KEY_PREFIX + scanPath;
+  const raw = readStoredOrNull(key);
   if (raw === null) return null;
-  try {
-    const cache: unknown = JSON.parse(raw);
-    if (
-      !isRecord(cache) ||
-      typeof cache.storedAt !== "number" ||
-      !isCacheList(cache.entries)
-    ) {
-      throw new Error(`Stored ticket cache for ${scanPath} has a bad shape`);
-    }
-    return { entries: cache.entries, storedAt: cache.storedAt };
-  } catch (error) {
-    localStorage.removeItem(TICKETS_KEY_PREFIX + scanPath);
-    throw error;
-  }
+  const parsed = v.safeParse(StoredListSchema, parseJsonOrNull(raw));
+  if (parsed.success) return parsed.output;
+  localStorage.removeItem(key);
+  return null;
 };
 
 /** Store one door's list, stamped with the time this device stored it. The
  * clock that judges the 12-hour validity is this device's own, so a server
  * clock a minute away cannot stretch or cut the window. */
-export const storeTicketCache = (
+const storeTicketCache = (
   scanPath: string,
   entries: TicketCacheEntry[],
 ): void => {
@@ -83,113 +60,125 @@ export const storeTicketCache = (
   );
 };
 
-export const isCacheFresh = (cache: TicketCache): boolean => {
+export const isCacheFresh = (cache: StoredList): boolean => {
   // A device clock that moved back after the write must not stretch the
   // window: only an age inside it counts as fresh.
   const age = Date.now() - cache.storedAt;
   return age >= 0 && age < CACHE_TTL_MS;
 };
 
-/** Fetch one door's list from the scan-cache endpoint behind its scan
- * endpoint, and store it. Throws when the request or the body fails, so the
- * caller decides what an unusable cache means for it. */
-export const refreshTicketCache = async (
-  scanPath: string,
-): Promise<TicketCache | null> => {
-  const res = await fetch(scanPath.replace(/\/scan$/, "/scan-cache"));
+/** Delete one door's stored list. */
+export const removeTicketCache = (scanPath: string): void =>
+  localStorage.removeItem(TICKETS_KEY_PREFIX + scanPath);
+
+/** Fetch one page of a door's list: the first page when `from` is null,
+ * else the page that the signed cursor `from` names. The first page is the
+ * request the server logs. `cachePath` is the cache route the template
+ * carried. Throws when the request or the body fails. */
+const fetchCachePage = async (
+  cachePath: string,
+  from: string | null,
+  signal: AbortSignal,
+): Promise<v.InferOutput<typeof TicketCachePageSchema>> => {
+  const url =
+    from === null ? cachePath : `${cachePath}?from=${encodeURIComponent(from)}`;
+  const res = await fetchOrNetworkError(url, { signal });
   if (!res.ok) {
-    throw new Error(`The ticket cache for ${scanPath} answered ${res.status}`);
+    throw new Error(`The ticket cache at ${cachePath} answered ${res.status}`);
   }
-  const body: unknown = await res.json();
-  if (!isRecord(body) || !isCacheList(body.entries)) {
-    throw new Error(`The ticket cache for ${scanPath} has a bad shape`);
-  }
-  storeTicketCache(scanPath, body.entries);
-  return readTicketCache(scanPath);
+  return v.parse(TicketCachePageSchema, await res.json());
+};
+
+/** Download one door's whole list page by page, and store it once the last
+ * page arrives. `onProgress` hears how many people are read out of the
+ * total after each page. A failed or stopped download stores nothing, so
+ * any list the door already holds stands. */
+export const downloadTicketCache = async (
+  cachePath: string,
+  scanPath: string,
+  onProgress: (done: number, total: number) => void,
+  signal: AbortSignal,
+): Promise<void> => {
+  /** The entries of the page `from` names and of every page after it.
+   * `read` counts the people the pages before it read. */
+  const entriesFrom = async (
+    from: string | null,
+    read: number,
+  ): Promise<TicketCacheEntry[]> => {
+    const page = await fetchCachePage(cachePath, from, signal);
+    const done = read + page.people;
+    // People booked during the download can push the total past the
+    // first page's count, so the shown count never passes the total.
+    onProgress(Math.min(done, page.total), page.total);
+    return page.next === null
+      ? page.entries
+      : [...page.entries, ...(await entriesFrom(page.next, done))];
+  };
+  const entries = await entriesFrom(null, 0);
+  signal.throwIfAborted();
+  storeTicketCache(scanPath, entries);
 };
 
 /** Register the scanner's service worker, which keeps the page's script and
- * stylesheet loadable without a connection. A browser without service
- * workers, or one that refuses registration, still scans: everything offline
- * needs lives in the page and in localStorage. */
-export const registerScannerWorker = (): void => {
-  if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register(SCANNER_SW_PATH).catch(() => {
-    // Registration failure is a degraded cache, not a broken scanner: the
-    // documented behavior is to keep scanning without the offline page shell.
-  });
+ * stylesheet loadable without a connection. A browser with no service
+ * worker container — an insecure context, some private modes — registers
+ * nothing and the page still scans, with no offline page shell. A
+ * registration the browser refuses still rejects, so the door learns that
+ * a reload without a connection will fail. */
+export const registerScannerWorker = (): Promise<unknown> =>
+  "serviceWorker" in navigator
+    ? navigator.serviceWorker.register(SCANNER_SW_PATH)
+    : Promise.resolve();
+
+/** One door's switch position, stored per door so turning offline mode on
+ * at one door does not arm a door with no list. A store the page cannot
+ * read answers off, so a blocked store keeps the page scanning online. */
+export const readManualMode = (scanPath: string): boolean =>
+  readStoredOrNull(MODE_KEY_PREFIX + scanPath) === "1";
+
+/** Store one door's switch position. */
+export const writeManualMode = (scanPath: string, on: boolean): void => {
+  if (on) localStorage.setItem(MODE_KEY_PREFIX + scanPath, "1");
+  else localStorage.removeItem(MODE_KEY_PREFIX + scanPath);
 };
 
-/** The door switch's stored position. A store this page cannot read reads
- * as off, so the page boots and scans instead of stopping. */
-export const readManualMode = (): boolean => {
-  try {
-    return localStorage.getItem(MODE_KEY) === "1";
-  } catch {
-    // Site data is blocked for this page, so nothing is read or stored.
-    return false;
-  }
-};
+/** Whether a scan at this door settles offline: its switch says so, or the
+ * device has no connection. The stored cache decides later whether an
+ * offline scan can be validated at all. */
+export const offlineModeActive = (scanPath: string): boolean =>
+  readManualMode(scanPath) || !navigator.onLine;
 
-/** Store the door switch's position, and say whether the store took it. A
- * blocked or full store keeps the old position: the switch stays where it
- * was, and the caller tells the door why nothing changed. */
-export const writeManualMode = (on: boolean): boolean => {
-  try {
-    if (on) localStorage.setItem(MODE_KEY, "1");
-    else localStorage.removeItem(MODE_KEY);
-    return true;
-  } catch {
-    // Site data is blocked for this page, or the store is full: the same
-    // refusal every other write in this module answers with a message.
-    return false;
-  }
-};
+/** One queued check-in: its door, its ticket digest, its delivery id, the
+ * people it admits, and the moment it went in. */
+const QueuedCheckInSchema = v.object({
+  operationId: NonEmptyTextSchema,
+  quantity: integerAtLeast(1),
+  queuedAt: v.number(),
+  scanPath: v.string(),
+  tokenHash: NonEmptyTextSchema,
+});
 
-/** Whether a scan settles offline: the door switch says so, or the device
- * has no connection. The stored cache decides later whether an offline scan
- * can be validated at all. */
-export const offlineModeActive = (): boolean =>
-  readManualMode() || !navigator.onLine;
+export type QueuedCheckIn = v.InferOutput<typeof QueuedCheckInSchema>;
 
-/** Whether a value is one queued item. It names its door, its ticket
- * digest, its delivery id, the people its check-in admits, and the moment it
- * went in. */
-const isQueuedCheckIn = (item: unknown): item is QueuedCheckIn =>
-  isRecord(item) &&
-  typeof item.operationId === "string" &&
-  item.operationId !== "" &&
-  typeof item.queuedAt === "number" &&
-  typeof item.quantity === "number" &&
-  Number.isInteger(item.quantity) &&
-  item.quantity > 0 &&
-  typeof item.scanPath === "string" &&
-  typeof item.tokenHash === "string" &&
-  item.tokenHash !== "";
+const StoredQueueSchema = v.array(QueuedCheckInSchema);
 
-const isStoredQueue = isListOf(isQueuedCheckIn);
+/** The stored queue is in a shape this page cannot read, such as one an
+ * older build wrote. */
+export class UnreadableQueueError extends Error {}
 
-/** The queued check-ins, oldest first. A store the page cannot open reads
- * as no queue. So does a queue an older or newer build left in another
- * shape. The door keeps scanning. The raw value stays stored: the next
- * successful write replaces it, and nothing deletes queued check-ins on
- * its own. */
+/** The queued check-ins, oldest first. A queue in another shape throws
+ * `UnreadableQueueError`: queued check-ins are admissions the door already
+ * made, so nothing drops or hides them. */
 export const readQueue = (): QueuedCheckIn[] => {
-  let raw: string | null;
-  try {
-    raw = localStorage.getItem(QUEUE_KEY);
-  } catch {
-    // Site data is blocked for this page, so nothing is read or stored.
-    return [];
-  }
+  const raw = readStoredOrNull(QUEUE_KEY);
   if (raw === null) return [];
-  try {
-    const queue: unknown = JSON.parse(raw);
-    if (isStoredQueue(queue)) return queue;
-  } catch {
-    // The unreadable value stands in the store until a write replaces it.
+  const parsed = v.safeParse(StoredQueueSchema, parseJsonOrNull(raw));
+  if (!parsed.success) {
+    throw new UnreadableQueueError(
+      "The stored check-in queue is not in this build's shape",
+    );
   }
-  return [];
+  return parsed.output;
 };
 
 export const writeQueue = (queue: QueuedCheckIn[]): void =>
@@ -198,13 +187,13 @@ export const writeQueue = (queue: QueuedCheckIn[]): void =>
 /** Queue one scan's check-in under the door it scanned at. The item carries
  * the ticket's keyed digest (never the raw token), the delivery id this one
  * check-in answers by, and the people it admits. */
-export const queueCheckIn = (
+const queueCheckIn = (
   scanPath: string,
   tokenHash: string,
   quantity: number,
 ): QueuedCheckIn => {
   const queue = readQueue();
-  const item: QueuedCheckIn = {
+  const item = {
     operationId: crypto.randomUUID(),
     quantity,
     queuedAt: Date.now(),
@@ -214,6 +203,29 @@ export const queueCheckIn = (
   writeQueue([...queue, item]);
   return item;
 };
+
+/** Whether the queue already holds this ticket for this door. */
+export const queueHoldsTicket = (
+  scanPath: string,
+  tokenHash: string,
+): boolean =>
+  readQueue().some(
+    (item) => item.scanPath === scanPath && item.tokenHash === tokenHash,
+  );
+
+/** Queue one scan's check-in under the door it scanned at, unless the same
+ * ticket is already queued for that door. The check runs inside the write,
+ * after any ask the caller waited on, so two callers that both waited
+ * cannot both queue the same ticket. Null is the documented answer when
+ * the ticket is already queued. */
+export const queueCheckInUnlessQueued = (
+  scanPath: string,
+  tokenHash: string,
+  quantity: number,
+): QueuedCheckIn | null =>
+  queueHoldsTicket(scanPath, tokenHash)
+    ? null
+    : queueCheckIn(scanPath, tokenHash, quantity);
 
 /** Whether two stored queue items are the same check-in. The rendered rows
  * hold parsed copies, so the match is on the stored fields, not the
@@ -247,4 +259,10 @@ export const dropFromQueue = (item: QueuedCheckIn): void =>
 
 /** Whether a sync is running. The camera loop holds its scans while the
  * queue settles, so one overlay asks one question at a time. */
-export const [isSyncing, setSyncing] = lazyRef(() => false);
+const sync = { running: false };
+
+export const isSyncing = (): boolean => sync.running;
+
+export const setSyncing = (value: boolean): void => {
+  sync.running = value;
+};

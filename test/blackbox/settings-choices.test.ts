@@ -15,85 +15,102 @@ import {
 } from "#test/blackbox/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
-/** One radio choice on a settings page, with its own form. */
+/** One saved choice on a settings page, with its own form. */
 interface Choice extends SettingsForm {
+  /** The control the page shows the choice with. */
+  control: "checkbox" | "radios";
   formId: string;
   /** The choice that a new site starts with, and the one it can change to. */
   other: string;
   questionKey: string;
-  /** The message after a save of `value`. */
-  saved: (value: string) => string;
+  /** The name that the page uses for the choice in the message after a save. */
+  savedName: string;
   start: string;
 }
 
-const yesNo = (label: string) => (value: string) =>
-  `${label} ${value === "true" ? "enabled" : "disabled"}`;
-
+/* jscpd:ignore-start -- static data, not code */
 const LISTING_MODE: Choice = {
   action: "/admin/settings/listing-mode",
+  control: "radios",
   field: "listingMode",
   formId: "settings-listing-mode",
   other: "image",
   page: "/admin/settings-advanced",
   questionKey: "settings.advanced.listing_mode",
-  saved: (value) => `Listing mode set to ${value}`,
+  savedName: "Listing mode",
   start: "text",
 };
 
 const THEME: Choice = {
   action: "/admin/settings/theme",
+  control: "radios",
   field: "theme",
   formId: "settings-theme",
   other: "dark",
   page: "/admin/settings",
   questionKey: "settings.theme",
-  saved: (value) => `Theme set to ${value}`,
+  savedName: "Theme",
   start: "light",
 };
 
 const DASHBOARD_TYPE: Choice = {
   action: "/admin/settings/dashboard-type",
+  control: "radios",
   field: "dashboardType",
   formId: "settings-dashboard-type",
   other: "groups",
   page: "/admin/settings",
   questionKey: "settings.dashboard_type",
-  saved: (value) => `Dashboard type set to ${value}`,
+  savedName: "Dashboard type",
   start: "listings",
 };
 
 const CHOICES: Choice[] = [
   {
     action: "/admin/settings/external-order",
+    control: "checkbox",
     field: "externalOrderEnabled",
     formId: "settings-external-order",
     other: "true",
     page: "/admin/settings-advanced",
     questionKey: "settings.advanced.external_order",
-    saved: yesNo("External order buttons"),
+    savedName: "External order buttons",
     start: "false",
   },
   {
     action: "/admin/settings/show-public-api",
+    control: "checkbox",
     field: "showPublicApi",
     formId: "settings-show-public-api",
     other: "true",
     page: "/admin/settings-advanced",
     questionKey: "settings.advanced.public_api",
-    saved: yesNo("Public API"),
+    savedName: "Public API",
     start: "false",
   },
   DASHBOARD_TYPE,
   LISTING_MODE,
   THEME,
 ];
+/* jscpd:ignore-end */
 
-/** The value of the radio that the page shows as chosen. */
-const chosenValue = (html: string, field: string): string => {
-  const chosen = inputsNamed(html, field).find(isTicked);
+/** The message that the page shows after a save of `value` for `choice`. A
+ * checkbox form says whether the setting is enabled. A radio form says which
+ * value it saved. */
+const savedMessage = (choice: Choice, value: string): string =>
+  choice.control === "checkbox"
+    ? `${choice.savedName} ${value === "true" ? "enabled" : "disabled"}`
+    : `${choice.savedName} set to ${value}`;
+
+/** The value the page shows as chosen for one control. A checkbox sends
+ * "true" only while it is ticked, so an unticked box reads as "false". */
+const chosenValue = (html: string, choice: Choice): string => {
+  if (choice.control === "checkbox")
+    return boxTicked(html, choice.field) ? "true" : "false";
+  const chosen = inputsNamed(html, choice.field).find(isTicked);
   const value = chosen?.match(/\svalue="([^"]*)"/)?.[1];
   if (value === undefined) {
-    throw new Error(`The page shows no chosen radio for "${field}".`);
+    throw new Error(`The page shows no chosen radio for "${choice.field}".`);
   }
   return value;
 };
@@ -102,7 +119,7 @@ const pick = (app: App, choice: Choice, value: string): Promise<Page> =>
   send(app, choice, { [choice.field]: value });
 
 const chosenNow = async (app: App, choice: Choice): Promise<string> =>
-  chosenValue((await app.get(choice.page)).html, choice.field);
+  chosenValue((await app.get(choice.page)).html, choice);
 
 for (const choice of CHOICES) {
   describeWithEnv(`the setting ${choice.action}`, { db: true }, () => {
@@ -111,7 +128,7 @@ for (const choice of CHOICES) {
       const page = await app.get(choice.page);
       expect(page.status).toBe(200);
       expect(page.html).toContain(t(choice.questionKey));
-      expect(chosenValue(page.html, choice.field)).toBe(choice.start);
+      expect(chosenValue(page.html, choice)).toBe(choice.start);
     });
 
     test("a new choice saves, says so beside its form, and stays chosen", async () => {
@@ -121,7 +138,7 @@ for (const choice of CHOICES) {
       expect(to.pathname).toBe(choice.page);
       expect(to.searchParams.get("form")).toBe(choice.formId);
       expect((await followed(app, sent)).html).toContain(
-        choice.saved(choice.other),
+        savedMessage(choice, choice.other),
       );
       expect(await chosenNow(app, choice)).toBe(choice.other);
     });
@@ -130,7 +147,7 @@ for (const choice of CHOICES) {
       const app = await loggedIn();
       await pick(app, choice, choice.other);
       const back = await followed(app, await pick(app, choice, choice.start));
-      expect(back.html).toContain(choice.saved(choice.start));
+      expect(back.html).toContain(savedMessage(choice, choice.start));
       expect(await chosenNow(app, choice)).toBe(choice.start);
     });
 

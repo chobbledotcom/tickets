@@ -24,15 +24,13 @@ import {
 import {
   DOOR_KEY,
   el,
-  fullStore,
+  MODE_KEY,
   queuedItem,
   SCAN_PATH,
   type ScannerGlobals,
   type ScannerHarness,
   storedQueue,
   TOKEN,
-  whenMessageShows,
-  whenTextShows,
 } from "./fixture.ts";
 
 /** Every fetch the page made, as the urls it asked for. */
@@ -45,15 +43,16 @@ export const digestOf = (token: string): Promise<string> =>
   hmacHex(DOOR_KEY, token);
 
 /** The store holds exactly one queued check-in: the digest the scan stored,
- * the delivery id it made up, and the one person it admits. */
+ * the delivery id it made up, and the people it admits. */
 export const expectOneStoredCheckIn = async (
   h: ScannerHarness,
   token: string,
+  quantity = 1,
 ): Promise<void> => {
   expect(JSON.parse(String(storedQueue(h)))).toEqual([
     {
       operationId: expect.any(String),
-      quantity: 1,
+      quantity,
       queuedAt: expect.any(Number),
       scanPath: SCAN_PATH,
       tokenHash: await digestOf(token),
@@ -62,8 +61,8 @@ export const expectOneStoredCheckIn = async (
 };
 
 /** What one offline refusal leaves: the wording on the page, the error
- * status, nothing stored, and no request beyond the page load's cache
- * refresh. */
+ * status, nothing stored, and no request at all. A door with offline mode
+ * off downloads nothing on load. */
 export const expectOfflineRefusal = async (
   h: ScannerHarness,
   fetchStub: Stub,
@@ -72,7 +71,7 @@ export const expectOfflineRefusal = async (
   await whenStatusShows(h.statusEl, message);
   expect(h.statusEl.className).toContain("scanner-status-error");
   expect(storedQueue(h)).toBe(null);
-  expect(askedUrls(fetchStub)).toEqual([`${SCAN_PATH}-cache`]);
+  expect(askedUrls(fetchStub)).toEqual([]);
 };
 
 /** The queue panel's first row, which every sync test's page carries. */
@@ -94,13 +93,12 @@ export const queueSeeded = (): ScannerGlobals => ({
   seed: (store) => store.setItem("scanner-queue", JSON.stringify([queuedItem])),
 });
 
-/** A door that answers every request with a server error. */
-export const refusingDoor = () =>
-  stubFetch(() => Response.json({}, { status: 500 }));
+/** A door that answers its one request with a server error. */
+export const refusingDoor = () => stubFetch(Response.json({}, { status: 500 }));
 
 /** The page globals for a door whose offline switch the person turned on. */
 export const switchArmed: ScannerGlobals = {
-  seed: (store) => store.setItem("scanner-offline-mode", "1"),
+  seed: (store) => store.setItem(MODE_KEY, "1"),
 };
 
 /** The page element with this id, for a harness. */
@@ -116,16 +114,6 @@ export const setConnection = (h: ScannerHarness, onLine: boolean): void => {
 /** The words the queue panel's count shows. */
 export const queueSummary = (h: ScannerHarness): string | null =>
   el(h.document, "scanner-queue-summary").textContent;
-
-/** A page that loads with one queued check-in, whose delivery the door
- * answers with the ID check, and waits at the prompt. */
-export const idAskedOnQueue = async (
-  fresh: (globals: ScannerGlobals) => ScannerHarness,
-): Promise<ScannerHarness> => {
-  const h = fresh(queueSeeded());
-  await whenMessageShows(h, 'Does their ID match "Ada"?');
-  return h;
-};
 
 /** What one settled sync leaves: the done words, the store empty, the
  * panel count at zero, and the deliveries the door received, in order —
@@ -168,13 +156,13 @@ export const queuedItems = async (tokens: string[]): Promise<string> =>
   );
 
 /** The door's answer one settled queue replay gets. A fresh response per
- * call: the page load's cache refresh consumes the first one's body, and a
- * reused body would fail the replay's read. */
+ * call: a reused body would fail the replay's read. */
 export const settledCheckIn = (): Response =>
   Response.json({
     listingName: "Standard",
     name: "Ada",
     quantity: 1,
+    remaining: 0,
     status: "checked_in",
     total: 1,
   });
@@ -244,27 +232,6 @@ export const scanOffline = async (
   await scanFirst(fakes, scanned);
 };
 
-/** An armed switch on a device whose store refuses writes: the click changes
- * nothing, and the page says why. The mode stays stored, the banner stays
- * up, and the switch reads as pressed. */
-export const expectSwitchRefused = async (h: ScannerHarness): Promise<void> => {
-  fullStore(h);
-  el(h.document, "scanner-offline-toggle").click();
-
-  await whenTextShows(
-    h.statusEl,
-    "Your change was not saved. Free up space on this device, then try again.",
-  );
-  expect(h.statusEl.className).toContain("scanner-status-error");
-  expect(h.window.localStorage.getItem("scanner-offline-mode")).toBe("1");
-  expect(el(h.document, "scanner-offline-banner").className).not.toContain(
-    "hidden",
-  );
-  expect(
-    el(h.document, "scanner-offline-toggle").getAttribute("aria-pressed"),
-  ).toBe("true");
-};
-
 /** One offline scan of a booking the saved list says owes three places.
  * The ask is on the page when this settles; the caller answers it. */
 export const scanPartyOfThree = async (h: ScannerHarness): Promise<void> => {
@@ -279,19 +246,4 @@ export const scanPartyOfThree = async (h: ScannerHarness): Promise<void> => {
     el(h.document, "scanner-quantity-message"),
     "How many people are you checking in?",
   );
-};
-
-/** A door that cancels the quantity ask queues nothing and is told so. */
-export const expectCancelQueuesNothing = async (
-  h: ScannerHarness,
-): Promise<void> => {
-  await scanPartyOfThree(h);
-  el(h.document, "scanner-quantity-cancel").click();
-
-  await whenStatusShows(
-    h.statusEl,
-    "Nothing was queued. Scan the ticket again to check them in.",
-  );
-  expect(h.statusEl.className).toContain("scanner-status-warning");
-  expect(storedQueue(h)).toBe(null);
 };

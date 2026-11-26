@@ -39,7 +39,9 @@ describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
       }),
     );
 
-    const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+    const { getAttendeesRaw } = await import(
+      "#test-utils/db-helpers/attendees.ts"
+    );
     const { attendeeAccount } = await import("#accounting/accounts.ts");
     const { transfersByAccount } = await import("#accounting/queries.ts");
     const attendees = await getAttendeesRaw(listing.id);

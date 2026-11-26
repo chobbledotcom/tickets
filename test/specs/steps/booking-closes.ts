@@ -8,7 +8,6 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { quantityFieldName } from "#booking/tree.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { t } from "#i18n";
 import { REGISTRATION_CLOSED_SUBMIT_MESSAGE } from "#routes/public/types.ts";
 import { closesOn } from "#test/specs/support/booking-closes.ts";
@@ -29,6 +28,7 @@ import {
 } from "#test/specs/support/refused-orders.ts";
 import { combinedPath } from "#test/specs/support/sales-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 
 Given(
   "a Trip that stopped taking bookings yesterday",

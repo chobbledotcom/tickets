@@ -38,7 +38,7 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const QUEUED_WORDS = "Waiting — will be checked in when online";
 const SAVE_FAILED =
-  "This device could not save the queued check-ins. Free up space, then reload this page.";
+  "This was not saved because this device has no room left for this site. Turn offline mode off to free the space.";
 const EIGHT_DAYS_MS = 8 * 24 * 60 * 60 * 1000;
 
 describe("scanner offline queue panel", {
@@ -139,7 +139,7 @@ describe("scanner offline queue panel", {
     expect(postedDeliveryHashes(fetchStub)).toEqual([]);
   });
 
-  test("stops at a retired check-in the store will not let go", () => {
+  test("stops at a retired check-in the store will not let go", async () => {
     using _fetch = silentDoor();
     const queue = JSON.stringify([staleItem("c1"), staleItem("c2")]);
     const h = fresh({
@@ -152,7 +152,7 @@ describe("scanner offline queue panel", {
 
     // The first retirement cannot save, so the sync stops there and its
     // error stays up instead of the still-queued warning.
-    expect(h.statusEl.textContent).toBe(SAVE_FAILED);
+    await whenTextShows(h.statusEl, SAVE_FAILED);
     expect(h.statusEl.className).toContain("scanner-status-error");
     expect(storedQueue(h)).toBe(queue);
   });

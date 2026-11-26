@@ -1,12 +1,14 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { PARENT_CHILD_GROUP_UNITS } from "#shared/group-capacity.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendee,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

@@ -14,6 +14,15 @@ export const drain = async (): Promise<void> => {
   for (let hop = 0; hop < 50; hop++) await Promise.resolve();
 };
 
+/** One entry of the door's saved list: the ticket digest, the places one
+ * scan admits, and the person a name search finds by it. */
+export const savedEntry = (hash: string, quantity = 1) => ({
+  details: [],
+  hash,
+  name: "Ada",
+  quantity,
+});
+
 /** The door's ticket list, stamped by the clock the scan will read. The
  * camera fakes own the clock, so the seed lands after they do. The entry
  * carries the places the booking owed when the list was built; a booking
@@ -27,19 +36,19 @@ export const seedTicketCache = async (
   h.window.localStorage.setItem(
     `scanner-tickets-${SCAN_PATH}`,
     JSON.stringify({
-      entries: [{ hash: await hmacHex(DOOR_KEY, token), tickets }],
+      entries: [savedEntry(await hmacHex(DOOR_KEY, token), tickets)],
       storedAt,
     }),
   );
 };
 
-/** Answers the page's cache request with an empty list, and hands every
- * check-in to the responder the test stages. */
+/** Answers the page's cache request with one empty last page, and hands
+ * every other request to the responder the test stages. */
 export const withEmptyCache =
   (checkIns: FetchResponder): FetchResponder =>
   (url, init) =>
-    String(url).endsWith("-cache")
-      ? Response.json({ entries: [] })
+    String(url).includes("/scan-cache")
+      ? Response.json({ entries: [], next: null, people: 0, total: 0 })
       : checkIns(url, init);
 
 /** The real timer the camera fakes replace, captured at module load. */
@@ -62,8 +71,8 @@ export const whenStatusShows = async (
 };
 
 /** Waits for the store to hold the key over real event-loop turns: the
- * page's own cache refresh runs on the platform's crypto promise, which
- * no microtask drain resolves. */
+ * list download and the offline digest run on the platform's own promises,
+ * which no microtask drain resolves. */
 export const whenStoreHolds = async (
   h: ScannerHarness,
   key: string,
@@ -211,10 +220,8 @@ export const cameraFakes = (h: ScannerHarness) => {
   const getContext = (type: string): unknown => {
     fakes.contextTypes.push(type);
     return {
-      // The frame source is recorded as a flag: a failing assertion that
-      // printed the whole video element would take seconds to format.
-      drawImage: (source: unknown, x: unknown, y: unknown) => {
-        fakes.drawn.push([source === video, x, y]);
+      drawImage: (...args: unknown[]) => {
+        fakes.drawn.push(args);
       },
       getImageData: (...args: unknown[]) => {
         fakes.reads.push(args);

@@ -1,6 +1,5 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
@@ -14,6 +13,7 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import {
   createTestAttendee,
+  getAttendeesRaw,
   readPendingNotificationFlags,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

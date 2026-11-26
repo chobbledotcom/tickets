@@ -67,12 +67,10 @@ describeAdminSettings(() => {
     expectStatus(404)(await adminGet("/admin/features/unknown"));
   });
 
-  test("rejects a missing enabled choice", async () => {
-    // The page always renders one radio already picked, so only a crafted send
-    // can arrive with no choice at all.
+  test("treats an absent checkbox as disabled", async () => {
     const { response } = await adminFormPost("/admin/features/money", {});
     expect(response.status).toBe(302);
-    expectFlash(response, "Choose whether to enable this feature.", false);
+    expectFlash(response, "Money disabled.", true);
     expect(settings.features.money).toBe(false);
   });
 

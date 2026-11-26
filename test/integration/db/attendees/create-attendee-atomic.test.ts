@@ -6,14 +6,17 @@ import type {
 } from "#db/attendee-types.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
-import { getAttendeeRaw, getAttendeesRaw } from "#db/attendees/queries.ts";
+import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { getDb } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
 import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
+import {
+  expectNoAttendeesForListings,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import {
   createPackageWithMember,
   createTestGroup,
@@ -205,15 +208,12 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     const attendeeId = result.attendees[0]!.id;
     expect(result.attendees[1]!.id).toBe(attendeeId);
 
-    const listing1Raw = await getAttendeesRaw(listing1.id);
-    expect(listing1Raw.length).toBe(1);
-    expect(listing1Raw[0]!.id).toBe(attendeeId);
-    expect(listing1Raw[0]!.quantity).toBe(2);
-
-    const listing2Raw = await getAttendeesRaw(listing2.id);
-    expect(listing2Raw.length).toBe(1);
-    expect(listing2Raw[0]!.id).toBe(attendeeId);
-    expect(listing2Raw[0]!.quantity).toBe(3);
+    expect(await getAttendeesRaw(listing1.id)).toMatchObject([
+      { id: attendeeId, quantity: 2 },
+    ]);
+    expect(await getAttendeesRaw(listing2.id)).toMatchObject([
+      { id: attendeeId, quantity: 3 },
+    ]);
   });
 
   test("fails when capacity exceeded", async () => {

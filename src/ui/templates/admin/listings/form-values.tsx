@@ -105,6 +105,7 @@ export const listingFormClass = (template: ListingTemplate): string =>
     template.signature.daily !== undefined ? "listing-form--hide-type" : "",
     template.signature.dated === false ? "listing-form--hide-date" : "",
     template.signature.daily === false ? "listing-form--no-daily" : "",
+    template.location === false ? "listing-form--no-location" : "",
   ]
     .filter(Boolean)
     .join(" ");

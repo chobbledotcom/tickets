@@ -15,6 +15,7 @@ import { getSavedFieldValue } from "#shared/forms/saved-data.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { commaParts } from "#shared/split.ts";
 import { PriceInput } from "#templates/components/price-input.tsx";
+import { RequiredMark } from "#templates/components/required-mark.tsx";
 
 export type SelectOption = {
   value: string;
@@ -52,7 +53,7 @@ const renderCheckboxGroup = (
   selectedValues: Set<string>,
   dataAttrs: string,
 ): string =>
-  `<fieldset class="checkboxes">${options
+  `<div class="checkboxes">${options
     .map(
       (option) =>
         `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(
@@ -61,7 +62,7 @@ const renderCheckboxGroup = (
           selectedValues.has(option.value) ? " checked" : ""
         }${dataAttrs}> ${escapeHtml(option.label)}</label>`,
     )
-    .join("")}</fieldset>`;
+    .join("")}</div>`;
 
 const renderDatetimeInputs = (
   name: string,
@@ -226,25 +227,59 @@ const publicLinkHint = (field: Field, value: string): JSX.Element | null => {
   );
 };
 
-export const renderField = (field: Field, value: string = ""): string =>
-  (field.beforeHtml ?? "") +
-  String(
+export const renderField = (field: Field, value: string = ""): string => {
+  const label = (
     <>
-      <label>
-        {field.label}
-        {field.labelSuffixHtml && <Raw html={field.labelSuffixHtml} />}
-        {renderFieldInput(field, value)}
-        {field.hint && <small>{field.hint}</small>}
-        {field.hintHtml && (
-          <small>
-            <Raw html={field.hintHtml} />
-          </small>
-        )}
-        {publicLinkHint(field, value)}
-      </label>
-      {selectOptionHints(field)}
-    </>,
+      {field.label}
+      {field.labelSuffixHtml && <Raw html={field.labelSuffixHtml} />}
+      <RequiredMark required={field.required} />
+    </>
   );
+  const hint = field.hint ? <small>{field.hint}</small> : null;
+  const hints = (
+    <>
+      {!field.hintFirst && hint}
+      {field.hintHtml && (
+        <small>
+          <Raw html={field.hintHtml} />
+        </small>
+      )}
+      {publicLinkHint(field, value)}
+    </>
+  );
+  // A checkbox group is one fieldset: its legend names the field, and the
+  // options sit in a .checkboxes row beneath it. Nesting it inside a <label>
+  // puts one label inside another, which HTML forbids.
+  if (field.type === "checkbox-group") {
+    return (
+      (field.beforeHtml ?? "") +
+      String(
+        <>
+          <fieldset>
+            <legend>{label}</legend>
+            {renderFieldInput(field, value)}
+            {hints}
+          </fieldset>
+          {selectOptionHints(field)}
+        </>,
+      )
+    );
+  }
+  return (
+    (field.beforeHtml ?? "") +
+    String(
+      <>
+        <label>
+          {label}
+          {field.hintFirst && hint}
+          {renderFieldInput(field, value)}
+          {hints}
+        </label>
+        {selectOptionHints(field)}
+      </>,
+    )
+  );
+};
 
 const resolveFieldValue = (
   field: Field,

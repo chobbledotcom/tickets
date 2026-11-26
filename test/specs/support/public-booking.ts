@@ -14,7 +14,6 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
-import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import {
   CUSTOMER,
   openAsNewcomer,
@@ -26,6 +25,7 @@ import {
 } from "#test/specs/support/form-controls/reading.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
 

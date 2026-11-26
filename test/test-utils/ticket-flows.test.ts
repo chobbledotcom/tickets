@@ -37,7 +37,9 @@ describe("test-utils — ticket & join flows", () => {
       quantity: number,
     ): Promise<void> => {
       expect(response.status).toBe(302);
-      const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+      const { getAttendeesRaw } = await import(
+        "#test-utils/db-helpers/attendees.ts"
+      );
       const attendees = await getAttendeesRaw(listingId);
       expect(attendees).toHaveLength(1);
       expect(attendees[0]!.quantity).toBe(quantity);

@@ -9,6 +9,7 @@ import {
   sendEmailRequest,
 } from "#shared/email.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { parseJsonOrNull } from "#shared/read-json.ts";
 import { emailHost, type ValidEmail } from "#shared/validation/email.ts";
 
 export const BULK_UNSUBSCRIBE_PLACEHOLDER = "%%bulk_unsubscribe_url%%";
@@ -89,23 +90,13 @@ const PostmarkResultsSchema = v.array(
   v.looseObject({ ErrorCode: v.number(), Message: v.string() }),
 );
 
-/** The reply as JSON, or null when it is not JSON. A body we cannot parse
- * is a body we cannot read, which the caller counts as unconfirmed. */
-const replyJson = (body: string): unknown => {
-  try {
-    return JSON.parse(body);
-  } catch {
-    return null;
-  }
-};
-
 /** Postmark can answer 200 and still refuse a message inside the batch, for
  * example a suppressed recipient, so read every result. Postmark took the
  * batch, so a reply we cannot read leaves those messages unconfirmed: they
  * are neither claimed as sent nor called refused, because either claim is
  * one we cannot make. */
 const readPostmarkReply: AcceptedReplyReader = (body, batchSize) => {
-  const results = v.safeParse(PostmarkResultsSchema, replyJson(body));
+  const results = v.safeParse(PostmarkResultsSchema, parseJsonOrNull(body));
   if (!results.success || results.output.length !== batchSize) {
     return { confirmed: [], reasons: [], refused: [] };
   }

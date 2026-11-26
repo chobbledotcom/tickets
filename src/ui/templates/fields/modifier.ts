@@ -98,7 +98,7 @@ const getModifierFields = () =>
     {
       hint: "Only apply when the order subtotal is at least this amount (in your currency). Leave blank for no minimum.",
       inputmode: "decimal",
-      label: "Minimum order (optional)",
+      label: t("modifiers.min_subtotal.label"),
       name: "minSubtotal",
       // Optional: blank means no minimum (0). `parse` maps blank to 0;
       // `validateSingleField` only runs `validate` on a non-empty value.
@@ -126,10 +126,10 @@ const getModifierFields = () =>
     },
     {
       hint: "Total number available across all orders. Leave blank for unlimited.",
-      label: "Stock (optional)",
+      label: t("modifiers.stock.label"),
       min: 0,
       name: "stock",
-      ...wholeNumberFieldShape("Stock (optional)"),
+      ...wholeNumberFieldShape(t("modifiers.stock.label")),
     },
     {
       hint: t("modifiers.max_per_order.hint"),
