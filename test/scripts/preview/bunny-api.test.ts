@@ -1,6 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { type PreviewApi, previewApi } from "#scripts/preview/bunny-api.ts";
+import {
+  type DatabaseId,
+  type PreviewApi,
+  type PullZoneId,
+  previewApi,
+  type ScriptId,
+} from "#scripts/preview/bunny-api.ts";
 import {
   apiAnswering,
   apiOn,
@@ -11,6 +17,11 @@ import {
 } from "./fake-bunny.ts";
 
 const OK = { ok: true, value: undefined };
+
+// The api takes branded ids. A test names a fake id by a plain value.
+const script = (id: number) => id as ScriptId;
+const zone = (id: number) => id as PullZoneId;
+const database = (id: string) => id as DatabaseId;
 
 /** One call against a fake account, what it returns, and what it leaves. */
 type Check = {
@@ -48,13 +59,13 @@ const CHECKS: Check[] = [
       value: { defaultHostname: "site-1.bunny.run", pullZoneId: 1001 },
     },
     name: "reads the hostname and pull zone of a script",
-    run: (api) => api.getScript(1),
+    run: (api) => api.getScript(script(1)),
     seed: withScript,
   },
   {
     expected: { ok: true, value: ["A", "B"] },
     name: "lists secret names",
-    run: (api) => api.listSecretNames(1),
+    run: (api) => api.listSecretNames(script(1)),
     seed: (bunny) => bunny.addScript("x", ["A", "B"]),
   },
   {
@@ -102,7 +113,7 @@ const CHECKS: Check[] = [
         path: "/pullzone/1001",
       },
     ],
-    run: (api) => api.allowCookies(1001),
+    run: (api) => api.allowCookies(zone(1001)),
     seed: withScript,
   },
   {
@@ -113,7 +124,7 @@ const CHECKS: Check[] = [
       bunny.scripts.get(1)?.published,
     ],
     observed: ["new code", true],
-    run: (api) => api.deployCode(1, "new code"),
+    run: (api) => api.deployCode(script(1), "new code"),
     seed: withScript,
   },
   {
@@ -131,7 +142,7 @@ const CHECKS: Check[] = [
   {
     expected: { ok: true, value: "libsql://preview-x.example" },
     name: "reads the database URL",
-    run: (api) => api.databaseUrl("db-1"),
+    run: (api) => api.databaseUrl(database("db-1")),
     seed: withDatabase,
   },
   {
@@ -139,7 +150,7 @@ const CHECKS: Check[] = [
     name: "issues a full-access token",
     observe: (bunny) => bunny.calls.at(-1)?.body,
     observed: { authorization: "full-access", expires_at: null },
-    run: (api) => api.issueDatabaseToken("db-1"),
+    run: (api) => api.issueDatabaseToken(database("db-1")),
     seed: withDatabase,
   },
   {
@@ -147,7 +158,7 @@ const CHECKS: Check[] = [
     name: "sets a secret by name",
     observe: (bunny) => bunny.scripts.get(1)?.secrets.get("DB_URL"),
     observed: "libsql://x",
-    run: (api) => api.setSecret(1, "DB_URL", "libsql://x"),
+    run: (api) => api.setSecret(script(1), "DB_URL", "libsql://x"),
     seed: withScript,
   },
   {
@@ -160,9 +171,9 @@ const CHECKS: Check[] = [
     ],
     observed: [0, 0, 0],
     run: async (api) => [
-      await api.deleteScript(1),
-      await api.deletePullZone(1001),
-      await api.deleteDatabase("db-2"),
+      await api.deleteScript(script(1)),
+      await api.deletePullZone(zone(1001)),
+      await api.deleteDatabase(database("db-2")),
     ],
     seed: (bunny) => {
       withScript(bunny);
@@ -173,9 +184,9 @@ const CHECKS: Check[] = [
     expected: [OK, OK, OK],
     name: "counts a missing resource as deleted",
     run: async (api) => [
-      await api.deleteScript(9),
-      await api.deletePullZone(9),
-      await api.deleteDatabase("gone"),
+      await api.deleteScript(script(9)),
+      await api.deletePullZone(zone(9)),
+      await api.deleteDatabase(database("gone")),
     ],
   },
 ];
@@ -199,7 +210,7 @@ const ANSWERS: Answer[] = [
   {
     expected: { ok: true, value: [] },
     name: "reads a null secret list as empty",
-    run: (api) => api.listSecretNames(1),
+    run: (api) => api.listSecretNames(script(1)),
     text: { Secrets: null },
   },
   {
@@ -226,7 +237,7 @@ const ANSWERS: Answer[] = [
       ok: false,
     },
     name: "refuses a script with no hostname",
-    run: (api) => api.getScript(1),
+    run: (api) => api.getScript(script(1)),
     text: SCRIPT_WITHOUT({ DefaultHostname: "" }),
   },
   {
@@ -271,11 +282,11 @@ describe("previewApi", () => {
     withDatabase(bunny);
     const api = apiOn(bunny);
 
-    expect(await api.setSecret(1, "DB_URL", "v")).toEqual({
+    expect(await api.setSecret(script(1), "DB_URL", "v")).toEqual({
       error: "Set secret DB_URL failed (400): boom",
       ok: false,
     });
-    expect(await api.issueDatabaseToken("db-2")).toEqual({
+    expect(await api.issueDatabaseToken(database("db-2"))).toEqual({
       error: "Generate database token failed (403): boom",
       ok: false,
     });
@@ -286,7 +297,7 @@ describe("previewApi", () => {
   });
 
   test("refuses to allow cookies on a pull zone that Bunny does not know", async () => {
-    expect(await apiOn(fakeBunny()).allowCookies(9)).toEqual({
+    expect(await apiOn(fakeBunny()).allowCookies(zone(9))).toEqual({
       error: "Allow pull zone cookies failed (404): no pull zone",
       ok: false,
     });
