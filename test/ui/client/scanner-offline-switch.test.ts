@@ -13,6 +13,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  drain,
   savedEntry,
   whenStatusShows,
   whenStoreHolds,
@@ -154,6 +155,27 @@ describe("scanner offline switch", {
     // The first page asks with no cursor. Each later page asks with the
     // cursor the page before it named.
     expect(askedUrls(fetchStub)).toEqual([FIRST_PAGE, `${FIRST_PAGE}?from=c7`]);
+  });
+
+  test("shows no numbers until the first page answers", async () => {
+    const firstPage = Promise.withResolvers<Response>();
+    using _fetch = stubFetch(() => firstPage.promise);
+    const h = fresh();
+    toggle(h).click();
+    await drain();
+
+    // The wait reads as busy, not as an empty door: the numbers wait for
+    // the page that carries them.
+    expect(toggle(h).getAttribute("aria-busy")).toBe("true");
+    expect(progress(h).className).toContain("hidden");
+    expect(progress(h).textContent).toBe("");
+
+    firstPage.resolve(Response.json(cachePage("first", null, 1, 1)));
+    await whenStatusShows(
+      progress(h),
+      "Downloading the ticket list (1 of 1 people)",
+    );
+    await whenStatusShows(h.statusEl, READY);
   });
 
   test("shows no more people than the total when bookings land mid-download", async () => {

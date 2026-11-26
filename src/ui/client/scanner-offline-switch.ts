@@ -45,6 +45,7 @@ export const wireOfflineSwitch = ({
 
   const showProgress = (done: number, total: number) => {
     progress.textContent = wording.fill("offlineDownloading", { done, total });
+    progress.classList.remove("hidden");
   };
 
   /** Tell the door why the download kept no list. A stopped download is the
@@ -85,8 +86,8 @@ export const wireOfflineSwitch = ({
     // only refreshing, and its stored list must survive a refused write.
     const arming = !readManualMode(scanPath);
     toggle.setAttribute("aria-busy", "true");
-    progress.classList.remove("hidden");
-    showProgress(0, 0);
+    // The numbers wait for the first page: an empty line cannot read as an
+    // empty door while the download is only starting.
     try {
       await downloadTicketCache(scanPath, showProgress, stop.signal);
       writeManualMode(scanPath, true);
