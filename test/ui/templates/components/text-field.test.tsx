@@ -61,7 +61,7 @@ describe("TextField", () => {
     );
 
     expect(html).toBe(
-      `<label>Display name<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="displayName" placeholder="As printed on the ticket" required type="text" value="Robin"></label>`,
+      `<label>Display name<span aria-hidden="true" class="field-requirement">*</span><span class="visually-hidden">Required</span><input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="displayName" placeholder="As printed on the ticket" required type="text" value="Robin"></label>`,
     );
   });
 

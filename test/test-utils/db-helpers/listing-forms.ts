@@ -11,7 +11,6 @@ import type { AdminLevel, DayPrices, ListingWithCount } from "#types";
 
 const checked = (name: string, value: unknown): TestFormValues =>
   value ? { [name]: "1" } : {};
-const flagChoice = (value: unknown): string => (value ? "1" : "");
 const repeated = (value: string): string[] =>
   value ? value.split(",").map((part) => part.trim()) : [];
 
@@ -137,7 +136,7 @@ const createListingBoxes = (
     minQuantity: shownCount(input.minQuantity, 1),
     monthsPerUnit: shownCount(input.monthsPerUnit, 0),
     name: input.name,
-    nonTransferable: flagChoice(input.nonTransferable),
+    ...checked("nonTransferable", input.nonTransferable),
     ...checked("purchaseOnly", input.purchaseOnly),
     thankYouUrl: input.thankYouUrl ?? "",
     unitPrice: toMajorUnits(input.unitPrice ?? 0),
@@ -160,7 +159,8 @@ const buildUpdateBoolFields = (
   ),
   ...checked("canPayMore", pickField(updates.canPayMore, existing.canPayMore)),
   ...checked("hidden", pickField(updates.hidden, existing.hidden)),
-  nonTransferable: flagChoice(
+  ...checked(
+    "nonTransferable",
     pickField(updates.nonTransferable, existing.nonTransferable),
   ),
   ...checked(

@@ -105,7 +105,9 @@ src/features/admin/calendar-csv.ts::logisticsColumns.value~00m7ij3  ?? → || au
 src/features/admin/calendar-csv.ts::logisticsColumns.value~1mtw1ii  ?? → || audited:0aa5lty # endTime is string|undefined; every falsy value produces the same "" fallback
 src/shared/forms/rendering.tsx::splitDatetime.date~1f0kxzu   → "mutated" audited:04c5s6o # split("T")[0] always exists, and the empty input returned before this line
 src/shared/forms/rendering.tsx::publicLinkHint~0wwelzf  || → && audited:04c5s6o # publicLinkPath is absent or a function, so both boolean terms always agree
-src/shared/forms/rendering.tsx::renderField~1vcsvsj  ?? → || audited:04c5s6o # beforeHtml is string|undefined and falls back to "", so both operators agree
+src/shared/forms/rendering.tsx::renderField~1vcsvsj@1  ?? → || audited:0db9cih # beforeHtml is string|undefined and falls back to "", so both operators agree
+src/shared/forms/rendering.tsx::renderField~1vcsvsj@2  ?? → || audited:0db9cih # beforeHtml is string|undefined and falls back to "", so both operators agree
+src/shared/forms/rendering.tsx::resolveFieldValue~0u5nsbr  ?? → || audited:0db9cih # defaultValue is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.arch~00dnfok  ?? → || audited:04annj8 # arch is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.denoVersion~1pyb0qg  ?? → || audited:04annj8 # denoVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts::buildRuntimeInfo.nodeCompatVersion~1m2e610  ?? → || audited:04annj8 # nodeCompatVersion is string|undefined and falls back to "", so both operators agree

@@ -203,7 +203,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         response,
         200,
         "Advanced Settings",
-        "Enable public API?",
+        "Public API",
       );
     });
 
