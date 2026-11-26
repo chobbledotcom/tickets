@@ -2,7 +2,12 @@
  * and the exact request the page's own script would send. */
 
 import { expect } from "@std/expect";
+import * as v from "valibot";
 import { handleRequest } from "#routes";
+import {
+  type RosterOption,
+  SearchAnswerSchema,
+} from "#shared/roster-option.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -13,24 +18,16 @@ import {
   testCsrfToken,
 } from "#test-utils/session.ts";
 
-/** One person a name search at a door finds, as the search route answers. */
-export type FoundPerson = {
-  attendeeId: number;
-  details: string[];
-  name: string;
-  quantity: number;
-};
-
 /** The people a name search at the group door finds. */
 export const doorSearch = async (
   groupId: number,
   text: string,
-): Promise<FoundPerson[]> => {
+): Promise<RosterOption[]> => {
   const response = await adminGet(
     `/admin/groups/${groupId}/scan-search?q=${encodeURIComponent(text)}`,
   );
   expect(response.status).toBe(200);
-  return ((await response.json()) as { options: FoundPerson[] }).options;
+  return v.parse(SearchAnswerSchema, await response.json()).options;
 };
 
 /** One group door with its member listings. Names are unique across the

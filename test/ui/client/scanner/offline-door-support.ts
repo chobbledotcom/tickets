@@ -24,6 +24,7 @@ import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import {
   type TicketCacheEntry,
   TicketCacheEntrySchema,
+  TicketCachePageSchema,
 } from "#shared/ticket-cache.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {
@@ -53,11 +54,11 @@ export const CHECK_IN_PICK = 2;
 
 /** The ticket list one door's cache endpoint answers and the page stores:
  * one keyed digest per ticket, with the places one scan at the door admits.
- * Both boundaries are outside the test's own code, so both parse. */
-const cacheEntriesSchema = v.array(TicketCacheEntrySchema);
-const servedCacheSchema = v.object({ entries: cacheEntriesSchema });
+ * Both boundaries are outside the test's own code, so both parse. The served
+ * answer parses with the page schema the endpoint and the browser share;
+ * the stored list adds the time the device stamped it. */
 const storedCacheSchema = v.object({
-  entries: cacheEntriesSchema,
+  entries: v.array(TicketCacheEntrySchema),
   storedAt: v.number(),
 });
 
@@ -276,7 +277,7 @@ export const servedCacheEntries = async (
   if (!response.ok) {
     throw new Error(`The scan-cache endpoint answered ${response.status}`);
   }
-  return v.parse(servedCacheSchema, await response.json()).entries;
+  return v.parse(TicketCachePageSchema, await response.json()).entries;
 };
 
 /** The body one queued delivery sends: its own operation id, the people the

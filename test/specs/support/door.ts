@@ -7,9 +7,14 @@
  * than being stepped around.
  */
 
+import * as v from "valibot";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { handleRequest } from "#routes";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
+import {
+  type RosterOption,
+  SearchAnswerSchema,
+} from "#shared/roster-option.ts";
 import { jsonWrite } from "#test/specs/support/api-request.ts";
 import { personBookedOnListing } from "#test/specs/support/booked-person.ts";
 import {
@@ -285,7 +290,7 @@ export const doorPageHtml: ReadAboutOneThing = async (world, listing) =>
     .currentHtml;
 
 /** One person a door's name search finds, and the tickets they still owe. */
-export type FoundAtDoor = { name: string; quantity: number };
+export type FoundAtDoor = Pick<RosterOption, "name" | "quantity">;
 
 /** The people a door's name search finds for `who`, asked the way the door's
  * manual check-in asks: through the door's search route, by part of a name.
@@ -301,9 +306,10 @@ export const offeredAt =
       world,
       `${searchPath(world, doorName)}?q=${encodeURIComponent(who)}`,
     );
-    const { options } = JSON.parse(browser.currentHtml) as {
-      options: FoundAtDoor[];
-    };
+    const { options } = v.parse(
+      SearchAnswerSchema,
+      JSON.parse(browser.currentHtml),
+    );
     return options.map(({ name, quantity }) => ({ name, quantity }));
   };
 
