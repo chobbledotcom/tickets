@@ -13,11 +13,16 @@ import {
 } from "#shared/scanner-words.ts";
 import { type App, createApp, inProcess } from "#test/blackbox/driver.ts";
 import { expectPrivateJson } from "#test/blackbox/headers.ts";
+import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { allDays, createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postAttendeeRefund } from "#test-utils/ledger.ts";
 
 const loggedIn = async (): Promise<App> => {
   const app = createApp(inProcess);
@@ -203,6 +208,51 @@ describeWithEnv(
       expectPrivateJson(headers);
     });
 
+    test("names only the listings a person still owes, each with its day", async () => {
+      const app = await loggedIn();
+      const group = await createTestGroup({ scanChecksInAllListings: true });
+      const daily = {
+        bookableDays: allDays,
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 10,
+        maximumDaysAfter: 60,
+        minimumDaysBefore: 0,
+      } as const;
+      const west = await createTestListing({ ...daily, name: "West" });
+      const east = await createTestListing({ ...daily, name: "East" });
+      const day = testDate(
+        new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
+      );
+      const sam = await bookTestAttendee(
+        [
+          { date: day, listingId: west.id, quantity: 2 },
+          { date: day, listingId: east.id, quantity: 1 },
+        ],
+        "Sam Reed",
+        "sam@example.com",
+      );
+      await postAttendeeRefund({ attendeeId: sam.id, listingId: east.id });
+
+      // The refunded line owes nothing: its listing is not named, and its
+      // place does not count, though this door checks in every listing.
+      expect(await search(app, `/admin/groups/${group.id}`, "?q=sam")).toEqual({
+        body: {
+          options: [
+            {
+              attendeeId: sam.id,
+              details: [expect.stringMatching(/^West · \S/)],
+              name: "Sam Reed",
+              quantity: 2,
+            },
+          ],
+        },
+        status: 200,
+      });
+    });
+
     test("answers 404 for a No check-in listing", async () => {
       const app = await loggedIn();
       const closed = await createTestListing({ purchaseOnly: true });
@@ -210,6 +260,9 @@ describeWithEnv(
         `/admin/listing/${closed.id}/scan-search?q=ab`,
       );
       expect(page.status).toBe(404);
+      // The door's routes all answer a missing door with the scan API's
+      // own word, which the scanner's answer schema reads.
+      expect(JSON.parse(page.html)).toEqual({ status: "not_found" });
     });
 
     test("answers 401 JSON without a scanner session", async () => {

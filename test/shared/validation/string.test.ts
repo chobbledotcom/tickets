@@ -8,6 +8,7 @@ import {
   nonEmptyString,
   parseNonEmptyString,
   requiredTrimmedText,
+  stringFields,
 } from "#shared/validation/string.ts";
 
 const acceptNonEmpty = (value: NonEmptyString): string => value;
@@ -51,5 +52,17 @@ describe("validation/string", () => {
       error: "ticket-token is required",
       ok: false,
     });
+  });
+
+  test("makes one text field for each name, and no others", () => {
+    const schema = v.object(stringFields("name", "url"));
+
+    expect(Object.keys(schema.entries)).toEqual(["name", "url"]);
+    expect(v.parse(schema, { name: "a", url: "b" })).toEqual({
+      name: "a",
+      url: "b",
+    });
+    expect(v.safeParse(schema, { name: "a", url: 1 }).success).toBe(false);
+    expect(v.safeParse(schema, { name: "a" }).success).toBe(false);
   });
 });
