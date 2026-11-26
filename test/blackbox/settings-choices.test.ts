@@ -23,14 +23,12 @@ interface Choice extends SettingsForm {
   /** The choice that a new site starts with, and the one it can change to. */
   other: string;
   questionKey: string;
-  /** The message after a save of `value`. */
-  saved: (value: string) => string;
+  /** The name that the page uses for the choice in the message after a save. */
+  savedName: string;
   start: string;
 }
 
-const yesNo = (label: string) => (value: string) =>
-  `${label} ${value === "true" ? "enabled" : "disabled"}`;
-
+/* jscpd:ignore-start -- static data, not code */
 const LISTING_MODE: Choice = {
   action: "/admin/settings/listing-mode",
   control: "radios",
@@ -39,7 +37,7 @@ const LISTING_MODE: Choice = {
   other: "image",
   page: "/admin/settings-advanced",
   questionKey: "settings.advanced.listing_mode",
-  saved: (value) => `Listing mode set to ${value}`,
+  savedName: "Listing mode",
   start: "text",
 };
 
@@ -51,7 +49,7 @@ const THEME: Choice = {
   other: "dark",
   page: "/admin/settings",
   questionKey: "settings.theme",
-  saved: (value) => `Theme set to ${value}`,
+  savedName: "Theme",
   start: "light",
 };
 
@@ -63,7 +61,7 @@ const DASHBOARD_TYPE: Choice = {
   other: "groups",
   page: "/admin/settings",
   questionKey: "settings.dashboard_type",
-  saved: (value) => `Dashboard type set to ${value}`,
+  savedName: "Dashboard type",
   start: "listings",
 };
 
@@ -76,7 +74,7 @@ const CHOICES: Choice[] = [
     other: "true",
     page: "/admin/settings-advanced",
     questionKey: "settings.advanced.external_order",
-    saved: yesNo("External order buttons"),
+    savedName: "External order buttons",
     start: "false",
   },
   {
@@ -87,13 +85,22 @@ const CHOICES: Choice[] = [
     other: "true",
     page: "/admin/settings-advanced",
     questionKey: "settings.advanced.public_api",
-    saved: yesNo("Public API"),
+    savedName: "Public API",
     start: "false",
   },
   DASHBOARD_TYPE,
   LISTING_MODE,
   THEME,
 ];
+/* jscpd:ignore-end */
+
+/** The message that the page shows after a save of `value` for `choice`. A
+ * checkbox form says whether the setting is enabled. A radio form says which
+ * value it saved. */
+const savedMessage = (choice: Choice, value: string): string =>
+  choice.control === "checkbox"
+    ? `${choice.savedName} ${value === "true" ? "enabled" : "disabled"}`
+    : `${choice.savedName} set to ${value}`;
 
 /** The value the page shows as chosen for one control. A checkbox sends
  * "true" only while it is ticked, so an unticked box reads as "false". */
@@ -131,7 +138,7 @@ for (const choice of CHOICES) {
       expect(to.pathname).toBe(choice.page);
       expect(to.searchParams.get("form")).toBe(choice.formId);
       expect((await followed(app, sent)).html).toContain(
-        choice.saved(choice.other),
+        savedMessage(choice, choice.other),
       );
       expect(await chosenNow(app, choice)).toBe(choice.other);
     });
@@ -140,7 +147,7 @@ for (const choice of CHOICES) {
       const app = await loggedIn();
       await pick(app, choice, choice.other);
       const back = await followed(app, await pick(app, choice, choice.start));
-      expect(back.html).toContain(choice.saved(choice.start));
+      expect(back.html).toContain(savedMessage(choice, choice.start));
       expect(await chosenNow(app, choice)).toBe(choice.start);
     });
 
