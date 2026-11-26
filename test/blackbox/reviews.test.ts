@@ -16,6 +16,7 @@ import {
   enableFeature,
   enablePublicSite,
 } from "#test-utils/settings.ts";
+import { loggedIn } from "./settings.ts";
 
 const fields = (name: string, url: string, text = "A new review.") => ({
   date: "2026-11-24",
@@ -29,12 +30,6 @@ const follow = async (app: App, page: Page): Promise<Page> => {
   expect(page.status).toBe(302);
   if (page.location === null) throw new Error("The save named no address.");
   return app.get(page.location);
-};
-
-const editor = async (): Promise<App> => {
-  const app = createApp(inProcess);
-  await app.logIn();
-  return app;
 };
 
 const addReview = async (app: App, name: string, url: string): Promise<Page> =>
@@ -62,7 +57,7 @@ const withReviews = async (
 ): Promise<void> => {
   await enableReviews();
   try {
-    await body(await editor());
+    await body(await loggedIn());
   } finally {
     await cleanUp();
   }

@@ -17,6 +17,27 @@ const RATING_OPTIONS = [
 ] as const;
 /* jscpd:ignore-end */
 
+const wideReviewField = <
+  const Name extends string,
+  const Section extends "details" | "link",
+  const Type extends "textarea" | "url",
+>(config: {
+  hint: string;
+  label: string;
+  name: Name;
+  section: Section;
+  type: Type;
+}) => ({
+  hint: config.hint,
+  hintFirst: true as const,
+  label: config.label,
+  maxlength: MAX_TEXTAREA_LENGTH,
+  name: config.name,
+  required: true as const,
+  section: config.section,
+  type: config.type,
+});
+
 export const getReviewForm = () =>
   defineForm({
     fields: [
@@ -45,26 +66,22 @@ export const getReviewForm = () =>
         type: "date" as const,
       },
       {
-        hint: t("reviews.field.text_hint"),
-        hintFirst: true,
-        label: t("reviews.field.text"),
+        ...wideReviewField({
+          hint: t("reviews.field.text_hint"),
+          label: t("reviews.field.text"),
+          name: "text",
+          section: "details" as const,
+          type: "textarea" as const,
+        }),
         markdown: true,
-        maxlength: MAX_TEXTAREA_LENGTH,
-        name: "text",
-        required: true,
-        section: "details" as const,
-        type: "textarea" as const,
       },
-      {
+      wideReviewField({
         hint: t("reviews.field.url_hint"),
-        hintFirst: true,
         label: t("reviews.field.url"),
-        maxlength: MAX_TEXTAREA_LENGTH,
         name: "url",
-        required: true,
         section: "link" as const,
         type: "url" as const,
-      },
+      }),
     ] as const,
   });
 
