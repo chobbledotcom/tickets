@@ -65,6 +65,21 @@ describeWithBrowser(
           preload: "metadata",
           src: HREF,
         });
+
+        // The guide video's window is a quarter wider than the default shell.
+        const guideWidth = await dialog.evaluate(
+          (element) => element.getBoundingClientRect().width,
+        );
+        const defaultWidth = await page.evaluate(() => {
+          const shell = document.createElement("dialog");
+          shell.className = "admin-modal";
+          shell.open = true;
+          document.body.append(shell);
+          const width = shell.getBoundingClientRect().width;
+          shell.remove();
+          return width;
+        });
+        expect(guideWidth).toBe(defaultWidth * 1.25);
       });
     });
   },

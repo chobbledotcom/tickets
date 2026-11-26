@@ -1,8 +1,14 @@
+@use "mixins" as *;
+
 .guide-video-heading {
   align-items: center;
   display: flex;
   gap: 0.5rem;
 }
+
+/* The player's window is a quarter wider than the default, so a 16:9 frame has
+   more room. */
+@include wide-modal(".guide-video-player", 50rem);
 
 .guide-video-link {
   align-items: center;

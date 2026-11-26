@@ -112,3 +112,13 @@
   border-radius: var(--border-radius);
 }
 
+/* A shell window wider than the default for one kind of content. A phone or a
+ * coarse pointer keeps the full-screen shape, so this rule stops short of
+ * them. */
+@mixin wide-modal($content, $width) {
+  @media (min-width: 769px) and (pointer: fine) {
+    .admin-modal:has(#{$content}) {
+      width: min(100% - 2 * var(--space-lg), $width);
+    }
+  }
+}
