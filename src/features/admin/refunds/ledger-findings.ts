@@ -8,7 +8,6 @@ import type { RunFindings } from "./claim.ts";
 export type AppliedRefundLedgerFindings = {
   readonly allRecorded: boolean;
   readonly hasUnrecorded: boolean;
-  readonly needsReview: boolean;
 };
 
 const matchingReferences = (
@@ -66,7 +65,6 @@ export const applyRefundLedgerFindings = (
   return {
     allRecorded: recorded.length === references.length,
     hasUnrecorded: unrecorded.length > 0,
-    needsReview: review.length > 0,
   };
 };
 
