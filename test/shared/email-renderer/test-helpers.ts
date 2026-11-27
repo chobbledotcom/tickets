@@ -1,5 +1,10 @@
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
-import { loadOrderAnswerLines } from "#shared/email/answers.ts";
+import {
+  type AnswerLine,
+  entryKey,
+  loadOrderAnswerLines,
+  type OrderAnswerLines,
+} from "#shared/email/answers.ts";
 import {
   buildTemplateData,
   renderEmailContent,
@@ -17,6 +22,13 @@ export const describeEmailRenderer = (tests: () => void): void => {
     tests();
   });
 };
+
+/** Answer lines that a test supplies by hand, each for the booking row of its
+ * entry. */
+export const answerLinesOf = (
+  ...rows: [ReturnType<typeof makeEntry>, AnswerLine[]][]
+): OrderAnswerLines =>
+  new Map(rows.map(([entry, lines]) => [entryKey(entry), lines]));
 
 /** Template data as the registration email builds it: the answer lines load
  * from the database unless the test supplies its own. */

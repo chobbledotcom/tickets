@@ -11,10 +11,13 @@ import { records } from "#db/record-table.ts";
 import {
   eachAnswerOnce,
   entryAnswerLines,
+  entryKey,
   type FreeTextAnswers,
+  heldFreeTexts,
   loadOrderAnswerLines,
   orderAnswerLines,
   type QuestionContext,
+  withoutMemberNames,
 } from "#shared/email/answers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -75,14 +78,16 @@ describeWithEnv("order answer lines", { db: true }, () => {
     attendeeId: number,
     listings: readonly { id: number; name: string }[],
     freeTexts?: FreeTexts,
+    packageGroupId = 0,
   ) => {
-    const lines = await loadOrderAnswerLines(
-      listings.map(({ id, name }) =>
-        makeEntry({ id, name }, { id: attendeeId }),
+    const entries = listings.map(({ id, name }) =>
+      makeEntry(
+        { id, name },
+        { id: attendeeId, package_group_id: packageGroupId },
       ),
-      freeTexts,
     );
-    return listings.map(({ id }) => lines.get(attendeeId)?.get(id));
+    const lines = await loadOrderAnswerLines(entries, freeTexts);
+    return entries.map((entry) => lines.get(entryKey(entry)));
   };
 
   test("shows the chosen answer of a question the listing asks", async () => {
@@ -132,29 +137,62 @@ describeWithEnv("order answer lines", { db: true }, () => {
     );
     const field = `question${question.id}_line${listing.id}_0_${pack.id}_ticket0`;
 
-    expect(
-      await shownLines(attendee.id, [listing], new Map([[field, "Ava"]])),
-    ).toEqual([
-      [{ question: "Pupil name (Hall in Party Pack, ticket 1)", text: "Ava" }],
+    const [lines] = await shownLines(
+      attendee.id,
+      [listing],
+      new Map([[field, "Ava"]]),
+      pack.id,
+    );
+
+    expect(lines).toEqual([
+      {
+        concealedQuestion: "Pupil name (Party Pack, ticket 1)",
+        question: "Pupil name (Hall in Party Pack, ticket 1)",
+        text: "Ava",
+      },
+    ]);
+  });
+
+  test("names the package of a row that rests under a parent", async () => {
+    const { attendee, listing } = await bookedBuyer("Hall");
+    const pack = await createTestGroup({ isPackage: true, name: "Party Pack" });
+    const { question } = await seedListingLevelQuestion(
+      [listing.id],
+      "Pupil name",
+      "quantity",
+    );
+    const field = `question${question.id}_line${listing.id}_900_0_ticket0`;
+
+    const [lines] = await shownLines(
+      attendee.id,
+      [listing],
+      new Map([[field, "Ava"]]),
+      pack.id,
+    );
+
+    expect(lines?.map(({ concealedQuestion }) => concealedQuestion)).toEqual([
+      "Pupil name (Party Pack, ticket 1)",
     ]);
   });
 
   /** A line whose parent listing or package was deleted: the field of its
    * answer, and the words the email shows for the line. */
-  const MISSING_NAMES: [string, (listingId: number) => string, string][] = [
+  const MISSING_NAMES: [string, (id: number) => string, string, number][] = [
     [
       "a deleted parent listing",
-      (listingId) => `_line${listingId}_900_0_ticket0`,
+      (id) => `_line${id}_900_0_ticket0`,
       "Hall with #900",
+      0,
     ],
     [
       "a deleted package",
-      (listingId) => `_line${listingId}_0_901_ticket0`,
+      (id) => `_line${id}_0_901_ticket0`,
       "Hall in #901",
+      901,
     ],
   ];
 
-  for (const [name, fieldEnd, words] of MISSING_NAMES) {
+  for (const [name, fieldEnd, words, packageId] of MISSING_NAMES) {
     test(`names a line by its number when it rests under ${name}`, async () => {
       const { attendee, listing } = await bookedBuyer("Hall");
       const { question } = await seedListingLevelQuestion(
@@ -164,10 +202,15 @@ describeWithEnv("order answer lines", { db: true }, () => {
       );
       const field = `question${question.id}${fieldEnd(listing.id)}`;
 
-      expect(
-        await shownLines(attendee.id, [listing], new Map([[field, "Ava"]])),
-      ).toEqual([
-        [{ question: `Pupil name (${words}, ticket 1)`, text: "Ava" }],
+      const [lines] = await shownLines(
+        attendee.id,
+        [listing],
+        new Map([[field, "Ava"]]),
+        packageId,
+      );
+
+      expect(lines?.map(({ question }) => question)).toEqual([
+        `Pupil name (${words}, ticket 1)`,
       ]);
     });
   }
@@ -254,8 +297,9 @@ describe("order answer lines from staged question data", () => {
   });
 
   test("merges free-text answers with choice answers in question order", () => {
+    const entry = makeEntry({ id: 101 }, { id: 7 });
     const lines = orderAnswerLines(
-      [makeEntry({ id: 101 }, { id: 7 })],
+      [entry],
       ctx(
         [
           question(11, "Any allergies?", [{ id: 31, text: "Peanuts" }]),
@@ -265,15 +309,16 @@ describe("order answer lines from staged question data", () => {
       ),
     );
 
-    expect(lines.get(7)?.get(101)).toEqual([
+    expect(lines.get(entryKey(entry))).toEqual([
       { question: "Any allergies?", text: "Peanuts" },
       { question: "Anything else?", text: "Coming by bus" },
     ]);
   });
 
   test("asks an assign-all question on every listing", () => {
+    const entry = makeEntry({ id: 999 }, { id: 7 });
     const lines = orderAnswerLines(
-      [makeEntry({ id: 999 }, { id: 7 })],
+      [entry],
       ctx([
         question(11, "Club member?", [{ id: 31, text: "Yes" }], {
           assignAll: true,
@@ -281,14 +326,16 @@ describe("order answer lines from staged question data", () => {
       ]),
     );
 
-    expect(lines.get(7)?.get(999)).toEqual([
+    expect(lines.get(entryKey(entry))).toEqual([
       { question: "Club member?", text: "Yes" },
     ]);
   });
 
   test("shows each line answer under its listing's entry, named by its line and ticket", () => {
+    const discoA = makeEntry({ id: 101 }, { id: 7 });
+    const discoB = makeEntry({ id: 102 }, { id: 7 });
     const lines = orderAnswerLines(
-      [makeEntry({ id: 101 }, { id: 7 }), makeEntry({ id: 102 }, { id: 7 })],
+      [discoA, discoB],
       ctx(
         [pupilName],
         new Map([
@@ -299,23 +346,99 @@ describe("order answer lines from staged question data", () => {
       ),
     );
 
-    expect([lines.get(7)?.get(101), lines.get(7)?.get(102)]).toEqual([
+    expect([lines.get(entryKey(discoA)), lines.get(entryKey(discoB))]).toEqual([
       [
         { question: "Pupil name (Disco A, ticket 1)", text: "Sam" },
         { question: "Pupil name (Disco A, ticket 2)", text: "Sam" },
       ],
       [{ question: "Pupil name (Disco B, ticket 1)", text: "Ben" }],
     ]);
-    expect(eachAnswerOnce(lines.get(7)?.get(101) ?? [])).toHaveLength(2);
+    expect(eachAnswerOnce(lines.get(entryKey(discoA)) ?? [])).toHaveLength(2);
   });
 
   test("omits a free-text question when no text was held for it", () => {
+    const entry = makeEntry({ id: 101 }, { id: 7 });
     const lines = orderAnswerLines(
-      [makeEntry({ id: 101 }, { id: 7 })],
+      [entry],
       ctx([question(12, "Anything else?", [], { displayType: "free_text" })]),
     );
 
-    expect(lines.get(7)?.get(101)).toEqual([]);
+    expect(lines.get(entryKey(entry))).toEqual([]);
+  });
+
+  const LINE_SLOT = { listingId: 101, packageGroupId: 0, parentListingId: 0 };
+  const held = (startAt: string | null, text: string, unit = 0) =>
+    ({ ...LINE_SLOT, questionId: 13, startAt, text, unit }) as const;
+  const pupilLines = (
+    entries: ReturnType<typeof makeEntry>[],
+    freeTexts: FreeTextAnswers,
+    packages = new Map<number, string>(),
+  ) => {
+    const lines = orderAnswerLines(entries, {
+      ...ctx([pupilName], freeTexts),
+      names: { listings: new Map([[101, "Disco A"]]), packages },
+    });
+    return entries.map((entry) => lines.get(entryKey(entry)));
+  };
+
+  test("keeps a package row's answers apart from a plain row of the same listing", () => {
+    const [plain, packaged] = pupilLines(
+      [
+        makeEntry({ id: 101 }, { id: 7, package_group_id: 0 }),
+        makeEntry({ id: 101 }, { id: 7, package_group_id: 5 }),
+      ],
+      new Map([
+        ["question13_line101_0_0_ticket0", "Sam"],
+        ["question13_line101_0_5_ticket0", "Ben"],
+      ]),
+      new Map([[5, "Party Pack"]]),
+    );
+
+    expect(plain).toEqual([
+      { question: "Pupil name (Disco A, ticket 1)", text: "Sam" },
+    ]);
+    expect(packaged).toEqual([
+      {
+        concealedQuestion: "Pupil name (Party Pack, ticket 1)",
+        question: "Pupil name (Disco A in Party Pack, ticket 1)",
+        text: "Ben",
+      },
+    ]);
+    expect(packaged?.map(withoutMemberNames)).toEqual([
+      { question: "Pupil name (Party Pack, ticket 1)", text: "Ben" },
+    ]);
+  });
+
+  test("keeps the answers of one slot on two dates apart", () => {
+    const texts = heldFreeTexts(
+      [],
+      [
+        held("2026-09-07T10:00:00.000Z", "Sam"),
+        held("2026-09-08T10:00:00.000Z", "Ben"),
+      ],
+    );
+
+    const answered = pupilLines(
+      [
+        makeEntry({ id: 101 }, { date: "2026-09-07", id: 7 }),
+        makeEntry({ id: 101 }, { date: "2026-09-08", id: 7 }),
+      ],
+      texts,
+    ).map((lines) => lines?.map(({ text }) => text));
+
+    expect(answered).toEqual([["Sam"], ["Ben"]]);
+  });
+
+  test("gives the answer of a row with no date to the entry with no date", () => {
+    const answered = pupilLines(
+      [
+        makeEntry({ id: 101 }, { date: "2026-09-07", id: 7 }),
+        makeEntry({ id: 101 }, { date: null, id: 7 }),
+      ],
+      heldFreeTexts([], [held(null, "Sam")]),
+    ).map((lines) => lines?.map(({ text }) => text));
+
+    expect(answered).toEqual([[], ["Sam"]]);
   });
 });
 
@@ -325,19 +448,13 @@ describe("entryAnswerLines", () => {
 
   test("reads one entry's lines", () => {
     expect(
-      entryAnswerLines(new Map([[9, new Map([[3, [line]]])]]))(entry),
+      entryAnswerLines(new Map([[entryKey(entry), [line]]]))(entry),
     ).toEqual([line]);
   });
 
-  test("throws for an attendee the loader never filled", () => {
+  test("throws for a booking row the loader never filled", () => {
     expect(() => entryAnswerLines(new Map())(entry)).toThrow(
-      "Missing map key 9",
-    );
-  });
-
-  test("throws for a listing the loader never filled", () => {
-    expect(() => entryAnswerLines(new Map([[9, new Map()]]))(entry)).toThrow(
-      "Missing map key 3",
+      `Missing map key ${entryKey(entry)}`,
     );
   });
 });

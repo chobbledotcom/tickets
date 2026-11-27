@@ -19,6 +19,7 @@ import {
   eachAnswerOnce,
   entryAnswerLines,
   type OrderAnswerLines,
+  withoutMemberNames,
 } from "#shared/email/answers.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { htmlLiquidEngine, plainLiquidEngine } from "#shared/liquid-engine.ts";
@@ -224,7 +225,7 @@ const collapsedPackageEntry = (
   return {
     attendee: {
       ...base.attendee,
-      answers: eachAnswerOnce(answers),
+      answers: eachAnswerOnce(answers.map(withoutMemberNames)),
       date: dated?.date ?? null,
       date_range_label: dated?.date_range_label ?? "",
       price_paid: summary.pricePaid,

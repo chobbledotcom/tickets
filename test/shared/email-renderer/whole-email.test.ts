@@ -17,7 +17,11 @@ import { renderEmailContent } from "#shared/email-renderer.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import type { EmailTemplateType } from "#types";
-import { buildTestData, describeEmailRenderer } from "./test-helpers.ts";
+import {
+  answerLinesOf,
+  buildTestData,
+  describeEmailRenderer,
+} from "./test-helpers.ts";
 
 const WHOLE_EMAIL = {
   admin: {
@@ -88,23 +92,12 @@ describeEmailRenderer(() => {
 
 describe("the whole email the site's own wording sends with answers", () => {
   describeEmailRenderer(() => {
+    const entry = makeEntry();
     const data = () =>
-      buildTestData([makeEntry()], {
-        answerLines: new Map([
-          [
-            42,
-            new Map([
-              [
-                1,
-                [
-                  {
-                    question: "Any allergies?",
-                    text: "Peanuts <b>and</b> nuts",
-                  },
-                ],
-              ],
-            ]),
-          ],
+      buildTestData([entry], {
+        answerLines: answerLinesOf([
+          entry,
+          [{ question: "Any allergies?", text: "Peanuts <b>and</b> nuts" }],
         ]),
       });
 

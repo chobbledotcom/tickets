@@ -71,28 +71,48 @@ export const answerKey = (
 export const ticketFieldName = (questionId: number, ticket: LineTicket) =>
   `question${questionId}_line${lineKey(ticket)}_ticket${ticket.unit}`;
 
-const TICKET_FIELD = /^question(\d+)_line(\d+)_(\d+)_(\d+)_ticket(\d+)$/u;
+/** The name under which a sender holds one free-text answer. A stored answer
+ * also names the date of its booking row, so two rows of one slot on different
+ * dates keep their own texts. An answer typed at checkout has no date. */
+export const heldFieldName = (
+  questionId: number,
+  ticket: LineTicket & AnswerRowDate,
+): string =>
+  ticket.startAt === undefined
+    ? ticketFieldName(questionId, ticket)
+    : `${ticketFieldName(questionId, ticket)}_at${ticket.startAt ?? ""}`;
 
-/** The question and ticket that a ticket field name names. A held free-text
- * answer rests under the same name. Any other name is not a ticket answer, so
- * it reads as null. */
+const TICKET_FIELD =
+  /^question(\d+)_line(\d+)_(\d+)_(\d+)_ticket(\d+)(?:_at(.*))?$/u;
+
+/** The question and ticket that a held answer name names. Any other name is
+ * not a ticket answer, so it reads as null. */
 export const ticketOfFieldOrNull = (
   name: string,
-): { questionId: number; ticket: LineTicket } | null => {
+): { questionId: number; ticket: LineTicket & AnswerRowDate } | null => {
   const match = TICKET_FIELD.exec(name);
   if (match === null) return null;
   const [, questionId, listingId, parentListingId, packageGroupId, unit] =
     match.map(Number);
+  const ticket = {
+    listingId: listingId!,
+    packageGroupId: packageGroupId!,
+    parentListingId: parentListingId!,
+    unit: unit!,
+  };
   return {
     questionId: questionId!,
-    ticket: {
-      listingId: listingId!,
-      packageGroupId: packageGroupId!,
-      parentListingId: parentListingId!,
-      unit: unit!,
-    },
+    ticket:
+      match[6] === undefined
+        ? ticket
+        : { ...ticket, startAt: match[6] || null },
   };
 };
+
+/** Whether a stored answer is still held: the buyer still has the ticket that
+ * it names. A ticket at or above the booked quantity is gone. */
+export const isTicketHeld = (answer: { quantity: number; unit: number }) =>
+  answer.unit < answer.quantity;
 
 /** The tickets of a line that a level asks about: unit 0 for each line, or
  * one unit for each ticket of the line's quantity. Every line it is given
