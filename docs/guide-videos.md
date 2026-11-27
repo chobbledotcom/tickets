@@ -42,13 +42,14 @@ deno task guide:check --guide create-a-listing
 Publish the videos to the Bunny CDN:
 
 ```bash
-deno task specs:evidence
+deno task guide:evidence
 deno task guide:publish
 ```
 
-The deploy workflows run both commands before they build the edge script: the
-evidence capture produces the screenshot hashes that decide whether a guide
-needs recording again.
+The deploy workflows run the guide evidence and the publish step before the edge
+build. The evidence produces the screenshot hashes that decide whether a guide
+needs recording again. A branch preview runs the same steps against the staging
+CDN.
 
 ### Preview locally
 
@@ -120,8 +121,9 @@ A change to the pipeline (the scale factor, the encoder settings) bumps
 re-renders. The upload verifies every object's bytes and content type. A failed
 publish stops the deploy, so the app never links to a missing video.
 
-The deploy build bakes a JSON map into `GUIDE_VIDEOS`. The create listing form
-shows a small video camera link beside its title when the map names that guide.
+The deploy or preview build bakes a JSON map into `GUIDE_VIDEOS`. The create
+listing form shows a small video camera link beside its title when the map names
+that guide.
 The link opens the MP4 in the admin modal, muted and autoplaying. Without a map
 the page shows no link.
 
@@ -134,14 +136,18 @@ it when the map names a video.
 
 ## Workflow
 
-`publish-guides.yml` runs only for a push to `main` (a merge) and for a manual
-dispatch from the Actions tab. Every deploy workflow calls it before building
-the edge script and passes the returned map to the build action.
+`publish-guides.yml` runs for a push to `main` (a merge) and for a manual
+dispatch from the Actions tab. Every deploy workflow calls it before the edge
+build and passes the returned map to the build action.
 
-The job captures the specification evidence first, because the render decision
-reads the screenshot hashes from `reports/evidence/manifest.json`. The whole run
-is therefore only as expensive as the evidence capture, unless a guide really
-did change.
+A branch preview also calls it from the pull request's merge commit, with
+`allow_pull_request: true`. Reviewers then see the branch's guide videos on the
+preview.
+
+The job captures the guide evidence first, because the render decision reads the
+screenshot hashes from `reports/evidence/manifest.json`. The publish step checks
+each guide on its own. A guide whose inputs match reuses its CDN object. A guide
+whose anchors changed is recorded and rendered again.
 
 Three.js is never bundled into the deployed script: the build asserts that
 `WebGLRenderer` and `THREE.` appear nowhere in the output.
@@ -194,10 +200,11 @@ evidence. A warning appears in the workflow log.
    `scripts/specs/evidence/declarations.ts`. Use the `desktop` profile. When the
    page address is made while the story runs, the step must hand the address
    over with `leaveEvidencePage`.
-2. Run `deno task specs:evidence` on a clean worktree.
-3. Add a storyboard under `scripts/guides/storyboards/` and export it from
+2. Add a storyboard under `scripts/guides/storyboards/` and export it from
    `scripts/guides/storyboards/index.ts`. Name every evidence action with its
    capture id and Cucumber case id.
+3. Run `deno task guide:evidence` on a clean worktree. The task captures the
+   evidence that the storyboards name.
 4. Run `deno task guide:record <slug>`.
 5. Review the MP4. Commit `guides/<slug>/freshness.json` with the storyboard. Do
    not commit `reports/`.

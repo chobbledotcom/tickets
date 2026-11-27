@@ -7,9 +7,10 @@ name: Publish guide videos
 # changed.
 #
 # It runs on a push to main (a merge) and on a manual dispatch from the Actions
-# tab, never on every push to a branch. A run without the Bunny CDN secrets
-# skips the render and returns an empty map: the edge script has nowhere to
-# fetch a video from, so the app hides the guide links instead.
+# tab. A pull request preview calls it with `allow_pull_request`, so reviewers
+# see the branch's guide videos. A run without the Bunny CDN secrets skips the
+# render and returns an empty map: the edge script has nowhere to fetch a video
+# from, so the app hides the guide links instead.
 on:
   workflow_call:
     inputs:
@@ -17,6 +18,11 @@ on:
         description: Deployment environment that holds the CDN secrets.
         required: true
         type: string
+      allow_pull_request:
+        description: Publish from a pull request into the given environment.
+        required: false
+        default: false
+        type: boolean
     outputs:
       guide_videos:
         description: JSON map of guide slug to its CDN-hosted MP4.
@@ -40,7 +46,7 @@ permissions:
 
 jobs:
   publish:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (inputs.allow_pull_request && github.event_name == 'pull_request') }}
     runs-on: ubicloud-standard-4
     environment: ${{ inputs.environment }}
     outputs:
@@ -58,12 +64,12 @@ jobs:
         id: cdn
         shell: bash
         env:
-          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
-          CDN_URL: ${{ secrets.CDN_URL }}
-          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
-          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
-          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
-          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY || secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          CDN_URL: ${{ secrets.CDN_URL || secrets.CDN_STAGING_URL }}
+          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME || secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME }}
+          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY || secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY }}
+          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST || secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
+          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID || secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
         run: |
           missing=""
           for name in BUNNY_ACCESS_KEY CDN_URL CDN_BUNNY_STORAGE_ZONE_NAME \
@@ -91,23 +97,23 @@ jobs:
           key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
 
       # The render decision compares the guide anchors against this run, so the
-      # screenshots must exist before the publish step asks about them.
-      - name: Capture specification evidence
+      # guide screenshots must exist before the publish step asks about them.
+      - name: Capture guide evidence
         if: ${{ steps.cdn.outputs.cdn == 'true' }}
         shell: devenv --profile browser shell bash -- -e {0}
-        run: deno task specs:evidence
+        run: deno task guide:evidence
 
       - name: Publish guide videos
         id: publish
         if: ${{ steps.cdn.outputs.cdn == 'true' }}
         shell: devenv --profile browser shell bash -- -e {0}
         env:
-          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
-          CDN_URL: ${{ secrets.CDN_URL }}
-          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
-          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
-          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
-          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY || secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          CDN_URL: ${{ secrets.CDN_URL || secrets.CDN_STAGING_URL }}
+          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME || secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME }}
+          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY || secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY }}
+          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST || secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
+          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID || secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
         run: deno task guide:publish
 
       - name: Report no guide videos

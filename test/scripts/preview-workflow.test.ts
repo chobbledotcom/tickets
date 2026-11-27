@@ -154,9 +154,27 @@ describe("preview workflow", () => {
       'gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST" --jq .state',
     ]);
     expectIncludesAll(deploy, [
-      "needs: check",
+      "needs: [check, guide-videos]",
       "github.event.action != 'closed'",
       "needs.check.outputs.open == 'true'",
+    ]);
+  });
+
+  test("publishes the guide videos for an open pull request", async () => {
+    const text = await readWorkflow();
+    const guides = jobText(text, "guide-videos");
+    const deploy = jobText(text, "deploy");
+
+    expectIncludesAll(guides, [
+      "needs: check",
+      `if: ${githubValue("github.event.action != 'closed' && needs.check.outputs.open == 'true'")}`,
+      "uses: $/.github/workflows/publish-guides.yml",
+      "environment: preview",
+      "allow_pull_request: true",
+    ]);
+    expectIncludesAll(deploy, [
+      "needs: [check, guide-videos]",
+      `guide_videos: ${githubValue("needs.guide-videos.outputs.guide_videos")}`,
     ]);
   });
 

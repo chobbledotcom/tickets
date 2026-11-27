@@ -23,6 +23,7 @@
     "test:screenshot-contract": "deno task build:static && deno test --no-check -A test/scripts/*-browser.contract.ts test/scripts/guides/*-browser.contract.ts test/ui/client/scanner/*-browser.contract.ts && deno task test:files test/ui/client/admin/markdown-editor-images-browser.contract.ts test/ui/client/admin/admin-modal-browser.contract.ts test/ui/client/admin/image-library-browser.contract.ts test/ui/client/admin/listing-images-browser.contract.ts test/ui/client/admin/reorder-browser.contract.ts test/ui/client/admin/guide-video-browser.contract.ts && deno task test:files test/ui/client/scanner-sw-browser.contract.ts && deno test --no-check --config=e2e-payments/deno.json -A e2e-payments/src/providers/*-browser.contract.ts",
     "specs": "deno run --v8-flags=--expose-gc -A scripts/run-specs.ts",
     "specs:evidence": "deno run --v8-flags=--expose-gc -A scripts/run-spec-evidence.ts",
+    "guide:evidence": "deno run --v8-flags=--expose-gc -A scripts/run-guide-evidence.ts",
     "guide:record": "deno run -A scripts/guides/cli/record.ts",
     "guide:check": "deno run -A scripts/guides/cli/check.ts",
     "guide:publish": "deno run -A scripts/guides/cli/publish.ts",
