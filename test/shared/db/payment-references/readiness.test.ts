@@ -237,7 +237,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
           quantity: existing.booking.quantity,
         },
       ],
-      true,
+      { allowOverbook: true },
     );
 
     expect(result.success).toBe(true);

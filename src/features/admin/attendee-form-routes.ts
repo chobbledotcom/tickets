@@ -9,6 +9,7 @@
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
+import { removedLineAnswersFor } from "#db/attendees/atomic-update.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import type { SelectedQuestionAnswers } from "#db/question-types.ts";
@@ -241,6 +242,7 @@ const handleSubmitInner = async (
       logisticsPlan,
       existingByKey,
       taxPlan,
+      removedLineAnswersFor(form.getFlag("delete_removed_answers")),
     );
   }
   if (outcome.ok) return outcome.response;

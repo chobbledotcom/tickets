@@ -333,5 +333,8 @@
   "attendee_warnings.no_hidden_answers": "This booking has no hidden answers to delete.",
   "attendee_warnings.parent_without_child": "{parent} needs one of its child listings booked too ({children}). Add one on the Edit tab.",
   "attendee_warnings.plan_without_site": "{listings}: no site is assigned yet. Add or build sites on the Built Sites page, then send the notification again.",
-  "attendee_warnings.tag": "Warning"
+  "attendee_warnings.tag": "Warning",
+  "attendee_form.delete_removed_answers": "Delete the answers for removed listings",
+  "attendee_form.error_answers_held": "A listing that you removed has answers. To remove it and delete its answers, tick \"Delete the answers for removed listings\".",
+  "error.answers_held": "A listing that you removed has answers. Remove it on the attendee's Edit tab, where you can choose to delete its answers."
 }

@@ -6,14 +6,22 @@
 import {
   QUESTION_ANSWER_LEVELS,
   QUESTION_DISPLAY_TYPES,
+  type QuestionAnswerLevel,
   questionAnswerLevelError,
   questionDisplayTypeError,
 } from "#db/question-types.ts";
 import { defineForm, defineTextForm } from "#shared/forms/definition.ts";
 import { requireChoiceOptions } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { answerLevelLabel } from "#templates/admin/answer-level.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
+
+/** The words of the add form's Ask choices. The form is built when the module
+ * loads, before any language scope exists, so these are not catalog keys. */
+const ANSWER_LEVEL_FORM_LABELS: Record<QuestionAnswerLevel, string> = {
+  booking: "One per booking",
+  listing: "One per listing",
+  quantity: "One per ticket",
+};
 
 export const questionTextForm = defineForm({
   fields: [
@@ -55,7 +63,7 @@ export const questionTextForm = defineForm({
       options: requireChoiceOptions(
         "Ask",
         QUESTION_ANSWER_LEVELS.map((value) => ({
-          label: answerLevelLabel(value),
+          label: ANSWER_LEVEL_FORM_LABELS[value],
           value,
         })),
       ),

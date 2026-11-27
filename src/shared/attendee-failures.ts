@@ -3,6 +3,7 @@ import { t } from "#i18n";
 
 const NoLinesFailureReasonSchema = v.literal("no_lines");
 const SubscriptionLiveFailureReasonSchema = v.literal("subscription_live");
+const AnswersHeldFailureReasonSchema = v.literal("answers_held");
 
 /** Reasons an atomic attendee creation can reject a booking. */
 export const AttendeeCreationFailureReasonSchema =
@@ -16,6 +17,7 @@ export const AttendeeUpdateFailureReasonSchema = v.union([
   AttendeeCreationFailureReasonSchema,
   NoLinesFailureReasonSchema,
   SubscriptionLiveFailureReasonSchema,
+  AnswersHeldFailureReasonSchema,
 ]);
 export type AttendeeUpdateFailureReason = v.InferOutput<
   typeof AttendeeUpdateFailureReasonSchema
@@ -49,6 +51,7 @@ const FAILURE_MESSAGE_BUILDERS: Record<
   AttendeeFailureReason,
   FailureMessageBuilder
 > = {
+  answers_held: () => t("error.answers_held"),
   capacity_exceeded: capacityMessage,
   no_lines: fallbackMessage,
   subscription_live: () => t("error.subscription_live"),
