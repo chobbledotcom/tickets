@@ -12,13 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  guide-videos:
-    uses: $/.github/workflows/publish-guides.yml
-    with:
-      environment: production
-
   release:
-    needs: guide-videos
     permissions:
       contents: write
     runs-on: ubicloud-standard-4
@@ -48,6 +42,17 @@ jobs:
             --if CDN_URL BUNNY_ACCESS_KEY
           scripts/ci/check-credentials.sh bunny cdn-zone
 
+      - name: Publish guide videos
+        id: guides
+        uses: $/.github/actions/publish-guide-videos
+        with:
+          bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+          cdn_url: ${{ secrets.CDN_URL }}
+          cdn_bunny_storage_zone_name: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          cdn_bunny_storage_zone_key: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+
       - name: Build Bunny edge script
         uses: $/.github/actions/build-bunny-script
         with:
@@ -58,7 +63,7 @@ jobs:
           cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
           cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
           bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
-          guide_videos: ${{ needs.guide-videos.outputs.guide_videos }}
+          guide_videos: ${{ steps.guides.outputs.guide_videos }}
 
       - name: Create release
         id: create-release

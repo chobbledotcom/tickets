@@ -46,10 +46,10 @@ deno task guide:evidence
 deno task guide:publish
 ```
 
-The deploy workflows run the guide evidence and the publish step before the edge
-build. The evidence produces the screenshot hashes that decide whether a guide
-needs recording again. A branch preview runs the same steps against the staging
-CDN.
+The deploy workflows run the guide evidence and the publish action before the
+edge build. The evidence produces the screenshot hashes that decide whether a
+guide needs recording again. A branch preview runs the same action against the
+staging CDN.
 
 ### Preview locally
 
@@ -136,18 +136,17 @@ it when the map names a video.
 
 ## Workflow
 
-`publish-guides.yml` runs for a push to `main` (a merge) and for a manual
-dispatch from the Actions tab. Every deploy workflow calls it before the edge
-build and passes the returned map to the build action.
+`publish-guides.yml` is the manual publish from the Actions tab. Every deploy
+job runs the same action, `publish-guide-videos`, before the edge build and
+passes the returned map to the build action.
 
-A branch preview also calls it from the pull request's merge commit, with
-`allow_pull_request: true`. Reviewers then see the branch's guide videos on the
-preview.
+The action reads the deploy job's environment secrets. A branch preview
+publishes to the staging CDN. A deploy publishes to its own CDN.
 
-The job captures the guide evidence first, because the render decision reads the
-screenshot hashes from `reports/evidence/manifest.json`. The publish step checks
-each guide on its own. A guide whose inputs match reuses its CDN object. A guide
-whose anchors changed is recorded and rendered again.
+The action captures the guide evidence first, because the render decision reads
+the screenshot hashes from `reports/evidence/manifest.json`. The publish action
+checks each guide on its own. A guide whose inputs match reuses its CDN object.
+A guide whose anchors changed is recorded and rendered again.
 
 Three.js is never bundled into the deployed script: the build asserts that
 `WebGLRenderer` and `THREE.` appear nowhere in the output.

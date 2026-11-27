@@ -19,9 +19,9 @@ environment. The job summary shows the same address. The address ends in
 
 ## Guide videos
 
-A preview publishes the branch guide videos before the build. The shared
-workflow maps the five CDN secrets to the names that `guide:publish` reads. The
-preview build bakes the returned map into the page.
+The preview deploy job publishes the branch guide videos before the build. The
+job has the preview environment, so it reads the staging CDN secrets directly.
+The preview build bakes the returned map into the page.
 
 The job checks each guide on its own. A guide whose anchors still match reuses
 its CDN object. A guide whose anchors changed is recorded, rendered, and

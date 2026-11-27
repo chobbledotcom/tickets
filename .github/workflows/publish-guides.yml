@@ -1,32 +1,8 @@
 name: Publish guide videos
 
-# Render every guide's MP4 and publish it under a content-addressed CDN object,
-# then hand the edge build the JSON map of slug → video URL it bakes in. A run
-# that finds the same footage already uploaded records nothing, so the job is
-# cheap unless an anchored screenshot, the storyboard, or the render pipeline
-# changed.
-#
-# It runs on a push to main (a merge) and on a manual dispatch from the Actions
-# tab. A pull request preview calls it with `allow_pull_request`, so reviewers
-# see the branch's guide videos. A run without the Bunny CDN secrets skips the
-# render and returns an empty map: the edge script has nowhere to fetch a video
-# from, so the app hides the guide links instead.
+# Manual publish of every guide video. A deploy workflow runs the same action
+# inside its deploy job, so the action reads that job's environment secrets.
 on:
-  workflow_call:
-    inputs:
-      environment:
-        description: Deployment environment that holds the CDN secrets.
-        required: true
-        type: string
-      allow_pull_request:
-        description: Publish from a pull request into the given environment.
-        required: false
-        default: false
-        type: boolean
-    outputs:
-      guide_videos:
-        description: JSON map of guide slug to its CDN-hosted MP4.
-        value: ${{ jobs.publish.outputs.guide_videos }}
   workflow_dispatch:
     inputs:
       environment:
@@ -38,86 +14,25 @@ on:
           - staging
           - production
 
-env:
-  STRIPE_MOCK_VERSION: "0.188.0"
-
 permissions:
   contents: read
 
 jobs:
   publish:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || (inputs.allow_pull_request && github.event_name == 'pull_request') }}
     runs-on: ubicloud-standard-4
     environment: ${{ inputs.environment }}
-    outputs:
-      guide_videos: ${{ steps.publish.outputs.guide_videos || steps.skip.outputs.guide_videos || '{}' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.4.0
         with:
           persist-credentials: false
 
-      # Publishing needs the storage zone and the pull-zone key. Without every
-      # one of them there is no object store to upload to and no origin the edge
-      # script could name, so the run continues with no guide videos at all.
-      - name: Check the CDN secrets
-        id: cdn
-        shell: bash
-        env:
-          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY || secrets.BUNNY_STAGING_ACCOUNT_KEY }}
-          CDN_URL: ${{ secrets.CDN_URL || secrets.CDN_STAGING_URL }}
-          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME || secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME }}
-          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY || secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY }}
-          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST || secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
-          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID || secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
-        run: |
-          missing=""
-          for name in BUNNY_ACCESS_KEY CDN_URL CDN_BUNNY_STORAGE_ZONE_NAME \
-            CDN_BUNNY_STORAGE_ZONE_KEY CDN_BUNNY_STORAGE_HOST CDN_BUNNY_PULL_ZONE_ID; do
-            if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
-          done
-          if [ -n "$missing" ]; then
-            echo "cdn=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Skipping the guide videos: missing$missing. The app hides their links."
-          else
-            echo "cdn=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Set up devenv
-        if: ${{ steps.cdn.outputs.cdn == 'true' }}
-        uses: $/.github/actions/setup-devenv
-        with:
-          profile: browser
-
-      - name: Cache stripe-mock
-        if: ${{ steps.cdn.outputs.cdn == 'true' }}
-        uses: actions/cache@v4.3.0
-        with:
-          path: .bin
-          key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
-
-      # The render decision compares the guide anchors against this run, so the
-      # guide screenshots must exist before the publish step asks about them.
-      - name: Capture guide evidence
-        if: ${{ steps.cdn.outputs.cdn == 'true' }}
-        shell: devenv --profile browser shell bash -- -e {0}
-        run: deno task guide:evidence
-
       - name: Publish guide videos
-        id: publish
-        if: ${{ steps.cdn.outputs.cdn == 'true' }}
-        shell: devenv --profile browser shell bash -- -e {0}
-        env:
-          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY || secrets.BUNNY_STAGING_ACCOUNT_KEY }}
-          CDN_URL: ${{ secrets.CDN_URL || secrets.CDN_STAGING_URL }}
-          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME || secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME }}
-          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY || secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY }}
-          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST || secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
-          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID || secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
-        run: deno task guide:publish
-
-      - name: Report no guide videos
-        id: skip
-        if: ${{ steps.cdn.outputs.cdn != 'true' }}
-        shell: bash
-        run: echo "guide_videos={}" >> "$GITHUB_OUTPUT"
+        uses: $/.github/actions/publish-guide-videos
+        with:
+          bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+          cdn_url: ${{ secrets.CDN_URL }}
+          cdn_bunny_storage_zone_name: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          cdn_bunny_storage_zone_key: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}

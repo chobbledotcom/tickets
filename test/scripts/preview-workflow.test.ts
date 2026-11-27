@@ -154,28 +154,32 @@ describe("preview workflow", () => {
       'gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST" --jq .state',
     ]);
     expectIncludesAll(deploy, [
-      "needs: [check, guide-videos]",
+      "needs: check",
       "github.event.action != 'closed'",
       "needs.check.outputs.open == 'true'",
     ]);
   });
 
-  test("publishes the guide videos for an open pull request", async () => {
-    const text = await readWorkflow();
-    const guides = jobText(text, "guide-videos");
-    const deploy = jobText(text, "deploy");
+  test("publishes the guide videos before the build", async () => {
+    const deploy = jobText(await readWorkflow(), "deploy");
+    const guides = stepText(deploy, "Publish guide videos");
 
     expectIncludesAll(guides, [
-      "needs: check",
-      `if: ${githubValue("github.event.action != 'closed' && needs.check.outputs.open == 'true'")}`,
-      "uses: $/.github/workflows/publish-guides.yml",
-      "environment: preview",
-      "allow_pull_request: true",
+      "id: guides",
+      "uses: $/.github/actions/publish-guide-videos",
+      "secrets.BUNNY_STAGING_ACCOUNT_KEY",
+      "secrets.CDN_STAGING_URL",
+      "secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME",
+      "secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY",
+      "secrets.CDN_BUNNY_STAGING_STORAGE_HOST",
+      "secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID",
     ]);
-    expectIncludesAll(deploy, [
-      "needs: [check, guide-videos]",
-      `guide_videos: ${githubValue("needs.guide-videos.outputs.guide_videos")}`,
-    ]);
+    expect(deploy).toContain(
+      `guide_videos: ${githubValue("steps.guides.outputs.guide_videos")}`,
+    );
+    expect(deploy.indexOf("name: Publish guide videos")).toBeLessThan(
+      deploy.indexOf("uses: $/.github/actions/build-bunny-script"),
+    );
   });
 
   test("deletes the preview of a closed pull request, merged or not", async () => {

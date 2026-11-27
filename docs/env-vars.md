@@ -10,7 +10,7 @@ The optional static CDN is different: `CDN_URL`, `CDN_BUNNY_STORAGE_ZONE_NAME`,
 `CDN_BUNNY_PULL_ZONE_ID` are GitHub repository secrets used only while building.
 When all five are set, the build uploads site-independent browser assets and
 image-codec WASM under an immutable content-addressed path. The guide publish
-step uses the same secrets to upload the guide videos under `guides/`. Both
+action uses the same secrets to upload the guide videos under `guides/`. Both
 steps purge the pull zone with the existing `BUNNY_ACCESS_KEY` repository
 secret and verify every public object byte-for-byte. The build then bakes the
 public URLs and their CSP origin into the edge script. They must not be added to
