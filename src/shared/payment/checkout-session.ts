@@ -80,8 +80,7 @@ export const makeCreateCheckoutSession =
       const { id, linkEndsAt, url } = readResult(result);
       const checkout = createdCheckout(provider, id, url);
       // The session id exists only now, so the answers stage beside it after
-      // the provider accepts the checkout. Every provider shares this step,
-      // whatever its metadata caps allow the checkout itself to carry.
+      // the provider accepts the checkout. Every provider shares this step.
       await stageCheckoutAnswers(
         checkout.sessionId,
         intent.textAnswers,

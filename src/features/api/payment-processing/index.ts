@@ -14,9 +14,9 @@ import {
   finalizeSessionIfUnresolved,
   markSessionFailed,
   type ProcessedPayment,
-  parseSessionFailure,
   releaseReservation,
   reserveSession,
+  rowHolding,
 } from "#db/processed-payments.ts";
 import { readExists } from "#db/read.ts";
 import { from } from "#db/select/query.ts";
@@ -75,23 +75,23 @@ const handleReservationConflict = async (
   data: ValidatedSession,
   existing: ProcessedPayment,
 ): Promise<PaymentResult> => {
-  if (existing.attendeeId !== null) {
+  const holding = await rowHolding(existing);
+  if (holding.kind === "booked") {
     return alreadyProcessedResult(data.intent.items[0]!.e, {
       ...existing,
-      attendeeId: existing.attendeeId,
+      attendeeId: holding.attendeeId,
     });
   }
   // A recorded terminal failure replays the same handled outcome (refund
   // already issued, sold out, price changed). It re-validates nothing and
   // re-refunds nothing. failure_data is encrypted, so this read is async.
-  const failure = await parseSessionFailure(existing.failureData);
-  if (failure) {
+  if (holding.kind === "handled") {
     // A completion marker says the placeholder can still owe money records:
     // finish them before answering, so a crashed first delivery cannot park
     // the books. Unmarked failures replay with no extra reads.
-    const resumed = await resumePlaceholderSession(data, failure);
+    const resumed = await resumePlaceholderSession(data, holding.failure);
     if (resumed) return resumed;
-    return { ...sessionAnswerOf(failure), success: false };
+    return { ...sessionAnswerOf(holding.failure), success: false };
   }
   // Otherwise reserved but not finalized — another request is mid-flight.
   return {

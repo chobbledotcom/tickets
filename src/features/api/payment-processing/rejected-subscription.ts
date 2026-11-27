@@ -21,7 +21,7 @@ import {
 } from "#payment/provider-reference.ts";
 import type { MalformedRejection } from "#payment/validated-session.ts";
 import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
-import { extractIntentFromMetadata } from "#routes/api/payment-processing/metadata.ts";
+import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import {
   type HeldRefundTarget,
   loadRefundResume,
@@ -220,7 +220,7 @@ const settleOwnedRejection = async (
     if (reservation.reserved) await releaseReservation(rejection.sessionId);
     return NOTHING_TO_REFUND;
   }
-  const intent = extractIntentFromMetadata(rejection.metadata);
+  const intent = await extractIntent(rejection);
   if (intent === null) {
     if (reservation.reserved) await releaseReservation(rejection.sessionId);
     await endFailedCheckoutSubscription(rejection.subscription);

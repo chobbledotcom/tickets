@@ -9,7 +9,7 @@ import { sqlText } from "#test-utils/sql-text.ts";
 
 test("keeps the complete attendee schema declaration exact", async () => {
   expect(await jsonHash(sqlText(attendeeTables))).toBe(
-    "87d162e03f221f8d0aef43bd70f0150c8efb34d4364e3d29e3580696ce71f32b",
+    "483ab4b8b41424e15d8a685a0c2c1a985025d1a94e6c014f3e654a5711551bde",
   );
 });
 
@@ -68,6 +68,14 @@ describe("attendee schema tables", () => {
     expect(
       indexColumns("sumup_checkouts", "idx_sumup_checkouts_sumup_id"),
     ).toEqual(["sumup_id"]);
+  });
+
+  test("lets a sealed order name no checkout at all", () => {
+    // Only a Square order names its checkout. A card order that Stripe
+    // expires on its own leaves the column empty.
+    expect(sqlText(columnNamed("checkout_bundles", "session_index"))).toBe(
+      "TEXT",
+    );
   });
 
   test("keys a staged checkout by the one-way code for its reference", () => {

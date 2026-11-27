@@ -4,10 +4,11 @@ import { stub } from "@std/testing/mock";
 import { settings } from "#db/settings.ts";
 import { REFUND_NETWORK_RETRIES } from "#payment/refund-network.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
+import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
-} from "#shared/payment-helpers.ts";
+} from "#shared/session-metadata.ts";
 import type { StripeCheckoutSessionCreateParams } from "#shared/stripe/client.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -450,16 +451,21 @@ describeStripe("stripe", () => {
           expect(feeItem.price_data.unit_amount).toBe(100);
           // Metadata records the FULL line price + the snapshot so the webhook
           // can re-derive the deposit and compute the outstanding balance. The
-          // snapshot is packed into `b` on the wire; decode it the way the
-          // webhook does rather than reading the raw entry.
+          // metadata holds only a token, so open the sealed order the way the
+          // webhook does.
           if (!hasRequiredSessionMetadata(params.metadata)) {
             throw new Error("Stripe checkout metadata was incomplete");
           }
-          const metadata = extractSessionMetadata(params.metadata);
-          expect(JSON.parse(metadata.items)).toEqual([
-            { e: listing.id, p: 2000, q: 2 },
-          ]);
-          expect(metadata.reservation_amount).toBe("10%");
+          const order = await readSessionOrder({
+            metadata: extractSessionMetadata(params.metadata),
+          });
+          expect(order).toMatchObject({
+            intent: {
+              items: [{ e: listing.id, p: 2000, q: 2 }],
+              reservationAmount: "10%",
+            },
+            status: "read",
+          });
         },
       );
     });

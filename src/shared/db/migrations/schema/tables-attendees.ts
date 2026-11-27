@@ -419,6 +419,28 @@ export const attendeeTables = declaredTables([
   ],
 
   [
+    // The whole order of a Stripe or Square checkout, sealed under a fresh
+    // key. Only the provider's copy of the checkout holds the token. The row
+    // is keyed by the HMAC of the token. The data key is wrapped with the
+    // token, so a database dump cannot open any row. The payments clock prunes
+    // the row, which keeps it past every provider retry and replay. A Square
+    // row also names its checkout by the HMAC of the session id. Square does
+    // not end its own link, so the row waits for that handle row to be gone.
+    "checkout_bundles",
+    /* jscpd:ignore-start -- static data, not code */
+    {
+      columns: [
+        ["token_index", textKey],
+        ["wrapped_key", text],
+        ["sealed", text],
+        ["created_at", text],
+        ["session_index", textOrNull],
+      ],
+    },
+    /* jscpd:ignore-end */
+  ],
+
+  [
     // One cancel handle per unpaid Square checkout: the payment link id,
     // sealed with DB_ENCRYPTION_KEY and keyed by the HMAC of the session id,
     // exactly like checkout_pending_answers. The row exists only while its

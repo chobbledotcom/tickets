@@ -5,12 +5,12 @@ import {
 } from "#payment/provider-reference.ts";
 import { isResourceId } from "#payment/resource-id.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type {
   PaymentProviderType,
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { extractSessionMetadata } from "#shared/session-metadata.ts";
 import { isPaymentProvider, isRecord } from "#types";
 
 /**

@@ -72,11 +72,13 @@ export const checkoutMetadata = (
     allocations: "",
     answer_ids: "",
     balance_attendee_id: "",
+    bundle: "",
     date: "",
     day_count: "",
     email: "model@example.invalid",
     items:
       shape === "unreadable" ? "{" : JSON.stringify([{ e: 1, p: 600, q: 1 }]),
+    listing: "",
     modifiers: "",
     name: "Synthetic subscriber",
     phone: "",

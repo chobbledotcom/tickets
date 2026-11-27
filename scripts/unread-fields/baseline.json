@@ -604,7 +604,7 @@
     },
     {
       "path": [{ "name": "PaymentProviderMeta" }],
-      "fields": ["currencies", "label", "metadata", "refundCapability", "secretField", "webhook"]
+      "fields": ["currencies", "label", "refundCapability", "secretField", "webhook"]
     }
   ],
   "src/shared/payment/admit-move.ts": [

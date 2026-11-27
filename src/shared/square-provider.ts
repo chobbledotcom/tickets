@@ -15,11 +15,7 @@ import { requireProviderRefundAuthorization } from "#payment/refund-provider-aut
 import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
 import { validatedPaymentSession } from "#payment/validated-session.ts";
 import { logDebug } from "#shared/logger.ts";
-import {
-  extractSessionMetadata,
-  hasRequiredSessionMetadata,
-  toCanonicalIso,
-} from "#shared/payment-helpers.ts";
+import { toCanonicalIso } from "#shared/payment-helpers.ts";
 import { parsePriceProof } from "#shared/payment-signature.ts";
 import type {
   PaymentProvider,
@@ -29,6 +25,10 @@ import type {
   WebhookSessionResult,
   WebhookSetupResult,
 } from "#shared/payments.ts";
+import {
+  extractSessionMetadata,
+  hasRequiredSessionMetadata,
+} from "#shared/session-metadata.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { squareLinkEndsAt } from "#shared/square/checkout.ts";
 import {

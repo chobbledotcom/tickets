@@ -142,7 +142,8 @@ describeSquare(() => {
           quantity: "3",
         },
       ]);
-      expectOrderMetadata(args.order, {
+      const logged = debugMessages(debugLog());
+      await expectOrderMetadata(args.order, {
         email: "jane@example.com",
         items: [{ e: 7, p: 7500, q: 3 }],
         name: "Jane Smith",
@@ -161,9 +162,11 @@ describeSquare(() => {
       // Verify idempotency key is present
       expect(typeof args.idempotencyKey).toBe("string");
       expect(args.idempotencyKey.length).toBeGreaterThan(0);
-      expect(debugMessages(debugLog()).slice(-3)).toEqual([
+      expect(logged.slice(-5)).toEqual([
         "[Square] Creating payment link for x1 listings",
+        "[SQL] INSERT INTO checkout_bundles (created_at, sealed, token_index, wrapped_key) VALUES (?1, ?2, ?3, ?4)",
         "[SQL] INSERT INTO square_link_ends (created_at, link_ends_at, next_attempt_at, sealed_handle, session_index, state) VALUES (?1, ?2, ?2, ?3, ?4, ?5)",
+        "[SQL] UPDATE checkout_bundles SET session_index = ?1 WHERE checkout_bundles.token_index = ?2",
         "[Square] Payment link created orderId=order_abc",
       ]);
     });

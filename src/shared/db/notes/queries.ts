@@ -32,7 +32,7 @@ const writeNote = async (
   note: string,
   name: SystemNoteName | null,
   transaction?: TxScope,
-): Promise<void> => {
+): Promise<boolean> => {
   if (name?.key === "") throw new Error("A named system note needs a key");
   // A named note is unique by its name: a replayed write is a no-op, so a
   // resumable flow can re-run its note step without a second copy landing.
@@ -48,11 +48,11 @@ const writeNote = async (
     },
     name === null ? {} : { or: "IGNORE" },
   );
-  if (transaction === undefined) {
-    await execute(statement);
-  } else {
-    await transaction.execute(statement);
-  }
+  const result =
+    transaction === undefined
+      ? await execute(statement)
+      : await transaction.execute(statement);
+  return result.rowsAffected === 1;
 };
 
 /**
@@ -61,21 +61,25 @@ const writeNote = async (
  * dump plus that key), and exists so a path with no owner session can write
  * it. Give the note an indexed name to make it once-only: its lifecycle can
  * then be managed — and replays dropped — without opening any note text.
+ * The answer says whether this call wrote the note, so a caller can do its
+ * own once-only work beside it.
  */
 export const createSystemNote = (
   target: NoteTarget,
   note: string,
   name?: SystemNoteName,
   transaction?: TxScope,
-): Promise<void> =>
+): Promise<boolean> =>
   writeNote("system", target, note, name ?? null, transaction);
 
 /** Record an operator's note, sealed with the owner public key. */
-export const createOwnerNote = (
+export const createOwnerNote = async (
   target: NoteTarget,
   note: string,
   transaction?: TxScope,
-): Promise<void> => writeNote("owner", target, note, null, transaction);
+): Promise<void> => {
+  await writeNote("owner", target, note, null, transaction);
+};
 
 /** The notes, under the name of their table. The conditions of a note target
  *  name their columns bare. */

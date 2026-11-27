@@ -51,15 +51,11 @@ export type PaymentProviderMeta = {
   } | null;
   /** Upper-case ISO 4217 codes, or `null` when it takes every currency. */
   readonly currencies: ReadonlySet<string> | null;
-  /** The provider's checkout-metadata caps: the longest value it accepts, an
-   * optional limit on how many entries a session may carry, and whether the
-   * small fields are packed into one entry to fit that limit. An unbounded
-   * (Infinity, no maxEntries) provider makes cap enforcement a no-op. */
-  readonly metadata: {
-    readonly maxValueLength: number;
-    readonly maxEntries?: number;
-    readonly packs: boolean;
-  };
+  /** Where a checkout's order rests. `sealed-bundle`: sealed in our database,
+   * with only its token in the provider's metadata, so no metadata cap can
+   * refuse an order. `staged-row`: the checkout's own staging row holds the
+   * order (SumUp, which keeps no metadata of ours). */
+  readonly orderCarrier: "sealed-bundle" | "staged-row";
 };
 
 /** Square's buyer-facing checkout hosts are the same in both environments.
@@ -84,10 +80,7 @@ export const PAYMENT_PROVIDERS = {
     },
     currencies: null,
     label: "Square",
-    // Square allows only 10 metadata entries of 255 characters each — the
-    // tightest caps of any provider, and the reason small fields are packed
-    // into one `b` entry (see packMetadata in payment-helpers.ts).
-    metadata: { maxEntries: 10, maxValueLength: 255, packs: true },
+    orderCarrier: "sealed-bundle",
     refundCapability: "keyed",
     secretField: "squareAccessToken",
     webhook: {
@@ -99,7 +92,7 @@ export const PAYMENT_PROVIDERS = {
     checkoutFormOrigins: { live: ["https://checkout.stripe.com"] },
     currencies: null,
     label: "Stripe",
-    metadata: { maxEntries: 50, maxValueLength: 500, packs: false },
+    orderCarrier: "sealed-bundle",
     refundCapability: "keyed",
     secretField: "stripeSecretKey",
     webhook: {
@@ -133,9 +126,7 @@ export const PAYMENT_PROVIDERS = {
       "USD",
     ]),
     label: "SumUp",
-    // SumUp carries no provider metadata: the booking fields are stored
-    // locally (db/sumup-checkouts.ts), so nothing is capped or packed.
-    metadata: { maxValueLength: Number.POSITIVE_INFINITY, packs: false },
+    orderCarrier: "staged-row",
     refundCapability: "keyless",
     secretField: "sumupApiKey",
     webhook: null,
