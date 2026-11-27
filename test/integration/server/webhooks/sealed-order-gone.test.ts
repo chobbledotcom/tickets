@@ -32,6 +32,7 @@ import {
   rowStateSlot,
   UNRECORDED_MIRROR,
 } from "#test-utils/payment-claim.ts";
+import { reservedPayment } from "#test-utils/processed-payments.ts";
 import { runWrite } from "#test-utils/raw-db.ts";
 
 type LostReason = "bundle_missing" | "bundle_unreadable";
@@ -101,6 +102,12 @@ describeWithEnv(
 
     const loseOrders = () => runWrite(sql`DELETE FROM checkout_bundles`);
 
+    /** No attendee is on the roster, and Stripe was asked for no refund. */
+    const expectNothingBookedOrRefunded = async (opened: CardShop) => {
+      expect(await rosterOf(opened)).toEqual([]);
+      expect(opened.fake.refunds).toEqual([]);
+    };
+
     /** How often the admin's pages show each part of a report: the listing
      * page holds the note, and the log page holds the other two. */
     const shown = async (
@@ -140,8 +147,24 @@ describeWithEnv(
         error: 3,
         note: 1,
       });
-      expect(await rosterOf(opened)).toEqual([]);
-      expect(opened.fake.refunds).toEqual([]);
+      await expectNothingBookedOrRefunded(opened);
+    });
+
+    test("a delivery that finds another delivery's reservation on a gone order is told to wait, with no note", async () => {
+      const opened = await open();
+      const checkout = await checkOut(opened);
+      await loseOrders();
+      await reservedPayment(checkout.id);
+
+      expect((await deliverPayment(opened, checkout)).status).toBe(409);
+      const page = await returnPage(checkout);
+
+      expect(page.status).toBe(409);
+      expect(page.html).toContain(t("payment.error.being_processed"));
+      expect(await shown(opened, reportOf(checkout, "bundle_missing"))).toEqual(
+        NOT_REPORTED,
+      );
+      await expectNothingBookedOrRefunded(opened);
     });
 
     test("an order that will not open is reported with its own reason, and never refunded", async () => {
@@ -154,8 +177,7 @@ describeWithEnv(
       expect(
         await shown(opened, reportOf(checkout, "bundle_unreadable")),
       ).toEqual({ activity: 1, error: 1, note: 1 });
-      expect(await rosterOf(opened)).toEqual([]);
-      expect(opened.fake.refunds).toEqual([]);
+      await expectNothingBookedOrRefunded(opened);
     });
 
     test("the return page alone reports a paid session that is not settled", async () => {
@@ -171,8 +193,7 @@ describeWithEnv(
       expect(await shown(opened, reportOf(checkout, "bundle_missing"))).toEqual(
         { activity: 1, error: 1, note: 1 },
       );
-      expect(await rosterOf(opened)).toEqual([]);
-      expect(opened.fake.refunds).toEqual([]);
+      await expectNothingBookedOrRefunded(opened);
     });
 
     for (const [name, work, mirror] of BOOKED_ROWS) {
