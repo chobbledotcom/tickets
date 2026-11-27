@@ -56,7 +56,7 @@ export const sealCheckoutBundle = async (
 };
 
 /** Name the checkout that a sealed order belongs to, after the provider
- * makes it. A Square checkout can take payment until its handle row is gone,
+ * makes it. A Square checkout can take payment for the link's whole lifetime,
  * so the prune keeps the order that long (see `prune.ts`). */
 export const linkCheckoutBundleToSession = async (
   token: string,
