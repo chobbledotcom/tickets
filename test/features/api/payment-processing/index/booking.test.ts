@@ -328,6 +328,20 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     await expectSessionFailed(id);
   });
 
+  test("takes back the staged answers when a session ends refunded with no booking", async () => {
+    await setupStripe();
+    const id = "cs_direct_refunded_answers";
+    const { data, listing } = await singleListingPayment(id, 900);
+    await stageCheckoutAnswers(id, { "7": "Arriving late" }, null);
+    await execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
+    using _refund = stubRefundPayment("re_refunded_answers", 900);
+
+    const result = await processPaymentSession(id, data);
+
+    expect(result.success).toBe(false);
+    expect(await readCheckoutAnswers(id)).toEqual(new Map());
+  });
+
   test("keeps a charge-mismatched booking and records a terminal refund", async () => {
     await setupStripe();
     const id = "cs_direct_charge_mismatch";
