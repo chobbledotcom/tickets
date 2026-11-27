@@ -144,18 +144,15 @@ const pruneStatements = (): PruneStatement[] => [
   ),
   // A sealed order is needed while its checkout can be paid, and while the
   // provider can still retry the payment callback. A Square order also waits
-  // for its link to end, on the same terms as the answers. Its handle row
-  // must be gone, or Square's own page lifetime must be over.
+  // for the link's own lifetime and the webhook retries after it. The handle
+  // row does not show that payment is over. The expiry task also takes it for
+  // a paid order, before the delivery books anything.
   boundedDelete(
     "checkout_bundles",
     sql`created_at < ${isoBefore(CHECKOUT_BUNDLE_RETENTION_MS)}
        AND (
          session_index IS NULL
          OR created_at < ${isoBefore(SQUARE_LINK_RETENTION_MS)}
-         OR NOT EXISTS (
-           SELECT 1 FROM square_link_ends AS handle
-            WHERE handle.session_index = checkout_bundles.session_index
-         )
        )`,
   ),
   // A Square link stops taking payment at Square's native lifetime (180 days)

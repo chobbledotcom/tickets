@@ -110,6 +110,22 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ).toHaveLength(1);
   });
 
+  test("a receipt that no payment row backs books nobody and stays retryable", async () => {
+    const id = "cs_receipt_without_row";
+    const { data, listing } = await singleListingPayment(id, 1000);
+
+    const result = await withRequestContext(() =>
+      processPaymentSession(id, { ...data, receipt: true }),
+    );
+
+    expect([result.success, result.success ? 0 : result.status]).toEqual([
+      false,
+      503,
+    ]);
+    expect(await getAttendeesRaw(listing.id)).toHaveLength(0);
+    expect(await getProcessedPayment(id)).toBeNull();
+  });
+
   test("takes a Square checkout's handle row when its payment books", async () => {
     const id = "sq_direct_booking";
     const listing = await createTestListing({

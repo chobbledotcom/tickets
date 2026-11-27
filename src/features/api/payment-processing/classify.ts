@@ -142,7 +142,12 @@ type SessionClass = SignedVerdict | { verdict: "ignore" };
  * A session we cannot prove is ours can be acknowledged. A session we can
  * prove is ours but cannot read must remain retryable. */
 export type SessionIntentResult =
-  | { kind: "ready"; verdict: SignedVerdict; intent: BookingIntent }
+  | {
+      kind: "ready";
+      verdict: SignedVerdict;
+      intent: BookingIntent;
+      receipt: boolean;
+    }
   | { kind: "missing"; missing: MissingOrder }
   | { kind: "unverifiable" }
   | { kind: "unreadable" };
@@ -185,7 +190,12 @@ export const classifySessionIntent = async (
     order.status === "read" &&
     (standing === null || receiptServes(standing))
   ) {
-    return { intent: order.intent, kind: "ready", verdict };
+    return {
+      intent: order.intent,
+      kind: "ready",
+      receipt: order.receipt,
+      verdict,
+    };
   }
   return {
     kind: "missing",
@@ -299,6 +309,7 @@ export const validatePaidSession = async (
   return {
     data: {
       intent: classified.intent,
+      receipt: classified.receipt,
       session,
       verdict: classified.verdict,
     },
