@@ -10,6 +10,7 @@
  */
 
 import { isoToTag } from "#shared/build-tag.ts";
+import { parseGuideVideoAssetsJson } from "#shared/guide-video.ts";
 import { buildEdgeBundle } from "./edge-bundle-lib.ts";
 import { bundleSizeGuard, renameSourceMapLink } from "./edge-bundle-modules.ts";
 import { loadStaticCdnConfig } from "./static-cdn.ts";
@@ -34,6 +35,10 @@ await buildEdgeBundle({
   },
   entryPoint: "./src/edge.ts",
   guards: [bundleSizeGuard(BUNNY_MAX_SCRIPT_SIZE)],
+  // The workflow passes the JSON map of published MP4s. An absent or empty
+  // value leaves every guide link unrendered, which is the state of a build
+  // that had no CDN secrets to publish with.
+  guideVideos: parseGuideVideoAssetsJson(Deno.env.get("GUIDE_VIDEOS")),
   label: "Edge",
   outfile: "edge.js",
   // Re-point the source map link at the deployed filename (esbuild names it

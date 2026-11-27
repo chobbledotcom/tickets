@@ -8,6 +8,7 @@ import {
   BackButton,
   GuideFooter,
   GuideLink,
+  GuideVideoLink,
   guideFooterFor,
   Icon,
   MaybeButtonLink,
@@ -29,6 +30,12 @@ describe("Icon", () => {
       'focusable="false"',
       `href="${ICONS_PATH}#plus"`,
     ]);
+  });
+
+  test("names the video icon for the guide link", () => {
+    expect(String(Icon({ name: "video" }))).toContain(
+      `href="${ICONS_PATH}#video"`,
+    );
   });
 });
 
@@ -213,6 +220,31 @@ describe("GuideLink", () => {
       'href="/admin/guide#holidays"',
       `href="${ICONS_PATH}#book-open"`,
       "<span>Holidays guide</span>",
+    ]);
+  });
+});
+
+describe("GuideVideoLink", () => {
+  test("renders the video affordance with its tooltip and guide title", () => {
+    const href =
+      "https://assets.example.com/static/guides/abc/create-a-listing/index.html";
+    const html = String(
+      GuideVideoLink({
+        href,
+        label: "Watch guide video",
+        title: "Create a listing",
+      }),
+    );
+    expectIncludesAll(html, [
+      'class="guide-video-link"',
+      `href="${href}"`,
+      "data-guide-video",
+      'data-guide-title="Create a listing"',
+      'title="Watch guide video"',
+      'aria-label="Watch guide video"',
+      'target="_blank"',
+      'rel="noopener"',
+      `href="${ICONS_PATH}#video"`,
     ]);
   });
 });

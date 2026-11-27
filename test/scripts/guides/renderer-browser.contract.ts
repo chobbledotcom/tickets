@@ -3,9 +3,14 @@ import { join } from "@std/path";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser, Page } from "playwright";
 import sharp from "sharp";
-import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { startGuideRenderServer } from "#scripts/guides/render/server.ts";
+import { GUIDE_DEVICE_SCALE_FACTOR } from "#scripts/guides/video.ts";
 import { launchScreenshotBrowser } from "#test/scripts/screenshots-browser-helpers.ts";
+import {
+  closeGuideBrowser,
+  newGuidePage,
+  waitForGuideReady,
+} from "./browser-helpers.ts";
 import { focusEvent, guideTimeline, pointerEvent } from "./fixtures.ts";
 
 const VIEWPORT = { height: 720, width: 1280 };
@@ -113,23 +118,15 @@ describe("guide renderer browser contract", () => {
       join(directory, "timeline.json"),
       JSON.stringify(timeline),
     );
-    server = await startGuideRenderServer(directory, VIEWPORT);
+    server = await startGuideRenderServer(directory, "Renderer test");
     browser = await launchScreenshotBrowser();
   });
 
-  afterAll(async () => {
-    await browser.close();
-    await server.close();
-    await Deno.remove(directory, { recursive: true });
-  });
+  afterAll(() => closeGuideBrowser(browser, server, directory));
 
-  const openPage = async () => {
-    const page = await browser.newPage({ viewport: VIEWPORT });
-    withStrictBrowserTimeouts(page);
-    await page.goto(server.baseUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForFunction(
-      () => Reflect.get(globalThis, "rendererReady") === true,
-    );
+  const openPage = async (): Promise<Page> => {
+    const page = await newGuidePage(browser, VIEWPORT, server.baseUrl);
+    await waitForGuideReady(page);
     return page;
   };
 
@@ -174,4 +171,28 @@ describe("guide renderer browser contract", () => {
       expect(focused.camera.zoom).toBeGreaterThan(1);
       await showsFrame(page, 1100, "frame-00002.jpg", isBlue);
     }));
+
+  test("paints at the guide's device scale so a zoom keeps its detail", async () => {
+    const page = await newGuidePage(
+      browser,
+      VIEWPORT,
+      server.baseUrl,
+      GUIDE_DEVICE_SCALE_FACTOR,
+    );
+    try {
+      await waitForGuideReady(page);
+      await renderAt(page, 0);
+      const png = await page.screenshot({
+        clip: { height: VIEWPORT.height, width: VIEWPORT.width, x: 0, y: 0 },
+        type: "png",
+      });
+      const metadata = await sharp(png).metadata();
+      expect({ height: metadata.height, width: metadata.width }).toEqual({
+        height: VIEWPORT.height * GUIDE_DEVICE_SCALE_FACTOR,
+        width: VIEWPORT.width * GUIDE_DEVICE_SCALE_FACTOR,
+      });
+    } finally {
+      await page.close();
+    }
+  });
 });

@@ -3,11 +3,14 @@ import { join } from "@std/path";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
 import sharp from "sharp";
-import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
+import { launchGuideBrowser } from "#scripts/guides/browser.ts";
 import { recordSession } from "#scripts/guides/record/session.ts";
 import type { GuideAction } from "#scripts/guides/storyboard.ts";
 import { parseGuideTimeline } from "#scripts/guides/timeline.ts";
+import { GUIDE_DEVICE_SCALE_FACTOR } from "#scripts/guides/video.ts";
+import { DESKTOP_SCREENSHOT_PROFILE } from "#scripts/screenshots/profile.ts";
 import { launchScreenshotBrowser } from "#test/scripts/screenshots-browser-helpers.ts";
+import { newGuidePage } from "./browser-helpers.ts";
 
 const VIEWPORT = { height: 600, width: 800 };
 
@@ -31,6 +34,13 @@ const actions: GuideAction[] = [
   { kind: "wait", ms: 150 },
 ];
 
+const frameSize = async (
+  path: string,
+): Promise<{ height: number | undefined; width: number | undefined }> => {
+  const metadata = await sharp(await Deno.readFile(path)).metadata();
+  return { height: metadata.height, width: metadata.width };
+};
+
 describe("guide recorder browser contract", () => {
   let browser: Browser;
   let directory: string;
@@ -46,12 +56,12 @@ describe("guide recorder browser contract", () => {
   });
 
   test("records a typed field, a click, and a scroll", async () => {
-    const page = await browser.newPage({ viewport: VIEWPORT });
-    withStrictBrowserTimeouts(page);
+    const page = await newGuidePage(
+      browser,
+      VIEWPORT,
+      `data:text/html,${encodeURIComponent(pageHtml)}`,
+    );
     try {
-      await page.goto(`data:text/html,${encodeURIComponent(pageHtml)}`, {
-        waitUntil: "domcontentloaded",
-      });
       const timeline = await recordSession(page, {
         actions,
         fps: 30,
@@ -75,14 +85,40 @@ describe("guide recorder browser contract", () => {
         JSON.parse(await Deno.readTextFile(join(directory, "timeline.json"))),
       );
       expect(parsed.guide.slug).toBe("recorder-test");
-
-      const metadata = await sharp(
-        await Deno.readFile(join(directory, "frame-00001.jpg")),
-      ).metadata();
-      expect(metadata.width).toBe(VIEWPORT.width);
-      expect(metadata.height).toBe(VIEWPORT.height);
+      expect(await frameSize(join(directory, "frame-00001.jpg"))).toEqual({
+        height: VIEWPORT.height,
+        width: VIEWPORT.width,
+      });
     } finally {
       await page.close();
+    }
+  });
+
+  test("records the screencast at two device pixels per CSS pixel", async () => {
+    const guideBrowser = await launchGuideBrowser();
+    const output = await Deno.makeTempDir({ prefix: "guide-recorder-2x-" });
+    const desktop = DESKTOP_SCREENSHOT_PROFILE.viewport;
+    const page = await newGuidePage(
+      guideBrowser,
+      desktop,
+      `data:text/html,${encodeURIComponent(pageHtml)}`,
+    );
+    try {
+      await recordSession(page, {
+        actions: [{ kind: "wait", ms: 200 }],
+        fps: 30,
+        guide: { slug: "recorder-scale", title: "Recorder scale" },
+        outputDir: output,
+        viewport: desktop,
+      });
+      expect(await frameSize(join(output, "frame-00001.jpg"))).toEqual({
+        height: desktop.height * GUIDE_DEVICE_SCALE_FACTOR,
+        width: desktop.width * GUIDE_DEVICE_SCALE_FACTOR,
+      });
+    } finally {
+      await page.close();
+      await guideBrowser.close();
+      await Deno.remove(output, { recursive: true });
     }
   });
 });

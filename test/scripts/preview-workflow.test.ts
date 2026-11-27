@@ -160,6 +160,28 @@ describe("preview workflow", () => {
     ]);
   });
 
+  test("publishes the guide videos before the build", async () => {
+    const deploy = jobText(await readWorkflow(), "deploy");
+    const guides = stepText(deploy, "Publish guide videos");
+
+    expectIncludesAll(guides, [
+      "id: guides",
+      "uses: $/.github/actions/publish-guide-videos",
+      "secrets.BUNNY_STAGING_ACCOUNT_KEY",
+      "secrets.CDN_STAGING_URL",
+      "secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME",
+      "secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY",
+      "secrets.CDN_BUNNY_STAGING_STORAGE_HOST",
+      "secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID",
+    ]);
+    expect(deploy).toContain(
+      `guide_videos: ${githubValue("steps.guides.outputs.guide_videos")}`,
+    );
+    expect(deploy.indexOf("name: Publish guide videos")).toBeLessThan(
+      deploy.indexOf("uses: $/.github/actions/build-bunny-script"),
+    );
+  });
+
   test("deletes the preview of a closed pull request, merged or not", async () => {
     const cleanup = jobText(await readWorkflow(), "cleanup");
 

@@ -2,17 +2,13 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { recordGuide } from "#scripts/guides/build.ts";
 import { GUIDE_SLUGS } from "#scripts/guides/storyboards/index.ts";
+import { guideSlugs } from "./args.ts";
 
 const options = parseArgs(Deno.args, {
   boolean: ["allow-dirty", "keep-frames", "keep-session"],
   string: ["from"],
 });
-const requested = options._.map(String);
-const slugs =
-  requested.length === 0 || requested[0] === "all" ? GUIDE_SLUGS : requested;
-if (options.from && slugs.length !== 1) {
-  throw new Error("--from takes exactly one guide");
-}
+const slugs = guideSlugs(options._, GUIDE_SLUGS, options.from);
 
 if (import.meta.main) {
   for (const slug of slugs) {

@@ -71,6 +71,17 @@ jobs:
             --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID
           scripts/ci/check-credentials.sh bunny main-instance backup-zone cdn-zone
 
+      - name: Publish guide videos
+        id: guides
+        uses: $/.github/actions/publish-guide-videos
+        with:
+          bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+          cdn_url: ${{ secrets.CDN_URL }}
+          cdn_bunny_storage_zone_name: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          cdn_bunny_storage_zone_key: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+
       - name: Build Bunny edge script
         id: build
         uses: $/.github/actions/build-bunny-script
@@ -82,6 +93,7 @@ jobs:
           cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
           cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
           bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+          guide_videos: ${{ steps.guides.outputs.guide_videos }}
 
       - name: Back up and deploy each client site
         shell: devenv --profile ci shell bash -- -e {0}

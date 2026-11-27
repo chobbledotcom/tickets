@@ -19,6 +19,9 @@ name: Branch preview
 #
 # A preview sends real host mail. It never receives MAIN_INSTANCE_KEY or the
 # production Bunny key.
+#
+# The deploy job publishes the branch guide videos to the staging CDN before
+# the build. The build bakes their URLs into the create-listing page.
 
 on:
   pull_request:
@@ -107,6 +110,17 @@ jobs:
             --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID
           scripts/ci/check-credentials.sh bunny cdn-zone
 
+      - name: Publish guide videos
+        id: guides
+        uses: $/.github/actions/publish-guide-videos
+        with:
+          bunny_access_key: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          cdn_url: ${{ secrets.CDN_STAGING_URL }}
+          cdn_bunny_storage_zone_name: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME }}
+          cdn_bunny_storage_zone_key: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY }}
+          cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
+          cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
+
       - name: Build Bunny edge script
         id: build
         uses: $/.github/actions/build-bunny-script
@@ -118,6 +132,7 @@ jobs:
           cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
           cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
           bunny_access_key: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          guide_videos: ${{ steps.guides.outputs.guide_videos }}
 
       # Finds the preview of this branch by name. A new branch gets a database,
       # a script and every secret, and the build is published. An old preview

@@ -21,7 +21,7 @@ const ENTRY = "style.scss";
 const SHARED_MIXINS = "_mixins.scss";
 
 const useLine = /^@use "(?<name>[^"]+)";$/;
-const mixinDefinition = /^@mixin (?<name>[a-z-]+) \{$/;
+const mixinDefinition = /^@mixin (?<name>[a-z-]+)(?:\([^)]*\))? \{$/;
 const mixinInclude = /@include (?<name>[a-z-]+)/;
 const blockComment = /\/\*[\s\S]*?\*\//g;
 

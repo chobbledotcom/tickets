@@ -2,6 +2,7 @@
  * ffmpeg is a loud failure, not a silent empty video. */
 
 import { join } from "@std/path";
+import { frameFileName } from "./frame-name.ts";
 
 const decoder = new TextDecoder();
 
@@ -57,8 +58,5 @@ export const copyPosterFrame = async (
   frameCount: number,
 ): Promise<void> => {
   const index = Math.max(1, Math.ceil(frameCount / 4));
-  await Deno.copyFile(
-    join(framesDir, `frame-${String(index).padStart(5, "0")}.png`),
-    outputPath,
-  );
+  await Deno.copyFile(join(framesDir, frameFileName(index, "png")), outputPath);
 };

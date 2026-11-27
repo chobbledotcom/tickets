@@ -18,6 +18,7 @@ import {
   handleScannerSwJs,
   handleStyleCss,
 } from "#routes/assets.ts";
+import { handleLocalGuideVideo } from "#routes/local-guide-videos.ts";
 import { handleRobotsTxt } from "#routes/robots-txt.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { handleSitemapXml } from "#routes/sitemap.ts";
@@ -29,6 +30,8 @@ const staticRoutes = defineRoutes({
   "GET /contact.js": () => handleContactJs(),
   "GET /embed.js": () => handleEmbedJs(),
   "GET /favicon.ico": () => handleFavicon(),
+  "GET /guide-videos/:slug": (request, params) =>
+    handleLocalGuideVideo(request, params),
   "GET /health": (request) => handleHealthCheck(request),
   "GET /icons.svg": () => handleIcons(),
   "GET /iframe-resizer-child.js": () => handleIframeResizerChildJs(),
