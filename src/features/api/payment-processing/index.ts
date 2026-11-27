@@ -10,6 +10,7 @@
 
 import { generateTicketToken } from "#crypto/utils.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
+import { dropCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import {
   finalizeSessionIfUnresolved,
   markSessionFailed,
@@ -371,7 +372,12 @@ export const processPaymentSession: SessionProcessor = async (
   // One rule decides on both paths whether the session is settled. A replay
   // of a settled session writes the receipt too, so a receipt write that the
   // first delivery lost is repaired by the next one.
-  if (settlesSession(result)) await keepOrderReceipt(data);
+  if (settlesSession(result)) {
+    await keepOrderReceipt(data);
+    // A final outcome with no booking leaves no create batch to take the
+    // staged answers back, so they go here. A retryable one keeps them.
+    if (!result.success) await dropCheckoutAnswers(sessionId);
+  }
   return result;
 };
 
