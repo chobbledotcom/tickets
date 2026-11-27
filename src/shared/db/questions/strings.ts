@@ -10,11 +10,11 @@ import type { ResultSet } from "@libsql/client";
 import { hmacHash } from "#crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import { executeBatchWithResults, resultRows } from "#db/client.ts";
+import { execute, executeBatchWithResults, resultRows } from "#db/client.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { insertingAll, update } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -158,3 +158,20 @@ export const internStringRows = async (
 export const getOrCreateStringIds = async (
   texts: string[],
 ): Promise<StringIdByText> => internStringRows(await prepareStringRows(texts));
+
+/**
+ * Keep the strings of some answer texts out of the unused-string prune until
+ * `holdUntil`. A Square link can take payment long after the prune takes a
+ * string that no attendee answer uses yet. Each text is found by its blind
+ * index, as interning finds it, so the checkout needs no string ids.
+ */
+export const holdStringsUntil = async (
+  texts: readonly string[],
+  holdUntil: string,
+): Promise<void> => {
+  const indexes = await Promise.all([...new Set(texts)].map(hmacHash));
+  await execute(
+    sql`UPDATE strings SET hold_until = ${holdUntil}
+         WHERE text_index IN (${sqlList(indexes)})`,
+  );
+};
