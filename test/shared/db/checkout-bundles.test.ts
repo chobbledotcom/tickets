@@ -6,7 +6,7 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  bundleRetentionMs,
+  CHECKOUT_BUNDLE_RETENTION_MS,
   openCheckoutBundle,
   rewriteCheckoutBundle,
   sealCheckoutBundle,
@@ -32,9 +32,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const CHECKOUT_AND_RETRY_MS = 60 * 60 * 1000 + 3 * DAY_MS;
 
 describeWithEnv("checkout bundles", { db: true }, () => {
-  test("keeps a bundle for its checkout and retry windows, and never longer than a payment row", () => {
-    expect(bundleRetentionMs(90 * DAY_MS)).toBe(CHECKOUT_AND_RETRY_MS);
-    expect(bundleRetentionMs(3 * DAY_MS)).toBe(3 * DAY_MS);
+  test("keeps a bundle for its checkout and retry windows, however short the payment rows are kept", () => {
+    expect(CHECKOUT_BUNDLE_RETENTION_MS).toBe(CHECKOUT_AND_RETRY_MS);
   });
 
   test("opens what was sealed, with the token alone", async () => {

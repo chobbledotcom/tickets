@@ -25,26 +25,16 @@ import { sql } from "#db/sql.ts";
 import { insertInto, update } from "#db/write.ts";
 import {
   CHECKOUT_WINDOW_MS,
-  PRUNE_PAYMENTS_RETENTION_MS,
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
 import { stringRecordJson } from "#shared/validation/stored-json.ts";
 
-/** How long a sealed order is kept, when the payment rows are kept this long.
- * A buyer can pay until the window closes, and the provider can retry the
- * callback after that. A bundle is never kept longer than a payment row. The
- * row is written when the buyer pays, after the bundle, so the bundle always
- * goes first. A receipt never outlives the row that settled it. */
-export const bundleRetentionMs = (paymentsRetentionMs: number): number =>
-  Math.min(
-    CHECKOUT_WINDOW_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS,
-    paymentsRetentionMs,
-  );
-
-export const CHECKOUT_BUNDLE_RETENTION_MS = bundleRetentionMs(
-  PRUNE_PAYMENTS_RETENTION_MS,
-);
+/** How long a sealed order is kept: the checkout window, then the window for
+ * provider retries. The payment rows last at least that long, and a row is
+ * written after its bundle, so the bundle always goes first. */
+export const CHECKOUT_BUNDLE_RETENTION_MS =
+  CHECKOUT_WINDOW_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;
 
 /** What opening a token found. A row that is gone and a row that will not open
  * are told apart, because an admin reads them differently. */
@@ -95,7 +85,7 @@ export const rewriteCheckoutBundle = async (
 };
 
 /** Name the checkout that a sealed order belongs to, after the provider
- * makes it. A Square checkout can take payment until its handle row is gone,
+ * makes it. A Square checkout can take payment for the link's whole lifetime,
  * so the prune keeps the order that long (see `prune.ts`). */
 export const linkCheckoutBundleToSession = async (
   token: string,

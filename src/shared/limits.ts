@@ -321,29 +321,29 @@ export const APIKEY_LOCKOUT_MS = limit(
  */
 export const WEBHOOK_RETRY_WINDOW_DAYS = 3;
 
+/** The shortest payment retention in days: a 24-hour checkout, then the retries. */
+export const PAYMENTS_RETENTION_MIN_DAYS = WEBHOOK_RETRY_WINDOW_DAYS + 1;
+
 /**
- * Validate the payments-retention config: reject a value that would let the
- * payment replay rows be pruned while a provider could still retry the webhook.
- * Throws (failing startup) rather than silently risking a duplicate refund.
- * Extracted from the constant below so the invariant is unit-testable without
- * having to construct a broken live environment.
+ * Reject a payments retention that could let a payment row be pruned while a
+ * provider can still retry the webhook. It throws at startup rather than risk
+ * a duplicate refund. A test can reach it apart from the constant below.
  */
 export const assertPaymentsRetentionSafe = (days: number): number => {
-  if (days < WEBHOOK_RETRY_WINDOW_DAYS) {
+  if (days < PAYMENTS_RETENTION_MIN_DAYS) {
     throw new Error(
-      `PRUNE_PAYMENTS_RETENTION_DAYS=${days} is below the ${WEBHOOK_RETRY_WINDOW_DAYS}-day ` +
-        "provider webhook-retry window. A shorter retention can prune a payment's " +
-        "idempotency row while the provider is still retrying its webhook, which would " +
-        "re-process the session and risk a duplicate refund. Set it to at least " +
-        `${WEBHOOK_RETRY_WINDOW_DAYS} (the default is 90).`,
+      `PRUNE_PAYMENTS_RETENTION_DAYS=${days} is below the ${PAYMENTS_RETENTION_MIN_DAYS}-day minimum: ` +
+        "a 24-hour checkout, then the provider's webhook retries. A shorter " +
+        "retention can prune a payment row while a retry is due, which would " +
+        `risk a duplicate refund. Set it to at least ${PAYMENTS_RETENTION_MIN_DAYS} (the default is 90).`,
     );
   }
   return days;
 };
 
-/** Retention (days) for resolved processed_payments rows (default: 90). Floored
- * at WEBHOOK_RETRY_WINDOW_DAYS so payment replay rows always outlive the provider
- * webhook-retry window (a too-short value throws at startup). */
+/** Retention (days) for resolved processed_payments rows (default: 90).
+ * Floored at PAYMENTS_RETENTION_MIN_DAYS, so a too-short value throws at
+ * startup. */
 export const PRUNE_PAYMENTS_RETENTION_DAYS = computedLimit(
   assertPaymentsRetentionSafe(readLimit("PRUNE_PAYMENTS_RETENTION_DAYS", 90)),
   90,
