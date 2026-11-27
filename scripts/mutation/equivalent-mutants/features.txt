@@ -391,8 +391,8 @@ src/features/admin/built-sites.ts::extractBuiltSiteInput~027ez9p  && → || audi
 
 # Sealed checkout orders (payment-processing).
 src/features/api/payment-processing/metadata.ts::businessTime~1e2tdds  ?? → || audited:147hlk6 # createdAt is absent or an ISO time that a provider adapter builds with isoFromUnixSeconds or toCanonicalIso, and neither gives the empty string
-src/features/api/payment-processing/session-standing.ts::sessionStanding.row~1pgpjxc  A session-standing read gives one row → "" audited:1rbxaza # unreachable: the read selects scalar subqueries with no FROM, so it always returns one row and requireValue never raises this message
-src/features/api/payment-processing/session-standing.ts::sessionStanding.row.failureData~1jakk4m  ?? → || audited:1rbxaza # failure_data is null (no payment row), the empty string, or sealed text, and null and the empty string both become "" under either operator
+src/features/api/payment-processing/session-standing.ts::sessionStanding.row~1pgpjxc  A session-standing read gives one row → "" audited:01tyr1b # unreachable: the read selects scalar subqueries with no FROM, so it always returns one row and requireValue never raises this message
+src/features/api/payment-processing/session-standing.ts::sessionStanding.row.failureData~1jakk4m  ?? → || audited:01tyr1b # failure_data is null (no payment row), the empty string, or sealed text, and null and the empty string both become "" under either operator
 
 # rejected subscription checkout (features/api/payment-processing/rejected-subscription.ts)
 src/features/api/payment-processing/rejected-subscription.ts::storeNoChargePlan.stored.allowOverbook~12twlt7 true→false  audited:0oju2lp   # every line the no-charge plan books is a dateless ghost line of quantity 0 (datelessGhostBookings), and the capacity guard admits a quantity-0 line whenever its listing exists (roomFor in capacity/checks.ts), so overbooking changes nothing
