@@ -12,6 +12,7 @@ import type {
 } from "#db/questions/attendee-answers/reads.ts";
 import {
   asksEachLine,
+  isTicketHeld,
   lineKey,
   lineSlotOfRow,
 } from "#db/questions/line-answers.ts";
@@ -128,7 +129,7 @@ const bookedLineTexts = (
   (data?.lineAnswerMap?.get(row.id) ?? [])
     .filter(isRowAnswer(row))
     .filter((answer) => answer.questionId === questionId)
-    .filter((answer) => answer.unit < answer.quantity)
+    .filter(isTicketHeld)
     .map(({ text }) => text);
 
 /** The columns of a line question. A question for each ticket takes one
