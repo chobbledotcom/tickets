@@ -4,11 +4,7 @@ import {
   type StoredTicketLine,
 } from "#booking/ticket-moves.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
-import type {
-  AttendeeRowListing,
-  AttendeeTableRow,
-  DisplayAttendee,
-} from "#types";
+import type { AttendeeTableRow, DisplayAttendee, NamedRecord } from "#types";
 
 /** A shown line: the person, its listing, and its own counts. */
 type ShownLine = {
@@ -40,7 +36,7 @@ export const shownLineBookings = (lines: readonly ShownLine[]): PairBookings =>
 /** A table row for a line that is its person's whole booking on the listing. */
 export const bookedLineRow = (
   attendee: DisplayAttendee,
-  listing: AttendeeRowListing,
+  listing: NamedRecord,
 ): AttendeeTableRow => ({
   ...attendeeLineRow(attendee, listing),
   booking: { checked_in: attendee.checked_in, quantity: attendee.quantity },

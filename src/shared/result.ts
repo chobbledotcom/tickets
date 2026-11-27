@@ -6,9 +6,12 @@ export type Result<T, E = string> =
 /** A result, or the promise of one, as a validation step can answer. */
 export type AsyncResult<T, E = string> = Result<T, E> | Promise<Result<T, E>>;
 
+/** An operation that failed, with the message a person reads. */
+export type Failure = { ok: false; error: string };
+
 /** The success/error contract for an operation that returns no value: it
  * worked, or it failed with the message a person reads. */
-export type Outcome = { ok: true } | { ok: false; error: string };
+export type Outcome = { ok: true } | Failure;
 
 export const okResult = <T>(value: T): Result<T, never> => ({
   ok: true,

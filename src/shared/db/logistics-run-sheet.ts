@@ -6,6 +6,7 @@
  * "Modularised" in docs/designing-systems.md.
  */
 
+import type { TicketPair } from "#booking/ticket-moves.ts";
 import { attendeeListingRows } from "#db/attendees/booking-rows.ts";
 import { bookingSlotKey } from "#db/attendees/booking-slot.ts";
 import { queryAll } from "#db/client.ts";
@@ -13,7 +14,6 @@ import { executeChangedRow } from "#db/guarded-writes.ts";
 import {
   type AssignmentRow,
   bookingAssignmentKey,
-  type DeliveryBookingRef,
   mapBookingRows,
 } from "#db/logistics.ts";
 import { columnFrom } from "#db/query.ts";
@@ -159,7 +159,7 @@ export const getAgentRunSheet = async (
   );
 };
 
-const bookingRefKey = (booking: DeliveryBookingRef): string =>
+const bookingRefKey = (booking: TicketPair): string =>
   bookingAssignmentKey(booking.attendeeId, booking.listingId);
 
 /** A booking row matched on an agent's run sheet, with its full slot identity
@@ -213,7 +213,7 @@ export const runSheetBookingKey = (
 export const getAgentRunSheetBookings = async (
   agentIds: number[],
   dates: string[],
-  bookings: DeliveryBookingRef[],
+  bookings: TicketPair[],
 ): Promise<RunSheetBooking[]> => {
   if (agentIds.length === 0) return [];
   if (dates.length === 0) return [];

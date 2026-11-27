@@ -17,6 +17,7 @@ import {
   getBunnyDnsZoneId,
 } from "#shared/config.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import type { Failure } from "#shared/result.ts";
 
 const BunnyDnsRecordSchema = v.object({
   Id: v.number(),
@@ -61,14 +62,13 @@ export const buildSubdomainRecordName = (subdomain: string): string =>
 
 /** A Bunny domain call that resolves a full domain on success, or gives an
  * error message on failure. */
-type DomainFailure = { ok: false; error: string };
-export type DomainResult = { ok: true; fullDomain: string } | DomainFailure;
+export type DomainResult = { ok: true; fullDomain: string } | Failure;
 
 /** A {@link DomainResult} that also says whether the checked subdomain is
  * still free. */
 export type SubdomainAvailability =
   | { ok: true; available: boolean; fullDomain: string }
-  | DomainFailure;
+  | Failure;
 
 /**
  * Check whether a subdomain is available in the DNS zone.
