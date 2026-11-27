@@ -1,14 +1,3 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
-# Collection cache generation values are only compared for equality. Their
-# absolute value and direction do not matter: every invalidation changes the
-# value, so a fetch started before it cannot populate the cache. The unloaded
-# timestamp is never read because `items` is null, and size is an array length.
-src/fp.ts::collectionCache.time~1civhru  0 → 1 audited:03da9gy # initial time is replaced when items first load; null items short-circuit the TTL check
-src/fp.ts::collectionCache.time~1civhru  0 → -1 audited:03da9gy # same: the unloaded timestamp is never observed
-src/fp.ts::collectionCache.generation~0dbfxl4  0 → 1 audited:03da9gy # generation starts at an arbitrary value and is only compared with a captured copy
-src/fp.ts::collectionCache.generation~0dbfxl4  0 → -1 audited:03da9gy # same: only changes relative to the captured generation matter
-src/fp.ts::collectionCache.invalidate~058o5v1  ++ → -- audited:03da9gy # either direction changes generation and invalidates every older captured copy
-src/fp.ts::collectionCache.size~012d4va  ?? → || audited:03da9gy # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
-
 src/shared/payment-signature.ts::canonicalPricePayload.entries~0kqbt3q  1 → 0  audited:0yl0a1b   # the keys are the metadata keys of one canonical payload record, so they are unique: every comparison is -1 or not-less-than, and V8's pinned sort places both not-less-than values on the same side of its only decision (probed to 500 keys: ascending, reversed, shuffled)
