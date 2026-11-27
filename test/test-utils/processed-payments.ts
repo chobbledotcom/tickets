@@ -77,6 +77,11 @@ export const finalizeReservedPayment = async (
   );
 };
 
+/** A payment row that another delivery has reserved and not yet settled. */
+export const reservedPayment = async (sessionId: string): Promise<void> => {
+  await reserveSession(sessionId);
+};
+
 /** Reserve and finalize a payment row for tests that only need completed state. */
 export const finalizeProcessedPayment = async (
   sessionId: string,

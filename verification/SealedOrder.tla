@@ -110,12 +110,15 @@ AlarmsWhenSettled(fact) ==
   fact.alarms /\ Settled(fact.rowBefore, fact.ledgerBefore)
 
 \* A lost order of a session that is not settled must reach the admin. A
-\* receipt stands for an order only when the session settled.
+\* receipt stands for an order only when the session settled. A reserved row
+\* means another delivery is settling the session, so a delivery that finds
+\* it waits and raises no alarm.
 \* @type: ($deliveryFactsFact) => Bool;
 MissesAlarm(fact) ==
   /\ fact.bundle # "order"
   /\ ~(fact.bundle = "receipt" /\ Settled(fact.rowBefore, fact.ledgerBefore))
   /\ ~Settled(fact.rowBefore, fact.ledgerBefore)
+  /\ fact.rowBefore # "reserved"
   /\ ~fact.alarms
 
 \* A lost order must answer retryably and must never send money back.
@@ -281,6 +284,6 @@ Next ==
 \* Limits: one session, one sealed row, and the four row and two ledger
 \* labels. The model assumes the atomic booking batch. It does not prove SQL
 \* atomicity, provider truth, or that a callback ever arrives. A delivery that
-\* finds a reserved row and a pruned order raises the alarm. The model allows
-\* it, because that session is not settled yet.
+\* finds a reserved row and a pruned order waits and raises no alarm. If the
+\* delivery that holds the row never finishes, no alarm follows.
 =============================================================================

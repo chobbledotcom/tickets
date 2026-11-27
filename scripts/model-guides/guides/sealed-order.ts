@@ -50,7 +50,7 @@ export const sealedOrder: ModelGuide = {
   limits: [
     "The model uses one session, three bundle states, four row states, and two ledger labels.",
     "It assumes the atomic booking batch. It does not prove SQL atomicity or row locks.",
-    "A delivery that finds a reserved row and a pruned order raises the alarm, because that session is not settled yet.",
+    "A delivery that finds a reserved row and a pruned order waits and raises no alarm. If the delivery that holds the row never finishes, no alarm follows.",
     "A failed session with no ledger leg is forgotten when retention deletes its row. A later delivery then raises the alarm for it.",
     "It does not prove that a callback, a receipt write, or a prune ever happens.",
   ],
