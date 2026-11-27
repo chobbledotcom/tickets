@@ -1003,7 +1003,7 @@
     "wordy": 1,
     "long-sentence": 14,
     "semicolon": 3,
-    "banned-modal": 10,
+    "banned-modal": 9,
     "present-perfect": 2
   },
   "src/shared/listing-defaults.ts": {
