@@ -122,10 +122,11 @@ const classifiedOutcome = async (
   if (classified.kind === "missing") {
     return missingOrderCallback(classified.missing);
   }
-  const { intent, verdict } = classified;
+  const { intent, receipt, verdict } = classified;
   const listingId = intent.items[0]?.e;
   const result = await processPaymentSession(session.id, {
     intent,
+    receipt,
     session,
     verdict,
   });

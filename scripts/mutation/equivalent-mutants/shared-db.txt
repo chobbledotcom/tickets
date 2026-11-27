@@ -251,8 +251,8 @@ src/shared/update.ts::readRecordedScriptCommit~0a5wpjt  ?? → || audited:0iassr
 src/shared/update.ts::fetchLatestRelease.assetUrl~16g02qy  ?? → || audited:0iassr4 # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 src/shared/db/capacity.ts::buildCapacityCondition.conditionFor.excludeAttendeeId~1jgxbsh  ?? → || audited:13edx5i # excludeAttendeeId is an attendee row id or undefined. A row id starts at 1, so the only falsy value is the absent one.
 src/shared/db/groups.ts::memberQuantityStatement.quantity~0ajbifl ??→||  audited:1qszyws   # validated package quantities are positive integers, so zero never reaches this default
-src/shared/db/prune.ts::paymentStatement~1oy3usg  charge.→ "" audited:035jlhx # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
-src/shared/db/prune.ts::paymentStatement~0tukn2g  charge.→ "" audited:035jlhx # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
+src/shared/db/prune.ts::paymentStatement~1oy3usg  charge.→ "" audited:0npt718 # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
+src/shared/db/prune.ts::paymentStatement~0tukn2g  charge.→ "" audited:0npt718 # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.paymentReference~10demh7 ??→||  audited:1drlsvd   # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
 src/shared/db/payment-finalize.ts::buildFinalizeStatements.paymentReferenceIndex~0clq12z ??→||  audited:1drlsvd   # stored?.index is string | undefined with an empty-string fallback, so both operators agree on every value
 src/shared/db/attendees/queries.ts::getAttendeeRawByToken~101nq7k  ?? → || audited:01qrelt # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
@@ -265,7 +265,7 @@ src/shared/db/codecs/fields.ts::KIND_CODECS.optionalDatetime.encode~1f02l1u  ??�
 
 # checkout-bundles.ts: openCheckoutBundle catches every error of the read and
 # answers `unreadable`, so the label of the JSON reader has no observer.
-src/shared/db/checkout-bundles.ts::openCheckoutBundle.record~1hcwkes  checkout bundle → "" audited:0he8izn # the label only names the row in an error message, and the catch around the read discards that error and answers unreadable
+src/shared/db/checkout-bundles.ts::openCheckoutBundle.record~1hcwkes  checkout bundle → "" audited:0j0zhs5 # the label only names the row in an error message, and the catch around the read discards that error and answers unreadable
 src/shared/db/notes/queries.ts::createSystemNote~09ifz39  ?? → || audited:0vku3hx # name: SystemNoteName|undefined — a SystemNoteName is an object, always truthy, so only undefined reaches null either way
 
 # questions/line-answers.ts: URLSearchParams.get answers a string or null, and
