@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -67,12 +67,12 @@ describeWithEnv(
         const readOnlyFromCall = secretCalls.find(
           (c) => c[1] === "READ_ONLY_FROM",
         );
-        expect(readOnlyFromCall).toBeDefined();
-        expect(readOnlyFromCall![2].slice(0, 10)).toBe(expectedCutoff);
+        assert(readOnlyFromCall !== undefined, "READ_ONLY_FROM was not set");
+        expect(readOnlyFromCall[2].slice(0, 10)).toBe(expectedCutoff);
 
         const renewalUrlCall = secretCalls.find((c) => c[1] === "RENEWAL_URL");
-        expect(renewalUrlCall).toBeDefined();
-        assertStringIncludes(renewalUrlCall![2], "/renew/?t=");
+        assert(renewalUrlCall !== undefined, "RENEWAL_URL was not set");
+        assertStringIncludes(renewalUrlCall[2], "/renew/?t=");
       });
 
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
