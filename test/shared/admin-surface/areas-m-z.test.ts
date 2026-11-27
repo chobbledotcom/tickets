@@ -156,6 +156,8 @@ const PATHS = {
   sitePageNew: "/admin/site/pages/new",
   sitePages: "/admin/site/pages",
   siteReviews: "/admin/site/reviews",
+  siteReviewsIntro: "/admin/site/reviews/intro",
+  siteReviewsToggle: "/admin/site/reviews/toggle",
   sms: "/admin/sms",
   status: "/admin/settings/statuses/:id",
   statusDelete: "/admin/settings/statuses/:id/delete",
