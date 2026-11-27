@@ -49,6 +49,7 @@ const booking = (
   attendee_id: attendeeId,
   created,
   free_text: null,
+  line: null,
   listing_ids: listingIds,
   question_id: 9,
 });
