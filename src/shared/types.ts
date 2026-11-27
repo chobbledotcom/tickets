@@ -335,11 +335,6 @@ export type PiiBlob = {
   lo?: string | undefined; // longitude (absent = not pinned; set by admins, never at booking)
 };
 
-export interface Settings {
-  key: string;
-  value: string;
-}
-
 export type Session = Omit<
   DecodedRowOf<"sessions">,
   "token" | "userId" | "wrappedDataKey"
@@ -590,8 +585,8 @@ export type ListingWithCount = Listing & {
  */
 export type AdminListing = Omit<ListingWithCount, "slugIndex">;
 
-/** One listing shown in an attendee row's Listings cell */
-export type AttendeeRowListing = {
+/** A record that an operator knows by its name. */
+export type NamedRecord = {
   id: number;
   name: string;
 };
@@ -630,5 +625,5 @@ export type DisplayAttendee = Pick<
 export type AttendeeTableRow = {
   attendee: DisplayAttendee;
   booking?: PairBooking;
-  listings: AttendeeRowListing[];
+  listings: NamedRecord[];
 };

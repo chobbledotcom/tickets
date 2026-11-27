@@ -9,18 +9,14 @@
 import type { PairBookings } from "#booking/ticket-moves.ts";
 import { requiredMapValue, sumOf } from "#fp";
 import { pairKey } from "#shared/keys.ts";
-import type {
-  AttendeeRowListing,
-  AttendeeTableRow,
-  DisplayAttendee,
-} from "#types";
+import type { AttendeeTableRow, DisplayAttendee, NamedRecord } from "#types";
 
 /** One table row for a single booking line. Used by the roster, check-in,
  * calendar, and group tables, where each line keeps its own date, quantity,
  * and per-listing check-in action. */
 export const attendeeLineRow = (
   attendee: DisplayAttendee,
-  listing: AttendeeRowListing,
+  listing: NamedRecord,
 ): AttendeeTableRow => ({
   attendee,
   listings: [{ id: listing.id, name: listing.name }],
@@ -50,7 +46,7 @@ export const withPairBookings =
  */
 export const groupAttendeeRows = (
   attendees: DisplayAttendee[],
-  orderedListings: readonly AttendeeRowListing[],
+  orderedListings: readonly NamedRecord[],
 ): AttendeeTableRow[] => {
   const rows: AttendeeTableRow[] = [];
   for (const lines of Map.groupBy(attendees, (a) => a.id).values()) {

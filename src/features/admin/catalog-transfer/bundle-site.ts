@@ -17,7 +17,7 @@ import { unique } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { requiredMapValueWithMessage } from "#shared/required-map-value.ts";
 import { requireValue } from "#shared/required-value.ts";
-import type { Group, ListingWithCount } from "#types";
+import type { Group, ListingWithCount, NamedRecord } from "#types";
 import type { FailureCollector, ItemNameIndexes } from "./bundle-names.ts";
 import {
   type BundleRef,
@@ -63,13 +63,9 @@ export type ValidationContext = {
   siteListingsWithParent: ReadonlySet<number>;
 };
 
-/** One group-scoped opt-in add-on: its modifier id for the dedup and its
- * decrypted name for the refusal message. */
-export type OptInAddOn = { id: number; name: string };
-
 /** What one site group carries in opt-in add-ons. `addOnIds` mirrors
  * `addOns` for the membership probe. */
-export type GroupOptIns = { addOnIds: Set<number>; addOns: OptInAddOn[] };
+export type GroupOptIns = { addOnIds: Set<number>; addOns: NamedRecord[] };
 
 /** The opt-in add-ons one group carries. The loader gives every requested
  * group an entry, so a missing entry means a broken read. */

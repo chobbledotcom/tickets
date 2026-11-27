@@ -1,6 +1,6 @@
+import type { TicketPair } from "#booking/ticket-moves.ts";
 import { getDb } from "#db/client.ts";
 import {
-  type DeliveryBookingRef,
   type LogisticsAssignment,
   setLogisticsAssignments,
 } from "#db/logistics.ts";
@@ -29,7 +29,7 @@ export const setBookingWindow = async (
 };
 
 export const assignBookingLogistics = async (
-  booking: DeliveryBookingRef,
+  booking: TicketPair,
   assignment: LogisticsAssignment,
   startDate: string,
   endDate: string,

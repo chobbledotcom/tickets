@@ -4,10 +4,13 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
-import { type TicketMove, ticketCount } from "#booking/ticket-moves.ts";
+import {
+  type TicketMove,
+  type TicketPair,
+  ticketCount,
+} from "#booking/ticket-moves.ts";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
-import type { DeliveryBookingRef } from "#db/logistics.ts";
 import {
   getAgentRunSheetBookings,
   runSheetBookingKey,
@@ -70,7 +73,7 @@ const agentRunSheetDates = (): string[] => {
   return [today, addDays(today, 1)];
 };
 
-const entryBookingRef = (entry: TokenEntry): DeliveryBookingRef => ({
+const entryBookingRef = (entry: TokenEntry): TicketPair => ({
   attendeeId: entry.attendee.id,
   listingId: entry.listing.id,
 });

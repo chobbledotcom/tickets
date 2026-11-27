@@ -15,7 +15,6 @@ import {
   filterParams,
   type ParamWriter,
 } from "#shared/filter-href.ts";
-import type { LedgerScopeOption } from "#shared/ledger-scope.ts";
 import {
   isListingFilter,
   type ListingFilter,
@@ -28,7 +27,7 @@ import {
 } from "#shared/validation/date-string.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
-import type { ListingWithCount } from "#types";
+import type { ListingWithCount, NamedRecord } from "#types";
 
 export const AttendeeSortSchema = v.picklist(["newest", "oldest"]);
 export type AttendeeSort = v.InferOutput<typeof AttendeeSortSchema>;
@@ -60,7 +59,7 @@ export type AttendeeListSetup<
   /** Listings offered by the listing dropdown; fewer than two hides it. */
   listings: ListingWithCount[];
   /** Groups offered by the group dropdown. An empty list hides it. */
-  groups: LedgerScopeOption[];
+  groups: NamedRecord[];
   /** Whether the list understands the ?type= listing-kind filter. */
   withTypes: boolean;
   /** Whether the list understands the ?date= day filter. */

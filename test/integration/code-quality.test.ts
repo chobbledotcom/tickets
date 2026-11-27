@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   AGGREGATION_MODULES,
-  ALLOWED_DUPLICATE_TYPE_SHAPES,
   ALLOWED_TEST_HOOKS,
   LIBRARY_PATHS,
 } from "#test/integration/code-quality/allowlists.ts";
@@ -259,7 +258,7 @@ describe("code quality", () => {
      * Collect every object-shaped `type`/`interface` across production source
      * (src + tsx), keyed by file. Prefer generic, reusable objects: two
      * differently-named types with identical members should be one shared type.
-     * Coincidental cross-domain matches live in ALLOWED_DUPLICATE_TYPE_SHAPES.
+     * No shape is exempt.
      */
     const collectTypeShapes = ({
       srcFiles,
@@ -281,11 +280,7 @@ describe("code quality", () => {
 
     test("no two types should declare the same object shape", async () => {
       const scan = await ensureLoaded();
-      const allowed = ALLOWED_DUPLICATE_TYPE_SHAPES.map((a) => a.signature);
-      const violations = findDuplicateTypeShapes(
-        collectTypeShapes(scan),
-        allowed,
-      );
+      const violations = findDuplicateTypeShapes(collectTypeShapes(scan));
       expect(violations).toEqual([]);
     });
   });
