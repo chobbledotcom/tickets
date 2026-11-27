@@ -109,25 +109,24 @@ describe("limits", () => {
       expect(WEBHOOK_RETRY_WINDOW_DAYS).toBe(3);
     });
 
-    test("returns the value when it meets the webhook-retry floor", () => {
-      expect(assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS)).toBe(
-        WEBHOOK_RETRY_WINDOW_DAYS,
+    test("returns the value when it meets the floor of the checkout window and the retry window", () => {
+      expect(assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS + 1)).toBe(
+        WEBHOOK_RETRY_WINDOW_DAYS + 1,
       );
       expect(assertPaymentsRetentionSafe(90)).toBe(90);
     });
 
-    test("throws when retention is below the webhook-retry window", () => {
-      // A retention shorter than the provider retry window could prune a
-      // payment's idempotency row while a retry can still arrive, re-processing
-      // the paid session and risking a duplicate refund — so it must fail loudly.
+    test("throws when retention is below the checkout window plus the webhook-retry window", () => {
+      // A payment can arrive as late as the end of the longest checkout window
+      // (24 hours), and its provider then retries for 3 days. A payment row
+      // pruned before that could let a retry process the paid session again.
       expect(() =>
-        assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS - 1),
+        assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS),
       ).toThrow(
-        "PRUNE_PAYMENTS_RETENTION_DAYS=2 is below the 3-day provider " +
-          "webhook-retry window. A shorter retention can prune a payment's " +
-          "idempotency row while the provider is still retrying its webhook, " +
-          "which would re-process the session and risk a duplicate refund. " +
-          "Set it to at least 3 (the default is 90).",
+        "PRUNE_PAYMENTS_RETENTION_DAYS=3 is below the 4-day minimum: " +
+          "a 24-hour checkout, then the provider's webhook retries. A shorter " +
+          "retention can prune a payment row while a retry is due, which would " +
+          "risk a duplicate refund. Set it to at least 4 (the default is 90).",
       );
     });
 

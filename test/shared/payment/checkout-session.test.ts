@@ -146,6 +146,17 @@ describeWithEnv(
         )?.kept,
       );
 
+    test("keeps a Square checkout's sealed order after a late payment takes its handle row, until the link's own lifetime and the webhook retries are over", async () => {
+      await squareCheckoutAgedDays("sq_paid_100", 100);
+      await runWrite(
+        sql`DELETE FROM square_link_ends WHERE session_index = ${await hmacHash("sq_paid_100")}`,
+      );
+
+      await runDatabasePruning();
+
+      expect(await sealedOrdersOf("sq_paid_100")).toBe(1);
+    });
+
     test("keeps a Square checkout's answers past the payments clock while its link can still take payment", async () => {
       await squareCheckoutAgedDays("sq_day_150", 150);
 

@@ -354,6 +354,17 @@ export const processPaymentSession: SessionProcessor = async (
 ) => {
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
+  // A receipt has no buyer and serves only a replay. If it wins a fresh
+  // reservation, the payment row went after the read, so no booking can
+  // follow. The next delivery reads the session again and answers it.
+  if (reservation.reserved && data.receipt) {
+    await releaseReservation(sessionId);
+    return {
+      error: t("payment.error.verification_failed"),
+      status: 503,
+      success: false,
+    };
+  }
   const result = reservation.reserved
     ? await processFreshSession(sessionId, data)
     : await handleReservationConflict(data, reservation.existing);
