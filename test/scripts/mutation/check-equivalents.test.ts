@@ -133,16 +133,15 @@ describe("checking the equivalent-mutant registry resolves", () => {
     expect(await check(state)).toEqual([]);
   });
 
-  /** A path spelled so its own canonical form is the parent directory escapes
-   * the project, so the entry is refused before any file is read. */
-  test("refuses a path whose canonical form is the parent directory", async () => {
-    const state = await project(["..::x~0000000  0 → 1  audited:0000000"]);
+  test("refuses the project and parent directories as source paths", async () => {
+    const entry = "::x~0000000 0 → 1 audited:0000000";
+    const state = await project([`.${entry}`, `..${entry}`]);
     using _dir = state.dir;
 
-    const problems = await check(state);
-
-    expect(problems).toHaveLength(1);
-    assertStringIncludes(problems[0] ?? "", "path escapes the project");
+    expect(await check(state)).toEqual([
+      "path must name a file (registry/entries.txt): .::x~0000000 0→1",
+      "path escapes the project (registry/entries.txt): ..::x~0000000 0→1",
+    ]);
   });
 
   test("reports the whole stale key when its path contains spaces", async () => {

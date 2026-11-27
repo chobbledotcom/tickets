@@ -12,17 +12,13 @@ const optionsFor = (state: AuditFixture) => ({
   sources: ["source.ts"],
 });
 
-const maintenanceTest = (
-  name: string,
-  run: (state: AuditFixture, edited: string) => Promise<void>,
-): void => {
-  test(name, async () => {
-    const state = await setup();
-    using _dir = state.dir;
-    const edited = `${source}// An unrelated edit.\n`;
-    await Deno.writeTextFile(state.sourceFile, edited);
-    await run(state, edited);
-  });
+const setupEdited = async (edited = `${source}// An unrelated edit.\n`) => {
+  using cleanup = new DisposableStack();
+  const state = await setup();
+  cleanup.use(state.dir);
+  await Deno.writeTextFile(state.sourceFile, edited);
+  const lifetime = cleanup.move();
+  return { ...state, edited, [Symbol.dispose]: () => lifetime.dispose() };
 };
 
 const renewalToken = async (state: AuditFixture): Promise<string> => {
@@ -51,7 +47,8 @@ const gone = "gone.ts::old~0000000 ?? → || audited:0000000 # removed\n";
 const unrelated = "other.ts::old~0000000 ?? → || audited:0000000 # leave\n";
 
 describe("scoped equivalent-mutant maintenance", () => {
-  maintenanceTest("previews and prunes in scope", async (state, edited) => {
+  test("previews and prunes in scope", async () => {
+    using state = await setupEdited();
     const registry = `# keep\n${gone}${unrelated}${state.entry}`;
     await Deno.writeTextFile(state.ignoreFile, registry);
     const changes = (write: boolean) =>
@@ -78,34 +75,41 @@ describe("scoped equivalent-mutant maintenance", () => {
     expect(await Deno.readTextFile(state.ignoreFile)).toBe(
       `# keep\n${unrelated}`,
     );
-    expect(await Deno.readTextFile(state.sourceFile)).toBe(edited);
+    expect(await Deno.readTextFile(state.sourceFile)).toBe(state.edited);
   });
 
-  maintenanceTest("renews only the chosen record", async (state, edited) => {
-    const notSelected = state.entry.replace("→ ||", "→ &&");
-    await Deno.writeTextFile(state.ignoreFile, state.entry + notSelected);
+  test("renews only the chosen record without a reason", async () => {
+    using state = await setupEdited(source.trimEnd());
+    const selected = state.entry.replace(/ +#.*\n$/, "\n");
+    const notSelected = state.entry.replace("→ ||", "→ &&").trimEnd();
+    await Deno.writeTextFile(state.ignoreFile, selected + notSelected);
     const token = await renewalToken(state);
 
     await renew(state, token);
 
-    const updated = state.entry.replace(shortHash(source), shortHash(edited));
-    expect(await Deno.readTextFile(state.ignoreFile)).toBe(
-      updated + notSelected,
-    );
-    await expectNoRenewal(state, updated + notSelected, token);
+    const updated =
+      selected.replace(shortHash(source), shortHash(state.edited)) +
+      notSelected;
+    expect(await Deno.readTextFile(state.ignoreFile)).toBe(updated);
+    await expectNoRenewal(state, updated, token);
   });
 
-  maintenanceTest("rejects a stale renewal batch", async (state, edited) => {
+  test("rejects a stale renewal batch", async () => {
+    using state = await setupEdited();
     const token = await renewalToken(state);
     const registry = await Deno.readTextFile(state.ignoreFile);
 
     await expectNoRenewal(state, registry, token, "0".repeat(64));
 
-    await Deno.writeTextFile(state.sourceFile, `${edited}// A later edit.\n`);
+    await Deno.writeTextFile(
+      state.sourceFile,
+      `${state.edited}// A later edit.\n`,
+    );
     await expectNoRenewal(state, registry, token);
   });
 
-  maintenanceTest("rejects a revised reason", async (state) => {
+  test("rejects a revised reason", async () => {
+    using state = await setupEdited();
     const token = await renewalToken(state);
     const changed = state.entry.replace("same fallback", "a different proof");
     await Deno.writeTextFile(state.ignoreFile, changed);
@@ -113,10 +117,11 @@ describe("scoped equivalent-mutant maintenance", () => {
     await expectNoRenewal(state, changed, token);
   });
 
-  maintenanceTest("rolls back on a source edit", async (state, edited) => {
+  test("rolls back on a source edit", async () => {
+    using state = await setupEdited();
     const token = await renewalToken(state);
     const registry = await Deno.readTextFile(state.ignoreFile);
-    const later = `${edited}// Concurrent edit.\n`;
+    const later = `${state.edited}// Concurrent edit.\n`;
     const rename = Deno.rename.bind(Deno);
     using _rename = stub(Deno, "rename", async (from, to) => {
       await rename(from, to);
