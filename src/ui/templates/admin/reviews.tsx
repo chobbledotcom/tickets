@@ -33,16 +33,20 @@ const reviewColumns = (): TableColumn<Review>[] => [
     (review) => review.name,
   ),
   translatedTableColumn("rating", "reviews.col.rating", (review) =>
-    String(review.rating),
+    review.rating === null ? "" : String(review.rating),
   ),
   translatedTableColumn("date", "reviews.col.date", (review) =>
     formatDateLabel(review.date),
   ),
-  translatedTableColumn("url", "reviews.col.url", (review) => (
-    <a href={review.url} rel="nofollow noopener noreferrer" target="_blank">
-      {review.url}
-    </a>
-  )),
+  translatedTableColumn("url", "reviews.col.url", (review) =>
+    review.url === null ? (
+      ""
+    ) : (
+      <a href={review.url} rel="nofollow noopener noreferrer" target="_blank">
+        {review.url}
+      </a>
+    ),
+  ),
   deleteLinkColumn((review) => `/admin/site/reviews/${review.id}/delete`),
 ];
 
@@ -55,10 +59,6 @@ const renderFields = (review: Review | undefined) => {
         {
           children: <Raw html={form.section("details", values)} />,
           legend: t("reviews.section.details"),
-        },
-        {
-          children: <Raw html={form.section("link", values)} />,
-          legend: t("reviews.section.link"),
         },
       ]}
     />

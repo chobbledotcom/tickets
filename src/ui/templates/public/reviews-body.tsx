@@ -40,15 +40,19 @@ const reviewLinkLabel = (url: string, labels: ReviewsLabels): string =>
   url.includes("google.com") ? labels.viewOnGoogle : labels.viewReview;
 
 const reviewLinkHtml = (review: Review, labels: ReviewsLabels): string =>
-  `<a class="review-link" href="${escapeHtml(review.url)}" rel="nofollow noopener noreferrer" target="_blank">${reviewLinkLabel(review.url, labels)}</a>`;
+  review.url === null
+    ? ""
+    : `<a class="review-link" href="${escapeHtml(review.url)}" rel="nofollow noopener noreferrer" target="_blank">${reviewLinkLabel(review.url, labels)}</a>`;
 
 const reviewCard = (review: Review, labels: ReviewsLabels): JSX.Element => (
   <li class="review-card">
     <div class="review-header">
-      <span class="rating">
-        <span aria-hidden="true">{"★".repeat(review.rating)}</span>
-        <span class="visually-hidden">{labels.rating(review.rating)}</span>
-      </span>
+      {review.rating === null ? null : (
+        <span class="rating">
+          <span aria-hidden="true">{"★".repeat(review.rating)}</span>
+          <span class="visually-hidden">{labels.rating(review.rating)}</span>
+        </span>
+      )}
       <time class="date" datetime={review.date}>
         {labels.date(review.date)}
       </time>

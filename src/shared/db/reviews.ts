@@ -49,12 +49,15 @@ export const reviewsExistenceRead: FillableRead = reviewExistence.read;
 export const hasReviews = reviewExistence.exists;
 
 /** The URL index the unique constraint and this module both use. */
-const urlIndexFor = (url: string): Promise<BlindIndex> => hmacHash(url);
+const urlIndexFor = (url: string | null): Promise<BlindIndex | null> =>
+  url === null ? Promise.resolve(null) : hmacHash(url);
 
 /** The table holds no review with this URL, except the row being updated. */
-const urlIsFree = (urlIndex: string, excludeId?: number) =>
+const urlIsFree = (urlIndex: string | null, excludeId?: number) =>
   valued<boolean>(
-    sql`NOT EXISTS (
+    urlIndex === null
+      ? sql`1`
+      : sql`NOT EXISTS (
       SELECT 1 FROM reviews AS existing
       WHERE existing.url_index = ${urlIndex}
       ${excludeId === undefined ? sql`` : sql`AND existing.id <> ${excludeId}`}
@@ -68,8 +71,8 @@ const writtenRow = async (statement: SqlStatement): Promise<Review | null> => {
 };
 
 const writeIndexed = async (
-  url: string,
-  write: (urlIndex: BlindIndex) => Promise<SqlStatement>,
+  url: string | null,
+  write: (urlIndex: BlindIndex | null) => Promise<SqlStatement>,
 ): Promise<Result<Review, ReviewWriteError>> => {
   const urlIndex = await urlIndexFor(url);
   const row = await writtenRow(await write(urlIndex));

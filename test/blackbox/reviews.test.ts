@@ -152,10 +152,11 @@ describeWithEnv("the reviews page", { db: true }, () => {
         "https://example.com/reviews/new",
       );
       expect(created.html).toContain("Review created");
-      expectIncludesAll((await app.get("/admin/site/reviews/new")).html, [
-        "Review details",
-        "Public link",
-      ]);
+      const form = (await app.get("/admin/site/reviews/new")).html;
+      expect(form).toContain("Review details");
+      expect(form.match(/<fieldset/g)).toHaveLength(1);
+      expect(form).toContain('name="url"');
+      expect(form).not.toContain("Public link");
       const publicPage = await app.get("/reviews");
       expectIncludesAll(publicPage.html, ["A new reviewer", "A new review."]);
 
@@ -175,6 +176,25 @@ describeWithEnv("the reviews page", { db: true }, () => {
       expect((await app.get("/reviews")).html).not.toContain(
         "An edited reviewer",
       );
+    }));
+
+  test("saves reviews with no rating and no URL", () =>
+    withReviews(async (app) => {
+      for (const name of ["First bare reviewer", "Second bare reviewer"]) {
+        const saved = await follow(
+          app,
+          await app.submit(
+            "/admin/site/reviews/new",
+            { date: "2026-11-24", name, rating: "", text: "Short.", url: "" },
+            "/admin/site/reviews",
+          ),
+        );
+        expect(saved.html).toContain("Review created");
+      }
+      const page = (await app.get("/reviews")).html;
+      expectIncludesAll(page, ["First bare reviewer", "Second bare reviewer"]);
+      expect(page).not.toContain("review-link");
+      expect(page).not.toContain('class="rating"');
     }));
 
   test("refuses a review URL another review already has", () =>

@@ -29,6 +29,23 @@ describe("the review rule", () => {
     });
   });
 
+  test("accepts a review with no rating and no URL", () => {
+    expect(reviewRule(input({ rating: null, url: " " }), limits)).toEqual({
+      ok: true,
+      value: {
+        date: "2026-11-24",
+        name: "Jane Smith",
+        rating: null,
+        text: "A good review.",
+        url: null,
+      },
+    });
+    expect(reviewRule(input({ url: null }), limits)).toMatchObject({
+      ok: true,
+      value: { url: null },
+    });
+  });
+
   const cases: readonly [string, Record<string, unknown>, string][] = [
     ["a blank name", { name: " " }, "nameRequired"],
     ["a long name", { name: "A long reviewer" }, "nameTooLong"],
@@ -38,7 +55,6 @@ describe("the review rule", () => {
     ["a bad date", { date: "2026-02-31" }, "dateInvalid"],
     ["blank text", { text: " " }, "textRequired"],
     ["long text", { text: "A review that is too long" }, "textTooLong"],
-    ["a blank URL", { url: " " }, "urlRequired"],
     ["a non-web URL", { url: "ftp://x.co" }, "urlInvalid"],
     ["a malformed URL", { url: "not a url" }, "urlInvalid"],
     ["a long URL", { url: "https://example.com/reviews/long" }, "urlTooLong"],

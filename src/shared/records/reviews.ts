@@ -34,7 +34,6 @@ const REVIEW_ERROR_KEYS: Record<ReviewRuleError, string> = {
   textRequired: "reviews.error.text_required",
   textTooLong: "reviews.error.text_too_long",
   urlInvalid: "reviews.error.url_invalid",
-  urlRequired: "reviews.error.url_required",
   urlTooLong: "reviews.error.url_too_long",
 };
 /* jscpd:ignore-end */

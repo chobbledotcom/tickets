@@ -181,8 +181,8 @@ export const CODECS = {
   reviews: {
     name: sealed,
     text: sealed,
-    url: sealed,
-    url_index: typed<BlindIndex>(),
+    url: nullable(sealed),
+    url_index: typed<BlindIndex | null>(),
   },
   site_page_items: { item_type: typed<SitePageItemType>() },
   site_pages: { ...SEALED_PAGE_TEXT, hidden: yesNo },

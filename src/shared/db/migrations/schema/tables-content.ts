@@ -14,6 +14,7 @@ import {
   rowId,
   text,
   textKey,
+  textOrNull,
   textStartingBlank,
   wholeNumber,
   wholeNumberStartingAtNull,
@@ -27,17 +28,21 @@ const reviewsTable = [
   // review text, and URL are env-key ciphertext. `url_index` is the HMAC
   // blind index of the URL, so the URL stays unique without being stored in
   // the clear. Rating and date stay plaintext so the page sorts without
-  // decrypting every row.
+  // decrypting every row. A review can have no rating and no URL: both
+  // columns then hold nothing, and the unique index allows many empty rows.
   "reviews",
   {
     columns: [
       ["id", rowId],
       ["name", text],
-      ["rating", checked(sql`rating BETWEEN 1 AND 5`)(wholeNumber)],
+      [
+        "rating",
+        checked(sql`rating BETWEEN 1 AND 5`)(wholeNumberStartingAtNull),
+      ],
       ["date", text],
       ["text", text],
-      ["url", text],
-      ["url_index", text],
+      ["url", textOrNull],
+      ["url_index", textOrNull],
     ],
     indexes: [
       {

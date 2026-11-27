@@ -11,9 +11,9 @@ import { checkedName } from "#shared/validation/name.ts";
 export type ReviewInput = {
   date: string;
   name: string;
-  rating: number;
+  rating: number | null;
   text: string;
-  url: string;
+  url: string | null;
 };
 
 export type ReviewRuleError =
@@ -24,7 +24,6 @@ export type ReviewRuleError =
   | "textRequired"
   | "textTooLong"
   | "urlInvalid"
-  | "urlRequired"
   | "urlTooLong";
 
 export type ReviewRuleLimits = {
@@ -44,6 +43,9 @@ const urlError = (url: string, max: number): ReviewRuleError | null => {
   }
 };
 
+const validRating = (rating: number): boolean =>
+  Number.isInteger(rating) && rating >= 1 && rating <= 5;
+
 /** The one review rule. The form checks the same facts first. This keeps both
  *  admin doors and a later import to the same limits. */
 export const reviewRule = (
@@ -55,22 +57,21 @@ export const reviewRule = (
     length: limits.name,
   });
   if (!name.ok) return errorResult(name.error);
-  if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) {
+  if (input.rating !== null && !validRating(input.rating)) {
     return errorResult("ratingInvalid");
   }
   if (!isIsoDate(input.date)) return errorResult("dateInvalid");
   const text = input.text.trim();
   if (text === "") return errorResult("textRequired");
   if (text.length > limits.text) return errorResult("textTooLong");
-  const url = input.url.trim();
-  if (url === "") return errorResult("urlRequired");
-  const problem = urlError(url, limits.text);
+  const url = input.url === null ? "" : input.url.trim();
+  const problem = url === "" ? null : urlError(url, limits.text);
   if (problem !== null) return errorResult(problem);
   return okResult({
     date: input.date,
     name: name.value,
     rating: input.rating,
     text,
-    url,
+    url: url === "" ? null : url,
   });
 };
