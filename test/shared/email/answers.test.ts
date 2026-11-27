@@ -409,6 +409,20 @@ describe("order answer lines from staged question data", () => {
     ]);
   });
 
+  test("leaves a held booking text out of a line question's lines", () => {
+    const [lines] = pupilLines(
+      [makeEntry({ id: 101 }, { id: 7 })],
+      new Map([
+        ["12", "Coming by bus"],
+        ["question13_line101_0_0_ticket0", "Sam"],
+      ]),
+    );
+
+    expect(lines).toEqual([
+      { question: "Pupil name (Disco A, ticket 1)", text: "Sam" },
+    ]);
+  });
+
   test("keeps the answers of one slot on two dates apart", () => {
     const texts = heldFreeTexts(
       [],
