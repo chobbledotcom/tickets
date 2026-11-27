@@ -1,22 +1,6 @@
-/** The policy allow-lists of the code-quality integration guard: which
- * existing files are exempt from a rule, and which exports are intentional
- * test hooks. They describe this codebase rather than the rules, so they
- * live beside the guard as data, apart from the scan machinery. */
-
-/** Library/infrastructure modules - okay to have unused exports */
-export const LIBRARY_PATHS = [
-  "fp.ts", // FP utility library
-  "shared/jsx/jsx-runtime.ts", // JSX compiler runtime
-  "shared/jsx/jsx-dev-runtime.ts", // JSX dev runtime
-  "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
-];
-
-/** Index modules that only re-export from sub-modules */
-export const AGGREGATION_MODULES = [
-  "shared/db/index.ts",
-  "shared/rest/index.ts",
-  "templates/index.ts",
-];
+/** The policy allow-list of the code-quality integration guard: which exports
+ * are intentional test hooks. It describes this codebase rather than the
+ * rules, so it lives beside the guard as data, apart from the scan machinery. */
 
 /* jscpd:ignore-start -- a list of strings, not code */
 /**

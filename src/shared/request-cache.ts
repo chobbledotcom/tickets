@@ -66,7 +66,7 @@ const ignoreUnobserved = (promise: Promise<unknown>): void => {
 /**
  * Create a per-request collection cache.
  *
- * Same CollectionCache interface as collectionCache(), but scoped to the
+ * Same CollectionCache interface as the table caches, but scoped to the
  * current request instead of using a global TTL. This eliminates stale
  * reads across edge isolates — every request starts fresh.
  */
