@@ -44,7 +44,6 @@
   "test/shared/uptime-kuma/socket.test.ts": 3,
   "test/shared/validation/stored-json.test.ts": 3,
   "test/test-utils/command-capture.ts": 1,
-  "test/test-utils/db-contracts.test.ts": 4,
   "test/test-utils/db-helpers/result-set.ts": 1,
   "test/test-utils/email.ts": 1,
   "test/test-utils/fake-dom.ts": 1,
