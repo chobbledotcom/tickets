@@ -4,8 +4,10 @@
  */
 
 import { stageCheckoutAnswers } from "#db/checkout-pending-answers.ts";
+import { holdStringsUntil } from "#db/questions/strings.ts";
 import { checkoutFailure } from "#payment/checkout-failure.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import { isoAfter } from "#shared/now.ts";
 import {
   assembleCheckoutMetadata,
   withCheckoutError,
@@ -14,6 +16,7 @@ import type {
   CheckoutIntent,
   CheckoutSessionResult,
 } from "#shared/payments.ts";
+import { SQUARE_LINK_RETENTION_MS } from "#shared/square/limits.ts";
 import { subscriptionCheckoutError } from "#shared/subscriptions/checkout-rules.ts";
 import type { PaymentProviderType } from "#types";
 
@@ -86,5 +89,13 @@ export const makeCreateCheckoutSession =
         intent.textAnswers,
         linkEndsAt ?? null,
       );
+      // A checkout that can outlive the payments clock keeps the strings of
+      // its answers too, so a late payment still finds them.
+      if (linkEndsAt !== undefined && intent.textAnswers !== undefined) {
+        await holdStringsUntil(
+          Object.values(intent.textAnswers),
+          isoAfter(SQUARE_LINK_RETENTION_MS),
+        );
+      }
       return checkout;
     });

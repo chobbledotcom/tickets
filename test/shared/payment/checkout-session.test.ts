@@ -204,5 +204,44 @@ describeWithEnv(
 
       expect(await readCheckoutAnswers("sq_day_184")).toEqual(new Map());
     });
+
+    /** Whether the answer text still rests in the interned strings. */
+    const stringKept = async (text: string): Promise<boolean> =>
+      (
+        await queryOne<{ kept: number }>(
+          sql`SELECT COUNT(*) AS kept FROM strings WHERE text_index = ${await hmacHash(text)}`,
+        )
+      )?.kept === 1;
+
+    /** An interned string that nothing uses and that is ten days old, so the
+     * seven-day prune would take it. */
+    const staleUnusedString = async (text: string) => {
+      await runWrite(
+        sql`INSERT INTO strings (text_index, encrypted_text, used_count, created)
+          VALUES (${await hmacHash(text)}, 'encrypted', 0, ${isoBefore(10 * DAY_MS)})`,
+      );
+    };
+
+    test("keeps the typed answers of a Square checkout past the unused-string clock while its link can take payment", async () => {
+      await staleUnusedString("Coming by bus");
+      await staleUnusedString("Left at home");
+
+      await squareCheckoutAgedDays("sq_strings", 1);
+
+      expect(await stringKept("Coming by bus")).toBe(true);
+      expect(await stringKept("Left at home")).toBe(false);
+    });
+
+    test("lets the typed answers of a Square checkout go once its hold is over", async () => {
+      await staleUnusedString("Coming by bus");
+      await squareCheckoutAgedDays("sq_strings_over", 1);
+      await runWrite(
+        sql`UPDATE strings SET hold_until = ${isoBefore(DAY_MS)} WHERE text_index = ${await hmacHash("Coming by bus")}`,
+      );
+
+      await runDatabasePruning();
+
+      expect(await stringKept("Coming by bus")).toBe(false);
+    });
   },
 );
