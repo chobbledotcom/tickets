@@ -52,8 +52,7 @@ if (problems.length === 0) {
 }
 console.error(problems.join("\n"));
 console.error(
-  `\n${problems.length} equivalent-mutant entries need attention. Each names the` +
-    "\nthing it sits inside; re-record it against where that code lives now, or" +
-    "\nremove it if the expression is gone.",
+  `\n${problems.length} equivalent-mutant entries need attention. Use` +
+    "\nmutation:audit-equivalents --source <path> to review stale entries.",
 );
 Deno.exit(1);

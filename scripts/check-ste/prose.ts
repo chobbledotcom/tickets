@@ -95,11 +95,15 @@ const locateParts = (source: ProseBlock) => {
 
 /** Every token the policies walk into carries its children and its own
  * text. */
-const childrenOf = (token: MarkdownToken): Token[] =>
-  (token as unknown as { tokens: Token[] }).tokens;
+const childrenOf = (token: MarkdownToken): Token[] => {
+  assert("tokens" in token && token.tokens !== undefined, "No child tokens");
+  return token.tokens;
+};
 
-const textOf = (token: MarkdownToken): string =>
-  (token as unknown as { text: string }).text;
+const textOf = (token: MarkdownToken): string => {
+  assert("text" in token, "No token text");
+  return token.text;
+};
 
 const replacement = (source: ProseBlock, text: string): ProseBlock => ({
   columns: Array.from({ length: text.length }, () => source.columns[0]!),
@@ -194,11 +198,10 @@ const BLOCK_READERS: Record<
   (token: MarkdownToken, locate: (text: string) => ProseBlock) => ProseBlock[]
 > = {
   container: (token, locate) => readChildren(blocksFrom, token, locate),
-  list: (token, locate) =>
-    blocksFrom(
-      (token as unknown as Tokens.List).items as unknown as Token[],
-      locate(token.raw),
-    ),
+  list: (token, locate) => {
+    assert(token.type === "list", "Not a list token");
+    return blocksFrom(token.items, locate(token.raw));
+  },
   omit: () => [],
   prose: readAsProse,
   span: () => [],

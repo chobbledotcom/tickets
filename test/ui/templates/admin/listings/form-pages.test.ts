@@ -56,6 +56,28 @@ describe("adminListingNewPage", () => {
     expectIncludesAll(html, ['href="/admin/"', "Listings"]);
   });
 
+  test("places the video guide link beside the title", () => {
+    const href =
+      "https://assets.example.com/static/guides/abc/create-a-listing/index.html";
+    const html = adminListingNewPage([], OWNER_SESSION, {
+      guideVideoUrl: href,
+    });
+
+    expectIncludesAll(html, [
+      'class="guide-video-heading"',
+      "<h1>Add Listing</h1>",
+      `href="${href}"`,
+      "data-guide-video",
+      'data-guide-title="Create a listing"',
+      'title="Watch guide video"',
+      'aria-label="Watch guide video"',
+      'href="/icons.svg#video"',
+    ]);
+    assert(
+      !adminListingNewPage([], OWNER_SESSION).includes("data-guide-video"),
+    );
+  });
+
   test("draws each count box at the value its column takes by default", () => {
     const html = adminListingNewPage([], OWNER_SESSION);
     for (const [name, value] of [

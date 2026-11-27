@@ -30,6 +30,7 @@ export const textFormattingSection: GuideSection = {
 export const listingsSections = (): GuideSection[] => [
   {
     entries: [
+      faq("watch_guide_video"),
       faq("standard_vs_daily_listings"),
       faq("what_are_groups"),
       faq("listing_in_multiple_groups"),

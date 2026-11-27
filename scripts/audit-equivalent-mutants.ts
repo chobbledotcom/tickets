@@ -6,9 +6,10 @@ import {
   auditEquivalentMutants,
   type ReproveContext,
   type ReproveOutcome,
-  type ResolvedEntry,
 } from "#scripts/mutation/equivalent-audit.ts";
+import type { ResolvedEntry } from "#scripts/mutation/equivalent-registry.ts";
 import { reproveEntries } from "#scripts/mutation/equivalent-reproof.ts";
+import { renewEquivalentMutants } from "#scripts/mutation/equivalent-review.ts";
 import {
   createFilePlan,
   evaluateMutantTests,
@@ -35,47 +36,72 @@ import {
 import { collectTestFiles } from "#scripts/test-groups.ts";
 import { withTestHarness } from "#scripts/test-harness.ts";
 
-const usage = `Usage: deno task mutation:audit-equivalents [--tests] [--write]
+const usage = `Usage:
+  deno task mutation:audit-equivalents [--source <path>]... [--tests] [--write]
+  deno task mutation:audit-equivalents --source <path> [--source <path>]... --renew <token> [--renew <token>]...
 
-Runs lint and type-check against every recorded equivalent mutant without
-running tests. Pass --tests to also run each confirmed entry's mapped direct
-tests and drop the entries a test kills (a killed mutant is not equivalent).
-Pass --write to remove entries that the static checks or the tests now kill.
-The audit never re-stamps an entry: re-deriving a proof is a person's read of
-the reason against the current file.`;
+Preview by default. Use --source to select exact project-relative paths.
+Use --tests to include mapped direct tests. Use --write to delete records
+with no exact mutant or a mutant that a check kills.
+After you review a proof, use --renew with its reported renewal token.
+Renewal does not run checks and never deletes records.`;
 
 /** The audit's options. The registry list is internal plumbing: the parent
  * enumerates the shards once and hands the same list to its snapshot child,
  * so the audited files and the copied-back files can never differ. */
 interface AuditOptions {
   registry: string[];
+  renew: string[];
+  sources: string[];
   tests: boolean;
   write: boolean;
 }
 
+const takeValues = (args: string[], flag: string) => {
+  const { rest, values } = splitFlagValues(args, flag);
+  return {
+    rest,
+    values: values.map((value) => {
+      if (!value || value.startsWith("--")) {
+        throw new Error(`${flag} needs a value.\n\n${usage}`);
+      }
+      return value;
+    }),
+  };
+};
+
 const parseOptions = (args: string[]): AuditOptions => {
-  const { rest, values } = splitFlagValues(args, "--registry");
-  const registry = values.map((path) => {
-    if (!path || path.startsWith("--")) {
-      throw new Error(`--registry needs a path\n\n${usage}`);
-    }
-    return path;
-  });
-  if (rest.length === 1 && ["-h", "--help"].includes(rest[0]!)) {
+  const [first] = args;
+  if (args.length === 1 && (first === "-h" || first === "--help")) {
     console.log(usage);
     Deno.exit(0);
   }
-  if (
-    rest.length > 2 ||
-    rest.some((arg) => arg !== "--write" && arg !== "--tests")
-  ) {
+  const registry = takeValues(args, "--registry");
+  const sources = takeValues(registry.rest, "--source");
+  const { rest, values: renew } = takeValues(sources.rest, "--renew");
+  if (rest.some((arg) => arg !== "--write" && arg !== "--tests")) {
     throw new Error(`Unknown arguments: ${rest.join(" ")}\n\n${usage}`);
   }
+  if (renew.length > 0) {
+    if (sources.values.length === 0 || rest.length > 0) {
+      throw new Error(`Use --renew with --source only.\n\n${usage}`);
+    }
+    if (renew.some((token) => !/^[0-9a-f]{64}$/.test(token))) {
+      throw new Error("Use a renewal token from the audit report.");
+    }
+  }
   return {
-    registry,
+    registry: registry.values,
+    renew,
+    sources: sources.values,
     tests: rest.includes("--tests"),
     write: rest.includes("--write"),
   };
+};
+
+const reportEntries = (label: string, lines: string[]): void => {
+  console.log(`${label}: ${lines.length}`);
+  for (const line of lines) console.log(`  ${line}`);
 };
 
 /** Audit inside this checkout, which the snapshot child owns outright. */
@@ -88,6 +114,7 @@ const runAudit = async (options: AuditOptions): Promise<number> => {
       ignoreFiles: options.registry.map((path) => resolve(projectRoot, path)),
       root: projectRoot,
       signal: controller.signal,
+      sources: options.sources,
       write: options.write,
     },
     {
@@ -105,32 +132,33 @@ const runAudit = async (options: AuditOptions): Promise<number> => {
     .finally(() => offTerminationSignals(onSignal));
   if (result === null) return 130;
   console.log(`Checked ${result.checked} equivalent mutants.`);
-  console.log(`Killed by lint: ${result.killedByLint.length}`);
-  console.log(`Killed by type-check: ${result.killedByTypeCheck.length}`);
+  const removals = [
+    ["No exact mutant", result.missing],
+    ["Killed by lint", result.killedByLint],
+    ["Killed by type-check", result.killedByTypeCheck],
+    ...(options.tests
+      ? [["Killed by a test", result.killedByTests] as const]
+      : []),
+  ] as const;
+  for (const [label, lines] of removals) {
+    reportEntries(label, lines);
+  }
   if (options.tests) {
-    console.log(`Killed by a test: ${result.killedByTests.length}`);
-    console.log(
-      `No direct tests to distinguish with: ${result.untested.length}`,
-    );
+    reportEntries("No mapped direct tests", result.untested);
+  } else {
+    console.log("No tests were run.");
   }
-  console.log(`Needs re-derivation: ${result.unconfirmed.length}`);
-  console.log(`Still reaches tests: ${result.retained}`);
-  if (!options.tests) console.log("No tests were run.");
-  for (const line of [
-    ...result.killedByLint,
-    ...result.killedByTypeCheck,
-    ...result.killedByTests,
-    ...result.untested,
-    ...result.unconfirmed,
-  ]) {
-    console.log(`  ${line}`);
+  console.log(`Needs proof review: ${result.unconfirmed.length}`);
+  for (const review of result.unconfirmed) {
+    console.log(`  ${review.key}`);
+    console.log(`  ${review.location}: ${review.excerpt}`);
+    console.log(`  Reason: ${review.reason}`);
+    console.log(`  Renewal token: ${review.token}`);
   }
-  const killed =
-    result.killedByLint.length +
-    result.killedByTypeCheck.length +
-    result.killedByTests.length;
-  const failed =
-    result.unconfirmed.length > 0 || (!options.write && killed > 0);
+  console.log(`Retained: ${result.retained}`);
+  const deletionsPending =
+    !options.write && removals.some(([, lines]) => lines.length > 0);
+  const failed = deletionsPending || result.unconfirmed.length > 0;
   return failed ? 1 : 0;
 };
 
@@ -200,6 +228,14 @@ if (import.meta.main) {
   // One shard list serves the audit and the copy-back alike, so a shard added
   // while the snapshot is being made can never be pruned and then lost.
   const registry = await registryCopyBackPaths();
+  if (options.renew.length > 0) {
+    const count = await renewEquivalentMutants(
+      { ignoreFiles: registry, root: projectRoot, sources: options.sources },
+      options.renew,
+    );
+    console.log(`Renewed ${count} equivalent-mutant proofs.`);
+    Deno.exit(0);
+  }
   Deno.exit(
     await runInSnapshot({
       args: [...Deno.args, ...registry.flatMap((path) => ["--registry", path])],

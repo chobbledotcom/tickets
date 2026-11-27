@@ -13,6 +13,8 @@ import {
   isSecureMode,
 } from "#shared/config.ts";
 import { buildFrameAncestors } from "#shared/embed-hosts.ts";
+import { guideVideoOrigins } from "#shared/guide-video.ts";
+import { currentGuideVideos } from "#shared/guide-videos.ts";
 import { paymentProviderUsesSandbox } from "#shared/payment-provider-status.ts";
 import { providerCheckoutFormOrigins } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#types";
@@ -45,16 +47,24 @@ export const buildCspHeader = (
   botpoisonEnabled = false,
   assetCdnOrigin: string | null = ASSET_CDN_ORIGIN,
   bunnyFonts = false,
+  guideOrigins: readonly string[] = guideVideoOrigins(currentGuideVideos()),
 ): string => {
   const directives = [
     "default-src 'self'",
-    "img-src 'self' https://tile.openstreetmap.org",
+    `img-src ${["'self'", "https://tile.openstreetmap.org", ...guideOrigins].join(" ")}`,
     "base-uri 'self'",
     "object-src 'none'",
   ];
 
   if (assetCdnOrigin) {
     directives.push(`script-src 'self' ${assetCdnOrigin}`);
+    directives.push(`frame-src ${assetCdnOrigin}`);
+  }
+
+  // The admin guide modal plays the CDN-hosted MP4. Its origin can differ from
+  // the asset origin, and a site with no published videos names no extra host.
+  if (guideOrigins.length > 0) {
+    directives.push(`media-src ${guideOrigins.join(" ")}`);
   }
 
   if (assetCdnOrigin || bunnyFonts) {

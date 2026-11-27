@@ -44,6 +44,7 @@ import {
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 import { wait } from "#test-utils/mocks.ts";
+import { partialFake } from "#test-utils/partial-fake.ts";
 import {
   createTestAgentSession,
   createTestManagerSession,
@@ -59,6 +60,7 @@ import {
   withSetting,
 } from "#test-utils/settings.ts";
 import { lastLogMessage } from "#test-utils/settings-handlers.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** The overrides `buildAttendeeEditForm` accepts. */
 type EditFormOverrides = NonNullable<
@@ -314,9 +316,9 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("fieldValueOnPage throws when the page has no such control", () => {
-      const browser = {
+      const browser = partialFake<TestBrowser>({
         currentHtml: '<form><input name="email" value="a@b.test"></form>',
-      } as unknown as import("#test-utils/test-browser.ts").TestBrowser;
+      });
       expect(fieldValueOnPage(browser, "email")).toBe("a@b.test");
       expect(() => fieldValueOnPage(browser, "phone")).toThrow(
         "no phone control on this page",
@@ -324,9 +326,9 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("lineIndexOnPage throws when the page has no line for the listing", () => {
-      const browser = {
+      const browser = partialFake<TestBrowser>({
         currentHtml: "<p>no editor here</p>",
-      } as unknown as import("#test-utils/test-browser.ts").TestBrowser;
+      });
       expect(() => lineIndexOnPage(browser, 42)).toThrow(
         "no editor line for listing 42",
       );
@@ -355,7 +357,7 @@ describe("test-utils — db-backed & settings contracts", () => {
   describe("e2e helper contracts", () => {
     test("setupAndLogin follows the migration-complete interstitial", async () => {
       const actions: string[] = [];
-      const browser = {
+      const browser = partialFake<TestBrowser>({
         clickLink: (text: string) => {
           actions.push(`click:${text}`);
           return Promise.resolve();
@@ -367,9 +369,9 @@ describe("test-utils — db-backed & settings contracts", () => {
         },
         visit: (path: string) => {
           actions.push(`visit:${path}`);
-          return Promise.resolve();
+          return Promise.resolve(200);
         },
-      } as unknown as import("#test-utils/test-browser.ts").TestBrowser;
+      });
 
       await setupAndLogin(browser);
 
@@ -383,11 +385,11 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("openAttendeeEditor fails clearly when its link is absent", async () => {
-      const browser = {
+      const browser = partialFake<TestBrowser>({
         currentHtml: "<main>No attendees yet</main>",
         links: [],
-        visit: (_path: string) => Promise.resolve(),
-      } as unknown as import("#test-utils/test-browser.ts").TestBrowser;
+        visit: (_path: string) => Promise.resolve(200),
+      });
 
       await expect(openAttendeeEditor(browser)).rejects.toThrow(
         "no attendee edit link on the current page",

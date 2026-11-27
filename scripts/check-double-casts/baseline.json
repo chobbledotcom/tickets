@@ -44,11 +44,9 @@
   "test/shared/uptime-kuma/socket.test.ts": 3,
   "test/shared/validation/stored-json.test.ts": 3,
   "test/test-utils/command-capture.ts": 1,
-  "test/test-utils/db-contracts.test.ts": 4,
   "test/test-utils/db-helpers/result-set.ts": 1,
   "test/test-utils/email.ts": 1,
   "test/test-utils/fake-dom.ts": 1,
-  "test/test-utils/happy-dom.ts": 1,
   "test/test-utils/square/harness.ts": 1,
   "test/test-utils/stripe-mock/helpers.ts": 1,
   "test/test-utils/sumup.ts": 1,
@@ -56,7 +54,6 @@
   "test/ui/client/admin/payment-test-buttons/button.test.ts": 1,
   "test/ui/templates/admin/attendee-logistics-tab/others.test.ts": 1,
   "test/ui/templates/admin/settings/schema-form.test.tsx": 2,
-  "scripts/check-ste/prose.ts": 4,
   "scripts/edge-bundle-lib.ts": 1,
   "scripts/static-assets/deno-loader.ts": 1
 }

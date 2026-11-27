@@ -12,10 +12,8 @@ export const StableIdSchema = v.pipe(
 
 export const NonEmptyTextSchema = v.pipe(v.string(), v.trim(), v.nonEmpty());
 
-export const parseDocument = <Schema extends v.GenericSchema>({
-  input,
-  schema,
-}: {
-  input: unknown;
-  schema: Schema;
-}): v.InferOutput<Schema> => v.parse(schema, input);
+/** A parser for one document schema: it validates any value against it. */
+export const parserFor =
+  <Schema extends v.GenericSchema>(schema: Schema) =>
+  (input: unknown): v.InferOutput<Schema> =>
+    v.parse(schema, input);
