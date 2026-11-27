@@ -38,11 +38,11 @@ const fact = (
 const ALARM = { alarms: true };
 
 /** Every delivery that finds no readable order. Only a session that is not
- * settled raises the alarm. */
+ * settled, and that no delivery holds, raises the alarm. */
 const MISSING = [
   fact("gone", "none", "unrecorded", "unreadable", ALARM),
   fact("gone", "none", "recorded", "settled"),
-  fact("gone", "reserved", "unrecorded", "unreadable", ALARM),
+  fact("gone", "reserved", "unrecorded", "held"),
   fact("gone", "reserved", "recorded", "settled"),
   fact("gone", "finalized", "unrecorded", "settled"),
   fact("gone", "finalized", "recorded", "settled"),
