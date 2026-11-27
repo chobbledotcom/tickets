@@ -77,7 +77,7 @@ describe("google-wallet", () => {
     test("omits dateTime when listingDate is empty", async () => {
       const decoded = await extractPayload(makePassData({ listingDate: "" }));
       const cls = decoded.payload.eventTicketClasses[0];
-      expect(cls.dateTime).toBeUndefined();
+      expect(cls).not.toHaveProperty("dateTime");
     });
 
     test("includes venue when listingLocation is present", async () => {
@@ -91,13 +91,13 @@ describe("google-wallet", () => {
         makePassData({ listingLocation: "" }),
       );
       const cls = decoded.payload.eventTicketClasses[0];
-      expect(cls.venue).toBeUndefined();
+      expect(cls).not.toHaveProperty("venue");
     });
 
     test("omits textModulesData when no optional fields", async () => {
       const decoded = await extractPayload(makePassData());
       const obj = decoded.payload.eventTicketObjects[0];
-      expect(obj.textModulesData).toBeUndefined();
+      expect(obj).not.toHaveProperty("textModulesData");
     });
 
     test("includes booking date when attendeeDate is present", async () => {
@@ -108,7 +108,6 @@ describe("google-wallet", () => {
       const bookingDate = obj.textModulesData.find(
         (m: Record<string, string>) => m.id === "booking-date",
       );
-      expect(bookingDate).toBeDefined();
       expect(bookingDate.body).toBe("2026-06-15");
     });
 
@@ -116,14 +115,13 @@ describe("google-wallet", () => {
       const decoded = await extractPayload(makePassData({ quantity: 3 }));
       const obj = decoded.payload.eventTicketObjects[0];
       const qty = findTextModule(obj, "qty");
-      expect(qty).toBeDefined();
       expect(qty.body).toBe("3");
     });
 
     test("omits quantity when equal to 1", async () => {
       const decoded = await extractPayload(makePassData({ quantity: 1 }));
       const obj = decoded.payload.eventTicketObjects[0];
-      expect(obj.textModulesData).toBeUndefined();
+      expect(obj).not.toHaveProperty("textModulesData");
     });
 
     test("includes price with 2-decimal currency (GBP)", async () => {
@@ -132,7 +130,6 @@ describe("google-wallet", () => {
       );
       const obj = decoded.payload.eventTicketObjects[0];
       const price = findTextModule(obj, "price");
-      expect(price).toBeDefined();
       expect(price.body).toBe("25 EUR");
     });
 
@@ -148,7 +145,7 @@ describe("google-wallet", () => {
     test("omits price when zero", async () => {
       const decoded = await extractPayload(makePassData({ pricePaid: 0 }));
       const obj = decoded.payload.eventTicketObjects[0];
-      expect(obj.textModulesData).toBeUndefined();
+      expect(obj).not.toHaveProperty("textModulesData");
     });
 
     test("formats price with 0-decimal currency (JPY)", async () => {
