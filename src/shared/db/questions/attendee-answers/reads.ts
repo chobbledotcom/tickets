@@ -255,6 +255,7 @@ export type LineAnswer = LineTicket & {
 
 type LineAnswerRow = {
   encrypted_text: OwnerKeyEncrypted;
+  id: number;
   listing_id: number;
   package_group_id: number;
   parent_listing_id: number;
@@ -269,9 +270,9 @@ type LineAnswerRow = {
 const readLineAnswers = async (
   where: SqlStatement,
   privateKey: OwnerKeyReader,
-): Promise<(LineAnswer & { attendeeId: number })[]> => {
+): Promise<(StoredLineAnswer & { attendeeId: number })[]> => {
   const rows = await queryAll<LineAnswerRow & { attendee_id: number }>(
-    sql`SELECT attendee_answer.attendee_id, line.listing_id,
+    sql`SELECT attendee_answer.id, attendee_answer.attendee_id, line.listing_id,
          line.parent_listing_id, line.package_group_id, line.quantity,
          line.start_at, attendee_answer.question_id, attendee_answer.unit_index,
          string.encrypted_text
@@ -288,6 +289,7 @@ const readLineAnswers = async (
   const key = await privateKey();
   return mapParallel(async (row: LineAnswerRow & { attendee_id: number }) => ({
     attendeeId: row.attendee_id,
+    id: row.id,
     ...lineSlotOfRow(row),
     quantity: row.quantity,
     questionId: row.question_id,
@@ -297,13 +299,30 @@ const readLineAnswers = async (
   }))(rows);
 };
 
-/** The attendee's answers for each line and ticket, decrypted for the owner,
- * in the owner's question order, then by line, then by ticket. */
+/** A line answer and the stored row that holds it. */
+type StoredLineAnswer = LineAnswer & { id: number };
+
+/** Which tickets' answers a read takes: every ticket, the tickets that the
+ * line still books, or the tickets above the line's quantity. */
+export type TicketScope = "all" | "booked" | "hidden";
+
+const TICKET_SCOPES: Record<TicketScope, SqlStatement> = {
+  all: sql`TRUE`,
+  booked: sql`attendee_answer.unit_index < line.quantity`,
+  hidden: sql`attendee_answer.unit_index >= line.quantity`,
+};
+
+/** The attendee's answers for each line and ticket in `scope`, decrypted for
+ * the owner, in the owner's question order, then by line, then by ticket. */
 export const getAttendeeLineAnswers = (
   attendeeId: number,
   privateKey: OwnerKeyReader,
-): Promise<LineAnswer[]> =>
-  readLineAnswers(sql`attendee_answer.attendee_id = ${attendeeId}`, privateKey);
+  scope: TicketScope,
+): Promise<StoredLineAnswer[]> =>
+  readLineAnswers(
+    sql`attendee_answer.attendee_id = ${attendeeId} AND ${TICKET_SCOPES[scope]}`,
+    privateKey,
+  );
 
 /** Each attendee's line answers on these listings, for the CSV. */
 export const getLineAnswersOnListings = async (

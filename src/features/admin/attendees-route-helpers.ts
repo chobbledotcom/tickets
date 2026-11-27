@@ -22,6 +22,10 @@ import {
   isBookedLine,
   isNoQuantityLine,
 } from "#routes/admin/attendee-form-model.ts";
+import {
+  type LineAnswerRow,
+  loadLineAnswerRows,
+} from "#routes/admin/attendee-line-answers.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -168,6 +172,20 @@ const loadAttendeeActionData: (
   attendeeId: number,
 ) => Promise<AttendeeActionData | null> = withDecryptedAttendee((attendee) =>
   Promise.resolve({ attendee }),
+);
+
+/** The attendee and the answers of theirs that no booked ticket shows. */
+type HiddenAnswersActionData = AttendeeActionData & {
+  hiddenAnswers: LineAnswerRow[];
+};
+
+const loadHiddenAnswersActionData: (
+  attendeeId: number,
+) => Promise<HiddenAnswersActionData | null> = withDecryptedAttendee(
+  async (attendee) => ({
+    attendee,
+    hiddenAnswers: await loadLineAnswerRows(attendee.id, "hidden"),
+  }),
 );
 
 const loadPaymentReviewActionData: (
@@ -339,6 +357,10 @@ const defineAttendeeActions = <
  * once. Its route loader and page visibility then share that decision. */
 export const attendeeActions = defineAttendeeActions({
   delete: attendeeAction("delete"),
+  "delete-hidden-answers": scopedAction(
+    "attendee",
+    loadHiddenAnswersActionData,
+  )("delete-hidden-answers"),
   "payment-review": scopedAction(
     "attendee",
     loadPaymentReviewActionData,

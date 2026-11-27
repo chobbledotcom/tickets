@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { listingChildren } from "#db/listing-parents.ts";
 import type { ParsedAttendeeForm } from "#routes/admin/attendee-form-model.ts";
 import {
   buildCreateForm,
@@ -14,7 +13,6 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-import { createNamedListings } from "#test-utils/named-listings.ts";
 import type { ListingWithCount } from "#types";
 
 /** Book places on one listing through the same atomic create the ticket page
@@ -56,26 +54,6 @@ const warningsForBooking = async (
 };
 
 describeWithEnv("booking warnings", { db: true }, () => {
-  test("names every required child when a parent is booked alone", async () => {
-    const [parent, firstChild, secondChild] = await createNamedListings(
-      "Main pass",
-      "Morning child",
-      "Evening child",
-    );
-    await listingChildren.setIds(parent.id, [firstChild.id, secondChild.id]);
-
-    const warnings = await warningsForBooking([
-      parent,
-      firstChild,
-      secondChild,
-    ]);
-
-    const warning =
-      "Main pass requires one of its child listings to be booked too (Morning child, Evening child) — public bookings choose one automatically; add it here.";
-    expect(warnings.top).toEqual([warning]);
-    expect(warnings.byListing).toEqual(new Map([[parent.id, [warning]]]));
-  });
-
   test("sums standalone and package quantities into one capacity warning", async () => {
     const listing = await createTestListing({
       maxAttendees: 2,

@@ -44,6 +44,7 @@ const renderBanner = (
     isOwner,
     notes,
     statuses,
+    warnings: { hiddenAnswers: [], warnings: [] },
   });
 
 beforeAll(setupTestEncryptionKey);

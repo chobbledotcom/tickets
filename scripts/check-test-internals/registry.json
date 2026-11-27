@@ -114,7 +114,7 @@
   "test/features/admin/auth/sessions.test.ts": 2,
   "test/features/admin/backup/routes.test.ts": 2,
   "test/features/admin/backup/server.test.ts": 3,
-  "test/features/admin/booking-warnings.test.ts": 4,
+  "test/features/admin/booking-warnings.test.ts": 3,
   "test/features/admin/builder/build-mocks.ts": 3,
   "test/features/admin/builder/form.test.ts": 1,
   "test/features/admin/builder/server.test.ts": 3,

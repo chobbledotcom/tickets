@@ -223,30 +223,6 @@ describeWithEnv(
       );
     });
 
-    test("an admin who lowers a line's quantity keeps the answer of the dropped ticket, marked, and raising it shows the answer again", async () => {
-      const shop = await ticketShop();
-      await book(shop, [2, 0], ticketNames(shop, ["Ava", "Amy"]));
-      const [id] = await attendeeIds(shop.api, shop.discoA);
-      const setQuantity = (quantity: string) =>
-        shop.owner.submit(
-          `/admin/attendees/${id}/edit`,
-          { qty0: quantity },
-          `/admin/attendees/${id}`,
-        );
-      const dropped = "Pupil name (Disco A, ticket 2) Amy No longer booked";
-
-      const lowered = await setQuantity("1");
-      const lowPage = await attendeePage(shop);
-      const raised = await setQuantity("2");
-
-      expect([lowered.status, raised.status]).toEqual([302, 302]);
-      expect(lowPage).toContain(dropped);
-      expect(await attendeePage(shop)).toContain(
-        "Pupil name (Disco A, ticket 2) Amy",
-      );
-      expect(await attendeePage(shop)).not.toContain(dropped);
-    });
-
     test("the attendee CSV of a listing holds one column for each ticket", async () => {
       const shop = await ticketShop();
       await book(shop, [2, 0], ticketNames(shop, ["Ava", "Amy"]));

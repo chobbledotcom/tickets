@@ -17,7 +17,7 @@ import {
 import { type NoteEntity, noteTargets } from "#db/notes/target.ts";
 import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
-import type { PageCtx } from "#routes/admin/entity-pages.ts";
+import type { EntityPageDef, PageCtx } from "#routes/admin/entity-pages.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler } from "#routes/entity.ts";
@@ -148,9 +148,12 @@ export interface RecordNoteFeature<Record extends { id: number }> {
     /** One record's notes, decrypted, with image references resolved. Empty
      * for a session that cannot derive the owner key. */
     notesFor: (entity: Record, session: AuthSession) => Promise<SystemNote[]>;
-    /** The "Add a note" link beside the heading, returning to the record
-     * page. Staff-only, like the banner. */
-    proseExtra: RecordSlot<Record, JSX.Element | null>;
+    /** The "Add a note" link beside the heading and the record id, for a
+     * page whose loaded entity holds the record. The link is staff-only,
+     * like the banner. */
+    slotsFor: <Loaded>(
+      recordOf: (loaded: Loaded) => Record,
+    ) => Required<Pick<EntityPageDef<Loaded>, "proseExtra" | "recordId">>;
   };
   routes: RecordNoteHandlers;
 }
@@ -306,6 +309,19 @@ export const recordNoteFeature = <Record extends { id: number }>(
   const staffSession = (ctx: PageCtx): boolean =>
     isStaffRole(ctx.session.adminLevel);
 
+  /** The "Add a note" link beside the heading, returning to the record page.
+   * Staff-only, like the notes it opens. Read-only mode hides it by the shared
+   * link renderer. */
+  const proseExtra: RecordSlot<Record, JSX.Element | null> = (entity, ctx) => {
+    if (!staffSession(ctx)) return Promise.resolve(null);
+    return addNoteLinkProse(
+      withReturnUrl(
+        config.noteBasePath(entity.id),
+        config.recordPagePath(entity.id),
+      ),
+    );
+  };
+
   return {
     page: {
       banner: async (entity, ctx) => {
@@ -319,18 +335,10 @@ export const recordNoteFeature = <Record extends { id: number }>(
       },
       noteDeleteUrl,
       notesFor,
-      /** The "Add a note" link beside the heading, returning to the record
-       * page. Staff-only, like the notes it opens. Read-only mode hides it
-       * by the shared link renderer. */
-      proseExtra: (entity, ctx) => {
-        if (!staffSession(ctx)) return Promise.resolve(null);
-        return addNoteLinkProse(
-          withReturnUrl(
-            config.noteBasePath(entity.id),
-            config.recordPagePath(entity.id),
-          ),
-        );
-      },
+      slotsFor: (recordOf) => ({
+        proseExtra: (loaded, ctx) => proseExtra(recordOf(loaded), ctx),
+        recordId: (loaded) => recordOf(loaded).id,
+      }),
     },
     routes: { addGet, addPost, deleteGet, deletePost },
   };

@@ -98,9 +98,6 @@ export const InactiveNote = ({
 type BookingTableContext = {
   childNamesByParentId: Map<number, string[]>;
   nameByListingId: Map<number, string>;
-  /** True when a completed, unrefunded plan sale has no site for this
-   * buyer — the repair cue then shows on every plan row. */
-  planSaleMissingSite: boolean;
 };
 
 const bookingColumns: readonly TableColumn<
@@ -125,12 +122,6 @@ const bookingColumns: readonly TableColumn<
                 `#${booking.parentListingId}`,
             })}
           </div>
-        ) : null}
-        {booking.assignBuiltSite &&
-        booking.quantity >= 1 &&
-        !booking.refunded &&
-        context.planSaleMissingSite ? (
-          <div class="muted small">{t("attendee_detail.no_site_assigned")}</div>
         ) : null}
         {childNames ? (
           <div class="muted small">
@@ -175,12 +166,8 @@ const bookingsTable = defineTable(bookingColumns);
  */
 export const AttendeeBookingsTable = ({
   bookings,
-  planSaleMissingSite,
 }: {
   bookings: AttendeeBooking[];
-  /** One site serves every plan row this buyer holds, so the cue is a
-   * single buyer-level fact, not a per-row listing check. */
-  planSaleMissingSite: boolean;
 }): JSX.Element | null => {
   if (bookings.length === 0) return null;
   const totalQuantity = sumOf((b: AttendeeBooking) => b.quantity)(bookings);
@@ -206,7 +193,6 @@ export const AttendeeBookingsTable = ({
         context: {
           childNamesByParentId,
           nameByListingId,
-          planSaleMissingSite,
         },
         foot: (
           <tr>
@@ -271,9 +257,9 @@ export const AttendeeLineAnswersTable = (
     ? null
     : answersBlock(
         t("attendee_detail.line_answers"),
-        rows.map(({ answer, name, notes }) => ({
+        rows.map(({ answer, name }) => ({
           answer,
-          notes,
+          notes: [],
           question: name,
         })),
       );

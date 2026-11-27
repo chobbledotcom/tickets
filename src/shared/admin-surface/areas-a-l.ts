@@ -80,6 +80,8 @@ export const AREAS_A_L = {
     write: {
       attendeeActions: "/admin/attendees/:attendeeId/actions",
       attendeeDelete: "/admin/attendees/:attendeeId/delete",
+      attendeeDeleteHiddenAnswers:
+        "/admin/attendees/:attendeeId/delete-hidden-answers",
       attendeeEdit: "/admin/attendees/:attendeeId/edit",
       attendeeLogistics: "/admin/attendees/:attendeeId/logistics",
       attendeeMerge: "/admin/attendees/:attendeeId/merge",

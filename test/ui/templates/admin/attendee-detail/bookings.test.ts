@@ -12,7 +12,6 @@ import {
 const booking = (
   overrides: Partial<AttendeeBooking> = {},
 ): AttendeeBooking => ({
-  assignBuiltSite: false,
   checkedIn: 0,
   endAt: null,
   listingActive: true,
@@ -25,17 +24,13 @@ const booking = (
   ...overrides,
 });
 
-const renderBookings = (
-  bookings: AttendeeBooking[],
-  planSaleMissingSite = false,
-): string => String(AttendeeBookingsTable({ bookings, planSaleMissingSite }));
+const renderBookings = (bookings: AttendeeBooking[]): string =>
+  String(AttendeeBookingsTable({ bookings }));
 
 describe("AttendeeBookingsTable", () => {
   test("returns null when the attendee has no bookings", () => {
     // Null lets the caller drop the whole section.
-    expect(
-      AttendeeBookingsTable({ bookings: [], planSaleMissingSite: true }),
-    ).toBeNull();
+    expect(AttendeeBookingsTable({ bookings: [] })).toBeNull();
   });
 
   test("lists each booked listing with a link, quantity, and total", () => {
@@ -90,43 +85,6 @@ describe("AttendeeBookingsTable", () => {
       !renderBookings([booking({ listingActive: true })]).includes(
         "(Inactive)",
       ),
-    );
-  });
-
-  test("flags a plan booking that has no site yet", () => {
-    const planLine = booking({
-      assignBuiltSite: true,
-      listingName: "One Month Site",
-    });
-    assertStringIncludes(
-      renderBookings([planLine], true),
-      '<div class="muted small">No site assigned yet</div>',
-    );
-    // The buyer already holds a site, so no plan row shows the cue.
-    assert(!renderBookings([planLine]).includes("No site assigned yet"));
-    // An ordinary listing never reads as owed a site, and a no-quantity
-    // plan line bought nothing.
-    assert(
-      !renderBookings(
-        [booking({ assignBuiltSite: true, quantity: 0 })],
-        true,
-      ).includes("No site assigned yet"),
-    );
-    assert(
-      !renderBookings([booking({ listingName: "Concert" })], true).includes(
-        "No site assigned yet",
-      ),
-    );
-  });
-
-  test("shows no repair cue on a refunded plan booking", () => {
-    const refundedPlan = booking({
-      assignBuiltSite: true,
-      listingName: "Refunded Site",
-      refunded: true,
-    });
-    assert(
-      !renderBookings([refundedPlan], true).includes("No site assigned yet"),
     );
   });
 
