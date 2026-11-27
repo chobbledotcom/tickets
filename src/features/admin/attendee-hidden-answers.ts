@@ -55,16 +55,23 @@ const handleHiddenAnswersPost = attendeeActions[ACTION].verified(
         t("attendee_warnings.answer_ids_invalid"),
       );
     }
-    await deleteHiddenLineAnswers(attendee.id, answerIds);
-    await logActivity(
-      `Hidden answers deleted for '${attendee.name}'`,
-      null,
-      attendee.id,
-    );
+    const deleted = await deleteHiddenLineAnswers(attendee.id, answerIds);
+    // A stale page can confirm answers that are booked again: nothing goes.
+    if (deleted > 0) {
+      await logActivity(
+        `Hidden answers deleted for '${attendee.name}'`,
+        null,
+        attendee.id,
+      );
+    }
     return adminRedirect(
       "attendee",
       { attendeeId: attendee.id },
-      t("attendee_warnings.hidden_answers_deleted"),
+      t(
+        deleted > 0
+          ? "attendee_warnings.hidden_answers_deleted"
+          : "attendee_warnings.nothing_deleted",
+      ),
       true,
       { form },
     );

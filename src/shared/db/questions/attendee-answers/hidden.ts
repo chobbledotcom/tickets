@@ -35,8 +35,8 @@ export const countHiddenLineAnswers: ReadByIds<number> = async (attendeeIds) =>
 export const deleteHiddenLineAnswers = async (
   attendeeId: number,
   answerIds: readonly number[],
-): Promise<void> => {
-  await execute(
+): Promise<number> => {
+  const deleted = await execute(
     sql`DELETE FROM attendee_answers AS attendee_answer
       WHERE attendee_answer.attendee_id = ${attendeeId}
         AND attendee_answer.id IN (${sqlList([...answerIds])})
@@ -44,4 +44,5 @@ export const deleteHiddenLineAnswers = async (
           SELECT line.quantity FROM listing_attendees AS line
            WHERE line.id = attendee_answer.booking_row_id)`,
   );
+  return deleted.rowsAffected;
 };
