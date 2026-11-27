@@ -1,6 +1,7 @@
 /**
- * The bookings that answered a question: one row per booking, newest booking
- * first, carrying the answer that booking gave and the listings it holds.
+ * The bookings that answered a question: one row per stored answer, newest
+ * booking first, carrying the answer given, the listings the booking holds and
+ * the line of a line answer.
  */
 
 import { expect } from "@std/expect";
@@ -15,6 +16,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.ts";
+import { testLineAnswer } from "#test-utils/factories-questions.ts";
 import { questionBookingRow } from "#test-utils/question-booking-rows.ts";
 import { ascending } from "#types";
 
@@ -121,6 +124,48 @@ describeWithEnv("db > question bookings", { db: true }, () => {
 
     const [row] = await getQuestionBookings(size.id, await getTestPrivateKey());
     expect(row!.listing_ids).toEqual([]);
+  });
+
+  test("gives one row for each ticket of a line question, naming its line", async () => {
+    const disco = await createTestListing({ maxQuantity: 2, name: "Disco" });
+    const attendee = await bookTestAttendee([disco.id], "Parent");
+    const { question } = await seedListingLevelQuestion(
+      [disco.id],
+      "Pupil name",
+      "quantity",
+    );
+    await saveAttendeeAnswers(
+      new Map([
+        [
+          attendee.id,
+          {
+            answerIds: [],
+            lineAnswers: [
+              testLineAnswer(disco.id, question.id, "Ava", { unit: 0 }),
+              testLineAnswer(disco.id, question.id, "Amy", { unit: 1 }),
+            ],
+          },
+        ],
+      ]),
+    );
+
+    const rows = await getQuestionBookings(
+      question.id,
+      await getTestPrivateKey(),
+    );
+
+    expect(rows.map(({ free_text, line }) => [free_text, line])).toEqual(
+      ["Ava", "Amy"].map((text, ticket) => [
+        text,
+        {
+          listing_id: disco.id,
+          package_group_id: 0,
+          parent_listing_id: 0,
+          start_at: null,
+          ticket,
+        },
+      ]),
+    );
   });
 
   test("answers no bookings for a question nobody answered", async () => {
