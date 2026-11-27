@@ -63,6 +63,7 @@ export const trustedPayment = (
   provider: PaymentProviderType = "stripe",
 ): ValidatedSession => ({
   intent,
+  receipt: false,
   session: paymentSession(id, amountTotal, intent, provider),
   verdict: { agreed: amountTotal, verdict: "trusted" },
 });
