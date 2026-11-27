@@ -40,10 +40,6 @@ import { type DayPrices, parseDayPrices } from "#types";
 const groupDayPriceId = (groupId: number, dayCount: number | string): string =>
   `${groupId}/${dayCount}`;
 
-/** A package group's per-day member overrides: listing id → (day count →
- * per-unit minor price). The shape every group-day consumer reads. */
-export type GroupDayPrices = ReadonlyMap<number, ReadonlyMap<number, number>>;
-
 /** One member's per-day overrides as written by the group save. */
 export type GroupDayPriceInput = {
   listingId: number;
@@ -189,7 +185,7 @@ export type DayPriceRow = {
   unit_price: number;
 };
 
-/** Fold `group_day` rows into the {@link GroupDayPrices} map, deriving each
+/** Fold `group_day` rows into a map of group id to day-count prices, deriving each
  * row's day count from its `"<groupId>/<n>"` price_id. */
 const foldGroupDayRows = (
   rows: readonly DayPriceRow[],

@@ -9,7 +9,7 @@ import {
 } from "#db/groups/homogeneity.ts";
 import { groupListings } from "#db/groups/table.ts";
 import { sql, sqlList } from "#db/sql.ts";
-import { TransactionValidationError, txIdSetInTable } from "#db/transaction.ts";
+import { TransactionValidationError } from "#db/transaction.ts";
 import { byId, mapNotNullish, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
@@ -82,14 +82,6 @@ export const groupStatesTx = async (
   }
   return states;
 };
-
-/** Returns the set of group ids that are packages in the transaction's
- *  current view. A catalog import derives package overrides from fresh state
- *  rather than a pre-transaction snapshot that can go stale. */
-export const packageGroupIdsTx = txIdSetInTable(
-  "groups",
-  sql` AND is_package = 1`,
-);
 
 type ListingStateRow = {
   id: number;

@@ -164,8 +164,3 @@ export const refundWithOneReread =
       request,
     });
   };
-
-/** A refund request after either the evidence gate or the provider call. */
-export type RefundActionResult<Withheld> =
-  | RefundAttemptResult
-  | { admission: Withheld; kind: "withheld" };

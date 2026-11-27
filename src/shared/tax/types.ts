@@ -2,13 +2,6 @@
 import * as v from "valibot";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
-export const TaxModeSchema = v.picklist([
-  "none",
-  "add_to_total",
-  "calculate_from_total",
-]);
-export type TaxMode = v.InferOutput<typeof TaxModeSchema>;
-
 const ratedPolicy = <Mode extends "add_to_total" | "calculate_from_total">(
   mode: Mode,
 ) =>

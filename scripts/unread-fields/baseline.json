@@ -157,10 +157,6 @@
     {
       "path": [{ "name": "AdminApiHoliday" }],
       "fields": ["id"]
-    },
-    {
-      "path": [{ "name": "AdminApiOptionBody" }],
-      "fields": ["text"]
     }
   ],
   "src/shared/admin-surface/definitions.ts": [
@@ -617,25 +613,9 @@
     {
       "path": [{ "name": "HeldPaymentRow" }],
       "fields": ["attendeeId"]
-    },
-    {
-      "path": [{ "name": "HeldRefundCommand" }],
-      "fields": ["commandId", "held", "heldSince"]
-    },
-    {
-      "path": [{ "name": "IndexedRefundClaimDecision" }],
-      "fields": ["indexes", "kind"]
-    },
-    {
-      "path": [{ "name": "RefundClaimChanged" }],
-      "fields": ["kind"]
     }
   ],
   "src/shared/payment/refund-attempt.ts": [
-    {
-      "path": [{ "name": "RefundActionResult" }],
-      "fields": ["admission"]
-    },
     {
       "path": [{ "name": "RefundAttemptResult" }],
       "fields": ["proof"]
