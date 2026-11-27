@@ -9,11 +9,8 @@ import {
 import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
-import {
-  testAnswer,
-  testListingWithCount,
-  testQuestion,
-} from "#test-utils/factories.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
+import { testAnswer, testQuestion } from "#test-utils/factories-questions.ts";
 import {
   setupQuestionPageTest,
   TEST_LISTINGS,

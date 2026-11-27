@@ -343,7 +343,7 @@ describeWithEnv(
         [entry],
         "GBP",
         undefined,
-        new Map([[freeText, "Arriving late"]]),
+        new Map([[String(freeText), "Arriving late"]]),
       );
 
       // createTestAttendee books through the real form, so its own

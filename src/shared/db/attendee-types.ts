@@ -71,6 +71,7 @@ export type BuildAttendeeInput = ContactInfo & {
   statusId: number | null;
   /** Package group this booking row belongs to (0 = not a package). */
   packageGroupId: number;
+  parentListingId: number;
 };
 
 /** Result of atomic attendee creation. A failure carries the listings whose

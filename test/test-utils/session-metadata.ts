@@ -12,6 +12,7 @@ const SESSION_METADATA_KEYS = [
   "day_count",
   "email",
   "items",
+  "line_text_answer_ids",
   "listing",
   "modifiers",
   "name",

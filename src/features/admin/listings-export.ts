@@ -7,11 +7,13 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { getAttendeeIdsWithPaymentReference } from "#db/payment-references.ts";
+import { getLineAnswersOnListings } from "#db/questions/attendee-answers/reads.ts";
 import { settings } from "#db/settings.ts";
 import { csvResponse, listingAttendeesLoader } from "#routes/admin/actions.ts";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { attendeeListOrder } from "#shared/attendee-list-controls.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   completePaymentAttendees,
   filterAttendees,
@@ -50,10 +52,14 @@ export const handleAdminListingExport: TypedRouteHandler<
         );
 
         const attendeeIds = exported.map((a) => a.id);
-        const questionData = await loadListingQuestionData(
-          listing.id,
-          attendeeIds,
-        );
+        const [questionData, lineAnswerMap] = await Promise.all([
+          loadListingQuestionData(listing.id, attendeeIds),
+          getLineAnswersOnListings(
+            attendeeIds,
+            [listing.id],
+            await requireRequestPrivateKey(),
+          ),
+        ]);
 
         const csv = generateAttendeesCsv(
           exported,
@@ -62,7 +68,7 @@ export const handleAdminListingExport: TypedRouteHandler<
             listingDate: listing.date,
             listingLocation: listing.location,
           },
-          questionData,
+          questionData && { ...questionData, lineAnswerMap },
           settings.timezone,
         );
         const sanitizedName = listing.name.replace(/[^a-zA-Z0-9]/g, "_");

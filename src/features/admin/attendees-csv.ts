@@ -5,7 +5,17 @@
  */
 
 import { isServicing } from "#db/attendees/kind.ts";
-import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import type {
+  AttendeeQuestionData,
+  LineAnswer,
+} from "#db/questions/attendee-answers/reads.ts";
+import {
+  asksEachLine,
+  isTicketHeld,
+  lineKey,
+  lineSlotOfRow,
+} from "#db/questions/line-answers.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -100,9 +110,53 @@ export const listingInfoColumns = <T>(
     : []),
 ];
 
+/** Whether an answer belongs to the booking row of an exported attendee: the
+ * same line slot and date. The slot of a row under a parent leaves out its
+ * package, as the stored answer does. */
+const isRowAnswer =
+  (row: Attendee) =>
+  (answer: LineAnswer): boolean =>
+    lineKey(answer) === lineKey(lineSlotOfRow(row)) &&
+    (answer.startAt?.slice(0, 10) ?? null) === row.date;
+
+/** The texts of one booking row's answers to one line question that are still
+ * booked, in ticket order. */
+const bookedLineTexts = (
+  data: AttendeeQuestionData | undefined,
+  row: Attendee,
+  questionId: number,
+): string[] =>
+  (data?.lineAnswerMap?.get(row.id) ?? [])
+    .filter(isRowAnswer(row))
+    .filter((answer) => answer.questionId === questionId)
+    .filter(isTicketHeld)
+    .map(({ text }) => text);
+
+/** The columns of a line question. A question for each ticket takes one
+ * column for each ticket, up to the most tickets that a row holds. A question
+ * for each line takes one column, with the answer of the row's line. */
+const lineQuestionColumns = (
+  q: QuestionWithAnswers,
+  attendees: readonly Attendee[],
+  data: AttendeeQuestionData | undefined,
+): Column<Attendee>[] => {
+  const texts = (a: Attendee) => bookedLineTexts(data, a, q.id);
+  if (q.answerLevel !== "quantity") {
+    return [{ header: q.text, value: (a) => texts(a)[0] ?? "" }];
+  }
+  const most = Math.max(1, ...attendees.map((a) => texts(a).length));
+  return Array.from({ length: most }, (_, at) => ({
+    header: t("csv.col.ticket_answer", { number: at + 1, question: q.text }),
+    value: (a: Attendee) => texts(a)[at] ?? "",
+  }));
+};
+
 /** One column per custom question, each cell the attendee's chosen answer (for
  * choice questions) or their decrypted free-text answer (for free_text). */
-const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
+const questionColumns = (
+  attendees: readonly Attendee[],
+  data?: AttendeeQuestionData,
+): Column<Attendee>[] => {
   const questions = data?.questions ?? [];
   const answerMap = data?.attendeeAnswerMap ?? new Map<number, number[]>();
   const textMap = data?.textAnswerMap;
@@ -110,20 +164,29 @@ const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
   for (const q of questions) {
     for (const a of q.answers) answerText.set(a.id, a.text);
   }
-  return questions.map((q) => ({
-    header: q.text,
-    value: (a: Attendee) => {
-      if (q.displayType === "free_text") {
-        return textMap?.get(a.id)?.get(q.id) ?? "";
-      }
-      const ids = answerMap.get(a.id) ?? [];
-      const matched = ids.find((id) => q.answers.some((ans) => ans.id === id));
-      return matched ? requiredMapValue(answerText, matched) : "";
-    },
-  }));
+  return questions.flatMap((q) =>
+    asksEachLine(q)
+      ? lineQuestionColumns(q, attendees, data)
+      : [
+          {
+            header: q.text,
+            value: (a: Attendee) => {
+              if (q.displayType === "free_text") {
+                return textMap?.get(a.id)?.get(q.id) ?? "";
+              }
+              const ids = answerMap.get(a.id) ?? [];
+              const matched = ids.find((id) =>
+                q.answers.some((ans) => ans.id === id),
+              );
+              return matched ? requiredMapValue(answerText, matched) : "";
+            },
+          },
+        ],
+  );
 };
 
 type AttendeeCsvOptions = {
+  attendees: readonly Attendee[];
   /** Prepend a Date column (the booking's day/range) for daily listings. */
   includeDate: boolean;
   domain: string;
@@ -135,6 +198,7 @@ type AttendeeCsvOptions = {
 
 /** Built per call so the active locale applies. */
 const attendeeColumns = ({
+  attendees,
   includeDate,
   domain,
   tz,
@@ -160,7 +224,7 @@ const attendeeColumns = ({
     },
   ),
   ...standardAttendeeColumns(domain),
-  ...questionColumns(questionData),
+  ...questionColumns(attendees, questionData),
 ];
 
 /**
@@ -176,6 +240,7 @@ export const generateAttendeesCsv = (
   CSV.generate(
     attendees,
     attendeeColumns({
+      attendees,
       domain: getEffectiveDomain(),
       includeDate,
       listingInfo,

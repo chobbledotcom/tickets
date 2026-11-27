@@ -200,6 +200,9 @@ src/ui/client/scanner-sw.ts::networkFirst~0gf3pm3 ??→|| audited:1jxp2qh # the 
 # class writes start from the empty string.
 src/ui/client/scanner-offline-sync.ts::syncQueue.expireRow.row%2eclassName~1vuuwez =→+= audited:03677q4 # only a row still queued can settle again, and a queued row has no class, so adding to its class equals setting it
 src/ui/client/scanner-offline-sync.ts::syncQueue.settleRow.row%2eclassName~0jf4238 =→+= audited:03677q4 # only a row still queued can settle again, and a queued row has no class, so adding to its class equals setting it
+src/ui/client/admin/custom-question-visibility.ts::sourceQty.kind~17n3p4g   → "mutated" audited:00gnc97 # split always answers at least one part, so the default for the kind never applies
+src/ui/client/admin/custom-question-visibility.ts::sourceQty.first~11pqcbm   → "mutated" audited:00gnc97 # the page writes every source as a kind and an id (q:<listing>, p:<package>:<fixed>, c:<parent>:<child>), so the default for the first part never applies
+src/ui/client/admin/custom-question-visibility.ts::sourceQty.second~03bn5zi   → "mutated" audited:00gnc97 # a q: source never reads its second part, and the page writes p: and c: sources with one, so the default never reaches a read
 src/ui/client/scanner-offline-sync.ts::queuedRow.row%2etextContent~1s9n2ya =→+= audited:03677q4 # the row is a list item made on the line above, so its text starts empty and adding to it equals setting it
 
 # The offline store: page start-up catches the unreadable queue by its type

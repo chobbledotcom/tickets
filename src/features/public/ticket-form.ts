@@ -6,7 +6,7 @@ import { bookingError } from "#booking/form.ts";
 import type { TicketListing } from "#booking/model.ts";
 import { quantityFieldName } from "#booking/tree.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
-import type { TextAnswer } from "#db/question-types.ts";
+import type { LineTextAnswer, TextAnswer } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { filter, map } from "#fp";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
@@ -30,6 +30,7 @@ export const parseQuantityValue = (raw: string, minDefault = 1): number => {
 export type AnswerInfo = {
   activeQuestions: TicketCtx["questions"];
   answerIds: number[];
+  lineTextAnswers: LineTextAnswer[];
   textAnswers: TextAnswer[];
   selectedListingIds: Set<number>;
 };
@@ -72,9 +73,10 @@ const answeredQuestionPairs = (
     .map((question, index) => [question.id, info.answerIds[index]!] as const);
 
 /** Both per-listing maps a submission's answers reduce to, each keyed by
- * `String(listingId)`. */
+ * `String(listingId)`, and the answers for each line, each with its slot. */
 export type ListingAnswerMaps = {
   answerIds: Record<string, number[]>;
+  lineTextAnswers: LineTextAnswer[];
   textAnswers: Record<string, TextAnswer[]>;
 };
 
@@ -91,6 +93,7 @@ export const listingAnswerMaps = (
   );
   return {
     answerIds: collect(answeredQuestionPairs(info)),
+    lineTextAnswers: info.lineTextAnswers,
     textAnswers: collect(
       info.textAnswers.map((answer) => [answer.questionId, answer] as const),
     ),

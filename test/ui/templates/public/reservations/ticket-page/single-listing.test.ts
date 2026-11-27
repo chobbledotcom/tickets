@@ -268,6 +268,7 @@ describe("ticketPage (single listing)", () => {
   test("renders custom questions when provided", async () => {
     const questions = [
       {
+        answerLevel: "booking" as const,
         answers: [
           {
             active: true,

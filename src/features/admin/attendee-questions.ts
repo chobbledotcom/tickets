@@ -10,6 +10,7 @@ import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
 } from "#db/questions/attendee-answers/reads.ts";
+import { asksEachLine } from "#db/questions/line-answers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 
 /** The empty question/answer set: no questions and nothing picked. A fresh
@@ -36,7 +37,9 @@ export const loadQuestionsForExisting = async (
   if (!data) return { ...emptySelectedQuestionAnswers(), atBooking };
   return {
     atBooking,
-    questions: data.questions,
+    // A listing-level question has no field here yet. A booking-level answer
+    // for it must not sit beside its answers for each listing.
+    questions: data.questions.filter((question) => !asksEachLine(question)),
     selectedAnswerIds: data.attendeeAnswerMap.get(attendeeId) ?? [],
     selectedTextAnswers: await getAttendeeTextAnswers(
       attendeeId,

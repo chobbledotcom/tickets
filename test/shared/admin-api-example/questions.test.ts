@@ -29,6 +29,7 @@ const SMALL = answer(21, 0, "Small", 4);
 const LARGE = answer(22, 1, "Large", 2);
 
 const QUESTION = {
+  answer_level: "booking",
   answers: [SMALL, LARGE],
   assign_all: false,
   display_type: "radio",
@@ -48,6 +49,7 @@ const booking = (
   attendee_id: attendeeId,
   created,
   free_text: null,
+  line: null,
   listing_ids: listingIds,
   question_id: 9,
 });

@@ -13,6 +13,13 @@ export type QuestionBooking = {
   attendee_id: number;
   created: string;
   free_text: string | null;
+  line: {
+    listing_id: number;
+    package_group_id: number;
+    parent_listing_id: number;
+    start_at: string | null;
+    ticket: number;
+  } | null;
   listing_ids: number[];
   question_id: number;
 };
@@ -40,6 +47,7 @@ export const questionBookingRow = (
   attendee_id: attendeeId,
   created,
   free_text: freeText,
+  line: null,
   listing_ids: listingIds,
   question_id: questionId,
 });

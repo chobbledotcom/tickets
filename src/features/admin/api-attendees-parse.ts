@@ -14,6 +14,7 @@ import {
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import { getListingsById } from "#db/listings/records.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { asksEachLine } from "#db/questions/line-answers.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import {
   parseEach,
@@ -238,13 +239,18 @@ const parseCreated = (raw: unknown): Result<string | undefined> => {
     : errorResult("created must be a valid instant as 2026-09-01T09:00:00Z");
 };
 
-/** Whether the booking owes its notifications. An absent value keeps the
- *  default (true). Only a real boolean is accepted, so a typo never silences
- *  a booking by accident. */
-const parseNotifications = (raw: unknown): Result<boolean> =>
-  raw === undefined || typeof raw === "boolean"
-    ? okResult(raw ?? true)
-    : errorResult("notifications must be true or false");
+/** A true-or-false field. An absent value keeps `fallback`. Only a real
+ *  boolean is accepted, so a typo never flips a choice by accident. */
+export const parseFlag =
+  (name: string, fallback: boolean) =>
+  (raw: unknown): Result<boolean> =>
+    raw === undefined || typeof raw === "boolean"
+      ? okResult(raw ?? fallback)
+      : errorResult(`${name} must be true or false`);
+
+/** Whether the booking owes its notifications. The default is true, so a
+ *  typo never silences a booking. */
+const parseNotifications = parseFlag("notifications", true);
 
 /** The status a create body asks for. A named status resolves by name. When
  * the body names none, the attendee takes the public default, the same
@@ -392,7 +398,11 @@ export const parseAnswers = async (
 ): Promise<Result<ApiAnswer[]>> => {
   if (raw === undefined) return okResult([]);
   const { questions } = await getQuestionsWithListingIds(listingIds);
-  const questionsById = new Map(questions.map((q) => [q.id, q]));
+  // A listing-level question takes its answers for each listing, which a
+  // create body cannot name yet.
+  const questionsById = new Map(
+    questions.filter((q) => !asksEachLine(q)).map((q) => [q.id, q]),
+  );
   const answers = parseEach(raw, "answers", (item, at) =>
     parseAnswer(item, questionsById, at),
   );

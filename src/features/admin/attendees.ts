@@ -8,7 +8,12 @@ import { getAttendeeBookingRowsRaw } from "#db/attendees/queries.ts";
 import { storedBookingSource } from "#db/contact-tokens.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { hasAnyPaymentReference } from "#db/payment-references.ts";
-import { getAttendeeTextAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
+import {
+  getAttendeeLineAnswers,
+  getAttendeeTextAnswers,
+  textAnswersOf,
+} from "#db/questions/attendee-answers/reads.ts";
+import { isTicketHeld } from "#db/questions/line-answers.ts";
 import { t } from "#i18n";
 import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
 import {
@@ -26,6 +31,7 @@ import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
+import { heldFreeTexts } from "#shared/email/answers.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
@@ -356,12 +362,15 @@ const resendNotification = async (
   // An admin session can spend the owner key. The resend is therefore the
   // one path that reads the buyer's free-text answers straight from the
   // strings table.
-  const freeTexts = (
-    await getAttendeeTextAnswersBatch(
-      [attendeeId],
-      await requireRequestPrivateKey(),
-    )
-  ).get(attendeeId);
+  const privateKey = await requireRequestPrivateKey();
+  const [bookingTexts, lineAnswers] = await Promise.all([
+    getAttendeeTextAnswers(attendeeId, privateKey),
+    getAttendeeLineAnswers(attendeeId, () => Promise.resolve(privateKey)),
+  ]);
+  const freeTexts = heldFreeTexts(
+    textAnswersOf(bookingTexts),
+    lineAnswers.filter(isTicketHeld),
+  );
 
   // The flags are the record of what never went out, so the claim captures
   // the outstanding sides in one transaction. The press's choice decides

@@ -12,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   freeTextQuestionsOn,
+  seedListingLevelQuestion,
   seedQuestion,
 } from "#test-utils/db-helpers/question-seeds.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -39,6 +40,34 @@ describeWithEnv(
       return attendees[0]!.id;
     };
 
+    /** Send a paid order of one £10 ticket on the listing through the webhook.
+     * The metadata carries the buyer and these answer fields. `key` names the
+     * event, the payment and the session. */
+    const processPaidOrder = (
+      listingId: number,
+      key: string,
+      {
+        email,
+        name,
+        ...answers
+      }: Record<string, string> & {
+        email: string;
+        name: string;
+      },
+    ) =>
+      expectWebhookProcessed(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          eventId: `evt_${key}`,
+          metadata: signedMeta(
+            { email, items: singleItem(listingId, 1, 1000), name, ...answers },
+            1000,
+          ),
+          paymentIntent: `pi_${key}`,
+          sessionId: `cs_${key}`,
+        }),
+      );
+
     test("saves custom question answers for paid single-ticket checkout", async () => {
       await setupStripe();
 
@@ -56,25 +85,13 @@ describeWithEnv(
         text: "Dietary needs?",
       });
 
-      await expectWebhookProcessed(
-        checkoutSessionEvent({
-          amountTotal: 1000,
-          eventId: "evt_single_q",
-          metadata: signedMeta(
-            {
-              answer_ids: JSON.stringify({
-                [String(listing.id)]: [a1.id],
-              }),
-              email: "qsingle@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Q Single Buyer",
-            },
-            1000,
-          ),
-          paymentIntent: "pi_single_q",
-          sessionId: "cs_single_q",
+      await processPaidOrder(listing.id, "single_q", {
+        answer_ids: JSON.stringify({
+          [String(listing.id)]: [a1.id],
         }),
-      );
+        email: "qsingle@example.com",
+        name: "Q Single Buyer",
+      });
 
       const attendeeId = await soleAttendeeId(listing.id);
 
@@ -131,25 +148,11 @@ describeWithEnv(
 
       // Serialize those exact refs into webhook metadata the way production does
       // and confirm the submitted text survives the full round-trip.
-      await expectWebhookProcessed(
-        checkoutSessionEvent({
-          amountTotal: 1000,
-          eventId: "evt_round_trip",
-          metadata: signedMeta(
-            {
-              email: "rt@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Round Tripper",
-              text_answer_ids: JSON.stringify(
-                getCaptured()!.listingTextAnswerIds,
-              ),
-            },
-            1000,
-          ),
-          paymentIntent: "pi_round_trip",
-          sessionId: "cs_round_trip",
-        }),
-      );
+      await processPaidOrder(listing.id, "round_trip", {
+        email: "rt@example.com",
+        name: "Round Tripper",
+        text_answer_ids: JSON.stringify(getCaptured()!.listingTextAnswerIds),
+      });
 
       const textAnswers = await getAttendeeTextAnswers(
         await soleAttendeeId(listing.id),
@@ -176,29 +179,17 @@ describeWithEnv(
 
       // lostQ's ref has no `s`; nonsenseQ's `s` is not a string id. The money
       // is already taken, so the booking must still finalize.
-      await expectWebhookProcessed(
-        checkoutSessionEvent({
-          amountTotal: 1000,
-          eventId: "evt_corrupt_ref",
-          metadata: signedMeta(
-            {
-              email: "corrupt@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Corrupt Ref Buyer",
-              text_answer_ids: JSON.stringify({
-                [String(listing.id)]: [
-                  { q: goodQ.id, s: stringIds.get("Step-free entrance") },
-                  { q: lostQ.id },
-                  { q: nonsenseQ.id, s: "not-a-string-id" },
-                ],
-              }),
-            },
-            1000,
-          ),
-          paymentIntent: "pi_corrupt_ref",
-          sessionId: "cs_corrupt_ref",
+      await processPaidOrder(listing.id, "corrupt_ref", {
+        email: "corrupt@example.com",
+        name: "Corrupt Ref Buyer",
+        text_answer_ids: JSON.stringify({
+          [String(listing.id)]: [
+            { q: goodQ.id, s: stringIds.get("Step-free entrance") },
+            { q: lostQ.id },
+            { q: nonsenseQ.id, s: "not-a-string-id" },
+          ],
         }),
-      );
+      });
 
       // The intact answer is saved; the ref with no id is dropped, not guessed.
       const attendeeId = await soleAttendeeId(listing.id);
@@ -225,6 +216,39 @@ describeWithEnv(
       expect(errors.contains("Text answer ref has no usable string id")).toBe(
         true,
       );
+    });
+
+    test("finalizes a paid booking when a ticket answer ref has no usable string id, dropping that answer", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Lost Ticket Ref",
+        unitPrice: 1000,
+      });
+      const { question } = await seedListingLevelQuestion(
+        [listing.id],
+        "Pupil name",
+        "quantity",
+      );
+
+      await processPaidOrder(listing.id, "lost_ticket_ref", {
+        email: "lost@example.com",
+        line_text_answer_ids: JSON.stringify([
+          { g: 0, l: listing.id, p: 0, q: question.id, u: 0 },
+        ]),
+        name: "Lost Ref Buyer",
+      });
+
+      const attendeeId = await soleAttendeeId(listing.id);
+      const saved = await getDb().execute(
+        sql`SELECT question_id FROM attendee_answers WHERE attendee_id = ${attendeeId}`,
+      );
+      expect(saved.rows).toEqual([]);
+      expect(
+        errors.contains(
+          `Text answer ref has no usable string id (question ${question.id})`,
+        ),
+      ).toBe(true);
     });
   },
 );

@@ -56,6 +56,7 @@ export const data = (
   });
 
 export const question = (): QuestionWithAnswers => ({
+  answerLevel: "booking",
   answers: [
     { active: true, id: 61, questionId: 6, sortOrder: 1, text: "Vegan" },
     { active: true, id: 62, questionId: 6, sortOrder: 2, text: "Standard" },

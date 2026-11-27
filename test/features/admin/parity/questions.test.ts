@@ -244,6 +244,7 @@ describeWithEnv("Question parity pins", { db: true }, () => {
 
     const pageKept = await getQuestionWithAnswers(id)!;
     expect(pageKept).toMatchObject({
+      answerLevel: "booking",
       assignAll: true,
       displayType: "select",
     });

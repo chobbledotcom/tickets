@@ -35,6 +35,8 @@ import {
 
 /** What a caller reads when an update is not saved. */
 const REFUSALS: Record<AttendeeEditFailure, string> = {
+  answers_held:
+    "A line that the update removes holds answers. Send deleteRemovedAnswers: true to remove it and delete its answers.",
   capacity_exceeded: "Two lines book the same slot",
   no_lines: "Add at least one booking line",
   subscription_live:
@@ -73,6 +75,7 @@ const updateFromParsed = async (
     desired: parsed.desired,
     existingByKey: new Map(existing.map((line) => [line.key, line.booking])),
     extraWork: insertIfNewStatements(receipts.value, nowIso()),
+    removedLineAnswers: parsed.removedLineAnswers,
     statusId: parsed.statusId,
     taxPlan,
   });

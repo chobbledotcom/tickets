@@ -20,6 +20,7 @@ import {
 /** Example question response: the question and its answers in display order,
  *  each answer with its stored selection total. */
 const ADMIN_API_EXAMPLE_QUESTION = {
+  answer_level: "booking",
   answers: [
     {
       active: true,
@@ -71,6 +72,7 @@ const ADMIN_API_EXAMPLE_QUESTION_BOOKINGS = {
       attendee_id: 7,
       created: "2026-06-01T09:00:00.000Z",
       free_text: null,
+      line: null,
       listing_ids: [4],
       question_id: 9,
     },
@@ -80,6 +82,7 @@ const ADMIN_API_EXAMPLE_QUESTION_BOOKINGS = {
       attendee_id: 12,
       created: "2026-05-28T16:30:00.000Z",
       free_text: null,
+      line: null,
       listing_ids: [4, 6],
       question_id: 9,
     },
@@ -106,7 +109,7 @@ export const QUESTION_ENDPOINTS: EndpointDoc[] = [
   }),
   {
     description:
-      "List the bookings that answered a question, newest booking first (owner only). A row names the booking, the listings it holds, and the answer it gave.",
+      "List the bookings that answered a question, newest booking first (owner only). A row names the booking, the listings it holds, and the answer it gave. A line question gives one row for each line or ticket, and `line` names that line. `line` is null for an answer to the booking.",
     method: "GET",
     path: `${QUESTIONS_BASE}/:questionId/bookings`,
     response: json(ADMIN_API_EXAMPLE_QUESTION_BOOKINGS),

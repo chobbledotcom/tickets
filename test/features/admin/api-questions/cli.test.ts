@@ -45,6 +45,7 @@ describeWithEnv("CLI questions flow", { db: true }, () => {
     const read = await run(["get", "questions", String(question.id)]);
     const stored = JSON.parse(read.out!).question;
     expect(stored).toEqual({
+      answer_level: "booking",
       answers: [
         { ...withSmall.answers[0], text: "Small" },
         {

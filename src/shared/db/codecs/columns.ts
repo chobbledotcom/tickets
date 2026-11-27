@@ -26,7 +26,10 @@ import {
   yesNo,
 } from "#db/codecs/kinds.ts";
 import type { ExternalLinkKind } from "#db/external-sources/types.ts";
-import type { QuestionDisplayType } from "#db/question-types.ts";
+import type {
+  QuestionAnswerLevel,
+  QuestionDisplayType,
+} from "#db/question-types.ts";
 import type { DeclaredRow, TableName } from "#db/select/tables.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type { InvoiceStatus } from "#shared/invoices/status.ts";
@@ -169,6 +172,7 @@ export const CODECS = {
     ticket_tokens: typed<EnvKeyEncrypted | "">(),
   },
   questions: {
+    answer_level: typed<QuestionAnswerLevel>(),
     assign_all: yesNo,
     display_type: typed<QuestionDisplayType>(),
     text: sealed,

@@ -27,9 +27,10 @@ import type {
   PricedOrder,
   TicketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
+import { heldFreeTexts } from "#shared/email/answers.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
-import { computeListingTextAnswerIdMap } from "./parse.ts";
+import { computeTextAnswerRefs } from "./parse.ts";
 
 export type PathParams = OrderSpan & {
   ctx: TicketCtx;
@@ -63,14 +64,17 @@ export const handlePaidPath = async (
   }
   // Create the encrypted free-text strings only once availability is confirmed,
   // so a rejected over-capacity submission never leaves orphaned plaintext rows.
-  const listingTextAnswerIds = await computeListingTextAnswerIdMap(ctx, info);
+  const { lineTextAnswerIds, listingTextAnswerIds } =
+    await computeTextAnswerRefs(ctx, info);
   if (listingTextAnswerIds !== undefined) {
     intent.listingTextAnswerIds = listingTextAnswerIds;
+  }
+  if (lineTextAnswerIds !== undefined) {
+    intent.lineTextAnswerIds = lineTextAnswerIds;
+  }
+  if (listingTextAnswerIds !== undefined || lineTextAnswerIds !== undefined) {
     intent.textAnswers = Object.fromEntries(
-      info.textAnswers.map(({ questionId, text }) => [
-        String(questionId),
-        text,
-      ]),
+      heldFreeTexts(info.textAnswers, info.lineTextAnswers),
     );
   }
   return handlePaymentFlow(request, intent, ctx);
@@ -161,9 +165,7 @@ export const handleFreePath = async (
     : undefined;
   // The typed free text travels with the notification, because the
   // strings table seals it to the owner key, which no notification can spend.
-  const freeTexts = new Map(
-    info.textAnswers.map(({ questionId, text }) => [questionId, text]),
-  );
+  const freeTexts = heldFreeTexts(info.textAnswers, info.lineTextAnswers);
   await queueRegistrationSends(result.entries, {
     freeTexts,
     siteTokenIndex,

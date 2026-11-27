@@ -9,10 +9,9 @@ import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   singleAnswerSizeQuestionData,
-  testAnswer,
   testListingWithCount,
-  testQuestion,
 } from "#test-utils/factories.ts";
+import { testAnswer, testQuestion } from "#test-utils/factories-questions.ts";
 import { setupQuestionPageTest } from "./fixtures.ts";
 
 describe("adminListingQuestionsPage", () => {

@@ -17,11 +17,10 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   singleAnswerSizeQuestionData,
   sizeQuestionAnswerData,
-  testAnswer,
   testAttendee,
-  testQuestion,
   unselectedAnswerQuestionData,
 } from "#test-utils/factories.ts";
+import { testAnswer, testQuestion } from "#test-utils/factories-questions.ts";
 
 describe("detail-rows", () => {
   const answerSummaryRows = (

@@ -8,10 +8,17 @@ import { sqlText } from "#test-utils/sql-text.ts";
 /** The identity hash of this group's declaration. A column, index, or trigger
  * change moves it. */
 const QUESTION_TABLES_HASH =
-  "4bc2c397a32c678529ecea1ab7b91a7ee504c9158d51ae0ab027b22848a01ff5";
+  "9f76ad79867722f23d181159436babc67baf41fc3d5302e84aa15a9f669dc821";
 
 test("keeps the complete question and built-site schema exact", async () => {
   expect(await jsonHash(sqlText(questionTables))).toBe(QUESTION_TABLES_HASH);
+});
+
+test("lets an interned string carry a hold time that is empty by default", () => {
+  const strings = questionTables.find(([name]) => name === "strings");
+  if (!strings) throw new Error("strings schema is missing");
+
+  expect(sqlText(strings[1].columns)).toContainEqual(["hold_until", "TEXT"]);
 });
 
 test("versions built-site data without the retired prune marker", () => {

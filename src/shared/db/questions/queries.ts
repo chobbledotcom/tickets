@@ -66,6 +66,7 @@ const joinedColumns = (question: QuestionNode) => ({
   a_question_id: question.answer.questionId,
   a_sort_order: question.answer.sortOrder,
   a_text: question.answer.text,
+  q_answer_level: question.answerLevel,
   q_assign_all: question.assignAll,
   q_display_type: question.displayType,
   q_id: question.id,
@@ -89,6 +90,7 @@ const groupJoinedRows = (rows: JoinedRow[]): QuestionWithAnswers[] =>
   [...Map.groupBy(rows, (row) => row.q_id)].map(([id, groupRows]) => {
     const first = groupRows[0]!;
     return {
+      answerLevel: first.q_answer_level,
       answers: groupRows.flatMap((row) =>
         row.a_id === null
           ? []

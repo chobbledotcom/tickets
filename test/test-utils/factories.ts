@@ -1,11 +1,6 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import type {
-  Answer,
-  QuestionDisplayType,
-  QuestionWithAnswers,
-} from "#db/question-types.ts";
 import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
@@ -14,6 +9,7 @@ import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { WebhookAttendee } from "#shared/webhook.ts";
+import { testAnswer, testQuestion } from "#test-utils/factories-questions.ts";
 import { generateTestListingName } from "#test-utils/internal.ts";
 import { blankMetadata } from "#test-utils/session-metadata.ts";
 import type {
@@ -126,6 +122,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   lng: "",
   name: "John Doe",
   package_group_id: 0,
+  parent_listing_id: 0,
   payment_id: "",
   phone: "",
   pii_blob: "",
@@ -181,26 +178,6 @@ export const testModifier = (overrides: Partial<Modifier> = {}): Modifier => ({
   ...overrides,
 });
 
-/** Build a radio question fixture with answer options. Each `[id, text]` pair
- * becomes an active answer whose sort order follows the array order. */
-export const testRadioQuestion = (
-  id: number,
-  text: string,
-  answers: [number, string][],
-): QuestionWithAnswers => ({
-  answers: answers.map(([answerId, answerText], sortOrder) => ({
-    active: true,
-    id: answerId,
-    questionId: id,
-    sortOrder,
-    text: answerText,
-  })),
-  assignAll: false,
-  displayType: "radio",
-  id,
-  text,
-});
-
 export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   description: "",
   hidden: false,
@@ -215,33 +192,6 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   slugIndex: "test-group-index" as BlindIndex,
   termsAndConditions: "",
-  ...overrides,
-});
-
-/** Factory for an {@link Answer}: `active` defaults to `true`; the ids
- *  mirror one question (id 1) with answers 10, 11, … in sort order. */
-export const testAnswer = (overrides: Partial<Answer> = {}): Answer => ({
-  active: true,
-  id: 10,
-  questionId: 1,
-  sortOrder: 0,
-  text: "A",
-  ...overrides,
-});
-
-/** Factory for a {@link QuestionWithAnswers}: `displayType` defaults to
- *  `"radio"` with no answers, so a radio/dropdown/free-text question is built by
- *  overriding `displayType` and passing `answers`. The returned type keeps
- *  `displayType` as the literal {@link QuestionDisplayType}, so callers need no
- *  `… as const`. */
-export const testQuestion = (
-  overrides: Partial<QuestionWithAnswers> = {},
-): QuestionWithAnswers => ({
-  answers: [],
-  assignAll: false,
-  displayType: "radio",
-  id: 1,
-  text: "Question?",
   ...overrides,
 });
 

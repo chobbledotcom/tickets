@@ -13,6 +13,7 @@ import type {
   ListingAttendeeRow,
 } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import type { RemovedLineAnswers } from "#db/attendees/atomic-update.ts";
 import { syncAttendeeContactTokens } from "#db/contact-tokens.ts";
 import {
   type AttendeeAnswerSet,
@@ -42,6 +43,8 @@ type AttendeeEdit = {
   existingByKey: Map<string, ListingAttendeeRow>;
   /** Writes that commit with the edit, after its own writes. */
   extraWork: SqlStatement[];
+  /** Whether the edit can delete the answers of a line that it removes. */
+  removedLineAnswers: RemovedLineAnswers;
   statusId: number | null;
   taxPlan: TaxSavePlan;
 };
@@ -115,8 +118,11 @@ export const saveAttendeeEdit = async (
       attendee.id,
       piiAfterEdit(attendee, contact),
       desired,
-      true,
-      { ...work, after: [...work.after, ...edit.extraWork] },
+      {
+        allowOverbook: true,
+        removedLineAnswers: edit.removedLineAnswers,
+        work: { ...work, after: [...work.after, ...edit.extraWork] },
+      },
     )
     .catch((error: unknown) => {
       if (isTaxAssessmentConflict(error)) return null;

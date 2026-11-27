@@ -10,7 +10,8 @@ import {
   zaraAliceRows,
 } from "#test/ui/templates/attendee-table/shared.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
+import { testAttendee } from "#test-utils/factories.ts";
+import { testRadioQuestion } from "#test-utils/factories-questions.ts";
 
 attendeeTableSuite(() => {
   describe("component", () => {

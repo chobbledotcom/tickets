@@ -8,7 +8,11 @@ import {
 } from "#templates/components/email-template-reference.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
-import { buildTestData, describeEmailRenderer } from "./test-helpers.ts";
+import {
+  answerLinesOf,
+  buildTestData,
+  describeEmailRenderer,
+} from "./test-helpers.ts";
 
 /** An entry whose every template field carries a visible value, so a path
  * that resolves to empty can never pass the render check. */
@@ -27,18 +31,11 @@ const fullEntry = (name: string, slug: string, quantity: number) =>
     },
   );
 
-const ANSWER_LINES = new Map([
+const ANSWER_LINES = answerLinesOf([
+  fullEntry("Summer Fete", "summer-fete", 3),
   [
-    42,
-    new Map([
-      [
-        1,
-        [
-          { question: "Any dietary needs?", text: "None" },
-          { question: "How did you hear about us?", text: "A friend" },
-        ],
-      ],
-    ]),
+    { question: "Any dietary needs?", text: "None" },
+    { question: "How did you hear about us?", text: "A friend" },
   ],
 ]);
 

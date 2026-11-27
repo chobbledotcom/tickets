@@ -233,6 +233,7 @@ attendeeTableSuite(() => {
 
 const questions: QuestionWithAnswers[] = [
   {
+    answerLevel: "booking",
     answers: [
       { active: true, id: 11, questionId: 1, sortOrder: 0, text: "Vegan" },
       { active: true, id: 12, questionId: 1, sortOrder: 1, text: "None" },
@@ -243,6 +244,7 @@ const questions: QuestionWithAnswers[] = [
     text: "Dietary needs",
   },
   {
+    answerLevel: "booking",
     answers: [],
     assignAll: false,
     displayType: "free_text",

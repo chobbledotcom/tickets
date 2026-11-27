@@ -10,7 +10,7 @@ import {
   testAnswer,
   testQuestion,
   testRadioQuestion,
-} from "#test-utils/factories.ts";
+} from "#test-utils/factories-questions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** Two single-answer radio questions — the shared fixture for the
@@ -59,15 +59,14 @@ describe("renderQuestions", () => {
 
   test("omits a choice question whose answers are all deactivated", () => {
     const questions: QuestionWithAnswers[] = [
-      {
+      testQuestion({
         answers: [
           { active: false, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
         ],
-        assignAll: false,
         displayType: "radio" as const,
         id: 1,
         text: "Favourite colour?",
-      },
+      }),
     ];
 
     expect(renderQuestions(questions).toString()).toBe("");
@@ -75,7 +74,7 @@ describe("renderQuestions", () => {
 
   test("omits deactivated answers from the public form", () => {
     const questions: QuestionWithAnswers[] = [
-      {
+      testQuestion({
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
           {
@@ -86,11 +85,10 @@ describe("renderQuestions", () => {
             text: "Blue",
           },
         ],
-        assignAll: false,
         displayType: "radio" as const,
         id: 1,
         text: "Favourite colour?",
-      },
+      }),
     ];
 
     const html = renderQuestions(questions).toString();
@@ -116,13 +114,12 @@ describe("renderQuestions", () => {
 
   test("renders a free-text input when configured", () => {
     const questions: QuestionWithAnswers[] = [
-      {
+      testQuestion({
         answers: [],
-        assignAll: false,
         displayType: "free_text" as const,
         id: 1,
         text: "Your name?",
-      },
+      }),
     ];
 
     const html = renderQuestions(questions).toString();
@@ -143,13 +140,12 @@ describe("renderQuestions", () => {
     const html = await withRequestContext(() => {
       setSavedFormData(new FormParams({ question1: "Ada Lovelace" }));
       return renderQuestions([
-        {
+        testQuestion({
           answers: [],
-          assignAll: false,
           displayType: "free_text" as const,
           id: 1,
           text: "Your name?",
-        },
+        }),
       ]).toString();
     });
 
@@ -174,15 +170,14 @@ describe("renderQuestions", () => {
 
   test("escapes HTML in question and answer text", () => {
     const questions: QuestionWithAnswers[] = [
-      {
+      testQuestion({
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "S&M" },
         ],
-        assignAll: false,
         displayType: "radio" as const,
         id: 1,
         text: "What <b>size</b>?",
-      },
+      }),
     ];
 
     const html = renderQuestions(questions).toString();
@@ -207,15 +202,14 @@ describe("renderQuestions", () => {
 
   test("omits data-listing-ids when no map provided", () => {
     const questions: QuestionWithAnswers[] = [
-      {
+      testQuestion({
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "A1" },
         ],
-        assignAll: false,
         displayType: "radio" as const,
         id: 1,
         text: "Q1",
-      },
+      }),
     ];
 
     const html = renderQuestions(questions).toString();
@@ -225,13 +219,12 @@ describe("renderQuestions", () => {
 
   test("wraps simple question text in a label for free-text questions", () => {
     const html = renderQuestions([
-      {
+      testQuestion({
         answers: [],
-        assignAll: false,
         displayType: "free_text" as const,
         id: 1,
         text: "Your name?",
-      },
+      }),
     ]).toString();
 
     expectIncludesAll(html, ['<label class="custom-question">', "Your name?"]);
@@ -240,13 +233,12 @@ describe("renderQuestions", () => {
 
   test("renders complex markdown as a prose div for free-text questions", () => {
     const html = renderQuestions([
-      {
+      testQuestion({
         answers: [],
-        assignAll: false,
         displayType: "free_text" as const,
         id: 1,
         text: "Tell us **more** about yourself",
-      },
+      }),
     ]).toString();
 
     expectIncludesAll(html, [
@@ -267,15 +259,14 @@ describe("renderQuestions", () => {
 
   test("renders complex markdown as a prose div for select questions", () => {
     const html = renderQuestions([
-      {
+      testQuestion({
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
         ],
-        assignAll: false,
         displayType: "select" as const,
         id: 1,
         text: "Choose [a colour](https://example.com)",
-      },
+      }),
     ]).toString();
 
     expectIncludesAll(html, [
@@ -295,15 +286,14 @@ describe("renderQuestions", () => {
 
   test("renders complex markdown as a prose div for radio questions", () => {
     const html = renderQuestions([
-      {
+      testQuestion({
         answers: [
           { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
         ],
-        assignAll: false,
         displayType: "radio" as const,
         id: 1,
         text: "# Heading\n\nPick a colour",
-      },
+      }),
     ]).toString();
 
     expectIncludesAll(html, [

@@ -27,11 +27,12 @@ import {
   dropCheckoutAnswersStatement,
   readCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
-
+import type { LineTextAnswerId } from "#db/question-types.ts";
 import { bookedAnswersTail } from "#db/questions/attendee-answers/at-booking.ts";
 import {
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
+  withLineAnswers,
 } from "#db/questions/attendee-answers/save.ts";
 import { literal } from "#db/select/expression.ts";
 import { tables } from "#db/select/tables.ts";
@@ -40,6 +41,7 @@ import { update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 import {
   type BookingIntent,
+  type LineAnswerRef,
   StoredTextAnswerRefSchema,
   type TextAnswerRef,
 } from "#shared/booking-intent.ts";
@@ -66,6 +68,14 @@ const PLACEHOLDER_ATTENDEE_ID = 0;
  * but never validated. Without it, a null, a word, or half a number lands in
  * the stored answers.
  */
+/** Log the drop of one answer whose ref has no usable string id. */
+const dropUnusableRef = (questionId: number, listingId: number): void =>
+  logError({
+    code: ErrorCode.DATA_INVALID,
+    detail: `Text answer ref has no usable string id (question ${questionId})`,
+    listingId,
+  });
+
 const textRefsWithStringId = (
   refs: TextAnswerRef[],
   listingId: number,
@@ -75,15 +85,51 @@ const textRefsWithStringId = (
     if (v.is(StoredTextAnswerRefSchema, ref)) {
       resolved.push({ questionId: ref.q, stringId: ref.s });
     } else {
-      logError({
-        code: ErrorCode.DATA_INVALID,
-        detail: `Text answer ref has no usable string id (question ${ref.q})`,
-        listingId,
-      });
+      dropUnusableRef(ref.q, listingId);
     }
   }
   return resolved;
 };
+
+/** The line answer refs that have a usable string id, each with its slot and
+ * unit. A ref without one is dropped loudly, as a booking answer's is. */
+const lineRefsWithStringId = (
+  refs: readonly LineAnswerRef[] | undefined,
+): LineTextAnswerId[] =>
+  (refs ?? []).flatMap((ref) => {
+    const stringId = ref.s;
+    if (stringId !== undefined) {
+      return [
+        {
+          listingId: ref.l,
+          packageGroupId: ref.g,
+          parentListingId: ref.p,
+          questionId: ref.q,
+          stringId,
+          unit: ref.u,
+        },
+      ];
+    }
+    dropUnusableRef(ref.q, ref.l);
+    return [];
+  });
+
+/** Each booked listing's text refs that have a usable string id. */
+const resolvedRefsByListing = (
+  listings: readonly ListingWithCount[],
+  refsByListing: Record<string, TextAnswerRef[]> | undefined,
+): Record<string, { questionId: number; stringId: number }[]> =>
+  Object.fromEntries(
+    listings
+      .map((listing): [string, { questionId: number; stringId: number }[]] => [
+        String(listing.id),
+        textRefsWithStringId(
+          refsByListing?.[String(listing.id)] ?? [],
+          listing.id,
+        ),
+      ])
+      .filter(([, refs]) => refs.length > 0),
+  );
 
 /** What one promo-code modifier did to the charged price. */
 export type ModifierApplication = { delta: number; modifierId: number };
@@ -165,7 +211,9 @@ export const paidBookingTail = async ({
   // The buyer's typed answers, read before the batch so the confirmation
   // email can show them. The staged row is deleted by the batch itself, so a
   // booking that rolls back keeps its staged copy for the redelivery.
-  const wantsStagedTexts = intent.listingTextAnswerIds !== undefined;
+  const wantsStagedTexts =
+    intent.listingTextAnswerIds !== undefined ||
+    intent.lineTextAnswerIds !== undefined;
   const freeTexts = wantsStagedTexts
     ? await readCheckoutAnswers(sessionId)
     : undefined;
@@ -184,25 +232,23 @@ export const paidBookingTail = async ({
   // The answers, keyed by one placeholder attendee the batch resolves from
   // the ticket token it inserts. The buyer's typed answers ride the same
   // sets, with the loud drop for a ref that lost its string id.
-  const textRefsByListing: Record<
-    string,
-    { questionId: number; stringId: number }[]
-  > = {};
-  for (const listing of listings) {
-    const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];
-    const resolvedRefs = textRefsWithStringId(refs, listing.id);
-    if (resolvedRefs.length === 0) continue;
-    textRefsByListing[String(listing.id)] = resolvedRefs;
-  }
+  const textRefsByListing = resolvedRefsByListing(
+    listings,
+    intent.listingTextAnswerIds,
+  );
   const answers = await prepareAttendeeAnswerSave(
-    groupListingAnswerSets(
-      listings.map((listing) => ({
-        attendee: { id: PLACEHOLDER_ATTENDEE_ID },
-        listing: { id: listing.id },
-      })),
-      intent.listingAnswerIds ?? {},
-      {},
-      textRefsByListing,
+    withLineAnswers(
+      groupListingAnswerSets(
+        listings.map((listing) => ({
+          attendee: { id: PLACEHOLDER_ATTENDEE_ID },
+          listing: { id: listing.id },
+        })),
+        intent.listingAnswerIds ?? {},
+        {},
+        textRefsByListing,
+      ),
+      PLACEHOLDER_ATTENDEE_ID,
+      lineRefsWithStringId(intent.lineTextAnswerIds),
     ),
   );
 

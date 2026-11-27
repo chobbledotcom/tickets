@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import { testAttendee } from "#test-utils/factories.ts";
+import type { Attendee } from "#types";
 
 /** Build a question with answers that each have a distinct numeric id. */
 const question = (
@@ -11,6 +12,7 @@ const question = (
   text: string,
   answers: { id: number; text: string }[],
 ): QuestionWithAnswers => ({
+  answerLevel: "booking",
   answers: answers.map((a, i) => ({
     active: true,
     id: a.id,
@@ -35,6 +37,7 @@ const DIET_Q = question(2, "Dietary Requirements", [
 ]);
 
 const NOTES_Q: QuestionWithAnswers = {
+  answerLevel: "booking",
   answers: [],
   assignAll: false,
   displayType: "free_text",
@@ -59,6 +62,57 @@ const freeTextCsv = (answer: string): string[] =>
     questions: [NOTES_Q],
     textAnswerMap: new Map([[1, new Map([[3, answer]])]]),
   }).split("\n");
+
+/** A free-text question that asks for each line or each ticket. */
+const lineQuestion = (
+  id: number,
+  text: string,
+  answerLevel: "listing" | "quantity",
+): QuestionWithAnswers => ({ ...NOTES_Q, answerLevel, id, text });
+
+const PUPIL_Q = lineQuestion(4, "Pupil name", "quantity");
+const GLOW_Q = lineQuestion(5, "Glow name", "listing");
+
+/** One stored answer for a ticket of a line of quantity `quantity`. */
+const ticketAnswer = (
+  questionId: number,
+  text: string,
+  {
+    packageGroupId = 0,
+    parentListingId = 0,
+    quantity = 1,
+    startAt = null as string | null,
+    unit = 0,
+  } = {},
+) => ({
+  listingId: 1,
+  packageGroupId,
+  parentListingId,
+  quantity,
+  questionId,
+  startAt,
+  text,
+  unit,
+});
+
+/** CSV lines for Alice and Bob with these line answers. */
+const lineAnswerCsv = (
+  questions: QuestionWithAnswers[],
+  answers: [number, ReturnType<typeof ticketAnswer>[]][],
+): string[] =>
+  generateAttendeesCsv(
+    [
+      testAttendee({ id: 1, name: "Alice" }),
+      testAttendee({ id: 2, name: "Bob" }),
+    ],
+    false,
+    undefined,
+    {
+      attendeeAnswerMap: new Map(),
+      lineAnswerMap: new Map(answers),
+      questions,
+    },
+  ).split("\n");
 
 describe("CSV with custom questions", () => {
   test("appends question text columns after the ticket URL column", () => {
@@ -193,4 +247,138 @@ describe("CSV with custom questions", () => {
     // And the data row should have the same number of cells (commas) as the header
     expect(row!.split(",").length).toBe(header!.split(",").length);
   });
+
+  /** Line answers in a CSV: the question, each attendee's answers, how the
+   * header ends, and how Alice's and Bob's rows end. */
+  const LINE_CSVS: [
+    string,
+    QuestionWithAnswers,
+    [number, ReturnType<typeof ticketAnswer>[]][],
+    string,
+    [string, string],
+  ][] = [
+    [
+      "a question for each ticket takes one column for each ticket, up to the most tickets an attendee holds",
+      PUPIL_Q,
+      [
+        [
+          1,
+          [
+            ticketAnswer(4, "Ava", { quantity: 2 }),
+            ticketAnswer(4, "Amy", { quantity: 2, unit: 1 }),
+          ],
+        ],
+        [2, [ticketAnswer(4, "Ben")]],
+      ],
+      ",Pupil name (ticket 1),Pupil name (ticket 2)",
+      [",Ava,Amy", ",Ben,"],
+    ],
+    [
+      "a question for each line takes one column",
+      GLOW_Q,
+      [[1, [ticketAnswer(5, "Kit")]]],
+      ",Glow name",
+      [",Kit", ","],
+    ],
+    [
+      "an answer for a ticket that is no longer booked stays out of the ticket columns",
+      PUPIL_Q,
+      [[1, [ticketAnswer(4, "Ava"), ticketAnswer(4, "Amy", { unit: 1 })]]],
+      ",Pupil name (ticket 1)",
+      [",Ava", ","],
+    ],
+    [
+      "a question for each ticket that no attendee answered still takes its first column",
+      PUPIL_Q,
+      [],
+      ",Pupil name (ticket 1)",
+      [",", ","],
+    ],
+  ];
+
+  for (const [name, asked, answers, headerEnd, rowEnds] of LINE_CSVS) {
+    test(name, () => {
+      const lines = lineAnswerCsv([asked], answers).slice(0, 3);
+      const ends = [headerEnd, ...rowEnds];
+
+      expect(lines.map((line, at) => line.slice(-ends[at]!.length))).toEqual(
+        ends,
+      );
+    });
+  }
+
+  /** One attendee with two booking rows of one listing: the rows that the
+   * export holds, the attendee's answers, and how each row ends. A row holds
+   * only the answers of its own booking row. */
+  const ROW_CSVS: [
+    string,
+    QuestionWithAnswers,
+    Partial<Attendee>[],
+    ReturnType<typeof ticketAnswer>[],
+    string[],
+  ][] = [
+    [
+      "a standalone row and a package row",
+      PUPIL_Q,
+      [{ package_group_id: 0 }, { package_group_id: 9 }],
+      [ticketAnswer(4, "Ann"), ticketAnswer(4, "Ben", { packageGroupId: 9 })],
+      [",Ann", ",Ben"],
+    ],
+    [
+      "the same listing under two parents",
+      GLOW_Q,
+      [{ parent_listing_id: 3 }, { parent_listing_id: 4 }],
+      [
+        ticketAnswer(5, "Kit", { parentListingId: 3 }),
+        ticketAnswer(5, "Kim", { parentListingId: 4 }),
+      ],
+      [",Kit", ",Kim"],
+    ],
+    [
+      "the same listing under two parents that each sit in a package",
+      GLOW_Q,
+      [
+        { package_group_id: 9, parent_listing_id: 3 },
+        { package_group_id: 9, parent_listing_id: 4 },
+      ],
+      [
+        ticketAnswer(5, "Kit", { parentListingId: 3 }),
+        ticketAnswer(5, "Kim", { parentListingId: 4 }),
+      ],
+      [",Kit", ",Kim"],
+    ],
+    [
+      "the same listing on two dates",
+      PUPIL_Q,
+      [{ date: "2026-06-01" }, { date: "2026-06-08" }],
+      [
+        ticketAnswer(4, "Ann", { startAt: "2026-06-01T00:00:00Z" }),
+        ticketAnswer(4, "Ben", { startAt: "2026-06-08T00:00:00Z" }),
+      ],
+      [",Ann", ",Ben"],
+    ],
+  ];
+
+  for (const [name, asked, rows, answers, rowEnds] of ROW_CSVS) {
+    test(`an attendee with ${name} exports each row with its own answers`, () => {
+      const lines = generateAttendeesCsv(
+        rows.map((row) => testAttendee({ id: 1, ...row })),
+        false,
+        undefined,
+        {
+          attendeeAnswerMap: new Map(),
+          lineAnswerMap: new Map([[1, answers]]),
+          questions: [asked],
+        },
+      ).split("\n");
+
+      expect(
+        lines.slice(1).map((line, at) => line.slice(-rowEnds[at]!.length)),
+      ).toEqual(rowEnds);
+      expect(lines.slice(1).map((line) => line.split(",").length)).toEqual([
+        lines[0]!.split(",").length,
+        lines[0]!.split(",").length,
+      ]);
+    });
+  }
 });

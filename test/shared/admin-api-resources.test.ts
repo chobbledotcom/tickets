@@ -242,8 +242,9 @@ describe("the question bodies", () => {
     ).toEqual({ error: "display_type is required", ok: false });
   });
 
-  test("a question row carries its assign-all switch and display type", () => {
+  test("a question row carries its answer level, assign-all switch, and display type", () => {
     const row = {
+      answer_level: "booking",
       answers: [{ id: 1, text: "Yes", times_selected: 2 }],
       assign_all: false,
       display_type: "radio",
@@ -251,9 +252,11 @@ describe("the question bodies", () => {
       text: "Ok?",
     };
     expect(v.parse(QuestionRowSchema, row)).toEqual(row);
-    expect(
-      v.safeParse(QuestionRowSchema, { ...row, display_type: "bogus" }).success,
-    ).toBe(false);
+    for (const bad of [{ display_type: "bogus" }, { answer_level: "bogus" }]) {
+      expect(v.safeParse(QuestionRowSchema, { ...row, ...bad }).success).toBe(
+        false,
+      );
+    }
   });
 });
 

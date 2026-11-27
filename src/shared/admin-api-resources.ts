@@ -12,6 +12,7 @@
 import * as v from "valibot";
 
 import {
+  QuestionAnswerLevelSchema,
   QuestionDisplayTypeSchema,
   questionDisplayTypeError,
 } from "#db/question-types.ts";
@@ -83,11 +84,12 @@ export const AttributeRowSchema = v.looseObject({
 
 export type AdminApiAttribute = v.InferOutput<typeof AttributeRowSchema>;
 
-/** One question as the admin API answers with it: the decrypted text, the
- *  display type, the assign-all switch, and its answers in display order. Each
- *  answer carries its selection total. A question's display name is its text,
- *  so the row carries no separate name. */
+/** One question as the admin API answers with it. The row holds the decrypted
+ *  text, the display type, the answer level, the assign-all switch, and the
+ *  answers in display order. Each answer carries its selection total. A
+ *  question's display name is its text, so the row has no separate name. */
 export const QuestionRowSchema = v.looseObject({
+  answer_level: QuestionAnswerLevelSchema,
   answers: v.array(AnswerRowSchema),
   assign_all: v.boolean(),
   display_type: QuestionDisplayTypeSchema,

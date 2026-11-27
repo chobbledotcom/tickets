@@ -8,9 +8,18 @@
 
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { buildOrderLines } from "#booking/order-lines.ts";
-import { isMemberNodeOf } from "#booking/tree.ts";
+import { isMemberNodeOf, shownListingIds } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { answerModifierQuantities } from "#db/modifier-resolve.ts";
+import {
+  type AnswerLine,
+  asksEachLine,
+  inHiddenPackage,
+  lineLabel,
+  orderLineQuantities,
+  pageLineNames,
+  parseLineTextAnswers,
+} from "#db/questions/line-answers.ts";
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
 import { requiredMapValue, sum } from "#fp";
 import { resolveDayCount } from "#routes/public/booking-dates.ts";
@@ -49,6 +58,24 @@ import {
   priceSubmissionBeforeContact,
   type SubmissionPricingParams,
 } from "./pricing.ts";
+
+/** The booking lines of an order that the buyer can see, with their words. A
+ * line of a concealed listing or of a hidden package owes no answer. */
+const namedLines = (
+  ctx: TicketCtx,
+  items: readonly CheckoutItem[],
+  allocations: ChildAllocation[],
+  namedListingIds: ReadonlySet<number>,
+): AnswerLine[] => {
+  const names = pageLineNames(ctx);
+  return orderLineQuantities(items, allocations)
+    .filter(
+      (line) =>
+        namedListingIds.has(line.listingId) &&
+        !inHiddenPackage(line, ctx.packages),
+    )
+    .map((line) => ({ ...line, label: lineLabel(line, names) }));
+};
 
 /** A parsed-and-priced submission, or the message explaining why it could not
  * be priced. `prepareOrder` runs every step shared by the booking submit and
@@ -110,11 +137,7 @@ export const prepareOrder = async (
     selectedNodes.some(isMemberNodeOf(pkg.groupId)),
   );
   const standIns = ctxStandInNames({ ...ctx, packages: selectedPackages });
-  const shownSelectedIds = new Set(
-    selectedNodes
-      .filter((node) => node.visibility === "SHOWN")
-      .map((node) => node.listingId),
-  );
+  const shownSelectedIds = shownListingIds(selectedNodes);
   const dayErrorStandIns = new Map(
     [...standIns.byListingId].filter(
       ([listingId]) => !shownSelectedIds.has(listingId),
@@ -210,13 +233,24 @@ export const prepareOrder = async (
   });
   const answersResult = parseQuestionAnswers({ optional: false })(
     form,
-    activeQuestions,
+    activeQuestions.filter((question) => !asksEachLine(question)),
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
+  // A concealed package member has no field, so it owes no answer.
+  const lineAnswersResult = parseLineTextAnswers(form, {
+    lines: namedLines(ctx, items, fold.allocations, namedListingIds),
+    names: pageLineNames(ctx),
+    questionListingMap: foldedCtx.questionListingMap,
+    questions: activeQuestions,
+  });
+  if (!lineAnswersResult.ok) {
+    return { error: lineAnswersResult.error, ok: false };
+  }
 
   const info: AnswerInfo = {
     activeQuestions,
     answerIds: answersResult.answerIds,
+    lineTextAnswers: lineAnswersResult.value,
     selectedListingIds,
     textAnswers: answersResult.textAnswers,
   };

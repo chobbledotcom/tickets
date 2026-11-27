@@ -198,11 +198,7 @@
     },
     {
       "path": [{ "name": "ListingAnswerRefs" }],
-      "fields": ["listingAnswerIds", "listingTextAnswerIds"]
-    },
-    {
-      "path": [{ "name": "TextAnswerRef" }],
-      "fields": ["s"]
+      "fields": ["listingAnswerIds"]
     }
   ],
   "src/shared/booking/cart-conflicts.ts": [

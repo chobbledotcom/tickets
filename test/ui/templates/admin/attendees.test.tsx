@@ -4,6 +4,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+import {
+  testFreeTextQuestion,
+  testQuestion,
+} from "#test-utils/factories-questions.ts";
 
 const render = (
   questions: QuestionWithAnswers[],
@@ -29,7 +33,7 @@ describe("EditQuestions", () => {
   ) =>
     render(
       [
-        {
+        testQuestion({
           answers: [
             {
               active: true,
@@ -46,11 +50,10 @@ describe("EditQuestions", () => {
               text: "Blue",
             },
           ],
-          assignAll: false,
           displayType: displayType,
           id: 1,
           text: "Colour?",
-        },
+        }),
       ],
       { answerIds: selectedAnswerIds },
     );
@@ -83,7 +86,7 @@ describe("EditQuestions", () => {
   test("renders radio inputs by default", () => {
     const html = render(
       [
-        {
+        testQuestion({
           answers: [
             {
               active: true,
@@ -93,11 +96,10 @@ describe("EditQuestions", () => {
               text: "Small",
             },
           ],
-          assignAll: false,
           displayType: "radio",
           id: 1,
           text: "Size?",
-        },
+        }),
       ],
       { answerIds: [10] },
     );
@@ -108,7 +110,7 @@ describe("EditQuestions", () => {
   test("renders select inputs when configured", () => {
     const html = render(
       [
-        {
+        testQuestion({
           answers: [
             {
               active: true,
@@ -125,11 +127,10 @@ describe("EditQuestions", () => {
               text: "Large",
             },
           ],
-          assignAll: false,
           displayType: "select",
           id: 1,
           text: "Size?",
-        },
+        }),
       ],
       { answerIds: [11] },
     );
@@ -143,18 +144,9 @@ describe("EditQuestions", () => {
   });
 
   test("renders a text input pre-filled with the saved free-text answer", () => {
-    const html = render(
-      [
-        {
-          answers: [],
-          assignAll: false,
-          displayType: "free_text",
-          id: 1,
-          text: "Anything else?",
-        },
-      ],
-      { textAnswers: new Map([[1, "Allergic to nuts"]]) },
-    );
+    const html = render([testFreeTextQuestion(1, "Anything else?")], {
+      textAnswers: new Map([[1, "Allergic to nuts"]]),
+    });
 
     expectIncludesAll(html, [
       'name="question1" type="text"',
@@ -165,32 +157,15 @@ describe("EditQuestions", () => {
   });
 
   test("renders an empty text input when no free-text answer is saved", () => {
-    const html = render([
-      {
-        answers: [],
-        assignAll: false,
-        displayType: "free_text",
-        id: 7,
-        text: "Anything else?",
-      },
-    ]);
+    const html = render([testFreeTextQuestion(7, "Anything else?")]);
 
     assertStringIncludes(html, 'name="question7" type="text" value=""');
   });
 
   test("renders complex markdown in a prose div for free-text questions", () => {
-    const html = render(
-      [
-        {
-          answers: [],
-          assignAll: false,
-          displayType: "free_text",
-          id: 1,
-          text: "Tell us **more**",
-        },
-      ],
-      { textAnswers: new Map([[1, "done"]]) },
-    );
+    const html = render([testFreeTextQuestion(1, "Tell us **more**")], {
+      textAnswers: new Map([[1, "done"]]),
+    });
 
     expectIncludesAll(html, [
       '<div class="prose" id="question-1-prose">',
@@ -203,7 +178,7 @@ describe("EditQuestions", () => {
   test("renders complex markdown in a prose div for select questions", () => {
     const html = render(
       [
-        {
+        testQuestion({
           answers: [
             {
               active: true,
@@ -213,11 +188,10 @@ describe("EditQuestions", () => {
               text: "Red",
             },
           ],
-          assignAll: false,
           displayType: "select",
           id: 1,
           text: "Pick [a colour](https://example.com)",
-        },
+        }),
       ],
       { answerIds: [10] },
     );
@@ -233,7 +207,7 @@ describe("EditQuestions", () => {
   test("renders complex markdown in a prose div for radio questions", () => {
     const html = render(
       [
-        {
+        testQuestion({
           answers: [
             {
               active: true,
@@ -243,11 +217,10 @@ describe("EditQuestions", () => {
               text: "Red",
             },
           ],
-          assignAll: false,
           displayType: "radio",
           id: 1,
           text: "# Heading\n\nPick a colour",
-        },
+        }),
       ],
       { answerIds: [10] },
     );
@@ -261,13 +234,13 @@ describe("EditQuestions", () => {
   });
 
   test("shows the answer at booking under a changed question only", () => {
-    const question = (id: number): QuestionWithAnswers => ({
-      answers: [],
-      assignAll: false,
-      displayType: "free_text",
-      id,
-      text: `Question ${id}`,
-    });
+    const question = (id: number): QuestionWithAnswers =>
+      testQuestion({
+        answers: [],
+        displayType: "free_text",
+        id,
+        text: `Question ${id}`,
+      });
     const html = render([question(1), question(2)], {
       atBooking: [
         {

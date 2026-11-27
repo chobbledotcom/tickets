@@ -30,7 +30,7 @@ import {
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
-import { DAY_MS, isoBefore, now, nowMs } from "#shared/now.ts";
+import { DAY_MS, isoBefore, now, nowIso, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
 import { SQUARE_LINK_RETENTION_MS } from "#shared/square/limits.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
@@ -165,7 +165,9 @@ const pruneStatements = (): PruneStatement[] => [
   ),
   boundedDelete(
     "strings",
-    sql`used_count = 0 AND created < ${isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS)}`,
+    sql`used_count = 0
+       AND created < ${isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS)}
+       AND (hold_until IS NULL OR hold_until < ${nowIso()})`,
   ),
   addressCachePruneStatement(),
   boundedDelete(

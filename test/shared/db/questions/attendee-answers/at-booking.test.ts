@@ -107,6 +107,7 @@ describeWithEnv("db > attendee answers > at booking", { db: true }, () => {
   test("records an assign-all question and skips one the listing does not ask", async () => {
     const { attendee, book, notes, size } = await seedBooking();
     const everyone = await createQuestion("Everyone?", {
+      answerLevel: "booking",
       assignAll: true,
       displayType: "free_text",
     });

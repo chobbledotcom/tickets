@@ -24,6 +24,36 @@ const PACKED_KEYS = [
   "site_token_index",
 ] as const;
 
+/* jscpd:ignore-start -- static data, not code */
+/** Every field of the logical metadata, by its name. */
+const METADATA_FIELDS = [
+  "_origin",
+  "address",
+  "allocations",
+  "answer_ids",
+  "balance_attendee_id",
+  "bundle",
+  "date",
+  "day_count",
+  "email",
+  "items",
+  "line_text_answer_ids",
+  "listing",
+  "modifiers",
+  "name",
+  "phone",
+  "price_proof",
+  "reservation_amount",
+  "site_token_index",
+  "special_instructions",
+  "tax_policy",
+  "text_answer_ids",
+  "thank_you_url",
+] as const satisfies readonly (keyof SessionMetadata)[];
+/* jscpd:ignore-end */
+
+type MetadataField = (typeof METADATA_FIELDS)[number];
+
 /** The single metadata key the packed small fields are stored under. */
 const PACKED_FIELD = "b";
 
@@ -77,31 +107,11 @@ export const extractSessionMetadata = (
 ): ValidatedPaymentSession["metadata"] => {
   const raw = metadata[PACKED_FIELD];
   const packed = raw ? parsePackedFields(raw) : {};
-  const get = (key: keyof SessionMetadata): string =>
-    packed[key] || metadata[key] || "";
-  return {
-    _origin: get("_origin"),
-    address: get("address"),
-    allocations: get("allocations"),
-    answer_ids: get("answer_ids"),
-    balance_attendee_id: get("balance_attendee_id"),
-    bundle: get("bundle"),
-    date: get("date"),
-    day_count: get("day_count"),
-    email: get("email"),
-    items: get("items"),
-    listing: get("listing"),
-    modifiers: get("modifiers"),
-    name: get("name"),
-    phone: get("phone"),
-    price_proof: get("price_proof"),
-    reservation_amount: get("reservation_amount"),
-    site_token_index: get("site_token_index"),
-    special_instructions: get("special_instructions"),
-    tax_policy: get("tax_policy"),
-    text_answer_ids: get("text_answer_ids"),
-    thank_you_url: get("thank_you_url"),
-  };
+  const fields = {} as Record<MetadataField, string>;
+  for (const key of METADATA_FIELDS) {
+    fields[key] = packed[key] || metadata[key] || "";
+  }
+  return fields;
 };
 
 /** Whether the receipt of a settled order keeps each order field. It keeps
@@ -119,6 +129,7 @@ const RECEIPT_KEEPS: Record<keyof SessionMetadata, boolean> = {
   day_count: false,
   email: false,
   items: true,
+  line_text_answer_ids: false,
   listing: false,
   modifiers: false,
   name: false,

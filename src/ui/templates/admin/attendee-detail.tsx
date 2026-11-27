@@ -14,10 +14,11 @@ import { compact, sumOf } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-dates.ts";
+import type { LineAnswerRow } from "#routes/admin/attendee-line-answers.ts";
 import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { answerRows } from "#templates/admin/answer-rows.ts";
+import { type AnswerRow, answerRows } from "#templates/admin/answer-rows.ts";
 import { Badge } from "#templates/components/badge.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { HeaderRow } from "#templates/components/header-row.tsx";
@@ -221,6 +222,29 @@ export const AttendeeBookingsTable = ({
   );
 };
 
+/** A headed table of answers, one row for each, with its notes under it. */
+const answersBlock = (
+  heading: string,
+  rows: readonly AnswerRow[],
+): JSX.Element => (
+  <PageBlock>
+    <h3>{heading}</h3>
+    <DetailTable>
+      {rows.map((row) => (
+        <DetailTableRow label={row.question}>
+          {row.answer}
+          {row.notes.map((note) => (
+            <>
+              <br />
+              <small>{note}</small>
+            </>
+          ))}
+        </DetailTableRow>
+      ))}
+    </DetailTable>
+  </PageBlock>
+);
+
 /**
  * The attendee's answers to custom questions, one row per answered question,
  * with a note under any answer that differs from the booking. Returns null
@@ -230,23 +254,26 @@ export const AttendeeAnswersTable = (
   selected: SelectedQuestionAnswers,
 ): JSX.Element | null => {
   const rows = answerRows(selected);
-  if (rows.length === 0) return null;
-  return (
-    <PageBlock>
-      <h3>{t("attendee_detail.answers")}</h3>
-      <DetailTable>
-        {rows.map((row) => (
-          <DetailTableRow label={row.question}>
-            {row.answer}
-            {row.notes.map((note) => (
-              <>
-                <br />
-                <small>{note}</small>
-              </>
-            ))}
-          </DetailTableRow>
-        ))}
-      </DetailTable>
-    </PageBlock>
-  );
+  return rows.length === 0
+    ? null
+    : answersBlock(t("attendee_detail.answers"), rows);
 };
+
+/**
+ * The attendee's answers to questions that ask once for each listing, one row
+ * for each answer, with the listing named. Returns null when there is nothing
+ * to show, so the caller can drop the section.
+ */
+export const AttendeeLineAnswersTable = (
+  rows: readonly LineAnswerRow[],
+): JSX.Element | null =>
+  rows.length === 0
+    ? null
+    : answersBlock(
+        t("attendee_detail.line_answers"),
+        rows.map(({ answer, name, notes }) => ({
+          answer,
+          notes,
+          question: name,
+        })),
+      );

@@ -1,3 +1,4 @@
+import { expect } from "@std/expect";
 import {
   attendeeAccount,
   revenueAccount,
@@ -21,8 +22,10 @@ import type {
 } from "#shared/merge/attendee-merge-types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { readStoredLineAnswers } from "#test-utils/db-helpers/line-answers.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
+import { testLineAnswer } from "#test-utils/factories-questions.ts";
 import type { ContactInfo } from "#types";
 
 /** Create a test attendee on a single listing. */
@@ -250,5 +253,35 @@ export const saveTextAnswer = (
   saveAttendeeAnswers(
     new Map([
       [attendeeId, { answerIds: [], textAnswers: [{ questionId, text }] }],
+    ]),
+  );
+
+/** Merge the source into the target, which must succeed, and give the texts
+ * of the target's line answers afterwards. */
+export const mergedLineTexts = async (
+  source: TestAttendee,
+  target: TestAttendee,
+): Promise<string[]> => {
+  const { result } = await runMerge({ source, target });
+  expect(result.success).toBe(true);
+  return (await readStoredLineAnswers(target.id)).map(({ text }) => text);
+};
+
+/** Save one answer for the first ticket of an attendee's own row on a listing. */
+export const saveLineAnswer = (
+  attendeeId: number,
+  listingId: number,
+  questionId: number,
+  text: string,
+) =>
+  saveAttendeeAnswers(
+    new Map([
+      [
+        attendeeId,
+        {
+          answerIds: [],
+          lineAnswers: [testLineAnswer(listingId, questionId, text)],
+        },
+      ],
     ]),
   );

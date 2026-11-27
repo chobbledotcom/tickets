@@ -13,7 +13,9 @@ import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import {
   bookingChoice,
   createAttendee,
+  createFreeTextQuestion,
   runMerge,
+  saveLineAnswer,
 } from "#test/shared/merge/attendee-merge/helpers.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -26,6 +28,7 @@ import { addLine, setupMulti, twoListings } from "./helpers.ts";
  * on a fresh listing. */
 const attendeeWithStaleEdit = async (
   bookings: Parameters<typeof setupMulti>[0],
+  removedLineAnswers: "refuse" | "delete" = "refuse",
 ) => {
   const { attendee, blob, existing } = await setupMulti(
     bookings,
@@ -39,7 +42,7 @@ const attendeeWithStaleEdit = async (
       attendee.id,
       [addLine(replacement.id)],
       new Map(existing.map(({ key, booking }) => [key, booking])),
-      false,
+      { allowOverbook: false, removedLineAnswers },
     ),
   ];
   return { attendee, existing, replacement, statements };
@@ -152,6 +155,47 @@ describeWithEnv(
       expect(
         await getAttendeeOrNull(attendee.id, await getTestPrivateKey()),
       ).toMatchObject({ email: "after@example.com", name: "Edited" });
+    });
+
+    /** A stale edit that removes a line, after the line gained an answer. */
+    const answeredStaleEdit = async (
+      removedLineAnswers: "refuse" | "delete",
+    ) => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const edit = await attendeeWithStaleEdit(
+        [{ listingId: listing.id, quantity: 1 }],
+        removedLineAnswers,
+      );
+      const question = await createFreeTextQuestion();
+      await saveLineAnswer(edit.attendee.id, listing.id, question.id, "Ava");
+      return edit;
+    };
+
+    test("rolls back a stale edit that removes a line which gained an answer", async () => {
+      const { attendee, existing, statements } =
+        await answeredStaleEdit("refuse");
+
+      await expect(executeBatchWithResults(statements)).rejects.toThrow();
+
+      expect(await loadExistingLines(attendee.id)).toEqual(existing);
+    });
+
+    test("a stale edit that may delete answers removes the line and its answer", async () => {
+      const { attendee, replacement, statements } =
+        await answeredStaleEdit("delete");
+
+      await executeBatchWithResults(statements);
+
+      expect(
+        (await loadExistingLines(attendee.id)).map(
+          ({ booking }) => booking.listing_id,
+        ),
+      ).toEqual([replacement.id]);
+      expect(
+        await queryOne(
+          sql`SELECT id FROM attendee_answers WHERE attendee_id = ${attendee.id}`,
+        ),
+      ).toBeNull();
     });
   },
 );

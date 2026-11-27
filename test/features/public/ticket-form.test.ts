@@ -19,12 +19,17 @@ import {
 import { FormParams } from "#shared/form-data.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { ticketContext, twoListingContext } from "#test-utils/ticket-ctx.ts";
+import {
+  oneListingTicketContext,
+  ticketContext,
+  twoListingContext,
+} from "#test-utils/ticket-ctx.ts";
 
 const question = (
   id: number,
   displayType: QuestionWithAnswers["displayType"],
 ): QuestionWithAnswers => ({
+  answerLevel: "booking",
   answers:
     displayType === "free_text"
       ? []
@@ -47,6 +52,7 @@ const question = (
 const answerInfo = (over: Partial<AnswerInfo>): AnswerInfo => ({
   activeQuestions: [],
   answerIds: [],
+  lineTextAnswers: [],
   selectedListingIds: new Set(),
   textAnswers: [],
   ...over,
@@ -140,6 +146,7 @@ describe("ticket form answer grouping", () => {
 
   test("skips an inactive-only choice question so answer ids stay aligned", () => {
     const inactiveOnly: QuestionWithAnswers = {
+      answerLevel: "booking",
       answers: [
         { active: false, id: 10, questionId: 1, sortOrder: 0, text: "Gone" },
       ],
@@ -361,8 +368,7 @@ describe("resolvePageDate", () => {
 
 describeWithEnv("ticket responses", { db: true }, () => {
   test("answers with the rendered page at 200 by default", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const ctx = await ticketContext([listing.id]);
+    const { ctx, listing } = await oneListingTicketContext();
 
     const response = ticketResponse(ctx)();
     expect(response.status).toBe(200);
@@ -370,8 +376,7 @@ describeWithEnv("ticket responses", { db: true }, () => {
   });
 
   test("carries the error and status it is given", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const ctx = await ticketContext([listing.id]);
+    const { ctx } = await oneListingTicketContext();
 
     const response = ticketResponse(ctx)("No room", 400);
     expect(response.status).toBe(400);

@@ -20,7 +20,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
+import {
+  seedListingLevelQuestion,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
@@ -200,6 +203,34 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     assertStringIncludes(body.text, "Anything else?: Arriving late");
   });
 
+  test("takes a checkout's staged ticket answers into its confirmation email", async () => {
+    const id = "cs_staged_ticket_answers";
+    const { data, listing } = await singleListingPayment(id, 1000);
+    const { question } = await seedListingLevelQuestion(
+      [listing.id],
+      "Pupil name",
+      "quantity",
+    );
+    const stringId = (await getOrCreateStringIds(["Ava"])).get("Ava")!;
+    const ticket = { g: 0, l: listing.id, p: 0, q: question.id, u: 0 };
+    data.intent.lineTextAnswerIds = [{ ...ticket, s: stringId }];
+    await stageCheckoutAnswers(
+      id,
+      { [`question${question.id}_line${listing.id}_0_0_ticket0`]: "Ava" },
+      null,
+    );
+    await configureTestEmail();
+
+    await withRequestContext(async () => {
+      expect((await processPaymentSession(id, data)).success).toBe(true);
+    });
+
+    assertStringIncludes(
+      fetch.getFetchJsonBody().text,
+      `Pupil name (${listing.name}, ticket 1): Ava`,
+    );
+  });
+
   test("a failed create batch writes nothing and keeps the staged answers", async () => {
     const id = "cs_batch_fails";
     const { data, freeText, listing } = await checkoutWithTypedAnswer(id);
@@ -226,7 +257,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     // The staged row survived the failed batch, so the provider's redelivery
     // reads the buyer's typed answers again.
     expect(await readCheckoutAnswers(id)).toEqual(
-      new Map([[freeText, "Arriving late"]]),
+      new Map([[String(freeText), "Arriving late"]]),
     );
     // The reservation was released, so the redelivery starts fresh.
     expect(

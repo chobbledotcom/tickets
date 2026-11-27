@@ -30,6 +30,7 @@ import {
   renderDayCountSelector,
   renderTermsAndCheckbox,
 } from "./controls.ts";
+import type { PageLine } from "./line-questions.tsx";
 import { renderQuestions } from "./questions.tsx";
 import type { BookingPrefill } from "./types.ts";
 
@@ -181,6 +182,7 @@ export const TicketPageForm = ({
   isSingleListing,
   questions,
   questionListingMap,
+  answerLines,
   terms,
   prefill,
   addOns,
@@ -205,6 +207,8 @@ export const TicketPageForm = ({
   isSingleListing: boolean;
   questions: QuestionWithAnswers[] | undefined;
   questionListingMap: QuestionListingMap | undefined;
+  /** The booked listings a question can ask once for each of. */
+  answerLines: readonly PageLine[];
   terms: string | null | undefined;
   prefill?: BookingPrefill | undefined;
   addOns: AddOnOption[] | undefined;
@@ -243,7 +247,7 @@ export const TicketPageForm = ({
 
       {questions &&
         questions.length > 0 &&
-        renderQuestions(questions, questionListingMap)}
+        renderQuestions(questions, questionListingMap, answerLines)}
       {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
       {promoCodesEnabled && <PromoCodeField prefilled={prefill?.promo} />}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}

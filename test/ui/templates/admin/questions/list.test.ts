@@ -5,7 +5,7 @@ import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { testAnswer, testQuestion } from "#test-utils/factories.ts";
+import { testAnswer, testQuestion } from "#test-utils/factories-questions.ts";
 import { setupQuestionPageTest } from "./fixtures.ts";
 
 describe("adminQuestionsPage", () => {

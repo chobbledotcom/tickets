@@ -433,7 +433,7 @@ export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
     },
     {
       description:
-        "Update a booking. Every field is optional, and a field the body leaves out keeps its stored value. lines is the complete set of booking lines, and a stored line that no line names is removed. payments and adjustments are the complete lists, in the create's shape: a receipt that is already stored adds nothing, and a receipt already stored as different money is refused. A line change moves no money. The ticketToken and created fields name the booking, so an update refuses both.",
+        "Update a booking. Every field is optional, and a field the body leaves out keeps its stored value. lines is the complete set of booking lines, and a stored line that no line names is removed. A removed line takes its answers with it, so the update refuses to remove a line that holds answers unless deleteRemovedAnswers is true. payments and adjustments are the complete lists, in the create's shape: a receipt that is already stored adds nothing, and a receipt already stored as different money is refused. A line change moves no money. The ticketToken and created fields name the booking, so an update refuses both.",
       fields: ATTENDEE_FIELD_DOCS.update,
       method: "PUT",
       path: "/api/admin/attendees/:attendeeId",

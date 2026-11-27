@@ -91,6 +91,7 @@ const orderFrom = (
     dayCount: wholeNumberField(metadata.day_count),
     email: metadata.email,
     items: parseBookingItems(metadata.items),
+    lineTextAnswerIds: parseAnswerRefs(metadata.line_text_answer_ids),
     listingAnswerIds: parseAnswerRefs(metadata.answer_ids),
     listingTextAnswerIds: parseAnswerRefs(metadata.text_answer_ids),
     modifiers: parseModifierRefs(metadata.modifiers),

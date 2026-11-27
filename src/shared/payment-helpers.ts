@@ -162,6 +162,19 @@ export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
   )(intent.items);
 };
 
+/** One metadata entry, or none when the value is missing or blank. */
+const entry = (
+  name: string,
+  value: string | null | undefined,
+): Record<string, string> => (value ? { [name]: value } : {});
+
+/** A list as one JSON entry, or none when the list is missing or empty. */
+const listEntry = (
+  name: string,
+  list: readonly unknown[] | undefined,
+): Record<string, string> =>
+  list?.length ? { [name]: JSON.stringify(list) } : {};
+
 /**
  * Spread optional contact/date fields into metadata (only if truthy).
  *
@@ -174,13 +187,11 @@ const optionalFields = (
     Pick<ContactInfo, "phone" | "address" | "special_instructions">
   > & { date: string | null; dayCount?: number | undefined },
 ): Record<string, string> => ({
-  ...(intent.phone ? { phone: intent.phone } : {}),
-  ...(intent.address ? { address: intent.address } : {}),
-  ...(intent.special_instructions
-    ? { special_instructions: intent.special_instructions }
-    : {}),
-  ...(intent.date ? { date: intent.date } : {}),
-  ...(intent.dayCount ? { day_count: String(intent.dayCount) } : {}),
+  ...entry("phone", intent.phone),
+  ...entry("address", intent.address),
+  ...entry("special_instructions", intent.special_instructions),
+  ...entry("date", intent.date),
+  ...entry("day_count", intent.dayCount ? String(intent.dayCount) : null),
 });
 
 /** Serialize a per-listing answer map for metadata, or nothing when it is empty. */
@@ -190,9 +201,6 @@ const answerIdsField =
     byListing && Object.keys(byListing).length > 0
       ? { [name]: JSON.stringify(byListing) }
       : {};
-
-const listingAnswerIdsField = answerIdsField("answer_ids");
-const listingTextAnswerIdsField = answerIdsField("text_answer_ids");
 
 /** Convert single-listing answerIds to the per-listing format used in metadata */
 export const singleListingAnswerIds = (
@@ -303,6 +311,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "address"
       | "special_instructions"
       | "dayCount"
+      | "lineTextAnswerIds"
       | "listingAnswerIds"
       | "listingTextAnswerIds"
       | "siteTokenIndex"
@@ -326,23 +335,19 @@ export const buildMetadata = (
   items: JSON.stringify(intent.items),
   name: intent.name,
   ...optionalFields(intent),
-  ...listingAnswerIdsField(intent.listingAnswerIds),
-  ...listingTextAnswerIdsField(intent.listingTextAnswerIds),
-  ...(intent.siteTokenIndex ? { site_token_index: intent.siteTokenIndex } : {}),
-  ...(intent.balanceAttendeeId
-    ? { balance_attendee_id: String(intent.balanceAttendeeId) }
-    : {}),
-  ...(intent.reservationAmount
-    ? { reservation_amount: intent.reservationAmount }
-    : {}),
-  ...(intent.modifiers?.length
-    ? { modifiers: JSON.stringify(intent.modifiers) }
-    : {}),
-  ...(intent.taxPolicy ? { tax_policy: JSON.stringify(intent.taxPolicy) } : {}),
-  ...(intent.thankYouUrl ? { thank_you_url: intent.thankYouUrl } : {}),
-  ...(intent.allocations?.length
-    ? { allocations: JSON.stringify(intent.allocations) }
-    : {}),
+  ...answerIdsField("answer_ids")(intent.listingAnswerIds),
+  ...answerIdsField("text_answer_ids")(intent.listingTextAnswerIds),
+  ...listEntry("line_text_answer_ids", intent.lineTextAnswerIds),
+  ...entry("site_token_index", intent.siteTokenIndex),
+  ...entry(
+    "balance_attendee_id",
+    intent.balanceAttendeeId ? String(intent.balanceAttendeeId) : null,
+  ),
+  ...entry("reservation_amount", intent.reservationAmount),
+  ...listEntry("modifiers", intent.modifiers),
+  ...entry("tax_policy", intent.taxPolicy && JSON.stringify(intent.taxPolicy)),
+  ...entry("thank_you_url", intent.thankYouUrl),
+  ...listEntry("allocations", intent.allocations),
 });
 
 /**

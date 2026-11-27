@@ -160,5 +160,18 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-24_subscription_index",
     () => import("./2026-11-24_subscription_index.ts"),
   ),
+  // A free-text question can ask once for each booked listing. The answer of
+  // one listing names its booking row. The id sorts after the newest id that a
+  // released build holds, so an older build refuses a backup that holds it.
+  entry(
+    "2026-11-25_question_answer_level",
+    () => import("./2026-11-25_question_answer_level.ts"),
+  ),
+  // A Square checkout holds the strings of its typed answers while its link
+  // can still take payment.
+  entry(
+    "2026-11-27_string_hold_until",
+    () => import("./2026-11-27_string_hold_until.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

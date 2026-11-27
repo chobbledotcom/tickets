@@ -29,6 +29,7 @@ import {
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { hiddenPackageWithMember } from "#test-utils/hidden-package.ts";
 import {
+  oneListingTicketContext,
   prepareTestOrder,
   quantityForm,
   ticketContext,
@@ -76,8 +77,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
     });
 
     test("refuses an order that selected no tickets", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-      const ctx = await ticketContext([listing.id]);
+      const { ctx, listing } = await oneListingTicketContext();
       const result = await prepareOrder(ctx, quantityForm({ [listing.id]: 0 }));
       expect(result.ok).toBe(false);
       if (result.ok) return;
@@ -237,8 +237,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
 
   describe("the promo code", () => {
     test("carries the code the buyer typed", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-      const ctx = await ticketContext([listing.id]);
+      const { ctx, listing } = await oneListingTicketContext();
       const form = quantityForm({ [listing.id]: 1 });
       form.set("promoCode", "SAVE10");
 

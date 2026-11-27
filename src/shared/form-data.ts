@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Utilities for reading values from form data (URLSearchParams).
  */

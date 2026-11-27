@@ -146,7 +146,7 @@ const batchFactFor = async (scenario: Scenario): Promise<BatchFact> => {
         ATTENDEE_ID,
         scenario.desired,
         existingKeyMap(scenario),
-        false,
+        { allowOverbook: false, removedLineAnswers: "refuse" },
       ),
       "write",
     );

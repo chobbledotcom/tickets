@@ -29,8 +29,8 @@ const boundaries = [
 ] as const;
 
 const answers = { "7": "Keep my answers" };
-const expectedAnswers = (kept: boolean): Map<number, string> =>
-  kept ? new Map([[7, answers["7"]]]) : new Map();
+const expectedAnswers = (kept: boolean): Map<string, string> =>
+  kept ? new Map([["7", answers["7"]]]) : new Map();
 
 const setCreatedAt = async (session: string, createdAt: string) => {
   await runWrite(
