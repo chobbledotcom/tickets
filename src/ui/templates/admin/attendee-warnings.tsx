@@ -6,7 +6,9 @@ import type { LineAnswerRow } from "#routes/admin/attendee-line-answers.ts";
 import type {
   AttendeePageWarnings,
   AttendeeWarning,
+  WarningsByAttendee,
 } from "#routes/admin/attendee-warnings.ts";
+import { AttendeeAlertsSummary } from "#templates/admin/attendee-notes.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 
 /** What the page knows besides the warning itself. */
@@ -100,3 +102,21 @@ export const AttendeeWarningsBox = ({
       ))}
     </section>
   );
+
+/** The warnings summary above an attendee list: each listed attendee with
+ * warnings, and the words of each warning. */
+export const AttendeeWarningsSummary = ({
+  names,
+  warnings,
+}: {
+  names: Map<number, string>;
+  warnings: WarningsByAttendee;
+}): JSX.Element | null =>
+  AttendeeAlertsSummary({
+    alerts: warnings,
+    names,
+    render: (warning: AttendeeWarning) => (
+      <div class="system-note">{messageOf(warning)}</div>
+    ),
+    summary: (count) => t("attendee_warnings.summary", { count }),
+  });

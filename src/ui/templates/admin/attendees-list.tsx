@@ -7,6 +7,7 @@
 
 import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
+import type { WarningsByAttendee } from "#routes/admin/attendee-warnings.ts";
 import type {
   AttendeeListSetup,
   AttendeeListState,
@@ -14,6 +15,7 @@ import type {
 } from "#shared/attendee-list-controls.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
+import { AttendeeWarningsSummary } from "#templates/admin/attendee-warnings.tsx";
 import { FilteredAttendeeTable } from "#templates/attendee-table/controls.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
@@ -36,6 +38,7 @@ export type AttendeesListPageProps = {
   systemNotes: SystemNote[];
   /** Attendee id → display name, for labelling notes in the summary. */
   names: Map<number, string>;
+  warnings: WarningsByAttendee;
 };
 
 /** Admin attendees browser page */
@@ -45,6 +48,10 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
     body: (
       <>
         <PageBlock>
+          <AttendeeWarningsSummary
+            names={props.names}
+            warnings={props.warnings}
+          />
           <AttendeeNotesSummary
             isOwner={isOwnerRole(props.session.adminLevel)}
             names={props.names}

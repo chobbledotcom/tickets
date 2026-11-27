@@ -44,6 +44,7 @@ import { getListingChoiceAnswerMap } from "#db/questions/attendee-answers/reads.
 import { getQuestionsForListing } from "#db/questions/queries.ts";
 import { settings } from "#db/settings.ts";
 import { unique } from "#fp";
+import { loadAttendeeWarnings } from "#routes/admin/attendee-warnings.ts";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {
   type ListingPublicPageState,
@@ -250,6 +251,7 @@ export const loadListingRosterPanel = async (
     systemNotes,
     paymentReferenceAttendeeIds,
     pairBookings,
+    warnings,
   ] = await Promise.all([
     loadListingQuestionData(
       listing.id,
@@ -267,6 +269,7 @@ export const loadListingRosterPanel = async (
     ),
     getAttendeeIdsWithPaymentReference(filteredByDate),
     getPairBookings(filteredByDate.map(linePair)),
+    loadAttendeeWarnings(unique(filteredByDate.map((a) => a.id))),
   ]);
   await addNoteImageUrls(systemNotes);
   return ListingRosterPanel({
@@ -284,6 +287,7 @@ export const loadListingRosterPanel = async (
     phonePrefix: settings.phonePrefix,
     questionData,
     systemNotes,
+    warnings,
   });
 };
 

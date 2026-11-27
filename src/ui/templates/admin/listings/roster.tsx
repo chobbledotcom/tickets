@@ -9,6 +9,7 @@ import {
 } from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
+import { AttendeeWarningsSummary } from "#templates/admin/attendee-warnings.tsx";
 import {
   buildStatDetailRows,
   calculateTotalRevenue,
@@ -97,6 +98,7 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
     groupContext,
     systemNotes = [],
   } = opts;
+  const names = fieldById("name")(attendees);
   return (
     <>
       {DailyCapacityDetailTable({
@@ -111,9 +113,10 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         ),
         sharedRows: v.sharedRows,
       })}
+      <AttendeeWarningsSummary names={names} warnings={opts.warnings} />
       <AttendeeNotesSummary
         isOwner={opts.isOwner}
-        names={fieldById("name")(attendees)}
+        names={names}
         notes={systemNotes}
       />
       <AttendeesSection

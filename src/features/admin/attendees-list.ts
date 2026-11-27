@@ -13,6 +13,7 @@ import { loadNotesForAttendees } from "#db/notes/queries.ts";
 import { settings } from "#db/settings.ts";
 import { fieldById, filter, unique } from "#fp";
 import { csvResponse } from "#routes/admin/actions.ts";
+import { loadAttendeeWarnings } from "#routes/admin/attendee-warnings.ts";
 import {
   generateCalendarCsv,
   toCalendarAttendees,
@@ -151,9 +152,10 @@ export const handleAttendeesListGet: TypedRouteHandler<
         sortListings(setup.listings, holidays),
       );
       const attendeeIds = unique(decrypted.map((a) => a.id));
-      const systemNotes = await loadNotesForAttendees(attendeeIds, () =>
-        Promise.resolve(privateKey),
-      );
+      const [systemNotes, warnings] = await Promise.all([
+        loadNotesForAttendees(attendeeIds, () => Promise.resolve(privateKey)),
+        loadAttendeeWarnings(attendeeIds),
+      ]);
 
       await addNoteImageUrls(systemNotes);
       return htmlResponse(
@@ -167,6 +169,7 @@ export const handleAttendeesListGet: TypedRouteHandler<
           setup,
           state,
           systemNotes,
+          warnings,
         }),
       );
     },

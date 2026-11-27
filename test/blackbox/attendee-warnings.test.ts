@@ -84,6 +84,15 @@ const STALE_DELETES: [string, number, number, string, string][] = [
   ],
 ];
 
+/** The lists of attendees that sum up their warnings, and their paths. */
+const LIST_PAGES: [string, (shop: Shop) => string][] = [
+  ["the attendees page", () => "/admin/attendees"],
+  [
+    "a listing's attendees tab",
+    (shop) => `/admin/listing/${shop.discoA.id}/attendees`,
+  ],
+];
+
 describeWithEnv("the warnings about an attendee", { db: true }, () => {
   test("an answer for a ticket that the booking no longer takes shows in a warning on every tab", async () => {
     const shop = await bookedThree();
@@ -217,4 +226,23 @@ describeWithEnv("the warnings about an attendee", { db: true }, () => {
     );
     expect(await tabText(shop)).toContain(hidden(2));
   });
+
+  for (const [list, path] of LIST_PAGES) {
+    test(`${list} names each attendee with warnings, and what is wrong`, async () => {
+      const shop = await bookedThree();
+      await setQuantity(shop, 2);
+
+      const page = textOf((await shop.owner.get(path(shop))).html);
+
+      expect(page).toContain(`1 attendee has warnings PTA Parent ${hidden(1)}`);
+    });
+
+    test(`${list} shows no warnings summary when no attendee has one`, async () => {
+      const shop = await bookedThree();
+
+      const page = textOf((await shop.owner.get(path(shop))).html);
+
+      expect(page).not.toContain("has warnings");
+    });
+  }
 });
