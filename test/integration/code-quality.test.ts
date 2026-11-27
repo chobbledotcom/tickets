@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  AGGREGATION_MODULES,
-  ALLOWED_TEST_HOOKS,
-  LIBRARY_PATHS,
-} from "#test/integration/code-quality/allowlists.ts";
+import { ALLOWED_TEST_HOOKS } from "#test/integration/code-quality/allowlists.ts";
 import {
   detectAliasing,
   detectModuleLevelLet,
@@ -179,13 +175,9 @@ describe("code quality", () => {
   describe("no test-only exports", () => {
     /**
      * Detects exports that exist solely to be tested, violating the principle of
-     * testing outcomes rather than implementation. Excluded from checking:
-     * library modules (fp/*), JSX runtimes, and index files that only re-export.
+     * testing outcomes rather than implementation. No source file is skipped.
      * (Test utilities live under test/, so this src-only rule never sees them.)
      */
-    const shouldSkipFile = (relativePath: string): boolean =>
-      LIBRARY_PATHS.includes(relativePath) ||
-      AGGREGATION_MODULES.includes(relativePath);
 
     test("exports from src/ should be used in production code, not just tests", async () => {
       const scan = await ensureLoaded();
@@ -195,8 +187,6 @@ describe("code quality", () => {
 
       for (const file of [...scan.srcFiles, ...scan.srcTsxFiles]) {
         const relativePath = getRelativePath(file);
-        if (shouldSkipFile(relativePath)) continue;
-
         violations.push(
           ...findTestOnlyExportViolations(
             file,

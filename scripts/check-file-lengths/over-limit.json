@@ -1,6 +1,6 @@
 {
   "src/features/auth.ts": 688,
-  "src/fp.ts": 585,
+  "src/fp.ts": 545,
   "src/shared/db/attendees/servicing.ts": 754,
   "src/shared/db/client.ts": 757,
   "src/shared/db/groups.ts": 691,

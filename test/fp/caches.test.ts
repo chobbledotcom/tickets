@@ -1,14 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  asString,
-  bracket,
-  collectionCache,
-  firstMatch,
-  lazyRef,
-  once,
-  ttlCache,
-} from "#fp";
+import { asString, bracket, firstMatch, lazyRef, once, ttlCache } from "#fp";
 
 const logBracket = (asPromise = false) => {
   const log: string[] = [];
@@ -26,14 +18,18 @@ const logBracket = (asPromise = false) => {
   return { log, withResource };
 };
 
-const testBracketUse = async (asPromise = false) => {
+const bracketUse = async (asPromise = false) => {
   const { log, withResource } = logBracket(asPromise);
   const result = await withResource((resource) => {
     log.push(`use: ${resource}`);
     return asPromise ? Promise.resolve("done") : "done";
   });
-  expect(result).toBe("done");
-  expect(log).toEqual(["acquire", "use: resource", "release"]);
+  return { log, result };
+};
+
+const BRACKET_USE = {
+  log: ["acquire", "use: resource", "release"],
+  result: "done",
 };
 
 const timedTtl = (ttl: number) => {
@@ -45,38 +41,6 @@ const timedTtl = (ttl: number) => {
       time = next;
     },
   };
-};
-
-const trackedCollection = (fetchFn?: (count: number) => unknown[]) => {
-  let time = 0;
-  const calls: number[] = [];
-  const fetcher = () => {
-    calls.push(1);
-    const items = fetchFn ? fetchFn(calls.length) : [1, 2, 3];
-    return Promise.resolve(items);
-  };
-  const cache = collectionCache(fetcher, 100, () => time);
-  return {
-    cache,
-    calls,
-    setTime: (next: number) => {
-      time = next;
-    },
-  };
-};
-
-const fetchedDynCollection = async () => {
-  const tracked = trackedCollection((count) => [count]);
-  await tracked.cache.getAll();
-  expect(tracked.calls.length).toBe(1);
-  return tracked;
-};
-
-const expectRefetched = async (
-  tracked: ReturnType<typeof trackedCollection>,
-) => {
-  expect(await tracked.cache.getAll()).toEqual([2]);
-  expect(tracked.calls.length).toBe(2);
 };
 
 describe("fp caches and resources", () => {
@@ -189,7 +153,9 @@ describe("fp caches and resources", () => {
   });
 
   describe("bracket", () => {
-    test("acquires and releases resource", () => testBracketUse());
+    test("acquires and releases resource", async () => {
+      expect(await bracketUse()).toEqual(BRACKET_USE);
+    });
 
     test("releases resource even on error", async () => {
       const { log, withResource } = logBracket();
@@ -202,7 +168,9 @@ describe("fp caches and resources", () => {
       expect(log).toEqual(["acquire", "use", "release"]);
     });
 
-    test("works with async acquire and release", () => testBracketUse(true));
+    test("works with async acquire and release", async () => {
+      expect(await bracketUse(true)).toEqual(BRACKET_USE);
+    });
   });
 
   describe("ttlCache", () => {
@@ -300,76 +268,6 @@ describe("fp caches and resources", () => {
       }
       expect(cache.size()).toBe(1010);
       expect(cache.get(0)).toBe(0);
-    });
-  });
-
-  describe("collectionCache", () => {
-    test("fetches on first call and caches within TTL", async () => {
-      const { cache, calls, setTime } = trackedCollection();
-      const initial = await cache.getAll();
-      expect(initial).toEqual([1, 2, 3]);
-      expect(calls.length).toBe(1);
-      setTime(50);
-      expect(await cache.getAll()).toBe(initial);
-    });
-
-    test("refetches after TTL expires", async () => {
-      const tracked = await fetchedDynCollection();
-      tracked.setTime(101);
-      await expectRefetched(tracked);
-    });
-
-    test("keeps the collection exactly until the TTL is passed", async () => {
-      const tracked = await fetchedDynCollection();
-      tracked.setTime(100);
-      expect(await tracked.cache.getAll()).toEqual([1]);
-      expect(tracked.calls.length).toBe(1);
-    });
-
-    test("refetches after invalidate", async () => {
-      const tracked = await fetchedDynCollection();
-      tracked.cache.invalidate();
-      await expectRefetched(tracked);
-    });
-
-    test("invalidate resets TTL timer", async () => {
-      const tracked = await fetchedDynCollection();
-      tracked.setTime(80);
-      tracked.cache.invalidate();
-      await tracked.cache.getAll();
-      tracked.setTime(150);
-      await expectRefetched(tracked);
-    });
-
-    test("size reflects load and invalidate lifecycle", async () => {
-      const { cache } = trackedCollection();
-      expect(cache.size()).toBe(0);
-      await cache.getAll();
-      expect(cache.size()).toBe(3);
-      cache.invalidate();
-      expect(cache.size()).toBe(0);
-    });
-
-    test("invalidation during in-flight fetch prevents stale cache", async () => {
-      let resolveFetch!: (items: number[]) => void;
-      const cache = collectionCache(
-        () =>
-          new Promise<number[]>((resolve) => {
-            resolveFetch = resolve;
-          }),
-        100,
-        () => 0,
-      );
-      const fetchPromise = cache.getAll();
-      cache.invalidate();
-      resolveFetch([1, 2]);
-      expect(await fetchPromise).toEqual([1, 2]);
-      expect(cache.size()).toBe(0);
-
-      const freshPromise = cache.getAll();
-      resolveFetch([1, 2, 3]);
-      expect(await freshPromise).toEqual([1, 2, 3]);
-      expect(cache.size()).toBe(3);
     });
   });
 });
