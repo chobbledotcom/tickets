@@ -849,6 +849,7 @@
   "test/integration/server/webhooks/refund-helper-functions.test.ts": 3,
   "test/integration/server/webhooks/refund-logging.test.ts": 1,
   "test/integration/server/webhooks/refund-skip-conditions.test.ts": 3,
+  "test/integration/server/webhooks/sealed-order-settled.test.ts": 1,
   "test/integration/server/webhooks/session-resolution.test.ts": 1,
   "test/integration/server/webhooks/signature-validation.test.ts": 1,
   "test/integration/server/webhooks/single-ticket-booking.test.ts": 1,

@@ -6,10 +6,12 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  CHECKOUT_BUNDLE_RETENTION_MS,
   openCheckoutBundle,
+  rewriteCheckoutBundle,
   sealCheckoutBundle,
 } from "#db/checkout-bundles.ts";
-import { queryOne } from "#db/client.ts";
+import { queryAll, queryOne } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { runWrite } from "#test-utils/raw-db.ts";
@@ -23,7 +25,17 @@ const onlyRow = () =>
     sql`SELECT token_index, sealed FROM checkout_bundles`,
   );
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The 60 minutes in which the checkout can be paid, then the 3 days in which
+ * the provider can retry. */
+const CHECKOUT_AND_RETRY_MS = 60 * 60 * 1000 + 3 * DAY_MS;
+
 describeWithEnv("checkout bundles", { db: true }, () => {
+  test("keeps a bundle for its checkout and retry windows, however short the payment rows are kept", () => {
+    expect(CHECKOUT_BUNDLE_RETENTION_MS).toBe(CHECKOUT_AND_RETRY_MS);
+  });
+
   test("opens what was sealed, with the token alone", async () => {
     const token = await sealCheckoutBundle(ORDER);
 
@@ -31,6 +43,31 @@ describeWithEnv("checkout bundles", { db: true }, () => {
       record: ORDER,
       status: "opened",
     });
+  });
+
+  test("rewrites the bundle of its own token only, and keeps the time it was sealed", async () => {
+    const settled = await sealCheckoutBundle(ORDER);
+    const other = await sealCheckoutBundle({
+      ...ORDER,
+      email: "sam@example.com",
+    });
+    const sealedAt = () =>
+      queryAll<{ created_at: string }>(
+        sql`SELECT created_at FROM checkout_bundles ORDER BY created_at`,
+      );
+    const before = await sealedAt();
+
+    await rewriteCheckoutBundle(settled, { items: ORDER.items });
+
+    expect(await openCheckoutBundle(settled)).toEqual({
+      record: { items: ORDER.items },
+      status: "opened",
+    });
+    expect(await openCheckoutBundle(other)).toEqual({
+      record: { ...ORDER, email: "sam@example.com" },
+      status: "opened",
+    });
+    expect(await sealedAt()).toEqual(before);
   });
 
   test("refuses to seal a record that holds a value that is not text", async () => {

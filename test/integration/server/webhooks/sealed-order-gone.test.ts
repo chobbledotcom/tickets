@@ -7,7 +7,7 @@
  * a stored row needs the database, because no visitor can delete one. */
 
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { PaymentRowState } from "#payment/row-state.ts";
@@ -17,9 +17,9 @@ import {
   checkOut,
   checkOutBalance,
   deliverPayment,
-  openCardShop,
   returnPage,
   rosterOf,
+  useCardShop,
 } from "#test/blackbox/card-shop.ts";
 import type { FakeCheckout } from "#test/blackbox/fake-stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -90,15 +90,7 @@ describeWithEnv(
   "a sealed card checkout whose order is gone",
   { db: true },
   () => {
-    let shop: CardShop | undefined;
-    const open = async () => {
-      shop = await openCardShop();
-      return shop;
-    };
-    afterEach(async () => {
-      await shop?.fake.close();
-      shop = undefined;
-    });
+    const { checkedOut, open } = useCardShop();
 
     const loseOrders = () => runWrite(sql`DELETE FROM checkout_bundles`);
 
@@ -129,47 +121,56 @@ describeWithEnv(
     const logged = async (opened: CardShop, line: string) =>
       timesIn((await opened.owner.get("/admin/log")).html, line);
 
+    /** What the buyer's return page answers for a session whose order is gone,
+     * how often the admin sees its report, and that nothing was booked or
+     * refunded. */
+    const expectReturnAnswer = async (
+      opened: CardShop,
+      checkout: FakeCheckout,
+      answer: { message: string; seen: typeof NOT_REPORTED; status: number },
+    ) => {
+      const page = await returnPage(checkout);
+
+      expect(page.status).toBe(answer.status);
+      expect(page.html).toContain(answer.message);
+      expect(await shown(opened, reportOf(checkout, "bundle_missing"))).toEqual(
+        answer.seen,
+      );
+      await expectNothingBookedOrRefunded(opened);
+    };
+
     test("a paid session that is not settled is reported once, refused for a retry, and never refunded", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       const report = reportOf(checkout, "bundle_missing");
       expect(await shown(opened, report)).toEqual(NOT_REPORTED);
       await loseOrders();
 
       expect((await deliverPayment(opened, checkout)).status).toBe(503);
       expect((await deliverPayment(opened, checkout)).status).toBe(503);
-      const page = await returnPage(checkout);
 
-      expect(page.status).toBe(503);
-      expect(page.html).toContain(t("payment.error.verification_failed"));
-      expect(await shown(opened, report)).toEqual({
-        activity: 1,
-        error: 3,
-        note: 1,
+      await expectReturnAnswer(opened, checkout, {
+        message: t("payment.error.verification_failed"),
+        seen: { activity: 1, error: 3, note: 1 },
+        status: 503,
       });
-      await expectNothingBookedOrRefunded(opened);
     });
 
     test("a delivery that finds another delivery's reservation on a gone order is told to wait, with no note", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       await loseOrders();
       await reservedPayment(checkout.id);
 
       expect((await deliverPayment(opened, checkout)).status).toBe(409);
-      const page = await returnPage(checkout);
 
-      expect(page.status).toBe(409);
-      expect(page.html).toContain(t("payment.error.being_processed"));
-      expect(await shown(opened, reportOf(checkout, "bundle_missing"))).toEqual(
-        NOT_REPORTED,
-      );
-      await expectNothingBookedOrRefunded(opened);
+      await expectReturnAnswer(opened, checkout, {
+        message: t("payment.error.being_processed"),
+        seen: NOT_REPORTED,
+        status: 409,
+      });
     });
 
     test("an order that will not open is reported with its own reason, and never refunded", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       await runWrite(sql`UPDATE checkout_bundles SET sealed = ${"enc:1:AAAA"}`);
 
       expect((await deliverPayment(opened, checkout)).status).toBe(503);
@@ -180,26 +181,40 @@ describeWithEnv(
       await expectNothingBookedOrRefunded(opened);
     });
 
-    test("the return page alone reports a paid session that is not settled", async () => {
+    test("a receipt whose payment row was pruned books nobody, even after the listing reopens", async () => {
       const opened = await open();
       const checkout = await checkOut(opened);
+      const turnListing = (route: "deactivate" | "reactivate") =>
+        opened.api.post(
+          `/api/admin/listings/${opened.listing.id}/${route}`,
+          {},
+        );
+      await turnListing("deactivate");
+      await deliverPayment(opened, checkout);
+      await runWrite(sql`DELETE FROM processed_payments`);
+      await turnListing("reactivate");
+
+      const replay = await deliverPayment(opened, checkout);
+
+      expect(replay.status).toBe(503);
+      expect(await rosterOf(opened)).toEqual([]);
+    });
+
+    test("the return page alone reports a paid session that is not settled", async () => {
+      const { checkout, opened } = await checkedOut();
       await loseOrders();
       opened.fake.pay(checkout);
 
-      const page = await returnPage(checkout);
-
-      expect(page.status).toBe(503);
-      expect(page.html).toContain(t("payment.error.verification_failed"));
-      expect(await shown(opened, reportOf(checkout, "bundle_missing"))).toEqual(
-        { activity: 1, error: 1, note: 1 },
-      );
-      await expectNothingBookedOrRefunded(opened);
+      await expectReturnAnswer(opened, checkout, {
+        message: t("payment.error.verification_failed"),
+        seen: { activity: 1, error: 1, note: 1 },
+        status: 503,
+      });
     });
 
     for (const [name, work, mirror] of BOOKED_ROWS) {
       test(`a booked session whose payment row ${name} answers as settled, with no report`, async () => {
-        const opened = await open();
-        const checkout = await checkOut(opened);
+        const { checkout, opened } = await checkedOut();
         await deliverPayment(opened, checkout);
         if (work !== null) {
           await putRowState(checkout.id, await rowStateSlot(work), mirror);
@@ -232,8 +247,7 @@ describeWithEnv(
     }
 
     test("a refunded session shows its refund message, not success, and is not refunded again", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       await deliverPayment(opened, checkout, { charged: 1999 });
       await loseOrders();
 
@@ -291,8 +305,7 @@ describeWithEnv(
     }
 
     test("the cancel page still answers, with no link back to the booking page", async () => {
-      const opened = await open();
-      const checkout = await checkOut(opened);
+      const { checkout, opened } = await checkedOut();
       const retryLink = `href="/ticket/${opened.listing.slug}"`;
       expect((await cancelPage(checkout)).html).toContain(retryLink);
       await loseOrders();

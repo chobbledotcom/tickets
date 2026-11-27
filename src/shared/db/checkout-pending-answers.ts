@@ -93,3 +93,8 @@ export const dropCheckoutAnswersStatement = async (
   deleteFrom(tables.checkout_pending_answers).where({
     sessionIndex: await hmacHash(sessionId),
   });
+
+/** Take back the answers staged for a checkout that ended with no booking. */
+export const dropCheckoutAnswers = async (sessionId: string): Promise<void> => {
+  await execute(await dropCheckoutAnswersStatement(sessionId));
+};

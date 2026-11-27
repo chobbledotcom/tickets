@@ -53,7 +53,7 @@ src/features/api/public-listing.ts::buildChildPublicListings~1eo8erl ??→||  au
 src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → || audited:1sm34tf # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
 src/shared/payment-helpers.ts::orderRecord.taxPolicy~1exa23e  ?? → || audited:1sm34tf # intent.taxPolicy: TaxPolicy|undefined — a TaxPolicy is a valibot object, always truthy, so only undefined reaches settings.tax either way
 src/shared/payments.ts::createActiveCheckout.provider~1d3a308  Payments are on with no provider → "" audited:0yhcw4j # unreachable: both callers (booking.ts, folded-booking.ts) run it only after isPaymentsEnabled(), which needs settings.paymentProvider set, so getActivePaymentProvider always loads a provider and requireValue never raises this message
-src/shared/session-metadata.ts::parsePackedFields~0lfi795  || → && audited:06o8ebx # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/session-metadata.ts::parsePackedFields~0lfi795  || → && audited:11a868r # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
 
 # The SumUp machine has no split move. Representative tags label only the test
 # matrix, and `expected` ignores its tag for every plain or absent cell.

@@ -3,6 +3,7 @@
 import { decrypt } from "#crypto/encryption.ts";
 import { addressCachePruneStatement } from "#db/address-cache.ts";
 import { attendeesRemoval } from "#db/attendees/delete.ts";
+import { CHECKOUT_BUNDLE_RETENTION_MS } from "#db/checkout-bundles.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
 import { orphanIdsBatch } from "#db/orphan-attendees.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_MS } from "#db/processed-scan-operations.ts";
@@ -141,14 +142,14 @@ const pruneStatements = (): PruneStatement[] => [
          )
        )`,
   ),
-  // A sealed order outlives every provider retry and replay, because the
-  // payments clock is never shorter than the retry window. A Square order
-  // also waits for the link's own lifetime and the webhook retries after it.
-  // The handle row does not show that payment is over. The expiry task also
-  // takes it for a paid order, before the delivery books anything.
+  // A sealed order is needed while its checkout can be paid, and while the
+  // provider can still retry the payment callback. A Square order also waits
+  // for the link's own lifetime and the webhook retries after it. The handle
+  // row does not show that payment is over. The expiry task also takes it for
+  // a paid order, before the delivery books anything.
   boundedDelete(
     "checkout_bundles",
-    sql`created_at < ${isoBefore(PRUNE_PAYMENTS_RETENTION_MS)}
+    sql`created_at < ${isoBefore(CHECKOUT_BUNDLE_RETENTION_MS)}
        AND (
          session_index IS NULL
          OR created_at < ${isoBefore(SQUARE_LINK_RETENTION_MS)}

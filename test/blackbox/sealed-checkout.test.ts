@@ -4,17 +4,16 @@
  * changed metadata books nothing. */
 
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { requireValue } from "#shared/required-value.ts";
 import {
   type CardShop,
   cancelPage,
-  checkOut,
   deliverPayment,
-  openCardShop,
   returnPage,
   rosterOf,
+  useCardShop,
 } from "#test/blackbox/card-shop.ts";
 import { createApp, inProcess } from "#test/blackbox/driver.ts";
 import { addListing, type SeededListing } from "#test/blackbox/seed.ts";
@@ -70,19 +69,10 @@ const TOGETHER = [
 ];
 
 describeWithEnv("a sealed card checkout", { db: true }, () => {
-  let shop: CardShop | undefined;
-  const open = async () => {
-    shop = await openCardShop();
-    return shop;
-  };
-  afterEach(async () => {
-    await shop?.fake.close();
-    shop = undefined;
-  });
+  const { checkedOut, open } = useCardShop();
 
   test("tells Stripe only a token, the first listing, and the proof", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
 
     expect(Object.keys(checkout.metadata).toSorted()).toEqual(SENT_KEYS);
     expect(checkout.metadata.listing).toBe(String(opened.listing.id));
@@ -126,8 +116,7 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
   });
 
   test("books the order that the token opens, and a replay books nothing more", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
 
     expect((await deliverPayment(opened, checkout)).status).toBe(200);
     expect((await deliverPayment(opened, checkout)).status).toBe(200);
@@ -137,8 +126,7 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
   });
 
   test("a callback whose listing or token was changed books nothing, and the true callback still books", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
 
     for (const change of [
       { listing: String(opened.listing.id + 1) },
@@ -159,8 +147,7 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
   });
 
   test("a charge that differs from the signed total is refunded in full, and booked with no places", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
 
     const answer = await deliverPayment(opened, checkout, { charged: 1999 });
 
@@ -172,8 +159,7 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
   });
 
   test("the buyer who comes back from Stripe after the webhook is sent to the tickets", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
     await deliverPayment(opened, checkout);
 
     const sent = await returnPage(checkout);
@@ -187,8 +173,7 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
   });
 
   test("the buyer who comes back before the webhook is booked once, and neither the late webhook nor a second visit books more", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
     opened.fake.pay(checkout);
 
     const sent = await returnPage(checkout);
@@ -205,8 +190,7 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
   });
 
   test("the webhook and the buyer who arrive together make one booking, and the second answers from it", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
     opened.fake.pay(checkout);
 
     const [answer, visit] = await Promise.all([
@@ -224,8 +208,7 @@ describeWithEnv("a sealed card checkout", { db: true }, () => {
   });
 
   test("the buyer who gives up at Stripe is offered the booking page again", async () => {
-    const opened = await open();
-    const checkout = await checkOut(opened);
+    const { checkout, opened } = await checkedOut();
 
     const page = await cancelPage(checkout);
 

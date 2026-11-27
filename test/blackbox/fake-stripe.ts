@@ -53,6 +53,9 @@ export interface FakeStripe {
   pay(checkout: FakeCheckout): void;
   /** Every refund that the app asked for, oldest first. */
   readonly refunds: FakeRefund[];
+  /** Turn down every refund from now on, as Stripe does when it cannot pay
+   * the money back. */
+  refuseRefunds(): void;
 }
 
 /** Read the metadata fields of a form body: `metadata[name]=value`. */
@@ -123,6 +126,7 @@ export const startFakeStripe = async (): Promise<FakeStripe> => {
   const checkouts: FakeCheckout[] = [];
   const paidAs = new Map<string, number>();
   const refunds: FakeRefund[] = [];
+  let refusing = false;
 
   const intentJson = (id: string) => {
     const captured = requireValue(
@@ -177,6 +181,17 @@ export const startFakeStripe = async (): Promise<FakeStripe> => {
       paymentIntent: String(form.get("payment_intent")),
     };
     refunds.push(asked);
+    if (refusing) {
+      return Response.json(
+        {
+          error: {
+            message: "The refund was refused.",
+            type: "invalid_request_error",
+          },
+        },
+        { status: 400 },
+      );
+    }
     return Response.json({
       amount: asked.amount,
       currency: "gbp",
@@ -271,5 +286,8 @@ export const startFakeStripe = async (): Promise<FakeStripe> => {
       paidAs.set(checkout.paymentIntent, checkout.amountTotal);
     },
     refunds,
+    refuseRefunds: () => {
+      refusing = true;
+    },
   };
 };

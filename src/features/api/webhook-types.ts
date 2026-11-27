@@ -22,6 +22,9 @@ export type SignedVerdict =
 export type ValidatedSession = {
   session: ValidatedPaymentSession;
   intent: BookingIntent;
+  /** The order was read from a receipt. A receipt has no buyer, so it serves
+   * a replay of a settled session and never a fresh booking. */
+  receipt: boolean;
   verdict: SignedVerdict;
 };
 
