@@ -62,6 +62,9 @@ export const questionTables = declaredTables([
         ["encrypted_text", text],
         ["used_count", wholeNumberStartingAtZero],
         ["created", textStartingBlank],
+        // A Square checkout holds the strings of its typed answers until this
+        // time, because its link can be paid late. The prune keeps them.
+        ["hold_until", textOrNull],
       ],
       indexes: [
         {
