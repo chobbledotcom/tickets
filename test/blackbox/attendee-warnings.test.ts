@@ -159,6 +159,25 @@ describeWithEnv("the warnings about an attendee", { db: true }, () => {
     });
   }
 
+  test("a delete whose answers are all booked again says nothing was deleted and logs no delete", async () => {
+    const shop = await bookedThree();
+    await setQuantity(shop, 1);
+    const [bookedAgain] = (await offeredIds(shop)).split(",");
+    await setQuantity(shop, 2);
+
+    const sent = await confirmDelete(shop, bookedAgain);
+    const page = await shop.owner.get(
+      requireValue(sent.location, "The delete sent the owner nowhere"),
+    );
+    const log = await shop.owner.get("/admin/log");
+
+    expect(textOf(page.html)).toContain(
+      "These answers are no longer hidden. Nothing was deleted.",
+    );
+    expect(textOf(page.html)).not.toContain("Hidden answers deleted.");
+    expect(textOf(log.html)).not.toContain("Hidden answers deleted");
+  });
+
   test("the delete page of a booking with no hidden answers says so and offers no form", async () => {
     const shop = await bookedThree();
 
