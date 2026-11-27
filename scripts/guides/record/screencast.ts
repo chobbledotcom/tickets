@@ -8,6 +8,7 @@ import { join } from "@std/path";
 import type { CDPSession, Page } from "playwright";
 import { withCleanup } from "#scripts/cleanup.ts";
 import { frameFileName } from "#scripts/guides/frame-name.ts";
+import { frameTimeMs } from "#scripts/guides/record/frame-time.ts";
 import { GUIDE_DEVICE_SCALE_FACTOR } from "#scripts/guides/video.ts";
 
 const FIRST_FRAME_TIMEOUT_MS = 10_000;
@@ -51,7 +52,7 @@ export const startScreencast = async (
       const file = frameFileName(frames.length + 1, "jpg");
       await Deno.writeFile(join(outputDir, file), decodableFrame(event.data));
       frames.push({
-        atMs: Math.max(0, Math.round(wallMs - startWallClockMs)),
+        atMs: frameTimeMs(wallMs, startWallClockMs, frames.at(-1)?.atMs ?? 0),
         file,
       });
       await cdp.send("Page.screencastFrameAck", {
