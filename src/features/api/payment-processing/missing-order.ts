@@ -111,6 +111,20 @@ const MISSING_ORDER_ANSWERS: AnswerTable = {
     returnPage: () =>
       paymentErrorResponse(t("payment.error.already_handled"), 200),
   },
+  reserved: {
+    callback: {
+      outcome: {
+        detail:
+          "Another delivery holds the session, and its sealed order was pruned",
+        error: "Payment is being processed. Please wait a moment and refresh.",
+        kind: "held",
+        listingId: undefined,
+      },
+      reportsLostOrder: false,
+    },
+    returnPage: (_missing, tools) =>
+      tools.refuse(t("payment.error.being_processed"), 409),
+  },
 };
 
 /** The table row for a session's standing. The kind picks the row, so each

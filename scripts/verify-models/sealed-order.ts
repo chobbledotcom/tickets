@@ -146,8 +146,11 @@ const missingOrderDelivery = (
   bundle: BundleState = "gone",
 ): Delivery => {
   const answer = answerFor(
-    standing({ recorded: ledger === "recorded", row: HOLDING_FOR_ROW[row] })
-      .kind,
+    standing({
+      claimed: row !== "none",
+      recorded: ledger === "recorded",
+      row: HOLDING_FOR_ROW[row],
+    }).kind,
   );
   return {
     alarms: answer.reportsLostOrder,
@@ -207,6 +210,7 @@ const readOrderDeliveries = (
   }
   if (bundle === "receipt") {
     const standing = decisions.standing({
+      claimed: row !== "none",
       recorded: false,
       row: HOLDING_FOR_ROW[row],
     });

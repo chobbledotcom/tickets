@@ -40,6 +40,7 @@
   "payment.lost_order.bundle_unreadable": "the order details could not be read",
   "payment.lost_order.note": "A buyer paid {amount} by {provider}. The payment reference is {reference}. No booking was made, because {reason}. No refund was sent. Find the payment in {provider}, and contact the buyer. Then book them in by hand, or refund the payment in {provider}.",
   "payment.lost_order.note_subscription": "A buyer paid {amount} by {provider} for a subscription. The payment reference is {reference}. The subscription is {subscription}. No booking was made, because {reason}. No refund was sent. The subscription will keep charging, even if you refund this payment. Find the subscription in {provider}, and contact the buyer. Then book them in by hand, or cancel the subscription in {provider} and refund the payment.",
+  "payment.error.being_processed": "Your payment is being processed. Please wait a moment, then refresh this page.",
   "payment.error.already_handled": "This payment was already handled. Please check your email for what happened.",
   "payment.error.refunded": "We could not read this payment, so we did not make a booking. We have sent your money back. It can take a few days to reach your account. Please do not pay again.",
   "payment.error.subscription_needs_stripe": "This ticket charges again each period. This site cannot take that kind of payment now. Please contact the organiser.",
