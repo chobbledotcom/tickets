@@ -13,6 +13,7 @@ import {
   getAttendeeTextAnswers,
   textAnswersOf,
 } from "#db/questions/attendee-answers/reads.ts";
+import { isTicketHeld } from "#db/questions/line-answers.ts";
 import { t } from "#i18n";
 import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
 import {
@@ -366,7 +367,10 @@ const resendNotification = async (
     getAttendeeTextAnswers(attendeeId, privateKey),
     getAttendeeLineAnswers(attendeeId, () => Promise.resolve(privateKey)),
   ]);
-  const freeTexts = heldFreeTexts(textAnswersOf(bookingTexts), lineAnswers);
+  const freeTexts = heldFreeTexts(
+    textAnswersOf(bookingTexts),
+    lineAnswers.filter(isTicketHeld),
+  );
 
   // The flags are the record of what never went out, so the claim captures
   // the outstanding sides in one transaction. The press's choice decides

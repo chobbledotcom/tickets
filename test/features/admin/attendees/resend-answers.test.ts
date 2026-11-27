@@ -4,6 +4,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -15,6 +16,7 @@ import { seedListingLevelQuestion } from "#test-utils/db-helpers/question-seeds.
 import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 import { expectOwedResend } from "./resend-press.ts";
 
 describeWithEnv(
@@ -92,6 +94,40 @@ describeWithEnv(
         "Pupil name (Disco A, ticket 1): Ava",
         "Pupil name (Disco A, ticket 2): Amy",
       ]);
+    });
+
+    test("leaves out the answer of a ticket the buyer no longer holds", async () => {
+      await configureTestEmail();
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 2,
+        name: "Disco A",
+      });
+      const { question } = await seedListingLevelQuestion(
+        [listing.id],
+        "Pupil name",
+        "quantity",
+      );
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Fewer Tickets",
+        "fewer@example.com",
+        2,
+        "",
+        {
+          [`question${question.id}_line${listing.id}_0_0_ticket0`]: "Ava",
+          [`question${question.id}_line${listing.id}_0_0_ticket1`]: "Amy",
+        },
+      );
+      await runWrite(
+        sql`UPDATE listing_attendees SET quantity = 1 WHERE attendee_id = ${attendee.id}`,
+      );
+
+      await expectOwedResend(attendee.id, "Fewer Tickets");
+      const resent = buyerEmailTexts("fewer@example.com").at(-1) ?? "";
+      assertStringIncludes(resent, "Pupil name (Disco A, ticket 1): Ava");
+      assert(!resent.includes("Amy"));
     });
   },
 );

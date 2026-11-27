@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import {
+  answerLinesOf,
   buildTestData,
   describeEmailRenderer,
   TICKET_URL,
@@ -25,9 +26,11 @@ describeEmailRenderer(() => {
     });
 
     test("carries each entry's answer lines into the attendee shape", async () => {
-      const data = await buildTestData([makeEntry()], {
-        answerLines: new Map([
-          [42, new Map([[1, [{ question: "Any allergies?", text: "None" }]]])],
+      const entry = makeEntry();
+      const data = await buildTestData([entry], {
+        answerLines: answerLinesOf([
+          entry,
+          [{ question: "Any allergies?", text: "None" }],
         ]),
       });
 
@@ -39,27 +42,21 @@ describeEmailRenderer(() => {
 
     test("lists each member's answers once on a collapsed hidden package's row", async () => {
       const diet = { question: "Diet?", text: "Vegan" };
-      const data = await buildTestData(
-        [
-          makeEntry({}, { package_group_id: 5 }),
-          makeEntry({ id: 2, name: "Member" }, { package_group_id: 5 }),
-        ],
-        {
-          answerLines: new Map([
-            [
-              42,
-              new Map([
-                [1, [diet]],
-                [2, [diet, { question: "Shoe size?", text: "9" }]],
-              ]),
-            ],
-          ]),
-          hidePackageMembers: true,
-          packageDisplays: new Map([
-            [5, { hideListings: true, name: "Hidden bundle" }],
-          ]),
-        },
+      const first = makeEntry({}, { package_group_id: 5 });
+      const member = makeEntry(
+        { id: 2, name: "Member" },
+        { package_group_id: 5 },
       );
+      const data = await buildTestData([first, member], {
+        answerLines: answerLinesOf(
+          [first, [diet]],
+          [member, [diet, { question: "Shoe size?", text: "9" }]],
+        ),
+        hidePackageMembers: true,
+        packageDisplays: new Map([
+          [5, { hideListings: true, name: "Hidden bundle" }],
+        ]),
+      });
 
       expect(data.entries).toHaveLength(1);
       expect(data.entries[0]!.listing.name).toBe("Hidden bundle");
@@ -67,6 +64,39 @@ describeEmailRenderer(() => {
         diet,
         { question: "Shoe size?", text: "9" },
       ]);
+    });
+
+    test("names the hidden package, not its member, on a collapsed row's answers", async () => {
+      const member = makeEntry(
+        { id: 2, name: "Secret Member" },
+        { package_group_id: 5 },
+      );
+      const lines = [
+        {
+          concealedQuestion: "Pupil name (Hidden bundle, ticket 1)",
+          question: "Pupil name (Secret Member in Hidden bundle, ticket 1)",
+          text: "Ava",
+        },
+      ];
+      const options = {
+        answerLines: answerLinesOf([member, lines]),
+        packageDisplays: new Map([
+          [5, { hideListings: true, name: "Hidden bundle" }],
+        ]),
+      };
+
+      const buyer = await buildTestData([member], {
+        ...options,
+        hidePackageMembers: true,
+      });
+      const admin = await buildTestData([member], options);
+
+      expect(buyer.entries[0]!.attendee.answers).toEqual([
+        { question: "Pupil name (Hidden bundle, ticket 1)", text: "Ava" },
+      ]);
+      expect(admin.entries[0]!.attendee.answers[0]?.question).toBe(
+        "Pupil name (Secret Member in Hidden bundle, ticket 1)",
+      );
     });
 
     test("builds correct data shape from multiple entries", async () => {

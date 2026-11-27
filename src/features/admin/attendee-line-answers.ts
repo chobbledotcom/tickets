@@ -2,6 +2,7 @@ import { getAllGroupNames } from "#db/groups.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { getAttendeeLineAnswers } from "#db/questions/attendee-answers/reads.ts";
 import {
+  isTicketHeld,
   lineLabel,
   namesWithMissing,
   ticketAnswerName,
@@ -56,10 +57,9 @@ export const loadLineAnswerRows = async (
         lineLabel(answer, names),
         answer.unit,
       ),
-      notes:
-        answer.unit < answer.quantity
-          ? []
-          : [t("attendee_detail.no_longer_booked")],
+      notes: isTicketHeld(answer)
+        ? []
+        : [t("attendee_detail.no_longer_booked")],
     };
   });
 };
