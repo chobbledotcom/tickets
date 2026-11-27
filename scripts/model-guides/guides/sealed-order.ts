@@ -113,7 +113,7 @@ export const sealedOrder: ModelGuide = {
       code: [
         {
           path: "src/shared/db/checkout-bundles.ts",
-          symbol: "bundleRetentionMs",
+          symbol: "CHECKOUT_BUNDLE_RETENTION_MS",
         },
       ],
       rules: ["PruneBundle", "DeleteRow", "RowGoes"],
