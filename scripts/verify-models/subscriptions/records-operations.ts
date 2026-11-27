@@ -279,7 +279,7 @@ const edit = async (input: RecordScenario) => {
     1,
     { ...pii, name: "Edited person" },
     desired,
-    true,
+    { allowOverbook: true },
   );
   assert(
     result.success || result.reason === "subscription_live",

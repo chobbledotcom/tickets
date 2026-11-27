@@ -324,5 +324,8 @@
   "attendees.merge_source_required": "Source token is required",
   "attendees.merge_source_token_not_found": "Ticket token not found",
   "attendees.merge_self_refusal": "Cannot merge an attendee with themselves",
-  "attendees.name_label": "Attendee name"
+  "attendees.name_label": "Attendee name",
+  "attendee_form.delete_removed_answers": "Delete the answers for removed listings",
+  "attendee_form.error_answers_held": "A listing that you removed has answers. To remove it and delete its answers, tick \"Delete the answers for removed listings\".",
+  "error.answers_held": "A listing that you removed has answers. Remove it on the attendee's Edit tab, where you can choose to delete its answers."
 }

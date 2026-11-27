@@ -1,6 +1,7 @@
 import { logActivity } from "#db/activity-log.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import type { RemovedLineAnswers } from "#db/attendees/atomic-update.ts";
 import { hasPaidLine } from "#db/attendees/queries.ts";
 import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
 import {
@@ -129,6 +130,7 @@ export const applyCreate = async (
 };
 
 const EDIT_SAVE_ERRORS = {
+  answers_held: "attendee_form.error_answers_held",
   capacity_exceeded: "attendee_form.error_capacity",
   no_lines: "attendee_form.error_no_lines",
   subscription_live: "error.subscription_live",
@@ -144,6 +146,7 @@ export const applyEdit = async (
   logisticsPlan: LogisticsPlan,
   existingByKey: Map<string, ListingAttendeeRow>,
   taxPlan: TaxSavePlan,
+  removedLineAnswers: RemovedLineAnswers,
 ): Promise<SaveOutcome> => {
   // Block marking an assigned built-site line no-quantity (no release path here).
   if (
@@ -173,6 +176,7 @@ export const applyEdit = async (
     desired,
     existingByKey,
     extraWork: [],
+    removedLineAnswers,
     statusId: parsed.statusId,
     taxPlan,
   });

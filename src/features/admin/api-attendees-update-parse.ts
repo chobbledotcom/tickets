@@ -6,7 +6,11 @@
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import type { DesiredListingLine } from "#db/attendee-types.ts";
-import type { ExistingLine } from "#db/attendees/atomic-update.ts";
+import {
+  type ExistingLine,
+  type RemovedLineAnswers,
+  removedLineAnswersFor,
+} from "#db/attendees/atomic-update.ts";
 import { desiredLinesFromExisting } from "#db/attendees/servicing.ts";
 import { unique } from "#fp";
 import { parseReceipts } from "#shared/booking-inputs.ts";
@@ -20,6 +24,7 @@ import {
   parseAnswers,
   parseCheckedLines,
   parseContact,
+  parseFlag,
   readLinesArray,
   resolveStatusId,
 } from "./api-attendees-parse.ts";
@@ -38,6 +43,8 @@ export type ParsedApiUpdate = {
   desired: DesiredListingLine[];
   /** The complete lists of payments received and of adjustments. */
   receipts: CreateReceipts;
+  /** Whether the update can delete the answers of a line that it removes. */
+  removedLineAnswers: RemovedLineAnswers;
   statusId: number | null;
 };
 
@@ -93,6 +100,11 @@ export const parseUpdateBody = async (
   }
   const desired = await parseDesiredLines(body.lines, existing);
   if (!desired.ok) return desired;
+  const deleteAnswers = parseFlag(
+    "deleteRemovedAnswers",
+    false,
+  )(body.deleteRemovedAnswers);
+  if (!deleteAnswers.ok) return deleteAnswers;
   const answers =
     body.answers === undefined
       ? okResult(null)
@@ -110,6 +122,7 @@ export const parseUpdateBody = async (
     contact: contact.value,
     desired: desired.value,
     receipts: received.value,
+    removedLineAnswers: removedLineAnswersFor(deleteAnswers.value),
     statusId: statusId.value,
   });
 };

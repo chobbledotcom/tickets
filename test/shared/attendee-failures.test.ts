@@ -43,46 +43,58 @@ describe("attendee failure schemas", () => {
   }
 });
 
+/* jscpd:ignore-start -- static data, not code */
+/** Each failure reason, the listing name, and the message it reads. */
+const FORMAT_CASES = [
+  {
+    expected: "My Listing is full",
+    listingName: "My Listing",
+    name: "names the listing for a capacity failure",
+    reason: "capacity_exceeded",
+  },
+  {
+    expected: "generic",
+    listingName: undefined,
+    name: "uses the generic message for an unnamed capacity failure",
+    reason: "capacity_exceeded",
+  },
+  {
+    expected: "fallback",
+    listingName: "My Listing",
+    name: "uses the fallback for an empty-line failure",
+    reason: "no_lines",
+  },
+  {
+    expected:
+      "This booking has a subscription that still charges. Cancel the subscription first.",
+    listingName: "My Listing",
+    name: "asks to cancel a live subscription whatever the surface says",
+    reason: "subscription_live",
+  },
+  {
+    expected:
+      "A listing that you removed has answers. Remove it on the attendee's Edit tab, where you can choose to delete its answers.",
+    listingName: "My Listing",
+    name: "sends a removed line that holds answers to the Edit tab, whatever the surface says",
+    reason: "answers_held",
+  },
+] as const;
+/* jscpd:ignore-end */
+
 describe("attendeeFailureFormatter", () => {
   const format = attendeeFailureFormatter({
     fallback: "fallback",
     generic: "generic",
     withName: (name) => `${name} is full`,
   });
-  const cases = [
-    {
-      expected: "My Listing is full",
-      listingName: "My Listing",
-      name: "names the listing for a capacity failure",
-      reason: "capacity_exceeded",
-    },
-    {
-      expected: "generic",
-      listingName: undefined,
-      name: "uses the generic message for an unnamed capacity failure",
-      reason: "capacity_exceeded",
-    },
-    {
-      expected: "fallback",
-      listingName: "My Listing",
-      name: "uses the fallback for an empty-line failure",
-      reason: "no_lines",
-    },
-  ] as const;
 
-  for (const testCase of cases) {
+  for (const testCase of FORMAT_CASES) {
     test(testCase.name, () => {
       expect(format(testCase.reason, testCase.listingName)).toBe(
         testCase.expected,
       );
     });
   }
-
-  test("asks to cancel a live subscription whatever the surface says", () => {
-    expect(format("subscription_live", "My Listing")).toBe(
-      "This booking has a subscription that still charges. Cancel the subscription first.",
-    );
-  });
 });
 
 describe("refusedOrderItem", () => {

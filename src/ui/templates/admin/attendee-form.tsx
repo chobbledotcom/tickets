@@ -37,6 +37,7 @@ import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
 import {
+  CheckboxLabel,
   type FormSection,
   FormSections,
 } from "#templates/components/aggregate-sections.tsx";
@@ -398,6 +399,17 @@ const AttendeeEditForm = ({ data }: AttendeeFormProps): JSX.Element => {
       <LogisticsSection logistics={data.logistics} />
 
       <hr />
+
+      {isEdit && (
+        <p>
+          <CheckboxLabel
+            checked={false}
+            label={` ${t("attendee_form.delete_removed_answers")}`}
+            name="delete_removed_answers"
+            value="1"
+          />
+        </p>
+      )}
 
       <SaveActions>
         {isEdit ? t("attendee_form.save") : t("attendee_form.create")}
