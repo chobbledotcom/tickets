@@ -49,7 +49,9 @@ test("recordApi takes a record that names its display-name column", () => {
   );
 
   expect(record.nameField).toBe("name");
-  expect(routes["DELETE /api/admin/holidays/:holidayId"]).toBeDefined();
+  expect(typeof routes["DELETE /api/admin/holidays/:holidayId"]).toBe(
+    "function",
+  );
 });
 
 test("the record JSON policy admits an API key and the list roles", () => {
