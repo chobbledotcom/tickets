@@ -146,11 +146,6 @@ export const requireDateString = (
   key: string,
 ): Result<DateString> => readDateField(body, key, requiredDateAbsent(key));
 
-/** The refusal a boundary guard answers when a body fails its field rule. */
-export type FieldRefusal = (
-  body: Record<string, unknown>,
-) => Result<never> | null;
-
 /** Read one entity text field for a write. A supplied non-string is refused
  *  with the field-named message instead of coerced into stored text. An
  *  update without a supplied value keeps the stored one, and the resolved

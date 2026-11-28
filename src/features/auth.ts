@@ -256,8 +256,6 @@ const sessionRoleAllowed = (
 
 /** Auth policy presets — use with withAuth to avoid repeating policy objects */
 export const OWNER_FORM: AuthPolicy<"form"> = { body: "form", role: "owner" };
-/** Agent-only form gate (delivery run-sheet actions). */
-export const AGENT_FORM: AuthPolicy<"form"> = { body: "form", role: "agent" };
 /** Content-editing form gate: staff plus the content-only `editor`. Used for the
  * listing/group create-edit actions and the public-site content saves editors
  * are opted into. */

@@ -46,8 +46,6 @@ export const DenoRevisionStatusSchema = v.picklist([
   "failed",
 ]);
 
-export type DenoRevisionStatus = v.InferOutput<typeof DenoRevisionStatusSchema>;
-
 export const DenoRevisionSchema = v.object({
   failure_reason: v.optional(
     v.nullable(v.picklist(["error", "cancelled", "timed_out", "skipped"])),

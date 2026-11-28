@@ -11,9 +11,6 @@ import type { GroupIdsByListingId } from "#shared/group-capacity.ts";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
 import type { Image, ItemImageColumns } from "#types";
 
-/** Quantity values parsed from ticket form */
-export type TicketQuantities = Map<number, number>;
-
 /** Per-listing pre-fill applied when scanning a signed QR link */
 export type TicketPrefill = {
   quantity?: number;

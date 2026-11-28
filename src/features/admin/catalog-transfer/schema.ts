@@ -143,8 +143,6 @@ export const CatalogTransferSchema = v.variant("kind", [
   GroupTransferSchema,
   CatalogBundleSchema,
 ]);
-export type CatalogTransfer = v.InferOutput<typeof CatalogTransferSchema>;
-
 /** The parse issues valibot reports for one rejected blob. */
 type TransferIssues = readonly [
   v.BaseIssue<unknown>,

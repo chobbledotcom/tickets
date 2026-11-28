@@ -86,8 +86,6 @@ export const sessionAnswerOf = (
 export const UnrecordedRefundSchema = v.strictObject({
   returnedAt: v.string(),
 });
-export type UnrecordedRefund = v.InferOutput<typeof UnrecordedRefundSchema>;
-
 /** The whole record. Every field is optional: a row carries only the
  *  concerns it reached. A claim without an outcome while a run works, an
  *  outcome without a claim once one finishes. */
