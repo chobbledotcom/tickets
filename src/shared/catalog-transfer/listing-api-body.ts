@@ -15,11 +15,10 @@ import {
 } from "#shared/records/listing-fields.ts";
 import type { ListingData } from "./schema.ts";
 
-/** The body of a listing create or update, keyed as the JSON API expects. */
-export type ListingApiBody = SnakeCased<ListingData> & {
-  attribute_option_ids?: number[];
-  group_ids: number[];
-};
+/** The body of a listing create or update, keyed as the JSON API expects.
+ *  The link ids ride in the same object. They have no typed fields, because
+ *  no local reader reads them. The API owns that end of the wire. */
+export type ListingApiBody = SnakeCased<ListingData>;
 
 /** The link ids one listing write carries. `null` option ids mean that the
  *  site has attributes turned off, so the body leaves the selection out. */

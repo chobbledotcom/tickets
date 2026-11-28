@@ -39,7 +39,7 @@
       "fields": ["addressError", "locationError"]
     }
   ],
-  "src/features/admin/catalog-transfer/schema.ts": [
+  "src/shared/catalog-transfer/schema.ts": [
     {
       "path": [{ "name": "CatalogBundle" }],
       "fields": ["version"]
