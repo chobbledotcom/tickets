@@ -53,9 +53,13 @@ const launchScreenshotChromium = (
   browser: Chromium,
   executablePath?: string,
   overrides: Pick<LaunchOptions, "ignoreDefaultArgs"> = {},
+  extraArgs: readonly string[] = [],
 ): Promise<Browser> =>
   browser.launch({
-    ...browserLaunchOptions(true, executablePath, SCREENSHOT_LAUNCH_ARGS),
+    ...browserLaunchOptions(true, executablePath, [
+      ...SCREENSHOT_LAUNCH_ARGS,
+      ...extraArgs,
+    ]),
     ...overrides,
   });
 
@@ -64,6 +68,12 @@ export const defineScreenshotBrowserLauncher =
     browser: Chromium,
     executablePath: () => Promise<string | undefined>,
     overrides?: Pick<LaunchOptions, "ignoreDefaultArgs">,
+    extraArgs?: readonly string[],
   ): (() => Promise<Browser>) =>
   async () =>
-    launchScreenshotChromium(browser, await executablePath(), overrides);
+    launchScreenshotChromium(
+      browser,
+      await executablePath(),
+      overrides,
+      extraArgs,
+    );

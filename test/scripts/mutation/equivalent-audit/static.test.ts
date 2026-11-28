@@ -35,6 +35,7 @@ describe("equivalent-mutant static audit", () => {
       killedByLint: [state.entry.trimEnd()],
       killedByTests: [],
       killedByTypeCheck: [],
+      missing: [],
       retained: 0,
       unconfirmed: [],
       untested: [],
@@ -81,6 +82,7 @@ describe("equivalent-mutant static audit", () => {
       killedByLint: [],
       killedByTests: [],
       killedByTypeCheck: [],
+      missing: [],
       retained: 1,
       unconfirmed: [],
       untested: [],
@@ -88,7 +90,7 @@ describe("equivalent-mutant static audit", () => {
     expect(await Deno.readTextFile(state.ignoreFile)).toBe(originalIgnore);
   });
 
-  test("rejects stale entries before changing source files", async () => {
+  test("reports a stale entry without transferring its reason", async () => {
     const state = await setup();
     using _dir = state.dir;
     await Deno.writeTextFile(
@@ -96,9 +98,11 @@ describe("equivalent-mutant static audit", () => {
       "source.ts::noSuchThing ?? → ||  audited:0000000 # stale\n",
     );
 
-    await expect(auditSetup(state)).rejects.toThrow(
-      "No generated mutant matches",
-    );
+    const result = await auditSetup(state);
+    expect(result.missing).toEqual([
+      "source.ts::noSuchThing ?? → ||  audited:0000000 # stale",
+    ]);
+    expect(result.unconfirmed).toEqual([]);
     expect(await Deno.readTextFile(state.sourceFile)).toBe(source);
   });
 
@@ -173,6 +177,7 @@ describe("equivalent-mutant static audit", () => {
       killedByLint: [],
       killedByTests: [],
       killedByTypeCheck: [],
+      missing: [],
       retained: 0,
       unconfirmed: [],
       untested: [],
@@ -307,6 +312,7 @@ describe("equivalent-mutant static audit", () => {
       killedByLint: [],
       killedByTests: [],
       killedByTypeCheck: [state.entry.trimEnd()],
+      missing: [],
       retained: 0,
       unconfirmed: [],
       untested: [],
@@ -334,14 +340,12 @@ describe("equivalent-mutant static audit", () => {
         ],
         true,
       ),
-    ).rejects.toThrow("Equivalent-mutant file changed during the audit.");
+    ).rejects.toThrow("changed while the isolated run was going");
     expect(await Deno.readTextFile(state.ignoreFile)).toBe("# changed\n");
     expect(await Deno.readTextFile(state.sourceFile)).toBe(source);
   });
 
-  /** The stamp records the file text the proof was re-derived against. A file
-   * that has changed since leaves the entry unconfirmed: the audit skips it —
-   * no gate check, no prune — and names it for a person to re-derive. */
+  /** The caller must review a surviving record before it can renew it. */
   const setupWithStaleStamp = async (): Promise<
     AuditFixture & { stale: string }
   > => {
@@ -351,36 +355,31 @@ describe("equivalent-mutant static audit", () => {
     return { ...state, stale };
   };
 
-  test("skips an entry whose stamp predates the source text", async () => {
+  test("reports the current location and reason for an unconfirmed survivor", async () => {
     const state = await setupWithStaleStamp();
     using _dir = state.dir;
-    const calls: string[] = [];
+    const result = await auditSetup(state);
 
-    const result = await auditSetup(state, [
-      gate("lint", (file) => {
-        calls.push(file);
-        return Promise.resolve(1);
-      }),
-      gate("type-check", (file) => {
-        calls.push(file);
-        return Promise.resolve(0);
-      }),
+    expect(result.retained).toBe(0);
+    expect(
+      result.unconfirmed.map(({ excerpt, location, reason, stamp }) => ({
+        excerpt,
+        location,
+        reason,
+        stamp,
+      })),
+    ).toEqual([
+      {
+        excerpt: source.trimEnd(),
+        location: "source.ts:1:27",
+        reason: "same fallback",
+        stamp: `audited:${shortHash(source)}`,
+      },
     ]);
-
-    expect(result).toEqual({
-      checked: 1,
-      killedByLint: [],
-      killedByTests: [],
-      killedByTypeCheck: [],
-      retained: 0,
-      unconfirmed: [state.stale.trimEnd()],
-      untested: [],
-    });
-    expect(calls).toEqual([]);
     expect(await Deno.readTextFile(state.sourceFile)).toBe(source);
   });
 
-  test("skips an unconfirmed entry even with --write", async () => {
+  test("does not renew an unconfirmed survivor with --write", async () => {
     const state = await setupWithStaleStamp();
     using _dir = state.dir;
 
@@ -389,7 +388,9 @@ describe("equivalent-mutant static audit", () => {
       deps([gate("lint", () => Promise.resolve(0))]),
     );
 
-    expect(result.unconfirmed).toEqual([state.stale.trimEnd()]);
+    expect(result.unconfirmed.map((review) => review.reason)).toEqual([
+      "same fallback",
+    ]);
     expect(await Deno.readTextFile(state.ignoreFile)).toBe(
       `# kept comment\n\n${state.stale}`,
     );

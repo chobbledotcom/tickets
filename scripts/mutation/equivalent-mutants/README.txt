@@ -36,10 +36,28 @@
 # longer matches is UNCONFIRMED — it suppresses nothing, the run reports it,
 # and the audit lists it — until someone re-reads the reason against the
 # current file and stamps the line again. A line without a stamp is malformed.
-# `deno task check:equivalents --stamp <file>` prints the token a new or
-# re-recorded line carries; a moved entry's replacement comes out of
-# `deno task check:equivalents` with its stamp already on it. The audit never
-# stamps anything itself: re-deriving a proof is a person's read.
+# Use `deno task check:equivalents --stamp <file>` for a new proof.
+#
+# Review records for one source path, including a path that no longer exists:
+#   deno task mutation:audit-equivalents --source src/example.ts --tests
+#
+# Repeat `--source` to select more paths. Omit `--tests` for static checks
+# only. The audit does not edit the registry unless you pass `--write`.
+# `--write` deletes only records with no exact mutant or a mutant that a
+# check kills. Record a moved mutant only if you can prove it again.
+#
+# For each surviving unconfirmed record, read the reason against the current
+# code, including any code the reason depends on. If the reason still holds,
+# copy its `Renewal token:` value and run:
+#   deno task mutation:audit-equivalents --source src/example.ts --renew <token>
+#
+# Repeat `--renew` to select more proofs. Use the same source paths as the
+# preview. Renewal changes only the selected stamps. If a token no longer
+# matches the source or the registry line, renewal changes nothing. Run
+# the audit again. No command prompts for input.
+#
+# An audit exits with status 1 when it reports proofs that need review or
+# deletions that it did not apply. Review the report before you renew.
 #
 # Two mutants sharing a name, a `from → to`, AND character-identical text are
 # indistinguishable; those take `@1`, `@2` in source order. That ordinal is the

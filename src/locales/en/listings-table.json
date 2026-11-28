@@ -403,5 +403,7 @@
   "listings_table.switch_daily_undated_no_dates": "This listing has no bookable dates, so there is no date to give these bookings.",
   "listings_table.switch_daily_undated_given_suffix": " — {count, plural, one {1 booking was given {date}.} other {# bookings were given {date}.}}",
   "listings_table.switch_daily_undated_guard": "This listing has {count, plural, one {1 booking with no day} other {# bookings with no day}}. Give each booking a day before switching to Daily.",
-  "listings_table.moved": "Listing moved"
+  "listings_table.moved": "Listing moved",
+  "listings_table.watch_guide_video": "Watch guide video",
+  "listings_table.create_listing_guide": "Create a listing"
 }

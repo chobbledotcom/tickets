@@ -94,8 +94,7 @@ body:not(.iframe) {
       max-width: 100%;
     }
 
-    label:has(.field-requirement)
-      > :is(input[type="number"], input[type="date"], input[type="time"]) {
+    label > :is(input[type="number"], input[type="date"], input[type="time"]) {
       max-width: 12rem;
     }
 

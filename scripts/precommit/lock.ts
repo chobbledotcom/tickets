@@ -22,10 +22,11 @@ export const precommitLockAt =
   <T>(task: () => Promise<T>): Promise<T> =>
     withFileLock(path, task);
 
+/** The lock path for this user, under TMPDIR or the system temporary folder. */
+export const defaultPrecommitLockPath = (): string =>
+  precommitLockPath(Deno.env.get("TMPDIR") ?? "/tmp", currentUserId());
+
 /** Prevent this user from running either precommit gate concurrently. */
 export const withPrecommitLock = async <T>(
   task: () => Promise<T>,
-): Promise<T> =>
-  await precommitLockAt(
-    precommitLockPath(Deno.env.get("TMPDIR") ?? "/tmp", currentUserId()),
-  )(task);
+): Promise<T> => await precommitLockAt(defaultPrecommitLockPath())(task);

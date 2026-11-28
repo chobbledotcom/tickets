@@ -14,6 +14,7 @@ import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { isMissingSettingsTableError } from "#db/migrations/errors.ts";
 import { getNewsPostSummaries } from "#db/news-posts.ts";
+import { hasReviews } from "#db/reviews.ts";
 import { settings } from "#db/settings.ts";
 import { sitePages } from "#db/site-pages.ts";
 import { loadDecidedGroups } from "#routes/public/group-liveness.ts";
@@ -39,6 +40,7 @@ const SITEMAP_SETTINGS_KEYS = [
   CONFIG_KEYS.CONTACT_PAGE_TEXT,
   CONFIG_KEYS.LISTING_DEFAULTS,
   CONFIG_KEYS.ORDER_ENABLED,
+  CONFIG_KEYS.REVIEWS_ENABLED,
   CONFIG_KEYS.TERMS_AND_CONDITIONS,
 ];
 
@@ -49,8 +51,13 @@ const SITEMAP_SETTINGS_KEYS = [
  *  are the ones the public nav renders its links from. /news joins them
  *  when the news list has a post to show. */
 const fixedPublicPaths = (
-  flags: { hasContact: boolean; hasOrder: boolean; hasTerms: boolean },
+  flags: {
+    hasContact: boolean;
+    hasOrder: boolean;
+    hasTerms: boolean;
+  },
   hasNews: boolean,
+  hasReviews: boolean,
 ): string[] => {
   const served: [string, boolean][] = [
     ["/", true],
@@ -59,6 +66,7 @@ const fixedPublicPaths = (
     ["/contact", flags.hasContact],
     ["/order", flags.hasOrder],
     ["/news", hasNews],
+    ["/reviews", hasReviews],
   ];
   return served.filter(([, loads]) => loads).map(([path]) => path);
 };
@@ -93,7 +101,11 @@ const publicPaths = async (): Promise<string[]> => {
   // like every other public page defers it.
   const { navFlags } = await import("#templates/public/shared.tsx");
   return [
-    ...fixedPublicPaths(navFlags(), posts.length > 0),
+    ...fixedPublicPaths(
+      navFlags(),
+      posts.length > 0,
+      settings.reviewsEnabled && (await hasReviews()),
+    ),
     ...pages
       .filter((page) => !page.hidden && SLUG_PARAM_SERVES.test(page.slug))
       .map((page) => `/page/${page.slug}`),

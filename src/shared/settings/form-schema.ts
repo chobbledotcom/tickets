@@ -5,6 +5,7 @@
  */
 
 import type { ChoiceOption } from "#shared/choice.ts";
+import type { SelectOption } from "#shared/forms/rendering.tsx";
 import type { ConfigKey } from "#shared/settings/keys.ts";
 
 export type SettingsFormPage = "main" | "advanced";
@@ -84,9 +85,6 @@ type FieldSpecBase = {
 /** One choice in a radio group or dropdown: the value it posts and the
  *  catalog key naming it. */
 
-/** A choice whose label is already final text, built at render time. */
-type ResolvedChoice = { value: string; label: string };
-
 /** A radio group: one option per choice, no heading of its own. */
 export type RadiosFieldSpec = FieldSpecBase & {
   kind: "radios";
@@ -111,7 +109,7 @@ export type SelectFieldSpec = FieldSpecBase & {
   labelFor?: true;
   /** Fixed choices, or a build function for labels only known at render
    *  time (e.g. provider brand names). */
-  options: readonly ChoiceOption[] | (() => readonly ResolvedChoice[]);
+  options: readonly ChoiceOption[] | (() => readonly SelectOption[]);
 };
 
 /** A stored secret edited through a masked password input. */

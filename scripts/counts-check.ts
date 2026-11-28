@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-write=scripts/check-file-lengths/over-limit.json,scripts/check-presence-assertions/registry.json
+#!/usr/bin/env -S deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-write=scripts/check-file-lengths/over-limit.json
 
 /**
  * One entry behind every flat-counts ratchet check. The deno task names the
@@ -15,17 +15,13 @@ import {
   runFileLengthCheck,
 } from "./check-file-lengths/run.ts";
 import {
-  filesWithPresence,
-  runPresenceCheck,
-} from "./check-presence-assertions/run.ts";
-import {
   type Counts,
   type CountsCheck,
   countsCheckExit,
 } from "./check-runner.ts";
 
 /** The checks this entry serves, named the way the deno tasks pass them. */
-type CheckName = "file-lengths" | "presence-assertions";
+type CheckName = "file-lengths";
 
 /** One check's wiring: the registry beside this script, the roots the check
  * reads, and the fresh-count and run legs. */
@@ -43,12 +39,6 @@ const WIRING: Record<CheckName, CountsCheckWiring> = {
     relative: "./check-file-lengths/over-limit.json",
     roots: SOURCE_DIRS,
     run: runFileLengthCheck,
-  },
-  "presence-assertions": {
-    fresh: filesWithPresence,
-    relative: "./check-presence-assertions/registry.json",
-    roots: ["test"],
-    run: runPresenceCheck,
   },
 };
 

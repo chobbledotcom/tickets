@@ -144,7 +144,6 @@ export const anyNonStandaloneChild = async (
 ): Promise<boolean> => (await getNonStandaloneChildIds(ids)).size > 0;
 
 export type HydratedListingLinks = {
-  idsByKey: Map<number, number[]>;
   listingsByKey: Map<number, ListingWithCount[]>;
 };
 
@@ -188,7 +187,6 @@ export const hydrateListingLinks = async (
 ): Promise<HydratedListingLinks> => {
   const idsByKey = await side.getIdsByKeys(keyIds);
   return {
-    idsByKey,
     listingsByKey: listingsForLinks(
       idsByKey,
       await listingsByIdFor([idsByKey]),

@@ -30,10 +30,15 @@ export interface ScreenshotAppServer {
   stop: () => Promise<void>;
 }
 
-const startAppServer = async ({
-  add,
-  run,
-}: StartupCleanup): Promise<ScreenshotAppServer> => {
+export interface ScreenshotAppServerOptions {
+  /** Give the site a temporary local image store. */
+  storage?: boolean;
+}
+
+const startAppServer = async (
+  { add, run }: StartupCleanup,
+  options: ScreenshotAppServerOptions = {},
+): Promise<ScreenshotAppServer> => {
   const stripePort = reserveAvailablePort();
   add(stripePort.release);
   const enableStripeMock = startOnFirstUse(async () => {
@@ -46,6 +51,10 @@ const startAppServer = async ({
   add(appPort.release);
   const baseUrl = `http://127.0.0.1:${appPort.port}`;
   const dbUrl = `file:${join(tempDir, "screenshots.db")}`;
+  const storagePath = join(tempDir, "storage");
+  if (options.storage) {
+    await Deno.mkdir(storagePath, { recursive: true });
+  }
   const command = denoCommand(["run", "-A", "src/index.ts"], {
     cwd: ROOT,
     env: {
@@ -53,6 +62,7 @@ const startAppServer = async ({
       ...stripeMockEnv(stripePort.port),
       DB_ENCRYPTION_KEY: DB_KEY,
       DB_URL: dbUrl,
+      ...(options.storage ? { LOCAL_STORAGE_PATH: storagePath } : {}),
       PORT: String(appPort.port),
     },
     stderr: "inherit",
@@ -89,9 +99,12 @@ const startAppServer = async ({
   };
 };
 
-export const startScreenshotAppServer =
-  async (): Promise<ScreenshotAppServer> => {
-    const build = await runDeno(["task", "build:static"], ROOT);
-    if (!build.success) throw new Error("Could not build static assets.");
-    return await startWithFailureCleanup(startAppServer);
-  };
+export const startScreenshotAppServer = async (
+  options: ScreenshotAppServerOptions = {},
+): Promise<ScreenshotAppServer> => {
+  const build = await runDeno(["task", "build:static"], ROOT);
+  if (!build.success) throw new Error("Could not build static assets.");
+  return await startWithFailureCleanup((cleanup) =>
+    startAppServer(cleanup, options),
+  );
+};

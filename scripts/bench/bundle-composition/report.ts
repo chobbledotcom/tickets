@@ -12,7 +12,6 @@ import { readStaticAssets } from "#scripts/edge-bundle-lib.ts";
 import {
   buildAssetPathsModule,
   buildAssetsModule,
-  type PublishedAssetUrls,
 } from "#scripts/edge-bundle-modules.ts";
 import {
   ASSET_DEFS,
@@ -23,7 +22,10 @@ import {
   buildRemoteModule,
   wasmFilename,
 } from "#scripts/inline-jsquash-wasm.ts";
-import { cleanCdnUrl } from "#scripts/static-cdn.ts";
+import {
+  cleanCdnUrl,
+  type PublishedStaticAssets,
+} from "#scripts/static-cdn.ts";
 import { utf8ByteLength } from "#shared/bytes.ts";
 import { ASSETS } from "#shared/images/wasm-assets.ts";
 import { countJavaScriptAstNodes } from "./javascript-ast.ts";
@@ -94,7 +96,7 @@ const categoryBytes = (
   category: BundleCategory,
 ): number => rows.find((row) => row.source === category)?.bytes ?? 0;
 
-const publishedUrls = (cdnUrl: string): PublishedAssetUrls => {
+const publishedUrls = (cdnUrl: string): PublishedStaticAssets => {
   const filenames = [
     ...CDN_ASSET_DEFS.map(([name]) => name),
     ...ASSETS.map(wasmFilename),
@@ -162,11 +164,9 @@ const estimateCdnBundle = async (
     throw new Error("Generated asset paths have no build timestamp");
   }
   const nextAssets = buildAssetsModule(ASSET_DEFS, staticAssets, published);
-  const nextPaths = buildAssetPathsModule(
-    ASSET_DEFS,
-    buildTimestamp,
+  const nextPaths = buildAssetPathsModule(ASSET_DEFS, buildTimestamp, {
     published,
-  );
+  });
   const nextWasm = buildRemoteModule(ASSETS, published.urls);
   const [assetDelta, pathDelta, wasmDelta] = await Promise.all([
     moduleDelta(currentAssets, nextAssets),

@@ -95,6 +95,13 @@ export const enableFeature = async (key: AdminFeatureKey): Promise<void> => {
   await setAdminFeatureEnabled(key, true);
 };
 
+export const setReviewsPageEnabled = (enabled: boolean): Promise<void> =>
+  settings.update.reviewsEnabled(enabled);
+
+export const disableFeature = async (key: AdminFeatureKey): Promise<void> => {
+  await setAdminFeatureEnabled(key, false);
+};
+
 export const settingValue = async (key: string): Promise<string> => {
   const row = await queryOne<{ value: string }>(
     sql`SELECT value FROM settings WHERE key = ${key}`,
@@ -261,7 +268,7 @@ export const enablePublicSite = async (): Promise<void> => {
 /** Turn the public site feature back off, so a test's state never leaks into
  *  its neighbours. */
 export const disablePublicSite = async (): Promise<void> => {
-  await setAdminFeatureEnabled("site", false);
+  await disableFeature("site");
 };
 
 /** The address the site both sends from and delivers contact messages to. */

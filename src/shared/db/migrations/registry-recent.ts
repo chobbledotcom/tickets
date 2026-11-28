@@ -167,6 +167,9 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-25_question_answer_level",
     () => import("./2026-11-25_question_answer_level.ts"),
   ),
+  // Customer reviews: a sealed row per review, with a unique blind index over
+  // the review URL.
+  entry("2026-11-26_reviews", () => import("./2026-11-26_reviews.ts")),
   // A Square checkout holds the strings of its typed answers while its link
   // can still take payment.
   entry(

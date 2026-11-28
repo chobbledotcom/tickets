@@ -23,9 +23,10 @@ const auditWithPassingGates = (
   );
 
 describe("the audit's distinguishing-input phase", () => {
-  test("reproves gate survivors and prunes the entries a test kills", async () => {
+  test("prunes an unconfirmed record when a direct test kills its mutant", async () => {
     const state = await setup();
     using _dir = state.dir;
+    await Deno.writeTextFile(state.sourceFile, `${source}// Source edit.\n`);
     const reproved: number[] = [];
 
     const result = await auditWithPassingGates(state, (entries) => {
@@ -45,6 +46,7 @@ describe("the audit's distinguishing-input phase", () => {
       killedByLint: [],
       killedByTests: [state.entry.trimEnd()],
       killedByTypeCheck: [],
+      missing: [],
       retained: 0,
       unconfirmed: [],
       untested: [],
@@ -52,7 +54,9 @@ describe("the audit's distinguishing-input phase", () => {
     expect(await Deno.readTextFile(state.ignoreFile)).toBe(
       "# kept comment\n\n",
     );
-    expect(await Deno.readTextFile(state.sourceFile)).toBe(source);
+    expect(await Deno.readTextFile(state.sourceFile)).toBe(
+      `${source}// Source edit.\n`,
+    );
   });
 
   test("keeps an entry the distinguishing tests do not kill", async () => {
@@ -73,7 +77,7 @@ describe("the audit's distinguishing-input phase", () => {
     expect(await Deno.readTextFile(state.ignoreFile)).toBe(originalIgnore);
   });
 
-  test("reproves nothing when every entry is unconfirmed or gate-killed", async () => {
+  test("does not run direct tests for a mutant that fails lint", async () => {
     const state = await setup();
     using _dir = state.dir;
     let lintCalls = 0;

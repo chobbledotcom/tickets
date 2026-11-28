@@ -55,6 +55,18 @@ export const createListingGuide: GuideStoryboard = {
     { kind: "check", selector: 'input[name="fields"][value="email"]' },
     { kind: "wait", ms: 500 },
     {
+      altText: "Pottery on the table",
+      kind: "upload",
+      name: "Pottery Evening",
+      selector: "[data-listing-images-trigger]",
+    },
+    {
+      altText: "The Old Kiln studio",
+      kind: "upload",
+      name: "The Old Kiln",
+      selector: "[data-listing-images-trigger]",
+    },
+    {
       captureId: "listing-form",
       caseId: "booking.group-page-journey",
       kind: "evidence",
@@ -83,7 +95,7 @@ export const createListingGuide: GuideStoryboard = {
       caseId: "minimum-quantity.choices-skip-below-the-minimum",
       kind: "evidence",
     },
-    { kind: "wait", ms: 2000 },
+    { kind: "wait", ms: 5000 },
   ],
   fps: 30,
   setup: [

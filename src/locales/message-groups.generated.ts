@@ -62,6 +62,7 @@ export const MESSAGE_GROUPS = [
   "questions",
   "redirects",
   "renewal",
+  "reviews",
   "schema-atlas",
   "seed-data",
   "servicing",

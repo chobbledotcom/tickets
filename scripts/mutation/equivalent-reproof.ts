@@ -1,13 +1,9 @@
 /**
  * The audit's distinguishing-input phase.
  *
- * A recorded entry claims no possible input distinguishes the mutant from the
- * original. The existing tests are the inputs anyone can try without writing
- * new ones, so this phase runs each confirmed, gate-surviving entry's mutant
- * against its file's mapped direct tests — the same direct stage a mutation
- * run uses, asset rebuilds and test-state handling included — and reports the
- * entries a test kills. A killed mutant is not equivalent: the entry drops,
- * and the mutation gate then demands the test that killed it.
+ * Existing tests can disprove a recorded reason. The runner's direct stage
+ * handles asset rebuilds and test state. The audit removes the records for
+ * mutants that the tests kill.
  *
  * A survivor keeps its entry. This phase never proves equivalence — it can
  * only disprove it — so an entry the direct tests leave standing is still
@@ -15,7 +11,8 @@
  */
 
 import { rel } from "#scripts/project-root.ts";
-import type { ReproveOutcome, ResolvedEntry } from "./equivalent-audit.ts";
+import type { ReproveOutcome } from "./equivalent-audit.ts";
+import { type ResolvedEntry, registryEntryId } from "./equivalent-registry.ts";
 import type { FileMutationPlan, MutantEvaluation } from "./evaluate.ts";
 import type { TestRunConfig } from "./execution.ts";
 import type { Mutant } from "./generate.ts";
@@ -128,7 +125,7 @@ export const reproveEntries = async (
       signal,
     );
     if (evaluation.status !== "killed") continue;
-    outcome.killedChunks.add(`${entry.registry}:${entry.index}`);
+    outcome.killedChunks.add(registryEntryId(entry));
     outcome.killedLines.push(entry.line);
   }
   // An abort that lands on the last entry must not read as a clean run: the

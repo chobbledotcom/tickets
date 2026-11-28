@@ -9,13 +9,27 @@ commands are in `scripts/preview.ts`.
 | Event                              | Result                                                                            |
 | ---------------------------------- | --------------------------------------------------------------------------------- |
 | A pull request opens or reopens    | The workflow creates a database, a script, and a pull zone. It sets up the site.  |
-| A push to the branch               | The workflow deploys the new build. The database is not reset.                    |
+| A push to the branch               | The workflow deploys the new build and publishes the branch guide videos. The database is not reset. |
 | The pull request closes or merges  | The workflow deletes the Stripe webhooks, the script, its pull zone, and the database. |
 | A pull request from a fork         | Nothing happens. A fork run has no secrets.                                       |
+| A person starts the workflow by hand | The reset job deletes the preview of the branch that the person names.         |
 
 The pull request shows a "View deployment" link for the `preview`
 environment. The job summary shows the same address. The address ends in
 `.b-cdn.net`, the stable name of the site.
+
+## Guide videos
+
+The preview deploy job publishes the branch guide videos before the build. The
+job has the preview environment, so it reads the staging CDN secrets directly.
+The preview build bakes the returned map into the page.
+
+The job checks each guide on its own. A guide whose anchors still match reuses
+its CDN object. A guide whose anchors changed is recorded, rendered, and
+uploaded again. A failed publish stops the preview deploy.
+
+The uploaded videos stay on the staging CDN after the preview closes. Their
+names come from the video bytes, so a later preview can reuse them.
 
 ## Setup of a new preview
 
@@ -77,11 +91,11 @@ every branch.
 | `SQUARE_LOCATION_ID`                      | Square sandbox location.                                  |
 | `SUMUP_API_KEY`                           | SumUp sandbox key.                                        |
 | `SUMUP_MERCHANT_CODE`                     | SumUp sandbox merchant code.                              |
-| `CDN_STAGING_URL`                         | Static asset CDN for the build. Set all five CDN secrets or none. |
-| `CDN_BUNNY_STAGING_STORAGE_ZONE_NAME`     | Static asset storage zone name.                           |
-| `CDN_BUNNY_STAGING_STORAGE_ZONE_KEY`      | Static asset storage zone key.                            |
+| `CDN_STAGING_URL`                         | Static asset and guide video CDN for the build. Set all five CDN secrets or none. |
+| `CDN_BUNNY_STAGING_STORAGE_ZONE_NAME`     | Static asset and guide video storage zone name.           |
+| `CDN_BUNNY_STAGING_STORAGE_ZONE_KEY`      | Static asset and guide video storage zone key.            |
 | `CDN_BUNNY_STAGING_STORAGE_HOST`          | Storage API host of that zone.                            |
-| `CDN_BUNNY_STAGING_PULL_ZONE_ID`          | Pull zone that the build purges after an upload.          |
+| `CDN_BUNNY_STAGING_PULL_ZONE_ID`          | Pull zone that the build purges after an upload, and that serves the guide videos. |
 
 The payment keys are not script secrets. The setup enters them in the admin
 settings, where the app stores them in its database.
@@ -111,6 +125,24 @@ preview can send real mail from the host address.
   resource by name and does not make a second copy.
 - The delete step deletes the Stripe webhooks first and the database last. A
   missing resource counts as deleted, so a rerun finishes the work.
+
+## Reset a broken preview
+
+A preview keeps its database between pushes. A preview can stay broken, for
+example when its database does not match the build. A deploy to such a
+preview then fails before the build deploys.
+
+To make the preview new:
+
+1. Open the workflow "Branch preview" in the Actions tab.
+2. Choose "Run workflow". Start it from `main`. Type the branch name.
+3. Wait for the reset job to finish. It deletes the Stripe webhooks, the
+   script, its pull zone, and the database.
+4. Run the last pull request run of the branch again, or push to the branch.
+   The workflow makes a new preview and sets it up.
+
+The reset job deletes data. A reset of a preview that does not exist does
+nothing. Reset only a preview that is broken.
 
 ## When a run fails
 

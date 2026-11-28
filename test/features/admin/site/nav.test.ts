@@ -46,6 +46,12 @@ describeWithEnv("server (admin site nav)", { db: true }, () => {
       assertStringIncludes(html, 'href="/admin/site"');
     });
 
+    test("shows the reviews editor whenever Site is on", async () => {
+      await enablePublicSite();
+      const shown = await (await adminGet("/admin/site")).text();
+      expectIncludesAll(shown, ['href="/admin/site/reviews"', ">Reviews<"]);
+    });
+
     test("hides Site link when public site is disabled", async () => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();

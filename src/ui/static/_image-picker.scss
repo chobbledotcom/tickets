@@ -3,13 +3,8 @@
 
 @use "mixins" as *;
 
-/* The picker's window is wider than the default. A phone or a coarse pointer
- * keeps the shell's full-screen shape, so this rule stops short of them. */
-@media (min-width: 769px) and (pointer: fine) {
-  .admin-modal:has(.md-image-picker) {
-    width: min(100% - 2 * var(--space-lg), 60rem);
-  }
-}
+/* The picker's window is wider than the default. */
+@include wide-modal(".md-image-picker", 60rem);
 
 .md-image-columns {
   display: grid;

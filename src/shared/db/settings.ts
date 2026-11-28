@@ -186,6 +186,10 @@ const settingsBase = {
   loadKeys,
   /** Begin the per-request settings-version probe as early as possible. */
   prefetchVersion,
+  /** The public reviews page switch. */
+  get reviewsEnabled(): boolean {
+    return snap("reviews_enabled");
+  },
 
   /** Set test overrides (survive invalidateCache, cleared by clearTestOverrides). */
   setForTest(overrides: Partial<SettingsData>): void {
@@ -305,6 +309,7 @@ const settingsBase = {
       CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
       "orphan_purge_retention",
     ),
+    reviewsEnabled: boolUpdate(CONFIG_KEYS.REVIEWS_ENABLED, "reviews_enabled"),
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
 
     superuserChoice: plaintextUpdate(CONFIG_KEYS.SUPERUSER_CHOICE) as (

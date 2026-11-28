@@ -1,21 +1,20 @@
 import { sortByName } from "#shared/name-order.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
-
-export type LedgerScopeOption = { id: number; name: string };
+import type { NamedRecord } from "#types";
 
 /** The one selected ledger scope. A listing and group cannot both be active. */
 export type LedgerScope =
   | { kind: "all" }
-  | ({ kind: "listing" } & LedgerScopeOption)
-  | ({ kind: "group" } & LedgerScopeOption);
+  | ({ kind: "listing" } & NamedRecord)
+  | ({ kind: "group" } & NamedRecord);
 
 export const ALL_LEDGER_SCOPE: LedgerScope = { kind: "all" };
 
 const optionFromParam = (
   params: URLSearchParams,
   key: string,
-  options: LedgerScopeOption[],
-): LedgerScopeOption | undefined => {
+  options: NamedRecord[],
+): NamedRecord | undefined => {
   const raw = params.get(key);
   const id = raw === null ? null : parsePositiveIntId(raw);
   return id === null ? undefined : options.find((option) => option.id === id);
@@ -25,8 +24,8 @@ const optionFromParam = (
  * valid group is used, including when the listing param was invalid. */
 export const resolveLedgerScope = (
   params: URLSearchParams,
-  listings: LedgerScopeOption[],
-  groups: LedgerScopeOption[],
+  listings: NamedRecord[],
+  groups: NamedRecord[],
 ): LedgerScope => {
   const listing = optionFromParam(params, "listing", listings);
   if (listing) return { ...listing, kind: "listing" };
@@ -70,9 +69,7 @@ export const listingIdsForLedgerScope = (
 };
 
 /** A group id→name map as the options a group picker offers, by name. */
-export const groupScopeOptions = (
-  names: Map<number, string>,
-): LedgerScopeOption[] =>
+export const groupScopeOptions = (names: Map<number, string>): NamedRecord[] =>
   sortByName([...names].map(([id, name]) => ({ id, name })));
 
 export const ledgerScopeSelected = (

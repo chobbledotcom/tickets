@@ -10,18 +10,24 @@ import {
   clearEvidenceOutput,
   writeEvidenceBundle,
 } from "./manifest.ts";
+import type { EvidenceCaptureDeclaration } from "./schema.ts";
 import { evidenceThemesEnv } from "./themes.ts";
 
 const evidenceCommit = defineEvidenceCommit(runCommand);
 
-export const runEvidenceSpecs: () => Promise<SpecRunSummary> =
+/** One evidence run for the declarations the caller names. */
+export const evidenceRunFor = (
+  declarations: readonly EvidenceCaptureDeclaration[],
+): (() => Promise<SpecRunSummary>) =>
   defineEvidenceRun({
     buildBundle: buildEvidenceBundle,
     clearOutput: clearEvidenceOutput,
     commit: () => evidenceCommit(projectRoot),
-    declarations: EVIDENCE_CAPTURES,
+    declarations,
     outputDir: join(projectRoot, "reports", "evidence"),
     run: runSpecs,
     themes: evidenceThemesEnv,
     writeBundle: writeEvidenceBundle,
   });
+
+export const runEvidenceSpecs = evidenceRunFor(EVIDENCE_CAPTURES);

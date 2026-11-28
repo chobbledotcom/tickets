@@ -34,64 +34,18 @@ describe("check-presence-assertions rules", () => {
     ).toEqual([]);
   });
 
-  test("flags every call in a file no entry covers", () => {
+  test("flags every call in a file", () => {
     const content =
       "expect(value).toBeDefined();\nexpect(other).toBeDefined();\n";
-    expect(findIssues("fixture.test.ts", content, {})).toEqual([
+    expect(findIssues("fixture.test.ts", content)).toEqual([
       { ...FLAG, line: 1 },
       { ...FLAG, line: 2 },
     ]);
   });
 
-  test("flags only the calls past the recorded count, in source order", () => {
-    const content =
-      "expect(value).toBeDefined();\nexpect(other).toBeDefined();\n";
-    expect(
-      findIssues("fixture.test.ts", content, { "fixture.test.ts": 1 }),
-    ).toEqual([{ ...FLAG, line: 2 }]);
-  });
-
-  test("leaves a file at its recorded count alone", () => {
-    expect(
-      findIssues("fixture.test.ts", "expect(value).toBeDefined();\n", {
-        "fixture.test.ts": 1,
-      }),
-    ).toEqual([]);
-  });
-
-  test("asks for the fallen count to be recorded", () => {
-    expect(
-      findIssues("fixture.test.ts", "expect(value).toBeDefined();\n", {
-        "fixture.test.ts": 3,
-      }),
-    ).toEqual([
-      {
-        fix: "run `deno task check:presence-assertions --update` to record the count",
-        line: 1,
-        problem: "holds 1 presence-only assertions, fewer than the recorded 3",
-        rule: "improved",
-      },
-    ]);
-  });
-
-  test("asks for the entry's deletion once the file holds no call", () => {
-    expect(
-      findIssues("fixture.test.ts", "expect(value).toBeUndefined();\n", {
-        "fixture.test.ts": 1,
-      }),
-    ).toEqual([
-      {
-        fix: "delete the entry in scripts/check-presence-assertions/registry.json",
-        line: 1,
-        problem: "holds no presence-only assertion",
-        rule: "stale-entry",
-      },
-    ]);
-  });
-
-  test("leaves a file with no call and no entry alone", () => {
-    expect(
-      findIssues("fixture.test.ts", "expect(value).toBe(1);\n", {}),
-    ).toEqual([]);
+  test("leaves a file with no call alone", () => {
+    expect(findIssues("fixture.test.ts", "expect(value).toBe(1);\n")).toEqual(
+      [],
+    );
   });
 });
