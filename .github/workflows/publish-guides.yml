@@ -1,0 +1,38 @@
+name: Publish guide videos
+
+# Manual publish of every guide video. A deploy workflow runs the same action
+# inside its deploy job, so the action reads that job's environment secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment that holds the CDN secrets.
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubicloud-standard-4
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Publish guide videos
+        uses: $/.github/actions/publish-guide-videos
+        with:
+          bunny_access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+          cdn_url: ${{ secrets.CDN_URL }}
+          cdn_bunny_storage_zone_name: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          cdn_bunny_storage_zone_key: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}

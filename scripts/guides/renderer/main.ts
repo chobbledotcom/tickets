@@ -27,16 +27,22 @@ if (!(canvas instanceof HTMLCanvasElement) || !cursorElement) {
   throw new Error("The guide renderer page is incomplete");
 }
 
-const timeline: GuideTimeline = await (await fetch("/timeline.json")).json();
+const timeline: GuideTimeline = await (
+  await fetch(new URL("timeline.json", location.href))
+).json();
 const viewport = timeline.viewport;
 
 const renderer = new THREE.WebGLRenderer({
+  alpha: false,
   antialias: true,
   canvas,
   preserveDrawingBuffer: true,
 });
 renderer.setClearColor(0x000000, 1);
-renderer.setPixelRatio(1);
+// The render page is opened at a device scale factor above 1 during the video
+// build, so the canvas must draw at device pixels or the frames lose their
+// detail before ffmpeg ever sees them.
+renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2));
 renderer.setSize(viewport.width, viewport.height, false);
 
 const scene = new THREE.Scene();
@@ -67,6 +73,7 @@ const vignette = new THREE.ShaderMaterial({
   depthWrite: false,
   fragmentShader: `
     varying vec2 vUv;
+    uniform vec4 uFrameRect;
     uniform vec2 uFocusSize;
     uniform float uStrength;
 
@@ -76,6 +83,15 @@ const vignette = new THREE.ShaderMaterial({
     }
 
     void main() {
+      if (
+        vUv.x < uFrameRect.x ||
+        vUv.x > uFrameRect.x + uFrameRect.z ||
+        vUv.y < uFrameRect.y ||
+        vUv.y > uFrameRect.y + uFrameRect.w
+      ) {
+        gl_FragColor = vec4(0.0);
+        return;
+      }
       vec2 halfSize = uFocusSize * 0.5;
       float radius = min(halfSize.x, halfSize.y) * 0.08;
       float distance = roundedBox(vUv - 0.5, halfSize, radius);
@@ -89,6 +105,7 @@ const vignette = new THREE.ShaderMaterial({
   transparent: true,
   uniforms: {
     uFocusSize: { value: new THREE.Vector2(1, 1) },
+    uFrameRect: { value: new THREE.Vector4(0, 0, 1, 1) },
     uStrength: { value: 0 },
   },
   vertexShader: `
@@ -145,7 +162,9 @@ const matchBackground = (texture: THREE.Texture): void => {
 let showing = "";
 const setFrame = async (file: string): Promise<void> => {
   if (file === showing) return;
-  const texture = await loadTexture(`/frames/${file}`);
+  const texture = await loadTexture(
+    new URL(`frames/${file}`, location.href).href,
+  );
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.magFilter = THREE.LinearFilter;
   texture.minFilter = THREE.LinearFilter;
@@ -163,8 +182,10 @@ const placeCursor = (atMs: number, cameraState: RenderResult["camera"]) => {
     return;
   }
   const point = pageToScreen(state, cameraState, viewport);
+  const scale =
+    canvas.clientWidth === 0 ? 1 : canvas.clientWidth / viewport.width;
   cursorElement.style.opacity = "1";
-  cursorElement.style.transform = `translate(${point.x}px, ${point.y}px)`;
+  cursorElement.style.transform = `translate(${point.x * scale}px, ${point.y * scale}px)`;
   const ring = cursorElement.firstElementChild;
   if (ring instanceof HTMLElement) {
     ring.style.transform = `scale(${1 + state.pulse * 0.8})`;
@@ -179,6 +200,16 @@ window.renderAt = async (atMs: number): Promise<RenderResult> => {
   camera.position.y = state.y;
   camera.zoom = state.zoom;
   camera.updateProjectionMatrix();
+
+  const frameRect = vignette.uniforms.uFrameRect?.value;
+  if (frameRect instanceof THREE.Vector4) {
+    frameRect.set(
+      0.5 - (0.5 + state.x / viewport.width) * state.zoom,
+      0.5 - (0.5 + state.y / viewport.height) * state.zoom,
+      state.zoom,
+      state.zoom,
+    );
+  }
 
   const focus = focusRectAt(timeline.events, atMs);
   const size = vignette.uniforms.uFocusSize?.value;

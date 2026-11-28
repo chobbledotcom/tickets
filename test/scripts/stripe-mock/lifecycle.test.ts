@@ -39,6 +39,11 @@ import {
 } from "./fixtures.ts";
 
 const START_LOCK_NAME = "stripe-mock.start.lock";
+/** How long the slow-stop mock takes to shut down after SIGTERM. */
+const SHUTDOWN_MS = 200;
+/** The allowance that test gives its mock. A starved runner can hold the mock
+ * for a long time. The stop sends SIGKILL only when the allowance runs out. */
+const STOP_TIMEOUT_MS = 60_000;
 
 /**
  * Ask for three tries at a mock that always fails, with the port settled the
@@ -115,16 +120,9 @@ describe("starting stripe-mock", () => {
       const startOnPortOrNull = async (port: number) => {
         try {
           return await startStripeMock({
-            budgetMs: 1000,
-            delayMs: 10,
             paths,
             port,
-            // Far longer than the mock's shutdown, so a busy machine cannot
-            // make this read as an impatient stopper. A CI runner under two
-            // parallel suite runs has starved the mock past 10 seconds, so
-            // the allowance is generous — a healthy stop returns on exit,
-            // never on this timer.
-            stopTimeoutMs: 60_000,
+            stopTimeoutMs: STOP_TIMEOUT_MS,
           });
         } catch (error) {
           if (!String(error).includes(STRIPE_MOCK_FAILED_TO_START)) {
@@ -141,7 +139,7 @@ describe("starting stripe-mock", () => {
         round += 1;
         const note = join(paths.binDir, `stopped-cleanly-${round}`);
         const bound = join(paths.binDir, `bound-${round}`);
-        await writeSlowToStopMock(paths, note, bound);
+        await writeSlowToStopMock(paths, note, bound, SHUTDOWN_MS);
 
         const stripeMock = await startOnPortOrNull(port);
         // No bound note means our mock never got the port: the start found
@@ -152,9 +150,18 @@ describe("starting stripe-mock", () => {
         }
         await expectPortOpen(port);
 
+        const stopStartedAt = performance.now();
         await stripeMock.stop();
+        const stopMs = performance.now() - stopStartedAt;
 
-        expect(await pathExists(note)).toBe(true);
+        // A stopper that kills at once returns before the mock's own shutdown
+        // ends. A starved runner can hold the mock until the allowance runs
+        // out. Only a stop that returned inside the allowance proves that the
+        // mock finished.
+        expect(stopMs).toBeGreaterThanOrEqual(SHUTDOWN_MS);
+        if (stopMs < STOP_TIMEOUT_MS) {
+          expect(await pathExists(note)).toBe(true);
+        }
         return false;
       });
     });

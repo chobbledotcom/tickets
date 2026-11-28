@@ -7,6 +7,9 @@
 import { join } from "@std/path";
 import type { CDPSession, Page } from "playwright";
 import { withCleanup } from "#scripts/cleanup.ts";
+import { frameFileName } from "#scripts/guides/frame-name.ts";
+import { frameTimeMs } from "#scripts/guides/record/frame-time.ts";
+import { GUIDE_DEVICE_SCALE_FACTOR } from "#scripts/guides/video.ts";
 
 const FIRST_FRAME_TIMEOUT_MS = 10_000;
 
@@ -46,10 +49,10 @@ export const startScreencast = async (
           ? Date.now()
           : event.metadata.timestamp * 1000;
       startWallClockMs ??= wallMs;
-      const file = `frame-${String(frames.length + 1).padStart(5, "0")}.jpg`;
+      const file = frameFileName(frames.length + 1, "jpg");
       await Deno.writeFile(join(outputDir, file), decodableFrame(event.data));
       frames.push({
-        atMs: Math.max(0, Math.round(wallMs - startWallClockMs)),
+        atMs: frameTimeMs(wallMs, startWallClockMs, frames.at(-1)?.atMs ?? 0),
         file,
       });
       await cdp.send("Page.screencastFrameAck", {
@@ -62,8 +65,11 @@ export const startScreencast = async (
   await cdp.send("Page.startScreencast", {
     everyNthFrame: 1,
     format: "jpeg",
-    maxHeight: viewport.height,
-    maxWidth: viewport.width,
+    // The guide browser runs at a forced 2x device scale, so the surface and
+    // the frames are device pixels. The cap keeps that resolution instead of
+    // letting Chrome fall back to the CSS-sized viewport.
+    maxHeight: Math.round(viewport.height * GUIDE_DEVICE_SCALE_FACTOR),
+    maxWidth: Math.round(viewport.width * GUIDE_DEVICE_SCALE_FACTOR),
     quality: 90,
   });
 

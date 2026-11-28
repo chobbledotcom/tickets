@@ -9,11 +9,13 @@ The optional static CDN is different: `CDN_URL`, `CDN_BUNNY_STORAGE_ZONE_NAME`,
 `CDN_BUNNY_STORAGE_ZONE_KEY`, `CDN_BUNNY_STORAGE_HOST`, and
 `CDN_BUNNY_PULL_ZONE_ID` are GitHub repository secrets used only while building.
 When all five are set, the build uploads site-independent browser assets and
-image-codec WASM under an immutable content-addressed path, purges the pull zone
-with the existing `BUNNY_ACCESS_KEY` repository secret, verifies every public
-object byte-for-byte, then bakes those public URLs and their CSP origin into the
-edge script. They must not be added to the running Bunny script. With all five
-absent, assets stay embedded; a partial set fails the build. Site-bound assets
+image-codec WASM under an immutable content-addressed path. The guide publish
+action uses the same secrets to upload the guide videos under `guides/`. Both
+steps purge the pull zone with the existing `BUNNY_ACCESS_KEY` repository
+secret and verify every public object byte-for-byte. The build then bakes the
+public URLs and their CSP origin into the edge script. They must not be added to
+the running Bunny script. With all five absent, assets stay embedded. A partial
+set fails the build. Site-bound assets
 such as `embed.js` and the dynamic `/order.js` body remain in each script. Use
 the Storage API hostname shown on Bunny's Storage **Access** page for
 `CDN_BUNNY_STORAGE_HOST` (for example, `storage.bunnycdn.com` or

@@ -33,6 +33,7 @@ export type PickerIconName =
  */
 export type IconName =
   | PickerIconName
+  | "video"
   | "plus"
   | "book-open"
   | "user-plus"
@@ -236,6 +237,31 @@ export const BackButton = iconLink("btn small", "arrow-left");
  * followed by the label in muted text.
  */
 export const GuideLink = iconLink("guide-link", "book-open");
+
+/** A small video camera link that opens the recorded guide animation in the admin
+ * modal. The link falls back to a new tab when the client script is absent. */
+export const GuideVideoLink = ({
+  href,
+  label,
+  title,
+}: {
+  href: string;
+  label: string;
+  title: string;
+}): SafeHtml => (
+  <a
+    aria-label={label}
+    class="guide-video-link"
+    data-guide-title={title}
+    data-guide-video
+    href={href}
+    rel="noopener"
+    target="_blank"
+    title={label}
+  >
+    <Icon name="video" />
+  </a>
+);
 
 /**
  * A page's guide link, placed at the very bottom of the body. Every admin page

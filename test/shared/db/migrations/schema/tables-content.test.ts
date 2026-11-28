@@ -10,7 +10,7 @@ import { sqlText } from "#test-utils/sql-text.ts";
 test("keeps the complete content schema declaration exact", async () => {
   await expectSchemaDeclarationExact(
     contentTables,
-    "0992766f07fce4905048ab46b56ecd3edebc23b95f2ea2f6432ece044512ed10",
+    "b1b41c33da47029827fe9a77ca567017be5267bc195409ae4d5364a6798f3dd4",
   );
 });
 

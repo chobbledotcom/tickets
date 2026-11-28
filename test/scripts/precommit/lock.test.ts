@@ -4,6 +4,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { removeIfPresent } from "#scripts/cleanup.ts";
 import {
+  defaultPrecommitLockPath,
   precommitLockAt,
   precommitLockPath,
   withPrecommitLock,
@@ -46,12 +47,15 @@ describe("precommit lock", () => {
     ).resolves.toBe("checked");
   });
 
-  test("falls back to the system temporary folder", async () => {
+  test("falls back to the system temporary folder", () => {
     using _env = stub(Deno.env, "get", () => undefined);
+    using _uid = stub(Deno, "uid", () => 4321);
 
-    await expect(
-      withPrecommitLock(() => Promise.resolve("checked")),
-    ).resolves.toBe("checked");
+    // This test takes no lock. It runs inside a local precommit, which
+    // already holds this path's lock.
+    expect(defaultPrecommitLockPath()).toBe(
+      join("/tmp", "chobble-tickets-precommit-4321.lock"),
+    );
   });
 
   test("names the platform that cannot give the lock a user id", async () => {

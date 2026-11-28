@@ -16,6 +16,7 @@ const navProps = (): PublicNavProps => ({
   hasContact: false,
   hasNews: false,
   hasOrder: false,
+  hasReviews: false,
   hasTerms: false,
   pages: {
     activeRootId: null,

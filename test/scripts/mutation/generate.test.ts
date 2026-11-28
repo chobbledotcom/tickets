@@ -22,8 +22,8 @@ const mutantAt = (
   predicate: (mutant: Mutant) => boolean,
 ): string => {
   const mutant = generateMutants(content, "sample.ts", true).find(predicate);
-  expect(mutant).toBeDefined();
-  return applyMutant(content, mutant!);
+  assert(mutant !== undefined, "No mutant matches the predicate");
+  return applyMutant(content, mutant);
 };
 
 describe("generateMutants", () => {
@@ -256,7 +256,8 @@ describe("generateMutants", () => {
       (candidate) => candidate.operator === "+",
     );
 
-    expect(mutant?.replacement).toBeUndefined();
-    expect(applyMutant(content, mutant!)).toBe("const value = 1 * 2;");
+    assert(mutant !== undefined, "No + mutant was generated");
+    expect(mutant).not.toHaveProperty("replacement");
+    expect(applyMutant(content, mutant)).toBe("const value = 1 * 2;");
   });
 });

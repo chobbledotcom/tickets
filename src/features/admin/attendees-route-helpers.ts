@@ -1,3 +1,4 @@
+import type { TicketPair } from "#booking/ticket-moves.ts";
 import {
   PENDING_NOTIFICATION,
   type PendingNotificationFlag,
@@ -223,8 +224,6 @@ const loadAttendeeWithBooking: (
 
 export type ListingRouteParams = { id: number };
 
-type AttendeeRouteParams = { listingId: number; attendeeId: number };
-
 /** The canonical URL of an attendee-scoped action (confirm page + POST). */
 export const attendeeActionUrl = <Action extends string>(
   attendeeId: number,
@@ -409,8 +408,8 @@ const attendeeFormActionLoading =
   (
     pattern: string,
     handler: AttendeeFormAction,
-  ): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
-    createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
+  ): ((request: Request, params: TicketPair) => Promise<Response>) =>
+    createAuthedHandler<TicketPair, AttendeeWithListing>({
       auth: formPolicyAt(pattern),
       handle: ({ context, form, params, session }) =>
         handler(context, session, form, params.listingId, params.attendeeId),

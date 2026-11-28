@@ -156,6 +156,11 @@ export const STRING_SETTING_DEFINITIONS = [
     CONFIG_KEYS.CONTACT_PAGE_TEXT,
   ),
   accessorSetting("encrypted", "orderIntroText", CONFIG_KEYS.ORDER_INTRO_TEXT),
+  accessorSetting(
+    "encrypted",
+    "reviewsIntroText",
+    CONFIG_KEYS.REVIEWS_INTRO_TEXT,
+  ),
   accessorSetting("encrypted", "siteFooter", CONFIG_KEYS.SITE_FOOTER),
   definition({ key: CONFIG_KEYS.STRIPE_SECRET_KEY, storage: "encrypted" }),
   definition({ key: CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, storage: "encrypted" }),

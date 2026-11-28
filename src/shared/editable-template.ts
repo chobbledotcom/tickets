@@ -8,8 +8,8 @@
  * settings box puts the site's own wording back.
  */
 
-import { errorMessage } from "#shared/error-message.ts";
 import { plainLiquidEngine } from "#shared/liquid-engine.ts";
+import { validationMessage } from "#shared/validation-message.ts";
 
 export type EditableTemplate = {
   /** The operator's template. Empty means "use the default". */
@@ -34,11 +34,7 @@ export const renderEditableTemplate = async (
 /** Read a template for sense without rendering it. Returns null when the
  * engine can read it, or the engine's message when it cannot. A settings form
  * uses this to refuse a template that fails on every later page load. */
-export const validateEditableTemplate = (template: string): string | null => {
-  try {
+export const validateEditableTemplate = (template: string): string | null =>
+  validationMessage(() => {
     plainLiquidEngine().parse(template);
-    return null;
-  } catch (error) {
-    return errorMessage(error);
-  }
-};
+  });

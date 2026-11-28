@@ -6,7 +6,7 @@
 
 import * as v from "valibot";
 import { EDGE_HASH_PATTERN } from "./edge-hash.ts";
-import { parseDocument, StableIdSchema } from "./schema-parts.ts";
+import { parserFor, StableIdSchema } from "./schema-parts.ts";
 
 const COMMIT_PATTERN = /^[a-f0-9]{40}$/;
 
@@ -37,5 +37,5 @@ const BaselineSchema = v.strictObject({
 export function parseGuideFreshnessBaseline(
   input: unknown,
 ): GuideFreshnessBaseline {
-  return parseDocument({ input, schema: BaselineSchema });
+  return parserFor(BaselineSchema)(input);
 }

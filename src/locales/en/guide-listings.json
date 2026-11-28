@@ -4,6 +4,8 @@
   "guide.sections.booking_questions": "Booking questions",
   "guide.sections.public_links": "Public links",
   "guide.sections.public_site": "Public site",
+  "guide.q.watch_guide_video": "Where is the guide video?",
+  "guide.a.watch_guide_video": "<p>Open <strong>Create a listing</strong>. A video camera button sits beside the page title. Click it to watch a short animation that shows how to create a listing. The animation plays in a window on the page.</p><p>If the site has no guide video, the video camera button does not appear.</p>",
   "guide.q.standard_vs_daily_listings": "What's the difference between standard and daily listings?",
   "guide.a.standard_vs_daily_listings": "<p>A <strong>standard listing</strong> is a one-off. Attendees book a place, and the people limit covers the whole listing.</p><p>A <strong>daily listing</strong> lets attendees pick a date when they book. The people limit applies to each date on its own, so you can run the same listing every day with a fresh set of places.</p>",
   "guide.q.what_are_groups": "What are groups?",

@@ -1,0 +1,95 @@
+name: Publish guide videos
+description: Capture the guide evidence, publish the changed guide videos, and return the slug-to-URL map.
+
+inputs:
+  bunny_access_key:
+    description: Bunny account key that purges the pull zone.
+    required: false
+  cdn_url:
+    description: Public base URL of the guide video CDN.
+    required: false
+  cdn_bunny_storage_zone_name:
+    description: Bunny storage zone name for the CDN objects.
+    required: false
+  cdn_bunny_storage_zone_key:
+    description: Bunny storage zone key for the CDN objects.
+    required: false
+  cdn_bunny_storage_host:
+    description: Bunny Storage API hostname for the zone.
+    required: false
+  cdn_bunny_pull_zone_id:
+    description: Pull zone that serves the CDN objects.
+    required: false
+
+outputs:
+  guide_videos:
+    description: JSON map of guide slug to its published CDN MP4.
+    value: ${{ steps.publish.outputs.guide_videos || steps.skip.outputs.guide_videos || '{}' }}
+
+runs:
+  using: composite
+  steps:
+    # Without every value there is no object store and no origin for the edge
+    # script to name. The run then reports an empty map, so the app hides the links.
+    - name: Check the CDN secrets
+      id: cdn
+      shell: bash
+      env:
+        BUNNY_ACCESS_KEY: ${{ inputs.bunny_access_key }}
+        CDN_URL: ${{ inputs.cdn_url }}
+        CDN_BUNNY_STORAGE_ZONE_NAME: ${{ inputs.cdn_bunny_storage_zone_name }}
+        CDN_BUNNY_STORAGE_ZONE_KEY: ${{ inputs.cdn_bunny_storage_zone_key }}
+        CDN_BUNNY_STORAGE_HOST: ${{ inputs.cdn_bunny_storage_host }}
+        CDN_BUNNY_PULL_ZONE_ID: ${{ inputs.cdn_bunny_pull_zone_id }}
+      run: |
+        missing=""
+        for name in BUNNY_ACCESS_KEY CDN_URL CDN_BUNNY_STORAGE_ZONE_NAME \
+          CDN_BUNNY_STORAGE_ZONE_KEY CDN_BUNNY_STORAGE_HOST CDN_BUNNY_PULL_ZONE_ID; do
+          if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
+        done
+        if [ -n "$missing" ]; then
+          echo "cdn=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Skipping the guide videos: missing$missing. The app hides their links."
+        else
+          echo "cdn=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Set up devenv
+      if: ${{ steps.cdn.outputs.cdn == 'true' }}
+      uses: $/.github/actions/setup-devenv
+      with:
+        profile: browser
+
+    - name: Cache stripe-mock
+      if: ${{ steps.cdn.outputs.cdn == 'true' }}
+      uses: actions/cache@v4.3.0
+      with:
+        path: .bin
+        # Keep this key in step with STRIPE_MOCK_VERSION.
+        key: stripe-mock-0.188.0-linux-amd64
+
+    # The render decision compares the guide anchors against this run, so the
+    # guide screenshots must exist before the publish step asks about them.
+    - name: Capture guide evidence
+      if: ${{ steps.cdn.outputs.cdn == 'true' }}
+      shell: devenv --profile browser shell bash -- -e {0}
+      run: deno task guide:evidence
+
+    - name: Publish guide videos
+      id: publish
+      if: ${{ steps.cdn.outputs.cdn == 'true' }}
+      shell: devenv --profile browser shell bash -- -e {0}
+      env:
+        BUNNY_ACCESS_KEY: ${{ inputs.bunny_access_key }}
+        CDN_URL: ${{ inputs.cdn_url }}
+        CDN_BUNNY_STORAGE_ZONE_NAME: ${{ inputs.cdn_bunny_storage_zone_name }}
+        CDN_BUNNY_STORAGE_ZONE_KEY: ${{ inputs.cdn_bunny_storage_zone_key }}
+        CDN_BUNNY_STORAGE_HOST: ${{ inputs.cdn_bunny_storage_host }}
+        CDN_BUNNY_PULL_ZONE_ID: ${{ inputs.cdn_bunny_pull_zone_id }}
+      run: deno task guide:publish
+
+    - name: Report no guide videos
+      id: skip
+      if: ${{ steps.cdn.outputs.cdn != 'true' }}
+      shell: bash
+      run: echo "guide_videos={}" >> "$GITHUB_OUTPUT"

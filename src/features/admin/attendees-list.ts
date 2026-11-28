@@ -31,10 +31,7 @@ import {
 } from "#shared/attendee-list-controls.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import {
-  groupScopeOptions,
-  type LedgerScopeOption,
-} from "#shared/ledger-scope.ts";
+import { groupScopeOptions } from "#shared/ledger-scope.ts";
 import {
   intersectListingIds,
   type ListingFilter,
@@ -48,13 +45,13 @@ import {
   sortListings,
 } from "#shared/sort-listings.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
-import type { Attendee, ListingWithCount } from "#types";
+import type { Attendee, ListingWithCount, NamedRecord } from "#types";
 
 /** The browser's controls: every listing, every group, the type filter, sort
  *  (newest first unless the address says otherwise), and paging. */
 const browserListSetup = (
   listings: ListingWithCount[],
-  groups: LedgerScopeOption[],
+  groups: NamedRecord[],
 ): AttendeeListSetup<AttendeeSort> => ({
   basePath: adminPattern("attendees"),
   csvPath: "/admin/attendees/csv",

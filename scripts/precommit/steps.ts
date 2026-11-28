@@ -104,9 +104,9 @@ const STEPS = [
     cmd: ["task", "check:test-quality"],
     name: "check:test-quality",
   },
-  // The presence-assertion check holds every test file to its recorded
-  // toBeDefined() count in a registry that only falls (see "Test Quality
-  // Standards" in AGENTS.md).
+  // The presence-assertion check reports every toBeDefined() call in the test
+  // tree, with no exceptions list (see "Test Quality Standards" in
+  // AGENTS.md).
   {
     cmd: ["task", "check:presence-assertions"],
     name: "check:presence-assertions",

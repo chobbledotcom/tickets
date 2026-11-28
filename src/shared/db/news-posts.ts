@@ -13,11 +13,11 @@ import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   executeBatch,
-  queryAll,
   resultRows,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
+import { existenceProbe } from "#db/existence.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import {
   clearImageUsesForItemStatement,
@@ -37,12 +37,10 @@ import {
   unclaimedSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql } from "#db/sql.ts";
 import { deleteFrom } from "#db/write.ts";
 import { fieldById, mapParallel } from "#fp";
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { nowIso } from "#shared/now.ts";
-import { requestCache } from "#shared/request-cache.ts";
 import { requireSuccess } from "#shared/result.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";
@@ -87,21 +85,16 @@ export const newsSlugBase = (created: string, name: string): string =>
 
 // The existence probe every public page's nav runs: one indexed LIMIT 1 read,
 // nothing decrypted. Request-scoped and auto-cleared on any news_posts write.
-const existenceStatement: SqlStatement = sql`SELECT id FROM news_posts LIMIT 1`;
-const existenceCache = requestCache(() =>
-  queryAll<{ id: number }>(existenceStatement),
+const newsExistence = existenceProbe(
+  "news_posts",
+  sql`SELECT id FROM news_posts LIMIT 1`,
 );
-registerTableInvalidation(["news_posts"], existenceCache.invalidate);
 
 /** The existence probe as a read the nav can batch with its other small ones. */
-export const newsExistenceRead: FillableRead = {
-  fill: (result) => existenceCache.prime(resultRows<{ id: number }>(result)),
-  statement: existenceStatement,
-};
+export const newsExistenceRead: FillableRead = newsExistence.read;
 
 /** Does at least one news post exist? (Drives the public News nav link.) */
-export const hasNewsPosts = async (): Promise<boolean> =>
-  (await existenceCache.getAll()).length > 0;
+export const hasNewsPosts = newsExistence.exists;
 
 /** Load the summary projection for every post, newest first: id, created,
  * slug, name, snippet — no image reads or decrypts. Feeds the RSS feed and the

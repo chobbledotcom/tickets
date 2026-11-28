@@ -202,7 +202,7 @@
     "participle": 5,
     "wordy": 2,
     "long-sentence": 2,
-    "banned-modal": 2,
+    "banned-modal": 1,
     "semicolon": 1
   },
   "src/shared/add-on-reachability.ts": {
@@ -1929,7 +1929,7 @@
   },
   "src/ui/templates/public/shared.tsx": {
     "banned-modal": 2,
-    "long-sentence": 10,
+    "long-sentence": 9,
     "present-perfect": 1,
     "semicolon": 1,
     "contraction": 2

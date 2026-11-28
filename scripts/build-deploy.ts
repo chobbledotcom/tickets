@@ -17,6 +17,7 @@
  * deployed artifact.
  */
 
+import { parseGuideVideoAssetsJson } from "#shared/guide-video.ts";
 import { buildEdgeBundle } from "./edge-bundle-lib.ts";
 import { nativeLibsqlGuard } from "./edge-bundle-modules.ts";
 
@@ -29,6 +30,7 @@ await buildEdgeBundle({
   },
   entryPoint: "./src/deploy.ts",
   guards: [nativeLibsqlGuard],
+  guideVideos: parseGuideVideoAssetsJson(Deno.env.get("GUIDE_VIDEOS")),
   label: "Deploy",
   outfile: "deploy.js",
 });

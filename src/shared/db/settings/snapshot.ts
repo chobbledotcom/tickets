@@ -67,6 +67,7 @@ type SpecificFields = {
   order_enabled: boolean;
   payment_provider: PaymentProviderType | null;
   payment_provider_setting: PaymentProviderSetting | null;
+  reviews_enabled: boolean;
   booking_fee: string;
   square_sandbox: boolean;
   superuser_choice: SuperuserChoice;
@@ -99,6 +100,7 @@ export const data: SettingsData = {
   payment_provider: null,
   payment_provider_setting: null,
   phone_prefix: "+44",
+  reviews_enabled: false,
   show_public_api: false,
   square_sandbox: false,
   theme: "light",

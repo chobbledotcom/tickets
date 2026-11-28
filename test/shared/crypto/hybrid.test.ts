@@ -46,8 +46,6 @@ describe("RSA key pair and hybrid encryption", () => {
   describe("generateKeyPair", () => {
     it("generates valid key pair", async () => {
       await ensureSharedKeyPair();
-      expect(sharedPair.publicKey).toBeDefined();
-      expect(sharedPair.privateKey).toBeDefined();
       expect(JSON.parse(sharedPair.publicKey).kty).toBe("RSA");
       expect(JSON.parse(sharedPair.privateKey).kty).toBe("RSA");
     });

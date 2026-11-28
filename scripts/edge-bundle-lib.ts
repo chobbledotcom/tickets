@@ -19,6 +19,7 @@ import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { dirname, fromFileUrl } from "@std/path";
 import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
+import type { GuideVideoAssets } from "#shared/guide-video.ts";
 import { ASSETS } from "#shared/images/wasm-assets.ts";
 import { runStaticAssetBuild } from "./build-static-assets.ts";
 import { minifyCss } from "./css-minify.ts";
@@ -27,9 +28,11 @@ import {
   buildAssetsModule,
   buildBuildInfoModule,
   type EdgeBundleGuard,
+  type PublishedAssets,
   reactRuntimeGuard,
   SENTRY_BUILD_DEFINES,
   sentryTreeShakingGuard,
+  threeJsGuard,
 } from "./edge-bundle-modules.ts";
 import { ASSET_DEFS, buildCdnAssets } from "./edge-cdn-assets.ts";
 import {
@@ -60,6 +63,10 @@ export interface EdgeBundleOptions {
   entryPoint: string;
   /** Extra assertions beyond the shared React-runtime guard. */
   guards?: EdgeBundleGuard[];
+  /** CDN MP4 for each published guide, baked into the asset-paths module. An
+   * absent map means this build published no videos, so the app renders no
+   * camera links. */
+  guideVideos?: GuideVideoAssets | null;
   /** Human label used in guard messages and the completion log ("Edge"/"Deploy"). */
   label: string;
   /** Basename esbuild writes under `./dist`, e.g. `"edge.js"`. */
@@ -114,7 +121,7 @@ const inlineAssetsPlugin = (
   buildIso: string,
   buildTs: number,
   staticAssets: Record<string, string>,
-  published?: Awaited<ReturnType<typeof publishStaticCdnAssets>>,
+  assets: PublishedAssets,
 ): Plugin => ({
   name: "inline-assets",
   setup(build) {
@@ -125,7 +132,7 @@ const inlineAssetsPlugin = (
 
     // Replace asset paths module with cache-busted version
     inlineGeneratedModule(build, /asset-paths\.ts$/, "inline-asset-paths", () =>
-      buildAssetPathsModule(ASSET_DEFS, buildTs, published),
+      buildAssetPathsModule(ASSET_DEFS, buildTs, assets),
     );
 
     // Replace the assets module with inlined content
@@ -133,7 +140,7 @@ const inlineAssetsPlugin = (
       build,
       /(features\/assets\.ts$|#routes\/assets\.ts$)/,
       "inline-assets",
-      () => buildAssetsModule(ASSET_DEFS, staticAssets, published),
+      () => buildAssetsModule(ASSET_DEFS, staticAssets, assets.published),
     );
   },
 });
@@ -222,7 +229,10 @@ export const buildEdgeBundle = async (
     outdir: "./dist",
     platform: "browser",
     plugins: [
-      inlineAssetsPlugin(buildIso, buildTs, inlinedAssets, published),
+      inlineAssetsPlugin(buildIso, buildTs, inlinedAssets, {
+        guideVideos: options.guideVideos,
+        published,
+      }),
       wasmPlugin,
       // The loader pins older structural esbuild types; its runtime plugins
       // implement the same API used by our newer esbuild package.
@@ -243,6 +253,7 @@ export const buildEdgeBundle = async (
   for (const guard of [
     reactRuntimeGuard(label),
     sentryTreeShakingGuard,
+    threeJsGuard,
     ...(guards ?? []),
   ]) {
     if (guard.test(content)) {

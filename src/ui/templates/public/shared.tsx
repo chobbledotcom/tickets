@@ -19,24 +19,24 @@ import { Layout } from "#templates/layout.tsx";
 import type { Group, Image, ItemImageColumns } from "#types";
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags, the
- * news flag (any post exists), plus the site-pages tree (built per request by
+ * news and reviews flags, plus the site-pages tree (built per request by
  * `publicNavProps`, site-nav.ts). */
 export type PublicNavProps = {
   hasTerms: boolean;
   hasContact: boolean;
   hasNews: boolean;
   hasOrder: boolean;
+  hasReviews: boolean;
   pages: NavModel;
 };
 
 /** The fixed root links, with the root page nodes spliced between Listings and
  * the Order/News/Terms/Contact group ("between listings and contact"). Each
- * page `<li>` may carry extra children (the desktop nesting), supplied per
- * node. */
-/** A root nav `<li>` link, included only when `show` is true — folded into a
+ * page `<li>` may carry extra children. The desktop nesting supplies them. */
+/** A root nav `<li>` link, included only when `show` is true. The result is a
  *  one-element array so it splices cleanly into the root list, or nothing when
- *  the page is disabled. `label` is the link body (plain text, or `<Raw>` for
- *  the terms link that carries markup). */
+ *  the page is disabled. `label` is the link body. It is plain text, or
+ *  `<Raw>` for the terms link that carries markup. */
 const optionalNavItem = (
   show: boolean,
   href: string,
@@ -51,7 +51,14 @@ const optionalNavItem = (
     : [];
 
 const rootItems = (
-  { hasTerms, hasContact, hasNews, hasOrder, pages }: PublicNavProps,
+  {
+    hasTerms,
+    hasContact,
+    hasNews,
+    hasOrder,
+    hasReviews,
+    pages,
+  }: PublicNavProps,
   nested: (node: LeveledNavNode) => JSX.Element | null,
 ): JSX.Element[] => [
   <li>
@@ -63,6 +70,7 @@ const rootItems = (
   ...nodeLis(pages.rootPageNodes, nested),
   ...optionalNavItem(hasOrder, "/order", t("nav.public.order")),
   ...optionalNavItem(hasNews, "/news", t("nav.public.news")),
+  ...optionalNavItem(hasReviews, "/reviews", t("nav.public.reviews")),
   ...optionalNavItem(hasTerms, "/terms", <Raw html={t("nav.public.terms")} />),
   ...optionalNavItem(hasContact, "/contact", t("nav.public.contact")),
 ];
@@ -86,7 +94,8 @@ export const PublicNav = (props: PublicNavProps): JSX.Element =>
 /** Compute which public pages have content.
  * The Contact link also shows when the contact form is active, even if the
  * contact page has no descriptive text of its own. The Order link shows
- * whenever the owner has enabled the order page. */
+ * whenever the owner has enabled the order page. The Reviews link follows its
+ * page switch and shows only while a review is saved. */
 export const navFlags = () => ({
   hasContact: !!settings.contactPageText || isContactFormActive(),
   hasOrder: settings.orderEnabled,

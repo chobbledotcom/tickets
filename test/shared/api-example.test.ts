@@ -63,8 +63,8 @@ describe("API example", () => {
 
   test("free booking example JSON has ticketToken and ticketUrl", () => {
     const parsed = JSON.parse(API_BOOK_FREE_EXAMPLE_JSON);
-    expect(parsed.booking.ticketToken).toBeDefined();
-    expect(parsed.booking.ticketUrl).toBeDefined();
+    expect(typeof parsed.booking.ticketToken).toBe("string");
+    expect(typeof parsed.booking.ticketUrl).toBe("string");
     // The owed amount is surfaced so integrations can collect provider-less
     // balances; a fully-paid free booking owes nothing.
     expect(parsed.booking.amountOwed).toBe(0);
@@ -72,12 +72,12 @@ describe("API example", () => {
 
   test("paid booking example JSON has checkoutUrl", () => {
     const parsed = JSON.parse(API_BOOK_PAID_EXAMPLE_JSON);
-    expect(parsed.booking.checkoutUrl).toBeDefined();
+    expect(typeof parsed.booking.checkoutUrl).toBe("string");
   });
 
   test("booking request example JSON has required fields", () => {
     const parsed = JSON.parse(API_BOOK_REQUEST_JSON);
-    expect(parsed.name).toBeDefined();
-    expect(parsed.email).toBeDefined();
+    expect(typeof parsed.name).toBe("string");
+    expect(typeof parsed.email).toBe("string");
   });
 });
