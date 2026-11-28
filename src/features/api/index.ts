@@ -17,19 +17,24 @@ import {
 import { handleBookPackage, handleGetPackage } from "#routes/api/packages.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 
-export const apiRoutes = defineRoutes({
+/** The handlers each public API path serves. */
+const endpoints = {
   "GET /api/listings": handleListListings,
   "GET /api/listings/:slug": handleGetListing,
   "GET /api/listings/:slug/availability": handleCheckAvailability,
   "GET /api/packages/:slug": handleGetPackage,
-  "OPTIONS /api/listings": handleOptions,
-  "OPTIONS /api/listings/:slug": handleOptions,
-  "OPTIONS /api/listings/:slug/availability": handleOptions,
-  "OPTIONS /api/listings/:slug/book": handleOptions,
-  "OPTIONS /api/packages/:slug": handleOptions,
-  "OPTIONS /api/packages/:slug/book": handleOptions,
   "POST /api/listings/:slug/book": handleBook,
   "POST /api/packages/:slug/book": handleBookPackage,
-});
+} as const;
+
+/** The CORS preflight route for every path the API serves. */
+const preflightRoutes = Object.fromEntries(
+  Object.keys(endpoints).map((key) => [
+    `OPTIONS ${key.slice(key.indexOf(" ") + 1)}`,
+    handleOptions,
+  ]),
+);
+
+export const apiRoutes = defineRoutes({ ...endpoints, ...preflightRoutes });
 
 export const routeApi = createRouter(apiRoutes);

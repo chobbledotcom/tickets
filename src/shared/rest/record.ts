@@ -13,6 +13,7 @@ import { newRecordOf, recordsOf, rowValuesOf } from "#db/record-table.ts";
 import type { TableHandle, TableWithId } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
+import type { RecordAreaId } from "#shared/admin-surface/ids.ts";
 import {
   type AdminRecord,
   type AnswersOf,
@@ -22,8 +23,10 @@ import {
   type FullRowOf,
   type InputOf,
   type RecordActor,
+  type RecordAnswers,
   type RecordShape,
   type RecordSpec,
+  type RecordSurface,
   type RecordTableOf,
   type RecordWrites,
   type Refused,
@@ -89,11 +92,12 @@ export const answerWrite = async <Row>(
  * refusal keep their declared types, so the record's answers follow them. */
 type DeclaredSpec<
   Shape extends RecordShape,
+  Surface extends RecordAreaId | RecordSurface,
   Create,
   Update,
   Remove,
   Refusal,
-> = Omit<RecordSpec<Shape>, "deleteRefusal" | "write"> & {
+> = Omit<RecordSpec<Shape, Surface>, "deleteRefusal" | "write"> & {
   readonly deleteRefusal?: Refusal;
   readonly write?: RecordWrites<
     InputOf<Shape>,
@@ -113,15 +117,20 @@ export type RecordDefiner<
   Shape extends RecordShape,
   Filled extends keyof RecordSpec<Shape> = never,
 > = <
+  const Surface extends RecordAreaId | RecordSurface,
   Create extends WriteVerdict<FullRowOf<Shape>> = never,
   Update extends WriteVerdict<FullRowOf<Shape>> = never,
   Remove extends DeleteVerdict = never,
   Refusal extends DeleteRefusal = never,
 >(
-  spec: Omit<DeclaredSpec<Shape, Create, Update, Remove, Refusal>, Filled>,
+  spec: Omit<
+    DeclaredSpec<Shape, Surface, Create, Update, Remove, Refusal>,
+    Filled
+  >,
 ) => AdminRecord<
   Shape,
-  AnswersOf<FullRowOf<Shape>, Create, Update, Remove, Refusal>
+  AnswersOf<FullRowOf<Shape>, Create, Update, Remove, Refusal>,
+  Surface
 >;
 
 /** The input of a record with no domain rule passes unchanged. */
@@ -140,9 +149,14 @@ export const defineRecord = <
  * `defineRecord` narrows them from the declaration: a domain write answers
  * what its commands answer, and a table delete refuses only through
  * `deleteRefusal`, which `removeRow` reads. */
-const buildRecord = <Shape extends RecordShape>(
-  spec: RecordSpec<Shape>,
-): AdminRecord<Shape> => {
+const buildRecord = <
+  Shape extends RecordShape,
+  const Surface extends RecordAreaId | RecordSurface =
+    | RecordAreaId
+    | RecordSurface,
+>(
+  spec: RecordSpec<Shape, Surface>,
+): AdminRecord<Shape, RecordAnswers<FullRowOf<Shape>>, Surface> => {
   type Row = RowOf<Shape>;
   type Input = InputOf<Shape>;
   type FullRow = FullRowOf<Shape>;

@@ -233,7 +233,7 @@ const pageItemOrder = orderedListRoutes(ORDERED_LISTS.sitePageItem, {
 // ─── Routes ─────────────────────────────────────────────────────
 
 export const adminHandlers = defineAdminRoutes({
-  ...contentRecordRoutes("sitePages", pages, images, sitePageEntityPage),
+  ...contentRecordRoutes(sitePageRecord, pages, images, sitePageEntityPage),
   ...imageOrderRoutes("page"),
   "POST /admin/site/pages/:id/items": handleAddItem,
   ...pageItemOrder,

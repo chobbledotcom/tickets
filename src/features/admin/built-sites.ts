@@ -272,7 +272,7 @@ const renewalRoutes = {
  * list GET restates the standard key with its own handler. */
 export const adminHandlers = gateOnBuilder(
   defineAdminRoutes({
-    ...recordRoutes("builtSites", pages, builtSitePage),
+    ...recordRoutes(builtSiteRecord, pages, builtSitePage),
     "GET /admin/built-sites": handleBuiltSitesListGet,
     "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
     "POST /admin/built-sites/:id/add-uptime-monitor": handleAddUptimeMonitor,

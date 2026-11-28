@@ -177,7 +177,7 @@ describe("recordRoutes", () => {
     test(`binds the routes of ${area} under its area's paths`, () => {
       const handler = () => Promise.resolve(new Response("ok"));
       const routes = recordRoutes(
-        area,
+        { surface: area },
         {
           createPost: handler,
           deleteGet: handler,
@@ -191,6 +191,33 @@ describe("recordRoutes", () => {
       expect(Object.keys(routes).toSorted()).toEqual(expected);
     });
   }
+
+  test("derives the paths from the record's surface", () => {
+    const handler = () => Promise.resolve(new Response("ok"));
+    const record = { surface: "holidays" } as const;
+    const routes = recordRoutes(
+      record,
+      {
+        createPost: handler,
+        deleteGet: handler,
+        deletePost: handler,
+        editPost: handler,
+        listGet: handler,
+        newGet: handler,
+      },
+      recordingPage(),
+    );
+    expect(Object.keys(routes).toSorted()).toEqual([
+      "GET /admin/holidays",
+      "GET /admin/holidays/:id",
+      "GET /admin/holidays/:id/:tab",
+      "GET /admin/holidays/:id/delete",
+      "GET /admin/holidays/new",
+      "POST /admin/holidays",
+      "POST /admin/holidays/:id/delete",
+      "POST /admin/holidays/:id/edit",
+    ]);
+  });
 });
 
 describe("destinationRoutes", () => {

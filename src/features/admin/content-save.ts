@@ -78,16 +78,16 @@ export const contentImageHandlers = <T>(
  *  list, the record page and tabs, the delete page, the new page, and the
  *  four writes. */
 export const contentRecordRoutes = <Area extends RecordAreaId>(
-  area: Area,
+  record: { readonly surface: Area },
   handlers: CrudHandlers,
   images: ItemImageHandlers,
   entityPage: {
     renderTab: (request: Request, id: number, tab: string) => Promise<Response>;
   },
 ) => {
-  const { list } = recordAreaPatterns(area);
+  const { list } = recordAreaPatterns(record.surface);
   return {
-    ...recordRoutes(area, handlers, entityPage),
+    ...recordRoutes(record, handlers, entityPage),
     [`POST ${list}/:id/images`]: images.set,
     [`POST ${list}/:id/images/upload`]: images.upload,
   };

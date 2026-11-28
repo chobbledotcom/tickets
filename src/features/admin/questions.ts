@@ -126,7 +126,7 @@ const handleListingQuestionsPost = createListingChoicePost({
 
 /** Questions routes */
 export const adminHandlers = defineAdminRoutes({
-  ...recordRoutes("questions", pages, questionPage),
+  ...recordRoutes(questionRecord, pages, questionPage),
   ...answerRoutes,
   "POST /admin/listing/:id/questions": handleListingQuestionsPost,
   "POST /admin/questions/:id/listings": handleQuestionListings,

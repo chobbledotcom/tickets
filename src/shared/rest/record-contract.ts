@@ -286,8 +286,10 @@ export const recordSurfaceOf = (
  * read joins extra columns. `Shape.state` is the narrow pre-update state a
  * transactional hook needs.
  */
-export interface RecordSpec<Shape extends RecordShape>
-  extends AfterCommitConfig {
+export interface RecordSpec<
+  Shape extends RecordShape,
+  Surface extends RecordAreaId | RecordSurface = RecordAreaId | RecordSurface,
+> extends AfterCommitConfig {
   /** The words the activity log uses for this record. */
   readonly activityName: string;
   /** A join write inside the row write's transaction. Runs before the order
@@ -359,7 +361,7 @@ export interface RecordSpec<Shape extends RecordShape>
   readonly storedValues?: (row: FullRowOf<Shape>) => RowOf<Shape>;
   /** Where the record lives: the record area that declares its routes and
    * its audience, or the route ids of a record outside a record area. */
-  readonly surface: RecordAreaId | RecordSurface;
+  readonly surface: Surface;
   /** The table that the generated writes change. */
   readonly table?: TableHandle<RecordTableOf<Shape>>;
   /** A record whose writes go through a domain boundary rather than its table
@@ -369,13 +371,15 @@ export interface RecordSpec<Shape extends RecordShape>
 }
 
 /** One admin record, with its write commands. `Answers` is what its
- * declaration says each command can answer. */
+ * declaration says each command can answer. `Surface` is the declared home:
+ * an area id, or the ids of a record outside a record area. */
 export interface AdminRecord<
   Shape extends RecordShape,
   Answers extends RecordAnswers<FullRowOf<Shape>> = RecordAnswers<
     FullRowOf<Shape>
   >,
-> extends RecordSpec<Shape>,
+  Surface extends RecordAreaId | RecordSurface = RecordAreaId | RecordSurface,
+> extends RecordSpec<Shape, Surface>,
     RecordSurface {
   readonly create: PlannedCommand<
     [input: InputOf<Shape>],

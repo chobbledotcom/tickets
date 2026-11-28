@@ -335,7 +335,7 @@ const handleModifierRecalculatePost: TypedRouteHandler<"POST /admin/modifiers/re
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
 export const adminHandlers = defineAdminRoutes({
-  ...recordRoutes("modifiers", pages, modifierPage),
+  ...recordRoutes(modifierRecord, pages, modifierPage),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,
   "POST /admin/modifiers/:id/answers": handleAnswerLinks,
   "POST /admin/modifiers/:id/edit": handleEditPost,

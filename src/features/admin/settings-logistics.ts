@@ -45,5 +45,5 @@ const pages = recordPages(logisticsAgentRecord, {
 
 /** Logistics settings + agent routes. */
 export const adminHandlers = defineAdminRoutes(
-  recordRoutes("settingsLogistics", pages, logisticsAgentPage),
+  recordRoutes(logisticsAgentRecord, pages, logisticsAgentPage),
 );
