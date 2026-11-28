@@ -11,7 +11,6 @@ import { QUESTION_DISPLAY_TYPES } from "#db/question-types.ts";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import {
   type FieldDocRow,
-  schemaForm,
   schemaRows,
   specFieldDocs,
 } from "#shared/admin-api-example/field-docs.ts";
@@ -364,7 +363,7 @@ describe("documented request fields", () => {
   });
 
   test("a body schema of an unknown type stops the docs", () => {
-    expect(() => schemaForm(v.date())).toThrow(
+    expect(() => schemaRows(v.object({ when: v.date() }))).toThrow(
       "No documented value form for a date schema",
     );
   });

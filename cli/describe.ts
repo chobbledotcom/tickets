@@ -9,6 +9,7 @@ import {
   adminApiServes,
   DeleteBodySchema,
 } from "#shared/admin-api-resources.ts";
+import { type SchemaShape, schemaShape } from "#shared/rest/schema-shape.ts";
 
 /** One body field as describe reports it: its name, its JSON type, and
  *  whether a write must carry it. */
@@ -26,71 +27,71 @@ export type BodyDoc =
   | { fields: FieldDoc[]; kind: "fields" }
   | { kind: "server" };
 
-/** The schema shapes describe reads off valibot's runtime objects. */
-type EntriesSchema = v.GenericSchema & {
-  entries: Record<string, v.GenericSchema>;
+/** The JSON type one shape names. An optional or nullable wrapper changes
+ *  requiredness, not type. */
+const typeOf = (shape: SchemaShape): string => {
+  switch (shape.kind) {
+    case "array":
+      return "array";
+    case "object":
+      return "object";
+    case "boolean":
+    case "number":
+    case "string":
+      return shape.kind;
+    case "nullable":
+    case "optional":
+      return typeOf(shape.of);
+    case "picklist":
+    case "unknown":
+      return "unknown";
+  }
 };
-type WrappedSchema = v.GenericSchema & { wrapped: v.GenericSchema };
-type ItemSchema = v.GenericSchema & { item: v.GenericSchema };
 
-const isEntries = (schema: v.GenericSchema): schema is EntriesSchema =>
-  "entries" in schema;
-
-const isWrapped = (schema: v.GenericSchema): schema is WrappedSchema =>
-  "wrapped" in schema;
-
-const isItem = (schema: v.GenericSchema): schema is ItemSchema =>
-  "item" in schema;
-
-/** Read one field's JSON type and nested shape off its schema. A schema the
- *  walker cannot name answers "unknown" rather than a guess. */
+/** Read one field's JSON type and nested shape off its schema shape. A shape
+ *  the walker cannot name answers "unknown" rather than a guess. */
 const fieldDoc = (
   name: string,
-  schema: v.GenericSchema,
+  shape: SchemaShape,
   required: boolean,
 ): FieldDoc => {
-  if (isWrapped(schema)) {
+  if (shape.kind === "optional") {
     // An optional key a write may omit; a nullable key must travel, so its
     // requiredness stays as it is.
-    return schema.type === "optional"
-      ? fieldDoc(name, schema.wrapped, false)
-      : fieldDoc(name, schema.wrapped, required);
+    return fieldDoc(name, shape.of, false);
   }
-  if (isItem(schema)) {
+  if (shape.kind === "nullable") {
+    return fieldDoc(name, shape.of, required);
+  }
+  if (shape.kind === "array") {
     return {
-      items: { type: fieldDoc("", schema.item, true).type },
+      items: { type: typeOf(shape.item) },
       name,
       required,
       type: "array",
     };
   }
-  if (isEntries(schema)) {
-    return { fields: fieldsOf(schema.entries), name, required, type: "object" };
+  if (shape.kind === "object") {
+    return { fields: fieldsOf(shape.entries), name, required, type: "object" };
   }
-  if (
-    schema.type === "boolean" ||
-    schema.type === "number" ||
-    schema.type === "string"
-  ) {
-    return { name, required, type: schema.type };
-  }
-  return { name, required, type: "unknown" };
+  return { name, required, type: typeOf(shape) };
 };
 
-const fieldsOf = (entries: Record<string, v.GenericSchema>): FieldDoc[] =>
-  Object.entries(entries).map(([name, schema]) => fieldDoc(name, schema, true));
+const fieldsOf = (entries: Record<string, SchemaShape>): FieldDoc[] =>
+  Object.entries(entries).map(([name, shape]) => fieldDoc(name, shape, true));
 
 /** One verb's body document, read off the schema the table declares. A body
  *  schema the table carries must be an object schema; anything else is a
  *  table bug the CLI refuses. */
 const bodyDoc = (schema: v.GenericSchema | undefined): BodyDoc => {
   if (!schema) return { kind: "server" };
-  if (!isEntries(schema)) {
+  const shape = schemaShape(schema);
+  if (shape.kind !== "object") {
     throw new Error(
       "a body schema in the admin api table must be an object schema",
     );
   }
-  return { fields: fieldsOf(schema.entries), kind: "fields" };
+  return { fields: fieldsOf(shape.entries), kind: "fields" };
 };
 
 export type VerbDoc = { body?: BodyDoc };
