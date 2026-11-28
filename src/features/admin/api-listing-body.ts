@@ -16,7 +16,6 @@ import {
 import { closedFieldsFor } from "#shared/records/write-access.ts";
 import { parseOptionalArray } from "#shared/rest/crud-parsers.ts";
 import { readBody } from "#shared/rest/field-reads.ts";
-import type { FieldsBody } from "#shared/rest/field-specs.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   type AdminSession,
@@ -26,30 +25,6 @@ import {
 
 /** The listing fields as one JSON write reads them. */
 type ApiFields = Partial<ListingInput>;
-
-/** JSON body accepted by POST /api/admin/listings. */
-export type CreateListingBody = Omit<
-  FieldsBody<typeof LISTING_FIELDS>,
-  "date" | "day_prices"
-> & {
-  /** Selected attribute option ids (the Attributes feature). */
-  attribute_option_ids?: number[];
-  date?: string | null;
-  name: string;
-  max_attendees: number;
-  max_price?: number;
-  group_ids?: number[];
-  /** Day count to price (minor units), for example { "1": 1000, "2": 1800 }. */
-  day_prices?: Record<number, number>;
-  /** Listing ids the buyer must choose one of when this listing is booked (the
-   * required-child gate). Only honoured when the parents feature is enabled.
-   * Self-edges and unknown ids are dropped, and the same nesting/field/add-on
-   * validation as the edit form runs before the edges are written. */
-  child_listing_ids?: number[];
-};
-
-/** JSON body accepted by PUT /api/admin/listings/:listingId (all fields optional) */
-export type UpdateListingBody = Partial<CreateListingBody> & { slug?: string };
 
 /** Parse an optional array of positive integer ids (group membership or
  * selected attribute options). An absent field yields `undefined` and leaves

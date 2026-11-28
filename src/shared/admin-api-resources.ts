@@ -29,7 +29,15 @@ import {
 } from "#shared/admin-api-images.ts";
 import { markdownSource } from "#shared/markdown-source.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
+import {
+  CreateGroupBodySchema,
+  UpdateGroupBodySchema,
+} from "#shared/records/group-body.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import {
+  CreateListingBodySchema,
+  UpdateListingBodySchema,
+} from "#shared/records/listing-body.ts";
 import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import {
@@ -197,10 +205,10 @@ export const SitePageRowSchema = v.looseObject({
 export type AdminApiSitePage = v.InferOutput<typeof SitePageRowSchema>;
 
 /* ===========================================================================
- * Request body schemas — the shapes a caller sends. Bodies the server
- * validates against dynamic catalog fields (groups, listings) stay unknown.
- * The server is the validator. A static schema here gives a second
- * vocabulary for a shape the server owns.
+ * Request body schemas — the shapes a caller sends. Bodies for dynamic
+ * catalog fields (groups, listings) come from their field lists in
+ * `#shared/records/*-body.ts`. This table and the server's field read then
+ * cannot disagree.
  * =========================================================================== */
 
 const attributeBodies = apiBodyPair(apiFieldsOf(ATTRIBUTE_FIELDS));
@@ -396,7 +404,9 @@ export const ADMIN_API_RESOURCES = {
     updateBodySchema: UpdateExternalSourceBodySchema,
   },
   groups: {
+    createBodySchema: CreateGroupBodySchema,
     ...resourceTableRow("Group", "groups", GroupRowSchema),
+    updateBodySchema: UpdateGroupBodySchema,
   },
   holidays: {
     createBodySchema: holidayApi.bodies.create,
@@ -409,6 +419,7 @@ export const ADMIN_API_RESOURCES = {
     updateBodySchema: UpdateImageBodySchema,
   },
   listings: {
+    createBodySchema: CreateListingBodySchema,
     custom: {
       attendees: {
         method: "GET",
@@ -428,6 +439,7 @@ export const ADMIN_API_RESOURCES = {
       },
     },
     ...resourceTableRow("Listing", "listings", ListingRowSchema),
+    updateBodySchema: UpdateListingBodySchema,
   },
   questions: {
     children: {

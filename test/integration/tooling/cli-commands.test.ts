@@ -10,7 +10,12 @@ import {
   DeleteBodySchema,
 } from "#shared/admin-api-resources.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { gadgetEntry, parseOrUsage, testTable } from "#test-utils/cli-table.ts";
+import {
+  fieldsBody,
+  gadgetEntry,
+  parseOrUsage,
+  testTable,
+} from "#test-utils/cli-table.ts";
 
 const writeCommand = (args: string[]) =>
   parseCommand(testTable, args) as Extract<
@@ -20,16 +25,6 @@ const writeCommand = (args: string[]) =>
 
 /** The describe shape of one child whose three writes carry only the shared
  *  required text and the delete confirmation. */
-/** One described body of fields, from rows of name, type, and requiredness. */
-const fieldsBody = (
-  ...fields: readonly [name: string, type: string, required: boolean][]
-) => ({
-  body: {
-    fields: fields.map(([name, type, required]) => ({ name, required, type })),
-    kind: "fields",
-  },
-});
-
 const textChildDoc = (idParam: string, path: string) => ({
   idParam,
   path,
@@ -98,9 +93,6 @@ describe("CLI describe", () => {
     expect(attributes.children.options).toEqual(
       textChildDoc("optionId", "options"),
     );
-    expect(doc.resources.listings!.verbs.create).toEqual({
-      body: { kind: "server" },
-    });
     expect(doc.resources.questions!.label).toBe("Question");
     expect(doc.resources.questions!.verbs.create).toEqual({
       body: {
@@ -464,12 +456,11 @@ describe("CLI body schemas", () => {
     expect(
       bodySchemaFor(gadgetEntry, writeCommand(["delete", "gadgets", "5"])),
     ).toBe(DeleteBodySchema);
-    // The listing bodies the server validates carry no schema.
     expect(
       bodySchemaFor(
         ADMIN_API_RESOURCES.listings,
         writeCommand(["update", "listings", "5", "{}"]),
       ),
-    ).toBe(undefined);
+    ).toBe(ADMIN_API_RESOURCES.listings.updateBodySchema);
   });
 });

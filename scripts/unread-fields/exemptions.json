@@ -1,11 +1,4 @@
 {
-  "src/features/admin/api-listing-body.ts": [
-    {
-      "path": [{ "name": "CreateListingBody" }],
-      "kind": "dynamic-read",
-      "evidence": "withParsedJoinIds reads the field by key off the raw JSON body record"
-    }
-  ],
   "src/features/admin/api-site-pages-input.ts": [
     {
       "path": [{ "name": "CreateSitePageBody" }],
@@ -99,6 +92,25 @@
       "path": [{ "name": "ModifierInput" }],
       "kind": "schema-driven",
       "evidence": "table.insert and table.update read the input by each column's key at run time"
+    }
+  ],
+  "src/shared/records/group-body.ts": [
+    {
+      "path": [{ "name": "UpdateGroupBody" }],
+      "kind": "dynamic-read",
+      "evidence": "toGroupInput in api-groups.ts reads the slug by key off the raw JSON body record"
+    }
+  ],
+  "src/shared/records/listing-body.ts": [
+    {
+      "path": [{ "name": "CreateListingBody" }],
+      "kind": "dynamic-read",
+      "evidence": "withParsedJoinIds in api-listing-body.ts, readChildListingIds in api-listing-joins.ts, and readBody read each field by key off the raw JSON body record"
+    },
+    {
+      "path": [{ "name": "UpdateListingBody" }],
+      "kind": "dynamic-read",
+      "evidence": "withParsedJoinIds in api-listing-body.ts, readChildListingIds in api-listing-joins.ts, readBody, and parseUpdatedListingSlug read each field by key off the raw JSON body record"
     }
   ],
   "src/shared/records/listing-fields.ts": [

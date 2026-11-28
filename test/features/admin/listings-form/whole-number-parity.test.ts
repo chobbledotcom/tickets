@@ -6,11 +6,9 @@
 import { expect } from "@std/expect";
 import { beforeAll, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
-import {
-  bodyToCreateInput,
-  type CreateListingBody,
-} from "#routes/admin/api-listing-body.ts";
+import { bodyToCreateInput } from "#routes/admin/api-listing-body.ts";
 import { buildCreateListingResource } from "#routes/admin/listings-form.ts";
+import type { CreateListingBody } from "#shared/records/listing-body.ts";
 import { listingFormView } from "#templates/fields/listing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

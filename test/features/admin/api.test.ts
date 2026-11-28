@@ -132,6 +132,31 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       );
     });
 
+    test("returns 400 when a linked id list is malformed", async () => {
+      const listing = await createTestListing({ name: "Bad Id Lists" });
+      const cases = [
+        {
+          body: { attribute_option_ids: ["5"] },
+          error: "attribute_option_ids must contain only positive integer ids",
+        },
+        {
+          body: { child_listing_ids: "5" },
+          error: "child_listing_ids must be an array of listing ids",
+        },
+        {
+          body: { group_ids: [0] },
+          error: "group_ids must contain only positive integer ids",
+        },
+      ];
+      for (const { body, error } of cases) {
+        await expectApiError(
+          putJson(listingPath(listing.id), body),
+          400,
+          error,
+        );
+      }
+    });
+
     test("returns 400 without saving an unsafe day price", async () => {
       const listing = await createTestListing({
         customisableDays: true,

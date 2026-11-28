@@ -34,17 +34,20 @@ import { isContactField, ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
 /** The `fields` column: a comma-separated list of valid contact-field names,
  * so a typo ("fax") is a field error rather than a silently-dropped entry.
  * The parse matches the booking form's own read of the same string. */
-export const fieldsSchema = v.pipe(
-  v.string(),
-  v.transform(commaParts),
-  v.array(
-    v.custom<string>(
-      (value) => typeof value === "string" && isContactField(value),
-      "must be a known contact field",
+const contactFieldsSchema = (message?: string) =>
+  v.pipe(
+    v.string(),
+    v.transform(commaParts),
+    v.array(
+      v.custom<string>(
+        (value) => typeof value === "string" && isContactField(value),
+        message ?? "must be a known contact field",
+      ),
     ),
-  ),
-  v.transform((parts) => parts.join(",")),
-);
+    v.transform((parts) => parts.join(",")),
+  );
+
+export const fieldsSchema = contactFieldsSchema();
 
 /** The same rule for an update, where the caller can leave the column alone. */
 export const optionalFieldsSchema = v.optional(fieldsSchema);
@@ -58,64 +61,82 @@ const UtcInstantSchema = v.pipe(
 );
 
 /** A day-count JSON key: a positive whole number within the bookable range. A
- * typo key ("weekday") or an out-of-range count is then a field error rather
- * than a silently-dropped override. */
-const DayCountKeySchema = v.pipe(
-  v.string(),
-  v.regex(/^[1-9]\d*$/, "day count must be a positive whole number"),
-  v.check(
-    (key) => Number(key) <= MAX_DURATION_DAYS,
-    `day count must be between 1 and ${MAX_DURATION_DAYS}`,
-  ),
-);
+ *  typo key ("weekday") or an out-of-range count is then a field error rather
+ *  than a silently-dropped override. */
+const dayCountKeySchema = (message?: string) => {
+  const text = v.string();
+  return v.pipe(
+    text,
+    v.regex(
+      /^[1-9]\d*$/,
+      message ?? "day count must be a positive whole number",
+    ),
+    v.check(
+      (key) => Number(key) <= MAX_DURATION_DAYS,
+      message ?? `day count must be between 1 and ${MAX_DURATION_DAYS}`,
+    ),
+  );
+};
+
+/** The per-day-price map, with the field's own refusal message when the API
+ *  body view asks for one. */
+const jsonDayPricesSchema = (message?: string) =>
+  v.record(dayCountKeySchema(message), integerAtLeast(0, message), message);
 
 /** Per-day-count prices in minor units, as they appear in JSON. */
-export const JsonDayPricesSchema = v.record(
-  DayCountKeySchema,
-  integerAtLeast(0),
-);
+export const JsonDayPricesSchema = jsonDayPricesSchema();
 
 /** The value rule of each kind. A count reads its smallest value from the
- *  field. */
+ *  field. `message` is the API body's field-named refusal. Without it each
+ *  rule answers valibot's own message. */
 const KIND_VALUES: {
-  [Kind in FieldKind]: (field: FieldSpec) => v.GenericSchema;
+  [Kind in FieldKind]: (field: FieldSpec, message?: string) => v.GenericSchema;
 } = {
-  contactFields: () => fieldsSchema,
-  count: (field) => integerAtLeast(field.min ?? 0),
+  contactFields: (_field, message) => contactFieldsSchema(message),
+  count: (field, message) => integerAtLeast(field.min ?? 0, message),
   date: () => IsoDateSchema,
   // An undated listing stores "".
-  datetime: () =>
+  datetime: (_field, message) =>
     v.pipe(
       v.string(),
       v.check(
         (value) => value === "" || isUtcInstantOfRealDay(value),
-        UTC_INSTANT_MESSAGE,
+        message ?? UTC_INSTANT_MESSAGE,
       ),
     ),
-  dayPrices: () => JsonDayPricesSchema,
-  durationDays: () =>
+  dayPrices: (_field, message) => jsonDayPricesSchema(message),
+  durationDays: (_field, message) =>
     v.pipe(
-      integerAtLeast(1),
+      integerAtLeast(1, message),
       v.maxValue(
         MAX_DURATION_DAYS,
-        `must be at most ${MAX_DURATION_DAYS} days`,
+        message ?? `must be at most ${MAX_DURATION_DAYS} days`,
       ),
     ),
-  listingType: () => ListingTypeSchema,
+  listingType: (_field, message) =>
+    v.picklist(ListingTypeSchema.options, message),
   name: () => v.pipe(v.string(), v.trim(), v.nonEmpty()),
-  optionalDatetime: () => v.nullable(UtcInstantSchema),
-  price: () => integerAtLeast(0),
-  privateText: () => v.string(),
+  optionalDatetime: (_field, message) =>
+    v.nullable(
+      message === undefined
+        ? UtcInstantSchema
+        : v.pipe(v.string(), v.check(isUtcInstantOfRealDay, message)),
+    ),
+  price: (_field, message) => integerAtLeast(0, message),
+  privateText: (_field, message) => v.string(message),
   recurringInterval: () => RecurringIntervalChoiceSchema,
   sealedText: () => v.pipe(v.string(), v.trim(), v.nonEmpty()),
-  switch: () => v.boolean(),
-  text: () => v.string(),
-  weekdays: () => v.array(v.picklist(VALID_DAY_NAMES)),
+  switch: (_field, message) => v.boolean(message),
+  text: (_field, message) => v.string(message),
+  weekdays: (_field, message) =>
+    v.array(v.picklist(VALID_DAY_NAMES, message), message),
 };
 
 /** The value rule of one field. */
-export const fieldValueSchema = (field: FieldSpec): v.GenericSchema =>
-  KIND_VALUES[field.kind](field);
+export const fieldValueSchema = (
+  field: FieldSpec,
+  message?: string,
+): v.GenericSchema => KIND_VALUES[field.kind](field, message);
 
 /** The kinds whose form box refuses a fraction with the whole-number rule. A
  *  price box reads a decimal amount, and the duration box has its own rule. */
@@ -157,9 +178,11 @@ export const apiRefusal = (field: FieldSpec): string =>
   API_REFUSALS[field.kind]?.(columnName(field.key)) ??
   `${columnName(field.key)} has an invalid value`;
 
-/** Both views of a field that the API reads as an optional value. */
+/** Both views of a field that the API reads as an optional value. The field's
+ *  own refusal names it, so a bad value answers the same message the server's
+ *  field read answers. */
 const optionalViews = (field: FieldSpec) => {
-  const view = v.optional(fieldValueSchema(field));
+  const view = v.optional(fieldValueSchema(field, apiRefusal(field)));
   return { create: view, update: view };
 };
 

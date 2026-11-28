@@ -42,6 +42,27 @@ export const testConfig = {
   apiKey: "key",
 };
 
+/** One described body of fields, from rows of name, type, requiredness, and
+ *  the item type of an array. */
+export const fieldsBody = (
+  ...fields: readonly (readonly [
+    name: string,
+    type: string,
+    required: boolean,
+    itemType?: string,
+  ])[]
+) => ({
+  body: {
+    fields: fields.map(([name, type, required, itemType]) => ({
+      ...(itemType === undefined ? {} : { items: { type: itemType } }),
+      name,
+      required,
+      type,
+    })),
+    kind: "fields",
+  },
+});
+
 /** One transport that answers every call with one canned body and records
  *  the requests it received. */
 export const recordingTransport = (
