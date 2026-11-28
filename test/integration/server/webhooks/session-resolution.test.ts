@@ -17,7 +17,7 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
   test("webhook with checkout listing type but no extractable session acknowledges without processing", async () => {
     await setupStripe();
 
-    // Listing type matches checkoutCompletedEventType but data lacks metadata
+    // Listing type matches checkoutCompletedEventTypes but data lacks metadata
     // so extractSessionFromListing returns null (covers lines 498-500)
     // and data object has no id/order_id so sessionId is null (covers lines 597-602)
     // Returns 200 to prevent provider retries

@@ -71,6 +71,7 @@ test("the small client matches stripe-node requests for every used operation", a
     >,
     enabled_events: [
       "checkout.session.completed",
+      "checkout.session.async_payment_succeeded",
       "customer.subscription.created",
       "customer.subscription.deleted",
       "customer.subscription.paused",
@@ -81,6 +82,7 @@ test("the small client matches stripe-node requests for every used operation", a
       "invoice.payment_failed",
     ] as [
       "checkout.session.completed",
+      "checkout.session.async_payment_succeeded",
       "customer.subscription.created",
       "customer.subscription.deleted",
       "customer.subscription.paused",

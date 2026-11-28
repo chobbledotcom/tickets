@@ -5,7 +5,6 @@
  * provider-agnostic PaymentProvider contract.
  */
 
-import type Stripe from "stripe";
 import * as v from "valibot";
 import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
 import {
@@ -30,16 +29,12 @@ import {
 } from "#shared/stripe/schemas.ts";
 import { subscriptionStartOf } from "#shared/stripe/subscription.ts";
 import { verifyWebhookSignature } from "#shared/stripe/webhook.ts";
+import { STRIPE_CHECKOUT_EVENTS } from "#shared/stripe/webhook-events.ts";
 import {
   isoFromUnixSeconds,
   type StripeApi,
   stripeApi,
 } from "#shared/stripe.ts";
-
-type StripeCheckoutCompletedEvent = Pick<
-  Stripe.CheckoutSessionCompletedEvent,
-  "data" | "id" | "type"
->;
 
 /** The resource of a read the completion cannot go without. A refused read
  * stops the callback, so the provider asks again. */
@@ -137,8 +132,7 @@ const readStripeCharge = mapProviderReader(
 
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
-  checkoutCompletedEventType:
-    "checkout.session.completed" satisfies StripeCheckoutCompletedEvent["type"],
+  checkoutCompletedEventTypes: STRIPE_CHECKOUT_EVENTS,
   createCheckoutSession: createStripeCheckoutSession,
 
   readCharge: readStripeCharge,

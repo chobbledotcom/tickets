@@ -23,9 +23,10 @@ import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe-provider", () => {
   test("identifies its Stripe webhook contract", () => {
-    expect(stripePaymentProvider.checkoutCompletedEventType).toBe(
+    expect(stripePaymentProvider.checkoutCompletedEventTypes).toEqual([
       "checkout.session.completed",
-    );
+      "checkout.session.async_payment_succeeded",
+    ]);
     expect(stripePaymentProvider.type).toBe("stripe");
   });
 

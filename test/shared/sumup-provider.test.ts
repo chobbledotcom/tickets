@@ -30,9 +30,9 @@ describe("sumup-provider", () => {
   });
 
   test("declares its webhook contract", () => {
-    expect(sumupPaymentProvider.checkoutCompletedEventType).toBe(
+    expect(sumupPaymentProvider.checkoutCompletedEventTypes).toEqual([
       "CHECKOUT_STATUS_CHANGED",
-    );
+    ]);
   });
 
   describe("retrieveSession", () => {

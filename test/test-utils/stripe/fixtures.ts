@@ -286,6 +286,7 @@ export const signedWebhook = async (
 /** The delivery names that the webhook endpoint of this site carries. */
 export const OWN_WEBHOOK_EVENTS = [
   "checkout.session.completed",
+  "checkout.session.async_payment_succeeded",
   "customer.subscription.created",
   "customer.subscription.deleted",
   "customer.subscription.paused",
