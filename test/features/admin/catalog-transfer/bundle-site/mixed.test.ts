@@ -6,7 +6,7 @@ import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
+import type { CatalogBundle } from "#shared/catalog-transfer/schema.ts";
 import {
   requireBundleImport,
   storedGroupIdOf,

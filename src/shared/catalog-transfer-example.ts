@@ -14,7 +14,7 @@ import {
   type CatalogBundle,
   type GroupTransfer,
   type ListingTransfer,
-} from "#routes/admin/catalog-transfer/schema.ts";
+} from "#shared/catalog-transfer/schema.ts";
 
 /**
  * A listing export/import blob. Shows the listing's own transferable columns

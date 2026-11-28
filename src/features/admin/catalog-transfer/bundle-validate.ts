@@ -10,13 +10,13 @@
  * for the phase modules.
  */
 
+import type { CatalogBundle } from "#shared/catalog-transfer/schema.ts";
 import type { AdminLevel } from "#types";
 import { validateGroups } from "./bundle-groups.ts";
 import { validateEdges, validateListings } from "./bundle-listings.ts";
 import { checkItemNames, failureCollector } from "./bundle-names.ts";
 import type { BundleFailure, BundlePlan } from "./bundle-plan.ts";
 import { buildContext, collectPairs } from "./bundle-site.ts";
-import type { CatalogBundle } from "./schema.ts";
 
 /** The validation outcome: the complete plan, or every item failure. */
 export type BundleValidation =

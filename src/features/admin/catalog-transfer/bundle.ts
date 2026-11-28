@@ -34,6 +34,7 @@ import { TransactionValidationError } from "#db/transaction.ts";
 import { insertingAll } from "#db/write.ts";
 import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
+import type { CatalogBundle } from "#shared/catalog-transfer/schema.ts";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { generateSlug } from "#shared/slug.ts";
 import type { AdminLevel } from "#types";
@@ -48,7 +49,6 @@ import { siteIdsOfRefs } from "./bundle-refs.ts";
 import { type BundleValidation, validateBundle } from "./bundle-validate.ts";
 import { groupDataToInput, type ImportedEntity } from "./import-listing.ts";
 import { type ImportedMembership, membershipStatements } from "./membership.ts";
-import type { CatalogBundle } from "./schema.ts";
 
 /** Fresh random slugs for `count` new rows, checked in one batched read.
  * Random collisions (within the batch or with the site) are near-impossible.

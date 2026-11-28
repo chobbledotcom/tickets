@@ -10,11 +10,11 @@ import {
   loadCatalogNameIndex,
 } from "#db/name-registry.ts";
 import { t } from "#i18n";
+import type { CatalogBundle } from "#shared/catalog-transfer/schema.ts";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { nameLengthError } from "#shared/name-limit.ts";
 import type { BundleFailure } from "./bundle-plan.ts";
 import { nameTakenError } from "./import-listing.ts";
-import type { CatalogBundle } from "./schema.ts";
 
 /** Collects one entry per failing item, naming every reason found for it. */
 export const failureCollector = () => {

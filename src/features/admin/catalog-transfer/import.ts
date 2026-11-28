@@ -1,4 +1,10 @@
 import * as v from "valibot";
+import {
+  type CatalogBundle,
+  CatalogTransferSchema,
+  formatBundleIssues,
+  formatTransferIssues,
+} from "#shared/catalog-transfer/schema.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { okResult, type Result } from "#shared/result.ts";
 import type { AdminLevel } from "#types";
@@ -9,12 +15,6 @@ import {
   type ImportedEntity,
   importTransactionFailure,
 } from "./import-listing.ts";
-import {
-  type CatalogBundle,
-  CatalogTransferSchema,
-  formatBundleIssues,
-  formatTransferIssues,
-} from "./schema.ts";
 
 /** The entity kind a single-item import answers with, or undefined for a
  *  bundle document. */

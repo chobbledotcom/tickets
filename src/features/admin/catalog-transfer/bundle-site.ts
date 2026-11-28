@@ -14,6 +14,13 @@ import { among, equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { unique } from "#fp";
+import type {
+  CatalogBundle,
+  GroupBody,
+  GroupMember,
+  ListingBody,
+  ListingMembership,
+} from "#shared/catalog-transfer/schema.ts";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { requiredMapValueWithMessage } from "#shared/required-map-value.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -36,13 +43,6 @@ import {
   siteParentIdsOf,
 } from "./bundle-refs.ts";
 import { type MembershipOverrides, membershipSpec } from "./import-listing.ts";
-import type {
-  CatalogBundle,
-  GroupBody,
-  GroupMember,
-  ListingBody,
-  ListingMembership,
-} from "./schema.ts";
 
 /** Everything the later phases read: the document and its per-item resolution
  * maps (keyed by the item objects themselves), plus the stored rows the site

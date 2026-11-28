@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * The versioned, id-free JSON wire format for one listing or group.
  *

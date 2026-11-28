@@ -172,6 +172,28 @@ describe("frontmatter import runner", () => {
     ]);
   });
 
+  test("refuses a listing the admin schema rejects before the first write", async () => {
+    // The product parses, but its price is too large for the transfer
+    // schema. The refusal must come before the attribute, option, or group
+    // writes, so the site keeps no half-imported records.
+    const dir = await seedCatalog(
+      PRODUCT_FRONTMATTER.replace(
+        "unit_price: 100",
+        "unit_price: 100000000000000000000",
+      ),
+    );
+    const { api, calls } = scriptedApi(
+      snapshotRoutes(LISTINGS_EMPTY, GROUPS_EMPTY, []),
+    );
+    await expect(
+      runImport({ dir, plan: false, update: false }, api),
+    ).rejects.toThrow(/dayPrices/);
+    expect(callPaths(calls)).toEqual([
+      "GET /api/admin/listings",
+      "GET /api/admin/groups",
+    ]);
+  });
+
   test("reruns without --update as reads only: every product skips", async () => {
     const dir = await seedCatalog(stamped());
     expect((await readOnlyRun(dir, [towerHire])).skipped).toBe(1);

@@ -8,7 +8,7 @@ import {
   GroupTransferSchema,
   ListingDataSchema,
   ListingTransferSchema,
-} from "#routes/admin/catalog-transfer/schema.ts";
+} from "#shared/catalog-transfer/schema.ts";
 import { MAX_DURATION_DAYS } from "#types";
 
 /** Parse a minimal listing with the fields under test added. */

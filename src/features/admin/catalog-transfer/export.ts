@@ -20,13 +20,6 @@ import {
 } from "#db/listings/records.ts";
 import { mapNotNullish, requiredMapValue } from "#fp";
 import { withGroupOrNull } from "#routes/admin/find-group.ts";
-import { namedError } from "#shared/named-error.ts";
-import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
-import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
-import { closedFieldsFor } from "#shared/records/write-access.ts";
-import { transferValues } from "#shared/rest/field-reads.ts";
-import type { AdminLevel } from "#types";
-import { getListingGroupMemberships } from "./membership.ts";
 import {
   CATALOG_TRANSFER_VERSION,
   formatTransferIssues,
@@ -36,7 +29,14 @@ import {
   ListingDataSchema,
   type ListingMembership,
   type ListingTransfer,
-} from "./schema.ts";
+} from "#shared/catalog-transfer/schema.ts";
+import { namedError } from "#shared/named-error.ts";
+import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { closedFieldsFor } from "#shared/records/write-access.ts";
+import { transferValues } from "#shared/rest/field-reads.ts";
+import type { AdminLevel } from "#types";
+import { getListingGroupMemberships } from "./membership.ts";
 
 /** Returned (not thrown) when a stored row holds a value the transfer format
  * cannot represent. An example is a bookable-day name or contact field the

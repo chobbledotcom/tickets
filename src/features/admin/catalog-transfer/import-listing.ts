@@ -1,6 +1,10 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { compact } from "#fp";
+import type {
+  GroupData,
+  ListingData,
+} from "#shared/catalog-transfer/schema.ts";
 import type { GroupInput } from "#shared/records/group-fields.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -11,7 +15,6 @@ import {
   parseDayPrices,
 } from "#types";
 import type { ImportedMembership } from "./membership.ts";
-import type { GroupData, ListingData } from "./schema.ts";
 
 export type ImportedEntity = {
   kind: "listing" | "group";

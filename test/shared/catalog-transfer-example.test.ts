@@ -11,7 +11,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { CatalogTransferSchema } from "#routes/admin/catalog-transfer/schema.ts";
+import { CatalogTransferSchema } from "#shared/catalog-transfer/schema.ts";
 import {
   CATALOG_BUNDLE_EXAMPLE,
   CATALOG_BUNDLE_EXAMPLE_JSON,
