@@ -10,6 +10,7 @@ import {
 import { listingApiBody } from "#shared/catalog-transfer/listing-api-body.ts";
 import {
   formatTransferIssues,
+  type ListingData,
   ListingDataSchema,
 } from "#shared/catalog-transfer/schema.ts";
 
@@ -98,6 +99,35 @@ options:
     );
     expect(body.max_quantity).toBe(2);
     expect(body.max_attendees).toBe(2);
+  });
+
+  test("refuses a listing data key that no listing field names", () => {
+    // The adapter guards the wire body against a key the transfer type does
+    // not carry. A caller can only reach it with a value the type does not
+    // describe, so the test supplies one.
+    const data: ListingData & { hidde: boolean } = {
+      ...listingData(sampleProduct),
+      hidde: true,
+    };
+    expect(() =>
+      listingApiBody(data, { attributeOptionIds: null, groupIds: [] }),
+    ).toThrow("hidde is not a listing field; add it to the table or omit it");
+  });
+
+  test("omits a listing field whose value is undefined", () => {
+    // The optional field can carry an own key with an undefined value at
+    // runtime, which the adapter must not put on the wire.
+    const data = listingData(sampleProduct);
+    Object.defineProperty(data, "description", {
+      configurable: true,
+      value: undefined,
+      writable: true,
+    });
+    const body = listingApiBody(data, {
+      attributeOptionIds: null,
+      groupIds: [],
+    });
+    expect("description" in body).toBe(false);
   });
 
   test("refuses a product whose day price is above its duration", () => {
