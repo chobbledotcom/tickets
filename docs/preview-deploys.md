@@ -12,6 +12,7 @@ commands are in `scripts/preview.ts`.
 | A push to the branch               | The workflow deploys the new build and publishes the branch guide videos. The database is not reset. |
 | The pull request closes or merges  | The workflow deletes the Stripe webhooks, the script, its pull zone, and the database. |
 | A pull request from a fork         | Nothing happens. A fork run has no secrets.                                       |
+| A person starts the workflow by hand | The reset job deletes the preview of the branch that the person names.         |
 
 The pull request shows a "View deployment" link for the `preview`
 environment. The job summary shows the same address. The address ends in
@@ -124,6 +125,24 @@ preview can send real mail from the host address.
   resource by name and does not make a second copy.
 - The delete step deletes the Stripe webhooks first and the database last. A
   missing resource counts as deleted, so a rerun finishes the work.
+
+## Reset a broken preview
+
+A preview keeps its database between pushes. A preview can stay broken, for
+example when its database does not match the build. A deploy to such a
+preview then fails before the build deploys.
+
+To make the preview new:
+
+1. Open the workflow "Branch preview" in the Actions tab.
+2. Choose "Run workflow". Start it from `main`. Type the branch name.
+3. Wait for the reset job to finish. It deletes the Stripe webhooks, the
+   script, its pull zone, and the database.
+4. Run the last pull request run of the branch again, or push to the branch.
+   The workflow makes a new preview and sets it up.
+
+The reset job deletes data. A reset of a preview that does not exist does
+nothing. Reset only a preview that is broken.
 
 ## When a run fails
 
