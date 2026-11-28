@@ -1,8 +1,9 @@
 /**
- * The write fields that field lists declare, by resource. Each resource also
- * names the body keys outside its list: the linked id lists, the package
- * members, and the slug an update can change. Those keys are checked against
- * the body type, so a new body key without a row is a compile error.
+ * The write fields that field lists declare, by resource, where the resource
+ * table does not carry the list itself. Each resource also names the body keys
+ * outside its list: the linked id lists, the package members, and the slug an
+ * update can change. Those keys are checked against the body type, so a new
+ * body key without a row is a compile error.
  */
 
 import type {
@@ -11,14 +12,11 @@ import type {
 } from "#routes/admin/api-groups.ts";
 import type { UpdateListingBody } from "#routes/admin/api-listing-body.ts";
 import type { SnakeWord } from "#shared/column-names.ts";
-import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
-import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import {
   LISTING_FIELDS,
   LISTING_WRITE_KEYS,
 } from "#shared/records/listing-fields.ts";
-import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import type { FieldSpecs, KeyAccess } from "#shared/rest/field-specs.ts";
 import type { ExtraField, ExtraFieldMap, ValueForm } from "./field-docs.ts";
@@ -82,22 +80,20 @@ const listOnly = (fields: FieldSpecs): DeclaredFields => ({
   fields,
 });
 
-/** The declared write fields of each resource that has a field list, by
- *  resource path. A resource that is absent here declares its fields in the
- *  body schemas of the resource table. */
+/** The declared write fields of each resource that keeps them here, by
+ *  resource path. A resource that is absent here carries its field list on its
+ *  resource table entry. Otherwise it declares its fields in the body schemas
+ *  of the resource table. */
 export const DECLARED_FIELDS: Readonly<Record<string, DeclaredFields>> = {
   "attendee-statuses": listOnly(STATUS_FIELDS),
-  attributes: listOnly(ATTRIBUTE_FIELDS),
   groups: {
     access: GROUP_FIELDS,
     extras: GROUP_EXTRA_FIELDS,
     fields: GROUP_FIELDS,
   },
-  holidays: listOnly(HOLIDAY_FIELDS),
   listings: {
     access: LISTING_WRITE_KEYS,
     extras: LISTING_EXTRA_FIELDS,
     fields: LISTING_FIELDS,
   },
-  redirects: listOnly(REDIRECT_FIELDS),
 };

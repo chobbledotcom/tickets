@@ -43,6 +43,7 @@ import {
   switchField,
   textField,
 } from "#shared/rest/api-body-fields.ts";
+import type { FieldSpecs } from "#shared/rest/field-specs.ts";
 import { apiFieldsOf } from "#shared/rest/field-values.ts";
 
 /* ===========================================================================
@@ -116,11 +117,12 @@ const fieldResource = <
   row: idRow(fieldViews(views, rowView)),
 });
 
-const holidayApi = fieldResource(apiFieldsOf(HOLIDAY_FIELDS), "create");
-export const HolidayRowSchema = holidayApi.row;
+export const HolidayRowSchema = idRow(
+  fieldViews(apiFieldsOf(HOLIDAY_FIELDS), "create"),
+);
 export type AdminApiHoliday = v.InferOutput<typeof HolidayRowSchema>;
 
-const redirectApi = fieldResource(apiFieldsOf(REDIRECT_FIELDS), "create");
+const redirectRow = idRow(fieldViews(apiFieldsOf(REDIRECT_FIELDS), "create"));
 
 /** One listing as the admin API answers with it: the fields the client's
  *  callers read. The server owns the rest of the stored row. */
@@ -202,8 +204,6 @@ export type AdminApiSitePage = v.InferOutput<typeof SitePageRowSchema>;
  * The server is the validator. A static schema here gives a second
  * vocabulary for a shape the server owns.
  * =========================================================================== */
-
-const attributeBodies = apiBodyPair(apiFieldsOf(ATTRIBUTE_FIELDS));
 
 /** One choice option's write body, on the attribute-option and answer
  *  surfaces alike. The server parses the same shape for the option's create
@@ -302,6 +302,8 @@ export type AdminApiResource = {
    *  replaces the standard delete handler. */
   custom?: Record<string, AdminApiCustomRoute>;
   createBodySchema?: v.GenericSchema;
+  /** The write fields of a resource whose only write keys are its field list. */
+  fields?: FieldSpecs;
   /** The display name the server logs and confirms with ("Attribute"). The
    *  single-envelope key and the id param name derive from it lowercased. */
   label: string;
@@ -312,6 +314,16 @@ export type AdminApiResource = {
   serves?: AdminApiServes;
   singleSchema: v.GenericSchema;
   updateBodySchema?: v.GenericSchema;
+};
+
+/** One field list and the two write bodies it declares. */
+const fieldBodies = <const Fields extends FieldSpecs>(fields: Fields) => {
+  const bodies = apiBodyPair(apiFieldsOf(fields));
+  return {
+    createBodySchema: bodies.create,
+    fields,
+    updateBodySchema: bodies.update,
+  };
 };
 
 /** One entry's shared table fields: its label, its path, and the two envelopes
@@ -367,9 +379,8 @@ export const ADMIN_API_RESOURCES = {
         responseSchema: attributeTableRow.singleSchema,
       },
     },
-    createBodySchema: attributeBodies.create,
     ...attributeTableRow,
-    updateBodySchema: attributeBodies.update,
+    ...fieldBodies(ATTRIBUTE_FIELDS),
   },
   "external-sources": {
     children: {
@@ -399,9 +410,8 @@ export const ADMIN_API_RESOURCES = {
     ...resourceTableRow("Group", "groups", GroupRowSchema),
   },
   holidays: {
-    createBodySchema: holidayApi.bodies.create,
+    ...fieldBodies(HOLIDAY_FIELDS),
     ...resourceTableRow("Holiday", "holidays", HolidayRowSchema),
-    updateBodySchema: holidayApi.bodies.update,
   },
   images: {
     createBodySchema: CreateImageBodySchema,
@@ -448,8 +458,8 @@ export const ADMIN_API_RESOURCES = {
     updateBodySchema: questionBodies.update,
   },
   redirects: {
-    createBodySchema: redirectApi.bodies.create,
-    ...resourceTableRow("Redirect", "redirects", redirectApi.row),
+    ...fieldBodies(REDIRECT_FIELDS),
+    ...resourceTableRow("Redirect", "redirects", redirectRow),
     // An operator adds and deletes a redirect. Nothing reads or edits one by
     // its id.
     serves: { create: true, delete: true, list: true },

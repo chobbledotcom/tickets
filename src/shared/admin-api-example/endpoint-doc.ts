@@ -186,34 +186,35 @@ export type DocKeys = {
 const NO_KEYS: DocKeys = { closed: new Set(), hidden: new Set() };
 
 /** The keys the docs of one resource leave out. The rules are the access
- *  rules that the server reads, so the docs show what a write accepts. A
- *  resource with no declared field list closes no key. */
+ *  rules that the server reads. The field list on the table entry, or the
+ *  entry in DECLARED_FIELDS, gives them, so the docs show what a write
+ *  accepts. A resource that declares neither closes no key. */
 export const docKeysOf = (
   entry: AdminApiResource,
   access: WriteAccess | undefined,
 ): DocKeys => {
-  const declared = DECLARED_FIELDS[entry.path];
-  if (declared === undefined) return NO_KEYS;
+  const rules = entry.fields ?? DECLARED_FIELDS[entry.path]?.access;
+  if (rules === undefined) return NO_KEYS;
   if (access === undefined) {
     throw new Error(
       `${entry.label} declares its fields, so its docs need the access of the viewer`,
     );
   }
   return {
-    closed: new Set(
-      apiClosedFields(closedFields(declared.access, access)).keys(),
-    ),
-    hidden: new Set(featureClosedKeys(declared.access, access.features)),
+    closed: new Set(apiClosedFields(closedFields(rules, access)).keys()),
+    hidden: new Set(featureClosedKeys(rules, access.features)),
   };
 };
 
-/** The field rows of one resource. Its declared field list gives them, with
- *  the body keys the list does not declare. Otherwise the two body schemas
- *  in the resource table give them. */
+/** The field rows of one resource. A field list on its table entry or in
+ *  DECLARED_FIELDS gives them, with the body keys the list does not declare.
+ *  Otherwise the two body schemas in the resource table give them. */
 const resourceFieldDocs = (
   entry: AdminApiResource,
   closed: ReadonlySet<string>,
 ): FieldDocs => {
+  const { fields } = entry;
+  if (fields !== undefined) return specFieldDocs(fields, {}, closed);
   const declared = DECLARED_FIELDS[entry.path];
   if (declared !== undefined) {
     return specFieldDocs(declared.fields, declared.extras, closed);

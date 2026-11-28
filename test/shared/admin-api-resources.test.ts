@@ -257,6 +257,51 @@ describe("the question bodies", () => {
   });
 });
 
+describe("the bodies a field list declares", () => {
+  const bodies = [
+    ["attribute", ADMIN_API_RESOURCES.attributes, { name: "Difficulty" }],
+    [
+      "holiday",
+      ADMIN_API_RESOURCES.holidays,
+      {
+        end_date: "2025-12-26",
+        name: "Christmas",
+        start_date: "2025-12-25",
+      },
+    ],
+    [
+      "redirect",
+      ADMIN_API_RESOURCES.redirects,
+      { from_path: "/old-page", to_url: "/new-page" },
+    ],
+  ] as const;
+
+  test("the holiday, redirect, and attribute entries carry their field list", () => {
+    expect([
+      ADMIN_API_RESOURCES.attributes.fields?.map((field) => field.key),
+      ADMIN_API_RESOURCES.holidays.fields?.map((field) => field.key),
+      ADMIN_API_RESOURCES.redirects.fields?.map((field) => field.key),
+    ]).toEqual([
+      ["name"],
+      ["name", "startDate", "endDate"],
+      ["fromPath", "toUrl"],
+    ]);
+  });
+
+  for (const [name, entry, body] of bodies) {
+    test(`a ${name} create keeps its declared body, and an update takes none`, () => {
+      expect(parseApiBody(entry.createBodySchema, body)).toEqual({
+        ok: true,
+        value: body,
+      });
+      expect(parseApiBody(entry.updateBodySchema, {})).toEqual({
+        ok: true,
+        value: {},
+      });
+    });
+  }
+});
+
 describe("a body field of the wrong type names the field", () => {
   const updateSitePage = UpdateSitePageBodySchema;
   const updateQuestion = ADMIN_API_RESOURCES.questions.updateBodySchema;
