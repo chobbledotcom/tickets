@@ -7,13 +7,13 @@
 import type * as v from "valibot";
 import { columnName } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { objectEntries } from "#shared/rest/api-body-fields.ts";
 import { readBody } from "#shared/rest/field-reads.ts";
 import type {
   FieldKind,
   FieldSpec,
   FieldSpecs,
 } from "#shared/rest/field-specs.ts";
+import { type SchemaShape, schemaShape } from "#shared/rest/schema-shape.ts";
 import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
 import { ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
 import { TEXT } from "./value-forms.ts";
@@ -178,56 +178,47 @@ export const specFieldDocs = (
     fields.filter((field) => !closed.has(columnName(field.key))).map(createRow),
   );
 
-/** The valibot schemas a write body is made of. */
-type BodyValueSchema =
-  | v.ArraySchema<v.GenericSchema, undefined>
-  | v.BooleanSchema<undefined>
-  | v.NullableSchema<v.GenericSchema, undefined>
-  | v.NumberSchema<undefined>
-  | v.ObjectSchema<v.ObjectEntries, undefined>
-  | v.OptionalSchema<v.GenericSchema, undefined>
-  | v.PicklistSchema<readonly string[], undefined>
-  | v.StringSchema<undefined>;
-
-/** The value form of one body schema. A schema of a type with no form here
- *  stops the docs page, so a new body shape cannot go undocumented. */
-export const schemaForm = (schema: v.GenericSchema): ValueForm => {
-  // Valibot names each schema by its type, and each type carries its parts.
-  const known = schema as BodyValueSchema;
-  switch (known.type) {
+/** The value form of one schema shape. A shape with no form here stops the
+ *  docs page, so a new body shape cannot go undocumented. */
+const formOf = (shape: SchemaShape): ValueForm => {
+  switch (shape.kind) {
     case "array":
-      return { form: "list_of", of: schemaForm(known.item) };
+      return { form: "list_of", of: formOf(shape.item) };
     case "boolean":
       return { form: "switch" };
     case "nullable":
-      return { form: "or_null", of: schemaForm(known.wrapped) };
+      return { form: "or_null", of: formOf(shape.of) };
     case "number":
       return { form: "number" };
     case "object":
-      return { form: "object", names: Object.keys(known.entries) };
+      return { form: "object", names: Object.keys(shape.entries) };
     case "optional":
-      return schemaForm(known.wrapped);
+      return formOf(shape.of);
     case "picklist":
-      return { form: "one_of", names: known.options };
+      return { form: "one_of", names: shape.options };
     case "string":
       return TEXT;
-    default:
-      throw new Error(`No documented value form for a ${schema.type} schema`);
+    case "unknown":
+      throw new Error(`No documented value form for a ${shape.type} schema`);
   }
 };
 
+/** The value form of one body schema. */
+export const schemaForm = (schema: v.GenericSchema): ValueForm =>
+  formOf(schemaShape(schema));
+
 /** The field rows of one write body schema. */
 export const schemaRows = (schema: v.GenericSchema): FieldDocRow[] => {
-  const entries = objectEntries(schema);
-  if (entries === null) {
+  const shape = schemaShape(schema);
+  if (shape.kind !== "object") {
     throw new Error(`A documented body must be an object, not ${schema.type}`);
   }
   return byKey(
-    Object.entries(entries).map(([key, entry]) => ({
+    Object.entries(shape.entries).map(([key, entry]) => ({
       defaultJson: null,
       key,
-      required: entry.type !== "optional",
-      value: schemaForm(entry),
+      required: entry.kind !== "optional",
+      value: formOf(entry),
     })),
   );
 };
