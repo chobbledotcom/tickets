@@ -23,7 +23,6 @@ import { addDays } from "#shared/dates.ts";
 import {
   groupScopeOptions,
   type LedgerScope,
-  type LedgerScopeOption,
   listingIdsForLedgerScope,
   resolveLedgerScope,
 } from "#shared/ledger-scope.ts";
@@ -43,6 +42,7 @@ import {
 } from "#templates/admin/ledger/filter.tsx";
 import { adminLedgerPage } from "#templates/admin/ledger.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
+import type { NamedRecord } from "#types";
 
 const LEDGER_DISPLAY_LIMIT = 500;
 
@@ -86,7 +86,7 @@ const buildPickerDates = async (
 ): Promise<DatePickerDate[]> =>
   pickerDatesFromBounds(await transferActivityBounds(), today, tz);
 
-const sortScopeOptions = (options: LedgerScopeOption[]): LedgerScopeOption[] =>
+const sortScopeOptions = (options: NamedRecord[]): NamedRecord[] =>
   sortByName(options);
 
 const moneyRow = (key: string, amount: number, signed = false): DetailRow => ({

@@ -15,6 +15,7 @@ const emptyNav: PublicNavProps = {
   hasContact: false,
   hasNews: false,
   hasOrder: true,
+  hasReviews: false,
   hasTerms: false,
   pages: {
     activeRootId: null,

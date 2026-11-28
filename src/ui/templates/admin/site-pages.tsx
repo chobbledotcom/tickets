@@ -9,6 +9,7 @@ import {
   sitePageForm,
   sitePageToValues,
 } from "#routes/admin/site-pages-form.ts";
+import type { SelectOption } from "#shared/forms/rendering.tsx";
 import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import type {
   ReorderColumnOptions,
@@ -38,7 +39,6 @@ import type {
 } from "#types";
 
 const LIST = "/admin/site/pages";
-export type PickerOption = { value: string; label: string };
 export type ResolvedItem = {
   type: SitePageItemType;
   id: number;
@@ -51,9 +51,9 @@ export type ListModel = {
 export type EditModel = {
   page: SitePage;
   items: ResolvedItem[];
-  listingOptions: PickerOption[];
-  groupOptions: PickerOption[];
-  pageOptions: PickerOption[];
+  listingOptions: SelectOption[];
+  groupOptions: SelectOption[];
+  pageOptions: SelectOption[];
 };
 
 type NestedPageRow = ListModel["nested"][number];
@@ -172,7 +172,7 @@ const ItemPicker = ({
   pageId: number;
   type: SitePageItemType;
   label: string;
-  options: PickerOption[];
+  options: SelectOption[];
 }): JSX.Element | null =>
   options.length === 0 ? null : (
     <SaveForm

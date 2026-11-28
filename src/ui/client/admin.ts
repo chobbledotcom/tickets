@@ -20,6 +20,7 @@ import { initDuplicatePreview } from "./admin/duplicate-preview.ts";
 import { initDurationWarning } from "./admin/duration-warning.ts";
 import { initFillDefaultTemplate } from "./admin/fill-default-template.ts";
 import { initFormSubmitDisable } from "./admin/form-submit-disable.ts";
+import { initGuideVideoLinks } from "./admin/guide-video.ts";
 import { initIframeScrollIntoView } from "./admin/iframe-scroll-into-view.ts";
 import { initImageLibrary } from "./admin/image-library.ts";
 import { initListingImages } from "./admin/listing-images.ts";
@@ -59,6 +60,7 @@ initQrRefresh();
 initRunningTotal();
 initCharCounters();
 initAdminModalShell();
+initGuideVideoLinks();
 initMarkdownPreview();
 // After the preview module so the injected editor's toggle can join the
 // preview's footer strip once its bundle loads.

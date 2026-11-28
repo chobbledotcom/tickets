@@ -5,6 +5,7 @@
  */
 
 import type { Locator, Page } from "playwright";
+import sharp from "sharp";
 import type { GuideAction } from "#scripts/guides/storyboard.ts";
 import type {
   GuideRect,
@@ -136,6 +137,100 @@ const withClickedField = async <T>(
   return result;
 };
 
+/** A small picture for an uploaded listing image. The name gives it a stable
+ *  colour, so two uploads look different. */
+const guideImage = async (name: string) => {
+  const seed = [...name].reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  );
+  const width = 640;
+  const height = 420;
+  const innerWidth = 320;
+  const innerHeight = 220;
+  const buffer = await sharp({
+    create: {
+      background: {
+        b: 80 + (seed % 110),
+        g: 60 + ((seed * 3) % 130),
+        r: 50 + ((seed * 7) % 160),
+      },
+      channels: 3,
+      height,
+      width,
+    },
+  })
+    .composite([
+      {
+        input: {
+          create: {
+            background: { b: 230, g: 210, r: 245 },
+            channels: 3,
+            height: innerHeight,
+            width: innerWidth,
+          },
+        },
+        left: (width - innerWidth) / 2,
+        top: (height - innerHeight) / 2,
+      },
+    ])
+    .png()
+    .toBuffer();
+  return {
+    buffer,
+    mimeType: "image/png",
+    name: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`,
+  };
+};
+
+type UploadAction = Extract<GuideAction, { kind: "upload" }>;
+
+/** Open the image picker, upload one generated picture, and confirm it. */
+const uploadGuideImage = async (
+  page: Page,
+  recorder: ActionRecorder,
+  action: UploadAction,
+): Promise<void> => {
+  await clickSelector(page, recorder, action.selector);
+  const picker = page.locator(".md-image-picker").first();
+  await picker.waitFor({ state: "visible" });
+  await withClickedField(
+    page,
+    recorder,
+    '.md-image-picker input[name="name"]',
+    (field) => field.fill(action.name),
+  );
+  const altText = action.altText;
+  if (altText !== undefined) {
+    await withClickedField(
+      page,
+      recorder,
+      '.md-image-picker textarea[name="altText"]',
+      (field) => field.fill(altText),
+    );
+  }
+  const file = picker.locator('input[type="file"]').first();
+  const fileBox = await file.boundingBox();
+  if (fileBox) {
+    await movePointer(page, recorder, {
+      x: Math.round(fileBox.x + fileBox.width / 2),
+      y: Math.round(fileBox.y + fileBox.height / 2),
+    });
+  }
+  await file.setInputFiles(await guideImage(action.name));
+  await page.waitForTimeout(400);
+  await clickSelector(
+    page,
+    recorder,
+    '.md-image-picker form.md-image-upload button[type="submit"]',
+  );
+  const confirm = picker.locator(".md-image-confirm");
+  await confirm.waitFor({ state: "visible", timeout: 30_000 });
+  await page.waitForTimeout(400);
+  await clickSelector(page, recorder, ".md-image-picker .md-image-confirm");
+  await page.waitForTimeout(300);
+};
+
 export const executeGuideAction = async (
   page: Page,
   action: GuideAction,
@@ -221,8 +316,13 @@ export const executeGuideAction = async (
       );
       return;
     }
+    case "upload": {
+      await uploadGuideImage(page, recorder, action);
+      return;
+    }
     case "wait": {
       await page.waitForTimeout(action.ms);
+      recordCursor(recorder, recorder.cursor);
       return;
     }
     case "evidence": {

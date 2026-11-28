@@ -2,13 +2,15 @@
 
 A guide video shows one real admin journey. The recorder drives a throwaway
 site with Playwright and keeps the frames Chrome paints. The three.js renderer
-adds camera zooms and a focus vignette. FFmpeg writes the MP4.
+adds camera zooms and a focus vignette, and FFmpeg writes the MP4. The renderer
+is a build-time tool only: the deployed app holds the URL of the finished video
+and never ships three.js.
 
 The videos are silent. Add your own voiceover or captions after recording.
 
 ## Commands
 
-Record one guide:
+Record one guide into `reports/guides/<slug>/` for review:
 
 ```bash
 deno task guide:record create-a-listing
@@ -16,7 +18,7 @@ deno task guide:record create-a-listing
 
 The command builds the site, signs the owner in, runs the guide's setup, records
 the story, renders the frames, encodes the MP4, and writes the freshness
-baseline. The video and poster land under `reports/guides/<slug>/`. The baseline
+baseline. The video lands under `reports/guides/<slug>/guide.mp4`. The baseline
 lands at `guides/<slug>/freshness.json`.
 
 Useful options:
@@ -37,6 +39,37 @@ deno task guide:check
 deno task guide:check --guide create-a-listing
 ```
 
+Publish the videos to the Bunny CDN:
+
+```bash
+deno task guide:evidence
+deno task guide:publish
+```
+
+The deploy workflows run the guide evidence and the publish action before the
+edge build. The evidence produces the screenshot hashes that decide whether a
+guide needs recording again. A branch preview runs the same action against the
+staging CDN.
+
+### Preview locally
+
+`deno task dev` reports each `reports/guides/<slug>/guide.mp4` at
+`/guide-videos/<slug>`. The create listing form then shows the camera link and
+the modal plays the recorded file. Restart the dev server after you record a
+guide.
+
+An explicit `GUIDE_VIDEOS` value wins over that scan. Use it to preview an
+object on the CDN:
+
+```bash
+GUIDE_VIDEOS='{"create-a-listing":{"video":"https://cdn.example.com/guides/create-a-listing-abc.mp4"}}' \
+  deno task dev
+```
+
+The camera link appears beside the create-listing heading and the modal plays
+the named file. The edge build replaces the local override with the map it
+bakes in.
+
 ## How the recorder works
 
 A storyboard is a list of real actions: open a page, click a link, type text one
@@ -51,6 +84,72 @@ same screenshot shows a pointer that eases into each action.
 The recorder never leaves the local site. It runs a temporary database with
 fixed test keys and fake data. It blocks every request outside the loopback
 address.
+
+Recording and rendering both work at two device pixels per CSS pixel
+(`GUIDE_DEVICE_SCALE_FACTOR`): a 1280 by 720 viewport becomes a 2560 by 1440
+video. Chrome's screencast sends frames at the browser window's device
+resolution, so the recorder launches Chromium with a forced device scale factor
+and a matching window size. The page still lays out at 1280 by 720, and the
+screencast arrives at 2560 by 1440 with real detail. The renderer's canvas draws
+at the same ratio, so a focus zoom up to 2x samples the recorded frame at one
+texture pixel per video pixel instead of enlarging a 720p image.
+
+## CDN videos
+
+`guide:publish` renders one MP4 per guide and uploads it under a name made from
+the hash of its bytes:
+
+```text
+guides/create-a-listing-0123456789abcdef.mp4
+```
+
+Two sites on different releases therefore point at different objects, and a
+later recording can never overwrite the file an older site links to.
+
+Beside the video the command writes a pointer at
+`guides/pointers/<slug>-<inputs-hash>.json`. The inputs hash covers the guide's
+anchored screenshot hashes, the storyboard, and `GUIDE_PIPELINE_VERSION`. A
+publish run reads the pointer first:
+
+- pointer present, its video still served — nothing is recorded or uploaded. The
+  app gets the existing URL.
+- pointer absent or unreadable — the guide is recorded, rendered, encoded, and
+  uploaded. Then the pointer is written.
+
+A change to the pipeline (the scale factor, the encoder settings) bumps
+`GUIDE_PIPELINE_VERSION`, so old pointers stop matching and the next run
+re-renders. The upload verifies every object's bytes and content type. A failed
+publish stops the deploy, so the app never links to a missing video.
+
+The deploy or preview build bakes a JSON map into `GUIDE_VIDEOS`. The create
+listing form shows a small video camera link beside its title when the map names
+that guide.
+The link opens the MP4 in the admin modal, muted and autoplaying. Without a map
+the page shows no link.
+
+A publish run without the Bunny storage secrets does not render or upload
+anything: there is no origin for the edge script to name. The workflow
+returns an empty map instead, and every guide link stays hidden.
+
+The parent page needs `media-src` for the CDN origin. The security header adds
+it when the map names a video.
+
+## Workflow
+
+`publish-guides.yml` is the manual publish from the Actions tab. Every deploy
+job runs the same action, `publish-guide-videos`, before the edge build and
+passes the returned map to the build action.
+
+The action reads the deploy job's environment secrets. A branch preview
+publishes to the staging CDN. A deploy publishes to its own CDN.
+
+The action captures the guide evidence first, because the render decision reads
+the screenshot hashes from `reports/evidence/manifest.json`. The publish action
+checks each guide on its own. A guide whose inputs match reuses its CDN object.
+A guide whose anchors changed is recorded and rendered again.
+
+Three.js is never bundled into the deployed script: the build asserts that
+`WebGLRenderer` and `THREE.` appear nowhere in the output.
 
 ## Freshness
 
@@ -75,6 +174,9 @@ The baseline must name the same captures as the storyboard. If the storyboard
 adds or removes a capture, the check fails and asks you to record the guide
 again.
 
+The publish decision is stricter than the check: an anchor that differs at all
+changes the inputs hash and records the guide again.
+
 The scores are:
 
 | Score | Status |
@@ -97,13 +199,14 @@ evidence. A warning appears in the workflow log.
    `scripts/specs/evidence/declarations.ts`. Use the `desktop` profile. When the
    page address is made while the story runs, the step must hand the address
    over with `leaveEvidencePage`.
-2. Run `deno task specs:evidence` on a clean worktree.
-3. Add a storyboard under `scripts/guides/storyboards/` and export it from
+2. Add a storyboard under `scripts/guides/storyboards/` and export it from
    `scripts/guides/storyboards/index.ts`. Name every evidence action with its
    capture id and Cucumber case id.
+3. Run `deno task guide:evidence` on a clean worktree. The task captures the
+   evidence that the storyboards name.
 4. Run `deno task guide:record <slug>`.
-5. Review the MP4 and the poster. Commit `guides/<slug>/freshness.json` with the
-   storyboard. Do not commit `reports/`.
+5. Review the MP4. Commit `guides/<slug>/freshness.json` with the storyboard. Do
+   not commit `reports/`.
 
 ## Limits
 
@@ -113,3 +216,6 @@ evidence. A warning appears in the workflow log.
   selector fails the recording and names the action, so the video cannot quietly
   show the wrong page.
 - Recording needs Chromium and ffmpeg. The devenv shell supplies both.
+- The uploaded MP4 is about 2560 by 1440 for a 63-second guide, so a modal
+  download is several megabytes. The player streams with `preload="metadata"`
+  and faststart, so playback starts before the whole file arrives.

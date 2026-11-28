@@ -18,6 +18,7 @@ import {
 } from "#shared/listing-templates.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import {
+  GuideVideoLink,
   Icon,
   type PickerIconName,
   SubmitButton,
@@ -232,12 +233,30 @@ const newPageImages = (
 ): readonly ChosenImage[] | undefined =>
   listingImagesEnabled(templateId) ? (images ?? []) : undefined;
 
+const NewListingHeading = ({
+  guideVideoUrl,
+}: {
+  guideVideoUrl?: string | undefined;
+}): JSX.Element => (
+  <div class="guide-video-heading">
+    <h1>{t("listings_table.add_listing")}</h1>
+    {guideVideoUrl !== undefined && (
+      <GuideVideoLink
+        href={guideVideoUrl}
+        label={t("listings_table.watch_guide_video")}
+        title={t("listings_table.create_listing_guide")}
+      />
+    )}
+  </div>
+);
+
 export const adminListingNewPage = (
   groups: Group[],
   session: AdminSession,
   opts?: {
     customiseOpen?: boolean;
     error?: string;
+    guideVideoUrl?: string;
     images?: readonly ChosenImage[];
     templateId?: string | null;
     values?: FieldValues;
@@ -246,6 +265,7 @@ export const adminListingNewPage = (
 ): string => {
   const {
     error,
+    guideVideoUrl,
     templateId,
     customiseOpen = false,
     images: submittedImages,
@@ -271,7 +291,7 @@ export const adminListingNewPage = (
     template,
     t("listings_table.add_listing"),
     <>
-      <h1>{t("listings_table.add_listing")}</h1>
+      <NewListingHeading guideVideoUrl={guideVideoUrl} />
       <Flash error={error} />
       {templateId && (
         <input name="templateId" type="hidden" value={templateId} />

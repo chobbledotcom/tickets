@@ -333,6 +333,18 @@
         d="m17 2l4 4l-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4l4-4m14-1v1a4 4 0 0 1-4 4H3"
       />
     </symbol>
+    <symbol id="video" viewBox="0 0 24 24">
+      <g
+        fill="none"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+      >
+        <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+        <rect height="12" rx="2" width="14" x="2" y="6" />
+      </g>
+    </symbol>
     <symbol id="heart" viewBox="0 0 24 24">
       <path
         fill="none"

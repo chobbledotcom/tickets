@@ -61,12 +61,6 @@
       "fields": ["reason"]
     }
   ],
-  "src/features/admin/refunds/ledger-findings.ts": [
-    {
-      "path": [{ "name": "AppliedRefundLedgerFindings" }],
-      "fields": ["needsReview"]
-    }
-  ],
   "src/features/admin/refunds/provider.ts": [
     {
       "path": [{ "name": "RefundBatchResult" }],
@@ -133,12 +127,6 @@
     {
       "path": [{ "name": "AuthSession" }],
       "fields": ["settingsNagItems"]
-    }
-  ],
-  "src/features/entity.ts": [
-    {
-      "path": [{ "name": "AttendeeListingRouteParams" }],
-      "fields": ["attendeeId", "listingId"]
     }
   ],
   "src/features/public/types.ts": [
@@ -374,10 +362,6 @@
     }
   ],
   "src/shared/db/listing-parents.ts": [
-    {
-      "path": [{ "name": "HydratedListingLinks" }],
-      "fields": ["idsByKey"]
-    },
     {
       "path": [{ "name": "ParentAndChildLinkMaps" }],
       "fields": ["childIdsByParent"]
@@ -959,10 +943,6 @@
     {
       "path": [{ "name": "PiiBlob" }],
       "fields": ["v"]
-    },
-    {
-      "path": [{ "name": "Settings" }],
-      "fields": ["key", "value"]
     }
   ],
   "src/shared/update.ts": [

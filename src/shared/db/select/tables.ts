@@ -209,6 +209,7 @@ const SINGULAR: Record<TableName, string> = {
   redirects: "redirect",
   refund_confirmation_references: "refundConfirmationReference",
   refund_confirmations: "refundConfirmation",
+  reviews: "review",
   schema_migrations: "schemaMigration",
   service_costs: "serviceCost",
   sessions: "session",

@@ -28,7 +28,6 @@ describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
     // Hand-crafted stored password hash — test fixture cast.
     const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==" as PasswordHash;
     const kek = await deriveKEK(passwordHash);
-    expect(kek).toBeDefined();
     expect(kek.type).toBe("secret");
   });
 
@@ -42,7 +41,7 @@ describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
     const dataKey = await generateDataKey();
     const wrapped1 = await wrapKey(dataKey, kek1);
     const unwrapped = await unwrapKey(wrapped1, kek2);
-    expect(unwrapped).toBeDefined();
+    expect(unwrapped.type).toBe("secret");
   });
 
   it("produces different keys for different password hashes", async () => {

@@ -15,7 +15,7 @@ describePackageBooking(() => {
       quantity: 2,
     });
     expect(response.status).toBe(200);
-    expect(body.booking!.ticketToken).toBeDefined();
+    expect(typeof body.booking!.ticketToken).toBe("string");
     // Provider-less paid booking owes the full value: 2500 × 2 bundles.
     expect(body.booking!.amountOwed).toBe(5_000);
     const aRow = (await bookingRows(a.id))[0]!;

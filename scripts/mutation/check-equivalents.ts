@@ -11,14 +11,16 @@
  * it could suppress exists any more.
  */
 
-import { isAbsolute, relative, resolve, SEPARATOR } from "@std/path";
+import { relative, resolve } from "@std/path";
 import { requiredMapValue } from "#fp";
 import { shortHash } from "#scripts/checksum.ts";
-import { readTextFileOrNull } from "#scripts/not-found.ts";
-import { generateMutants } from "./generate.ts";
+import {
+  readSourceMutants,
+  type SourceMutants,
+  whyPathUnusable,
+} from "./equivalent-registry.ts";
 import {
   listRegistryFiles,
-  mutantKeyForPath,
   parseRegistryText,
   registryFilePath,
 } from "./ignore.ts";
@@ -32,33 +34,9 @@ interface EquivalentCheckOptions {
 
 interface Entry {
   key: string;
-  /** The entry's `from → to` as the key format writes it, so a candidate key
-   *  carrying the same mutation compares by string equality. */
-  mutation: string;
-  /** The written proof, so a paste-ready replacement carries it forward. */
-  reason: string;
   registry: string;
   sourcePath: string;
 }
-
-/**
- * Why a path cannot be used as written, or nothing when it can.
- *
- * The runner keys a mutant by its canonical project-relative path, so any
- * other spelling of the same file — absolute, or reaching out and back —
- * resolves here while never matching what the runner suppresses.
- */
-const whyPathUnusable = (sourcePath: string, root: string): string | null => {
-  if (isAbsolute(sourcePath)) return "path must be relative to the project";
-  const resolved = resolve(root, sourcePath);
-  const canonical = relative(root, resolved);
-  if (canonical === ".." || canonical.startsWith(`..${SEPARATOR}`)) {
-    return "path escapes the project";
-  }
-  return canonical === sourcePath
-    ? null
-    : `path must be written as "${canonical}"`;
-};
 
 const readEntries = async (
   registryDir: string | URL,
@@ -73,76 +51,12 @@ const readEntries = async (
     )) {
       entries.push({
         key: parsed.key,
-        mutation: `${parsed.operator}→${parsed.newOperator}`,
-        reason: parsed.reason,
         registry,
         sourcePath: parsed.sourcePath,
       });
     }
   }
   return entries;
-};
-
-/**
- * Every mutant key a source file can produce, generated exhaustively so an
- * entry for an exhaustive-only replacement still resolves, plus the stamp the
- * file's current text earns.
- *
- * A source the branch deleted or renamed produces none, which reads as stale —
- * the entry naming it is exactly what the author has to remove, and saying so
- * is more use than failing the commit with a file-read error.
- */
-const keysFor = async (
-  sourcePath: string,
-  root: string,
-): Promise<{ keys: Set<string>; stamp: string | null }> => {
-  const file = resolve(root, sourcePath);
-  const content = await readTextFileOrNull(file);
-  if (content === null) return { keys: new Set(), stamp: null };
-  return {
-    keys: new Set(
-      generateMutants(content, file, true).map((mutant) =>
-        mutantKeyForPath(sourcePath, mutant),
-      ),
-    ),
-    stamp: shortHash(content),
-  };
-};
-
-/** A canonical key's `from → to`: the anchor ends at its first space, and the
- *  path before the `::` carries no raw colon. */
-const mutationOfKey = (key: string): string =>
-  key.slice(key.indexOf(" ", key.indexOf("::") + 2) + 1);
-
-/** The stale line for an entry whose key resolves to nothing: each key in the
- *  file that still produces the same mutation is offered as the paste-ready
- *  replacement, and when none does the mutation is gone and the entry has to
- *  go — the entry suppresses nothing either way. */
-const staleEntryProblem = (
-  entry: Entry,
-  checked: { keys: Set<string>; stamp: string | null },
-): string => {
-  const fresh = [...checked.keys].filter(
-    (key) => mutationOfKey(key) === entry.mutation,
-  );
-  // A file with no text has no stamp to offer and no fresh keys either; the
-  // suffix reads empty there.
-  const stamp =
-    checked.stamp === null
-      ? ""
-      : entry.reason === ""
-        ? `  audited:${checked.stamp}`
-        : `  audited:${checked.stamp}   # ${entry.reason}`;
-  const [head, ...accepts] =
-    fresh.length === 0
-      ? [
-          `stale (nothing to suppress — the mutation no longer occurs in that file, so delete the entry) (${entry.registry}): ${entry.key}`,
-        ]
-      : [
-          `stale (nothing to suppress — did it move or get renamed?) (${entry.registry}): ${entry.key}`,
-          ...fresh.map((key) => `to accept: ${key}${stamp}`),
-        ];
-  return [head, ...accepts].join("\n");
 };
 
 /**
@@ -172,18 +86,20 @@ export const checkEquivalentMutants = async (
     return why === null;
   });
 
-  const byPath = new Map<string, { keys: Set<string>; stamp: string | null }>();
+  const byPath = new Map<string, SourceMutants | null>();
   for (const sourcePath of new Set(usable.map((e) => e.sourcePath))) {
-    byPath.set(sourcePath, await keysFor(sourcePath, root));
+    byPath.set(sourcePath, await readSourceMutants(root, sourcePath));
   }
   for (const entry of usable) {
     if (seen.has(entry.key)) {
       problems.push(`duplicate (${entry.registry}): ${entry.key}`);
     }
     seen.add(entry.key);
-    const checked = requiredMapValue(byPath, entry.sourcePath);
-    if (!checked.keys.has(entry.key)) {
-      problems.push(staleEntryProblem(entry, checked));
+    const source = requiredMapValue(byPath, entry.sourcePath);
+    if (source === null || !source.mutants.has(entry.key)) {
+      problems.push(
+        `stale (delete the entry: no exact mutant matches) (${entry.registry}): ${entry.key}`,
+      );
     }
   }
   return problems;

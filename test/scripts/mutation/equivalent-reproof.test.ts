@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { ResolvedEntry } from "#scripts/mutation/equivalent-audit.ts";
+import type { ResolvedEntry } from "#scripts/mutation/equivalent-registry.ts";
 import {
   type ReproveDeps,
   reproveEntries,

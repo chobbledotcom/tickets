@@ -19,10 +19,24 @@ name: Branch preview
 #
 # A preview sends real host mail. It never receives MAIN_INSTANCE_KEY or the
 # production Bunny key.
+#
+# A person can also start the workflow by hand with a branch name. The reset
+# job then deletes the preview of that branch, the same way a closed pull
+# request does. A preview that stays broken can be made new this way. The next
+# run of the pull request for the branch makes the new preview.
+#
+# The deploy job publishes the branch guide videos to the staging CDN before
+# the build. The build bakes their URLs into the create-listing page.
 
 on:
   pull_request:
     types: [opened, reopened, synchronize, closed]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch whose preview to delete. Its next pull request run makes a new one.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -31,7 +45,7 @@ permissions:
 # One run at a time for each branch. A run is never cancelled, because a stop
 # in the middle of a create can leave a database with no script.
 concurrency:
-  group: preview-${{ github.event.pull_request.head.ref }}
+  group: preview-${{ github.event.pull_request.head.ref || inputs.branch }}
   cancel-in-progress: false
 
 jobs:
@@ -107,6 +121,17 @@ jobs:
             --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID
           scripts/ci/check-credentials.sh bunny cdn-zone
 
+      - name: Publish guide videos
+        id: guides
+        uses: $/.github/actions/publish-guide-videos
+        with:
+          bunny_access_key: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          cdn_url: ${{ secrets.CDN_STAGING_URL }}
+          cdn_bunny_storage_zone_name: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_NAME }}
+          cdn_bunny_storage_zone_key: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_ZONE_KEY }}
+          cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
+          cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
+
       - name: Build Bunny edge script
         id: build
         uses: $/.github/actions/build-bunny-script
@@ -118,6 +143,7 @@ jobs:
           cdn_bunny_storage_host: ${{ secrets.CDN_BUNNY_STAGING_STORAGE_HOST }}
           cdn_bunny_pull_zone_id: ${{ secrets.CDN_BUNNY_STAGING_PULL_ZONE_ID }}
           bunny_access_key: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          guide_videos: ${{ steps.guides.outputs.guide_videos }}
 
       # Finds the preview of this branch by name. A new branch gets a database,
       # a script and every secret, and the build is published. An old preview
@@ -211,6 +237,46 @@ jobs:
         shell: devenv --profile ci shell bash -- -e {0}
         env:
           BRANCH: ${{ github.event.pull_request.head.ref }}
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: |
+          deno run \
+            --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY,STRIPE_SECRET_KEY \
+            --allow-net=api.bunny.net,api.stripe.com \
+            scripts/preview.ts remove "$BRANCH"
+
+  # Deletes the preview of one branch that a person names. It reads the
+  # scripts of the branch that the run starts from, so start it from main.
+  reset:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubicloud-standard-2
+    # The secrets this job reads live in this environment.
+    environment: preview
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: |
+          scripts/ci/require-env.sh BUNNY_ACCESS_KEY STRIPE_SECRET_KEY
+          scripts/ci/check-credentials.sh bunny
+
+      - name: Set up devenv
+        uses: $/.github/actions/setup-devenv
+        with:
+          profile: ci
+
+      - name: Delete the preview
+        shell: devenv --profile ci shell bash -- -e {0}
+        env:
+          BRANCH: ${{ inputs.branch }}
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_STAGING_ACCOUNT_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
         run: |

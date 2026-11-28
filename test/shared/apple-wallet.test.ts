@@ -65,7 +65,7 @@ describe("apple-wallet", () => {
       expect(barcodes[0]!.messageEncoding).toBe("iso-8859-1");
 
       const ticket = pass.eventTicket as TicketFields;
-      expect(pass.listingTicket).toBeUndefined();
+      expect(pass).not.toHaveProperty("listingTicket");
       expect(ticket.primaryFields).toEqual([
         { key: "listing", label: "LISTING", value: "Summer Concert" },
       ]);
@@ -84,7 +84,6 @@ describe("apple-wallet", () => {
       const locationField = ticket.secondaryFields.find(
         (f: Record<string, unknown>) => f.key === "location",
       );
-      expect(locationField).toBeDefined();
       expect(locationField!.value).toBe("Town Hall");
 
       expect(pass.relevantDate).toBe("2026-06-15T19:00:00Z");
@@ -114,30 +113,16 @@ describe("apple-wallet", () => {
       );
       const ticket = pass.eventTicket as TicketFields;
 
-      expect(
-        ticket.secondaryFields.find(
-          (f: Record<string, unknown>) => f.key === "date",
-        ),
-      ).toBeUndefined();
-      expect(pass.relevantDate).toBeUndefined();
+      expect(ticket.secondaryFields.map((f) => f.key)).not.toContain("date");
+      expect(pass).not.toHaveProperty("relevantDate");
 
-      expect(
-        ticket.secondaryFields.find(
-          (f: Record<string, unknown>) => f.key === "location",
-        ),
-      ).toBeUndefined();
+      expect(ticket.secondaryFields.map((f) => f.key)).not.toContain(
+        "location",
+      );
 
-      expect(
-        ticket.auxiliaryFields.find(
-          (f: Record<string, unknown>) => f.key === "qty",
-        ),
-      ).toBeUndefined();
+      expect(ticket.auxiliaryFields.map((f) => f.key)).not.toContain("qty");
 
-      expect(
-        ticket.auxiliaryFields.find(
-          (f: Record<string, unknown>) => f.key === "price",
-        ),
-      ).toBeUndefined();
+      expect(ticket.auxiliaryFields.map((f) => f.key)).not.toContain("price");
     });
 
     test("includes quantity, price, and booking date when present", async () => {
@@ -157,20 +142,17 @@ describe("apple-wallet", () => {
       const qtyField = ticket.auxiliaryFields.find(
         (f: Record<string, unknown>) => f.key === "qty",
       );
-      expect(qtyField).toBeDefined();
       expect(qtyField!.value).toBe(2);
 
       const priceField = ticket.auxiliaryFields.find(
         (f: Record<string, unknown>) => f.key === "price",
       );
-      expect(priceField).toBeDefined();
       expect(priceField!.value).toBe(25);
       expect(priceField!.currencyCode).toBe("EUR");
 
       const bookingField = ticket.auxiliaryFields.find(
         (f: Record<string, unknown>) => f.key === "booking-date",
       );
-      expect(bookingField).toBeDefined();
       expect(bookingField!.value).toBe("2026-06-15");
     });
 
@@ -251,12 +233,12 @@ describe("apple-wallet", () => {
       expect(pkpass.length).toBeGreaterThan(0);
 
       const files = unzipSync(pkpass);
-      expect(files["pass.json"]).toBeDefined();
-      expect(files["icon.png"]).toBeDefined();
-      expect(files["icon@2x.png"]).toBeDefined();
-      expect(files["icon@3x.png"]).toBeDefined();
-      expect(files["manifest.json"]).toBeDefined();
-      expect(files.signature).toBeDefined();
+      expect(files["pass.json"]).toBeInstanceOf(Uint8Array);
+      expect(files["icon.png"]).toBeInstanceOf(Uint8Array);
+      expect(files["icon@2x.png"]).toBeInstanceOf(Uint8Array);
+      expect(files["icon@3x.png"]).toBeInstanceOf(Uint8Array);
+      expect(files["manifest.json"]).toBeInstanceOf(Uint8Array);
+      expect(files.signature).toBeInstanceOf(Uint8Array);
 
       // pass.json matches generatePassJson
       const passJson = JSON.parse(

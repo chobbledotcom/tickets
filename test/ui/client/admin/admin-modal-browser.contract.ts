@@ -230,6 +230,32 @@ describeWithBrowser(
       });
     });
 
+    test("refocuses a window when a press lands on its iframe", async () => {
+      await withPreview(contract, async (page, dialog) => {
+        await dialog.locator(".admin-modal-body").evaluate((body) => {
+          const frame = document.createElement("iframe");
+          frame.id = "focus-frame";
+          frame.src = "/ticket/focus-test";
+          body.append(frame);
+        });
+        await page.locator('input[name="name"]').focus();
+        expect(await dimOf(page)).toEqual({
+          page: "false",
+          windows: [CONTENT_KEY],
+        });
+        const frame = page.locator("#focus-frame");
+        expect(
+          await frame.evaluate(
+            (element) => getComputedStyle(element).pointerEvents,
+          ),
+        ).toBe("none");
+        await frame.scrollIntoViewIfNeeded();
+        const box = await boxOf(frame);
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        expect(await dimOf(page)).toEqual({ page: "true", windows: [] });
+      });
+    });
+
     test("keeps the page usable and stacks the windows in use order", async () => {
       await withTwoPreviews(async (page, first, second) => {
         // Two windows are open, and neither is modal: the page behind stays

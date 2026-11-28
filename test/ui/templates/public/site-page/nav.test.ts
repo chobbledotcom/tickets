@@ -38,6 +38,7 @@ describe("sitePagePage (nav-model race)", () => {
         hasContact: false,
         hasNews: false,
         hasOrder: false,
+        hasReviews: false,
         hasTerms: false,
         pages: model,
       },

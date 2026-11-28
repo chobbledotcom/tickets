@@ -29,7 +29,6 @@ describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
     using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     const session = await getOwnerSession();
     expect(session.adminLevel).toBe("owner");
-    expect(session.settingsNagItems).toBeDefined();
     expect(Array.isArray(session.settingsNagItems)).toBe(true);
     expect(
       session.settingsNagItems!.every(
@@ -49,14 +48,13 @@ describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
     const session = await getAuthenticatedSession(request);
     expect(session).not.toBeNull();
     expect(session!.adminLevel).toBe("manager");
-    expect(session!.settingsNagItems).toBeUndefined();
+    expect(session).not.toHaveProperty("settingsNagItems");
   });
 
   test("settingsNagItems includes superuser nag when conditions are met", async () => {
     using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "" });
     const session = await getOwnerSession();
-    expect(session.settingsNagItems).toBeDefined();
     const hasSuperuser = session.settingsNagItems!.some(
       (i) => i.id === "superuser",
     );
@@ -67,7 +65,6 @@ describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
     using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "self-managed" });
     const session = await getOwnerSession();
-    expect(session.settingsNagItems).toBeDefined();
     expect(session.settingsNagItems!.some((i) => i.id === "superuser")).toBe(
       false,
     );

@@ -35,6 +35,14 @@ describe("guide timeline", () => {
     ]);
   });
 
+  test("accepts WebP frames for the HTML player", () => {
+    const webp = {
+      ...timeline,
+      frames: [{ atMs: 0, file: "frame-00001.webp" }],
+    };
+    expect(parseGuideTimeline(webp).frames[0]?.file).toBe("frame-00001.webp");
+  });
+
   test("rejects a timeline the renderer cannot replay", () => {
     expectEachRefused(parseGuideTimeline, [
       [{ ...timeline, frames: [] }, "length"],
