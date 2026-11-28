@@ -169,6 +169,7 @@ const SINGULAR: Record<TableName, string> = {
   attributes: "attribute",
   booking_tax_assessments: "assessment",
   built_sites: "builtSite",
+  checkout_bundles: "checkoutBundle",
   checkout_pending_answers: "pendingAnswer",
   checkout_stages: "checkoutStage",
   contact_preferences: "contactPreference",

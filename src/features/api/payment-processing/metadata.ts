@@ -9,6 +9,7 @@
  */
 
 import * as v from "valibot";
+import { openCheckoutBundle } from "#db/checkout-bundles.ts";
 import {
   type BookingIntent,
   BookingIntentSchema,
@@ -18,6 +19,10 @@ import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import {
+  extractSessionMetadata,
+  hasRequiredSessionMetadata,
+} from "#shared/session-metadata.ts";
 import { NO_TAX } from "#shared/tax/types.ts";
 
 /**
@@ -61,24 +66,20 @@ const parseBookingItems = jsonMetaField(null);
 const wholeNumberField = (raw: string): number | undefined =>
   raw ? Number(raw) : undefined;
 
-/**
- * Read a paid session's booking back out of its metadata, or `null` when what
- * came back is not a booking we can act on.
- *
- * Everything here arrives as text a provider handed back, so the assembled
- * booking is parsed against the schema before anyone sees it. A drifted,
- * tampered, or foreign blob fails here rather than after the buyer pays.
- * The empty date the metadata uses for "no date" becomes null on the way in.
- */
-export const extractIntent = (
-  session: ValidatedPaymentSession,
-): BookingIntent | null => extractIntentFromMetadata(session.metadata);
+/** A validated session or a rejected one: anything that holds the checkout's
+ * metadata. */
+type HasMetadata = { readonly metadata: SessionMetadata };
 
-/** Read the booking a metadata blob describes, or null when it cannot be
- * read as one — a rejected session's blob can predate the current shape. */
-export const extractIntentFromMetadata = (
-  metadata: SessionMetadata,
-): BookingIntent | null => {
+/** What a session's order turned out to be. A sealed order that cannot be
+ * opened differs from fields that do not make a booking. Only the sealed
+ * order leaves a paid buyer with no record at all. */
+export type SessionOrder =
+  | { status: "read"; intent: BookingIntent }
+  | { status: "unreadable" }
+  | { status: "bundle_missing" | "bundle_unreadable" };
+
+/** The booking that a set of order fields describes, or `unreadable`. */
+const orderFrom = (metadata: SessionMetadata): SessionOrder => {
   const result = v.safeParse(BookingIntentSchema, {
     address: metadata.address,
     allocations: parseAnswerRefs(metadata.allocations),
@@ -98,5 +99,36 @@ export const extractIntentFromMetadata = (
     taxPolicy: parseTaxPolicy(metadata.tax_policy),
     thankYouUrl: metadata.thank_you_url || undefined,
   });
-  return result.success ? result.output : null;
+  return result.success
+    ? { intent: result.output, status: "read" }
+    : { status: "unreadable" };
+};
+
+/**
+ * Read a session's booking out of its order. A Stripe or Square checkout names
+ * its sealed order by token, and the order is opened from our database. A
+ * checkout that carries its order in its own fields (SumUp, or one made before
+ * orders were sealed) is read as it stands.
+ *
+ * Everything is parsed against the schema before anyone sees it, so a drifted,
+ * tampered, or foreign order fails here rather than after the buyer pays.
+ */
+export const readSessionOrder = async ({
+  metadata,
+}: HasMetadata): Promise<SessionOrder> => {
+  if (metadata.bundle === "") return orderFrom(metadata);
+  const bundle = await openCheckoutBundle(metadata.bundle);
+  if (bundle.status !== "opened") return { status: `bundle_${bundle.status}` };
+  return hasRequiredSessionMetadata(bundle.record)
+    ? orderFrom(extractSessionMetadata(bundle.record))
+    : { status: "unreadable" };
+};
+
+/** Read the booking a session's order describes, or null when it cannot be
+ * read as one — a rejected session's order can predate the current shape. */
+export const extractIntent = async (
+  holder: HasMetadata,
+): Promise<BookingIntent | null> => {
+  const order = await readSessionOrder(holder);
+  return order.status === "read" ? order.intent : null;
 };

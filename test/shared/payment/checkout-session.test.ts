@@ -7,7 +7,7 @@ import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { readCheckoutAnswers } from "#db/checkout-pending-answers.ts";
-import { execute } from "#db/client.ts";
+import { queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
 import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
@@ -20,6 +20,7 @@ import { squareApi } from "#shared/square/api.ts";
 import { squareLinkEndsAt } from "#shared/square/checkout.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const intent = (textAnswers?: Record<string, string>): CheckoutIntent => ({
@@ -120,14 +121,41 @@ describeWithEnv(
         `link_${sessionId}`,
         squareLinkEndsAt(createdAt),
       );
-      await execute(
+      await runWrite(
         sql`UPDATE checkout_pending_answers SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`,
       );
-      await execute(
+      await runWrite(
         sql`UPDATE square_link_ends SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`,
+      );
+      // The create seals the order and links it to the checkout. The stub
+      // replaces the call that seals it, so this stores what it would have.
+      await runWrite(
+        sql`INSERT INTO checkout_bundles (token_index, wrapped_key, sealed, created_at, session_index)
+          VALUES (${`bundle_${sessionId}`}, 'wrapped', 'sealed', ${createdAt}, ${await hmacHash(sessionId)})`,
       );
       await runDatabasePruning();
     };
+
+    /** How many sealed orders the Square checkout of a session still has. */
+    const sealedOrdersOf = async (sessionId: string): Promise<number> =>
+      Number(
+        (
+          await queryOne<{ kept: number }>(
+            sql`SELECT COUNT(*) AS kept FROM checkout_bundles WHERE session_index = ${await hmacHash(sessionId)}`,
+          )
+        )?.kept,
+      );
+
+    test("keeps a Square checkout's sealed order after a late payment takes its handle row, until the link's own lifetime and the webhook retries are over", async () => {
+      await squareCheckoutAgedDays("sq_paid_100", 100);
+      await runWrite(
+        sql`DELETE FROM square_link_ends WHERE session_index = ${await hmacHash("sq_paid_100")}`,
+      );
+
+      await runDatabasePruning();
+
+      expect(await sealedOrdersOf("sq_paid_100")).toBe(1);
+    });
 
     test("keeps a Square checkout's answers past the payments clock while its link can still take payment", async () => {
       await squareCheckoutAgedDays("sq_day_150", 150);
@@ -135,6 +163,27 @@ describeWithEnv(
       expect(await readCheckoutAnswers("sq_day_150")).toEqual(
         new Map([[7, "Coming by bus"]]),
       );
+    });
+
+    test("keeps a Square checkout's sealed order past the payments clock while its link can still take payment", async () => {
+      await squareCheckoutAgedDays("sq_order_150", 150);
+
+      expect(await sealedOrdersOf("sq_order_150")).toBe(1);
+    });
+
+    test("keeps a Square checkout's sealed order while a payment on the link's last day can still arrive", async () => {
+      await squareCheckoutAgedDays("sq_order_181", 181);
+
+      expect(await sealedOrdersOf("sq_order_181")).toBe(1);
+    });
+
+    test("prunes a Square checkout's sealed order once its link has ended and the webhook retries are over", async () => {
+      await squareCheckoutAgedDays(
+        "sq_order_184",
+        180 + WEBHOOK_RETRY_WINDOW_DAYS + 1,
+      );
+
+      expect(await sealedOrdersOf("sq_order_184")).toBe(0);
     });
 
     test("keeps a Square checkout's answers while a payment on the link's last day can still arrive", async () => {

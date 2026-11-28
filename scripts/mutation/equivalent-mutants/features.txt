@@ -119,7 +119,8 @@ src/ui/client/dom.ts::createButton.button%2eclassName~16pvzvs  = → += audited:
 # Paid-payment processing: private defaults are always supplied by their only
 # callers; optional collections are arrays (always truthy); parsed day counts and
 # stored package quantities are positive; equal zero fallbacks stay equal.
-src/features/api/payment-processing/cancel.ts::cancelPageResponse.listingId~1s2pbem  ?? → || audited:1hjmd1r # extractIntent emits null or a schema-valid intent whose items are non-empty with a positive e, so a null intent hits the 0 fallback under either operator and every present e is truthy
+src/features/api/payment-processing/cancel.ts::cancelPageResponse.listingId~0fdo0kj  ?? → || audited:18f17y8 # extractIntent emits null or a schema-valid intent whose items are non-empty with a positive e, so a missing first e and a present one read the same under either operator
+src/features/api/payment-processing/cancel.ts::cancelPageResponse.listingId~09xf7n3  ?? → || audited:18f17y8 # parsePositiveInt returns null or a positive integer, so the 0 fallback is reached under either operator only when it returns null
 src/features/api/payment-processing/items.ts::bookingPaths.allocations~1sr8ybw  ?? → || audited:0enexhe # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts::hasStaleChildSurplus~0bp0o7q  ?? → || audited:0enexhe # a parent list length is non-negative; its only falsy value is 0, which equals the fallback
 src/features/api/payment-processing/items.ts::validateAllItems.expectedPrice~0mb68sn  ?? → || audited:0enexhe # extractIntent emits a positive dayCount or undefined, so every present value is truthy
@@ -273,8 +274,8 @@ src/features/admin/attendee-questions.ts::loadQuestionsForExisting.selectedAnswe
 # fresh hold (both empty), or failed (both set, the resume case). An anchor
 # row is written in the same transaction as the session's failure_data
 # (storeClaimedPlaceholder), so a fresh hold never coexists with a held anchor.
-src/features/api/payment-processing/rejected-target.ts::resumeRejectedTarget~09wjg6v ||→&&  audited:0l77mdn   # on a fresh hold the mutant falls through to findHeldAnchor, but no anchor can be held then (atomic store above), so that path returns as the guard does; finalized and failed rows agree under both operators
-src/features/api/payment-processing/rejected-target.ts::resumeRejectedTarget~18fdbdr →"mutated"  audited:0l77mdn   # failureData is encrypted row state that is never the literal "mutated", so the skip dies only for a fresh hold, whose atomic store leaves no held anchor for findHeldAnchor to find — the resume returns as the real guard does
+src/features/api/payment-processing/rejected-target.ts::resumeRejectedTarget~09wjg6v ||→&&  audited:050ac3i   # on a fresh hold the mutant falls through to findHeldAnchor, but no anchor can be held then (atomic store above), so that path returns as the guard does; finalized and failed rows agree under both operators
+src/features/api/payment-processing/rejected-target.ts::resumeRejectedTarget~18fdbdr →"mutated"  audited:050ac3i   # failureData is encrypted row state that is never the literal "mutated", so the skip dies only for a fresh hold, whose atomic store leaves no held anchor for findHeldAnchor to find — the resume returns as the real guard does
 
 # Success-redirect ticket URLs (payment-success.ts): the join separator never
 # appears because every producer of result.ticketTokens hands over at most one
@@ -287,7 +288,7 @@ src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@1  + → 
 src/features/api/payment-success.ts::processSessionAndRedirect~1llgzg4@2  + → "" audited:1pu8a2r # same single-token producer for the redirect URL's encoded token list
 
 src/features/admin/listing-qr.ts::createQrFormValidator.validate.error~1ukv6yx  ?? → || audited:0k09do1 # qrPriceError answers null or a non-empty price error string; the empty string never reaches this operand
-src/features/api/payment-processing/cancel.ts::retryHrefFor.disclosureGroupIds~1sr8ybw  ?? → || audited:1hjmd1r # intent.allocations is an array or undefined, and every array is truthy
+src/features/api/payment-processing/cancel.ts::retryHrefFor.disclosureGroupIds~1sr8ybw  ?? → || audited:18f17y8 # intent.allocations is an array or undefined, and every array is truthy
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.hasOwnUnits~1sr8ybw  ?? → || audited:1cn80jx # intent.allocations is an array or undefined, and every array is truthy
 src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChildFromFacts.allocations~1sr8ybw  ?? → || audited:1cn80jx # allocationsByParent.get answers an array or undefined, and every array is truthy
 src/features/api/payment-success.ts::processSessionAndRedirect.bookingGroupIds~1sr8ybw  ?? → || audited:1pu8a2r # intent.allocations is an array or undefined, and every array is truthy
@@ -387,4 +388,17 @@ src/features/admin/invoices.ts::withInvoiceForm.submitted~0wbopww  ?? → || aud
 src/features/admin/invoices.ts::withInvoiceForm.submitted~0wbopww   → "mutated" audited:1xflyo4 # the fallback applies only when the form has no body field, and then submitted feeds only the length check that a short word never trips; the template comes from missingText
 src/features/admin/attributes.ts::renderAttributePage~1hfgugd  ?? → || audited:1ps1lwj # submitted.error is a refused edit's message or undefined, and a refusal message is never the empty string, so both operators pick the same text
 src/features/admin/built-sites.ts::extractBuiltSiteInput~027ez9p  && → || audited:1t2kkfd # values.updates is null when the select is omitted and a tier otherwise, because validateUpdateTier refuses every other word, so both operators carry the key for the same inputs
+
+# Sealed checkout orders (payment-processing).
+src/features/api/payment-processing/metadata.ts::businessTime~1e2tdds  ?? → || audited:147hlk6 # createdAt is absent or an ISO time that a provider adapter builds with isoFromUnixSeconds or toCanonicalIso, and neither gives the empty string
+src/features/api/payment-processing/session-standing.ts::sessionStanding.row~1pgpjxc  A session-standing read gives one row → "" audited:01tyr1b # unreachable: the read selects scalar subqueries with no FROM, so it always returns one row and requireValue never raises this message
+src/features/api/payment-processing/session-standing.ts::sessionStanding.row.failureData~1jakk4m  ?? → || audited:01tyr1b # failure_data is null (no payment row), the empty string, or sealed text, and null and the empty string both become "" under either operator
+
+# rejected subscription checkout (features/api/payment-processing/rejected-subscription.ts)
+src/features/api/payment-processing/rejected-subscription.ts::storeNoChargePlan.stored.allowOverbook~12twlt7 true→false  audited:0oju2lp   # every line the no-charge plan books is a dateless ghost line of quantity 0 (datelessGhostBookings), and the capacity guard admits a quantity-0 line whenever its listing exists (roomFor in capacity/checks.ts), so overbooking changes nothing
+src/features/api/payment-processing/rejected-subscription.ts::storeRejectedPlan.plan.bookings~17okbap Parsed booking has no tax policy→""  audited:0oju2lp   # orderFrom reads an empty tax_policy as NO_TAX (jsonMetaField(NO_TAX) in metadata.ts), so every parsed intent carries a tax policy and the throw cannot run
+src/features/api/payment-processing/rejected-subscription.ts::resumeRejectedPlan.failure~181hxwm Rejected subscription session has no stored failure→""  audited:0oju2lp   # settleRejectedSubscription returns before the resume when the row is booked or its failure slot is empty, and parseSessionFailure gives null only for an empty slot, so the throw cannot run
+src/features/api/payment-processing/rejected-subscription.ts::resumeRejectedPlan~0ni2jxd true→false  audited:0oju2lp   # the mutant marks a session refunded again when its stored failure already says refunded, and advanceSessionFailure returns at once when the stored outcome already equals its target, so nothing changes
+src/features/api/payment-processing/rejected-subscription.ts::settleOwnedRejection.work.occurredAt~1wpfuyp Stripe subscription checkout has no creation time→""  audited:0oju2lp   # a subscription checkout comes only from Stripe, and the Stripe adapter always sets createdAt from the session's required created time (stripe-provider.ts), so the throw cannot run
+src/features/api/payment-processing/rejected-subscription.ts::resumeRejectedPlan.refunded~0292hcl true→false  audited:0oju2lp   # placeholderFailure stores refunded only as true and leaves it out otherwise, so the mutant's `failure.refunded === false` never holds and it reads `completed` alone. That differs only for a stored refunded outcome with no completed row, and markRejectionRefunded writes refunded only after a completed refund (refundStoredRejection after the completed return, the resume only on a completed row)
 src/features/admin/scan-door.ts::optionDetails~079ewsj  ?? → || audited:09cd868 # the operand answers a stored listing name or undefined; "" is the fallback itself, so "" ?? "" === "" || ""

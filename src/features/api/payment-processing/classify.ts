@@ -9,8 +9,13 @@ import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { isSessionRejection } from "#payment/validated-session.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
-import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
+import { readSessionOrder } from "#routes/api/payment-processing/metadata.ts";
+import {
+  type MissingOrder,
+  missingOrderReturnPage,
+} from "#routes/api/payment-processing/missing-order.ts";
 import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
+import { sessionStanding } from "#routes/api/payment-processing/session-standing.ts";
 import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import type {
   SessionValidation,
@@ -49,18 +54,23 @@ const logRedirectError = paymentSessionErrorLogger("redirect");
 
 /** The refusal for one refused checkout: a message page that, when the
  * refuser saw a browser request, also carries the facts this branch knows. */
-const refusalPage = async (
+const refusalResponse = async (
   request: Request | undefined,
   message: string,
   facts: { provider?: string; sessionId?: string; status?: string } = {},
   status = 400,
-): Promise<SessionValidation> => ({
-  ok: false,
-  response: await paymentErrorResponse(
+): Promise<Response> =>
+  paymentErrorResponse(
     message,
     status,
     await staffPaymentDiagnostics(request, facts),
-  ),
+  );
+
+const refusalPage = async (
+  ...args: Parameters<typeof refusalResponse>
+): Promise<SessionValidation> => ({
+  ok: false,
+  response: await refusalResponse(...args),
 });
 
 /** A session that cannot be read: log why and return the shared refusal. */
@@ -129,6 +139,7 @@ type SessionClass = SignedVerdict | { verdict: "ignore" };
  * prove is ours but cannot read must remain retryable. */
 export type SessionIntentResult =
   | { kind: "ready"; verdict: SignedVerdict; intent: BookingIntent }
+  | { kind: "missing"; missing: MissingOrder }
   | { kind: "unverifiable" }
   | { kind: "unreadable" };
 
@@ -154,12 +165,23 @@ export const classifySessionIntent = async (
 ): Promise<SessionIntentResult> => {
   const verdict = await classifySession(session);
   if (verdict.verdict === "ignore") return { kind: "unverifiable" };
-  const intent = extractIntent(session);
-  if (intent === null) {
+  const order = await readSessionOrder(session);
+  if (order.status === "read") {
+    return { intent: order.intent, kind: "ready", verdict };
+  }
+  if (order.status === "unreadable") {
     logUnreadableBooking("Signed payment's booking could not be read");
     return { kind: "unreadable" };
   }
-  return { intent, kind: "ready", verdict };
+  // Each surface answers a missing order from where the session stands.
+  return {
+    kind: "missing",
+    missing: {
+      reason: order.status,
+      session,
+      standing: await sessionStanding(session.id),
+    },
+  };
 };
 
 export const validatePaidSession = async (
@@ -251,6 +273,15 @@ export const validatePaidSession = async (
       knownFacts,
       503,
     );
+  }
+  if (classified.kind === "missing") {
+    return {
+      ok: false,
+      response: await missingOrderReturnPage(classified.missing, {
+        refuse: (message, status) =>
+          refusalResponse(request, message, knownFacts, status),
+      }),
+    };
   }
   return {
     data: {

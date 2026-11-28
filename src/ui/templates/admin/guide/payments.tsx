@@ -22,6 +22,7 @@ export const paymentsSections = (): GuideSection[] => [
       faq("paid_ticket_booking_flow"),
       faq("why_don_t_we_hold_places_during"),
       faq("listing_sells_out_while_paying"),
+      faq("paid_but_no_booking"),
       custom(
         "checkout_window",
         <>

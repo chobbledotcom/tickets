@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { allTransfers } from "#accounting/queries.ts";
-import { execute } from "#db/client.ts";
 import {
   type ProcessedPayment,
   parseSessionFailure,
@@ -12,14 +11,6 @@ import {
 import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { withEnv } from "#test-utils/env.ts";
-import { signedMeta } from "#test-utils/factories.ts";
-import { getProcessedPayment } from "#test-utils/processed-payments.ts";
-import { expectOnePairOfLegs } from "#test-utils/rejected-charge.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-import { stripeFirstInvoice } from "#test-utils/stripe/fixtures.ts";
-import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   checkoutListingId,
   deliver,
@@ -35,7 +26,17 @@ import {
   storedPlans,
   withCheckoutActions,
   withRejectedCheckout,
-} from "./subscription-refund-helpers.ts";
+} from "#test/integration/server/webhooks/subscription-refund-helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { signedMeta } from "#test-utils/factories.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { runWrite } from "#test-utils/raw-db.ts";
+import { expectOnePairOfLegs } from "#test-utils/rejected-charge.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stripeFirstInvoice } from "#test-utils/stripe/fixtures.ts";
+import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 const processed = async () =>
   requireValue(await getProcessedPayment(SESSION_ID), "Session was not stored");
@@ -52,6 +53,8 @@ const refusedCancellation = () => ({
 });
 
 describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
+  const errorLog = setupErrorSpy();
+
   for (const staleMarker of [false, true]) {
     test(`replays a settled rejected refund with ${staleMarker ? "a stale" : "the final"} outcome`, async () => {
       await setupStripe();
@@ -75,7 +78,7 @@ describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
           if (staleMarker) {
             // Replay the crash window after settlement but before the final
             // outcome write, using bytes captured from this real delivery.
-            await execute(
+            await runWrite(
               sql`UPDATE processed_payments SET failure_data = ${requireValue(pending, "Pending outcome was not captured")} WHERE payment_session_id = ${SESSION_ID}`,
             );
             expect((await failure()).refunded).not.toBe(true);
@@ -171,6 +174,11 @@ describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
         expect(occupied.attendeeId).toBeNull();
         expect(occupied.failureData).toBe("");
         await expectStatuses(deliver, 503);
+        expect(
+          errorLog.contains(
+            "Rejected subscription session has no stored failure",
+          ),
+        ).toBe(false);
         expect(await processed()).toEqual(occupied);
         expectActions(cancel, refund, 0, 0);
         expect(await storedPlans(listingId)).toEqual([]);

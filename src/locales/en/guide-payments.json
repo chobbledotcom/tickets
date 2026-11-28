@@ -15,6 +15,8 @@
   "guide.a.paid_ticket_booking_flow": "<p>They fill in the booking form, then go to your payment company's own payment page. When their payment goes through, their place is saved and they get their ticket.</p><p>Their place is <strong>not</strong> held while they are paying. See <em>Why don't we hold places during checkout?</em> below for the reason.</p>",
   "guide.q.listing_sells_out_while_paying": "What if the listing sells out while someone is paying?",
   "guide.a.listing_sells_out_while_paying": "<p>If someone finishes paying but the listing has sold out in the meantime, they get their money back straight away. They see a message saying the listing is full and their payment has been returned.</p><p>This is rare, but it can happen. It is the trade-off described in the question above.</p>",
+  "guide.q.paid_but_no_booking": "What if someone paid but has no booking?",
+  "guide.a.paid_but_no_booking": "<p>This is very rare. It means this site could not read the order that went with a payment. The site does not refund the payment by itself. It asks the payment company to send the news again, so a booking can still be made if the order comes back.</p><p>The site adds a note to the first listing in the order, and a line to the activity log. The note names the payment reference and the amount. Find the payment in your payment company, and contact the buyer. Then book them in by hand, or refund the payment there.</p>",
   "guide.q.how_refunds_work": "How do refunds work?",
   "guide.a.how_refunds_work": "<p>See the <strong>Refunds</strong> section below for everything: money back given by the system, refunds you send yourself, and refunding everyone at once.</p>",
   "guide.q.what_is_booking_fee": "What is the booking fee?",

@@ -22,7 +22,7 @@ describe("db > migrations > schema version", () => {
     // The sentence is what an upgrading site reads as its last applied
     // update, so the label is the migration's identity, not a comment.
     expect(LATEST_UPDATE).toBe(
-      "Add the external sources directory, its links to records, and the feature that shows it.",
+      "Keep the whole order of a card checkout in a sealed row.",
     );
   });
 });

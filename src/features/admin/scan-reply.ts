@@ -167,7 +167,7 @@ export const noteOverAdmission = (
   delivery: QueuedDelivery,
   note: string,
   tx?: TxScope,
-): Promise<void> =>
+): Promise<boolean> =>
   createSystemNote(
     attendeeNotes(attendeeId),
     note,

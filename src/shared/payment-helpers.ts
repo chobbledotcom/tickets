@@ -3,9 +3,9 @@
  * Eliminates duplication between stripe.ts/square.ts and their provider adapters.
  */
 
-import * as v from "valibot";
 import { signedEdgeFor } from "#booking/signed-metadata.ts";
 import { hmacHash } from "#crypto/hashing.ts";
+import { sealCheckoutBundle } from "#db/checkout-bundles.ts";
 import { settings } from "#db/settings.ts";
 import { lazyRef, map } from "#fp";
 import type {
@@ -30,12 +30,9 @@ import { signPrice } from "#shared/payment-signature.ts";
 import type {
   CheckoutIntent,
   CheckoutSessionResult,
-  SessionMetadata,
-  ValidatedPaymentSession,
   WebhookEvent,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
-import { stringRecordSchema } from "#shared/validation/stored-json.ts";
 import type { ContactInfo, PaymentProviderType } from "#types";
 
 /**
@@ -205,107 +202,77 @@ export const singleListingAnswerIds = (
   answerIds?.length ? { [String(listingId)]: answerIds } : undefined;
 
 /**
- * The plain `siteToken` is hashed FIRST, so the provider never sees a value
- * usable at /renew. `total` is the price the caller already agreed, so the
- * signed proof and the charged amount cannot disagree if pricing changes
- * mid-checkout.
- *
- * `thank_you_url` can break session creation two ways: a long URL exceeds the
- * per-value cap, or even a short one tips a full payload over the entry cap. It
- * is only a post-completion redirect, so an over-cap URL is dropped BEFORE the
- * code signs it. That order keeps the signed payload and the wire identical, so
- * webhook never sees a covered key the wire omitted and reads it as tampering.
+ * The order of a checkout as the record the webhook reads back. The plain
+ * `siteToken` is hashed FIRST, so no stored copy is usable at /renew.
  */
-/**
- * Whether the optional `thank_you_url` can be kept in the metadata: it must be
- * present, within the provider's per-value length cap, AND — when the provider
- * caps the entry count (Square) — leave room for itself plus the `price_proof`
- * entry once the small fields are packed. `withoutUrl` is the metadata built
- * without the URL; the wire entry count with the URL kept is its packed-size
- * plus the URL (a top-level, non-packed entry) plus `price_proof`. The URL is
- * the LAST-priority optional field to drop, so it is the only one omitted when
- * the payload would otherwise overflow.
- */
-const thankYouUrlFits = (
-  thankYouUrl: string | undefined,
-  withoutUrl: Record<string, string>,
-  caps: { maxValueLength: number; maxEntries?: number | undefined },
-): boolean => {
-  if (!thankYouUrl || thankYouUrl.length > caps.maxValueLength) return false;
-  if (caps.maxEntries === undefined) return true;
-  // +1 for the URL's own top-level entry, +1 for the price_proof entry added
-  // after signing; both are counted against the *packed* baseline the wire uses.
-  const wireEntries = Object.keys(packMetadata(withoutUrl)).length + 1 + 1;
-  return wireEntries <= caps.maxEntries;
-};
-
-export const buildItemsMetadata = async (
+const orderRecord = async (
   intent: CheckoutIntent,
-  total: number,
-  maxValueLength: number,
-  maxEntries?: number,
 ): Promise<Record<string, string>> => {
-  // Build the metadata without the optional thank-you URL once; this is also the
-  // baseline whose entry count decides whether the URL can be added back below.
   const modifiers = toModifierRefs(intent.modifiers);
   const siteTokenIndex = intent.siteToken
     ? await hmacHash(intent.siteToken)
     : undefined;
   const {
-    thankYouUrl: _thankYouUrl,
     modifiers: _modifiers,
     siteToken: _siteToken,
+    thankYouUrl,
     ...intentRest
   } = intent;
-  const withoutUrl = buildMetadata({
+  return buildMetadata({
     ...intentRest,
     items: toBookingItems(intent),
     taxPolicy: intent.taxPolicy ?? settings.tax,
+    ...(thankYouUrl !== undefined ? { thankYouUrl } : {}),
     ...(modifiers !== undefined ? { modifiers } : {}),
     ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
   });
-  const base = thankYouUrlFits(intent.thankYouUrl, withoutUrl, {
-    maxEntries,
-    maxValueLength,
-  })
-    ? { ...withoutUrl, thank_you_url: intent.thankYouUrl! }
-    : withoutUrl;
-  // Sign the agreed total bound to every stored booking field, so the webhook
-  // can trust it as an oracle rather than re-deriving and hoping they agree.
-  // Returns the logical (unpacked) shape; only Square packs the small fields
-  // into `b` (for its 10-entry cap), so Stripe/SumUp keep each field top-level
-  // and at their full per-value headroom. Signing is over this logical shape,
-  // which the webhook reproduces after unpacking, so packing never changes the
-  // digest.
-  const sig = signPrice(base, total);
-  return { ...base, price_proof: `${total}.${sig}` };
 };
 
+/** Sign the agreed total, bound to every field the metadata carries, so the
+ * webhook can trust it as an oracle rather than re-deriving and hoping they
+ * agree. `total` is the price the caller already agreed, so the proof and the
+ * charged amount cannot disagree if pricing changes mid-checkout. */
+const withPriceProof = (
+  metadata: Record<string, string>,
+  total: number,
+): Record<string, string> => ({
+  ...metadata,
+  price_proof: `${total}.${signPrice(metadata, total)}`,
+});
+
 /**
- * Build a checkout's signed metadata the way the given provider needs it, with
- * the caps read from the provider registry: build the logical shape within the
- * per-value and entry caps, pack the small fields into one entry when the
- * provider needs that to fit, and enforce the caps on the shape that reaches
- * the wire. SumUp's caps are unbounded (its metadata is stored locally, never
- * sent to the provider), which makes the enforcement a no-op for it.
+ * What a card provider stores for a checkout: a token that opens the sealed
+ * order, and the first listing so an admin can be told where a lost order
+ * belonged. Both are signed, so the token cannot be swapped.
+ */
+const sealedOrderMetadata = async (
+  record: Record<string, string>,
+  intent: CheckoutIntent,
+): Promise<Record<string, string>> => ({
+  _origin: record._origin!,
+  bundle: await sealCheckoutBundle(record),
+  listing: String(intent.items[0]!.listingId),
+});
+
+/**
+ * Build a checkout's signed metadata for the given provider. A provider that
+ * keeps no order of its own gets the whole order sealed in our database, and
+ * its metadata holds only the token, so no cap on metadata can refuse an
+ * order. A provider whose checkout is staged locally already holds the order
+ * (SumUp), so the record goes there whole.
  */
 export const assembleCheckoutMetadata = async (
   providerType: PaymentProviderType,
   intent: CheckoutIntent,
   total: number,
 ): Promise<Record<string, string>> => {
-  const caps: PaymentProviderMeta["metadata"] =
-    PAYMENT_PROVIDERS[providerType].metadata;
-  const built = await buildItemsMetadata(
-    intent,
+  const record = await orderRecord(intent);
+  const { orderCarrier }: PaymentProviderMeta = PAYMENT_PROVIDERS[providerType];
+  return withPriceProof(
+    orderCarrier === "sealed-bundle"
+      ? await sealedOrderMetadata(record, intent)
+      : record,
     total,
-    caps.maxValueLength,
-    caps.maxEntries,
-  );
-  return enforceMetadataLimits(
-    caps.packs ? packMetadata(built) : built,
-    caps.maxValueLength,
-    caps.maxEntries,
   );
 };
 
@@ -391,193 +358,6 @@ export const withCheckoutError = async (
     if (err instanceof PaymentUserError) return { error: err.message };
     throw err;
   }
-};
-
-/**
- * Square allows only 10 metadata entries, and a fully-populated checkout
- * overflows that. These fields are individually short, so packing them into one
- * entry frees slots without risking the per-value length cap.
- *
- * Two kinds of field stay top-level. A large or length-sensitive one would
- * double-encode inside `b` and could exceed the 255-char value cap. An
- * integrity-critical one must stay directly readable by the metadata guards.
- */
-const PACKED_KEYS = [
-  "phone",
-  "date",
-  "day_count",
-  "reservation_amount",
-  "tax_policy",
-  "balance_attendee_id",
-  "site_token_index",
-] as const;
-
-/** The single metadata key the packed small fields are stored under. */
-const PACKED_FIELD = "b";
-
-/** Walk the packed fields, reading each value with `readValue` and keeping only
- * the ones `keep` accepts. Returns a fresh record of just the fields that
- * survived, so both packing and unpacking share one loop. */
-const collectPackedFields = (
-  readValue: (key: (typeof PACKED_KEYS)[number]) => unknown,
-  keep: (value: unknown) => value is string,
-): Record<string, string> => {
-  const result: Record<string, string> = {};
-  for (const key of PACKED_KEYS) {
-    const value = readValue(key);
-    if (keep(value)) result[key] = value;
-  }
-  return result;
-};
-
-/**
- * Collapse the packable small fields into one JSON `b` entry, dropping them
- * from the top level. Falsy values are omitted (the "" = absent convention), so
- * the `b` entry only appears when at least one packed field is actually present.
- */
-export const packMetadata = (
-  metadata: Record<string, string>,
-): Record<string, string> => {
-  const rest: Record<string, string> = { ...metadata };
-  const packed = collectPackedFields(
-    (key) => rest[key],
-    (value): value is string => Boolean(value),
-  );
-  for (const key of PACKED_KEYS) delete rest[key];
-  return Object.keys(packed).length > 0
-    ? { ...rest, [PACKED_FIELD]: JSON.stringify(packed) }
-    : rest;
-};
-
-/**
- * Recover the packed small fields from a `b` JSON blob.
- *
- * Defensive by design: a malformed blob, a non-object, or a non-string field
- * is treated as "no packed data" rather than throwing, so a corrupt `b` reaching
- * the webhook degrades each packed field to absent instead of crashing the
- * handler before the price signature can even be checked.
- */
-const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return {};
-    const source = parsed as Record<string, unknown>;
-    return collectPackedFields(
-      (key) => source[key],
-      (value): value is string => typeof value === "string",
-    );
-  } catch {
-    return {};
-  }
-};
-
-/**
- * Only the fields that grow with what the buyer selected can realistically
- * exceed the per-value limit. Form validation already holds every other field
- * well below the smallest provider limit of 255.
- *
- * `thank_you_url` is deliberately NOT handled here. It must never fail a
- * checkout, so an over-cap URL is dropped before signing, in
- * `buildItemsMetadata`. A cap here, after `signPrice`, would strip a key the
- * proof covers, and the webhook would read the session as tampered.
- */
-export const enforceMetadataLimits = (
-  metadata: Record<string, string>,
-  maxValueLength: number,
-  maxEntries?: number,
-): Record<string, string> => {
-  const items = metadata.items;
-  if (items && items.length > maxValueLength) {
-    throw new PaymentUserError(
-      "Too many listings selected for a single checkout. Please book in smaller batches.",
-    );
-  }
-
-  // Every option-ref field grows with the number of listings / options /
-  // modifiers / package-picks selected, so any of them can outrun the per-value
-  // cap. Check them uniformly, so a new ref field is one more list entry rather
-  // than another near-identical OR-clause. `allocations` is the newest — it
-  // grows with every package pick.
-  const OPTION_REF_FIELDS = [
-    "answer_ids",
-    "text_answer_ids",
-    "modifiers",
-    "allocations",
-  ] as const;
-  const oversizedOptionRef = OPTION_REF_FIELDS.some(
-    (field) => (metadata[field]?.length ?? 0) > maxValueLength,
-  );
-  if (
-    oversizedOptionRef ||
-    (maxEntries !== undefined && Object.keys(metadata).length > maxEntries)
-  ) {
-    throw new PaymentUserError(
-      "Too many options selected for a single checkout. Please book in smaller batches.",
-    );
-  }
-
-  // The packed `b` entry combines several small fields; with enough modifiers
-  // (or a long site-token hash alongside them) the JSON blob can itself exceed
-  // a provider's per-value cap, so it is length-checked like items/answer_ids.
-  const packed = metadata[PACKED_FIELD];
-  if (packed && packed.length > maxValueLength) {
-    throw new PaymentUserError(
-      "Too much booking detail for a single checkout. Please book in smaller batches.",
-    );
-  }
-
-  return metadata;
-};
-
-/**
- * Validate that every metadata value is text and required fields are present.
- */
-export const hasRequiredSessionMetadata = (
-  metadata: Record<string, string | undefined> | null | undefined,
-): metadata is SessionMetadata => {
-  if (!v.is(stringRecordSchema, metadata)) return false;
-  return !!metadata.name && !!metadata.items;
-};
-
-/**
- * Normalize validated session metadata into the canonical SessionMetadata shape.
- *
- * This is the single boundary where the provider wire format becomes the logical
- * shape the rest of the app (and the price-signature check) reads: any small
- * fields packed into `b` are merged back to the top level first, so every
- * consumer sees one consistent shape regardless of how it was stored. Must only
- * be called after hasRequiredSessionMetadata narrows the type — name is
- * guaranteed non-empty by that guard. Fields omitted at creation (or absent from
- * a malformed `b`) normalize to "".
- */
-export const extractSessionMetadata = (
-  metadata: SessionMetadata,
-): ValidatedPaymentSession["metadata"] => {
-  const raw = (metadata as { [PACKED_FIELD]?: string })[PACKED_FIELD];
-  const packed = raw ? parsePackedFields(raw) : {};
-  const get = (key: keyof SessionMetadata): string =>
-    packed[key] || metadata[key] || "";
-  return {
-    _origin: get("_origin"),
-    address: get("address"),
-    allocations: get("allocations"),
-    answer_ids: get("answer_ids"),
-    balance_attendee_id: get("balance_attendee_id"),
-    date: get("date"),
-    day_count: get("day_count"),
-    email: get("email"),
-    items: get("items"),
-    modifiers: get("modifiers"),
-    name: metadata.name,
-    phone: get("phone"),
-    price_proof: get("price_proof"),
-    reservation_amount: get("reservation_amount"),
-    site_token_index: get("site_token_index"),
-    special_instructions: get("special_instructions"),
-    tax_policy: get("tax_policy"),
-    text_answer_ids: get("text_answer_ids"),
-    thank_you_url: get("thank_you_url"),
-  };
 };
 
 const UNREADABLE_WEBHOOK: WebhookVerifyResult = {

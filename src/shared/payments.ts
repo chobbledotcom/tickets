@@ -177,6 +177,12 @@ export type CheckoutSessionResult =
  * provider-specific packing is removed at extraction. */
 export type SessionMetadata = ContactInfo & {
   _origin: string;
+  /** Token that opens the sealed order of a Stripe or Square checkout ("" when
+   * the checkout carries its order itself). */
+  bundle: string;
+  /** First listing of a sealed order, so a lost order can be reported there
+   * ("" when the checkout carries its order itself). */
+  listing: string;
   items: string;
   date: string;
   day_count: string;

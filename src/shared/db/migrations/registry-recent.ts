@@ -146,6 +146,12 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-21_listing_sort_order",
     () => import("./2026-11-21_listing_sort_order.ts"),
   ),
+  // The whole order of a Stripe or Square checkout rests in a sealed row, and
+  // the provider's metadata holds only the key that opens it.
+  entry(
+    "2026-11-22_checkout_bundles",
+    () => import("./2026-11-22_checkout_bundles.ts"),
+  ),
   // Redirects from a missing page to a new address. The count of redirects
   // rides in the settings, so no page reads the table to show it.
   entry("2026-11-23_redirects", () => import("./2026-11-23_redirects.ts")),
