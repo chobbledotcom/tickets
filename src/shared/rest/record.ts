@@ -94,7 +94,8 @@ type DeclaredSpec<
   Update,
   Remove,
   Refusal,
-> = Omit<RecordSpec<Shape>, "deleteRefusal" | "write"> & {
+  NameField extends (keyof FullRowOf<Shape> & string) | undefined,
+> = Omit<RecordSpec<Shape, NameField>, "deleteRefusal" | "write"> & {
   readonly deleteRefusal?: Refusal;
   readonly write?: RecordWrites<
     InputOf<Shape>,
@@ -124,8 +125,10 @@ export type RecordDefiner<
     ? keyof FullRowOf<Shape> & string
     : undefined,
 >(
-  spec: Omit<DeclaredSpec<Shape, Create, Update, Remove, Refusal>, Filled> &
-    NameFieldOption<Filled, NameField>,
+  spec: Omit<
+    DeclaredSpec<Shape, Create, Update, Remove, Refusal, NameField>,
+    Filled
+  >,
 ) => RecordResult<
   Shape,
   AnswersOf<FullRowOf<Shape>, Create, Update, Remove, Refusal>,
@@ -143,13 +146,6 @@ type RecordResult<
 > = "nameField" extends Filled
   ? AdminRecord<Shape, Answers, keyof FullRowOf<Shape> & string>
   : AdminRecord<Shape, Answers, NameField>;
-
-/** The display-name fact a declaration can carry. A definer that fills the
- *  fact gives no place to declare it. */
-type NameFieldOption<
-  Filled extends keyof RecordSpec<RecordShape>,
-  NameField,
-> = "nameField" extends Filled ? unknown : { readonly nameField?: NameField };
 
 /** The input of a record with no domain rule passes unchanged. */
 const acceptInput = <Input>(input: Input) => okResult(input);

@@ -111,15 +111,15 @@ type PublicPagePick = (
   pages: PublicPagesModule,
 ) => ResponseHandler<[request: Request]>;
 
-/** Serve one handler at its exact path, on GET only. A null answer falls
- * through to the next route. */
-const exactPathGet =
+/** Serve one handler at its exact path. Every caller's prefix answers only
+ *  GET. A null answer falls through to the next route. */
+const exactPathHandler =
   (
     expectedPath: string,
     handle: (request: Request) => Response | null | Promise<Response | null>,
   ): PathMethodRoute =>
-  async (request, path, method) =>
-    path === expectedPath && method === "GET" ? handle(request) : null;
+  async (request, path) =>
+    path === expectedPath ? handle(request) : null;
 
 /** The route facts a GET-only prefix behind the public site switch declares. */
 type PublicSiteGetRoute = {
@@ -138,7 +138,7 @@ export const publicPageRoute = (
   return {
     gate: requirePublicSiteGet(path),
     getOnly: true,
-    handler: exactPathGet(path, async (request) =>
+    handler: exactPathHandler(path, async (request) =>
       pick(await loadPublicPages())(request),
     ),
   };
@@ -166,16 +166,18 @@ export const contactPrefixHandler: PathMethodRoute = async (
   return null;
 };
 
-export const legacyEventsRedirectHandler = exactPathGet("/events", () =>
+export const legacyEventsRedirectHandler = exactPathHandler("/events", () =>
   settings.features.site ? redirectResponse("/listings") : null,
 );
 
-export const orderJsPrefixHandler = exactPathGet("/order.js", async (request) =>
-  (await handlerLoaders.orderJs())(request),
+export const orderJsPrefixHandler = exactPathHandler(
+  "/order.js",
+  async (request) => (await handlerLoaders.orderJs())(request),
 );
 
-export const customCssPrefixHandler = exactPathGet("/custom.css", async () =>
-  (await handlerLoaders.customCss())(),
+export const customCssPrefixHandler = exactPathHandler(
+  "/custom.css",
+  async () => (await handlerLoaders.customCss())(),
 );
 
 export const apiPrefixHandler: PathMethodRoute = async (
@@ -202,6 +204,6 @@ export const apiPrefixHandler: PathMethodRoute = async (
     : null;
 };
 
-export const readOnlyInfoHandler = exactPathGet("/read-only", () =>
+export const readOnlyInfoHandler = exactPathHandler("/read-only", () =>
   publicPageResponse(readOnlyPage),
 );
