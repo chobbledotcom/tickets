@@ -9,7 +9,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { expectIncludesAll, inputNamed } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminGet, getTestAuthSession } from "#test-utils/session.ts";
 
@@ -68,12 +68,21 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const response = await attendeeStatusPage.renderEditError(
       status.id,
       await getTestAuthSession(),
-      new FormParams({ name: "Half typed" }),
+      new FormParams({
+        isReservation: "1",
+        name: "Half typed",
+        reservationAmount: "12",
+      }),
       "Name is already taken",
     );
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    expectIncludesAll(html, ["Half typed", "Name is already taken"]);
+    expectIncludesAll(html, [
+      "Half typed",
+      "Name is already taken",
+      'value="12"',
+    ]);
+    expect(inputNamed(html, "isReservation")).toContain("checked");
   });
 });

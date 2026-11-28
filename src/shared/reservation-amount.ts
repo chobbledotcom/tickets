@@ -13,6 +13,9 @@ import { settings } from "#db/settings.ts";
 import { sum, sumOf } from "#fp";
 import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
+import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount-hint.ts";
+
+export { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount-hint.ts";
 
 /** A parsed reservation amount. `value` is the bare number (not minor units). */
 export type ReservationAmount =
@@ -21,10 +24,6 @@ export type ReservationAmount =
   | { kind: "perItem"; value: number };
 
 const RESERVATION_AMOUNT_RE = /^(\d+(?:\.\d+)?)(%|x)?$/;
-
-/** Human-readable hint shown when validation fails. */
-export const RESERVATION_AMOUNT_HINT =
-  "Enter an amount like 10 (currency units), 10% (of the total) or 10x (per item)";
 
 /** Digits after the decimal point in a numeric string (0 when there is none). */
 const decimalPlaces = (numStr: string): number => {

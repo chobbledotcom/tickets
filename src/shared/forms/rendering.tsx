@@ -256,7 +256,7 @@ export const renderField = (field: Field, value: string = ""): string => {
       String(
         <>
           <fieldset>
-            <legend>{label}</legend>
+            {field.label === "" ? null : <legend>{label}</legend>}
             {renderFieldInput(field, value)}
             {hints}
           </fieldset>

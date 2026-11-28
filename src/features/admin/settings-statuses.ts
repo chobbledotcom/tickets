@@ -21,51 +21,48 @@ import {
 import { pageGuardFor } from "#routes/auth.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import type { FormSchema } from "#shared/forms/definition.ts";
 import { orderedListRoutes } from "#shared/ordered-list-routes.ts";
 import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
+import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import { statusRecord } from "#shared/records/statuses.ts";
+import { formFieldsInput } from "#shared/rest/field-reads.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import {
+  getStatusForm,
   retireStatusDeletePage,
   type StatusRetire,
   statusPages,
 } from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
 
-/** The status form boundary: read the submitted fields into the record's
- * input shape. The record's rule runs after this. */
-const statusForm: FormSchema<AttendeeStatusWriteInput> = {
-  fields: [],
-  validate: (form) => {
-    const name = form.getString("name");
-    if (!name) return { error: "Please enter a name", valid: false };
-    const isReservation = form.has("isReservation");
-    return {
-      valid: true,
-      values: {
-        isPaidDefault: form.has("isPaidDefault"),
-        isPublicDefault: form.has("isPublicDefault"),
-        isReservation,
-        name,
-        reservationAmount: isReservation
-          ? form.getString("reservationAmount")
-          : "0",
-      },
-    };
-  },
-};
+/** The status fields the form shows. The reservation amount applies only to
+ *  a reservation, so the input leaves it out for any other status. The
+ *  stored column keeps its value: its zero on a new row, the stored amount
+ *  on an update. */
+const statusInput = (
+  values: Record<(typeof STATUS_FIELDS)[number]["key"], string>,
+): AttendeeStatusWriteInput =>
+  formFieldsInput(
+    STATUS_FIELDS,
+    values,
+    new Set(
+      STATUS_FIELDS.filter(
+        (field) =>
+          field.key !== "reservationAmount" || values.isReservation === "1",
+      ).map((field) => field.key),
+    ),
+  );
 
 const pages = recordPages(statusRecord, {
   deleteInput: (form) => form.getOptionalInt("reassignStatusId") ?? undefined,
-  form: statusForm,
+  form: getStatusForm(),
   renderDelete: statusPages.deletePage,
   renderEditError: attendeeStatusPage.renderEditError,
   renderList: (statuses, session, success) =>
     statusPages.listPage(statuses, session, getFlash().error, success),
   renderNew: statusPages.newPage,
   singular: "Status",
-  toInput: (values) => values,
+  toInput: statusInput,
   updateSavePath: (id) => `/admin/settings/statuses/${id}`,
 });
 

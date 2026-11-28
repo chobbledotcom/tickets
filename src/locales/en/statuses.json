@@ -25,5 +25,6 @@
   "statuses.delete_confirm": "Type the status name \"{name}\" to confirm deletion:",
   "statuses.guide_link": "Attendee statuses guide",
   "statuses.name_label": "Name",
+  "statuses.name_required": "Please enter a name",
   "statuses.moved": "Status moved"
 }
