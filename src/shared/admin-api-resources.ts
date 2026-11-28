@@ -131,8 +131,6 @@ export const ListingRowSchema = v.looseObject({
   slug: v.string(),
 });
 
-export type AdminApiListing = v.InferOutput<typeof ListingRowSchema>;
-
 /** The three flags and the reservation amount of an attendee status answer
  *  the stored-column defaults (off, "0") when a create leaves them out. The
  *  row reads the update view, so it requires no flag. */
@@ -211,8 +209,6 @@ export type AdminApiSitePage = v.InferOutput<typeof SitePageRowSchema>;
  *  surfaces alike. The server parses the same shape for the option's create
  *  and its update. */
 export const OptionBodySchema = v.object({ text: v.string() });
-export type AdminApiOptionBody = v.InferOutput<typeof OptionBodySchema>;
-
 /** The body a question create carries: the text and the display type are
  *  required, the same two fields the question form requires. The assign-all
  *  switch is optional and defaults to off. */

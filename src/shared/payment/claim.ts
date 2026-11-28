@@ -18,22 +18,6 @@ export type ClaimRequest = {
   scope: "attendee_set";
 };
 
-/** The exact command and lease guarding a refund run's physical rows. */
-export interface HeldRefundCommand {
-  readonly commandId: string;
-  readonly held: ReadonlyMap<number, readonly string[]>;
-  readonly heldSince: string;
-}
-
-/** A command boundary observed that its exact hold no longer exists. */
-export type RefundClaimChanged = { readonly kind: "claim_changed" };
-
-/** A decision attached to exact provider-aware payment-reference indexes. */
-export interface IndexedRefundClaimDecision<TKind extends string> {
-  readonly indexes: readonly string[];
-  readonly kind: TKind;
-}
-
 export type HeldPaymentRow = {
   readonly attendeeId: number;
   readonly sessionId: string;

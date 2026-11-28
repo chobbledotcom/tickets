@@ -488,6 +488,3 @@ const listingEditFields = (view: ListingFormView = openView()) =>
 export const getListingEditForm = defineFieldsForm(listingEditFields);
 
 export type ListingFormValues = FormValues<ReturnType<typeof getListingForm>>;
-export type ListingEditFormValues = FormValues<
-  ReturnType<typeof getListingEditForm>
->;

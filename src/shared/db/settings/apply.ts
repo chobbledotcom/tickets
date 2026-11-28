@@ -143,6 +143,7 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
 /** Every config key that maps to a snapshot field, in load order. */
 export const SNAPSHOT_KEYS: readonly string[] = [
   ...Object.keys(SPECIAL_APPLIERS),
+  CONFIG_KEYS.REVIEWS_ENABLED,
   ...PLAINTEXT_KEYS,
   ...ENCRYPTED_KEYS,
 ];
@@ -169,6 +170,12 @@ export const applyKey = async (
 ): Promise<void> => {
   const special = SPECIAL_APPLIERS[key];
   if (special) return special(values.get(key));
+  // The reviews switch drives the public nav on every public page, so it
+  // reads through the same snapshot as the other page switches.
+  if (key === CONFIG_KEYS.REVIEWS_ENABLED) {
+    setSnapshotField("reviews_enabled", values.get(key) === "true");
+    return;
+  }
   if (ENCRYPTED_KEY_SET.has(key)) {
     const v = values.get(key);
     // Raw settings row for a key the registry declares encrypted — the

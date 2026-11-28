@@ -1,5 +1,5 @@
 {
-  "src/features/auth.ts": 688,
+  "src/features/auth.ts": 686,
   "src/fp.ts": 545,
   "src/shared/db/attendees/servicing.ts": 754,
   "src/shared/db/client.ts": 757,
@@ -11,7 +11,7 @@
   "src/shared/payment-helpers.ts": 612,
   "src/shared/payment/refund-machine-spec.ts": 534,
   "src/shared/storage.ts": 527,
-  "src/shared/types.ts": 629,
+  "src/shared/types.ts": 625,
   "test/features/admin/debug/server.test.ts": 631,
   "test/fp/collections.test.ts": 511,
   "test/integration/bunny-cdn/domain.test.ts": 584,

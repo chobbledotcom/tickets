@@ -28,6 +28,7 @@ import {
 import { testListingInput } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { soldOutParentInGroup } from "#test-utils/parents.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
 describeWithEnv("server public > sitemap.xml", { db: true }, () => {
@@ -130,12 +131,21 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       assert(!empty.includes("<loc>https://localhost/contact</loc>"));
       assert(!empty.includes("<loc>https://localhost/order</loc>"));
       assert(!empty.includes("<loc>https://localhost/news</loc>"));
+      assert(!empty.includes("<loc>https://localhost/reviews</loc>"));
 
       // Give every page what its handler requires, and the document lists it.
       await settings.update.orderEnabled(true);
       await settings.update.terms("Be kind to the venue.");
       await settings.update.contactPageText("Write to us at the desk.");
       await createTestNewsPost("Opening Week");
+      await settings.update.reviewsEnabled(true);
+      await adminFormPost("/admin/site/reviews", {
+        date: "2026-11-24",
+        name: "Sample customer",
+        rating: "5",
+        text: "A test review.",
+        url: "https://example.com/reviews/sample",
+      });
       const served = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
@@ -144,11 +154,13 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
         "<loc>https://localhost/contact</loc>",
         "<loc>https://localhost/order</loc>",
         "<loc>https://localhost/news</loc>",
+        "<loc>https://localhost/reviews</loc>",
       ]);
     } finally {
       await settings.update.orderEnabled(false);
       await settings.update.terms("");
       await settings.update.contactPageText("");
+      await settings.update.reviewsEnabled(false);
       await disablePublicSite();
     }
   });

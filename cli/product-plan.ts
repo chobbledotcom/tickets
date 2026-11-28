@@ -1,9 +1,7 @@
 import { CliError } from "#cli/errors.ts";
+import { frontmatterBlock } from "#shared/frontmatter.ts";
 import { matchKey } from "#shared/keys.ts";
-import {
-  type CatalogProduct,
-  frontmatterBlock,
-} from "./product-catalog/parse.ts";
+import type { CatalogProduct } from "./product-catalog/parse.ts";
 import type { CategoryEntry } from "./product-catalog.ts";
 
 /** A row the importer matches by name: the listing list the API returns. */

@@ -277,10 +277,6 @@ export type Image = DecodedRowOf<"images">;
 /** A logistics agent (typically a van) used for drop-off and collection. */
 export type LogisticsAgent = DecodedRowOf<"logistics_agents">;
 
-/** A link between an agent user and a logistics agent (van/crew) they drive.
- * Many-to-many: a user may cover several agents and an agent several users. */
-export type UserLogisticsAgent = DecodedRowOf<"user_logistics_agents">;
-
 export interface Attendee extends ContactInfo {
   attachment_downloads: number;
   /** Admitted tickets, 0..quantity. A quantity 0 ghost line stores 0. */

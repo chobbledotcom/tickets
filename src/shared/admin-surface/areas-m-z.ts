@@ -206,6 +206,8 @@ export const AREAS_M_Z = {
     write: {
       siteContactFormToggle: "/admin/site/contact/form",
       siteOrderToggle: "/admin/site/order/toggle",
+      siteReviewsIntro: "/admin/site/reviews/intro",
+      siteReviewsToggle: "/admin/site/reviews/toggle",
     },
   },
   sitePages: recordArea({
@@ -223,6 +225,14 @@ export const AREAS_M_Z = {
     name: "sitePages",
     prefix: "sitePage",
     singular: "sitePage",
+  }),
+  siteReviews: recordArea({
+    audience: SITE_ADMIN_LEVELS,
+    basePath: "/admin/site/reviews",
+    detailPage: false,
+    name: "siteReviews",
+    prefix: "review",
+    singular: "review",
   }),
   support: {
     audience: OWNER_AUDIENCE,
