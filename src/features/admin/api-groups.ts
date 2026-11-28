@@ -10,138 +10,47 @@ import {
 } from "#db/groups.ts";
 import { requiredMapValue } from "#fp";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import {
-  isValidMemberPrice,
-  isValidMemberQuantity,
-  memberDayPricesFault,
-} from "#shared/groups/package-member-values.ts";
 import { packageGroups } from "#shared/package-membership.ts";
+import type {
+  CreateGroupBody,
+  PackageMemberBody,
+  UpdateGroupBody,
+} from "#shared/records/group-body.ts";
 import {
   GROUP_FIELDS,
   type GroupInput,
   type PackageMemberInput,
 } from "#shared/records/group-fields.ts";
 import { groupRecord } from "#shared/records/groups.ts";
-import {
-  parseOptionalArray,
-  parseUpdateSlug,
-} from "#shared/rest/crud-parsers.ts";
+import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { readOpenBody } from "#shared/rest/field-reads.ts";
-import type { FieldsBody } from "#shared/rest/field-specs.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi } from "#shared/rest/record-api.ts";
-import {
-  errorResult,
-  okResult,
-  parseOptionalResult,
-  type Result,
-} from "#shared/result.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import type { DayPrices, Group, GroupListing } from "#types";
-
-/** A package member override in a JSON request body. `price` is minor units:
- * `null` means no override (use the listing's own price), `0` means free in the
- * package, and a positive value overrides the price. `quantity` defaults to 1.
- * `day_prices` reprices spans for a customisable member (day count → per-unit
- * minor units). Omitted or empty means every span charges the listing's own
- * day price. A non-null flat `price` wins over the per-day entries. */
-export type PackageMemberBody = {
-  listing_id: number;
-  price: number | null;
-  quantity?: number;
-  day_prices?: Record<string, number>;
-};
-
-/** JSON body accepted by POST /api/admin/groups */
-export type CreateGroupBody = {
-  name: string;
-  package_members?: PackageMemberBody[];
-} & FieldsBody<typeof GROUP_FIELDS>;
-
-/** JSON body accepted by PUT /api/admin/groups/:groupId */
-export type UpdateGroupBody = Partial<CreateGroupBody> & { slug?: string };
+import type { Group, GroupListing } from "#types";
 
 // DELETE /api/admin/groups/:groupId takes the shared DeleteBody the
 // crud-parsers module exports.
 
-/** Parse one JSON package-member entry, failing closed on anything malformed.
- * `price` is minor units: `null` (or absent) means no override, `0` means free
- * in the package, and a positive integer overrides the price. `quantity` is
- * optional and defaults to 1. */
-/** Parse one member's optional `day_prices` object into a {@link DayPrices}
- * map, failing closed on anything malformed. Keys must be positive whole day
- * counts, and values must be non-negative integer minor units. `undefined`
- * when absent. */
-const parseMemberDayPrices = (raw: unknown): Result<DayPrices | undefined> =>
-  parseOptionalResult(raw, (value) => {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      return errorResult("package_members day_prices must be an object");
-    }
-    // The shared module decides which part breaks. The API names the part
-    // with its own message.
-    switch (memberDayPricesFault(value as Record<string, unknown>)) {
-      case "days":
-        return errorResult(
-          "package_members day_prices keys must be positive day counts",
-        );
-      case "prices":
-        return errorResult(
-          "package_members day_prices values must be non-negative integers",
-        );
-      case null:
-        return okResult(
-          Object.fromEntries(
-            Object.entries(value).map(([days, price]) => [Number(days), price]),
-          ) as DayPrices,
-        );
-    }
-  });
-
-const parsePackageMember = (item: unknown): Result<PackageMemberInput> => {
-  if (typeof item !== "object" || item === null) {
-    return errorResult("package_members entries must be objects");
+/** Map one validated member body to the group input shape. The schema checked
+ *  every value, so this only renames the keys and the day-price map keys.
+ *  Absent values take the same defaults as the stored columns. */
+const toPackageMemberInput = (
+  member: PackageMemberBody,
+): PackageMemberInput => {
+  // A day-price key arrives as JSON text. The table holds a day count.
+  const dayPrices: Record<number, number> = {};
+  for (const [days, price] of Object.entries(member.day_prices ?? {})) {
+    dayPrices[Number(days)] = price;
   }
-  const {
-    day_prices,
-    listing_id,
-    price = null,
-    quantity = 1,
-  } = item as Record<string, unknown>;
-  if (!Number.isInteger(listing_id) || (listing_id as number) <= 0) {
-    return errorResult("package_members listing_id must be a positive integer");
-  }
-  if (!isValidMemberPrice(price)) {
-    return errorResult(
-      "package_members price must be a non-negative integer or null",
-    );
-  }
-  if (!isValidMemberQuantity(quantity)) {
-    return errorResult("package_members quantity must be a positive integer");
-  }
-  const dayPrices = parseMemberDayPrices(day_prices);
-  if (!dayPrices.ok) return dayPrices;
-  return okResult({
-    dayPrices: dayPrices.value ?? {},
-    listingId: listing_id as number,
-    price: price as number | null,
-    quantity: quantity as number,
-  });
+  return {
+    dayPrices,
+    listingId: member.listing_id,
+    price: member.price ?? null,
+    quantity: member.quantity ?? 1,
+  };
 };
-
-/**
- * Parse the optional `package_members` array from a JSON body. `undefined`
- * means the key is absent (partial update: leave existing overrides untouched).
- * An empty array clears them. Fails closed (see {@link parseOptionalArray}):
- * any malformed entry rejects the whole request rather than being dropped.
- */
-const parsePackageMembers = (
-  body: Record<string, unknown>,
-): Result<PackageMemberInput[] | undefined> =>
-  parseOptionalArray(
-    body.package_members,
-    "package_members",
-    parsePackageMember,
-  );
 
 /**
  * Persist package overrides in the group write's transaction, with
@@ -174,15 +83,16 @@ const toMember = (
 });
 
 const toGroupInput = async (
-  body: Record<string, unknown>,
+  body: CreateGroupBody | UpdateGroupBody,
   existing: Group | null,
 ): Promise<Result<GroupInput>> => {
   const fields = readOpenBody(GROUP_FIELDS, body, existing);
   if (!fields.ok) return fields;
 
-  const members = parsePackageMembers(body);
-  if (!members.ok) return members;
-  if (!existing && members.value !== undefined) {
+  // The body schema checked every member, and an absent list leaves the
+  // stored overrides alone. An empty list clears them.
+  const members = body.package_members?.map(toPackageMemberInput);
+  if (!existing && members !== undefined) {
     return errorResult(
       "package_members cannot be set on create; create the group, assign listings, then update it",
     );
@@ -194,7 +104,7 @@ const toGroupInput = async (
   return okResult({
     ...fields.value,
     ...slug,
-    packageMembers: members.value,
+    packageMembers: members,
   });
 };
 

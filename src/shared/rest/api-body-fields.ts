@@ -40,17 +40,19 @@ const picklistMessage = (field: string, refusedMessage: string) =>
   issueMessage(`${field} is required`, refusedMessage);
 
 /** One required text field's two views. A create stores the text that its
- *  clean gives, then requires text. An update leaves the value to the mapper.
- *  The mapper answers the update's own message. */
+ *  clean gives, then requires text. An empty result answers `emptyMessage`,
+ *  which defaults to the required message. An update leaves the value to the
+ *  mapper. The mapper answers the update's own message. */
 export const textField = (
   field: string,
   requiredMessage = `${field} is required`,
   clean: (text: string) => string = (text) => text.trim(),
+  emptyMessage = requiredMessage,
 ) => ({
   create: v.pipe(
     v.string(fieldTypeMessage(field, "string", requiredMessage)),
     v.transform(clean),
-    v.nonEmpty(requiredMessage),
+    v.nonEmpty(emptyMessage),
   ),
   update: v.string(`${field} must be a string`),
 });
@@ -118,31 +120,17 @@ export const fieldViews = <
     Object.entries(fields).map(([key, field]) => [key, field[view]]),
   ) as { [Key in keyof Fields]: Fields[Key][View] };
 
-/** The body one view of every field produces. */
-type BodyOf<
+/** The entries one verb's object schema carries: every field's view for that
+ *  verb, plus the fields only that verb carries. */
+type ViewEntries<
   Fields extends Record<string, BodyField>,
   View extends keyof BodyField,
-  Optional extends boolean = false,
-> = Optional extends true
-  ? { [Key in keyof Fields]?: v.InferOutput<Fields[Key][View]> }
-  : { [Key in keyof Fields]: v.InferOutput<Fields[Key][View]> };
+  Only extends Record<string, v.GenericSchema>,
+> = { [Key in keyof Fields]: Fields[Key][View] } & Only;
 
-/** The complete body a create takes, from its field views. */
-type CreateBody<Fields extends Record<string, BodyField>> = BodyOf<
-  Fields,
-  "create"
->;
-
-/** The partial body an update takes, from its field views. */
-type UpdateBody<Fields extends Record<string, BodyField>> = BodyOf<
-  Fields,
-  "update",
-  true
->;
-
-/** The fields one verb alone carries, as their schema outputs. */
-type ExtraBody<Extra extends Record<string, v.GenericSchema>> = {
-  [Key in keyof Extra]: v.InferOutput<Extra[Key]>;
+/** The same entries with every key optional, which is the update body. */
+type OptionalEntries<Entries extends Record<string, v.GenericSchema>> = {
+  [Key in keyof Entries]: v.OptionalSchema<Entries[Key], undefined>;
 };
 
 /** One resource's create and update bodies, from one field declaration. The
@@ -162,22 +150,36 @@ export const apiBodyPair = <
   fields: Fields,
   extra: { createOnly?: CreateOnly; updateOnly?: UpdateOnly } = {},
 ): {
-  create: v.GenericSchema<CreateBody<Fields> & ExtraBody<CreateOnly>>;
-  update: v.GenericSchema<UpdateBody<Fields> & Partial<ExtraBody<UpdateOnly>>>;
-} => ({
-  // The assembled entries are the field views, so the parsed output is the
-  // body type above.
-  create: v.object({
+  create: v.ObjectSchema<ViewEntries<Fields, "create", CreateOnly>, undefined>;
+  update: v.ObjectSchema<
+    OptionalEntries<ViewEntries<Fields, "update", UpdateOnly>>,
+    undefined
+  >;
+} => {
+  // The entries are the field views, so each schema's output is the body
+  // type above.
+  const createEntries: ViewEntries<Fields, "create", CreateOnly> = {
     ...fieldViews(fields, "create"),
-    ...(extra.createOnly ?? {}),
-  }) as v.GenericSchema<CreateBody<Fields> & ExtraBody<CreateOnly>>,
-  update: v.partial(
-    v.object({
-      ...fieldViews(fields, "update"),
-      ...(extra.updateOnly ?? {}),
-    }),
-  ) as v.GenericSchema<UpdateBody<Fields> & Partial<ExtraBody<UpdateOnly>>>,
-});
+    ...(extra.createOnly ?? ({} as CreateOnly)),
+  };
+  const updateEntries: ViewEntries<Fields, "update", UpdateOnly> = {
+    ...fieldViews(fields, "update"),
+    ...(extra.updateOnly ?? ({} as UpdateOnly)),
+  };
+  return {
+    create: v.object(createEntries),
+    update: v.object(
+      // Each update field is optional, so an absent key keeps the stored
+      // value.
+      Object.fromEntries(
+        Object.entries(updateEntries).map(([key, schema]) => [
+          key,
+          v.optional(schema),
+        ]),
+      ) as OptionalEntries<ViewEntries<Fields, "update", UpdateOnly>>,
+    ),
+  };
+};
 
 /** One admin API row: the fields the client reads plus the server-owned id.
  *  The row stays open, because the server owns the rest of the stored row. */

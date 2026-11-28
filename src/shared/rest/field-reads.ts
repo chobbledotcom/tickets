@@ -210,17 +210,18 @@ const fieldOfBody = (
 
 /** Read one JSON write into the input the fields declare. A closed field
  *  that the body supplies answers first. Then the first field that refuses
- *  answers. `stored` is null on create. */
+ *  answers. `stored` is null on create. A key that holds no value is absent,
+ *  whatever the parsed body carries. */
 export const readBody = <Fields extends FieldSpecs>(
   fields: Fields,
   body: Record<string, unknown>,
   stored: object | null,
   closed: ClosedFields,
 ): Result<FieldsInput<Fields>> => {
-  const refusal = closedFieldErrorOrNull(
-    apiClosedFields(closed),
-    Object.keys(body),
-  );
+  const supplied = Object.entries(body)
+    .filter(([, value]) => value !== undefined)
+    .map(([key]) => key);
+  const refusal = closedFieldErrorOrNull(apiClosedFields(closed), supplied);
   if (refusal !== null) return errorResult(refusal);
   const read = parseEach((field: Fields[number]) => {
     const value = fieldOfBody(field, body, stored);

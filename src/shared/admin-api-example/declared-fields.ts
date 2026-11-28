@@ -5,15 +5,15 @@
  * the body type, so a new body key without a row is a compile error.
  */
 
+import type { SnakeWord } from "#shared/column-names.ts";
+import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import type {
   PackageMemberBody,
   UpdateGroupBody,
-} from "#routes/admin/api-groups.ts";
-import type { UpdateListingBody } from "#routes/admin/api-listing-body.ts";
-import type { SnakeWord } from "#shared/column-names.ts";
-import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
+} from "#shared/records/group-body.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import type { UpdateListingBody } from "#shared/records/listing-body.ts";
 import {
   LISTING_FIELDS,
   LISTING_WRITE_KEYS,

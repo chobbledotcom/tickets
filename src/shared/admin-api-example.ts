@@ -9,14 +9,6 @@
 import { toAdminListing } from "#routes/admin/api.ts";
 import { ATTENDEE_WRITE_FIELDS } from "#routes/admin/api-attendee-body.ts";
 import type { AdminApiAttendee } from "#routes/admin/api-attendees.ts";
-import type {
-  CreateGroupBody,
-  UpdateGroupBody,
-} from "#routes/admin/api-groups.ts";
-import type {
-  CreateListingBody,
-  UpdateListingBody,
-} from "#routes/admin/api-listing-body.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiAttendeeStatus,
@@ -28,6 +20,14 @@ import { type SnakeCased, snakeCaseKeys } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { withoutKeys } from "#shared/fp-records.ts";
 import { ATTENDEE_FEATURE_KEYS } from "#shared/records/attendee-answer-keys.ts";
+import type {
+  CreateGroupBody,
+  UpdateGroupBody,
+} from "#shared/records/group-body.ts";
+import type {
+  CreateListingBody,
+  UpdateListingBody,
+} from "#shared/records/listing-body.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import type { ApiBody } from "#shared/rest/api-body-fields.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";

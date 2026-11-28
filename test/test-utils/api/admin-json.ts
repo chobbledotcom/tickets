@@ -6,6 +6,7 @@ import { requireValue } from "#shared/required-value.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import {
   apiRequest,
+  createTestEditorSession,
   createTestManagerSession,
   requestAsSession,
   testCsrfToken,
@@ -82,6 +83,12 @@ export const requestAsManager = async (
   path: string,
   init: { body?: JsonBody; method?: string } = {},
 ): Promise<Response> => requestAs(await managerSession(), path, init);
+
+/** A signed-in editor's session and its form proof. */
+export const editorSession = async (): Promise<SessionProof> => {
+  const { cookie } = await createTestEditorSession();
+  return { cookie, csrfToken: await testCsrfToken() };
+};
 
 /** Assert that the admin API refuses a request with `status`, and that its
  *  error holds `fragment`. */

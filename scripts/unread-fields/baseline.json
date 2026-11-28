@@ -1,28 +1,4 @@
 {
-  "src/features/admin/api-groups.ts": [
-    {
-      "path": [{ "name": "CreateGroupBody" }],
-      "fields": ["name", "package_members"]
-    },
-    {
-      "path": [{ "name": "PackageMemberBody" }],
-      "fields": ["day_prices", "listing_id", "price", "quantity"]
-    },
-    {
-      "path": [{ "name": "UpdateGroupBody" }],
-      "fields": ["slug"]
-    }
-  ],
-  "src/features/admin/api-listing-body.ts": [
-    {
-      "path": [{ "name": "CreateListingBody" }],
-      "fields": ["child_listing_ids", "date", "day_prices", "group_ids", "max_attendees", "max_price", "name"]
-    },
-    {
-      "path": [{ "name": "UpdateListingBody" }],
-      "fields": ["slug"]
-    }
-  ],
   "src/features/admin/attendee-form-validation.ts": [
     {
       "path": [{ "name": "AttendeeFieldError" }],

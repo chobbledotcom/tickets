@@ -319,7 +319,7 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
       }
     });
 
-    test("answers exit 3 when a create sends a body the server refuses", async () => {
+    test("answers exit 3 when a create body fails the table's schema", async () => {
       const apiKey = await createTestApiKeyToken();
       const api = serveTestApi();
 
@@ -330,10 +330,12 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
           "{}",
         ]);
 
+        // The CLI checks the declared body schema before it sends, so the
+        // refusal carries no server status.
         expect(result.code).toBe(3);
         const answer = JSON.parse(result.stderr);
         expect(answer.error.kind).toBe("validation");
-        expect(answer.error.status).toBe(400);
+        expect(answer.error.status).toBeNull();
       } finally {
         await api.stop();
       }

@@ -3,11 +3,24 @@ import * as v from "valibot";
 import { parseOrNull } from "./parse.ts";
 import { NonEmptyTextSchema } from "./string.ts";
 
-/** A safe whole number no lower than `minimum`. */
+/** A safe whole number no lower than `minimum`, answering `message` instead of
+ *  valibot's own text when a caller gives one. */
 export const integerAtLeast = (
   minimum: number,
+  message?: string,
 ): v.GenericSchema<number, number> =>
-  v.pipe(v.number(), v.safeInteger(), v.minValue(minimum));
+  v.pipe(
+    v.number(message),
+    v.safeInteger(message),
+    v.minValue(minimum, message),
+  );
+
+/** A positive whole number, answering `message` for any other value. */
+export const positiveIntegerSchema = (message: string) =>
+  v.pipe(
+    v.number(message),
+    v.check((value) => Number.isInteger(value) && value > 0, message),
+  );
 
 /** Clamp safe whole numbers to a range. Malformed numbers still throw. */
 export const clampInteger = (

@@ -149,22 +149,21 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     });
 
     test("rejects malformed catalog fields", async () => {
-      for (const { body, field } of [
+      for (const { body, error } of [
         {
           body: { max_attendees: "10", name: "Bad capacity type" },
-          field: "max_attendees",
+          error: "max_attendees has an invalid value",
         },
         {
           body: { max_attendees: -1, name: "Bad capacity value" },
-          field: "max_attendees",
+          error: "max_attendees has an invalid value",
         },
-        { body: { hidden: "true", name: "Bad visibility" }, field: "hidden" },
+        {
+          body: { hidden: "true", name: "Bad visibility" },
+          error: "hidden must be a boolean",
+        },
       ]) {
-        await expectApiError(
-          postGroup(body),
-          400,
-          `${field} has an invalid value`,
-        );
+        await expectApiError(postGroup(body), 400, error);
       }
     });
 

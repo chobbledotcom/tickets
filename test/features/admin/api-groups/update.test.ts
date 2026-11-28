@@ -97,7 +97,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           name: "Catalog Guard",
         }),
         400,
-        "hidden has an invalid value",
+        "hidden must be a boolean",
       );
     });
 

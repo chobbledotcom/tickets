@@ -5,7 +5,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { editorSession, requestAs } from "#test-utils/api/admin-json.ts";
+import { expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import type { AdminLevel } from "#types";
@@ -55,6 +58,37 @@ describeWithEnv("Admin API listing body closed fields", { db: true }, () => {
       "editors cannot set webhook_url",
       "read",
     ]);
+  });
+
+  test("an editor update that omits the locked fields succeeds at the boundary", async () => {
+    const listing = await createTestListing({ name: "Editor Lock HTTP" });
+    const path = `/api/admin/listings/${listing.id}`;
+    const session = await editorSession();
+
+    // The schema fills every declared key before it parses the body. A
+    // declared key that holds no value is not a supplied key for the
+    // closed-field check, or every editor update would name the locked
+    // fields.
+    const response = await requestAs(session, path, {
+      body: { description: "Open to all", name: "Edited" },
+      method: "PUT",
+    });
+    expect(response.status).toBe(200);
+
+    for (const [field, value] of [
+      ["active", false],
+      ["use_defaults", false],
+      ["webhook_url", ""],
+    ] as const) {
+      await expectApiError(
+        requestAs(session, path, {
+          body: { [field]: value, name: "Edited" },
+          method: "PUT",
+        }),
+        400,
+        `editors cannot set ${field}`,
+      );
+    }
   });
 
   test("the demo refuses a webhook address", async () => {
