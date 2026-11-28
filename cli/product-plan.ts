@@ -1,10 +1,6 @@
 import * as v from "valibot";
 import { CliError } from "#cli/errors.ts";
 import {
-  type ListingApiBody,
-  listingApiBody,
-} from "#shared/catalog-transfer/listing-api-body.ts";
-import {
   formatTransferIssues,
   type ListingData,
   ListingDataSchema,
@@ -187,20 +183,6 @@ export const checkedListingData = (
   if (result.success) return result.output;
   throw new Error(`${filename}: ${formatTransferIssues(result.issues)}`);
 };
-
-/** The admin JSON API body for one product. `optionIds` and `groupIds` are
- *  the resolved ids of the product's attribute selection and category
- *  memberships. Null option ids mean that the site has attributes turned off,
- *  so the body leaves the selection out. */
-export const listingBody = (
-  product: CatalogProduct,
-  optionIds: readonly number[] | null,
-  groupIds: readonly number[],
-): ListingApiBody =>
-  listingApiBody(checkedListingData(product.filename, listingData(product)), {
-    attributeOptionIds: optionIds,
-    groupIds,
-  });
 
 /** Insert or replace the tickets ids in a product file's frontmatter, before
  *  the closing fence. A stored placeholder (`tickets_id:` with no value) is

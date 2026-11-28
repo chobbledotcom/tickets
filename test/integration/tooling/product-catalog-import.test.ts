@@ -7,7 +7,6 @@ import {
   composeDescription,
   conflictLine,
   ensureNamespaceFree,
-  listingBody,
   matchedIds,
   minorUnits,
   parseImportFlags,
@@ -447,46 +446,5 @@ Body text that the importer never reads.
         ),
       ].join("\n\n"),
     );
-  });
-
-  test("builds the listing body from the rental options", () => {
-    const product = parseProductFile("a.md", productFrontmatter)!;
-    expect(listingBody(product, [11, 12], [5])).toEqual({
-      attribute_option_ids: [11, 12],
-      customisable_days: true,
-      day_prices: { 1: 169500, 7: 399500 },
-      description: composeDescription(product),
-      duration_days: 7,
-      fields: "email,phone,address",
-      group_ids: [5],
-      hidden: true,
-      listing_type: "daily",
-      max_attendees: 10,
-      max_quantity: 10,
-      name: "8 Lane Reindeer Racing Hire",
-    });
-  });
-  test("caps the listing quantity at the strictest option", () => {
-    const product = parseProductFile(
-      "a.md",
-      [
-        "---",
-        "title: Tumble Tower Hire",
-        "options:",
-        "  - name: 1 Day",
-        "    max_quantity: 10",
-        "    unit_price: 100",
-        "  - name: 7 Days",
-        "    days: 7",
-        "    max_quantity: 2",
-        "    unit_price: 500",
-        "---",
-      ].join("\n"),
-    )!;
-    // The site caps a daily listing's bookable quantity per date by
-    // max_attendees, so the capacity follows the strictest option too.
-    const body = listingBody(product, [], []);
-    expect(body.max_quantity).toBe(2);
-    expect(body.max_attendees).toBe(2);
   });
 });
