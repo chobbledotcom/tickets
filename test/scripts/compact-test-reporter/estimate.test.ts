@@ -164,14 +164,11 @@ describe("estimating how many tests a run will report", () => {
   });
 
   test("gives no estimate when a named file cannot be read", async () => {
-    write("c.test.ts", 'Deno.test("one", () => {});');
-    const path = `${dir.path}/c.test.ts`;
-    await Deno.chmod(path, 0o000);
-    try {
-      expect(await estimate(["c.test.ts"])).toBeUndefined();
-    } finally {
-      await Deno.chmod(path, 0o644);
-    }
+    // A file mode cannot stop root, so the link names a file that stats as
+    // regular but fails every read, whoever runs the test.
+    await Deno.symlink("/proc/self/mem", `${dir.path}/c.test.ts`);
+
+    expect(await estimate(["c.test.ts"])).toBeUndefined();
   });
 
   test("gives no estimate when the named files declare no tests", async () => {
