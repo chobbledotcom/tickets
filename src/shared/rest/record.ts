@@ -22,6 +22,7 @@ import {
   type FullRowOf,
   type InputOf,
   type RecordActor,
+  type RecordAnswers,
   type RecordShape,
   type RecordSpec,
   type RecordTableOf,
@@ -117,12 +118,38 @@ export type RecordDefiner<
   Update extends WriteVerdict<FullRowOf<Shape>> = never,
   Remove extends DeleteVerdict = never,
   Refusal extends DeleteRefusal = never,
+  NameField extends
+    | (keyof FullRowOf<Shape> & string)
+    | undefined = "nameField" extends Filled
+    ? keyof FullRowOf<Shape> & string
+    : undefined,
 >(
-  spec: Omit<DeclaredSpec<Shape, Create, Update, Remove, Refusal>, Filled>,
-) => AdminRecord<
+  spec: Omit<DeclaredSpec<Shape, Create, Update, Remove, Refusal>, Filled> &
+    NameFieldOption<Filled, NameField>,
+) => RecordResult<
   Shape,
-  AnswersOf<FullRowOf<Shape>, Create, Update, Remove, Refusal>
+  AnswersOf<FullRowOf<Shape>, Create, Update, Remove, Refusal>,
+  Filled,
+  NameField
 >;
+
+/** The record a definer answers. A definer that fills the name field gives a
+ *  concrete column, so the API can require it. */
+type RecordResult<
+  Shape extends RecordShape,
+  Answers extends RecordAnswers<FullRowOf<Shape>>,
+  Filled,
+  NameField extends (keyof FullRowOf<Shape> & string) | undefined,
+> = "nameField" extends Filled
+  ? AdminRecord<Shape, Answers, keyof FullRowOf<Shape> & string>
+  : AdminRecord<Shape, Answers, NameField>;
+
+/** The display-name fact a declaration can carry. A definer that fills the
+ *  fact gives no place to declare it. */
+type NameFieldOption<
+  Filled extends keyof RecordSpec<RecordShape>,
+  NameField,
+> = "nameField" extends Filled ? unknown : { readonly nameField?: NameField };
 
 /** The input of a record with no domain rule passes unchanged. */
 const acceptInput = <Input>(input: Input) => okResult(input);
@@ -425,6 +452,7 @@ const buildRecord = <Shape extends RecordShape>(
     getAll,
     load,
     loadAfterWrite,
+    nameField: spec.nameField,
     rule,
   };
 };

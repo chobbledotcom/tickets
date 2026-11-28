@@ -947,7 +947,7 @@
   "test/shared/admin-api-example/questions.test.ts": 1,
   "test/shared/admin-api-example/schemas.test.ts": 1,
   "test/shared/admin-api-example/views.test.ts": 1,
-  "test/shared/admin-api-resource-features.test.ts": 2,
+  "test/shared/admin-api-resource-features.test.ts": 1,
   "test/shared/admin-api-resources.test.ts": 2,
   "test/shared/admin-pages.test.ts": 3,
   "test/shared/admin-surface.test.ts": 1,

@@ -22,6 +22,7 @@ const holidayFields = {
   getAll: () => Promise.resolve([] as Holiday[]),
   list: "holidays",
   logName: (input: HolidayInput) => input.name,
+  nameField: "name",
   nameOf: (row: Holiday) => row.name,
   rule: (input: HolidayInput) => okResult(input),
   surface: "holidays",
@@ -37,17 +38,18 @@ test("refuses a record with no JSON resource", () => {
   ).toThrow("The record for holidays declares no JSON resource");
 });
 
-test("refuses a record with no display-name column", () => {
+test("recordApi takes a record that names its display-name column", () => {
   const record = defineRecord<HolidayShape>()({
     ...holidayFields,
     api: ADMIN_API_RESOURCES.holidays,
   });
-  expect(() =>
-    recordApi<typeof ADMIN_API_RESOURCES.holidays, HolidayShape>(
-      record,
-      {} as never,
-    ),
-  ).toThrow("The Holiday record names no display-name column");
+  const routes = recordApi<typeof ADMIN_API_RESOURCES.holidays, HolidayShape>(
+    record,
+    { toCreateInput: okResult, toUpdateInput: okResult } as never,
+  );
+
+  expect(record.nameField).toBe("name");
+  expect(routes["DELETE /api/admin/holidays/:holidayId"]).toBeDefined();
 });
 
 test("the record JSON policy admits an API key and the list roles", () => {

@@ -1,16 +1,20 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
+import { prefixRoutes } from "#routes/app/prefixes.ts";
 import { routeMainApp, servesBodyRequests } from "#routes/app/routes.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
-import { enablePublicApi, enablePublicSite } from "#test-utils/settings.ts";
+import {
+  disableFeature,
+  enablePublicApi,
+  enablePublicSite,
+} from "#test-utils/settings.ts";
 
 const routeRequest = async (
   request: Request,
@@ -94,7 +98,7 @@ describeWithEnv("main app router", { db: true }, () => {
     expect(enabled.status).toBe(302);
     expect(enabled.headers.get("location")).toBe("/listings");
 
-    await setAdminFeatureEnabled("site", false);
+    await disableFeature("site");
     expect((await route("/events")).status).toBe(404);
   });
 
@@ -171,6 +175,26 @@ describeWithEnv("main app router", { db: true }, () => {
     expect(response.headers.get("location")).toBe("/read-only");
   });
 
+  test("a GET-only prefix rejects a POST before its handler", async () => {
+    const getOnly = Object.entries(prefixRoutes).filter(
+      ([, route]) => route.getOnly,
+    );
+    expect(getOnly.length).toBeGreaterThan(0);
+
+    for (const [prefix] of getOnly) {
+      const path = prefix === "" ? "/" : `/${prefix}`;
+      expect([path, (await route(path, "POST")).status]).toEqual([path, 404]);
+    }
+  });
+
+  test("a body-bearing prefix still accepts a POST", async () => {
+    await enablePublicSite();
+    await settings.update.businessEmail("owner@example.com");
+    await settings.update.contactFormEnabled(true);
+
+    expect((await route("/contact", "POST")).status).toBe(302);
+  });
+
   test("returns the read-only API error for blocked API writes", async () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
 
@@ -193,29 +217,15 @@ describe("servesBodyRequests", () => {
     expect(servesBodyRequests("/favicon.ico")).toBe(false);
   });
 
-  test("denies a prefix that serves only GET pages", () => {
-    const getOnlyPaths = [
-      "/",
-      "/listings",
-      "/terms",
-      "/address-lookup",
-      "/attachment/3",
-      "/caldav/events.ics",
-      "/custom.css",
-      "/events",
-      "/feeds/listings.rss",
-      "/gwallet/a-token",
-      "/image/a-file.jpg",
-      "/news/latest",
-      "/order",
-      "/order.js",
-      "/page/about",
-      "/read-only",
-      "/t/a-token",
-      "/wallet/a-token",
-    ];
-    for (const path of getOnlyPaths) {
-      expect(servesBodyRequests(path)).toBe(false);
+  test("denies every GET-only prefix", () => {
+    const getOnly = Object.entries(prefixRoutes).filter(
+      ([, route]) => route.getOnly,
+    );
+    expect(getOnly.length).toBeGreaterThan(0);
+
+    for (const [prefix] of getOnly) {
+      const path = prefix === "" ? "/" : `/${prefix}`;
+      expect([path, servesBodyRequests(path)]).toEqual([path, false]);
     }
   });
 

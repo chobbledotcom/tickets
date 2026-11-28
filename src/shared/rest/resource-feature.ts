@@ -8,7 +8,6 @@ import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { resourceFeature } from "#shared/admin-api-resource-features.ts";
 import type { AdminApiResource } from "#shared/admin-api-resources.ts";
 import {
   ADMIN_FEATURES_BY_KEY,
@@ -32,7 +31,7 @@ export const gatedByFeature = (
   entry: AdminApiResource,
   routes: Record<string, RouteHandlerFn>,
 ): Record<string, RouteHandlerFn> => {
-  const feature = resourceFeature(entry.path);
+  const feature = entry.feature;
   if (feature === undefined) return routes;
   return mapValues(
     routes,
