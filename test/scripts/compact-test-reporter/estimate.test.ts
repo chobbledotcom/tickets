@@ -48,7 +48,7 @@ describe("estimating how many tests a run will report", () => {
   test("does not count a name that merely ends in one of the keywords", async () => {
     write("b.test.ts", ['myTest("x", () => {});', 'obj.it("y");'].join("\n"));
 
-    expect(await estimate(["b.test.ts"])).toBeUndefined();
+    expect(await estimate(["b.test.ts"])).toBe(undefined);
   });
 
   test("walks a folder, skipping non-test files", async () => {
@@ -74,11 +74,11 @@ describe("estimating how many tests a run will report", () => {
   });
 
   test("ignores a path that does not exist", async () => {
-    expect(await estimate(["missing.test.ts"])).toBeUndefined();
+    expect(await estimate(["missing.test.ts"])).toBe(undefined);
   });
 
   test("gives no estimate when no paths were named", async () => {
-    expect(await estimate(["--filter", "name"])).toBeUndefined();
+    expect(await estimate(["--filter", "name"])).toBe(undefined);
   });
 
   test("does not mistake any value-taking flag's value for a file", async () => {
@@ -106,7 +106,7 @@ describe("estimating how many tests a run will report", () => {
     ];
 
     for (const flag of valueTakingFlags) {
-      expect(await estimate([flag, "d.test.ts"])).toBeUndefined();
+      expect(await estimate([flag, "d.test.ts"])).toBe(undefined);
     }
   });
 
@@ -125,13 +125,13 @@ describe("estimating how many tests a run will report", () => {
   test("does not read a file whose name starts with a dash", async () => {
     write("-odd.test.ts", 'Deno.test("a", () => {});');
 
-    expect(await estimate(["-odd.test.ts"])).toBeUndefined();
+    expect(await estimate(["-odd.test.ts"])).toBe(undefined);
   });
 
   test("stops reading paths after a bare --", async () => {
     write("e.test.ts", 'Deno.test("a", () => {});');
 
-    expect(await estimate(["--", "e.test.ts"])).toBeUndefined();
+    expect(await estimate(["--", "e.test.ts"])).toBe(undefined);
   });
 
   test("skips a blank argument and keeps counting the named files", async () => {
@@ -157,26 +157,23 @@ describe("estimating how many tests a run will report", () => {
       transport: "unix",
     });
     try {
-      expect(await estimate(["probe.sock"])).toBeUndefined();
+      expect(await estimate(["probe.sock"])).toBe(undefined);
     } finally {
       listener.close();
     }
   });
 
   test("gives no estimate when a named file cannot be read", async () => {
-    write("c.test.ts", 'Deno.test("one", () => {});');
-    const path = `${dir.path}/c.test.ts`;
-    await Deno.chmod(path, 0o000);
-    try {
-      expect(await estimate(["c.test.ts"])).toBeUndefined();
-    } finally {
-      await Deno.chmod(path, 0o644);
-    }
+    // A file mode cannot stop root, so the link names a file that stats as
+    // regular but fails every read, whoever runs the test.
+    await Deno.symlink("/proc/self/mem", `${dir.path}/c.test.ts`);
+
+    expect(await estimate(["c.test.ts"])).toBe(undefined);
   });
 
   test("gives no estimate when the named files declare no tests", async () => {
     write("f.test.ts", "export const value = 1;");
 
-    expect(await estimate(["f.test.ts"])).toBeUndefined();
+    expect(await estimate(["f.test.ts"])).toBe(undefined);
   });
 });

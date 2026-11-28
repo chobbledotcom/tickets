@@ -23,6 +23,7 @@ import {
 } from "#shared/rest/record.ts";
 import { ruledCommand } from "#shared/rest/record-command.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { checkedName } from "#shared/validation/name.ts";
 
 /** One API key as the page lists it. The secret is present only on a create
  * answer, where the page shows it once. */
@@ -49,17 +50,14 @@ const apiKeyForActor = (id: number, actor?: RecordActor) =>
 
 /** The one API-key rule: a name the page can accept. */
 const apiKeyRule = (input: ApiKeyInput): Result<ApiKeyInput> => {
-  const name = input.name.trim();
-  if (name === "") return errorResult(t("error.name_required"));
-  if (name.length > MAX_INPUT_LENGTH) {
-    return errorResult(
-      t("fields.validation.max_length", {
-        label: t("common.name"),
-        max: MAX_INPUT_LENGTH,
-      }),
-    );
-  }
-  return okResult({ name });
+  const name = checkedName(input.name, t("error.name_required"), {
+    error: t("fields.validation.max_length", {
+      label: t("common.name"),
+      max: MAX_INPUT_LENGTH,
+    }),
+    length: MAX_INPUT_LENGTH,
+  });
+  return name.ok ? okResult({ name: name.value }) : errorResult(name.error);
 };
 
 const createApiKeyCommand = async (

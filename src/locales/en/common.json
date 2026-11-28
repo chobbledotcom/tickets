@@ -56,6 +56,9 @@
   "common.reorder_handle": "Drag to change the order",
   "common.reorder_up": "Move up",
   "common.reorder_down": "Move down",
+  "common.review_rating": "Rated {rating} out of 5 stars",
+  "common.view_review": "View review",
+  "common.view_on_google": "View on Google",
   "common.enabled": "Enabled",
   "form.required": "Required"
 }

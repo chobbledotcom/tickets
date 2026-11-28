@@ -81,6 +81,8 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   PAYMENT_PROVIDER
   PUBLIC_KEY
   REDIRECT_COUNT
+  REVIEWS_ENABLED
+  REVIEWS_INTRO_TEXT
   SETTINGS_VERSION
   SETUP_COMPLETE
   SHOW_PUBLIC_API
@@ -156,6 +158,7 @@ const EXPECTED_SETTING_ROWS = [
   ["HOMEPAGE_TEXT", "encrypted", "homepageText"],
   ["CONTACT_PAGE_TEXT", "encrypted", "contactPageText"],
   ["ORDER_INTRO_TEXT", "encrypted", "orderIntroText"],
+  ["REVIEWS_INTRO_TEXT", "encrypted", "reviewsIntroText"],
   ["SITE_FOOTER", "encrypted", "siteFooter"],
   ["STRIPE_SECRET_KEY", "encrypted", null],
   ["STRIPE_WEBHOOK_SECRET", "encrypted", null],

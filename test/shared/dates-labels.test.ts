@@ -7,6 +7,7 @@ import {
   formatDateRangeLabel,
   formatDateRangeLabelCompactEn,
   formatMonthLabel,
+  formatMonthYearShortLabel,
   monthsAround,
   shiftMonth,
 } from "#shared/date-labels.ts";
@@ -49,6 +50,16 @@ describe("dates", () => {
 
     test("formats December", () => {
       expect(formatMonthLabel("2026-12")).toBe("December 2026");
+    });
+  });
+
+  describe("formatMonthYearShortLabel", () => {
+    test("formats a review date as a short month and year", () => {
+      expect(formatMonthYearShortLabel("2024-11-20")).toBe("Nov '24");
+    });
+
+    test("keeps a single-digit year suffix narrow", () => {
+      expect(formatMonthYearShortLabel("2005-01-01")).toBe("Jan '05");
     });
   });
 
