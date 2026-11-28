@@ -195,6 +195,12 @@ describeWithEnv("the reviews page", { db: true }, () => {
       expectIncludesAll(page, ["First bare reviewer", "Second bare reviewer"]);
       expect(page).not.toContain("review-link");
       expect(page).not.toContain('class="rating"');
+
+      const edit = (await app.get("/admin/site/reviews/1/edit")).html;
+      expect(edit).toContain('value="First bare reviewer"');
+      expect(edit).toMatch(/<input[^>]*name="url"[^>]*>/);
+      expect(edit).not.toMatch(/<input[^>]*name="url"[^>]*value=/);
+      expect(edit).not.toMatch(/<input[^>]*name="rating"[^>]*value=/);
     }));
 
   test("refuses a review URL another review already has", () =>
