@@ -15,6 +15,7 @@ import { getAllPageItems } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
 import { fieldById, requiredMapValue } from "#fp";
 import { t } from "#i18n";
+import type { SelectOption } from "#shared/forms/rendering.tsx";
 import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
 import { buildForest, eligibleChildPages } from "#shared/site-pages/core.ts";
 import {
@@ -24,7 +25,6 @@ import {
 import type {
   EditModel,
   ListModel,
-  PickerOption,
   ResolvedItem,
 } from "#templates/admin/site-pages.tsx";
 import type { SitePage, SitePageItemType, SitePageNavRow } from "#types";
@@ -88,7 +88,7 @@ export const buildEditModel = async (page: SitePage): Promise<EditModel> => {
     label: label(i.itemType, i.itemId),
     type: i.itemType,
   }));
-  const opt = (id: number, name: string): PickerOption => ({
+  const opt = (id: number, name: string): SelectOption => ({
     label: name,
     value: String(id),
   });
@@ -100,7 +100,7 @@ export const buildEditModel = async (page: SitePage): Promise<EditModel> => {
   const options = (
     names: Map<number, string>,
     type: SitePageItemType,
-  ): PickerOption[] =>
+  ): SelectOption[] =>
     [...names]
       .filter(
         ([id]) =>

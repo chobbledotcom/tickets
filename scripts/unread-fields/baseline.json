@@ -129,12 +129,6 @@
       "fields": ["settingsNagItems"]
     }
   ],
-  "src/features/entity.ts": [
-    {
-      "path": [{ "name": "AttendeeListingRouteParams" }],
-      "fields": ["attendeeId", "listingId"]
-    }
-  ],
   "src/features/public/types.ts": [
     {
       "path": [{ "name": "TicketCtx" }],
@@ -953,10 +947,6 @@
     {
       "path": [{ "name": "PiiBlob" }],
       "fields": ["v"]
-    },
-    {
-      "path": [{ "name": "Settings" }],
-      "fields": ["key", "value"]
     }
   ],
   "src/shared/update.ts": [

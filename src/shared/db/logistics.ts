@@ -28,12 +28,6 @@ export type BookingLogisticsAssignment = LogisticsAssignment & {
   listingId: number;
 };
 
-/** A booking row named by the two ids the run sheet uses. */
-export type DeliveryBookingRef = {
-  attendeeId: number;
-  listingId: number;
-};
-
 /** The raw `listing_attendees` logistics columns: who/what plus each leg's
  * agent and time. Also the base of the overlap query's rows (overlap.ts). */
 export type AssignmentRow = {

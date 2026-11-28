@@ -485,51 +485,11 @@ export const mapParallel =
   (array: readonly T[]): Promise<U[]> =>
     Promise.all(array.map(fn));
 
-/** Collection cache returned by collectionCache() */
+/** A cache of one whole collection: read it all, drop it, count it. */
 export type CollectionCache<T> = {
   getAll: () => Promise<T[]>;
   invalidate: () => void;
   size: () => number;
-};
-
-/**
- * Create an in-memory collection cache with TTL.
- * Loads all items via fetchAll on first access or after invalidation/expiry,
- * then serves from memory until the TTL expires or invalidate() is called.
- * Takes the clock as an argument: pass nowMs, or a fake clock in a test.
- *
- * Uses a generation counter to prevent a race condition where a concurrent
- * fetchAll() that started before an invalidation could overwrite the cache
- * with stale data.
- */
-export const collectionCache = <T>(
-  fetchAll: () => Promise<T[]>,
-  ttlMs: number,
-  now: () => number,
-): CollectionCache<T> => {
-  const [getState, setState] = lazyRef<{ items: T[] | null; time: number }>(
-    () => ({ items: null, time: 0 }),
-  );
-  let generation = 0;
-  return {
-    getAll: async (): Promise<T[]> => {
-      const state = getState();
-      if (state.items !== null && now() - state.time <= ttlMs) {
-        return state.items;
-      }
-      const gen = generation;
-      const items = await fetchAll();
-      if (gen === generation) {
-        setState({ items, time: now() });
-      }
-      return items;
-    },
-    invalidate: (): void => {
-      generation++;
-      setState(null);
-    },
-    size: (): number => getState().items?.length ?? 0,
-  };
 };
 
 /** TTL cache returned by ttlCache() */

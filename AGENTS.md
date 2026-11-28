@@ -737,11 +737,9 @@ automatic.
 - `deno task check:test-quality` — the weak-assertion gate: fails when a
   test file the change touches carries a weak assertion, added or
   pre-existing, against the merge base on `origin/main`
-- `deno task check:presence-assertions` — the `toBeDefined()` block: holds
-  every test file to its recorded count in
-  `scripts/check-presence-assertions/registry.json`, and the count only
-  falls. Assert the value, shape, or invariant instead. Pass `--update`
-  after a fix. The update refuses a rise
+- `deno task check:presence-assertions` — the `toBeDefined()` block: fails on
+  every `toBeDefined()` call in a test file. The check has no exceptions list.
+  Assert the value, shape, or invariant instead
 - `deno task check:test-internals` — hold every test file to its recorded count
   of imports from `src/` modules that are not pure, and hold the registry to the
   merge base on `origin/main`. Pass `--update` after a fall. The update refuses
@@ -871,10 +869,9 @@ drop you state out loud.
   Fix every finding in a file you touch. A finding in a file you do not touch
   stays informational.
 - `toBeDefined()` is blocked outright: `deno task check:presence-assertions`
-  holds every test file to its recorded count in
-  `scripts/check-presence-assertions/registry.json`, and the count only
-  falls. Assert the value, shape, or invariant instead. `toBeUndefined()`
-  stays allowed where the code documents an absent value.
+  fails on every call, with no exceptions list. Assert the value, shape, or
+  invariant instead. `toBeUndefined()` stays allowed where the code documents
+  an absent value.
 - For critical flows, cover negative paths, idempotency, concurrency, and
   metamorphic cases: webhook replay does not double-credit, capacity cannot go
   below zero, role downgrades remove access, PII stays encrypted or absent from

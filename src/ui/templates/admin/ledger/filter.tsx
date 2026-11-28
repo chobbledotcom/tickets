@@ -5,12 +5,12 @@ import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import {
   ALL_LEDGER_SCOPE,
   type LedgerScope,
-  type LedgerScopeOption,
   ledgerScopeSelected,
   setLedgerScopeParam,
 } from "#shared/ledger-scope.ts";
 import { TableActionRow } from "#templates/components/table-action-row.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
+import type { NamedRecord } from "#types";
 
 /** The whole filter state the ledger page round-trips through the query string. */
 export type LedgerFilterState = {
@@ -29,8 +29,8 @@ export type LedgerViewMode = v.InferOutput<typeof LedgerViewModeSchema>;
 export type LedgerFilterData = {
   dates: DatePickerDate[];
   filters: LedgerFilterState;
-  groups: LedgerScopeOption[];
-  listings: LedgerScopeOption[];
+  groups: NamedRecord[];
+  listings: NamedRecord[];
   today: string;
 };
 
@@ -127,7 +127,7 @@ type NamedLedgerScopeKind = Exclude<LedgerScope["kind"], "all">;
 
 const NAMED_SCOPE_FACTORIES: Record<
   NamedLedgerScopeKind,
-  (option: LedgerScopeOption) => LedgerScope
+  (option: NamedRecord) => LedgerScope
 > = {
   group: (option) => ({ ...option, kind: "group" }),
   listing: (option) => ({ ...option, kind: "listing" }),
@@ -135,10 +135,10 @@ const NAMED_SCOPE_FACTORIES: Record<
 
 const scopeOptions = (
   kind: NamedLedgerScopeKind,
-  options: LedgerScopeOption[],
+  options: NamedRecord[],
   filters: LedgerFilterState,
 ): SafeHtml[] =>
-  map((option: LedgerScopeOption): SafeHtml => {
+  map((option: NamedRecord): SafeHtml => {
     const scope = NAMED_SCOPE_FACTORIES[kind](option);
     return (
       <option
