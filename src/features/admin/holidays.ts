@@ -30,5 +30,5 @@ const pages = recordPages(holidayRecord, {
 });
 
 export const adminHandlers = defineAdminRoutes({
-  ...recordRoutes("holidays", pages, holidayPage),
+  ...recordRoutes(holidayRecord, pages, holidayPage),
 });

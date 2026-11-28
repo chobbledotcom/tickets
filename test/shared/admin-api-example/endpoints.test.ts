@@ -189,6 +189,22 @@ describe("every documented endpoint", () => {
     }
   });
 
+  test("every public API route has an OPTIONS preflight route", () => {
+    const routes = Object.keys(apiRoutes);
+    const preflights = new Set(
+      routes
+        .filter((key) => key.startsWith("OPTIONS "))
+        .map((key) => key.slice("OPTIONS ".length)),
+    );
+    for (const key of routes.filter((key) => !key.startsWith("OPTIONS "))) {
+      const path = key.slice(key.indexOf(" ") + 1);
+      // The preflight exists for this path, and names a real one.
+      expect(preflights.delete(path)).toBe(true);
+    }
+    // No preflight route is left without a route to answer for.
+    expect([...preflights]).toEqual([]);
+  });
+
   test("every public API route has a documented endpoint", () => {
     const documentedPaths = PUBLIC_API_ENDPOINTS.map(
       (e: EndpointDoc) => `${e.method} ${e.path}`,

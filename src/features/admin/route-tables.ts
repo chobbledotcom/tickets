@@ -133,10 +133,11 @@ export type RecordRoutes<Area extends RecordAreaId> =
 /** Bind a record's list routes and its two entity tabs under the paths its
  *  area declares, ready to spread into the area's route table. */
 export const recordRoutes = <Area extends RecordAreaId>(
-  area: Area,
+  record: { readonly surface: Area },
   crud: CrudHandlers,
   page: Pick<EntityPage<never>, "renderTab">,
 ): RecordRoutes<Area> => {
+  const area = record.surface;
   const patterns = recordAreaPatterns(area);
   const listRoutes = recordAreaIds(area).newPage ? crudRoutes : listCrudRoutes;
   return {

@@ -105,7 +105,7 @@ const reassignChoice = async (
 };
 
 export const adminHandlers = defineAdminRoutes({
-  ...recordRoutes("settingsStatuses", pages, attendeeStatusPage),
+  ...recordRoutes(statusRecord, pages, attendeeStatusPage),
   "GET /admin/settings/statuses/:id/delete": (request, { id }) =>
     statusDeleteGet(request, id),
   ...statusOrder,
