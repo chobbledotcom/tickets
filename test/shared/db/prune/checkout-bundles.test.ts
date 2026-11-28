@@ -1,5 +1,6 @@
-/** The prune of sealed checkout orders: a bundle goes when the payments clock
- * has passed, and a younger one stays. */
+/** The prune of sealed checkout orders: a bundle goes when its checkout window
+ * and the provider retry window are over, and a younger one stays. The rule
+ * for how long is checked beside it, in test/shared/db/checkout-bundles.test.ts. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -17,8 +18,9 @@ const ORDER = { email: "pat@example.com", items: '[{"e":1,"p":500,"q":1}]' };
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
-/** How long the prune keeps a bundle: the payments clock of 90 days. */
-const KEPT_FOR_MS = 90 * DAY_MS;
+/** How long the prune keeps a bundle: the 60 minutes in which the checkout
+ * can be paid, then the 3 days in which the provider can retry. */
+const KEPT_FOR_MS = 60 * MINUTE_MS + 3 * DAY_MS;
 
 const isoAgo = (ageMs: number) => new Date(Date.now() - ageMs).toISOString();
 
@@ -29,7 +31,7 @@ const ageNewBundles = (ageMs: number) =>
   );
 
 describeWithEnv("pruning checkout bundles", { db: true }, () => {
-  test("prunes a bundle past the payments clock, and keeps a younger one", async () => {
+  test("prunes a bundle past its checkout and retry windows, and keeps a younger one", async () => {
     const old = await sealCheckoutBundle(ORDER);
     await ageNewBundles(KEPT_FOR_MS + MINUTE_MS);
     const young = await sealCheckoutBundle(ORDER);

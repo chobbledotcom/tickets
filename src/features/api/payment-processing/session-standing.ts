@@ -50,6 +50,12 @@ export const standingOf = ({
   return claimed ? { kind: "reserved" } : { kind: "open" };
 };
 
+/** Whether a receipt stands for the order of a session in this standing. A
+ * receipt holds no buyer, so it can only serve a replay of a settled session.
+ * A session that nothing settled lost its order. */
+export const receiptServes = (standing: SessionStanding): boolean =>
+  standing.kind !== "open";
+
 /** Read where a session stands, from its payment row and its ledger groups.
  * The ledger outlives the payment row, so a late replay still reads as
  * settled. */

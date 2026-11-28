@@ -69,14 +69,13 @@ export const hasRequiredSessionMetadata = (
 
 /**
  * Turn provider metadata into the one shape that the app and the price check
- * read. The small fields packed into `b` move back to the top level first.
- * Call it only after `hasRequiredSessionMetadata`. A field that the checkout
- * left out, or that a malformed `b` lost, reads as "".
+ * read. The small fields packed into `b` move back to the top level first. A
+ * field that the checkout left out, or that a malformed `b` lost, reads as "".
  */
 export const extractSessionMetadata = (
-  metadata: SessionMetadata,
+  metadata: Readonly<Partial<Record<string, string>>>,
 ): ValidatedPaymentSession["metadata"] => {
-  const raw = (metadata as { [PACKED_FIELD]?: string })[PACKED_FIELD];
+  const raw = metadata[PACKED_FIELD];
   const packed = raw ? parsePackedFields(raw) : {};
   const get = (key: keyof SessionMetadata): string =>
     packed[key] || metadata[key] || "";
@@ -104,3 +103,56 @@ export const extractSessionMetadata = (
     thank_you_url: get("thank_you_url"),
   };
 };
+
+/** Whether the receipt of a settled order keeps each order field. It keeps
+ * what a replay or the buyer's return page reads. Every field that names the
+ * buyer, holds what they wrote or picked, or proves the price goes. */
+/* jscpd:ignore-start -- static data, not code */
+const RECEIPT_KEEPS: Record<keyof SessionMetadata, boolean> = {
+  _origin: true,
+  address: false,
+  allocations: true,
+  answer_ids: false,
+  balance_attendee_id: true,
+  bundle: false,
+  date: false,
+  day_count: false,
+  email: false,
+  items: true,
+  listing: false,
+  modifiers: false,
+  name: false,
+  phone: false,
+  price_proof: false,
+  reservation_amount: false,
+  site_token_index: false,
+  special_instructions: false,
+  tax_policy: false,
+  text_answer_ids: false,
+  thank_you_url: true,
+};
+/* jscpd:ignore-end */
+
+const RECEIPT_FIELDS: readonly string[] = Object.entries(RECEIPT_KEEPS)
+  .filter(([, keeps]) => keeps)
+  .map(([field]) => field);
+
+/** The field that marks a record as a receipt. An order never holds it. */
+const RECEIPT_MARK = "_receipt";
+
+/** The receipt of a settled order. It holds the fields of the order that a
+ * receipt keeps, and the mark that tells it from an order. */
+export const receiptRecord = (
+  record: Readonly<Record<string, string>>,
+): Record<string, string> => ({
+  ...Object.fromEntries(
+    Object.entries(record).filter(([field]) => RECEIPT_FIELDS.includes(field)),
+  ),
+  [RECEIPT_MARK]: "1",
+});
+
+/** Whether a sealed record is a receipt. A receipt has no buyer in it, so it
+ * can serve a replay of a settled session and can never book anyone. */
+export const isReceiptRecord = (
+  record: Readonly<Record<string, string>>,
+): boolean => record[RECEIPT_MARK] === "1";

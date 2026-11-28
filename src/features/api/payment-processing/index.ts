@@ -10,6 +10,7 @@
 
 import { generateTicketToken } from "#crypto/utils.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
+import { dropCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import {
   finalizeSessionIfUnresolved,
   markSessionFailed,
@@ -45,6 +46,7 @@ import {
   deletedListingSpec,
   refuseMismatch,
 } from "#routes/api/payment-processing/refunds.ts";
+import { keepOrderReceipt } from "#routes/api/payment-processing/settled-order.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import {
   datelessGhostBookings,
@@ -353,10 +355,46 @@ export const processPaymentSession: SessionProcessor = async (
 ) => {
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
-  if (!reservation.reserved) {
-    return handleReservationConflict(data, reservation.existing);
+  // A receipt has no buyer and serves only a replay. If it wins a fresh
+  // reservation, the payment row went after the read, so no booking can
+  // follow. The next delivery reads the session again and answers it.
+  if (reservation.reserved && data.receipt) {
+    await releaseReservation(sessionId);
+    return {
+      error: t("payment.error.verification_failed"),
+      status: 503,
+      success: false,
+    };
   }
+  const result = reservation.reserved
+    ? await processFreshSession(sessionId, data)
+    : await handleReservationConflict(data, reservation.existing);
+  // One rule decides on both paths whether the session is settled. A replay
+  // of a settled session writes the receipt too, so a receipt write that the
+  // first delivery lost is repaired by the next one.
+  if (settlesSession(result)) {
+    await keepOrderReceipt(data);
+    // A final outcome with no booking leaves no create batch to take the
+    // staged answers back, so they go here. A retryable one keeps them.
+    if (!result.success) await dropCheckoutAnswers(sessionId);
+  }
+  return result;
+};
 
+/** A transient lock, not a money answer: another delivery holds the session
+ * and nobody decided anything yet. */
+export const isHeldResult = (result: PaymentResult): boolean =>
+  !result.success && result.status === 409 && result.refunded === undefined;
+
+/** Whether a result is the session's final answer: a booking or a handled
+ * outcome. A refund that did not go through stays retryable, and a held
+ * answer belongs to another delivery. */
+const settlesSession = (result: PaymentResult): boolean =>
+  result.success || (result.refunded !== false && !isHeldResult(result));
+
+/** Process a session this delivery has just reserved, and record or release
+ * its reservation by the outcome. */
+const processFreshSession: SessionProcessor = async (sessionId, data) => {
   // A Square link dies with its first payment, so its end row goes now. The
   // write is conditional on `pending`, so a row the expiry task already claimed
   // stays with the task. Its own delete refusal names the paid order.
@@ -386,7 +424,6 @@ export const processPaymentSession: SessionProcessor = async (
       status: result.status,
     });
   }
-
   return result;
 };
 
