@@ -23,7 +23,6 @@ import {
   type FieldSpecs,
   type FieldsInput,
   type FieldsStored,
-  type ShownField,
 } from "#shared/rest/field-specs.ts";
 import { apiRefusal, fieldValueSchema } from "#shared/rest/field-values.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -304,7 +303,7 @@ export const unshownFieldOrNull = (
 
 /** Read one checked form into the input the fields declare. */
 export const formInput =
-  <const Fields extends readonly ShownField[]>(fields: Fields) =>
+  <const Fields extends FieldSpecs>(fields: Fields) =>
   (values: Record<Fields[number]["key"], string>): FieldsInput<Fields> =>
     asInput<Fields>(
       Object.entries(

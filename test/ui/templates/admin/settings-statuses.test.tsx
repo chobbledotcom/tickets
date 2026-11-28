@@ -14,7 +14,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { expectIncludesAll, inputNamed } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const RESERVED_STATUS: AttendeeStatus = {
@@ -81,14 +81,13 @@ describe("attendee status templates", () => {
     const html = statusPages.newPage(OWNER_SESSION);
 
     assertStringIncludes(html, 'action="/admin/settings/statuses"');
-    expect(html).toMatch(/name="name"[^>]*value=""/);
-    assertStringIncludes(html, 'name="isReservation" type="checkbox"');
-    // The exclusive checkboxes carry data-exclusive attributes between
-    // `checked` and `name`. A bare `checked name=` substring cannot prove
-    // the flag is off, so match across the attributes.
-    expect(html).not.toMatch(/<input checked[^>]*name="isReservation"/);
-    expect(html).not.toMatch(/<input checked[^>]*name="isPublicDefault"/);
-    expect(html).not.toMatch(/<input checked[^>]*name="isPaidDefault"/);
+    expect(inputNamed(html, "name")).not.toContain("value=");
+    assertStringIncludes(html, 'type="checkbox" name="isReservation"');
+    // A bare `checked name=` substring cannot prove the flag is off, so read
+    // the whole tag and look for the checked attribute.
+    expect(inputNamed(html, "isReservation")).not.toContain("checked");
+    expect(inputNamed(html, "isPublicDefault")).not.toContain("checked");
+    expect(inputNamed(html, "isPaidDefault")).not.toContain("checked");
     expect(html).toMatch(/name="reservationAmount"[^>]*value="0"/);
     expectIncludesAll(html, [
       "<h1>Add attendee status</h1>",
@@ -102,14 +101,14 @@ describe("attendee status templates", () => {
 
     assertStringIncludes(html, 'action="/admin/settings/statuses/7/edit"');
     expect(html).toMatch(/name="name"[^>]*value="Reserved"/);
-    expect(html.match(/<input checked/g)).toHaveLength(3);
+    expect(html.match(/type="checkbox"[^>]* checked/g)).toHaveLength(3);
     expect(html).toMatch(/name="reservationAmount"[^>]*value="25%"/);
     assertStringIncludes(html, "Save status");
   });
 
   test("uses rejected values instead of restoring stored edit fields", () => {
     const values = new FormParams({
-      isPublicDefault: "true",
+      isPublicDefault: "1",
       reservationAmount: "lots",
     });
     const html = String(
@@ -121,11 +120,11 @@ describe("attendee status templates", () => {
     );
 
     assertStringIncludes(html, "Invalid reservation amount");
-    expect(html).toMatch(/name="name"[^>]*value=""/);
+    expect(inputNamed(html, "name")).not.toContain("value=");
     assert(!html.includes('value="Reserved"'));
-    expect(html).not.toMatch(/<input checked[^>]*name="isReservation"/);
-    expect(html).toMatch(/<input checked[^>]*name="isPublicDefault"/);
-    expect(html).not.toMatch(/<input checked[^>]*name="isPaidDefault"/);
+    expect(inputNamed(html, "isReservation")).not.toContain("checked");
+    expect(inputNamed(html, "isPublicDefault")).toContain("checked");
+    expect(inputNamed(html, "isPaidDefault")).not.toContain("checked");
     expect(html).toMatch(/name="reservationAmount"[^>]*value="lots"/);
   });
 
@@ -134,9 +133,9 @@ describe("attendee status templates", () => {
 
     expectIncludesAll(html, [
       '<input maxlength="250" name="name" required type="text"',
-      '<input name="reservationAmount" type="text"',
-      '<fieldset class="checkboxes">',
-      '<label class="checkbox">',
+      '<input maxlength="250" name="reservationAmount" type="text"',
+      '<fieldset><div class="checkboxes">',
+      '<label><input type="checkbox"',
     ]);
   });
 
@@ -146,10 +145,10 @@ describe("attendee status templates", () => {
     const html = statusPages.newPage(OWNER_SESSION);
 
     expect(html).toMatch(
-      /data-exclusive-with="isReservation"[^>]*name="isPaidDefault"/,
+      /name="isPaidDefault"[^>]*data-exclusive-with="isReservation"/,
     );
     expect(html).toMatch(
-      /data-exclusive-with="isPaidDefault"[^>]*name="isReservation"/,
+      /name="isReservation"[^>]*data-exclusive-with="isPaidDefault"/,
     );
     assertStringIncludes(html, t("statuses.error_paid_default_reservation"));
   });
@@ -164,8 +163,8 @@ describe("attendee status templates", () => {
     // The stored status has none of the three flags, so a checkbox that shows
     // as ticked can only have come from what the operator submitted.
     const values = new FormParams({
-      isPaidDefault: "true",
-      isReservation: "true",
+      isPaidDefault: "1",
+      isReservation: "1",
       name: "Typed Instead",
     });
 
@@ -174,9 +173,9 @@ describe("attendee status templates", () => {
     );
 
     expect(html).toMatch(/name="name"[^>]*value="Typed Instead"/);
-    expect(html).toMatch(/<input checked[^>]*name="isReservation"/);
-    expect(html).toMatch(/<input checked[^>]*name="isPaidDefault"/);
-    expect(html).not.toMatch(/<input checked[^>]*name="isPublicDefault"/);
+    expect(inputNamed(html, "isReservation")).toContain("checked");
+    expect(inputNamed(html, "isPaidDefault")).toContain("checked");
+    expect(inputNamed(html, "isPublicDefault")).not.toContain("checked");
   });
 
   test("renders a non-dangerous typed-name delete form", () => {

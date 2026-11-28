@@ -54,15 +54,27 @@ export type WriteAccess = {
  *  Its column and its API key are the snake_case of `key`. `header`,
  *  `label`, `hint`, and `placeholder` name catalog entries: the list column
  *  header and the form box texts. A record with its own form leaves them
- *  out. `default` is the stored value a create gets when it gives none.
- *  `feature` names the site feature the field needs. `lockedFor` names the
- *  writers that cannot set it. `min` is the smallest whole number a count
- *  accepts. Each create must supply a `required` field. */
+ *  out. `hintPrefix` is literal text before the translated hint.
+ *  `exclusive` pairs an either/or checkbox with the other field's key and
+ *  the catalog entry that explains the boundary. `default` is the stored
+ *  value a create gets when it gives none. `feature` names the site feature
+ *  the field needs. `lockedFor` names the writers that cannot set it. `min`
+ *  is the smallest whole number a count accepts. `requiredMessageKey` names
+ *  the catalog entry for a required box. Each create must supply a
+ *  `required` field. */
 export type FieldSpec = {
   readonly default?: boolean | number | string | readonly string[];
+  /** The other field's key and the catalog key of the refusal that explains
+   *  the boundary. Rendered as the `data-exclusive-*` pair. */
+  readonly exclusive?: {
+    readonly other: string;
+    readonly why: string;
+  };
   readonly feature?: Feature;
   readonly header?: string;
   readonly hint?: string;
+  /** Literal text shown before the translated `hint`. */
+  readonly hintPrefix?: string;
   readonly key: string;
   readonly kind: FieldKind;
   readonly label?: string;
@@ -73,6 +85,8 @@ export type FieldSpec = {
   readonly min?: 0 | 1;
   readonly placeholder?: string;
   readonly required?: true;
+  /** The catalog key of the refusal for a blank required box. */
+  readonly requiredMessageKey?: string;
 };
 
 export type FieldSpecs = readonly FieldSpec[];
@@ -82,14 +96,22 @@ export type FieldSpecs = readonly FieldSpec[];
  *  links other records and is not a column. */
 export type KeyAccess = Pick<FieldSpec, "feature" | "key" | "lockedFor">;
 
-/** The kinds the shared form and the shared list can show. */
-export type ShownKind = "date" | "name" | "sealedText";
+/** The kinds the shared form can render as a box. */
+export type FormFieldKind = "date" | "name" | "sealedText" | "switch" | "text";
 
-/** A field the shared form and the shared list show, with their texts. */
-export type ShownField = FieldSpec & {
+/** A declared field with the facts its form box reads. */
+export type FormField = FieldSpec & {
+  readonly kind: FormFieldKind;
+  readonly label: string;
+};
+
+/** The kinds the shared form and the shared list can show. */
+export type ShownKind = Extract<FormFieldKind, "date" | "name" | "sealedText">;
+
+/** A field the shared form and the shared list show, with the list header. */
+export type ShownField = FormField & {
   readonly header: string;
   readonly kind: ShownKind;
-  readonly label: string;
 };
 
 /** The value each kind stores. */

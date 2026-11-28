@@ -127,7 +127,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
 
     expect(response.status).toBe(400);
     assertStringIncludes(html, "Please enter a name");
-    expect(html).toMatch(/name="name"[^>]*value=""/);
+    expect(inputNamed(html, "name")).not.toContain("value=");
   });
 
   test("refuses a status name past the catalog length", async () => {

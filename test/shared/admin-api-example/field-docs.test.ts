@@ -140,10 +140,10 @@ describe("documented request fields", () => {
     });
   });
 
-  test("a create shows no default for a field it stores as empty text", () => {
+  test("a create shows the zero amount a status stores when the body leaves it out", () => {
     const status = rowsOf("POST", "/api/admin/attendee-statuses");
 
-    expect(rowOf(status, "reservation_amount").defaultJson).toBeNull();
+    expect(rowOf(status, "reservation_amount").defaultJson).toBe('"0"');
     expect(rowOf(status, "is_reservation").defaultJson).toBe("false");
   });
 
