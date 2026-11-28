@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { DECLARED_FIELDS } from "#shared/admin-api-example/declared-fields.ts";
-import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
-import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
-import { REDIRECT_FIELDS } from "#shared/records/redirect-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 
 const ID_LIST = { form: "list_of", of: { form: "whole_number", min: 1 } };
@@ -20,11 +17,8 @@ describe("declared write fields", () => {
 
     expect(lists).toEqual([
       ["attendee-statuses", STATUS_FIELDS],
-      ["attributes", ATTRIBUTE_FIELDS],
       ["groups", GROUP_FIELDS],
-      ["holidays", HOLIDAY_FIELDS],
       ["listings", LISTING_FIELDS],
-      ["redirects", REDIRECT_FIELDS],
     ]);
   });
 
@@ -52,12 +46,7 @@ describe("declared write fields", () => {
     });
   });
 
-  test("a status, an attribute, a holiday, and a redirect take no key outside their list", () => {
-    expect([
-      DECLARED_FIELDS["attendee-statuses"]?.extras,
-      DECLARED_FIELDS.attributes?.extras,
-      DECLARED_FIELDS.holidays?.extras,
-      DECLARED_FIELDS.redirects?.extras,
-    ]).toEqual([{}, {}, {}, {}]);
+  test("a status takes no key outside its list", () => {
+    expect(DECLARED_FIELDS["attendee-statuses"]?.extras).toEqual({});
   });
 });

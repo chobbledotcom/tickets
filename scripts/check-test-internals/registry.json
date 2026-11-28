@@ -935,7 +935,7 @@
   "test/shared/admin-api-example.test.ts": 3,
   "test/shared/admin-api-example/attributes.test.ts": 1,
   "test/shared/admin-api-example/crud.test.ts": 3,
-  "test/shared/admin-api-example/declared-fields.test.ts": 6,
+  "test/shared/admin-api-example/declared-fields.test.ts": 4,
   "test/shared/admin-api-example/endpoint-doc.test.ts": 2,
   "test/shared/admin-api-example/endpoint-doc/record-docs.test.ts": 1,
   "test/shared/admin-api-example/endpoints.test.ts": 3,
