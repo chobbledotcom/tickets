@@ -4,7 +4,7 @@ import {
   checkItemNames,
   failureCollector,
 } from "#routes/admin/catalog-transfer/bundle-names.ts";
-import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
+import type { CatalogBundle } from "#shared/catalog-transfer/schema.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 

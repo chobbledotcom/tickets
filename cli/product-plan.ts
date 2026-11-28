@@ -1,4 +1,14 @@
+import * as v from "valibot";
 import { CliError } from "#cli/errors.ts";
+import {
+  type ListingApiBody,
+  listingApiBody,
+} from "#shared/catalog-transfer/listing-api-body.ts";
+import {
+  formatTransferIssues,
+  type ListingData,
+  ListingDataSchema,
+} from "#shared/catalog-transfer/schema.ts";
 import { frontmatterBlock } from "#shared/frontmatter.ts";
 import { matchKey } from "#shared/keys.ts";
 import type { CatalogProduct } from "./product-catalog/parse.ts";
@@ -133,16 +143,11 @@ export const composeDescription = (product: CatalogProduct): string => {
   return parts.join("\n\n");
 };
 
-/** The listing the admin JSON API accepts for one product. Prices are minor
- * units; the day-count prices carry the rental-period options. `optionIds`
- * and `groupIds` are the resolved ids of the product's attribute selection and
- * category memberships. Null option ids mean that the site has attributes
- * turned off, so the body leaves the selection out. */
-export const listingBody = (
-  product: CatalogProduct,
-  optionIds: readonly number[] | null,
-  groupIds: readonly number[],
-) => {
+/** The catalog transfer data for one product. Prices are minor units; the
+ *  day-count prices carry the rental period options. The listing's own cap is
+ *  the strictest option's: one selector governs every day count, so the
+ *  loosest option's limit must not override a tighter one. */
+export const listingData = (product: CatalogProduct): ListingData => {
   const maxDays = Math.max(...product.options.map((option) => option.days));
   const dayPrices = Object.fromEntries(
     product.options.map((option) => [
@@ -150,31 +155,52 @@ export const listingBody = (
       minorUnits(option.unit_price),
     ]),
   );
-  // The listing's own cap is the strictest option's: one selector governs
-  // every day count, so the loosest option's limit must not override a
-  // tighter one.
-  const maxQuantity = Math.min(
-    ...product.options.map((option) => option.max_quantity),
-  );
   // The site caps a daily listing's bookable quantity per date by
   // max_attendees, so the catalog's own quantity limit is the capacity: a
   // fixed 1 would leave every multi-unit option unable to sell past one
   // unit on a date.
+  const maxQuantity = Math.min(
+    ...product.options.map((option) => option.max_quantity),
+  );
   return {
-    ...(optionIds === null ? {} : { attribute_option_ids: [...optionIds] }),
-    customisable_days: true,
-    day_prices: dayPrices,
+    customisableDays: true,
+    dayPrices,
     description: composeDescription(product),
-    duration_days: maxDays,
+    durationDays: maxDays,
     fields: "email,phone,address",
-    group_ids: [...groupIds],
     hidden: true,
-    listing_type: "daily" as const,
-    max_attendees: maxQuantity,
-    max_quantity: maxQuantity,
+    listingType: "daily",
+    maxAttendees: maxQuantity,
+    maxQuantity,
     name: product.title,
   };
 };
+
+/** The listing data, refused with the catalog schema's own message when the
+ *  admin importer would not accept it. `filename` names the product in the
+ *  refusal. */
+export const checkedListingData = (
+  filename: string,
+  data: ListingData,
+): ListingData => {
+  const result = v.safeParse(ListingDataSchema, data);
+  if (result.success) return result.output;
+  throw new Error(`${filename}: ${formatTransferIssues(result.issues)}`);
+};
+
+/** The admin JSON API body for one product. `optionIds` and `groupIds` are
+ *  the resolved ids of the product's attribute selection and category
+ *  memberships. Null option ids mean that the site has attributes turned off,
+ *  so the body leaves the selection out. */
+export const listingBody = (
+  product: CatalogProduct,
+  optionIds: readonly number[] | null,
+  groupIds: readonly number[],
+): ListingApiBody =>
+  listingApiBody(checkedListingData(product.filename, listingData(product)), {
+    attributeOptionIds: optionIds,
+    groupIds,
+  });
 
 /** Insert or replace the tickets ids in a product file's frontmatter, before
  *  the closing fence. A stored placeholder (`tickets_id:` with no value) is

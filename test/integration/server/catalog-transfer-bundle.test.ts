@@ -9,7 +9,7 @@ import { loadCatalogNameIndex, matchName } from "#db/name-registry.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
+import type { CatalogBundle } from "#shared/catalog-transfer/schema.ts";
 import { matchKey } from "#shared/keys.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

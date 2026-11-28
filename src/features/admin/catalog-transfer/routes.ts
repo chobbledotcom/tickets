@@ -24,12 +24,15 @@ import {
   errorRedirect,
   redirect,
 } from "#routes/response.ts";
+import type {
+  GroupTransfer,
+  ListingTransfer,
+} from "#shared/catalog-transfer/schema.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { slugify } from "#shared/slug.ts";
 import { adminCatalogImportPage } from "#templates/admin/catalog-transfer.tsx";
 import { CatalogExportError, exportGroup, exportListing } from "./export.ts";
 import { importCatalog } from "./import.ts";
-import type { GroupTransfer, ListingTransfer } from "./schema.ts";
 
 const IMPORT_PATH = "/admin/catalog/import";
 

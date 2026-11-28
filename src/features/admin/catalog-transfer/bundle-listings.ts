@@ -6,6 +6,7 @@
 import { getListingsByGroupIds } from "#db/groups.ts";
 import { unique } from "#fp";
 import { t } from "#i18n";
+import type { ListingBody } from "#shared/catalog-transfer/schema.ts";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
 import {
@@ -41,7 +42,6 @@ import {
   type ValidationContext,
 } from "./bundle-site.ts";
 import { listingDataToInput } from "./import-listing.ts";
-import type { ListingBody } from "./schema.ts";
 
 /** The plan for every listing item, with the listing validator the form and
  * the single import share. The group-sibling read is hoisted out of the loop,

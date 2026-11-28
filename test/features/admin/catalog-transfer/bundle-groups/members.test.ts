@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
+import type { CatalogBundle } from "#shared/catalog-transfer/schema.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireBundleImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

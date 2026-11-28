@@ -10,6 +10,7 @@
  */
 
 import { pick } from "@std/collections";
+import type { GroupBody } from "#shared/catalog-transfer/schema.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import {
@@ -21,7 +22,6 @@ import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { DayPricedListing, DayPrices, ListingWithCount } from "#types";
 import { siteIdsOfRefs } from "./bundle-refs.ts";
 import { memberDayPriceError } from "./import-listing.ts";
-import type { GroupBody } from "./schema.ts";
 
 /** What a successful bundle import created. */
 export type ImportedBundle = {

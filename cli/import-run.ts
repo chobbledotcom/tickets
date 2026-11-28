@@ -10,6 +10,8 @@ import {
   type AdminApiAttribute,
   type AdminApiGroup,
 } from "#shared/admin-api-resources.ts";
+import { listingApiBody } from "#shared/catalog-transfer/listing-api-body.ts";
+import type { ListingData } from "#shared/catalog-transfer/schema.ts";
 import { matchKey } from "#shared/keys.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { writeOut } from "./io.ts";
@@ -26,11 +28,12 @@ import {
   readProducts,
 } from "./product-catalog.ts";
 import {
+  checkedListingData,
   conflictLine,
   ensureNamespaceFree,
   type ImportFlags,
   type ImportPlan,
-  listingBody,
+  listingData,
   matchedIds,
   optionKey,
   planLine,
@@ -267,6 +270,7 @@ const importProduct = async (
   text: string,
   plan: ImportPlan,
   files: CatalogFiles,
+  listing: ListingData | null,
   optionIds: ReadonlyMap<string, number> | null,
   groupIdsBySlug: ReadonlyMap<string, number>,
   flags: ImportFlags,
@@ -300,15 +304,17 @@ const importProduct = async (
     );
     return;
   }
-  const body = listingBody(
-    product,
-    resolveOptionIds(product, optionIds),
-    [...new Set(product.categories)].map((slug) =>
-      requireValue(
-        groupIdsBySlug.get(slug),
-        `group '${slug}' has no id after the group sync`,
+  const body = listingApiBody(
+    requireValue(listing, `no listing data for ${product.filename}`),
+    {
+      attributeOptionIds: resolveOptionIds(product, optionIds),
+      groupIds: [...new Set(product.categories)].map((slug) =>
+        requireValue(
+          groupIdsBySlug.get(slug),
+          `group '${slug}' has no id after the group sync`,
+        ),
       ),
-    ),
+    },
   );
   const saved = await adminApiWrite(
     transport,
@@ -387,6 +393,15 @@ export const runImport = async (
     const plan = plans.get(product.filename)!;
     return plan.action === "create" || plan.action === "update";
   });
+  // Every listing the run will write is built and checked before the first
+  // write: a product the admin importer refuses must not leave attributes,
+  // options, or groups behind.
+  const listingByFilename = new Map<string, ListingData>(
+    active.map(({ product }) => [
+      product.filename,
+      checkedListingData(product.filename, listingData(product)),
+    ]),
+  );
   const report: Report = {
     conflicts: 0,
     created: { attributes: 0, groups: 0, listings: 0, options: 0 },
@@ -430,6 +445,7 @@ export const runImport = async (
       text,
       plans.get(product.filename)!,
       files,
+      listingByFilename.get(product.filename) ?? null,
       optionIds,
       groupIdsBySlug,
       flags,

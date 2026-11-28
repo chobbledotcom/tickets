@@ -5,6 +5,7 @@
  */
 
 import { packageMembersError } from "#db/groups.ts";
+import type { GroupBody } from "#shared/catalog-transfer/schema.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -24,7 +25,6 @@ import {
   type ValidationContext,
 } from "./bundle-site.ts";
 import { membersHomogeneous } from "./import-listing.ts";
-import type { GroupBody } from "./schema.ts";
 
 /** The member facts a bundle group's checks read: a stored row for a listing
  * the site already holds, the plan for one the document creates. */
