@@ -27,6 +27,7 @@ import {
   ImageRowSchema,
   UpdateImageBodySchema,
 } from "#shared/admin-api-images.ts";
+import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import { markdownSource } from "#shared/markdown-source.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
@@ -302,6 +303,9 @@ export type AdminApiResource = {
    *  replaces the standard delete handler. */
   custom?: Record<string, AdminApiCustomRoute>;
   createBodySchema?: v.GenericSchema;
+  /** The admin feature that owns the resource. While the feature is off, every
+   *  route of the resource answers its refusal, and the docs leave it out. */
+  feature?: AdminFeatureKey;
   /** The display name the server logs and confirms with ("Attribute"). The
    *  single-envelope key and the id param name derive from it lowercased. */
   label: string;
@@ -368,6 +372,7 @@ export const ADMIN_API_RESOURCES = {
       },
     },
     createBodySchema: attributeBodies.create,
+    feature: "attributes",
     ...attributeTableRow,
     updateBodySchema: attributeBodies.update,
   },
@@ -392,6 +397,7 @@ export const ADMIN_API_RESOURCES = {
       linkSearch: { method: "GET", subpath: "links" },
       links: { method: "GET", subpath: ":sourceId/links" },
     },
+    feature: "externalSources",
     ...resourceTableRow("Source", "external-sources", ExternalSourceRowSchema),
     updateBodySchema: UpdateExternalSourceBodySchema,
   },
@@ -444,6 +450,7 @@ export const ADMIN_API_RESOURCES = {
       // attendee-answers link, newest booking first.
       bookings: { method: "GET", subpath: ":questionId/bookings" },
     },
+    feature: "questions",
     ...resourceTableRow("Question", "questions", QuestionRowSchema),
     updateBodySchema: questionBodies.update,
   },
@@ -474,6 +481,7 @@ export const ADMIN_API_RESOURCES = {
       "terms-post": { method: "POST", subpath: "terms" },
       "terms-put": { method: "PUT", subpath: "terms" },
     },
+    feature: "site",
     ...resourceTableRow("Page", "site-pages", SitePageRowSchema),
     updateBodySchema: UpdateSitePageBodySchema,
   },

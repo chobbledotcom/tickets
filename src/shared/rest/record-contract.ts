@@ -286,8 +286,12 @@ export const recordSurfaceOf = (
  * read joins extra columns. `Shape.state` is the narrow pre-update state a
  * transactional hook needs.
  */
-export interface RecordSpec<Shape extends RecordShape>
-  extends AfterCommitConfig {
+export interface RecordSpec<
+  Shape extends RecordShape,
+  NameField extends
+    | (keyof FullRowOf<Shape> & string)
+    | undefined = keyof FullRowOf<Shape> & string,
+> extends AfterCommitConfig {
   /** The words the activity log uses for this record. */
   readonly activityName: string;
   /** A join write inside the row write's transaction. Runs before the order
@@ -326,7 +330,7 @@ export interface RecordSpec<Shape extends RecordShape>
    * update input carries the values the row now holds. */
   readonly logName: (input: InputOf<Shape>) => string;
   /** The display-name column, for the JSON delete confirmation. */
-  readonly nameField?: keyof FullRowOf<Shape> & string;
+  readonly nameField?: NameField;
   /** The message key of the name a delete confirmation page asks for. */
   readonly nameLabel?: string;
   /** The row's display name: the delete confirmation and the activity log. */
@@ -375,7 +379,10 @@ export interface AdminRecord<
   Answers extends RecordAnswers<FullRowOf<Shape>> = RecordAnswers<
     FullRowOf<Shape>
   >,
-> extends RecordSpec<Shape>,
+  NameField extends (keyof FullRowOf<Shape> & string) | undefined =
+    | (keyof FullRowOf<Shape> & string)
+    | undefined,
+> extends RecordSpec<Shape, NameField>,
     RecordSurface {
   readonly create: PlannedCommand<
     [input: InputOf<Shape>],
@@ -385,6 +392,9 @@ export interface AdminRecord<
   readonly getAll: GetAllCommand<ListRowOf<Shape>>;
   readonly load: LoadCommand<FullRowOf<Shape>>;
   readonly loadAfterWrite: LoadAfterWriteCommand<FullRowOf<Shape>>;
+  /** The display-name column. Undefined on a page-only record with no JSON
+   *  API, which the API record type then excludes. */
+  readonly nameField: NameField;
   readonly remove: DeleteCommand<Answers["remove"]>;
   readonly rule: RecordRule<InputOf<Shape>, RowOf<Shape>>;
   readonly update: PlannedCommand<

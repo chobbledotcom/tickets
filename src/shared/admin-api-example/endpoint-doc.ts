@@ -4,7 +4,6 @@
  */
 
 import type * as v from "valibot";
-import { resourceFeature } from "#shared/admin-api-resource-features.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiChild,
@@ -371,6 +370,6 @@ export type DocsView = {
 export const shownFor =
   (view: DocsView) =>
   (entry: AdminApiResource, docs: EndpointDoc[]): EndpointDoc[] => {
-    const feature = resourceFeature(entry.path);
+    const feature = entry.feature;
     return feature === undefined || view.features[feature] ? docs : [];
   };

@@ -40,6 +40,7 @@ import {
   type GetAllCommand,
   type InputOf,
   jsonAudienceFor,
+  type RecordAnswers,
   type RecordShape,
   type RecordSurface,
   type StateOf,
@@ -165,9 +166,14 @@ export const apiHandlerSet = (
 ): ApiHandlerSet => ({ create, delete: remove, get, list, update });
 
 /** The API lists full rows: a record whose page list reads a narrower summary
- * gives the API its full read. */
+ *  gives the API its full read. The record also names its display-name
+ *  column, which the JSON delete confirmation reads. */
 type ApiRecord<Shape extends RecordShape> = Omit<
-  AdminRecord<Shape>,
+  AdminRecord<
+    Shape,
+    RecordAnswers<FullRowOf<Shape>>,
+    keyof FullRowOf<Shape> & string
+  >,
   "getAll"
 > & {
   getAll: GetAllCommand<FullRowOf<Shape>>;
@@ -194,9 +200,6 @@ export const recordApi = <
   const readPolicy = jsonPolicy(jsonAudienceFor(record.list));
   const deletePolicy = jsonPolicy(deleteAudienceFor(record));
   const nameField = record.nameField;
-  if (nameField === undefined) {
-    throw new Error(`The ${singular} record names no display-name column`);
-  }
   const lookup = (id: number, session: AuthSession) =>
     record.load(id, { session });
   const stripKeys = config.stripKeys ?? [];

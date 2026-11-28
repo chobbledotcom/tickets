@@ -1,15 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { resourceFeature } from "#shared/admin-api-resource-features.ts";
-import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import {
+  ADMIN_API_RESOURCES,
+  type AdminApiResource,
+} from "#shared/admin-api-resources.ts";
 
 describe("resource features", () => {
-  test("each resource belongs to its feature, or to none", () => {
+  test("each resource carries its feature, or none", () => {
+    const entries: readonly AdminApiResource[] =
+      Object.values(ADMIN_API_RESOURCES);
     const features = Object.fromEntries(
-      Object.values(ADMIN_API_RESOURCES).map((entry) => [
-        entry.path,
-        resourceFeature(entry.path),
-      ]),
+      entries.map((entry) => [entry.path, entry.feature]),
     );
 
     expect(features).toEqual({
@@ -22,6 +23,7 @@ describe("resource features", () => {
       images: undefined,
       listings: undefined,
       questions: "questions",
+      redirects: undefined,
       "site-pages": "site",
     });
   });

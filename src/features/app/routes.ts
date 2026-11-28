@@ -68,6 +68,8 @@ const routeToPrefix = async ({
 }: AppRouteRequest): Promise<Response> => {
   const route = routeFor(getPrefix(path));
   if (!route) return notFoundResponse();
+  // A GET-only prefix answers no other method, before its gate or handler.
+  if (route.getOnly && method !== "GET") return notFoundResponse();
   const earlyResponse = route.beforeMessages(path, method);
   if (earlyResponse) return earlyResponse;
   return await withMessageGroups(

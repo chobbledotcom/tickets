@@ -308,9 +308,11 @@ describe("endpoint docs", () => {
 
   test("the docs of a resource stay while its feature is on, and go while it is off", () => {
     const docs = docsOf(TOUR);
-    const shownWith = (on: boolean, entry: { path: string }) =>
+    const shownWith = (on: boolean, entry: AdminApiResource) =>
       shownFor({ access: OPEN_ACCESS, features: everyFeature(on) })(
-        { ...TOUR, path: entry.path },
+        entry.feature === undefined
+          ? TOUR
+          : { ...TOUR, feature: entry.feature },
         docs,
       );
 

@@ -135,10 +135,9 @@ describeWithEnv(
         },
       );
 
-      // The pipeline fast-404s a body-bearing POST to this GET-only prefix
-      // before it routes, so HEAD is the method that still reaches the
-      // handler's own method check.
-      test("returns 404 for a HEAD request (the handler is GET-only)", async () => {
+      // The router answers 404 for a HEAD request because the prefix is
+      // GET-only, before the image handler runs.
+      test("returns 404 for a HEAD request (the prefix is GET-only)", async () => {
         const response = await handleRequest(
           mockRequest(`${PROXY_PATH}.jpg`, { method: "HEAD" }),
         );
