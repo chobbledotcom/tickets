@@ -203,10 +203,6 @@ const formOf = (shape: SchemaShape): ValueForm => {
   }
 };
 
-/** The value form of one body schema. */
-export const schemaForm = (schema: v.GenericSchema): ValueForm =>
-  formOf(schemaShape(schema));
-
 /** The field rows of one write body schema. */
 export const schemaRows = (schema: v.GenericSchema): FieldDocRow[] => {
   const shape = schemaShape(schema);
