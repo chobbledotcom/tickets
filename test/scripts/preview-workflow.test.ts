@@ -77,6 +77,7 @@ const SCRIPT_STEPS: [
   ["deploy", "Create or complete the preview", readCopiedSecrets, BUNNY_KEYS],
   ["deploy", "Set up the preview", readSitePlan, []],
   ["cleanup", "Delete the preview", readStripeKey, BUNNY_KEYS],
+  ["reset", "Delete the preview", readStripeKey, BUNNY_KEYS],
 ];
 
 /** The variable names that a reader asks for. */
@@ -134,7 +135,7 @@ describe("preview workflow", () => {
     const text = await readWorkflow();
 
     expect(text).toMatch(
-      /concurrency:\n {2}group: preview-\$\{\{ github\.event\.pull_request\.head\.ref \}\}\n {2}cancel-in-progress: false\n/,
+      /concurrency:\n {2}group: preview-\$\{\{ github\.event\.pull_request\.head\.ref \|\| inputs\.branch \}\}\n {2}cancel-in-progress: false\n/,
     );
   });
 
@@ -192,10 +193,37 @@ describe("preview workflow", () => {
     ]);
   });
 
+  test("lets a person delete the preview of a named branch by hand", async () => {
+    const text = await readWorkflow();
+    const reset = jobText(text, "reset");
+
+    expectIncludesAll(text, [
+      "workflow_dispatch:",
+      "        required: true\n        type: string\n",
+    ]);
+    expectIncludesAll(reset, [
+      `if: ${githubValue("github.event_name == 'workflow_dispatch'")}`,
+      'scripts/preview.ts remove "$BRANCH"',
+    ]);
+    expect(reset).not.toContain("pull_request");
+  });
+
+  test("keeps a hand start out of the jobs of a pull request", async () => {
+    const text = await readWorkflow();
+
+    expect(jobText(text, "check")).toContain(
+      "github.event.pull_request.head.repo",
+    );
+    for (const job of ["deploy", "cleanup"]) {
+      expect(jobText(text, job)).toContain("needs: check");
+    }
+  });
+
   test("names the preview environment in each job that reads a secret", async () => {
     const text = await readWorkflow();
 
     expect(jobText(text, "cleanup")).toMatch(/^ {4}environment: preview$/m);
+    expect(jobText(text, "reset")).toMatch(/^ {4}environment: preview$/m);
     expect(jobText(text, "check")).not.toContain("secrets.");
   });
 
@@ -235,6 +263,7 @@ describe("preview workflow", () => {
     expect(
       text.match(/BRANCH: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/g),
     ).toHaveLength(2);
+    expect(text.match(/BRANCH: \$\{\{ inputs\.branch \}\}/g)).toHaveLength(1);
     expect(text).not.toMatch(/scripts\/preview\.ts \w+ "?\$\{\{/);
   });
 
