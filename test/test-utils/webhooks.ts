@@ -28,10 +28,16 @@ export const checkoutSessionEvent = (opts: {
   /** Stripe's `created` (Unix seconds) — the checkout's actual creation time,
    *  for tests asserting a webhook processed late still books against it. */
   created?: number;
+  /** The delivery name. Stripe sends the async name when a delayed payment clears. */
+  type?:
+    | "checkout.session.completed"
+    | "checkout.session.async_payment_succeeded";
 }): {
   data: { object: Record<string, unknown> };
   id: string;
-  type: "checkout.session.completed";
+  type:
+    | "checkout.session.completed"
+    | "checkout.session.async_payment_succeeded";
 } => ({
   data: {
     object: {
@@ -54,7 +60,7 @@ export const checkoutSessionEvent = (opts: {
     },
   },
   id: opts.eventId,
-  type: "checkout.session.completed",
+  type: opts.type ?? "checkout.session.completed",
 });
 
 /**

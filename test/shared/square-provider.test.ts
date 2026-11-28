@@ -96,9 +96,9 @@ describe("square-provider", () => {
   const debug = setupSquareProviderSuite();
 
   test("declares its webhook contract", () => {
-    expect(squarePaymentProvider.checkoutCompletedEventType).toBe(
+    expect(squarePaymentProvider.checkoutCompletedEventTypes).toEqual([
       "payment.updated",
-    );
+    ]);
   });
 
   describe("retrieveSession", () => {

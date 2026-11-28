@@ -294,7 +294,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   }
 
   // Only handle checkout completed listings
-  if (listing.type !== provider.checkoutCompletedEventType) {
+  if (!provider.checkoutCompletedEventTypes.includes(listing.type)) {
     // Acknowledge other listings without processing
     return webhookAckResponse();
   }

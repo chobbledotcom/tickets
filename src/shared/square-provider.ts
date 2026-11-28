@@ -263,7 +263,7 @@ const createSquareCheckoutSession = makeCreateCheckoutSession(
 
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
-  checkoutCompletedEventType: "payment.updated",
+  checkoutCompletedEventTypes: ["payment.updated"],
 
   createCheckoutSession: createSquareCheckoutSession,
 

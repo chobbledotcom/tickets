@@ -18,5 +18,16 @@ export const SUBSCRIPTION_WEBHOOK_EVENTS = [
   "invoice.payment_failed",
 ] as const;
 
+/**
+ * The Stripe deliveries that report a checkout as completed. A delayed method,
+ * such as a bank debit, completes the checkout unpaid. Stripe then sends the
+ * async event when the money arrives. The site holds the first delivery as
+ * pending and books the order on the second.
+ */
+export const STRIPE_CHECKOUT_EVENTS = [
+  "checkout.session.completed",
+  "checkout.session.async_payment_succeeded",
+] as const;
+
 export type SubscriptionWebhookEvent =
   (typeof SUBSCRIPTION_WEBHOOK_EVENTS)[number];

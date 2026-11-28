@@ -7,7 +7,10 @@ import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { SetupWebhookEndpoint } from "#shared/payments.ts";
-import { SUBSCRIPTION_WEBHOOK_EVENTS } from "#shared/stripe/webhook-events.ts";
+import {
+  STRIPE_CHECKOUT_EVENTS,
+  SUBSCRIPTION_WEBHOOK_EVENTS,
+} from "#shared/stripe/webhook-events.ts";
 import type { StripeClient } from "./client.ts";
 import { STRIPE_API_VERSION } from "./request.ts";
 import { sanitizeStripeError, stripeClientRuntime } from "./runtime.ts";
@@ -58,10 +61,10 @@ const deleteWebhookEndpoints = async (
   for (const id of ids) await client.webhookEndpoints.del(id);
 };
 
-/** Every delivery the site acts on: the completed checkout that books a
+/** Every delivery the site acts on: the completed checkouts that book a
  * ticket, and each subscription report that records money and status. */
 const ENABLED_EVENTS = [
-  "checkout.session.completed",
+  ...STRIPE_CHECKOUT_EVENTS,
   ...SUBSCRIPTION_WEBHOOK_EVENTS,
 ] as const;
 

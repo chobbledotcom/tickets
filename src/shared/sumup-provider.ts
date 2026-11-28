@@ -69,7 +69,7 @@ const createSumupCheckoutSession = makeCreateCheckoutSession(
 
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
-  checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
+  checkoutCompletedEventTypes: ["CHECKOUT_STATUS_CHANGED"],
   createCheckoutSession: createSumupCheckoutSession,
 
   readCharge: readSumupCharge,

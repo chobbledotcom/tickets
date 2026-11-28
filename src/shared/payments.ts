@@ -298,8 +298,8 @@ export type SetupWebhookEndpoint = (
 
 /** Operations every configured payment provider supplies. */
 export interface PaymentProvider {
-  /** The webhook event type name that indicates a completed checkout */
-  readonly checkoutCompletedEventType: string;
+  /** The webhook event type names that report a checkout as completed */
+  readonly checkoutCompletedEventTypes: readonly string[];
 
   /** Create a checkout for one or more listings. */
   createCheckoutSession(
