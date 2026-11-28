@@ -65,9 +65,65 @@ import {
   handleAppleWalletPost,
   handleGoogleWalletPost,
 } from "#routes/admin/settings-wallets.ts";
+import type { RequestRoute } from "#shared/response-steps.ts";
+import {
+  SETTINGS_FORM_DEFINITIONS,
+  type SettingsFormName,
+} from "#shared/settings/forms.ts";
+
+/** The request handler that saves one settings form. The switch is exhaustive:
+ *  without a `default`, a new form fails to compile until it returns here. */
+const formHandler = (name: SettingsFormName): RequestRoute => {
+  switch (name) {
+    case "addressLookup":
+      return handleAddressLookupPost;
+    case "attendeeColumnOrder":
+      return handleAttendeeColumnOrderPost;
+    case "bookingFee":
+      return handleBookingFeePost;
+    case "businessEmail":
+      return handleBusinessEmailPost;
+    case "calendarFeeds":
+      return handleCalendarFeedsPost;
+    case "customCss":
+      return handleCustomCssPost;
+    case "dashboardType":
+      return handleDashboardTypePost;
+    case "embedHosts":
+      return handleEmbedHostsPost;
+    case "externalOrder":
+      return handleExternalOrderPost;
+    case "listingColumnOrder":
+      return handleListingColumnOrderPost;
+    case "listingMode":
+      return handleListingModePost;
+    case "showPublicApi":
+      return handleShowPublicApiPost;
+    case "siteFooter":
+      return handleSiteFooterPost;
+    case "tax":
+      return handleTaxPost;
+    case "terms":
+      return handleTermsPost;
+    case "theme":
+      return handleThemePost;
+  }
+};
+
+type SettingsFormAction = (typeof SETTINGS_FORM_DEFINITIONS)[number]["action"];
+type SettingsFormRoute = `POST ${SettingsFormAction}`;
+
+/** The simple form POST routes, generated from the form definition table. */
+const settingsFormRoutes = Object.fromEntries(
+  SETTINGS_FORM_DEFINITIONS.map((definition) => [
+    `POST ${definition.action}`,
+    formHandler(definition.name),
+  ]),
+) as { [Key in SettingsFormRoute]: RequestRoute };
 
 /** Settings routes */
 export const adminHandlers = defineAdminRoutes({
+  ...settingsFormRoutes,
   "GET /admin/features/:slug": handleFeatureGet,
   "GET /admin/listing-defaults": handleListingDefaultsGet,
   "GET /admin/settings": handleAdminSettingsGet,
@@ -75,37 +131,24 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/features/:slug": handleFeaturePost,
   "POST /admin/listing-defaults": handleListingDefaultsPost,
   "POST /admin/settings": handleAdminSettingsPost,
-  "POST /admin/settings/address-lookup": handleAddressLookupPost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
-  "POST /admin/settings/attendee-column-order": handleAttendeeColumnOrderPost,
-  "POST /admin/settings/booking-fee": handleBookingFeePost,
-  "POST /admin/settings/business-email": handleBusinessEmailPost,
-  "POST /admin/settings/calendar-feeds": handleCalendarFeedsPost,
-  "POST /admin/settings/custom-css": handleCustomCssPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
-  "POST /admin/settings/dashboard-type": handleDashboardTypePost,
   "POST /admin/settings/email": handleEmailPost,
   "POST /admin/settings/email-templates/admin":
     handleEmailTemplatePost("admin"),
   "POST /admin/settings/email-templates/confirmation":
     handleEmailTemplatePost("confirmation"),
   "POST /admin/settings/email/test": handleEmailTestPost,
-  "POST /admin/settings/embed-hosts": handleEmbedHostsPost,
-  "POST /admin/settings/external-order": handleExternalOrderPost,
   "POST /admin/settings/google-wallet": handleGoogleWalletPost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
-  "POST /admin/settings/listing-column-order": handleListingColumnOrderPost,
-  "POST /admin/settings/listing-mode": handleListingModePost,
   "POST /admin/settings/logistics-run-sheet": handleLogisticsRunSheetPost,
   "POST /admin/settings/payment-provider": handlePaymentProviderPost,
   "POST /admin/settings/payment-provider-recovery":
     handlePaymentProviderRecoveryPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
-  "POST /admin/settings/show-public-api": handleShowPublicApiPost,
-  "POST /admin/settings/site-footer": handleSiteFooterPost,
   "POST /admin/settings/sms-gateway": handleSmsGatewayPost,
   "POST /admin/settings/square": squareRoutes.save,
   "POST /admin/settings/square-webhook": handleAdminSquareWebhookPost,
@@ -115,7 +158,4 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/settings/sumup": sumupRoutes.save,
   "POST /admin/settings/sumup/test": sumupRoutes.test,
   "POST /admin/settings/superuser": handleSuperuserPost,
-  "POST /admin/settings/tax": handleTaxPost,
-  "POST /admin/settings/terms": handleTermsPost,
-  "POST /admin/settings/theme": handleThemePost,
 });

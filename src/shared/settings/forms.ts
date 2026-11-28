@@ -418,7 +418,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
 ] as const satisfies readonly SettingsFormConfig[];
 
 type SettingsFormDefinition = (typeof SETTINGS_FORM_DEFINITIONS)[number];
-type SettingsFormName = SettingsFormDefinition["name"];
+export type SettingsFormName = SettingsFormDefinition["name"];
 
 type SettingFormFor<Name extends SettingsFormName> = Extract<
   SettingsFormDefinition,
