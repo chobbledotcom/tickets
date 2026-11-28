@@ -24,8 +24,7 @@ import {
   type AdminResourcePages,
   confirmByName,
   defineRecordPages,
-  listWithAddButton,
-  pageLabels,
+  recordPageConfig,
 } from "#templates/admin/resource-pages.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
@@ -77,32 +76,41 @@ export const HolidayEditPanel = ({
     />,
   );
 
+/* jscpd:ignore-start -- static page config, not code */
+const holidayList = {
+  addLabelKey: "holidays.add_holiday",
+  emptyKey: "holidays.no_holidays",
+  guideAnchor: "holidays",
+  resource: "holidays",
+  route: "holidayNew",
+} as const;
+/* jscpd:ignore-end */
+
 export const getHolidayPages = (): AdminResourcePages<Holiday> =>
-  defineRecordPages(holidayRecord, {
-    delete: {
-      confirm: (holiday) => ({
-        args: {
-          end: holiday.endDate,
-          name: escapeHtml(holiday.name),
-          start: holiday.startDate,
-        },
-        key: "holidays.delete.confirm",
-      }),
-      danger: false,
-      ...confirmByName(
-        "holidays.delete.confirm_label",
-        "holidays.delete.confirm_prompt",
-      ),
-    },
-    labels: pageLabels("holidays"),
-    list: listWithAddButton({
-      add: { label: t("holidays.add_holiday"), route: "holidayNew" },
-      columns: holidayColumns(),
-      empty: t("holidays.no_holidays"),
-      guide: { anchor: "holidays", label: t("holidays.guide_link") },
-    }),
-    renderFields: () => <Raw html={getHolidayForm().render()} />,
-  });
+  defineRecordPages(
+    holidayRecord,
+    recordPageConfig(
+      "holidays",
+      holidayColumns(),
+      holidayList,
+      {
+        confirm: (holiday) => ({
+          args: {
+            end: holiday.endDate,
+            name: escapeHtml(holiday.name),
+            start: holiday.startDate,
+          },
+          key: "holidays.delete.confirm",
+        }),
+        danger: false,
+        ...confirmByName(
+          "holidays.delete.confirm_label",
+          "holidays.delete.confirm_prompt",
+        ),
+      },
+      () => <Raw html={getHolidayForm().render()} />,
+    ),
+  );
 
 /** Admin holidays list page. */
 export const adminHolidaysPage = (

@@ -14,12 +14,15 @@ import {
   parseDateStringOrThrow,
 } from "#shared/validation/date-string.ts";
 
+/** A display date at the start of its UTC day. */
+const utcDate = (dateStr: string): Date => new Date(`${dateStr}T00:00:00Z`);
+
 /**
  * Format a YYYY-MM-DD date for display.
  * Returns "Monday 15 March 2026"
  */
 export const formatDateLabel = (dateStr: string): string => {
-  const date = new Date(`${dateStr}T00:00:00Z`);
+  const date = utcDate(dateStr);
   return `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()} ${
     MONTH_NAMES[date.getUTCMonth()]
   } ${date.getUTCFullYear()}`;
@@ -42,6 +45,13 @@ export const shiftMonth = (month: string, delta: number): string => {
 export const formatMonthLabel = (month: string): string => {
   const d = new Date(`${month}-01T00:00:00Z`);
   return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+};
+
+/** Format a YYYY-MM-DD date as the short month and two-digit year a review
+ *  card shows, for example "Nov '24". */
+export const formatMonthYearShortLabel = (dateStr: string): string => {
+  const [month, year] = formatMonthLabel(dateStr.slice(0, 7)).split(" ");
+  return `${month!.slice(0, 3)} '${year!.slice(-2)}`;
 };
 
 /**

@@ -1,4 +1,4 @@
-/** Site page editor form fields (home, contact, order intro). */
+/** Site page editor form fields (home, contact, order intro, reviews). */
 
 import { t } from "#i18n";
 import { defineForm } from "#shared/forms/definition.ts";
@@ -19,6 +19,12 @@ const siteTextarea = <Name extends string>(field: Name, prefix: string) =>
     type: "textarea" as const,
   }) as const;
 
+/** One site editor page whose only field is one markdown text box. */
+const singleTextForm = <const Name extends string>(
+  field: Name,
+  prefix: string,
+) => defineForm({ fields: [siteTextarea(field, prefix)] as const });
+
 export const siteHomeForm = defineForm({
   fields: [
     {
@@ -34,10 +40,17 @@ export const siteHomeForm = defineForm({
   ] as const,
 });
 
-export const siteContactForm = defineForm({
-  fields: [siteTextarea("contactPageText", "site.contact.text")] as const,
-});
+export const siteContactForm = singleTextForm(
+  "contactPageText",
+  "site.contact.text",
+);
 
-export const siteOrderForm = defineForm({
-  fields: [siteTextarea("orderIntroText", "site.order.text")] as const,
-});
+export const siteOrderForm = singleTextForm(
+  "orderIntroText",
+  "site.order.text",
+);
+
+export const siteReviewsForm = singleTextForm(
+  "reviewsIntroText",
+  "site.reviews.text",
+);
