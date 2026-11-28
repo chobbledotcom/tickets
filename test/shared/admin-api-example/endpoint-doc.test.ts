@@ -198,7 +198,7 @@ describe("endpoint docs", () => {
   });
 
   test("a resource with a declared field list documents the list and its extra body keys", () => {
-    const [, , create, update] = docsOf({ ...TOUR, path: "holidays" });
+    const [, , create, update] = docsOf(ADMIN_API_RESOURCES.holidays);
     const [, , groupCreate, groupUpdate] = docsOf({ ...TOUR, path: "groups" });
 
     expect(fieldKeys(create)).toEqual(["end_date", "name", "start_date"]);
