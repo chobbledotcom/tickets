@@ -202,7 +202,7 @@
     "participle": 5,
     "wordy": 2,
     "long-sentence": 2,
-    "banned-modal": 2,
+    "banned-modal": 1,
     "semicolon": 1
   },
   "src/shared/add-on-reachability.ts": {

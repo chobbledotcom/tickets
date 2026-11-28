@@ -8,9 +8,8 @@
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { renderFilterBar } from "#shared/filter-bar.ts";
-import type { LedgerScopeOption } from "#shared/ledger-scope.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
-import type { ListingType } from "#types";
+import type { ListingType, NamedRecord } from "#types";
 
 /** Filter values: "all" plus the three listing categories. */
 export const LISTING_FILTERS = [
@@ -113,7 +112,7 @@ export const readChosenId = (
  * Shared by the listings index and its CSV export. */
 export const groupIdFromRequest = (
   request: Request,
-  groups: readonly LedgerScopeOption[],
+  groups: readonly NamedRecord[],
 ): number | null =>
   readChosenId(groups, new URL(request.url).searchParams.get("group"));
 
@@ -141,7 +140,7 @@ export const intersectListingIds = (
  */
 export const renderGroupFilter = (
   activeGroupId: number | null,
-  groups: readonly LedgerScopeOption[],
+  groups: readonly NamedRecord[],
   hrefFor: (groupId: number | null) => string,
 ): string =>
   groups.length === 0

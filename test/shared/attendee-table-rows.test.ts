@@ -7,14 +7,10 @@ import {
 } from "#shared/attendee-table-rows.ts";
 import { pairKey } from "#shared/keys.ts";
 import { testAttendee } from "#test-utils/factories.ts";
-import type {
-  AttendeeRowListing,
-  AttendeeTableRow,
-  DisplayAttendee,
-} from "#types";
+import type { AttendeeTableRow, DisplayAttendee, NamedRecord } from "#types";
 
 /** Listings in display order: Gala (3) before Workshop (7) before Zumba (9) */
-const DISPLAY_ORDER: AttendeeRowListing[] = [
+const DISPLAY_ORDER: NamedRecord[] = [
   { id: 3, name: "Gala" },
   { id: 7, name: "Workshop" },
   { id: 9, name: "Zumba" },
@@ -27,7 +23,7 @@ describe("attendeeLineRow", () => {
       extra: "ignored",
       id: 7,
       name: "Workshop",
-    } as AttendeeRowListing);
+    } as NamedRecord);
     expect(row.attendee).toBe(attendee);
     expect(row.listings).toEqual([{ id: 7, name: "Workshop" }]);
   });

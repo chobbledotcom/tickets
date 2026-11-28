@@ -4,12 +4,13 @@
  *  obvious to anyone watching the screen. Fades the old QR out (500ms), swaps
  *  in the new SVG + URL, then fades the new one in (500ms). */
 
+import type { Failure } from "#shared/result.ts";
+
 const REFRESH_INTERVAL_MS = 60_000;
 const FADE_MS = 500;
 
 type RefreshResponseOk = { ok: true; url: string; svg: string };
-type RefreshResponseErr = { ok: false; error: string };
-type RefreshResponse = RefreshResponseOk | RefreshResponseErr;
+type RefreshResponse = RefreshResponseOk | Failure;
 
 /** Build the refresh URL from the admin form's current values */
 const buildRefreshUrl = (endpoint: string, form: HTMLFormElement): string => {
