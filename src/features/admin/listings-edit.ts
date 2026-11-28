@@ -34,6 +34,8 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminLandingPath, entityReturnPath } from "#shared/admin-pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { guideVideoFor } from "#shared/guide-video.ts";
+import { currentGuideVideos } from "#shared/guide-videos.ts";
 import { type ChosenImage, imageChoicesOf } from "#shared/images/picker.ts";
 import { listingImagesEnabled } from "#shared/listing-image-field.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
@@ -117,11 +119,18 @@ const chosenTemplateOrPicker = (
  *  hand it to {@link adminListingNewPage}. */
 const renderNewListingPage = async (
   session: AdminSession,
-  opts: Parameters<typeof adminListingNewPage>[2],
+  opts: NonNullable<Parameters<typeof adminListingNewPage>[2]>,
   status?: number,
 ): Promise<Response> => {
   const allGroups = await groups.getAll();
-  return htmlResponse(adminListingNewPage(allGroups, session, opts), status);
+  const video = guideVideoFor(currentGuideVideos(), "create-a-listing");
+  return htmlResponse(
+    adminListingNewPage(allGroups, session, {
+      ...opts,
+      ...(video === null ? {} : { guideVideoUrl: video.video }),
+    }),
+    status,
+  );
 };
 
 const formToDimensionSource = (form: FormParams) => ({

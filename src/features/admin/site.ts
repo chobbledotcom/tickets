@@ -29,6 +29,7 @@ import {
   SITE_HOME_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
+import { maxTextareaValidator } from "#shared/forms/textarea-limit.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
@@ -50,14 +51,6 @@ type PageRenderer = (
   error?: string,
   success?: string,
 ) => string;
-
-/** A textarea length check: a message naming the field when it is too long. */
-const maxTextareaValidator =
-  (fieldLabel: string) =>
-  (value: string): string | null =>
-    value.length > MAX_TEXTAREA_LENGTH
-      ? `${fieldLabel} must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${value.length})`
-      : null;
 
 /** Site-editing GET route that renders a site editor page */
 const siteGetRoute = (render: PageRenderer): RequestRoute =>
@@ -105,41 +98,71 @@ const handleSiteHomePost = createAuthedFormRoute({
   },
 });
 
+const siteTextPage = (
+  page: string,
+  field: string,
+  label: string,
+  log: string,
+  save: (v: string) => Promise<void>,
+) => ({ field, label, log, page, save });
+
 /** The Site editor pages' own writes. Each page saves one Markdown text box,
- *  and the contact and order pages each switch their public form on and off.
- *  Both writes return to the page's editor. */
+ *  and the contact, order, and reviews pages each switch their public page on
+ *  and off. Both writes return to the page's editor. */
 const SITE_TEXT_PAGES = {
   contact: {
+    ...siteTextPage(
+      "/admin/site/contact",
+      "contactPageText",
+      "Contact page text",
+      "Contact page updated",
+      settings.update.contactPageText,
+    ),
     demo: SITE_CONTACT_DEMO_FIELDS,
-    field: "contactPageText",
-    label: "Contact page text",
-    log: "Contact page updated",
-    page: "/admin/site/contact",
-    save: settings.update.contactPageText,
   },
-  order: {
-    field: "orderIntroText",
-    label: "Order intro",
-    log: "Order page updated",
-    page: "/admin/site/order",
-    save: settings.update.orderIntroText,
-  },
+  order: siteTextPage(
+    "/admin/site/order",
+    "orderIntroText",
+    "Order intro",
+    "Order page updated",
+    settings.update.orderIntroText,
+  ),
+  reviews: siteTextPage(
+    "/admin/site/reviews",
+    "reviewsIntroText",
+    "Reviews intro",
+    "Reviews page updated",
+    settings.update.reviewsIntroText,
+  ),
 } as const;
 
-/** The Site editor pages' public-form switches. */
+const siteTogglePage = (
+  page: string,
+  field: string,
+  label: string,
+  save: (v: boolean) => Promise<void>,
+) => ({ field, label, page, save });
+
+/** The Site editor pages' public-page switches. */
 const SITE_TOGGLES = {
-  contact: {
-    field: "contactFormEnabled",
-    label: "Contact form",
-    page: "/admin/site/contact",
-    save: settings.update.contactFormEnabled,
-  },
-  order: {
-    field: "orderEnabled",
-    label: "Order page",
-    page: "/admin/site/order",
-    save: settings.update.orderEnabled,
-  },
+  contact: siteTogglePage(
+    "/admin/site/contact",
+    "contactFormEnabled",
+    "Contact form",
+    settings.update.contactFormEnabled,
+  ),
+  order: siteTogglePage(
+    "/admin/site/order",
+    "orderEnabled",
+    "Order page",
+    settings.update.orderEnabled,
+  ),
+  reviews: siteTogglePage(
+    "/admin/site/reviews",
+    "reviewsEnabled",
+    "Reviews page",
+    settings.update.reviewsEnabled,
+  ),
 } as const;
 
 /** One Site editor page's Markdown text write. */
@@ -154,7 +177,7 @@ const siteTextHandler = (name: keyof typeof SITE_TEXT_PAGES): RequestRoute => {
     log: () => config.log,
     redirectTo: config.page,
     save: config.save,
-    validate: maxTextareaValidator(config.label),
+    validate: maxTextareaValidator(MAX_TEXTAREA_LENGTH, config.label),
   });
 };
 
@@ -196,6 +219,12 @@ const handleSiteOrderTogglePost = siteToggleHandler("order");
 /** Handle POST /admin/site/order - save the order page intro text */
 const handleSiteOrderPost = siteTextHandler("order");
 
+/** Handle POST /admin/site/reviews/toggle - enable/disable the public reviews page */
+const handleSiteReviewsTogglePost = siteToggleHandler("reviews");
+
+/** Handle POST /admin/site/reviews/intro - save the reviews page intro text */
+const handleSiteReviewsPost = siteTextHandler("reviews");
+
 /** Site editor routes */
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/site": siteGetRoute(renderHomePage),
@@ -206,4 +235,6 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/site/contact/form": handleSiteContactFormTogglePost,
   "POST /admin/site/order": handleSiteOrderPost,
   "POST /admin/site/order/toggle": handleSiteOrderTogglePost,
+  "POST /admin/site/reviews/intro": handleSiteReviewsPost,
+  "POST /admin/site/reviews/toggle": handleSiteReviewsTogglePost,
 });

@@ -44,7 +44,32 @@ describe("buildCspHeader", () => {
     expect(
       buildCspHeader(false, undefined, false, "https://assets.example.com"),
     ).toBe(
-      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; style-src 'self' https://assets.example.com; form-action 'self'",
+      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; frame-src https://assets.example.com; style-src 'self' https://assets.example.com; form-action 'self'",
+    );
+  });
+
+  test("allows a guide origin for the modal video, not for frames", () => {
+    expect(
+      buildCspHeader(
+        true,
+        undefined,
+        false,
+        "https://assets.example.com",
+        false,
+        ["https://guides.example.com"],
+      ),
+    ).toBe(
+      "default-src 'self'; img-src 'self' https://tile.openstreetmap.org https://guides.example.com; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; frame-src https://assets.example.com; media-src https://guides.example.com; style-src 'self' https://assets.example.com; form-action 'self'",
+    );
+  });
+
+  test("names the guide origin alone when the assets are self-hosted", () => {
+    expect(
+      buildCspHeader(true, undefined, false, null, false, [
+        "https://guides.example.com",
+      ]),
+    ).toBe(
+      "default-src 'self'; img-src 'self' https://tile.openstreetmap.org https://guides.example.com; base-uri 'self'; object-src 'none'; media-src https://guides.example.com; form-action 'self'",
     );
   });
 
@@ -64,7 +89,7 @@ describe("buildCspHeader", () => {
         true,
       ),
     ).toBe(
-      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; style-src 'self' https://assets.example.com https://fonts.bunny.net; font-src 'self' https://fonts.bunny.net; form-action 'self'",
+      "frame-ancestors 'none'; default-src 'self'; img-src 'self' https://tile.openstreetmap.org; base-uri 'self'; object-src 'none'; script-src 'self' https://assets.example.com; frame-src https://assets.example.com; style-src 'self' https://assets.example.com https://fonts.bunny.net; font-src 'self' https://fonts.bunny.net; form-action 'self'",
     );
   });
 

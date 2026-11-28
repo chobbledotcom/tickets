@@ -7,7 +7,7 @@ import { Faq, type GuideSection } from "#templates/admin/guide/components.tsx";
 import { guideSections } from "#templates/admin/guide.tsx";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
 
-const en = await allEnglishMessages(GUIDE_MESSAGE_GROUPS);
+const en = await allEnglishMessages([...GUIDE_MESSAGE_GROUPS, "reviews"]);
 
 /**
  * The admin guide is authored as data (a flat list of sections, each with a

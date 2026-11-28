@@ -89,7 +89,7 @@ export const createDomInstaller = (
       stash.set("document", window.document);
       stash.set("window", window);
       for (const key of extraGlobals) {
-        const value = (window as unknown as Record<string, unknown>)[key];
+        const value: unknown = Reflect.get(window, key);
         // getComputedStyle is a plain method that needs its window as `this`;
         // classes (Event, MutationObserver, …) are installed as-is so their
         // prototypes stay reachable.

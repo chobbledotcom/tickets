@@ -22,7 +22,7 @@ export const recordGuideSession = async (
   storyboard: GuideStoryboard,
   outputDir: string,
 ): Promise<GuideTimeline> => {
-  const server = await startScreenshotAppServer();
+  const server = await startScreenshotAppServer({ storage: true });
   return withCleanup(
     () =>
       withGuideBrowserPage({

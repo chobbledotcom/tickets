@@ -1,0 +1,47 @@
+@use "mixins" as *;
+
+.guide-video-heading {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* The player's window is a quarter wider than the default, so a 16:9 frame has
+   more room. */
+@include wide-modal(".guide-video-player", 50rem);
+
+.guide-video-link {
+  align-items: center;
+  align-self: center;
+  color: inherit;
+  display: inline-flex;
+  line-height: 1;
+  opacity: 0.55;
+  text-decoration: none;
+}
+
+.guide-video-link:hover,
+.guide-video-link:focus-visible {
+  opacity: 1;
+}
+
+.guide-video-link .icon {
+  display: block;
+  height: 1.5625em;
+  width: 1.5625em;
+}
+
+.guide-video-player {
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 0;
+  display: block;
+  max-width: 100%;
+  width: min(80vw, 900px);
+}
+
+@media (max-width: 768px) {
+  .guide-video-player {
+    width: 100%;
+  }
+}

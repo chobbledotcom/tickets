@@ -200,17 +200,14 @@ describe("findDuplicateTypeShapes", () => {
       def("a.ts", "A", ["x: number", "y: number"]),
       def("b.ts", "B", ["y: number", "x: number"]),
     ];
-    expect(findDuplicateTypeShapes(defs, [])).toEqual([
-      "duplicate type shape { x: number; y: number } — defined as type A (a.ts), type B (b.ts); extract one shared type or add it to the allow-list",
+    expect(findDuplicateTypeShapes(defs)).toEqual([
+      "duplicate type shape { x: number; y: number } — defined as type A (a.ts), type B (b.ts); extract one shared type",
     ]);
   });
 
   test("does not flag a single type", () => {
     expect(
-      findDuplicateTypeShapes(
-        [def("a.ts", "A", ["x: number", "y: number"])],
-        [],
-      ),
+      findDuplicateTypeShapes([def("a.ts", "A", ["x: number", "y: number"])]),
     ).toEqual([]);
   });
 
@@ -219,15 +216,7 @@ describe("findDuplicateTypeShapes", () => {
       def("a.ts", "A", ["id: number"]),
       def("b.ts", "B", ["id: number"]),
     ];
-    expect(findDuplicateTypeShapes(defs, [])).toEqual([]);
-  });
-
-  test("respects the allow-list of accepted signatures", () => {
-    const defs = [
-      def("a.ts", "A", ["x: number", "y: number"]),
-      def("b.ts", "B", ["x: number", "y: number"]),
-    ];
-    expect(findDuplicateTypeShapes(defs, ["x: number; y: number"])).toEqual([]);
+    expect(findDuplicateTypeShapes(defs)).toEqual([]);
   });
 
   test("collapses re-encounters of the same qualified type", () => {
@@ -236,7 +225,7 @@ describe("findDuplicateTypeShapes", () => {
       def("a.ts", "A", ["x: number", "y: number"]),
       def("a.ts", "A", ["x: number", "y: number"]),
     ];
-    expect(findDuplicateTypeShapes(defs, [])).toEqual([]);
+    expect(findDuplicateTypeShapes(defs)).toEqual([]);
   });
 
   test("reports the interface kind in the message", () => {
@@ -245,7 +234,7 @@ describe("findDuplicateTypeShapes", () => {
       def("b.ts", "B", ["x: number", "y: number"]),
     ];
     assertStringIncludes(
-      findDuplicateTypeShapes(defs, [])[0] ?? "",
+      findDuplicateTypeShapes(defs)[0] ?? "",
       "interface A (a.ts)",
     );
   });

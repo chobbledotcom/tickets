@@ -36,7 +36,7 @@ import { linkCell } from "#templates/components/link-cell.tsx";
 import { reorderableListPage } from "#templates/components/reorder-list.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
-import type { AdminSession } from "#types";
+import type { AdminSession, NamedRecord } from "#types";
 import {
   type ListingPanelProps,
   listingChoicePanel,
@@ -130,9 +130,6 @@ export const adminQuestionsPage = (
     title: t("questions.title"),
   });
 
-/** A linkable "answer"-trigger modifier for the answer edit page selector. */
-export type AnswerModifierOption = { id: number; name: string };
-
 /** Path to an answer's running-total recalculation page. */
 const answerRecalculatePath = (questionId: number, answerId: number): string =>
   answerPath("answerRecalculate", questionId, answerId);
@@ -195,7 +192,7 @@ export const adminAnswerEditPage = (
   session: AdminSession,
   error: string | undefined,
   aggregateRecalculation: AnswerAggregateRecalculation,
-  modifiers: AnswerModifierOption[],
+  modifiers: NamedRecord[],
   modifierId: number | null,
 ): string =>
   childEditPage({

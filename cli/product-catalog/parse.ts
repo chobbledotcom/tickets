@@ -7,6 +7,7 @@
 
 import { parse } from "jsr:@std/yaml@1";
 import { errorMessage } from "#shared/error-message.ts";
+import { frontmatterBlock } from "#shared/frontmatter.ts";
 import { MAX_DURATION_DAYS } from "#types";
 
 /** One rental-period option as the site stores it. */
@@ -66,13 +67,6 @@ const asStringList = (
       return item.trim();
     })
     .filter((item) => item !== "");
-};
-
-/** The frontmatter block of a markdown file, or null when the file opens with
- *  no closing fence. Windows line endings read like Unix ones. */
-export const frontmatterBlock = (text: string): string | null => {
-  const normalized = text.replaceAll("\r\n", "\n");
-  return /^---\n([\s\S]*?)\n---/.exec(normalized)?.[1] ?? null;
 };
 
 /** One option number, read strictly: a missing field falls back only where a

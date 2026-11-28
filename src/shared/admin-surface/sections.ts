@@ -144,12 +144,15 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
   section(
     "site",
     "nav.site",
-    navLinks([
-      ["siteContact", "site.sub_nav.contact"],
-      ["siteOrder", "site.sub_nav.order"],
-      ["sitePages", "nav.site.pages"],
-      ["news", "nav.site.news"],
-    ]),
+    [
+      ...navLinks([
+        ["siteContact", "site.sub_nav.contact"],
+        ["siteOrder", "site.sub_nav.order"],
+        ["sitePages", "nav.site.pages"],
+        ["news", "nav.site.news"],
+        ["siteReviews", "nav.site.reviews"],
+      ]),
+    ],
     {
       landingLabelKey: "site.sub_nav.homepage",
       visible: featureVisible("site"),

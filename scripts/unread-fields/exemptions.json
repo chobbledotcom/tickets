@@ -73,13 +73,6 @@
       "evidence": "fieldViews reads the create or update view by key when it assembles a body"
     }
   ],
-  "src/shared/db/api-keys.ts": [
-    {
-      "path": [{ "name": "ApiKeyName" }],
-      "kind": "schema-driven",
-      "evidence": "the record spreads the row into its display shape and the delete answers it"
-    }
-  ],
   "src/shared/db/attendee-types.ts": [
     {
       "path": [{ "name": "ListingAttendeeRow" }],
@@ -272,19 +265,6 @@
       "path": [{ "name": "AdminRecord" }],
       "kind": "schema-driven",
       "evidence": "recordPages and recordApi read the record through the page and JSON doors"
-    }
-  ],
-  "src/shared/settings/form-schema.ts": [
-    {
-      "path": [
-        { "name": "SelectFieldSpec" },
-        { "name": "options" },
-        { "way": "()" },
-        { "way": "result" },
-        { "way": "[]" }
-      ],
-      "kind": "schema-driven",
-      "evidence": "SelectField reads each built option through its structural type"
     }
   ],
   "src/shared/stripe/client.ts": [

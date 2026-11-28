@@ -817,18 +817,14 @@ export const typeShapeSignature = (members: string[]): string =>
 
 /**
  * Group `defs` by shape and report each shape shared by two or more distinctly
- * named types. Shapes with fewer than {@link MIN_TYPE_SHAPE_MEMBERS} members,
- * and any signature on `allowedSignatures`, are ignored.
+ * named types. Shapes with fewer than {@link MIN_TYPE_SHAPE_MEMBERS} members
+ * are ignored. No shape is exempt.
  */
-export const findDuplicateTypeShapes = (
-  defs: NamedTypeShape[],
-  allowedSignatures: string[],
-): string[] => {
+export const findDuplicateTypeShapes = (defs: NamedTypeShape[]): string[] => {
   const groups = new Map<string, NamedTypeShape[]>();
   for (const def of defs) {
     if (def.members.length < MIN_TYPE_SHAPE_MEMBERS) continue;
     const signature = typeShapeSignature(def.members);
-    if (allowedSignatures.includes(signature)) continue;
     const group = groups.get(signature) ?? [];
     group.push(def);
     groups.set(signature, group);
@@ -843,7 +839,7 @@ export const findDuplicateTypeShapes = (
       .map((d) => `${d.kind} ${d.name} (${d.file})`)
       .join(", ");
     violations.push(
-      `duplicate type shape { ${signature} } — defined as ${where}; extract one shared type or add it to the allow-list`,
+      `duplicate type shape { ${signature} } — defined as ${where}; extract one shared type`,
     );
   }
   return violations.sort();

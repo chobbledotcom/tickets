@@ -21,7 +21,7 @@ import { tables } from "#db/select/tables.ts";
 import { deleteFrom, update } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 import { getTouchOverride } from "#shared/test-overrides.ts";
-import type { ApiKey } from "#types";
+import type { ApiKey, NamedRecord } from "#types";
 
 /** The keys that `where` keeps. */
 const apiKeys = (where: Matching<Node<"api_keys">>) =>
@@ -87,16 +87,13 @@ export const getApiKeysForUser = (
       .pick("id", "name", "created", "lastUsed"),
   );
 
-/** The key's display facts: its id and its decrypted name. */
-export type ApiKeyName = { id: number; name: string };
-
 /**
  * Find one API key by ID and user, with its decrypted name, or null.
  */
 export const findApiKeyForUser = async (
   id: number,
   userId: number,
-): Promise<ApiKeyName | null> =>
+): Promise<NamedRecord | null> =>
   readOneRow(apiKeys({ id, userId: userId }).limit(1).pick("id", "name"));
 
 /**

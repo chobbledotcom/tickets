@@ -75,6 +75,39 @@ export const putBackOwnWrites = async (
   }
 };
 
+interface CheckedWriteOptions {
+  onWrite?(file: string): void;
+  verify?(): Promise<void>;
+}
+
+/** Check the inputs before writes and roll back this batch on failure. */
+export const writeCheckedFiles = async <Entry extends CopyBackFile>(
+  root: string,
+  files: readonly Entry[],
+  nextText: (entry: Entry) => string | Promise<string>,
+  { onWrite, verify }: CheckedWriteOptions = {},
+): Promise<void> => {
+  for (const entry of files) {
+    await assertUnchanged(root, entry);
+  }
+  await verify?.();
+  const written: WrittenFile[] = [];
+  try {
+    for (const entry of files) {
+      const after = await nextText(entry);
+      await assertUnchanged(root, entry);
+      if (after === entry.before) continue;
+      await writeWholeOrNotAtAll(join(root, entry.file), after);
+      written.push({ ...entry, after });
+      onWrite?.(entry.file);
+    }
+    await verify?.();
+  } catch (error) {
+    await putBackOwnWrites(root, written);
+    throw error;
+  }
+};
+
 /** Bring every kept file back, and report a failure as an exit code. */
 export const bringFilesBack = async (
   root: string,
@@ -82,29 +115,12 @@ export const bringFilesBack = async (
   files: CopyBackFile[],
 ): Promise<number> => {
   try {
-    // Check every file before writing any: one changed file stops the whole
-    // copy up front, so a multi-file result is never left partly applied.
-    for (const entry of files) {
-      await assertUnchanged(root, entry);
-    }
-    const written: WrittenFile[] = [];
-    try {
-      for (const entry of files) {
-        // Checked again at the moment of writing: an edit that lands between
-        // the preflight and this file's turn must still stop the overwrite.
-        await assertUnchanged(root, entry);
-        const after = await Deno.readTextFile(join(workRoot, entry.file));
-        if (after === entry.before) continue;
-        await writeWholeOrNotAtAll(join(root, entry.file), after);
-        written.push({ after, before: entry.before, file: entry.file });
-        console.log(`Updated ${entry.file}`);
-      }
-    } catch (error) {
-      // A failure part-way through must not leave a half-applied result: put
-      // back what was already written, then report the original failure.
-      await putBackOwnWrites(root, written);
-      throw error;
-    }
+    await writeCheckedFiles(
+      root,
+      files,
+      ({ file }) => Deno.readTextFile(join(workRoot, file)),
+      { onWrite: (file) => console.log(`Updated ${file}`) },
+    );
     return 0;
   } catch (error) {
     console.error(errorMessage(error));

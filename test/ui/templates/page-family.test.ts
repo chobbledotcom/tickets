@@ -94,6 +94,7 @@ const publicDocument = () => {
     hasContact: false,
     hasNews: false,
     hasOrder: false,
+    hasReviews: false,
     hasTerms: true,
     pages: buildNavModel(forest, new Map() as TargetMap, navKey("page", 1)),
   };

@@ -47,13 +47,12 @@ import { ORDERED_LISTS } from "#shared/ordered-lists.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
-  type AnswerModifierOption,
   adminAnswerDeletePage,
   adminAnswerEditPage,
   adminAnswerRecalculatePage,
 } from "#templates/admin/questions.tsx";
 import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
-import type { AdminSession } from "#types";
+import type { AdminSession, NamedRecord } from "#types";
 import { answerTextForm } from "./forms.ts";
 
 export type QuestionIdParams = { id: number };
@@ -212,7 +211,7 @@ const handleDeleteAnswerPost: ParamsRoute<AnswerRouteParams> =
 /** The "answer"-trigger modifiers an answer can be linked to, as the lightweight
  * {id, name} options the edit page's selector renders. Only "answer"-triggered
  * modifiers apply when a buyer picks an answer, so the others are filtered out. */
-const answerTriggerModifiers = async (): Promise<AnswerModifierOption[]> =>
+const answerTriggerModifiers = async (): Promise<NamedRecord[]> =>
   (await getAllModifiers())
     .filter((m) => m.trigger === "answer")
     .map((m) => ({ id: m.id, name: m.name }));

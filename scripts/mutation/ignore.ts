@@ -104,7 +104,7 @@ export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
 export const mutantKey = (file: string, mutant: Mutant): string =>
   mutantKeyForPath(rel(file), mutant);
 
-interface ParsedIgnoreLine {
+export interface ParsedIgnoreLine {
   anchor: string;
   key: string;
   newOperator: string;

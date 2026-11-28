@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -148,8 +148,7 @@ describe("interrupting a snapshot run", () => {
         const record = await waitForRunningRecord(root);
 
         const stopChild = getStopChild();
-        expect(stopChild).toBeDefined();
-        if (!stopChild) return;
+        assert(stopChild !== undefined, "The run has no stop child");
         stopChild();
         stopChild();
         // The forced stop takes the claim down — under the takers' guard,

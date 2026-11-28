@@ -66,12 +66,6 @@ export const idRouteFor =
 /** Route params for attendee-scoped routes */
 export type AttendeeRouteParams = { attendeeId: number };
 
-/** Route params for attendee + listing-scoped routes */
-export type AttendeeListingRouteParams = {
-  attendeeId: number;
-  listingId: number;
-};
-
 /**
  * Gated entity route factory: authenticate first, load from the typed route
  * params, return 404 when missing, then run the action. The action also receives
